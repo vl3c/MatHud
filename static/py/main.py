@@ -1,6 +1,9 @@
 import json
-from browser import document, html
-from math_lib import function_mapping
+from browser import window, document, html
+from math_lib import function_mapping, Canvas, Point
+
+# Instantiate the canvas
+canvas = Canvas()
 
 def send_message(event):
     # Get the user's message from the input field
@@ -20,14 +23,16 @@ def send_message(event):
         ai_reply_json = json.loads(get_reply_json(ai_reply))
 
         for action in ai_reply_json:
-            function_name = action.get('function')
-            if not function_name:
-                print("No function specified in action")
-            elif function_name not in function_mapping:
-                print(f"Function {function_name} not found")
+            class_name = action.get('class')
+            if not class_name:
+                print("No class specified in action")
+            elif class_name not in function_mapping:
+                print(f"Class {class_name} not found")
             else:
                 args = action.get('args', {})
-                function_mapping[function_name](**args)
+                drawable = function_mapping[class_name](**args)
+                canvas.add_drawable(drawable)
+        canvas.draw()
     except json.JSONDecodeError:
         print("Error parsing JSON in AI's reply")
     except Exception as e:
@@ -56,7 +61,6 @@ def get_reply_json(ai_reply):
 # Bind the send_message function to the send button's click event
 document["send-button"].bind("click", send_message)
 
-
 # Bind the send_message function to the Enter key in the chat-input field
 def check_enter(event):
     if event.keyCode == 13:  # 13 is the key code for Enter
@@ -64,3 +68,23 @@ def check_enter(event):
 
 document["chat-input"].bind("keypress", check_enter)
 
+# Bind the canvas's handle_wheel function to the mouse wheel event
+def handle_wheel(event):
+    svg_canvas = document['math-svg']
+    rect = svg_canvas.getBoundingClientRect()
+    
+    # Save the current zoom point and update it to the mouse position
+    canvas.last_known_zoom_point = canvas.zoom_point
+    canvas.zoom_point = Point(event.clientX - rect.left, event.clientY - rect.top)
+    
+    if event.deltaY < 0:
+        # Zoom in
+        canvas.scale_factor *= 1.1
+    else:
+        # Zoom out
+        canvas.scale_factor *= 0.9
+
+    # Redraw the canvas with the new scale factor
+    canvas.draw()
+
+document["math-svg"].bind("wheel", handle_wheel)
