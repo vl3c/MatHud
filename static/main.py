@@ -1,6 +1,8 @@
 import json
 from browser import window, document, html
-from math_lib import function_mapping, Canvas, Point
+from canvas import function_mapping, Canvas
+from point import Point
+
 
 # Instantiate the canvas
 canvas = Canvas()
@@ -74,17 +76,39 @@ def handle_wheel(event):
     rect = svg_canvas.getBoundingClientRect()
     
     # Save the current zoom point and update it to the mouse position
-    canvas.last_known_zoom_point = canvas.zoom_point
     canvas.zoom_point = Point(event.clientX - rect.left, event.clientY - rect.top)
     
     if event.deltaY < 0:
         # Zoom in
         canvas.scale_factor *= 1.1
+        canvas.zoom_direction = -1
     else:
         # Zoom out
         canvas.scale_factor *= 0.9
+        canvas.zoom_direction = 1
 
     # Redraw the canvas with the new scale factor
-    canvas.draw()
+    canvas.draw(True)
 
 document["math-svg"].bind("wheel", handle_wheel)
+
+
+"""
+[
+    {"class": "Point", "args": {"x": 500, "y": 500}}, 
+    {"class": "Point", "args": {"x": 130, "y": 130}}, 
+    {"class": "Point", "args": {"x": 130, "y": 500}},
+    {"class": "Point", "args": {"x": 500, "y": 130}},
+    {"class": "Segment", "args": {"point1": {"x": 70, "y": 20}, "point2": {"x": 100, "y": 200}}},
+    {"class": "Triangle", "args": {"point1": {"x": 100, "y": 100}, "point2": {"x": 100, "y": 200}, "point3": {"x": 300, "y": 300}}},
+    {"class": "Rectangle", "args": {"top_left": {"x": 150, "y": 250}, "bottom_right": {"x": 400, "y": 300}}},
+    {"class": "Rectangle", "args": {"top_left": {"x": 350, "y": 350}, "bottom_right": {"x": 650, "y": 650}}},
+    {"class": "Point", "args": {"x": 700, "y": 700}},
+    {"class": "Circle", "args": {"center": {"x": 550, "y": 550}, "radius": 150}},
+    {"class": "Ellipse", "args": {"center": {"x": 700, "y": 700}, "rx": 100, "ry": 75}},
+    {"class": "Vector", "args": {"origin": {"x": 100, "y": 100}, "tip": {"x": 200, "y": 200}}},
+    {"class": "Vector", "args": {"origin": {"x": 450, "y": 200}, "tip": {"x": 320, "y": 110}}},
+    {"class": "Label", "args": {"position": {"x": 50, "y": 50}, "text": "Hello World!"}},
+    {"class": "Label", "args": {"position": {"x": 350, "y": 350}, "text": "12345"}}
+]
+"""
