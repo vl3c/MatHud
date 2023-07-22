@@ -1,7 +1,7 @@
 import json
 from browser import window, document, html
 from canvas import function_mapping, Canvas
-from point import Point
+from point import Position
 
 
 # Instantiate the canvas
@@ -32,7 +32,7 @@ def send_message(event):
                 print(f"Class {class_name} not found")
             else:
                 args = action.get('args', {})
-                drawable = function_mapping[class_name](**args)
+                drawable = function_mapping[class_name](**args, canvas=canvas)
                 canvas.add_drawable(drawable)
         canvas.draw()
     except json.JSONDecodeError:
@@ -74,10 +74,8 @@ document["chat-input"].bind("keypress", check_enter)
 def handle_wheel(event):
     svg_canvas = document['math-svg']
     rect = svg_canvas.getBoundingClientRect()
-    
     # Save the current zoom point and update it to the mouse position
-    canvas.zoom_point = Point(event.clientX - rect.left, event.clientY - rect.top)
-    
+    canvas.zoom_point = Position(event.clientX - rect.left, event.clientY - rect.top)
     if event.deltaY < 0:
         # Zoom in
         canvas.scale_factor *= 1.1
@@ -86,11 +84,34 @@ def handle_wheel(event):
         # Zoom out
         canvas.scale_factor *= 0.9
         canvas.zoom_direction = 1
-
-    # Redraw the canvas with the new scale factor
     canvas.draw(True)
 
 document["math-svg"].bind("wheel", handle_wheel)
+
+# Bind the canvas's handle_mousedown function to the mouse down event
+def handle_mousedown(event):
+    canvas.dragging = True
+    canvas.last_mouse_position = Position(event.clientX, event.clientY)
+
+document["math-svg"].bind("mousedown", handle_mousedown)
+
+# Bind the canvas's handle_mouseup function to the mouse up event
+def handle_mouseup(event):
+    canvas.dragging = False
+
+document["math-svg"].bind("mouseup", handle_mouseup)
+
+# Bind the canvas's handle_mousemove function to the mouse move event
+def handle_mousemove(event):
+    if canvas.dragging:
+        dx = event.clientX - canvas.last_mouse_position.x
+        dy = event.clientY - canvas.last_mouse_position.y
+        canvas.offset.x += dx
+        canvas.offset.y += dy
+        canvas.last_mouse_position = Position(event.clientX, event.clientY)
+        canvas.draw(False)
+
+document["math-svg"].bind("mousemove", handle_mousemove)
 
 
 """
@@ -109,6 +130,7 @@ document["math-svg"].bind("wheel", handle_wheel)
     {"class": "Vector", "args": {"origin": {"x": 100, "y": 100}, "tip": {"x": 200, "y": 200}}},
     {"class": "Vector", "args": {"origin": {"x": 450, "y": 200}, "tip": {"x": 320, "y": 110}}},
     {"class": "Label", "args": {"position": {"x": 50, "y": 50}, "text": "Hello World!"}},
-    {"class": "Label", "args": {"position": {"x": 350, "y": 350}, "text": "12345"}}
+    {"class": "Label", "args": {"position": {"x": 350, "y": 350}, "text": "12345"}},
+    {"class": "Function", "args": {"function_string": "x**2", "start": -50, "end": 50}}
 ]
 """
