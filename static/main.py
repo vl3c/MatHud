@@ -32,8 +32,11 @@ def send_message(event):
                 print(f"Class {class_name} not found")
             else:
                 args = action.get('args', {})
-                drawable = function_mapping[class_name](**args, canvas=canvas)
-                canvas.add_drawable(drawable)
+                try:
+                    drawable = function_mapping[class_name](**args, canvas=canvas)
+                    canvas.add_drawable(drawable)
+                except Exception as e:
+                    print(f"Error while creating {class_name}: {e}")
         canvas.draw()
     except json.JSONDecodeError:
         print("Error parsing JSON in AI's reply")
