@@ -2,18 +2,7 @@ import os
 import openai
 
 MODEL = "gpt-3.5-turbo-0613"
-
-class OpenAIChatCompletionsAPI:
-    def __init__(self, model=MODEL, temperature=0.2, max_tokens=250):
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-        self.model = model
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.messages = []
-        self.functions = self._get_functions()
-    
-    def _get_functions(self):
-        functions = [
+FUNCTIONS = [
             {
                 "name": "create_point",
                 "description": "Creates and draws a point at the given coordinates",
@@ -27,6 +16,10 @@ class OpenAIChatCompletionsAPI:
                         "y": {
                             "type": "number",
                             "description": "The Y coordinate of the point",
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the point",
                         }
                     },
                     "required": ["x", "y"]
@@ -49,9 +42,73 @@ class OpenAIChatCompletionsAPI:
                     },
                     "required": ["x", "y"]
                 }
-            }
+            },
+            {
+                "name": "create_segment",
+                "description": "Creates and draws a segment at the given coordinates",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "x1": {
+                            "type": "number",
+                            "description": "The X coordinate of the first point",
+                        },
+                        "y1": {
+                            "type": "number",
+                            "description": "The Y coordinate of the first point",
+                        },
+                        "x2": {
+                            "type": "number",
+                            "description": "The X coordinate of the second point",
+                        },
+                        "y2": {
+                            "type": "number",
+                            "description": "The Y coordinate of the second point",
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the segment",
+                        }
+                    },
+                    "required": ["x1", "y1", "x2", "y2"]
+                }
+            },
+            {
+                "name": "delete_segment",
+                "description": "Deletes the segment found at the given coordinates",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "x1": {
+                            "type": "number",
+                            "description": "The X coordinate of the first point",
+                        },
+                        "y1": {
+                            "type": "number",
+                            "description": "The Y coordinate of the first point",
+                        },
+                        "x2": {
+                            "type": "number",
+                            "description": "The X coordinate of the second point",
+                        },
+                        "y2": {
+                            "type": "number",
+                            "description": "The Y coordinate of the second point",
+                        }
+                    },
+                    "required": ["x1", "y1", "x2", "y2"]
+                }
+            },
         ]
-        return functions
+
+class OpenAIChatCompletionsAPI:
+    def __init__(self, model=MODEL, temperature=0.2, max_tokens=250):
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.messages = []
+        self.functions = FUNCTIONS
 
     def create_chat_completion(self, prompt, function_call="auto"):
         self.messages.append({"role": "user", "content": prompt})

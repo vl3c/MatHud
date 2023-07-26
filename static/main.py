@@ -10,6 +10,8 @@ canvas = Canvas()
 available_functions = {
     "create_point": canvas.create_point,
     "delete_point": canvas.delete_point,
+    "create_segment": canvas.create_segment,
+    "delete_segment": canvas.delete_segment,
 }
 
 # Send message, receive response from the AI and call functions as needed
@@ -20,12 +22,12 @@ def interact_with_ai(event):
             # This function should call the functions specified in the AI's reply
             if ai_response.get("function_call"):
                 function_name = ai_response["function_call"]["name"]
+                if function_name not in available_functions:
+                    print(f"Function {function_name} not found")
+                    return
                 fuction_to_call = available_functions[function_name]
                 function_args = json.loads(ai_response["function_call"]["arguments"])
-                fuction_to_call(
-                    x=function_args.get("x"),
-                    y=function_args.get("y")
-                )
+                fuction_to_call(**function_args)
         
         def get_ai_message(ai_response):
             # This function should return the text part of the AI's reply
@@ -84,9 +86,7 @@ def interact_with_ai(event):
     document["chat-history"] <= html.P(f'User: {user_message}')
     # Get the canvas state with on-screen drawables original properties 
     canvas_state_object = canvas.get_drawables_state()
-    print("Python object of canvas state: ", canvas_state_object)
     canvas_state = json.dumps(canvas_state_object)
-    print("JSON string of canvas state: ", canvas_state)
     # Build the prompt for the AI
     prompt = build_prompt(canvas_state, user_message)
     print(prompt)
