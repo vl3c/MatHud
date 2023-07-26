@@ -1,77 +1,108 @@
 import json
-from browser import window, document, html
-from canvas import function_mapping, Canvas
+from browser import ajax, document, html
+from canvas import Canvas
 from point import Position
 
 
 # Instantiate the canvas
 canvas = Canvas()
 
-def send_message(event):
+available_functions = {
+    "create_point": canvas.create_point,
+    "delete_point": canvas.delete_point,
+}
+
+# Send message, receive response from the AI and call functions as needed
+def interact_with_ai(event):
+    
+    def parse_ai_response(response):
+        def call_functions(ai_response):
+            # This function should call the functions specified in the AI's reply
+            if ai_response.get("function_call"):
+                function_name = ai_response["function_call"]["name"]
+                fuction_to_call = available_functions[function_name]
+                function_args = json.loads(ai_response["function_call"]["arguments"])
+                fuction_to_call(
+                    x=function_args.get("x"),
+                    y=function_args.get("y")
+                )
+        
+        def get_ai_message(ai_response):
+            # This function should return the text part of the AI's reply
+            print(ai_response)
+            ai_response_text = "What else can I do for you?"
+            if ai_response.get("content"):
+                ai_response_text = ai_response["content"]
+            return ai_response_text
+        
+        try:
+            # Get the text part of the AI's reply
+            ai_response_text = get_ai_message(response)
+            # Add an empty AI response placeholder to the chat history
+            document["chat-history"] <= html.P(f'AI: {ai_response_text}')    
+            # Load the JSON from the AI's reply and call the appropriate functions
+            call_functions(response)
+        except Exception as e:
+            print(f"Error while processing AI's response: {e}")
+        finally:
+            # Clear the input field
+            document["chat-input"].value = ''
+            # Scroll the chat history to the bottom
+            document["chat-history"].scrollTop = document["chat-history"].scrollHeight
+        
+    def build_prompt(canvas_state, user_message):
+        prompt = "### Canvas State:\n"
+        prompt += canvas_state
+        prompt += "\n"
+        prompt += "### User message:\n"
+        prompt += user_message
+        return prompt
+
+    def on_complete(request):
+        if request.status == 200 or request.status == 0:
+            ai_response = request.json
+            # Parse the AI's response and create / delete drawables as needed
+            parse_ai_response(ai_response)
+        else:
+            on_error(request)
+    
+    def on_error(request):
+        print(f"Error: {request.status}, {request.text}")
+    
+    def send_request(prompt):
+        # Send the prompt to the AI
+        req = ajax.ajax()
+        req.bind('complete', on_complete)
+        req.bind('error', on_error)
+        req.open('POST', '/send_message', True)
+        req.set_header('content-type', 'application/x-www-form-urlencoded')
+        req.send({'message': prompt})
+    
     # Get the user's message from the input field
     user_message = document["chat-input"].value
     # Add the user's message to the chat history
     document["chat-history"] <= html.P(f'User: {user_message}')
-
-    # Emulate the AI's reply as a function call in JSON
-    try:
-        ai_reply = user_message
-        ai_reply_text = get_reply_text(ai_reply)
-
-        # Add an empty AI response placeholder to the chat history
-        document["chat-history"] <= html.P(f'AI: {ai_reply_text}')    
-
-        # Load the JSON from the AI's reply and call the appropriate function
-        ai_reply_json = json.loads(get_reply_json(ai_reply))
-
-        for action in ai_reply_json:
-            class_name = action.get('class')
-            if not class_name:
-                print("No class specified in action")
-            elif class_name not in function_mapping:
-                print(f"Class {class_name} not found")
-            else:
-                args = action.get('args', {})
-                try:
-                    drawable = function_mapping[class_name](**args, canvas=canvas)
-                    canvas.add_drawable(drawable)
-                except Exception as e:
-                    print(f"Error while creating {class_name}: {e}")
-        canvas.draw()
-    except json.JSONDecodeError:
-        print("Error parsing JSON in AI's reply")
-    except Exception as e:
-        print(f"Error while processing AI's reply: {e}")
-    finally:
-        # Clear the input field
-        document["chat-input"].value = ''
-
-def get_reply_text(ai_reply):
-    # This function should return the text part of the AI's reply
-    start = ai_reply.find('[')
-    if start == -1:
-        return ai_reply
-    else:
-        return ai_reply[:start].strip()
-
-def get_reply_json(ai_reply):
-    # This function should return the JSON part of the AI's reply
-    start = ai_reply.find('[')
-    end = ai_reply.rfind(']')
-    if start != -1 and end != -1:
-        return ai_reply[start:end+1]
-    else:
-        return None
+    # Get the canvas state with on-screen drawables original properties 
+    canvas_state_object = canvas.get_drawables_state()
+    print("Python object of canvas state: ", canvas_state_object)
+    canvas_state = json.dumps(canvas_state_object)
+    print("JSON string of canvas state: ", canvas_state)
+    # Build the prompt for the AI
+    prompt = build_prompt(canvas_state, user_message)
+    print(prompt)
+    send_request(prompt)
 
 # Bind the send_message function to the send button's click event
-document["send-button"].bind("click", send_message)
+document["send-button"].bind("click", interact_with_ai)
+
 
 # Bind the send_message function to the Enter key in the chat-input field
 def check_enter(event):
     if event.keyCode == 13:  # 13 is the key code for Enter
-        send_message(event)
+        interact_with_ai(event)
 
 document["chat-input"].bind("keypress", check_enter)
+
 
 # Bind the canvas's handle_wheel function to the mouse wheel event
 def handle_wheel(event):
@@ -91,6 +122,7 @@ def handle_wheel(event):
 
 document["math-svg"].bind("wheel", handle_wheel)
 
+
 # Bind the canvas's handle_mousedown function to the mouse down event
 def handle_mousedown(event):
     canvas.dragging = True
@@ -98,11 +130,13 @@ def handle_mousedown(event):
 
 document["math-svg"].bind("mousedown", handle_mousedown)
 
+
 # Bind the canvas's handle_mouseup function to the mouse up event
 def handle_mouseup(event):
     canvas.dragging = False
 
 document["math-svg"].bind("mouseup", handle_mouseup)
+
 
 # Bind the canvas's handle_mousemove function to the mouse move event
 def handle_mousemove(event):
