@@ -32,7 +32,7 @@ def interact_with_ai(event):
         def get_ai_message(ai_response):
             # This function should return the text part of the AI's reply
             print(ai_response)
-            ai_response_text = "What else can I do for you?"
+            ai_response_text = "..."
             if ai_response.get("content"):
                 ai_response_text = ai_response["content"]
             return ai_response_text
