@@ -155,6 +155,78 @@ FUNCTIONS = [
                     "required": ["origin_x", "origin_y", "tip_x", "tip_y"]
                 }
             },
+            {
+                "name": "create_triangle",
+                "description": "Creates and draws a triangle at the given coordinates",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "x1": {
+                            "type": "number",
+                            "description": "The X coordinate of the first point",
+                        },
+                        "y1": {
+                            "type": "number",
+                            "description": "The Y coordinate of the first point",
+                        },
+                        "x2": {
+                            "type": "number",
+                            "description": "The X coordinate of the second point",
+                        },
+                        "y2": {
+                            "type": "number",
+                            "description": "The Y coordinate of the second point",
+                        },
+                        "x3": {
+                            "type": "number",
+                            "description": "The X coordinate of the third point",
+                        },
+                        "y3": {
+                            "type": "number",
+                            "description": "The Y coordinate of the third point",
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the triangle",
+                        }
+                    },
+                    "required": ["x1", "y1", "x2", "y2", "x3", "y3"]
+                }
+            },
+            {
+                "name": "delete_triangle",
+                "description": "Deletes the triangle found at the given coordinates",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "x1": {
+                            "type": "number",
+                            "description": "The X coordinate of the first point",
+                        },
+                        "y1": {
+                            "type": "number",
+                            "description": "The Y coordinate of the first point",
+                        },
+                        "x2": {
+                            "type": "number",
+                            "description": "The X coordinate of the second point",
+                        },
+                        "y2": {
+                            "type": "number",
+                            "description": "The Y coordinate of the second point",
+                        },
+                        "x3": {
+                            "type": "number",
+                            "description": "The X coordinate of the third point",
+                        },
+                        "y3": {
+                            "type": "number",
+                            "description": "The Y coordinate of the third point",
+                        }
+                    },
+                    "required": ["x1", "y1", "x2", "y2", "x3", "y3"]
+                }
+            },
         ]
 
 class OpenAIChatCompletionsAPI:

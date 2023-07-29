@@ -1,4 +1,5 @@
 import json
+import traceback
 from browser import ajax, document, html
 from canvas import Canvas
 from point import Position
@@ -14,6 +15,8 @@ available_functions = {
     "delete_segment": canvas.delete_segment,
     "create_vector": canvas.create_vector,
     "delete_vector": canvas.delete_vector,
+    "create_triangle": canvas.create_triangle,
+    "delete_triangle": canvas.delete_triangle,
 }
 
 # Send message, receive response from the AI and call functions as needed
@@ -48,6 +51,7 @@ def interact_with_ai(event):
             call_functions(response)
         except Exception as e:
             print(f"Error while processing AI's response: {e}")
+            traceback.print_exc()
         finally:
             # Scroll the chat history to the bottom
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
