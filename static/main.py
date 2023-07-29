@@ -47,8 +47,6 @@ def interact_with_ai(event):
         except Exception as e:
             print(f"Error while processing AI's response: {e}")
         finally:
-            # Clear the input field
-            document["chat-input"].value = ''
             # Scroll the chat history to the bottom
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
         
@@ -84,6 +82,10 @@ def interact_with_ai(event):
     user_message = document["chat-input"].value
     # Add the user's message to the chat history
     document["chat-history"] <= html.P(f'User: {user_message}')
+    # Clear the input field
+    document["chat-input"].value = ''
+    # Scroll the chat history to the bottom
+    document["chat-history"].scrollTop = document["chat-history"].scrollHeight
     # Get the canvas state with on-screen drawables original properties 
     canvas_state_object = canvas.get_drawables_state()
     canvas_state = json.dumps(canvas_state_object)
