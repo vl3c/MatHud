@@ -1,0 +1,2 @@
+- implement auto adjustment of context length to stay within API bounds
+- implement drawables as dictionary with class lists (?)
