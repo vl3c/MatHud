@@ -12,6 +12,8 @@ available_functions = {
     "delete_point": canvas.delete_point,
     "create_segment": canvas.create_segment,
     "delete_segment": canvas.delete_segment,
+    "create_vector": canvas.create_vector,
+    "delete_vector": canvas.delete_vector,
 }
 
 # Send message, receive response from the AI and call functions as needed

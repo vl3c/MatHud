@@ -99,6 +99,62 @@ FUNCTIONS = [
                     "required": ["x1", "y1", "x2", "y2"]
                 }
             },
+            {
+                "name": "create_vector",
+                "description": "Creates and draws a vector at the given coordinates",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "origin_x": {
+                            "type": "number",
+                            "description": "The X coordinate of the origin point",
+                        },
+                        "origin_y": {
+                            "type": "number",
+                            "description": "The Y coordinate of the origin point",
+                        },
+                        "tip_x": {
+                            "type": "number",
+                            "description": "The X coordinate of the tip point",
+                        },
+                        "tip_y": {
+                            "type": "number",
+                            "description": "The Y coordinate of the tip point",
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the vector",
+                        }
+                    },
+                    "required": ["origin_x", "origin_y", "tip_x", "tip_y"]
+                }
+            },
+            {
+                "name": "delete_vector",
+                "description": "Deletes the vector found at the given coordinates",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "origin_x": {
+                            "type": "number",
+                            "description": "The X coordinate of the origin point",
+                        },
+                        "origin_y": {
+                            "type": "number",
+                            "description": "The Y coordinate of the origin point",
+                        },
+                        "tip_x": {
+                            "type": "number",
+                            "description": "The X coordinate of the tip point",
+                        },
+                        "tip_y": {
+                            "type": "number",
+                            "description": "The Y coordinate of the tip point",
+                        }
+                    },
+                    "required": ["origin_x", "origin_y", "tip_x", "tip_y"]
+                }
+            },
         ]
 
 class OpenAIChatCompletionsAPI:
