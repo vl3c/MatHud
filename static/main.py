@@ -56,12 +56,8 @@ def interact_with_ai(event):
             # Scroll the chat history to the bottom
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
         
-    def build_prompt(canvas_state, user_message):
-        prompt = "### Canvas State:\n"
-        prompt += canvas_state
-        prompt += "\n"
-        prompt += "### User message:\n"
-        prompt += user_message
+    def build_prompt(canvas_state_json, user_message):
+        prompt = json.dumps({"canvas_state": canvas_state_json, "user_message": user_message})
         return prompt
 
     def on_complete(request):
@@ -93,10 +89,9 @@ def interact_with_ai(event):
     # Scroll the chat history to the bottom
     document["chat-history"].scrollTop = document["chat-history"].scrollHeight
     # Get the canvas state with on-screen drawables original properties 
-    canvas_state_object = canvas.get_drawables_state()
-    canvas_state = json.dumps(canvas_state_object)
+    canvas_state_json = canvas.get_drawables_state()
     # Build the prompt for the AI
-    prompt = build_prompt(canvas_state, user_message)
+    prompt = build_prompt(canvas_state_json, user_message)
     print(prompt)
     send_request(prompt)
 
