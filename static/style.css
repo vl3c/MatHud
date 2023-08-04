@@ -8,6 +8,7 @@
     width: 45%;
     height: 800px;
     font-size: 16px;
+    font-family: Arial, sans-serif;
 }
 .chat-container {
     box-sizing: border-box;
@@ -15,6 +16,7 @@
     width: 45%;
     height: 800px;
     font-size: 16px;
+    font-family: Arial, sans-serif;
 }
 .chat-history {
     height: 80%;
