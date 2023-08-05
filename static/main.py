@@ -17,6 +17,8 @@ available_functions = {
     "delete_vector": canvas.delete_vector,
     "create_triangle": canvas.create_triangle,
     "delete_triangle": canvas.delete_triangle,
+    "create_rectangle": canvas.create_rectangle,
+    "delete_rectangle": canvas.delete_rectangle,
 }
 
 # Send message, receive response from the AI and call functions as needed
@@ -152,25 +154,3 @@ def handle_mousemove(event):
         canvas.draw(False)
 
 document["math-svg"].bind("mousemove", handle_mousemove)
-
-
-"""
-[
-    {"class": "Point", "args": {"x": 500, "y": 500}}, 
-    {"class": "Point", "args": {"x": 130, "y": 130}}, 
-    {"class": "Point", "args": {"x": 130, "y": 500}},
-    {"class": "Point", "args": {"x": 500, "y": 130}},
-    {"class": "Segment", "args": {"point1": {"x": 70, "y": 20}, "point2": {"x": 100, "y": 200}}},
-    {"class": "Triangle", "args": {"point1": {"x": 100, "y": 100}, "point2": {"x": 100, "y": 200}, "point3": {"x": 300, "y": 300}}},
-    {"class": "Rectangle", "args": {"top_left": {"x": 150, "y": 250}, "bottom_right": {"x": 400, "y": 300}}},
-    {"class": "Rectangle", "args": {"top_left": {"x": 350, "y": 350}, "bottom_right": {"x": 650, "y": 650}}},
-    {"class": "Point", "args": {"x": 700, "y": 700}},
-    {"class": "Circle", "args": {"center": {"x": 550, "y": 550}, "radius": 150}},
-    {"class": "Ellipse", "args": {"center": {"x": 700, "y": 700}, "rx": 100, "ry": 75}},
-    {"class": "Vector", "args": {"origin": {"x": 100, "y": 100}, "tip": {"x": 200, "y": 200}}},
-    {"class": "Vector", "args": {"origin": {"x": 450, "y": 200}, "tip": {"x": 320, "y": 110}}},
-    {"class": "Label", "args": {"position": {"x": 50, "y": 50}, "text": "Hello World!"}},
-    {"class": "Label", "args": {"position": {"x": 350, "y": 350}, "text": "12345"}},
-    {"class": "Function", "args": {"function_string": "x**2", "start": -50, "end": 50}}
-]
-"""

@@ -46,7 +46,7 @@ FUNCTIONS = [
             },
             {
                 "name": "create_segment",
-                "description": "Creates and draws a segment at the given coordinates",
+                "description": "Creates and draws a segment at the given coordinates for two points",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -76,7 +76,7 @@ FUNCTIONS = [
             },
             {
                 "name": "delete_segment",
-                "description": "Deletes the segment found at the given coordinates",
+                "description": "Deletes the segment found at the given coordinates for two points",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -102,7 +102,7 @@ FUNCTIONS = [
             },
             {
                 "name": "create_vector",
-                "description": "Creates and draws a vector at the given coordinates",
+                "description": "Creates and draws a vector at the given coordinates for two points called origin and tip",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -132,7 +132,7 @@ FUNCTIONS = [
             },
             {
                 "name": "delete_vector",
-                "description": "Deletes the vector found at the given coordinates",
+                "description": "Deletes the vector found at the given coordinates for two points called origin and tip",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -158,7 +158,7 @@ FUNCTIONS = [
             },
             {
                 "name": "create_triangle",
-                "description": "Creates and draws a triangle at the given coordinates",
+                "description": "Creates and draws a triangle at the given coordinates for three points",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -196,7 +196,7 @@ FUNCTIONS = [
             },
             {
                 "name": "delete_triangle",
-                "description": "Deletes the triangle found at the given coordinates",
+                "description": "Deletes the triangle found at the given coordinates for three points",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -226,6 +226,50 @@ FUNCTIONS = [
                         }
                     },
                     "required": ["x1", "y1", "x2", "y2", "x3", "y3"]
+                }
+            },
+            {
+                "name": "create_rectangle",
+                "description": "Creates and draws a rectangle at the given coordinates for two diagonal points",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "p_x": {
+                            "type": "number",
+                            "description": "The X coordinate of the origin point",
+                        },
+                        "p_y": {
+                            "type": "number",
+                            "description": "The Y coordinate of the origin point",
+                        },
+                        "opposite_x": {
+                            "type": "number",
+                            "description": "The X coordinate of the tip point",
+                        },
+                        "opposite_y": {
+                            "type": "number",
+                            "description": "The Y coordinate of the tip point",
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the rectangle",
+                        }
+                    },
+                    "required": ["p_x", "p_y", "opposite_x", "opposite_y"]
+                }
+            },
+            {
+                "name": "delete_rectangle",
+                "description": "Deletes the rectangle with the given name",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the rectangle",
+                        }
+                    },
+                    "required": ["name"]
                 }
             },
         ]
