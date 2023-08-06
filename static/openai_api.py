@@ -46,7 +46,7 @@ FUNCTIONS = [
             },
             {
                 "name": "create_segment",
-                "description": "Creates and draws a segment at the given coordinates for two points",
+                "description": "Creates and draws a segment at the given coordinates for two points. If only a name is given, search for appropriate point coordinates in the canvas state.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -76,7 +76,7 @@ FUNCTIONS = [
             },
             {
                 "name": "delete_segment",
-                "description": "Deletes the segment found at the given coordinates for two points",
+                "description": "Deletes the segment found at the given coordinates for two points. If only a name is given, search for appropriate point coordinates in the canvas state.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -102,7 +102,7 @@ FUNCTIONS = [
             },
             {
                 "name": "create_vector",
-                "description": "Creates and draws a vector at the given coordinates for two points called origin and tip",
+                "description": "Creates and draws a vector at the given coordinates for two points called origin and tip. If only a name is given, search for appropriate point coordinates in the canvas state.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -132,7 +132,7 @@ FUNCTIONS = [
             },
             {
                 "name": "delete_vector",
-                "description": "Deletes the vector found at the given coordinates for two points called origin and tip",
+                "description": "Deletes the vector found at the given coordinates for two points called origin and tip. If only a name is given, search for appropriate point coordinates in the canvas state.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -158,7 +158,7 @@ FUNCTIONS = [
             },
             {
                 "name": "create_triangle",
-                "description": "Creates and draws a triangle at the given coordinates for three points",
+                "description": "Creates and draws a triangle at the given coordinates for three points. If only a name is given, search for appropriate point coordinates in the canvas state.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -196,7 +196,7 @@ FUNCTIONS = [
             },
             {
                 "name": "delete_triangle",
-                "description": "Deletes the triangle found at the given coordinates for three points",
+                "description": "Deletes the triangle found at the given coordinates for three points. If only a name is given, search for appropriate point coordinates in the canvas state.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -230,7 +230,7 @@ FUNCTIONS = [
             },
             {
                 "name": "create_rectangle",
-                "description": "Creates and draws a rectangle at the given coordinates for two diagonal points",
+                "description": "Creates and draws a rectangle at the given coordinates for two diagonal points. If only a name is given, search for appropriate point coordinates in the canvas state.",
                 "parameters": {
                     "type": "object",
                     "properties": {
