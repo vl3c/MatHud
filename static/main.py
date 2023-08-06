@@ -1,4 +1,5 @@
 import json
+import time
 import traceback
 from browser import ajax, document, html
 from canvas import Canvas
@@ -130,9 +131,51 @@ def handle_wheel(event):
 
 document["math-svg"].bind("wheel", handle_wheel)
 
+last_click_timestamp = None
 
 # Bind the canvas's handle_mousedown function to the mouse down event
 def handle_mousedown(event):
+    def get_decimal_places(value):
+        # Absolute value to handle negative numbers
+        abs_val = abs(value)
+        if 0 < abs_val < 1:
+            # Number of leading zeros after decimal point + 1
+            # Using format to convert the number to string and split by the decimal point
+            decimal_part = format(abs_val, ".10f").split(".")[1]
+            leading_zeros = len(decimal_part) - len(decimal_part.lstrip('0'))
+            decimal_places_needed = leading_zeros + 2
+            return decimal_places_needed
+        elif 0 < abs_val < 10:
+            return 2
+        elif abs_val < 100:
+            return 1
+        else:
+            return 0
+    global last_click_timestamp
+    # Check for double click
+    current_timestamp = time.time()
+    if last_click_timestamp and (current_timestamp - last_click_timestamp) < 0.5:  # 0.5 seconds threshold
+        # It's a double click
+        rect = document["math-svg"].getBoundingClientRect()
+        canvas_x = event.clientX - rect.left
+        canvas_y = event.clientY - rect.top
+        scale_factor = canvas.scale_factor
+        origin = canvas.cartesian2axis.origin
+        # Calculate the coordinates of the clicked point
+        x = (canvas_x - origin.x) * 1/scale_factor
+        y = (origin.y - canvas_y) * 1/scale_factor
+        # Calculate the number of decimal places for x and y
+        decimal_places_x = get_decimal_places(x)
+        decimal_places_y = get_decimal_places(y)
+        # Round x and y to the determined number of decimal places
+        x = round(x, decimal_places_x)
+        y = round(y, decimal_places_y)
+        coordinates = f"({x}, {y}) "
+        document["chat-input"].value += coordinates
+
+    last_click_timestamp = current_timestamp
+
+    # Existing logic
     canvas.dragging = True
     canvas.last_mouse_position = Position(event.clientX, event.clientY)
 
