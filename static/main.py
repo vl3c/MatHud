@@ -49,9 +49,9 @@ def interact_with_ai(event):
         
         try:
             # Get the text part of the AI's reply
-            ai_response_text = get_ai_message(response)
+            ai_response_text = get_ai_message(response).replace('\n', '<br>')
             # Add an empty AI response placeholder to the chat history
-            document["chat-history"] <= html.P(f'AI: {ai_response_text}')    
+            document["chat-history"] <= html.P(f'AI: {ai_response_text}', innerHTML=True)    
             # Load the JSON from the AI's reply and call the appropriate functions
             call_functions(response)
         except Exception as e:
