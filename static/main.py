@@ -51,7 +51,7 @@ def interact_with_ai(event):
             # Get the text part of the AI's reply
             ai_response_text = get_ai_message(response).replace('\n', '<br>')
             # Add an empty AI response placeholder to the chat history
-            document["chat-history"] <= html.P(f'AI: {ai_response_text}', innerHTML=True)    
+            document["chat-history"] <= html.P(f'<strong>AI:</strong> {ai_response_text}', innerHTML=True)    
             # Load the JSON from the AI's reply and call the appropriate functions
             call_functions(response)
         except Exception as e:
@@ -88,7 +88,7 @@ def interact_with_ai(event):
     # Get the user's message from the input field
     user_message = document["chat-input"].value
     # Add the user's message to the chat history
-    document["chat-history"] <= html.P(f'User: {user_message}')
+    document["chat-history"] <= html.P(f'<strong>User:</strong> {user_message}')
     # Clear the input field
     document["chat-input"].value = ''
     # Scroll the chat history to the bottom
