@@ -9,6 +9,8 @@ from point import Position
 canvas = Canvas()
 
 available_functions = {
+    "reset_canvas": canvas.reset,
+    "clear_canvas": canvas.clear,
     "create_point": canvas.create_point,
     "delete_point": canvas.delete_point,
     "create_segment": canvas.create_segment,
@@ -34,6 +36,7 @@ def interact_with_ai(event):
                     return
                 fuction_to_call = available_functions[function_name]
                 function_args = json.loads(ai_response["function_call"]["arguments"])
+                print(f"Calling function {function_name} with arguments {function_args}")
                 fuction_to_call(**function_args)
         
         def get_ai_message(ai_response):

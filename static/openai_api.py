@@ -5,6 +5,24 @@ import json
 MODEL = "gpt-3.5-turbo-0613"
 FUNCTIONS = [
             {
+                "name": "reset_canvas",
+                "description": "Resets the canvas zoom and offset",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "clear_canvas",
+                "description": "Clears the canvas by deleting all drawable objects",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
                 "name": "create_point",
                 "description": "Creates and draws a point at the given coordinates",
                 "parameters": {
