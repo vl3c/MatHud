@@ -175,7 +175,7 @@ def handle_mousedown(event):
 
     last_click_timestamp = current_timestamp
 
-    # Existing logic
+    # Logic for panning the canvas
     canvas.dragging = True
     canvas.last_mouse_position = Position(event.clientX, event.clientY)
 
