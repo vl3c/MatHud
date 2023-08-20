@@ -290,6 +290,90 @@ FUNCTIONS = [
                     "required": ["name"]
                 }
             },
+            {
+                "name": "create_circle",
+                "description": "Creates and draws a circle with the specified center coordinates and radius. If only a name is given, search for appropriate point coordinates in the canvas state.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "center_x": {
+                            "type": "number",
+                            "description": "The X coordinate of the circle's center"
+                        },
+                        "center_y": {
+                            "type": "number",
+                            "description": "The Y coordinate of the circle's center"
+                        },
+                        "radius": {
+                            "type": "number",
+                            "description": "The radius of the circle"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the circle"
+                        }
+                    },
+                    "required": ["center_x", "center_y", "radius"]
+                }
+            },
+            {
+                "name": "delete_circle",
+                "description": "Deletes the circle with the given name",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the circle"
+                        }
+                    },
+                    "required": ["name"]
+                }
+            },
+            {
+                "name": "create_ellipse",
+                "description": "Creates and draws an ellipse with the specified center coordinates and x and y radii. If only a name is given, search for appropriate point coordinates in the canvas state.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "center_x": {
+                            "type": "number",
+                            "description": "The X coordinate of the ellipse's center"
+                        },
+                        "center_y": {
+                            "type": "number",
+                            "description": "The Y coordinate of the ellipse's center"
+                        },
+                        "radius_x": {
+                            "type": "number",
+                            "description": "The X radius of the ellipse"
+                        },
+                        "radius_y": {
+                            "type": "number",
+                            "description": "The Y radius of the ellipse"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the ellipse"
+                        }
+                    },
+                    "required": ["center_x", "center_y", "radius_x", "radius_y"]
+                }
+            },
+            {
+                "name": "delete_ellipse",
+                "description": "Deletes the ellipse with the given name",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the ellipse"
+                        }
+                    },
+                    "required": ["name"]
+                }
+            },
         ]
 
 class OpenAIChatCompletionsAPI:
@@ -298,7 +382,7 @@ class OpenAIChatCompletionsAPI:
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.messages = []
+        self.messages = [{"role": "system", "content": "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help explore math."}]
         self.functions = FUNCTIONS
 
     def create_chat_completion(self, prompt, function_call="auto"):
