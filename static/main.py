@@ -9,6 +9,18 @@ from point import Position
 # Instantiate the canvas
 canvas = Canvas()
 
+def make_multiple_function_calls(function_calls):
+    for function_call in function_calls:
+        function_name = function_call["name"]
+        if function_name not in available_functions:
+            print(f"Function {function_name} not found")
+            continue
+        function_to_call = available_functions[function_name]
+        # Exclude the 'name' key to get only the arguments
+        function_args = function_call['arguments']
+        print(f"Calling function {function_name} with arguments {function_args}")
+        function_to_call(**function_args)
+
 available_functions = {
     "reset_canvas": canvas.reset,
     "clear_canvas": canvas.clear,
@@ -26,14 +38,17 @@ available_functions = {
     "delete_circle": canvas.delete_circle,
     "create_ellipse": canvas.create_ellipse,
     "delete_ellipse": canvas.delete_ellipse,
-    "draw_function": canvas.draw_function,
-    "delete_function": canvas.delete_function,
+    "draw_math_function": canvas.draw_math_function,
+    "delete_math_function": canvas.delete_math_function,
+    "make_multiple_function_calls": make_multiple_function_calls,
 }
+
 
 # Send message, receive response from the AI and call functions as needed
 def interact_with_ai(event):
     
     def parse_ai_response(response):
+
         def call_functions(ai_response):
             # This function should call the functions specified in the AI's reply
             if ai_response.get("function_call"):
@@ -41,10 +56,15 @@ def interact_with_ai(event):
                 if function_name not in available_functions:
                     print(f"Function {function_name} not found")
                     return
-                fuction_to_call = available_functions[function_name]
+                
                 function_args = json.loads(ai_response["function_call"]["arguments"])
-                print(f"Calling function {function_name} with arguments {function_args}")
-                fuction_to_call(**function_args)
+                
+                # If calling multiple functions, pass the whole list
+                if function_name == "call_multiple_functions":
+                    available_functions[function_name](function_args)
+                else:
+                    print(f"Calling function {function_name} with arguments {function_args}")
+                    available_functions[function_name](**function_args)
         
         def get_ai_message(ai_response):
             # This function should return the text part of the AI's reply

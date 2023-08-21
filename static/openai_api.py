@@ -2,8 +2,36 @@ import os
 import openai
 import json
 
-MODEL = "gpt-3.5-turbo-0613"
+MODEL = "gpt-4-0613"   # "gpt-3.5-turbo-0613" 
 FUNCTIONS = [
+            {
+                "name": "make_multiple_function_calls",
+                "description": "Executes a sequence of functions in the order they are provided. Functions are described below. Each function call in the 'function_calls' array must include the name of the function and the corresponding arguments, separated into 'name' and 'arguments' keys.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "function_calls": {
+                            "type": "array",
+                            "description": "An array of function call objects, each containing the 'name' of the function and the 'arguments' for a specific function call. Example: [{'name': 'create_point', 'arguments': {'x': 1, 'y': 1, 'name': 'A'}}, {'name': 'create_point', 'arguments': {'x': 2, 'y': 2}}]",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "The name of the function to be called. Must match one of the available functions."
+                                    },
+                                    "arguments": {
+                                        "type": "object",
+                                        "description": "The arguments to be passed to the function, represented as key-value pairs."
+                                    }
+                                },
+                                "required": ["name", "arguments"]
+                            }
+                        }
+                    },
+                    "required": ["function_calls"]
+                }
+            },
             {
                 "name": "reset_canvas",
                 "description": "Resets the canvas zoom and offset",
@@ -375,7 +403,7 @@ FUNCTIONS = [
                 }
             },
             {
-                "name": "draw_function",
+                "name": "draw_math_function",
                 "description": "Plots the given mathematical function on the canvas between the specified left and right bounds.",
                 "parameters": {
                     "type": "object",
@@ -401,7 +429,7 @@ FUNCTIONS = [
                 }
             },
             {
-                "name": "delete_function",
+                "name": "delete_math_function",
                 "description": "Removes the plotted function with the given name from the canvas.",
                 "parameters": {
                     "type": "object",
@@ -413,7 +441,7 @@ FUNCTIONS = [
                     },
                     "required": ["name"]
                 }
-            }
+            },
         ]
 
 class OpenAIChatCompletionsAPI:
