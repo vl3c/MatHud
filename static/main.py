@@ -26,6 +26,8 @@ available_functions = {
     "delete_circle": canvas.delete_circle,
     "create_ellipse": canvas.create_ellipse,
     "delete_ellipse": canvas.delete_ellipse,
+    "draw_function": canvas.draw_function,
+    "delete_function": canvas.delete_function,
 }
 
 # Send message, receive response from the AI and call functions as needed

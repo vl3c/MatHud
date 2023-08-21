@@ -374,10 +374,50 @@ FUNCTIONS = [
                     "required": ["name"]
                 }
             },
+            {
+                "name": "draw_function",
+                "description": "Plots the given mathematical function on the canvas between the specified left and right bounds.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "function_string": {
+                            "type": "string",
+                            "description": "The mathematical expression represented as a string, e.g., '2*x + 3'."
+                        },
+                        "left_bound": {
+                            "type": "number",
+                            "description": "The initial or starting x-value (left bound) where the function begins plotting."
+                        },
+                        "right_bound": {
+                            "type": "number",
+                            "description": "The final x-value (right bound) where the function stops plotting."
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "The name or label for the plotted function. Useful for referencing later."
+                        }
+                    },
+                    "required": ["function_string", "left_bound", "right_bound"]
+                }
+            },
+            {
+                "name": "delete_function",
+                "description": "Removes the plotted function with the given name from the canvas.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "The name or label of the function to be deleted."
+                        }
+                    },
+                    "required": ["name"]
+                }
+            }
         ]
 
 class OpenAIChatCompletionsAPI:
-    def __init__(self, model=MODEL, temperature=0.2, max_tokens=250):
+    def __init__(self, model=MODEL, temperature=0.2, max_tokens=4000):
         openai.api_key = os.getenv("OPENAI_API_KEY")
         self.model = model
         self.temperature = temperature
