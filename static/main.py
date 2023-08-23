@@ -4,6 +4,7 @@ import traceback
 from browser import ajax, document, html
 from canvas import Canvas
 from point import Position
+from math_util import Utilities
 
 
 # Instantiate the canvas
@@ -21,7 +22,20 @@ def make_multiple_function_calls(function_calls):
         print(f"Calling function {function_name} with arguments {function_args}")
         function_to_call(**function_args)
 
+def calculate(expression):
+    bad_result_msg = "Sorry, that's not a valid mathematical expression."
+    try:
+        result = Utilities.calculate(expression)
+        if result is None:
+            return bad_result_msg
+        return result
+    except Exception as e:
+        exception_details = str(e).split(":", 1)[0]
+        result = f"{bad_result_msg} Exception details: {exception_details}."
+        return result
+
 available_functions = {
+    "make_multiple_function_calls": make_multiple_function_calls,
     "reset_canvas": canvas.reset,
     "clear_canvas": canvas.clear,
     "create_point": canvas.create_point,
@@ -40,13 +54,19 @@ available_functions = {
     "delete_ellipse": canvas.delete_ellipse,
     "draw_math_function": canvas.draw_math_function,
     "delete_math_function": canvas.delete_math_function,
-    "make_multiple_function_calls": make_multiple_function_calls,
+    "calculate": calculate,
 }
 
+# Global variable to store the result of an AI function call
+function_call_result = None
+def set_global_function_call_result(value):
+    global function_call_result
+    if not value:
+        function_call_result = "Success!"
+    function_call_result = value
 
 # Send message, receive response from the AI and call functions as needed
 def interact_with_ai(event):
-    
     def parse_ai_response(response):
 
         def call_functions(ai_response):
@@ -56,31 +76,36 @@ def interact_with_ai(event):
                 if function_name not in available_functions:
                     print(f"Function {function_name} not found")
                     return
-                
                 function_args = json.loads(ai_response["function_call"]["arguments"])
-                
                 # If calling multiple functions, pass the whole list
                 if function_name == "call_multiple_functions":
                     available_functions[function_name](function_args)
+                    return "Called multiple functions."
                 else:
                     print(f"Calling function {function_name} with arguments {function_args}")
-                    available_functions[function_name](**function_args)
+                    return available_functions[function_name](**function_args)
         
-        def get_ai_message(ai_response):
+        def create_ai_message(ai_response, function_call_result):
             # This function should return the text part of the AI's reply
             print(ai_response)
-            ai_response_text = "..."
+            ai_response_text = ""
             if ai_response.get("content"):
                 ai_response_text = ai_response["content"]
+            if function_call_result and (isinstance(function_call_result, str) or isinstance(function_call_result, int) or isinstance(function_call_result, float) or isinstance(function_call_result, bool)):
+                ai_response_text += str(function_call_result)
+            if not ai_response_text:
+                ai_response_text = "..."
             return ai_response_text
         
         try:
-            # Get the text part of the AI's reply
-            ai_response_text = get_ai_message(response).replace('\n', '<br>')
-            # Add an empty AI response placeholder to the chat history
-            document["chat-history"] <= html.P(f'<strong>AI:</strong> {ai_response_text}', innerHTML=True)    
             # Load the JSON from the AI's reply and call the appropriate functions
-            call_functions(response)
+            function_call_result = call_functions(response)
+            set_global_function_call_result(function_call_result)
+
+            # Get the text part of the AI's reply
+            ai_response_text = create_ai_message(response, function_call_result).replace('\n', '<br>')               
+            # Add an empty AI response placeholder to the chat history
+            document["chat-history"] <= html.P(f'<strong>AI:</strong> {ai_response_text}', innerHTML=True)
         except Exception as e:
             print(f"Error while processing AI's response: {e}")
             traceback.print_exc()
@@ -88,8 +113,8 @@ def interact_with_ai(event):
             # Scroll the chat history to the bottom
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
         
-    def build_prompt(canvas_state_json, user_message):
-        prompt = json.dumps({"canvas_state": canvas_state_json, "user_message": user_message})
+    def build_prompt(canvas_state_json, function_call_result, user_message):
+        prompt = json.dumps({"canvas_state": canvas_state_json, "previous_function_call_result": function_call_result, "user_message": user_message})
         return prompt
 
     def on_complete(request):
@@ -123,7 +148,8 @@ def interact_with_ai(event):
     # Get the canvas state with on-screen drawables original properties 
     canvas_state_json = canvas.get_drawables_state()
     # Build the prompt for the AI
-    prompt = build_prompt(canvas_state_json, user_message)
+    global function_call_result
+    prompt = build_prompt(canvas_state_json, function_call_result, user_message)
     print(prompt)
     send_request(prompt)
 
