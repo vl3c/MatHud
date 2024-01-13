@@ -3,15 +3,15 @@ import openai
 import json
 from static.functions_definitions import FUNCTIONS
 
-MODEL = "gpt-3.5-turbo-0613"   # "gpt-4-0613" 
+MODEL = "gpt-3.5-turbo-0613"   # "gpt-4-1106-preview" 
 
 class OpenAIChatCompletionsAPI:
-    def __init__(self, model=MODEL, temperature=0.2, max_tokens=4000):
+    def __init__(self, model=MODEL, temperature=0.2, max_tokens=8000):
         openai.api_key = os.getenv("OPENAI_API_KEY")
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.messages = [{"role": "system", "content": "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help explore math."}]
+        self.messages = [{"role": "system", "content": "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help explore mathematics."}]
         self.functions = FUNCTIONS
 
     def create_chat_completion(self, prompt, function_call="auto"):
