@@ -22,10 +22,10 @@ def make_multiple_function_calls(function_calls):
         print(f"Calling function {function_name} with arguments {function_args}")
         function_to_call(**function_args)
 
-def calculate(expression):
+def evaluate_expression(expression):
     bad_result_msg = "Sorry, that's not a valid mathematical expression."
     try:
-        result = Utilities.calculate(expression)
+        result = Utilities.evaluate_expression(expression)
         if result is None:
             return bad_result_msg
         return result
@@ -54,7 +54,7 @@ available_functions = {
     "delete_ellipse": canvas.delete_ellipse,
     "draw_math_function": canvas.draw_math_function,
     "delete_math_function": canvas.delete_math_function,
-    "calculate": calculate,
+    "evaluate_expression": evaluate_expression,
 }
 
 # Global variable to store the result of an AI function call

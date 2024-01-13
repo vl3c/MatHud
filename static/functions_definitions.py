@@ -429,4 +429,19 @@ FUNCTIONS = [
                     "required": ["name"]
                 }
             },
+            {
+                "name": "evaluate_expression",
+                "description": "Evaluates a mathematical expression provided as a string and returns the numerical result",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "expression": {
+                            "type": "string",
+                            "description": "The mathematical expression to be evaluated"
+                        }
+                    },
+                    "required": ["expression"]
+                }
+            },
+
         ]
