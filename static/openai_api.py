@@ -3,7 +3,8 @@ import openai
 import json
 from static.functions_definitions import FUNCTIONS
 
-MODEL = "gpt-3.5-turbo-0613"   # "gpt-4-1106-preview" 
+MODEL = "gpt-3.5-turbo-0613"   
+#MODEL = "gpt-4-1106-preview" 
 
 class OpenAIChatCompletionsAPI:
     def __init__(self, model=MODEL, temperature=0.2, max_tokens=8000):
