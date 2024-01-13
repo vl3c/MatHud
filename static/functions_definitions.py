@@ -410,7 +410,15 @@ FUNCTIONS = [
                         "name": {
                             "type": "string",
                             "description": "The name or label for the plotted function. Useful for referencing later."
-                        }
+                        },
+                        "left_bound": {
+                            "type": "number",
+                            "description": "The left bound of the interval on which to plot the function."
+                        },
+                        "right_bound": {
+                            "type": "number",
+                            "description": "The right bound of the interval on which to plot the function."
+                        },
                     },
                     "required": ["function_string", "name"]
                 }
