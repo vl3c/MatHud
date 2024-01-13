@@ -407,20 +407,12 @@ FUNCTIONS = [
                             "type": "string",
                             "description": "The mathematical expression represented as a string, e.g., '2*x + 3'."
                         },
-                        "left_bound": {
-                            "type": "number",
-                            "description": "The initial or starting x-value (left bound) where the function begins plotting."
-                        },
-                        "right_bound": {
-                            "type": "number",
-                            "description": "The final x-value (right bound) where the function stops plotting."
-                        },
                         "name": {
                             "type": "string",
                             "description": "The name or label for the plotted function. Useful for referencing later."
                         }
                     },
-                    "required": ["function_string", "left_bound", "right_bound"]
+                    "required": ["function_string", "name"]
                 }
             },
             {
