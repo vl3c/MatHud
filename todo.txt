@@ -1,2 +1,8 @@
-- implement auto adjustment of context length to stay within API bounds
-- implement drawables as dictionary with class lists (?)
+- exponential based tick labels
+- add algebraic expressions to describe all geometric objects
+- add functions to calculate and generate points for all intersections of objects
+- add functions to calculate area of geometric objects and polygons defined by points
+- limits
+- derivatives
+- integrals
+- manipulate and solve algebraic expressions
