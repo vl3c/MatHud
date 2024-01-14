@@ -46,6 +46,24 @@ FUNCTIONS = [
                 }
             },
             {
+                "name": "undo",
+                "description": "Undoes the last action on the canvas",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
+                "name": "redo",
+                "description": "Redoes the last action on the canvas",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
                 "name": "create_point",
                 "description": "Creates and draws a point at the given coordinates",
                 "parameters": {

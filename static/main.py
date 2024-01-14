@@ -55,6 +55,8 @@ available_functions = {
     "draw_math_function": canvas.draw_math_function,
     "delete_math_function": canvas.delete_math_function,
     "evaluate_expression": evaluate_expression,
+    "undo": canvas.undo,
+    "redo": canvas.redo,
 }
 
 # Global variable to store the result of an AI function call
@@ -113,8 +115,8 @@ def interact_with_ai(event):
             # Scroll the chat history to the bottom
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
         
-    def build_prompt(canvas_state_json, function_call_result, user_message):
-        prompt = json.dumps({"canvas_state": canvas_state_json, "previous_function_call_result": function_call_result, "user_message": user_message})
+    def build_prompt(canvas_state, function_call_result, user_message):
+        prompt = json.dumps({"canvas_state": canvas_state, "previous_function_call_result": function_call_result, "user_message": user_message})
         return prompt
 
     def on_complete(request):
@@ -146,10 +148,10 @@ def interact_with_ai(event):
     # Scroll the chat history to the bottom
     document["chat-history"].scrollTop = document["chat-history"].scrollHeight
     # Get the canvas state with on-screen drawables original properties 
-    canvas_state_json = canvas.get_drawables_state()
+    canvas_state = canvas.get_drawables_state()
     # Build the prompt for the AI
     global function_call_result
-    prompt = build_prompt(canvas_state_json, function_call_result, user_message)
+    prompt = build_prompt(canvas_state, function_call_result, user_message)
     print(prompt)
     send_request(prompt)
 
