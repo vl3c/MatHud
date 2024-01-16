@@ -10,7 +10,7 @@ from math_util import Utilities
 # Instantiate the canvas
 canvas = Canvas()
 
-def make_multiple_function_calls(function_calls):
+def call_multiple_functions(function_calls):
     for function_call in function_calls:
         function_name = function_call["name"]
         if function_name not in available_functions:
@@ -35,7 +35,7 @@ def evaluate_expression(expression):
         return result
 
 available_functions = {
-    "make_multiple_function_calls": make_multiple_function_calls,
+    "call_multiple_functions": call_multiple_functions,
     "reset_canvas": canvas.reset,
     "clear_canvas": canvas.clear,
     "create_point": canvas.create_point,

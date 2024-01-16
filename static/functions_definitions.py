@@ -1,13 +1,13 @@
 FUNCTIONS = [
             {
-                "name": "make_multiple_function_calls",
-                "description": "Executes a sequence of functions in the order they are provided. Functions are described below. Each function call in the 'function_calls' array must include the name of the function and the corresponding arguments, separated into 'name' and 'arguments' keys.",
+                "name": "call_multiple_functions",
+                "description": "Calls functions in the order they are provided. Functions are described below. Each function call in the 'function_calls' array must include the name of the function and the corresponding arguments.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "function_calls": {
                             "type": "array",
-                            "description": "An array of function call objects, each containing the 'name' of the function and the 'arguments' for a specific function call. Example: [{'name': 'create_point', 'arguments': {'x': 1, 'y': 1, 'name': 'A'}}, {'name': 'create_point', 'arguments': {'x': 2, 'y': 2}}]",
+                            "description": "An array of functions to call, each containing the 'name' of the function and the 'arguments' for a specific function call. Example: [{'name': 'create_point', 'arguments': {'x': 1, 'y': 1, 'name': 'A'}}, {'name': 'create_point', 'arguments': {'x': 2, 'y': 2}}]",
                             "items": {
                                 "type": "object",
                                 "properties": {
