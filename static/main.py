@@ -11,7 +11,10 @@ from math_util import Utilities
 canvas = Canvas()
 
 def call_multiple_functions(function_calls):
-    for function_call in function_calls:
+    # Access the list of function calls from the dictionary
+    function_call_list = function_calls.get('function_calls', [])
+    print(f"Calling multiple functions: {function_call_list}")
+    for function_call in function_call_list:
         function_name = function_call["name"]
         if function_name not in available_functions:
             print(f"Function {function_name} not found")
