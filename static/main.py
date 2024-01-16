@@ -89,7 +89,6 @@ def interact_with_ai(event):
         
         def create_ai_message(ai_response, function_call_result):
             # This function should return the text part of the AI's reply
-            print(ai_response)
             ai_response_text = ""
             if ai_response.get("content"):
                 ai_response_text = ai_response["content"]
@@ -101,6 +100,7 @@ def interact_with_ai(event):
         
         try:
             # Load the JSON from the AI's reply and call the appropriate functions
+            print(response)    # DEBUG
             function_call_result = call_functions(response)
             set_global_function_call_result(function_call_result)
 
