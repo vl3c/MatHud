@@ -151,7 +151,7 @@ def interact_with_ai(event):
     # Scroll the chat history to the bottom
     document["chat-history"].scrollTop = document["chat-history"].scrollHeight
     # Get the canvas state with on-screen drawables original properties 
-    canvas_state = canvas.get_drawables_state()
+    canvas_state = canvas.get_canvas_state()
     # Build the prompt for the AI
     global function_call_result
     prompt = build_prompt(canvas_state, function_call_result, user_message)
