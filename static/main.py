@@ -91,7 +91,7 @@ def run_tests():
         },
         {
             "name": "draw_math_function",
-            "arguments": {"function_string": "100 * sin(x / 30)", "name": "f1", "left_bound": -300, "right_bound": 300}
+            "arguments": {"function_string": "100 * sin(x / 30)", "name": "f2", "left_bound": -300, "right_bound": 300}
         },
         {
             "name": "evaluate_expression",
