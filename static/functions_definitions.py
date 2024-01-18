@@ -64,6 +64,15 @@ FUNCTIONS = [
                 }
             },
             {
+                "name": "run_tests",
+                "description": "Runs the test suite for the canvas",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            },
+            {
                 "name": "create_point",
                 "description": "Creates and draws a point at the given coordinates",
                 "parameters": {

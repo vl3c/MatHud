@@ -13,17 +13,30 @@ canvas = Canvas()
 def call_multiple_functions(function_calls):
     # Access the list of function calls from the dictionary
     function_call_list = function_calls.get('function_calls', [])
-    print(f"Calling multiple functions: {function_call_list}")
+    eval_results = []
+    print(f"Calling multiple functions: {function_call_list}")   # DEBUG
     for function_call in function_call_list:
         function_name = function_call["name"]
         if function_name not in available_functions:
-            print(f"Function {function_name} not found")
+            print(f"Function {function_name} not found.")   # DEBUG
             continue
         function_to_call = available_functions[function_name]
         # Exclude the 'name' key to get only the arguments
         function_args = function_call['arguments']
-        print(f"Calling function {function_name} with arguments {function_args}")
-        function_to_call(**function_args)
+        print(f"Calling function {function_name} with arguments {function_args}")   # DEBUG
+        result = function_to_call(**function_args)
+        if function_name == "evaluate_expression":
+            eval_results.append(result)
+    print(f"Multiple functions called. Results: {eval_results}")   # DEBUG
+    return eval_results
+
+def format_call_multiple_functions_result(result_list):
+    if not result_list:
+        result_string = "Called multiple functions."
+    else:
+        result_string = "Results: " + ", ".join(str(result) for result in result_list)
+    formatted_string = f"{result_string}"
+    return formatted_string
 
 def evaluate_expression(expression):
     bad_result_msg = "Sorry, that's not a valid mathematical expression."
@@ -36,6 +49,61 @@ def evaluate_expression(expression):
         exception_details = str(e).split(":", 1)[0]
         result = f"{bad_result_msg} Exception details: {exception_details}."
         return result
+
+def run_tests():
+    function_calls = {"function_calls": 
+    [
+        {
+            "name": "create_point",
+            "arguments": {"x": -200, "y": 100, "name": "A"}
+        },
+        {
+            "name": "create_point",
+            "arguments": {"x": 250, "y": -150, "name": "B"}
+        },
+        {
+            "name": "create_segment",
+            "arguments": {"x1": -200, "y1": 100, "x2": 250, "y2": -150, "name": "AB"}
+        },
+        {
+            "name": "create_vector",
+            "arguments": {"origin_x": -150, "origin_y": -200, "tip_x": 100, "tip_y": 200, "name": "v1"}
+        },
+        {
+            "name": "create_triangle",
+            "arguments": {"x1": -100, "y1": -150, "x2": 120, "y2": 130, "x3": 150, "y3": -100, "name": "ABC"}
+        },
+        {
+            "name": "create_rectangle",
+            "arguments": {"p_x": -250, "p_y": 250, "opposite_x": 220, "opposite_y": -220, "name": "Rect1"}
+        },
+        {
+            "name": "create_circle",
+            "arguments": {"center_x": 0, "center_y": 0, "radius": 150, "name": "Circle1"}
+        },
+        {
+            "name": "create_ellipse",
+            "arguments": {"center_x": 200, "center_y": -100, "radius_x": 60, "radius_y": 90, "name": "Ellipse1"}
+        },
+        {
+            "name": "draw_math_function",
+            "arguments": {"function_string": "100 * sin(x / 50) + 50 * tan(x / 100)", "name": "f1", "left_bound": -300, "right_bound": 300}
+        },
+        {
+            "name": "draw_math_function",
+            "arguments": {"function_string": "100 * sin(x / 30)", "name": "f1", "left_bound": -300, "right_bound": 300}
+        },
+        {
+            "name": "evaluate_expression",
+            "arguments": {"expression": "2*3 + 4"}
+        },
+        {
+            "name": "evaluate_expression",
+            "arguments": {"expression": "2^3 - 1"}
+        }
+    ]}
+    result = format_call_multiple_functions_result(call_multiple_functions(function_calls))
+    print(result)    # DEBUG
 
 available_functions = {
     "call_multiple_functions": call_multiple_functions,
@@ -60,6 +128,7 @@ available_functions = {
     "evaluate_expression": evaluate_expression,
     "undo": canvas.undo,
     "redo": canvas.redo,
+    "run_tests": run_tests,
 }
 
 # Global variable to store the result of an AI function call
@@ -69,6 +138,7 @@ def set_global_function_call_result(value):
     if not value:
         function_call_result = "Success!"
     function_call_result = value
+    return function_call_result
 
 # Send message, receive response from the AI and call functions as needed
 def interact_with_ai(event):
@@ -79,13 +149,14 @@ def interact_with_ai(event):
             if ai_response.get("function_call"):
                 function_name = ai_response["function_call"]["name"]
                 if function_name not in available_functions:
-                    print(f"Function {function_name} not found")
-                    return
+                    return f"Error: function {function_name} not found."
                 function_args = json.loads(ai_response["function_call"]["arguments"])
                 # If calling multiple functions, pass the whole list
                 if function_name == "call_multiple_functions":
-                    available_functions[function_name](function_args)
-                    return "Called multiple functions."
+                    result_list = call_multiple_functions(function_args)
+                    formatted_string = format_call_multiple_functions_result(result_list)
+                    print(formatted_string)
+                    return formatted_string
                 else:
                     print(f"Calling function {function_name} with arguments {function_args}")
                     return available_functions[function_name](**function_args)
@@ -104,8 +175,7 @@ def interact_with_ai(event):
         try:
             # Load the JSON from the AI's reply and call the appropriate functions
             print(response)    # DEBUG
-            function_call_result = call_functions(response)
-            set_global_function_call_result(function_call_result)
+            function_call_result = set_global_function_call_result(call_functions(response))
 
             # Get the text part of the AI's reply
             ai_response_text = create_ai_message(response, function_call_result).replace('\n', '<br>')               
