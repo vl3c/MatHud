@@ -135,13 +135,18 @@ available_functions = {
     "run_tests": run_tests,
 }
 
+def validate_function_call(function_call):
+    allowed_types = (str, int, float, bool)
+    return isinstance(function_call, allowed_types)
+
 # Global variable to store the result of an AI function call
 function_call_result = None
 def set_global_function_call_result(value):
     global function_call_result
-    if not value:
-        function_call_result = "Success!"
-    function_call_result = value
+    if not validate_function_call(value):
+        function_call_result = "..."
+    else:
+        function_call_result = value
     return function_call_result
 
 # Send message, receive response from the AI and call functions as needed
@@ -170,7 +175,7 @@ def interact_with_ai(event):
             ai_response_text = ""
             if ai_response.get("content"):
                 ai_response_text = ai_response["content"]
-            if function_call_result and (isinstance(function_call_result, str) or isinstance(function_call_result, int) or isinstance(function_call_result, float) or isinstance(function_call_result, bool)):
+            if function_call_result and validate_function_call(function_call_result):
                 ai_response_text += str(function_call_result)
             if not ai_response_text:
                 ai_response_text = "..."
@@ -193,6 +198,7 @@ def interact_with_ai(event):
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
         
     def build_prompt(canvas_state, function_call_result, user_message):
+        print(f"Building prompt with canvas state: {canvas_state}, function call result: {function_call_result}, user message: {user_message}")
         prompt = json.dumps({"canvas_state": canvas_state, "previous_function_call_result": function_call_result, "user_message": user_message})
         return prompt
 
