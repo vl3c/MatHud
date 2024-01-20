@@ -11,6 +11,9 @@ from math_util import Utilities
 canvas = Canvas()
 
 def call_multiple_functions(function_calls):
+    # Archive once at the start and then suspend archiving while calling multiple functions
+    canvas.archive()
+    canvas.archiving_enabled = False
     # Access the list of function calls from the dictionary
     function_call_list = function_calls.get('function_calls', [])
     eval_results = []
@@ -21,13 +24,14 @@ def call_multiple_functions(function_calls):
             print(f"Function {function_name} not found.")   # DEBUG
             continue
         function_to_call = available_functions[function_name]
-        # Exclude the 'name' key to get only the arguments
         function_args = function_call['arguments']
         print(f"Calling function {function_name} with arguments {function_args}")   # DEBUG
         result = function_to_call(**function_args)
         if function_name == "evaluate_expression":
             eval_results.append(result)
     print(f"Multiple functions called. Results: {eval_results}")   # DEBUG
+    # Resume archiving
+    canvas.archiving_enabled = True
     return eval_results
 
 def format_call_multiple_functions_result(result_list):
