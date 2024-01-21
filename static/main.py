@@ -1,10 +1,10 @@
+from browser import ajax, document, html
+from canvas import Canvas
+from math_util import Utilities
+from point import Position
 import json
 import time
 import traceback
-from browser import ajax, document, html
-from canvas import Canvas
-from point import Position
-from math_util import Utilities
 
 
 # Instantiate the canvas

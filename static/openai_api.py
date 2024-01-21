@@ -1,6 +1,6 @@
+import json
 import os
 import openai
-import json
 from static.functions_definitions import FUNCTIONS
 
 MODEL = "gpt-3.5-turbo-0613"   
@@ -12,7 +12,7 @@ class OpenAIChatCompletionsAPI:
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.messages = [{"role": "system", "content": "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help explore mathematics."}]
+        self.messages = [{"role": "system", "content": "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics."}]
         self.functions = FUNCTIONS
 
     def create_chat_completion(self, prompt, function_call="auto"):
