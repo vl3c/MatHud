@@ -3,6 +3,7 @@ from canvas import Canvas
 from math_util import Utilities
 from point import Position
 import json
+import re
 import time
 import traceback
 
@@ -43,16 +44,48 @@ def format_call_multiple_functions_result(result_list):
     return formatted_string
 
 def evaluate_expression(expression):
+    def evaluate_numeric_expression(expression):
+        return Utilities.evaluate_expression(expression)
+    
+    def evaluate_function(expression):
+        print(f"Evaluating function with expression: {expression}")   # DEBUG
+        functions = canvas.get_drawables_by_class_name('Function')
+        # Split the expression into function name and argument
+        match = re.match(r'(\w+)\((.+)\)', expression)
+        if match:
+            function_name, argument = match.groups()
+            print(f"Function name: {function_name}, argument: {argument}")   # DEBUG
+        else:
+            raise ValueError(f"Invalid function expression: {expression}")
+        for function in functions:
+            if function.name.lower() == function_name.lower():
+                # If the function name matches, evaluate the function
+                print(f"Found function: {function.name} = {function.function_string}")   # DEBUG
+                try:
+                    argument = float(argument)
+                except ValueError:
+                    raise ValueError(f"Invalid argument for function: {argument}")
+                return function.function(argument)
+    
     bad_result_msg = "Sorry, that's not a valid mathematical expression."
     try:
-        result = Utilities.evaluate_expression(expression)
-        if result is None:
+        # First, try to evaluate the expression as a numeric expression
+        result = evaluate_numeric_expression(expression)
+        if not result:
             return bad_result_msg
         return result
     except Exception as e:
-        exception_details = str(e).split(":", 1)[0]
-        result = f"{bad_result_msg} Exception details: {exception_details}."
-        return result
+        try:
+            # If that fails, try to evaluate the expression as a function
+            result = evaluate_function(expression)
+            if not result:
+                return bad_result_msg
+            return result
+        except Exception as e:
+            exception_details = str(e).split(":", 1)[0]
+            result = f"{bad_result_msg} Exception details: {exception_details}."
+            return result
+
 
 def run_tests():
     function_calls = {"function_calls": 
@@ -144,7 +177,7 @@ function_call_result = None
 def set_global_function_call_result(value):
     global function_call_result
     if not validate_function_call(value):
-        function_call_result = "..."
+        function_call_result = None
     else:
         function_call_result = value
     return function_call_result
