@@ -79,7 +79,7 @@ def run_tests():
         },
         {
             "name": "create_rectangle",
-            "arguments": {"p_x": -250, "p_y": 250, "opposite_x": 220, "opposite_y": -220, "name": "Rect1"}
+            "arguments": {"diagonal_p1_x": -250, "diagonal_p1_y": 250, "diagonal_p2_x": 220, "diagonal_p2_y": -220, "name": "Rect1"}
         },
         {
             "name": "create_circle",
