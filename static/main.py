@@ -27,7 +27,11 @@ def call_multiple_functions(function_calls):
         function_to_call = available_functions[function_name]
         function_args = function_call['arguments']
         print(f"Calling function {function_name} with arguments {function_args}")   # DEBUG
-        result = function_to_call(**function_args)
+        try:
+            result = function_to_call(**function_args)
+        except Exception as e:
+            print(f"Error calling function {function_name}: {e}")
+            result = None
         if function_name == "evaluate_expression":
             eval_results.append(result)
     print(f"Multiple functions called. Results: {eval_results}")   # DEBUG
@@ -168,15 +172,15 @@ available_functions = {
     "run_tests": run_tests,
 }
 
-def validate_function_call(function_call):
+def validate_function_call_result(result):
     allowed_types = (str, int, float, bool)
-    return isinstance(function_call, allowed_types)
+    return isinstance(result, allowed_types)
 
 # Global variable to store the result of an AI function call
 function_call_result = None
 def set_global_function_call_result(value):
     global function_call_result
-    if not validate_function_call(value):
+    if not validate_function_call_result(value):
         function_call_result = None
     else:
         function_call_result = value
@@ -201,14 +205,18 @@ def interact_with_ai(event):
                     return formatted_string
                 else:
                     print(f"Calling function {function_name} with arguments {function_args}")
-                    return available_functions[function_name](**function_args)
+                    try:
+                        return available_functions[function_name](**function_args)
+                    except Exception as e:
+                        print(f"Error calling function {function_name}: {e}")
+                        return None
         
         def create_ai_message(ai_response, function_call_result):
             # This function should return the text part of the AI's reply
             ai_response_text = ""
             if ai_response.get("content"):
                 ai_response_text = ai_response["content"]
-            if function_call_result and validate_function_call(function_call_result):
+            if function_call_result and validate_function_call_result(function_call_result):
                 ai_response_text += str(function_call_result)
             if not ai_response_text:
                 ai_response_text = "..."
@@ -217,7 +225,8 @@ def interact_with_ai(event):
         try:
             # Load the JSON from the AI's reply and call the appropriate functions
             print(response)    # DEBUG
-            function_call_result = set_global_function_call_result(call_functions(response))
+            call_result = call_functions(response)
+            function_call_result = set_global_function_call_result(call_result)
 
             # Get the text part of the AI's reply
             ai_response_text = create_ai_message(response, function_call_result).replace('\n', '<br>')               
@@ -231,7 +240,6 @@ def interact_with_ai(event):
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
         
     def build_prompt(canvas_state, function_call_result, user_message):
-        print(f"Building prompt with canvas state: {canvas_state}, function call result: {function_call_result}, user message: {user_message}")
         prompt = json.dumps({"canvas_state": canvas_state, "previous_function_call_result": function_call_result, "user_message": user_message})
         return prompt
 
