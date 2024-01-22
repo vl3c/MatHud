@@ -12,7 +12,9 @@ class OpenAIChatCompletionsAPI:
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.messages = [{"role": "system", "content": "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics."}]
+        self.messages = [{"role": "system", "content": "You are an educational graphing calculator AI interface that can draw shapes, \
+                          perform calculations and help users explore mathematics. IMPORTANT: Before answering, please analize the canvas state. \
+                          IMPORTANT: If the user asks you to perform multiple tasks, use call_multiple_functions."}]
         self.functions = FUNCTIONS
 
     def create_chat_completion(self, prompt, function_call="auto"):
