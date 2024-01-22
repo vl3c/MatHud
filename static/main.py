@@ -39,13 +39,12 @@ def call_multiple_functions(function_calls):
     canvas.archiving_enabled = True
     return eval_results
 
-def format_call_multiple_functions_result(result_list):
+def format_results(result_list):
     if not result_list:
         result_string = "Called multiple functions."
     else:
         result_string = "Results: " + ", ".join(str(result) for result in result_list)
-    formatted_string = f"{result_string}"
-    return formatted_string
+    return result_string
 
 def evaluate_expression(expression):
     def evaluate_numeric_expression(expression):
@@ -143,7 +142,7 @@ def run_tests():
             "arguments": {"expression": "2^3 - 1"}
         }
     ]}
-    result = format_call_multiple_functions_result(call_multiple_functions(function_calls))
+    result = format_results(call_multiple_functions(function_calls))
     print(result)    # DEBUG
     Utilities.test_math_js()
 
@@ -201,7 +200,7 @@ def interact_with_ai(event):
                 # If calling multiple functions, pass the whole list
                 if function_name == "call_multiple_functions":
                     result_list = call_multiple_functions(function_args)
-                    formatted_string = format_call_multiple_functions_result(result_list)
+                    formatted_string = format_results(result_list)
                     print(formatted_string)
                     return formatted_string
                 else:
