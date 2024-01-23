@@ -478,5 +478,26 @@ FUNCTIONS = [
                     "required": ["expression"]
                 }
             },
-
+            {
+                "name": "convert",
+                "description": "Converts a value from one unit to another",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "value": {
+                            "type": "number",
+                            "description": "The value to be converted"
+                        },
+                        "from_unit": {
+                            "type": "string",
+                            "description": "The unit to convert from"
+                        },
+                        "to_unit": {
+                            "type": "string",
+                            "description": "The unit to convert to"
+                        }
+                    },
+                    "required": ["value", "from_unit", "to_unit"]
+                }
+            }
         ]

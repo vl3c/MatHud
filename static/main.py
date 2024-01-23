@@ -170,6 +170,7 @@ available_functions = {
     "undo": canvas.undo,
     "redo": canvas.redo,
     "run_tests": run_tests,
+    "convert": Utilities.convert,
 }
 
 def validate_function_call_result(result):
