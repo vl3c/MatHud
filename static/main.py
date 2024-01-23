@@ -144,7 +144,7 @@ def run_tests():
     ]}
     result = format_results(call_multiple_functions(function_calls))
     print(result)    # DEBUG
-    Utilities.test_math_js()
+    Utilities.test_math_functions()
 
 available_functions = {
     "call_multiple_functions": call_multiple_functions,
