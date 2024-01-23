@@ -1,7 +1,4 @@
 - exponential notation number based tick labels 
 - add functions to calculate and generate points for all intersections of objects
 - add functions to calculate area of geometric objects and polygons defined by points
-- limits
-- derivatives
-- integrals
-- manipulate and solve algebraic expressions
+- change evaluation of expression to use the js libraries (maybe)
