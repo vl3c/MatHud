@@ -174,6 +174,11 @@ available_functions = {
     "limit": MathUtil.limit,
     "derivative": MathUtil.derivative,
     "integral": MathUtil.integral,
+    "simplify": MathUtil.simplify,
+    "expand": MathUtil.expand,
+    "factor": MathUtil.factor,
+    "solve": MathUtil.solve,
+    "solve_system_of_equations": MathUtil.solve_system_of_equations,
 }
 
 def validate_function_call_result(result):

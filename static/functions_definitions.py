@@ -569,5 +569,82 @@ FUNCTIONS = [
                     },
                     "required": ["function_string", "variable"]
                 }
+            },
+            {
+                "name": "simplify",
+                "description": "Simplifies a mathematical expression. Example: x^2 + 2*x + 1 simplified is (x+1)^2",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "expression": {
+                            "type": "string",
+                            "description": "The mathematical expression represented as a string."
+                        }
+                    },
+                    "required": ["expression"]
+                }
+            },
+            {
+                "name": "expand",
+                "description": "Expands a mathematical expression. Example: (x+1)^2 expanded is x^2 + 2*x + 1",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "expression": {
+                            "type": "string",
+                            "description": "The mathematical expression represented as a string."
+                        }
+                    },
+                    "required": ["expression"]
+                }
+            },
+            {
+                "name": "factor",
+                "description": "Factors a mathematical expression. Example: x^2 - 1 factored is (x-1)*(x+1)",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "expression": {
+                            "type": "string",
+                            "description": "The mathematical expression represented as a string."
+                        }
+                    },
+                    "required": ["expression"]
+                }
+            },
+            {
+                "name": "solve",
+                "description": "Solves a mathematical equation for a given variable. Example: x^2 - 1 = 0 solved is [-1, 1] and solve('x^3 + 1', 'x') is [-1, (1/2)*i*sqrt(3)+1/2, (-1/2)*i*sqrt(3)+1/2]",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "equation": {
+                            "type": "string",
+                            "description": "The mathematical equation represented as a string."
+                        },
+                        "variable": {
+                            "type": "string",
+                            "description": "The variable to solve for."
+                        }
+                    },
+                    "required": ["equation", "variable"]
+                }
+            },
+            {
+                "name": "solve_system_of_equations",
+                "description": "Solves a system of mathematical equations. Example: solve_system_of_equations(['x+y=4', 'x-y=2']) is [3, 1]",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "equations": {
+                            "type": "array",
+                            "description": "An array of mathematical equations represented as strings.",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "required": ["equations"]
+                }
             }
         ]
