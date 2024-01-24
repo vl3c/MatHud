@@ -46,9 +46,9 @@ def format_results(result_list):
         result_string = "Results: " + ", ".join(str(result) for result in result_list)
     return result_string
 
-def evaluate_expression(expression):
-    def evaluate_numeric_expression(expression):
-        return MathUtil.evaluate_expression(expression)
+def evaluate_expression(expression, variables=None):
+    def evaluate_numeric_expression(expression, variables):
+        return MathUtil.evaluate(expression, variables)
     
     def evaluate_function(expression):
         print(f"Evaluating function with expression: {expression}")   # DEBUG
@@ -73,13 +73,13 @@ def evaluate_expression(expression):
     bad_result_msg = "Sorry, that's not a valid mathematical expression."
     try:
         # First, try to evaluate the expression as a numeric expression
-        result = evaluate_numeric_expression(expression)
+        result = evaluate_numeric_expression(expression, variables)
         if not result:
             return bad_result_msg
         return result
     except Exception as e:
         try:
-            # If that fails, try to evaluate the expression as a function
+            # If that fails, try to evaluate the expression as a function from the canvas
             result = evaluate_function(expression)
             if not result:
                 return bad_result_msg
@@ -171,6 +171,7 @@ available_functions = {
     "redo": canvas.redo,
     "run_tests": run_tests,
     "convert": MathUtil.convert,
+    "derivative": MathUtil.derivative,
 }
 
 def validate_function_call_result(result):

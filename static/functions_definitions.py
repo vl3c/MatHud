@@ -473,7 +473,11 @@ FUNCTIONS = [
                         "expression": {
                             "type": "string",
                             "description": "The mathematical expression to be evaluated"
-                        }
+                        },
+                        "variables": {
+                            "type": "object",
+                            "description": "Key-value pairs of the variables and values to be substituted in the expression. Examples: {'x': 2}, {'x': 2, 'y': 3}"
+                        },
                     },
                     "required": ["expression"]
                 }
@@ -498,6 +502,24 @@ FUNCTIONS = [
                         }
                     },
                     "required": ["value", "from_unit", "to_unit"]
+                }
+            },
+            {
+                "name": "derivative",
+                "description": "Computes the derivative of a function with respect to a variable",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "expression": {
+                            "type": "string",
+                            "description": "The mathematical expression represented as a string, e.g., '2*x + 3'."
+                        },
+                        "variable": {
+                            "type": "string",
+                            "description": "The variable with respect to which the derivative is computed."
+                        }
+                    },
+                    "required": ["function_string", "variable"]
                 }
             }
         ]
