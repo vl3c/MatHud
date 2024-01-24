@@ -505,6 +505,28 @@ FUNCTIONS = [
                 }
             },
             {
+                "name": "limit",
+                "description": "Computes the limit of a function as it approaches a value",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "expression": {
+                            "type": "string",
+                            "description": "The mathematical expression represented as a string, e.g., '2*x + 3'."
+                        },
+                        "variable": {
+                            "type": "string",
+                            "description": "The variable with respect to which the limit is computed."
+                        },
+                        "value_to_approach": {
+                            "type": "string",
+                            "description": "The value the variable approaches."
+                        }
+                    },
+                    "required": ["function_string", "variable", "value_to_approach"]
+                }
+            },
+            {
                 "name": "derivative",
                 "description": "Computes the derivative of a function with respect to a variable",
                 "parameters": {
@@ -517,6 +539,32 @@ FUNCTIONS = [
                         "variable": {
                             "type": "string",
                             "description": "The variable with respect to which the derivative is computed."
+                        }
+                    },
+                    "required": ["function_string", "variable"]
+                }
+            },
+            {
+                "name": "integral",
+                "description": "Computes the integral of a function with respect to a variable. Specify the lower and upper bounds only for definite integrals.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "expression": {
+                            "type": "string",
+                            "description": "The mathematical expression represented as a string, e.g., '2*x + 3'."
+                        },
+                        "variable": {
+                            "type": "string",
+                            "description": "The variable with respect to which the integral is computed."
+                        },
+                        "lower_bound": {
+                            "type": "number",
+                            "description": "The lower bound of the integral."
+                        },
+                        "upper_bound": {
+                            "type": "number",
+                            "description": "The upper bound of the integral."
                         }
                     },
                     "required": ["function_string", "variable"]

@@ -171,7 +171,9 @@ available_functions = {
     "redo": canvas.redo,
     "run_tests": run_tests,
     "convert": MathUtil.convert,
+    "limit": MathUtil.limit,
     "derivative": MathUtil.derivative,
+    "integral": MathUtil.integral,
 }
 
 def validate_function_call_result(result):
