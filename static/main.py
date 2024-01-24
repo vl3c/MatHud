@@ -1,6 +1,6 @@
 from browser import ajax, document, html
 from canvas import Canvas
-from math_util import Utilities
+from math_util import MathUtil
 from point import Position
 import json
 import re
@@ -48,7 +48,7 @@ def format_results(result_list):
 
 def evaluate_expression(expression):
     def evaluate_numeric_expression(expression):
-        return Utilities.evaluate_expression(expression)
+        return MathUtil.evaluate_expression(expression)
     
     def evaluate_function(expression):
         print(f"Evaluating function with expression: {expression}")   # DEBUG
@@ -144,7 +144,7 @@ def run_tests():
     ]}
     result = format_results(call_multiple_functions(function_calls))
     print(result)    # DEBUG
-    Utilities.test_math_functions()
+    MathUtil.test_math_functions()
 
 available_functions = {
     "call_multiple_functions": call_multiple_functions,
@@ -170,7 +170,7 @@ available_functions = {
     "undo": canvas.undo,
     "redo": canvas.redo,
     "run_tests": run_tests,
-    "convert": Utilities.convert,
+    "convert": MathUtil.convert,
 }
 
 def validate_function_call_result(result):
