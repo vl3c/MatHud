@@ -1,5 +1,2 @@
-- improve evaluating expressions using MathUtil
-- change evaluation of expression to use the js libraries (maybe)
-- update OpenAI API library
-- add functions to calculate and generate points for all intersections of objects
-- add functions to calculate area of geometric objects and polygons defined by points
+- add tests
+- add multi-step evaluation for more complex problems that require calculating intermediate results
