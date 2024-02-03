@@ -11,41 +11,6 @@ import traceback
 # Instantiate the canvas
 canvas = Canvas()
 
-def call_multiple_functions(function_calls):
-    # Archive once at the start and then suspend archiving while calling multiple functions
-    canvas.archive()
-    canvas.archiving_enabled = False
-    # Access the list of function calls from the dictionary
-    function_call_list = function_calls.get('function_calls', [])
-    eval_results = []
-    print(f"Calling multiple functions: {function_call_list}")   # DEBUG
-    for function_call in function_call_list:
-        function_name = function_call["name"]
-        if function_name not in available_functions:
-            print(f"Function {function_name} not found.")   # DEBUG
-            continue
-        function_to_call = available_functions[function_name]
-        function_args = function_call['arguments']
-        print(f"Calling function {function_name} with arguments {function_args}")   # DEBUG
-        try:
-            result = function_to_call(**function_args)
-        except Exception as e:
-            print(f"Error calling function {function_name}: {e}")
-            result = None
-        if function_name == "evaluate_expression":
-            eval_results.append(result)
-    print(f"Multiple functions called. Results: {eval_results}")   # DEBUG
-    # Resume archiving
-    canvas.archiving_enabled = True
-    return eval_results
-
-def format_results(result_list):
-    if not result_list:
-        result_string = "Called multiple functions."
-    else:
-        result_string = "Results: " + ", ".join(str(result) for result in result_list)
-    return result_string
-
 def evaluate_expression(expression, variables=None):
     def evaluate_numeric_expression(expression, variables):
         return MathUtil.evaluate(expression, variables)
@@ -89,65 +54,89 @@ def evaluate_expression(expression, variables=None):
             result = f"{bad_result_msg} Exception details: {exception_details}."
             return result
 
+def process_function_calls(calls):
+    if not calls:
+        return []
+    results = []
+    # Archive once at the start and then suspend archiving while calling undoable functions
+    contains_undoable_function = any(call.get('function_name', '') in undoable_functions for call in calls)
+    if contains_undoable_function:
+        canvas.archive()
+    # Extract function name and arguments from the tool_call
+    for call in calls:
+        function_name = call.get('function_name', '')
+        if function_name not in available_functions:
+            print(f"Error: function {function_name} not found.")
+            continue  # Skip this function call and proceed to the next
+        try:
+            # Assuming arguments are directly accessible as a dictionary
+            # If arguments are stored as a JSON string, you might need json.loads(tool_call['function']['arguments'])
+            args = call.get('arguments', {})
+            # Execute the function with its arguments
+            print(f"Calling function {function_name} with arguments {args}")
+            result = available_functions[function_name](**args)
+            results.append(result)
+        except Exception as e:
+            error_message = f"Error calling function {function_name}: {e}"
+            print(error_message)
+            results.append(f"\n{error_message}")
+    return results
 
 def run_tests():
-    function_calls = {"function_calls": 
-    [
+    function_calls = [
         {
-            "name": "create_point",
+            "function_name": "create_point",
             "arguments": {"x": -200, "y": 100, "name": "A"}
         },
         {
-            "name": "create_point",
+            "function_name": "create_point",
             "arguments": {"x": 250, "y": -150, "name": "B"}
         },
         {
-            "name": "create_segment",
+            "function_name": "create_segment",
             "arguments": {"x1": -200, "y1": 100, "x2": 250, "y2": -150, "name": "AB"}
         },
         {
-            "name": "create_vector",
+            "function_name": "create_vector",
             "arguments": {"origin_x": -150, "origin_y": -200, "tip_x": 100, "tip_y": 200, "name": "v1"}
         },
         {
-            "name": "create_triangle",
+            "function_name": "create_triangle",
             "arguments": {"x1": -100, "y1": -150, "x2": 120, "y2": 130, "x3": 150, "y3": -100, "name": "ABC"}
         },
         {
-            "name": "create_rectangle",
+            "function_name": "create_rectangle",
             "arguments": {"diagonal_p1_x": -250, "diagonal_p1_y": 250, "diagonal_p2_x": 220, "diagonal_p2_y": -220, "name": "Rect1"}
         },
         {
-            "name": "create_circle",
+            "function_name": "create_circle",
             "arguments": {"center_x": 0, "center_y": 0, "radius": 150, "name": "Circle1"}
         },
         {
-            "name": "create_ellipse",
+            "function_name": "create_ellipse",
             "arguments": {"center_x": 200, "center_y": -100, "radius_x": 60, "radius_y": 90, "name": "Ellipse1"}
         },
         {
-            "name": "draw_math_function",
+            "function_name": "draw_math_function",
             "arguments": {"function_string": "100 * sin(x / 50) + 50 * tan(x / 100)", "name": "f1", "left_bound": -300, "right_bound": 300}
         },
         {
-            "name": "draw_math_function",
+            "function_name": "draw_math_function",
             "arguments": {"function_string": "100 * sin(x / 30)", "name": "f2", "left_bound": -300, "right_bound": 300}
         },
         {
-            "name": "evaluate_expression",
+            "function_name": "evaluate_expression",
             "arguments": {"expression": "2*3 + 4"}
         },
         {
-            "name": "evaluate_expression",
+            "function_name": "evaluate_expression",
             "arguments": {"expression": "2^3 - 1"}
         }
-    ]}
-    result = format_results(call_multiple_functions(function_calls))
-    print(result)    # DEBUG
+    ]
+    process_function_calls(function_calls)
     MathUtil.test_math_functions()
 
 available_functions = {
-    "call_multiple_functions": call_multiple_functions,
     "reset_canvas": canvas.reset,
     "clear_canvas": canvas.clear,
     "create_point": canvas.create_point,
@@ -181,64 +170,50 @@ available_functions = {
     "solve_system_of_equations": MathUtil.solve_system_of_equations,
 }
 
-def validate_function_call_result(result):
+undoable_functions = ["clear_canvas", "reset_canvas", "create_point", "delete_point", "create_segment", "delete_segment", "create_vector", "delete_vector", \
+                      "create_triangle", "delete_triangle", "create_rectangle", "delete_rectangle", "create_circle", "delete_circle", "create_ellipse", "delete_ellipse", \
+                      "draw_math_function", "delete_math_function"]
+
+def validate_function_call_result(results):
     allowed_types = (str, int, float, bool)
-    return isinstance(result, allowed_types)
+    if not isinstance(results, list):
+        return False
+    return all(isinstance(result, allowed_types) for result in results)
 
 # Global variable to store the result of an AI function call
-function_call_result = None
+function_call_results = []
 def set_global_function_call_result(value):
-    global function_call_result
+    global function_call_results
     if not validate_function_call_result(value):
-        function_call_result = None
+        function_call_results = []
     else:
-        function_call_result = value
-    return function_call_result
+        function_call_results = value
+    return function_call_results
 
 # Send message, receive response from the AI and call functions as needed
 def interact_with_ai(event):
-    def parse_ai_response(response):
-
-        def call_functions(ai_response):
-            # This function should call the functions specified in the AI's reply
-            if ai_response.get("function_call"):
-                function_name = ai_response["function_call"]["name"]
-                if function_name not in available_functions:
-                    return f"Error: function {function_name} not found."
-                function_args = json.loads(ai_response["function_call"]["arguments"])
-                # If calling multiple functions, pass the whole list
-                if function_name == "call_multiple_functions":
-                    result_list = call_multiple_functions(function_args)
-                    formatted_string = format_results(result_list)
-                    print(formatted_string)
-                    return formatted_string
-                else:
-                    print(f"Calling function {function_name} with arguments {function_args}")
-                    try:
-                        return available_functions[function_name](**function_args)
-                    except Exception as e:
-                        print(f"Error calling function {function_name}: {e}")
-                        return None
-        
-        def create_ai_message(ai_response, function_call_result):
+    def parse_ai_response(ai_message, ai_function_calls):
+        def create_ai_message(ai_response, function_call_results):
             # This function should return the text part of the AI's reply
             ai_response_text = ""
-            if ai_response.get("content"):
-                ai_response_text = ai_response["content"]
-            if function_call_result and validate_function_call_result(function_call_result):
-                ai_response_text += str(function_call_result)
+            if ai_response:
+                ai_response_text = ai_response
+            if function_call_results and validate_function_call_result(function_call_results):
+                ai_response_text += ', '.join(map(str, function_call_results))
             if not ai_response_text:
                 ai_response_text = "..."
             return ai_response_text
         
         try:
             # Load the JSON from the AI's reply and call the appropriate functions
-            print(response)    # DEBUG
-            call_result = call_functions(response)
-            function_call_result = set_global_function_call_result(call_result)
+            print(f"AI message: {ai_message}")   # DEBUG
+            print(f"AI function calls: {ai_function_calls}")   # DEBUG
+
+            call_results = process_function_calls(ai_function_calls)
+            call_results = set_global_function_call_result(call_results)
 
             # Get the text part of the AI's reply
-            ai_response_text = create_ai_message(response, function_call_result).replace('\n', '<br>')               
+            ai_response_text = create_ai_message(ai_message, call_results).replace('\n', '<br>')               
             # Add an empty AI response placeholder to the chat history
             document["chat-history"] <= html.P(f'<strong>AI:</strong> {ai_response_text}', innerHTML=True)
         except Exception as e:
@@ -248,15 +223,16 @@ def interact_with_ai(event):
             # Scroll the chat history to the bottom
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
         
-    def build_prompt(canvas_state, function_call_result, user_message):
-        prompt = json.dumps({"canvas_state": canvas_state, "previous_function_call_result": function_call_result, "user_message": user_message})
+    def build_prompt(canvas_state, function_call_results, user_message):
+        prompt = json.dumps({"canvas_state": canvas_state, "previous_results": function_call_results, "user_message": user_message})
         return prompt
 
     def on_complete(request):
         if request.status == 200 or request.status == 0:
             ai_response = request.json
+            ai_message, ai_function_calls = ai_response.get('ai_message'), ai_response.get('ai_tool_calls')
             # Parse the AI's response and create / delete drawables as needed
-            parse_ai_response(ai_response)
+            parse_ai_response(ai_message, ai_function_calls)
         else:
             on_error(request)
     
@@ -264,14 +240,15 @@ def interact_with_ai(event):
         print(f"Error: {request.status}, {request.text}")
     
     def send_request(prompt):
-        # Send the prompt to the AI
+        # Updated to handle new API response format and tool calls
         req = ajax.ajax()
         req.bind('complete', on_complete)
         req.bind('error', on_error)
         req.open('POST', '/send_message', True)
-        req.set_header('content-type', 'application/x-www-form-urlencoded')
-        req.send({'message': prompt})
-    
+        req.set_header('content-type', 'application/json')  # Ensure this matches expected content type
+        # Update to send JSON including any necessary data for tools
+        req.send(json.dumps({'message': prompt}))
+
     # Get the user's message from the input field
     user_message = document["chat-input"].value
     # Add the user's message to the chat history
@@ -283,8 +260,8 @@ def interact_with_ai(event):
     # Get the canvas state with on-screen drawables original properties 
     canvas_state = canvas.get_canvas_state()
     # Build the prompt for the AI
-    global function_call_result
-    prompt = build_prompt(canvas_state, function_call_result, user_message)
+    global function_call_results
+    prompt = build_prompt(canvas_state, function_call_results, user_message)
     print(prompt)
     send_request(prompt)
 

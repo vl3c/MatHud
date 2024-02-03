@@ -1,45 +1,58 @@
 import json
 import os
-import openai
+from dotenv import load_dotenv
+from openai import OpenAI
 from static.functions_definitions import FUNCTIONS
 
-MODEL = "gpt-3.5-turbo-0613"   
-#MODEL = "gpt-4-1106-preview" 
+#MODEL = "gpt-3.5-turbo-0613"   
+MODEL = "gpt-4-0125-preview" 
+
+dotenv_path = "../../.env"
+load_dotenv(dotenv_path)
 
 class OpenAIChatCompletionsAPI:
-    def __init__(self, model=MODEL, temperature=0.2, max_tokens=8000):
-        openai.api_key = os.getenv("OPENAI_API_KEY")
+    def __init__(self, model=MODEL, temperature=0.2, tools=FUNCTIONS, max_tokens=8000):
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.messages = [{"role": "system", "content": "You are an educational graphing calculator AI interface that can draw shapes, \
-                          perform calculations and help users explore mathematics. IMPORTANT: Before answering, please analize the canvas state. \
-                          IMPORTANT: If the user asks you to perform multiple tasks, use call_multiple_functions."}]
-        self.functions = FUNCTIONS
+                          perform calculations and help users explore mathematics. IMPORTANT: Before answering, please analize the canvas state."}]
+        self.tools = tools
 
-    def create_chat_completion(self, prompt, function_call="auto"):
+    def create_chat_completion(self, prompt):
         def remove_canvas_state_from_last_user_message():
-            previous_message_content = self.messages[-2]["content"]
-            previous_message_content_json = json.loads(previous_message_content)
-            if "canvas_state" in previous_message_content_json:
-                del previous_message_content_json["canvas_state"]
-                self.messages[-2]["content"] = json.dumps(previous_message_content_json)
+            if "content" in self.messages[-2]:
+                previous_message_content = self.messages[-2]["content"]
+                try:
+                    previous_message_content_json = json.loads(previous_message_content)
+                    if "canvas_state" in previous_message_content_json:
+                        del previous_message_content_json["canvas_state"]
+                        self.messages[-2]["content"] = json.dumps(previous_message_content_json)
+                except json.JSONDecodeError:
+                    # Handle cases where content is not JSON or cannot be decoded
+                    pass
         
+        # Append the new user message to the messages list
         message = {"role": "user", "content": prompt}
         self.messages.append(message)
 
-        response = openai.ChatCompletion.create(
+        # Make the API call to create chat completions
+        response = self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,
-            functions=self.functions,
-            function_call=function_call
+            tools = self.tools,
+            # temperature=self.temperature,
+            # max_tokens=self.max_tokens
         )
-        response_message = response["choices"][0]["message"]
-        self.messages.append(response_message)
-        print(self.messages)   # DEBUG
+        # Extract the response message
+        response_message = response.choices[0].message
+        content = response_message.content or ""
+        # Append the AI's response to messages
+        self.messages.append({"role": "assistant", "content": content})
+        # Optionally, clean up the canvas state from the last user message
         remove_canvas_state_from_last_user_message()
+        
+        print(self.messages)   # DEBUG
+        
         return response_message
-
-    def get_model_list(self):
-        response = openai.Model.list()
-        return response
