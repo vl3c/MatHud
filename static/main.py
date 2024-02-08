@@ -2,6 +2,7 @@ from browser import ajax, document, html
 from canvas import Canvas
 from math_util import MathUtil
 from point import Position
+import Tests.tests as tests
 import json
 import re
 import time
@@ -134,7 +135,7 @@ def run_tests():
         }
     ]
     process_function_calls(function_calls)
-    MathUtil.test_math_functions()
+    tests.run_tests()
 
 available_functions = {
     "reset_canvas": canvas.reset,
