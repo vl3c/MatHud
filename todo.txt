@@ -1,2 +1,3 @@
 - add tests
+- send screenshots of the canvas to GPT 4-Vision
 - add multi-step evaluation for more complex problems that require calculating intermediate results
