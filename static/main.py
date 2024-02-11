@@ -126,12 +126,20 @@ def run_tests():
             "arguments": {"function_string": "100 * sin(x / 30)", "name": "f2", "left_bound": -300, "right_bound": 300}
         },
         {
-            "function_name": "evaluate_expression",
-            "arguments": {"expression": "2*3 + 4"}
+            "function_name": "clear_canvas",
+            "arguments": {}
         },
         {
-            "function_name": "evaluate_expression",
-            "arguments": {"expression": "2^3 - 1"}
+            "function_name": "undo",
+            "arguments": {}
+        },
+        {
+            "function_name": "redo",
+            "arguments": {}
+        },
+        {
+            "function_name": "undo",
+            "arguments": {}
         }
     ]
     process_function_calls(function_calls)
