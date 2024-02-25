@@ -10,7 +10,9 @@ import traceback
 
 
 # Instantiate the canvas
-canvas = Canvas()
+viewport = document['math-svg'].getBoundingClientRect()
+canvas = Canvas(viewport.width, viewport.height)
+
 
 def evaluate_expression(expression, variables=None):
     def evaluate_numeric_expression(expression, variables):
