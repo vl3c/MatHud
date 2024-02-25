@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from static.functions_definitions import FUNCTIONS
 
-#MODEL = "gpt-3.5-turbo-0613"   
-MODEL = "gpt-4-0125-preview" 
+MODEL = "gpt-3.5-turbo"   
+# MODEL = "gpt-4-0125-preview" 
 
 dotenv_path = "../../.env"
 load_dotenv(dotenv_path)
@@ -16,8 +16,7 @@ class OpenAIChatCompletionsAPI:
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.messages = [{"role": "system", "content": "You are an educational graphing calculator AI interface that can draw shapes, \
-                          perform calculations and help users explore mathematics. IMPORTANT: Before answering, please analize the canvas state."}]
+        self.messages = [{"role": "system", "content": "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. IMPORTANT: Before answering, please analize the canvas state."}]
         self.tools = tools
 
     def create_chat_completion(self, prompt):
