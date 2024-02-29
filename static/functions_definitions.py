@@ -315,19 +315,19 @@ FUNCTIONS = [
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "diagonal_p1_x": {
+                            "px": {
                                 "type": "number",
                                 "description": "The X coordinate of the origin point",
                             },
-                            "diagonal_p1_y": {
+                            "py": {
                                 "type": "number",
                                 "description": "The Y coordinate of the origin point",
                             },
-                            "diagonal_p2_x": {
+                            "opposite_px": {
                                 "type": "number",
                                 "description": "The X coordinate of the tip point",
                             },
-                            "diagonal_p2_y": {
+                            "opposite_py": {
                                 "type": "number",
                                 "description": "The Y coordinate of the tip point",
                             },
@@ -336,7 +336,7 @@ FUNCTIONS = [
                                 "description": "The name of the rectangle",
                             }
                         },
-                        "required": ["diagonal_p1_x", "diagonal_p1_y", "diagonal_p2_x", "diagonal_p2_y"]
+                        "required": ["px", "py", "opposite_px", "opposite_py"]
                     }
                 }
             },
