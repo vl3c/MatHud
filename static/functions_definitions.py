@@ -456,7 +456,7 @@ FUNCTIONS = [
             {
                 "type": "function",
                 "function": {
-                    "name": "draw_math_function",
+                    "name": "draw_function",
                     "description": "Plots the given mathematical function on the canvas between the specified left and right bounds.",
                     "parameters": {
                         "type": "object",
@@ -485,8 +485,8 @@ FUNCTIONS = [
             {
                 "type": "function",
                 "function": {
-                    "name": "delete_math_function",
-                    "description": "Removes the plotted function with the given name from the canvas.",
+                    "name": "delete_function",
+                    "description": "Removes the plotted mathematical function with the given name from the canvas.",
                     "parameters": {
                         "type": "object",
                         "properties": {

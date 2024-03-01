@@ -120,11 +120,11 @@ def run_tests():
             "arguments": {"center_x": 200, "center_y": -100, "radius_x": 60, "radius_y": 90, "name": "Ellipse1"}
         },
         {
-            "function_name": "draw_math_function",
+            "function_name": "draw_function",
             "arguments": {"function_string": "100 * sin(x / 50) + 50 * tan(x / 100)", "name": "f1", "left_bound": -300, "right_bound": 300}
         },
         {
-            "function_name": "draw_math_function",
+            "function_name": "draw_function",
             "arguments": {"function_string": "100 * sin(x / 30)", "name": "f2", "left_bound": -300, "right_bound": 300}
         },
         {
@@ -164,8 +164,8 @@ available_functions = {
     "delete_circle": canvas.delete_circle,
     "create_ellipse": canvas.create_ellipse,
     "delete_ellipse": canvas.delete_ellipse,
-    "draw_math_function": canvas.draw_math_function,
-    "delete_math_function": canvas.delete_math_function,
+    "draw_function": canvas.draw_function,
+    "delete_function": canvas.delete_function,
     "evaluate_expression": evaluate_expression,
     "undo": canvas.undo,
     "redo": canvas.redo,
@@ -183,7 +183,7 @@ available_functions = {
 
 undoable_functions = ["clear_canvas", "reset_canvas", "create_point", "delete_point", "create_segment", "delete_segment", "create_vector", "delete_vector", \
                       "create_triangle", "delete_triangle", "create_rectangle", "delete_rectangle", "create_circle", "delete_circle", "create_ellipse", "delete_ellipse", \
-                      "draw_math_function", "delete_math_function"]
+                      "draw_function", "delete_function"]
 
 def validate_function_call_result(results):
     allowed_types = (str, int, float, bool)
