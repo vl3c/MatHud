@@ -11,13 +11,14 @@ dotenv_path = "../../.env"
 load_dotenv(dotenv_path)
 
 class OpenAIChatCompletionsAPI:
-    def __init__(self, model=MODEL, temperature=0.2, tools=FUNCTIONS, max_tokens=8000):
+    def __init__(self, model=MODEL, temperature=0.2, tools=FUNCTIONS, max_tokens=32000):
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.messages = [{"role": "system", "content": "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. IMPORTANT: Before answering, please analize the canvas state."}]
         self.tools = tools
+        system_message = "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. IMPORTANT: Before answering, please analize the canvas state."
+        self.messages = [{"role": "system", "content": system_message}]
 
     def create_chat_completion(self, prompt):
         def remove_canvas_state_from_last_user_message():
