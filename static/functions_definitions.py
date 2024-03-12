@@ -503,7 +503,7 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "evaluate_expression",
-                    "description": "Evaluates a mathematical expression provided as a string and returns the numerical result",
+                    "description": "Evaluates a mathematical expression provided as a string and returns the numerical result. The expression can include variables like x, y; constants like e, pi; mathematical operations and functions like sin, cos, tan, sqrt, log, log10, log2, factorial, asin, acos, atan, sinh, cosh, tanh, exp, abs, pi, e, pow, det, bin, round, ceil, floor, trunc, max, min, sum, limit, derive, integrate, simplify, expand, factor, solve, gcd, lcm, mean, median, mode, stdev, variance, random, randint.",
                     "parameters": {
                         "type": "object",
                         "properties": {
