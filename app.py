@@ -5,7 +5,7 @@ from flask import Flask, json, request, render_template
 from static.openai_api import OpenAIChatCompletionsAPI
 
 def get_log_file_name():
-    return datetime.now().strftime('mathud_log_%y_%m_%d_%H_%M_%S.log')
+    return datetime.now().strftime('mathud_session_%y_%m_%d_%H_%M_%S.log')
 
 def set_up_logging():
     if not os.path.exists('./logs/'):
