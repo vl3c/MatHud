@@ -1,5 +1,5 @@
-- log everything to files
-- send screenshots of the canvas to GPT 4-Vision
+- fix how previous function call results are stored in the prompt messages archive
 - add multi-step evaluation for more complex problems that require calculating intermediate results
+- send screenshots of the canvas to GPT 4-Vision
 - save previous calculations in a list in the program state
 - be able to upload images to extract math problems from real-life context
