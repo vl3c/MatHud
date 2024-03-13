@@ -503,13 +503,13 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "evaluate_expression",
-                    "description": "Evaluates a mathematical expression provided as a string and returns the numerical result. The expression can include variables like x, y; constants like e, pi; mathematical operations and functions like sin, cos, tan, sqrt, log, log10, log2, factorial, asin, acos, atan, sinh, cosh, tanh, exp, abs, pi, e, pow, det, bin, round, ceil, floor, trunc, max, min, sum, limit, derive, integrate, simplify, expand, factor, solve, gcd, lcm, mean, median, mode, stdev, variance, random, randint.",
+                    "description": "Evaluates a mathematical expression provided as a string and returns the numerical result. The expression can include variables like x, y; constants like e, pi; mathematical operations and functions like sin, cos, tan, sqrt, log, log10, log2, factorial, asin, acos, atan, sinh, cosh, tanh, exp, abs, pi, e, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, mean, median, mode, stdev, variance, random, randint.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "expression": {
                                 "type": "string",
-                                "description": "The mathematical expression to be evaluated"
+                                "description": "The mathematical expression to be evaluated. Example: '5*x - 1' or 'sin(x)"
                             },
                             "variables": {
                                 "type": "object",
@@ -555,7 +555,7 @@ FUNCTIONS = [
                         "properties": {
                             "expression": {
                                 "type": "string",
-                                "description": "The mathematical expression represented as a string, e.g., '2*x + 3'."
+                                "description": "The mathematical expression represented as a string. Example: 'log(x)^2'."
                             },
                             "variable": {
                                 "type": "string",
@@ -573,14 +573,14 @@ FUNCTIONS = [
             {
                 "type": "function",
                 "function": {
-                    "name": "derivative",
+                    "name": "derive",
                     "description": "Computes the derivative of a function with respect to a variable",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "expression": {
                                 "type": "string",
-                                "description": "The mathematical expression represented as a string, e.g., '2*x + 3'."
+                                "description": "The mathematical expression represented as a string. Example: '2*x + 3'."
                             },
                             "variable": {
                                 "type": "string",
@@ -594,18 +594,18 @@ FUNCTIONS = [
             {
                 "type": "function",
                 "function": {
-                    "name": "integral",
+                    "name": "integrate",
                     "description": "Computes the integral of a function with respect to a variable. Specify the lower and upper bounds only for definite integrals.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "expression": {
                                 "type": "string",
-                                "description": "The mathematical expression represented as a string, e.g., '2*x + 3'."
+                                "description": "The mathematical expression represented as a string. Example: '2*x + 3'"
                             },
                             "variable": {
                                 "type": "string",
-                                "description": "The variable with respect to which the integral is computed."
+                                "description": "The variable with respect to which the integral is computed. Example: 'x'"
                             },
                             "lower_bound": {
                                 "type": "number",
@@ -624,13 +624,13 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "simplify",
-                    "description": "Simplifies a mathematical expression. Example: x^2 + 2*x + 1 simplified is (x+1)^2",
+                    "description": "Simplifies a mathematical expression.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "expression": {
                                 "type": "string",
-                                "description": "The mathematical expression represented as a string."
+                                "description": "The mathematical expression represented as a string. Example: 'x^2 + 2*x + 1'"
                             }
                         },
                         "required": ["expression"]
@@ -641,13 +641,13 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "expand",
-                    "description": "Expands a mathematical expression. Example: (x+1)^2 expanded is x^2 + 2*x + 1",
+                    "description": "Expands a mathematical expression.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "expression": {
                                 "type": "string",
-                                "description": "The mathematical expression represented as a string."
+                                "description": "The mathematical expression represented as a string. Example: '(x+1)^2'"
                             }
                         },
                         "required": ["expression"]
@@ -658,13 +658,13 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "factor",
-                    "description": "Factors a mathematical expression. Example: x^2 - 1 factored is (x-1)*(x+1)",
+                    "description": "Factors a mathematical expression.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "expression": {
                                 "type": "string",
-                                "description": "The mathematical expression represented as a string."
+                                "description": "The mathematical expression represented as a string. Example: 'x^2 - 1'"
                             }
                         },
                         "required": ["expression"]
@@ -675,17 +675,17 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "solve",
-                    "description": "Solves a mathematical equation for a given variable. Example: x^2 - 1 = 0 solved is [-1, 1] and solve('x^3 + 1', 'x') is [-1, (1/2)*i*sqrt(3)+1/2, (-1/2)*i*sqrt(3)+1/2]",
+                    "description": "Solves a mathematical equation for a given variable.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "equation": {
                                 "type": "string",
-                                "description": "The mathematical equation represented as a string."
+                                "description": "The mathematical equation represented as a string. Example: 'x^2 - 1'"
                             },
                             "variable": {
                                 "type": "string",
-                                "description": "The variable to solve for."
+                                "description": "The variable to solve for. Example: 'x'"
                             }
                         },
                         "required": ["equation", "variable"]
@@ -696,13 +696,13 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "solve_system_of_equations",
-                    "description": "Solves a system of mathematical equations. Example: solve_system_of_equations(['x+y=4', 'x-y=2']) is [3, 1]",
+                    "description": "Solves a system of mathematical equations.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "equations": {
                                 "type": "array",
-                                "description": "An array of mathematical equations represented as strings.",
+                                "description": "An array of mathematical equations represented as strings. Example: ['2*x/3 = y', 'x-2 = y']",
                                 "items": {
                                     "type": "string"
                                 }
