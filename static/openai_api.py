@@ -17,7 +17,7 @@ class OpenAIChatCompletionsAPI:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.tools = tools
-        system_message = "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. IMPORTANT: Before answering, please analize the canvas state."
+        system_message = "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. IMPORTANT: Before answering, please analize the canvas state and previous results."
         self.messages = [{"role": "system", "content": system_message}]
 
     def create_chat_completion(self, prompt):
@@ -33,6 +33,18 @@ class OpenAIChatCompletionsAPI:
                     # Handle cases where content is not JSON or cannot be decoded
                     pass
         
+        def remove_previous_results_from_last_user_message():
+            if "content" in self.messages[-2]:
+                previous_message_content = self.messages[-2]["content"]
+                try:
+                    previous_message_content_json = json.loads(previous_message_content)
+                    if "previous_results" in previous_message_content_json:
+                        del previous_message_content_json["previous_results"]
+                        self.messages[-2]["content"] = json.dumps(previous_message_content_json)
+                except json.JSONDecodeError:
+                    # Handle cases where content is not JSON or cannot be decoded
+                    pass
+
         # Append the new user message to the messages list
         message = {"role": "user", "content": prompt}
         self.messages.append(message)
