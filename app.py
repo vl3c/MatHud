@@ -5,12 +5,17 @@ from flask import Flask, json, request, render_template
 from static.openai_api import OpenAIChatCompletionsAPI
 
 def get_log_file_name():
-    return datetime.now().strftime('mathud_session_%y_%m_%d_%H_%M_%S.log')
+    return datetime.now().strftime('mathud_session_%y_%m_%d.log')
 
 def set_up_logging():
     if not os.path.exists('./logs/'):
         os.makedirs('./logs/')
     logging.basicConfig(filename='./logs/' +  get_log_file_name(), level=logging.INFO, format='%(asctime)s %(message)s')
+    log_new_session_start()
+
+def log_new_session_start():
+    session_delimiter = f"\n\n###### SESSION {datetime.now().strftime('%H:%M:%S')} ######\n"
+    logging.info(session_delimiter)
 
 def log_user_message(user_message):
     user_message_json = json.loads(user_message)
