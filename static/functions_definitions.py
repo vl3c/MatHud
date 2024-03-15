@@ -711,5 +711,17 @@ FUNCTIONS = [
                         "required": ["equations"]
                     }
                 }
-            }        
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "request_results",
+                    "description": "Requests results of function calls for intermediate actions or calculations to be returned to you directly. Note: The user will be notified of the request and the results. Important: never call just this function by itself. Only use it in combination with other functions.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                }
+            }
         ]
