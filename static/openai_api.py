@@ -4,10 +4,9 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from static.functions_definitions import FUNCTIONS
 
-MODEL = "gpt-3.5-turbo"   
-# MODEL = "gpt-4-0125-preview" 
+MODEL = "gpt-4o"
 
-dotenv_path = "../../.env"
+dotenv_path = "../.env"
 load_dotenv(dotenv_path)
 
 class OpenAIChatCompletionsAPI:
@@ -63,8 +62,8 @@ class OpenAIChatCompletionsAPI:
         # Append the AI's response to messages
         self.messages.append({"role": "assistant", "content": content})
         # Optionally, clean up the canvas state from the last user message
+        print(f"All messages BEFORE removing canvas_state and previous_results: {self.messages}\n\n")
         remove_canvas_state_from_last_user_message()
-        
-        print(self.messages)   # DEBUG
+        remove_previous_results_from_last_user_message()
         
         return response_message
