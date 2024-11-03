@@ -62,7 +62,7 @@ class OpenAIChatCompletionsAPI:
         # Append the AI's response to messages
         self.messages.append({"role": "assistant", "content": content})
         # Optionally, clean up the canvas state from the last user message
-        print(f"All messages BEFORE removing canvas_state and previous_results: {self.messages}\n\n")
+        print(f"All messages BEFORE removing canvas_state and previous_results: \n{self.messages}\n\n")
         remove_canvas_state_from_last_user_message()
         remove_previous_results_from_last_user_message()
         
