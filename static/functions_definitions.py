@@ -509,11 +509,11 @@ FUNCTIONS = [
                         "properties": {
                             "expression": {
                                 "type": "string",
-                                "description": "The mathematical expression to be evaluated. Example: '5*x - 1' or 'sin(x)"
+                                "description": "The mathematical expression to be evaluated. Example: '5*x - 1' or 'sin(x)'"
                             },
                             "variables": {
                                 "type": "object",
-                                "description": "Key-value pairs of the variables and values to be substituted in the expression. Examples: {'x': 2}, {'x': 2, 'y': 3}"
+                                "description": "Dictionary containing key-value pairs of the variables and values to be substituted in the expression. Example: {'x': 2, 'y': 3}"
                             },
                         },
                         "required": ["expression"]
