@@ -141,6 +141,7 @@ def init_webdriver(app):
     if USE_VISION:
         print("Initializing WebDriver...")
         firefox_options = Options()
+        firefox_options.add_argument('--headless')  # Make Firefox run in headless mode
         
         # Add retry mechanism
         max_retries = 3
