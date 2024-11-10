@@ -37,6 +37,9 @@ def log_user_message(user_message):
         logging.error("Failed to decode user message JSON.")
         return
     
+    if "svg_state" in user_message_json:
+        svg_state = user_message_json["svg_state"]
+        logging.info(f'### SVG state dimensions: {svg_state["dimensions"]}')
     if "canvas_state" in user_message_json:
         canvas_state = user_message_json["canvas_state"]
         logging.info(f'### Canvas state: {canvas_state}')
@@ -63,29 +66,72 @@ def jsonify_tool_calls(tool_calls):
 def capture_canvas(driver):
     print("\nStarting capture_canvas...")
     try:
-        # Create CanvasSnapshots directory if it doesn't exist
         snapshots_dir = "CanvasSnapshots"
         if not os.path.exists(snapshots_dir):
             os.makedirs(snapshots_dir)
         
-        # Wait for SVG element
-        svg_element = WebDriverWait(driver, 10).until(
+        # Wait for SVG element and ensure it's visible
+        WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "math-svg"))
         )
         
-        # Wait for Brython to initialize and render (wait for any SVG child elements)
+        # Wait for all SVG child elements to be present
         WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "#math-svg > *"))
+            EC.presence_of_all_elements_located((
+                By.CSS_SELECTOR, 
+                "#math-svg > *"
+            ))
         )
+
+        # Verify SVG content is present
+        svg = driver.find_element(By.ID, "math-svg")
+        if not svg.get_attribute("innerHTML").strip():
+            raise Exception("SVG content is empty")
+
+        # Get the actual rendered dimensions using JavaScript
+        dimensions = driver.execute_script("""
+            var container = document.querySelector('.math-container');
+            var rect = container.getBoundingClientRect();
+            return {
+                width: rect.width,
+                height: rect.height
+            };
+        """)
         
-        # Add a small delay to ensure all elements are fully rendered
-        time.sleep(0.5)
+        width = dimensions['width']
+        height = dimensions['height']
         
-        # Take screenshot of the SVG element
+        # Set explicit size for SVG and ensure container is properly sized
+        driver.execute_script("""
+            var container = document.querySelector('.math-container');
+            var svg = document.getElementById('math-svg');
+            
+            // Set container style
+            container.style.width = arguments[0] + 'px';
+            container.style.height = arguments[1] + 'px';
+            
+            // Set SVG attributes
+            svg.setAttribute('width', arguments[0]);
+            svg.setAttribute('height', arguments[1]);
+            svg.setAttribute('viewBox', '0 0 ' + arguments[0] + ' ' + arguments[1]);
+            svg.style.width = '100%';
+            svg.style.height = '100%';
+            
+            // Force all SVG elements to be visible
+            var elements = svg.getElementsByTagName('*');
+            for(var i=0; i < elements.length; i++) {
+                elements[i].style.visibility = 'visible';
+                elements[i].style.opacity = '1';
+            }
+        """, width, height)
+        
+        time.sleep(1)  # Give time for the changes to take effect
+        
+        # Take screenshot of the container
         canvas_path = os.path.join(snapshots_dir, "canvas.png")
-        svg_element.screenshot(canvas_path)
-        print("Canvas capture completed successfully")
-        
+        container = driver.find_element(By.CLASS_NAME, "math-container")
+        container.screenshot(canvas_path)
+        print(f"Canvas capture completed successfully (dimensions: {width}x{height})")
     except Exception as e:
         print(f"Error in capture_canvas: {str(e)}")
         logging.error(f"Error in capture_canvas: {str(e)}")
@@ -95,7 +141,6 @@ def init_webdriver(app):
     if USE_VISION:
         print("Initializing WebDriver...")
         firefox_options = Options()
-        firefox_options.add_argument("--headless")
         
         # Add retry mechanism
         max_retries = 3
@@ -110,6 +155,19 @@ def init_webdriver(app):
                 
                 print(f"Attempting to navigate (attempt {attempt + 1}/{max_retries})...")
                 app.driver.get("http://127.0.0.1:5000/")
+                
+                # Hide the chat container
+                app.driver.execute_script("""
+                    const chatContainer = document.querySelector('.chat-container');
+                    if (chatContainer) {
+                        chatContainer.style.display = 'none';
+                    }
+                    const mathContainer = document.querySelector('.math-container');
+                    if (mathContainer) {
+                        mathContainer.style.width = '100%';
+                    }
+                """)
+                
                 print("WebDriver navigation successful.")
                 return  # Success, exit the function
                 
@@ -147,6 +205,7 @@ def create_app():
     @app.route('/send_message', methods=['POST'])
     def send_message():
         message = request.json.get('message')
+        svg_state = request.json.get('svg_state')  # Get SVG state from request
         log_user_message(message)
 
         # Check if WebDriver needs to be initialized
@@ -157,18 +216,40 @@ def create_app():
         # Capture canvas image before sending to AI
         if USE_VISION and hasattr(app, 'driver') and app.driver:
             try:
+                print("Loading SVG state...")
+                # Set the SVG content and attributes directly
+                app.driver.execute_script("""
+                    const svg = document.getElementById('math-svg');
+                    const container = document.querySelector('.math-container');
+                    
+                    // Set the SVG content
+                    svg.outerHTML = arguments[0].content;
+                    
+                    // Set container dimensions
+                    container.style.width = arguments[0].dimensions.width + 'px';
+                    container.style.height = arguments[0].dimensions.height + 'px';
+                    
+                    // Set SVG attributes
+                    const newSvg = document.getElementById('math-svg');  // Get reference to new SVG after outerHTML
+                    if (arguments[0].viewBox) {
+                        newSvg.setAttribute('viewBox', arguments[0].viewBox);
+                    }
+                    if (arguments[0].transform) {
+                        newSvg.setAttribute('transform', arguments[0].transform);
+                    }
+                    
+                    return true;  // Confirm execution
+                """, svg_state)
+                
+                # Add a small delay to ensure the SVG is redrawn
+                time.sleep(1)
+                
+                # Now capture the canvas
                 capture_canvas(app.driver)
+                
             except Exception as e:
                 print(f"Failed to capture canvas: {str(e)}")
                 logging.error(f"Failed to capture canvas: {str(e)}")
-                # If capture failed, try reinitializing WebDriver once
-                print("Attempting to reinitialize WebDriver after capture failure...")
-                init_webdriver(app)
-                try:
-                    capture_canvas(app.driver)
-                except Exception as e:
-                    print(f"Second capture attempt failed: {str(e)}")
-                    logging.error(f"Second capture attempt failed: {str(e)}")
 
         # Proceed with creating chat completion
         response = openai_api.create_chat_completion(message)
