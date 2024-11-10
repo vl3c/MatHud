@@ -9,6 +9,8 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
+import signal
+import sys
 
 # Keep the utility functions
 def get_log_file_name():
@@ -70,6 +72,14 @@ def capture_canvas(driver):
         svg_element = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.ID, "math-svg"))
         )
+        
+        # Wait for Brython to initialize and render (wait for any SVG child elements)
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "#math-svg > *"))
+        )
+        
+        # Add a small delay to ensure all elements are fully rendered
+        time.sleep(0.5)
         
         # Take screenshot of the SVG element
         canvas_path = os.path.join(snapshots_dir, "canvas.png")
@@ -175,6 +185,20 @@ def create_app():
 # Create the app at module level for VS Code debugger
 app = create_app()
 
+def signal_handler(sig, frame):
+    print('\nShutting down gracefully...')
+    # Only quit the specific WebDriver instance
+    if hasattr(app, 'driver') and app.driver:
+        try:
+            app.driver.quit()
+        except Exception as e:
+            print(f"Error closing WebDriver: {e}")
+    print("Goodbye!")
+    sys.exit(0)
+
+# Register the signal handler
+signal.signal(signal.SIGINT, signal_handler)
+
 if __name__ == '__main__':
     try:
         # Start Flask in a thread
@@ -185,6 +209,7 @@ if __name__ == '__main__':
             'debug': False,
             'use_reloader': False
         })
+        server.daemon = True  # Make the server thread a daemon so it exits when main thread exits
         server.start()
         
         # Wait for Flask to start
@@ -198,11 +223,9 @@ if __name__ == '__main__':
             except Exception as e:
                 print(f"Failed to initialize WebDriver: {str(e)}")
         
-        # Keep the main thread alive
-        server.join()
+        # Keep the main thread alive but responsive to keyboard interrupts
+        while True:
+            time.sleep(1)
 
     except KeyboardInterrupt:
-        print("\nShutting down gracefully...")
-        if hasattr(app, 'driver') and app.driver:
-            app.driver.quit()
-        print("Goodbye!")
+        signal_handler(signal.SIGINT, None)
