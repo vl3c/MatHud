@@ -17,3 +17,6 @@ logs/
 
 # Canvas Snapshots
 CanvasSnapshots/
+
+# Environment variables (eg. OPENAI_API_KEY)
+.env

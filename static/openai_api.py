@@ -8,12 +8,21 @@ import base64
 MODEL = "gpt-4o"
 USE_VISION = True  # Set to True to enable sending images to the AI
 
-dotenv_path = "../.env"
-load_dotenv(dotenv_path)
+# First check if OPENAI_API_KEY is already set in environment
+api_key = os.getenv("OPENAI_API_KEY")
+
+# If not found, try to load from .env file
+if not api_key:
+    dotenv_path = ".env"
+    if os.path.exists(dotenv_path):
+        load_dotenv(dotenv_path)
+        api_key = os.getenv("OPENAI_API_KEY")
+    else:
+        raise ValueError("OPENAI_API_KEY not found in environment or .env file")
 
 class OpenAIChatCompletionsAPI:
     def __init__(self, model=MODEL, temperature=0.2, tools=FUNCTIONS, max_tokens=32000):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.client = OpenAI(api_key=api_key)  # Use the api_key we found
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
