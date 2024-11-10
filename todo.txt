@@ -1,3 +1,2 @@
 - add multi-step evaluation for more complex problems that require calculating intermediate results
-- send screenshots of the canvas to GPT 4-Vision
 - be able to upload images to extract math problems from real-life context
