@@ -2,7 +2,7 @@ import logging
 import os
 from datetime import datetime
 from flask import Flask, json, request, render_template
-from static.openai_api import OpenAIChatCompletionsAPI, USE_VISION
+from static.openai_api import OpenAIChatCompletionsAPI
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
@@ -138,51 +138,50 @@ def capture_canvas(driver):
 
 def init_webdriver(app):
     """Initialize WebDriver after Flask has started"""
-    if USE_VISION:
-        print("Initializing WebDriver...")
-        firefox_options = Options()
-        firefox_options.add_argument('--headless')  # Make Firefox run in headless mode
-        
-        # Add retry mechanism
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                if not hasattr(app, 'driver') or app.driver is None:
-                    app.driver = webdriver.Firefox(options=firefox_options)
-                    print("WebDriver started successfully.")
-                
-                # Wait for Flask to start
-                time.sleep(3)  # Increased delay
-                
-                print(f"Attempting to navigate (attempt {attempt + 1}/{max_retries})...")
-                app.driver.get("http://127.0.0.1:5000/")
-                
-                # Hide the chat container
-                app.driver.execute_script("""
-                    const chatContainer = document.querySelector('.chat-container');
-                    if (chatContainer) {
-                        chatContainer.style.display = 'none';
-                    }
-                    const mathContainer = document.querySelector('.math-container');
-                    if (mathContainer) {
-                        mathContainer.style.width = '100%';
-                    }
-                """)
-                
-                print("WebDriver navigation successful.")
-                return  # Success, exit the function
-                
-            except Exception as e:
-                print(f"Attempt {attempt + 1} failed: {str(e)}")
-                if hasattr(app, 'driver') and app.driver:
-                    app.driver.quit()
-                    app.driver = None
-                
-                if attempt < max_retries - 1:
-                    print("Retrying in 2 seconds...")
-                    time.sleep(2)
-                else:
-                    print("All attempts failed.")
+    print("Initializing WebDriver...")
+    firefox_options = Options()
+    firefox_options.add_argument('--headless')  # Make Firefox run in headless mode
+    
+    # Add retry mechanism
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            if not hasattr(app, 'driver') or app.driver is None:
+                app.driver = webdriver.Firefox(options=firefox_options)
+                print("WebDriver started successfully.")
+            
+            # Wait for Flask to start
+            time.sleep(3)  # Increased delay
+            
+            print(f"Attempting to navigate (attempt {attempt + 1}/{max_retries})...")
+            app.driver.get("http://127.0.0.1:5000/")
+            
+            # Hide the chat container
+            app.driver.execute_script("""
+                const chatContainer = document.querySelector('.chat-container');
+                if (chatContainer) {
+                    chatContainer.style.display = 'none';
+                }
+                const mathContainer = document.querySelector('.math-container');
+                if (mathContainer) {
+                    mathContainer.style.width = '100%';
+                }
+            """)
+            
+            print("WebDriver navigation successful.")
+            return  # Success, exit the function
+            
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {str(e)}")
+            if hasattr(app, 'driver') and app.driver:
+                app.driver.quit()
+                app.driver = None
+            
+            if attempt < max_retries - 1:
+                print("Retrying in 2 seconds...")
+                time.sleep(2)
+            else:
+                print("All attempts failed.")
 
 def create_app():
     app = Flask(__name__)
@@ -199,7 +198,7 @@ def create_app():
     @app.route('/init_webdriver')
     def init_webdriver_route():
         """Route to initialize WebDriver after Flask has started"""
-        if USE_VISION and not app.driver:
+        if not app.driver:
             init_webdriver(app)
         return "WebDriver initialization attempted"
 
@@ -207,15 +206,16 @@ def create_app():
     def send_message():
         message = request.json.get('message')
         svg_state = request.json.get('svg_state')  # Get SVG state from request
+        use_vision = json.loads(message).get('use_vision', False)  # Get vision state from message
         log_user_message(message)
 
         # Check if WebDriver needs to be initialized
-        if USE_VISION and (not hasattr(app, 'driver') or app.driver is None):
+        if use_vision and (not hasattr(app, 'driver') or app.driver is None):
             print("WebDriver not found, attempting to initialize...")
             init_webdriver(app)
 
         # Capture canvas image before sending to AI
-        if USE_VISION and hasattr(app, 'driver') and app.driver:
+        if use_vision and hasattr(app, 'driver') and app.driver:
             try:
                 print("Loading SVG state...")
                 # Set the SVG content and attributes directly
@@ -298,7 +298,7 @@ if __name__ == '__main__':
         time.sleep(3)
         
         # Initialize WebDriver
-        if USE_VISION:
+        if not app.driver:
             import requests
             try:
                 response = requests.get('http://127.0.0.1:5000/init_webdriver')

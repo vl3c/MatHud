@@ -6,7 +6,6 @@ from static.functions_definitions import FUNCTIONS
 import base64
 
 MODEL = "gpt-4o"
-USE_VISION = True  # Set to True to enable sending images to the AI
 
 # First check if OPENAI_API_KEY is already set in environment
 api_key = os.getenv("OPENAI_API_KEY")
@@ -67,9 +66,10 @@ class OpenAIChatCompletionsAPI:
         # Parse the prompt which is a JSON string
         prompt_json = json.loads(prompt)
         text_content = prompt_json.get("user_message", "")
+        use_vision = prompt_json.get("use_vision", True)  # Get vision toggle state
 
         # Try to add the canvas image if vision is enabled
-        if USE_VISION:
+        if use_vision:
             try:
                 with open("CanvasSnapshots/canvas.png", "rb") as image_file:
                     image_data = base64.b64encode(image_file.read()).decode('utf-8')
