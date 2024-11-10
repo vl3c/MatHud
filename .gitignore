@@ -14,3 +14,6 @@ venv/
 
 # Logs
 logs/
+
+# Canvas Snapshots
+CanvasSnapshots/

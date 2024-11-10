@@ -2,15 +2,26 @@ import logging
 import os
 from datetime import datetime
 from flask import Flask, json, request, render_template
-from static.openai_api import OpenAIChatCompletionsAPI
+from static.openai_api import OpenAIChatCompletionsAPI, USE_VISION
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
 
+# Keep the utility functions
 def get_log_file_name():
     return datetime.now().strftime('mathud_session_%y_%m_%d.log')
 
 def set_up_logging():
     if not os.path.exists('./logs/'):
         os.makedirs('./logs/')
-    logging.basicConfig(filename='./logs/' +  get_log_file_name(), level=logging.INFO, format='%(asctime)s %(message)s')
+    logging.basicConfig(
+        filename=os.path.join('./logs/', get_log_file_name()),
+        level=logging.INFO,
+        format='%(asctime)s %(message)s'
+    )
     log_new_session_start()
 
 def log_new_session_start():
@@ -18,7 +29,12 @@ def log_new_session_start():
     logging.info(session_delimiter)
 
 def log_user_message(user_message):
-    user_message_json = json.loads(user_message)
+    try:
+        user_message_json = json.loads(user_message)
+    except json.JSONDecodeError:
+        logging.error("Failed to decode user message JSON.")
+        return
+    
     if "canvas_state" in user_message_json:
         canvas_state = user_message_json["canvas_state"]
         logging.info(f'### Canvas state: {canvas_state}')
@@ -33,24 +49,118 @@ def jsonify_tool_calls(tool_calls):
     simple_tool_calls = []
     for tool_call in tool_calls:
         function_name = tool_call.function.name
-        arguments = json.loads(tool_call.function.arguments)
+        try:
+            arguments = json.loads(tool_call.function.arguments)
+        except json.JSONDecodeError:
+            arguments = {}
+            logging.error(f"Failed to decode arguments for function {function_name}.")
         simple_tool_call = {"function_name": function_name, "arguments": arguments}
         simple_tool_calls.append(simple_tool_call)
     return simple_tool_calls
+
+def capture_canvas(driver):
+    print("\nStarting capture_canvas...")
+    try:
+        # Create CanvasSnapshots directory if it doesn't exist
+        snapshots_dir = "CanvasSnapshots"
+        if not os.path.exists(snapshots_dir):
+            os.makedirs(snapshots_dir)
+        
+        # Wait for SVG element
+        svg_element = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "math-svg"))
+        )
+        
+        # Take screenshot of the SVG element
+        canvas_path = os.path.join(snapshots_dir, "canvas.png")
+        svg_element.screenshot(canvas_path)
+        print("Canvas capture completed successfully")
+        
+    except Exception as e:
+        print(f"Error in capture_canvas: {str(e)}")
+        logging.error(f"Error in capture_canvas: {str(e)}")
+
+def init_webdriver(app):
+    """Initialize WebDriver after Flask has started"""
+    if USE_VISION:
+        print("Initializing WebDriver...")
+        firefox_options = Options()
+        firefox_options.add_argument("--headless")
+        
+        # Add retry mechanism
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                if not hasattr(app, 'driver') or app.driver is None:
+                    app.driver = webdriver.Firefox(options=firefox_options)
+                    print("WebDriver started successfully.")
+                
+                # Wait for Flask to start
+                time.sleep(3)  # Increased delay
+                
+                print(f"Attempting to navigate (attempt {attempt + 1}/{max_retries})...")
+                app.driver.get("http://127.0.0.1:5000/")
+                print("WebDriver navigation successful.")
+                return  # Success, exit the function
+                
+            except Exception as e:
+                print(f"Attempt {attempt + 1} failed: {str(e)}")
+                if hasattr(app, 'driver') and app.driver:
+                    app.driver.quit()
+                    app.driver = None
+                
+                if attempt < max_retries - 1:
+                    print("Retrying in 2 seconds...")
+                    time.sleep(2)
+                else:
+                    print("All attempts failed.")
 
 def create_app():
     app = Flask(__name__)
     set_up_logging()
     openai_api = OpenAIChatCompletionsAPI()
+    
+    # Initialize driver as None; will be set after Flask starts
+    app.driver = None
 
     @app.route('/')
     def get_index():
         return render_template('index.html')
 
+    @app.route('/init_webdriver')
+    def init_webdriver_route():
+        """Route to initialize WebDriver after Flask has started"""
+        if USE_VISION and not app.driver:
+            init_webdriver(app)
+        return "WebDriver initialization attempted"
+
     @app.route('/send_message', methods=['POST'])
     def send_message():
         message = request.json.get('message')
         log_user_message(message)
+
+        # Check if WebDriver needs to be initialized
+        if USE_VISION and (not hasattr(app, 'driver') or app.driver is None):
+            print("WebDriver not found, attempting to initialize...")
+            init_webdriver(app)
+
+        # Capture canvas image before sending to AI
+        if USE_VISION and hasattr(app, 'driver') and app.driver:
+            try:
+                capture_canvas(app.driver)
+            except Exception as e:
+                print(f"Failed to capture canvas: {str(e)}")
+                logging.error(f"Failed to capture canvas: {str(e)}")
+                # If capture failed, try reinitializing WebDriver once
+                print("Attempting to reinitialize WebDriver after capture failure...")
+                init_webdriver(app)
+                try:
+                    capture_canvas(app.driver)
+                except Exception as e:
+                    print(f"Second capture attempt failed: {str(e)}")
+                    logging.error(f"Second capture attempt failed: {str(e)}")
+
+        # Proceed with creating chat completion
         response = openai_api.create_chat_completion(message)
         ai_message = response.content or ""
         logging.info(f'### AI response: {ai_message}')
@@ -59,9 +169,40 @@ def create_app():
         logging.info(f'### AI tool calls: {ai_tool_calls}')
         response = json.dumps({"ai_message": ai_message, "ai_tool_calls": ai_tool_calls})
         return response
-    
+
     return app
 
+# Create the app at module level for VS Code debugger
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
-    app.run(debug=True)
+    try:
+        # Start Flask in a thread
+        from threading import Thread
+        server = Thread(target=app.run, kwargs={
+            'host': '127.0.0.1',
+            'port': 5000,
+            'debug': False,
+            'use_reloader': False
+        })
+        server.start()
+        
+        # Wait for Flask to start
+        time.sleep(3)
+        
+        # Initialize WebDriver
+        if USE_VISION:
+            import requests
+            try:
+                response = requests.get('http://127.0.0.1:5000/init_webdriver')
+            except Exception as e:
+                print(f"Failed to initialize WebDriver: {str(e)}")
+        
+        # Keep the main thread alive
+        server.join()
+
+    except KeyboardInterrupt:
+        print("\nShutting down gracefully...")
+        if hasattr(app, 'driver') and app.driver:
+            app.driver.quit()
+        print("Goodbye!")

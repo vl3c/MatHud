@@ -3,8 +3,10 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 from static.functions_definitions import FUNCTIONS
+import base64
 
 MODEL = "gpt-4o"
+USE_VISION = True  # Set to True to enable sending images to the AI
 
 dotenv_path = "../.env"
 load_dotenv(dotenv_path)
@@ -21,49 +23,85 @@ class OpenAIChatCompletionsAPI:
 
     def create_chat_completion(self, prompt):
         def remove_canvas_state_from_last_user_message():
-            if "content" in self.messages[-2]:
+            if len(self.messages) >= 2 and "content" in self.messages[-2]:
                 previous_message_content = self.messages[-2]["content"]
-                try:
-                    previous_message_content_json = json.loads(previous_message_content)
-                    if "canvas_state" in previous_message_content_json:
-                        del previous_message_content_json["canvas_state"]
-                        self.messages[-2]["content"] = json.dumps(previous_message_content_json)
-                except json.JSONDecodeError:
-                    # Handle cases where content is not JSON or cannot be decoded
-                    pass
+                if isinstance(previous_message_content, str):
+                    try:
+                        previous_message_content_json = json.loads(previous_message_content)
+                        if "canvas_state" in previous_message_content_json:
+                            del previous_message_content_json["canvas_state"]
+                            self.messages[-2]["content"] = json.dumps(previous_message_content_json)
+                    except json.JSONDecodeError:
+                        pass
         
         def remove_previous_results_from_last_user_message():
-            if "content" in self.messages[-2]:
+            if len(self.messages) >= 2 and "content" in self.messages[-2]:
                 previous_message_content = self.messages[-2]["content"]
-                try:
-                    previous_message_content_json = json.loads(previous_message_content)
-                    if "previous_results" in previous_message_content_json:
-                        del previous_message_content_json["previous_results"]
-                        self.messages[-2]["content"] = json.dumps(previous_message_content_json)
-                except json.JSONDecodeError:
-                    # Handle cases where content is not JSON or cannot be decoded
-                    pass
+                if isinstance(previous_message_content, str):
+                    try:
+                        previous_message_content_json = json.loads(previous_message_content)
+                        if "previous_results" in previous_message_content_json:
+                            del previous_message_content_json["previous_results"]
+                            self.messages[-2]["content"] = json.dumps(previous_message_content_json)
+                    except json.JSONDecodeError:
+                        pass
 
-        # Append the new user message to the messages list
-        message = {"role": "user", "content": prompt}
+        def remove_image_from_last_user_message():
+            if len(self.messages) >= 2 and "content" in self.messages[-2]:
+                content = self.messages[-2]["content"]
+                if isinstance(content, list):
+                    # Keep only the text part
+                    text_parts = [part for part in content if part.get("type") == "text"]
+                    if text_parts:
+                        self.messages[-2]["content"] = text_parts[0]["text"]
+
+        # Parse the prompt which is a JSON string
+        prompt_json = json.loads(prompt)
+        text_content = prompt_json.get("user_message", "")
+
+        # Try to add the canvas image if vision is enabled
+        if USE_VISION:
+            try:
+                with open("CanvasSnapshots/canvas.png", "rb") as image_file:
+                    image_data = base64.b64encode(image_file.read()).decode('utf-8')
+                    message_content = [
+                        {"type": "text", "text": text_content},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{image_data}"
+                            }
+                        }
+                    ]
+            except Exception as e:
+                print(f"Failed to load canvas image: {e}")
+                message_content = prompt
+        else:
+            message_content = prompt
+
+        # Append the new user message
+        message = {"role": "user", "content": message_content}
         self.messages.append(message)
 
-        # Make the API call to create chat completions
+        # Make the API call
         response = self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,
-            tools = self.tools,
+            tools=self.tools,
             # temperature=self.temperature,
             # max_tokens=self.max_tokens
         )
+
         # Extract the response message
         response_message = response.choices[0].message
         content = response_message.content or ""
         # Append the AI's response to messages
         self.messages.append({"role": "assistant", "content": content})
-        # Optionally, clean up the canvas state from the last user message
+        
+        # Clean up the messages
         print(f"All messages BEFORE removing canvas_state and previous_results: \n{self.messages}\n\n")
         remove_canvas_state_from_last_user_message()
         remove_previous_results_from_last_user_message()
+        remove_image_from_last_user_message()
         
         return response_message
