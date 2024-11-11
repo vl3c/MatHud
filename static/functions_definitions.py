@@ -723,5 +723,30 @@ FUNCTIONS = [
                         "required": []
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "translate_object",
+                    "description": "Translates a drawable object by the specified x and y offsets",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "The exact name of the object to translate taken from the canvas state"
+                            },
+                            "x_offset": {
+                                "type": "number",
+                                "description": "The horizontal translation distance (positive moves right, negative moves left)"
+                            },
+                            "y_offset": {
+                                "type": "number",
+                                "description": "The vertical translation distance (positive moves up, negative moves down)"
+                            }
+                        },
+                        "required": ["name", "x_offset", "y_offset"]
+                    }
+                }
             }
         ]
