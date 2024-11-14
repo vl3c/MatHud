@@ -728,7 +728,7 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "translate_object",
-                    "description": "Translates a drawable object by the specified x and y offsets",
+                    "description": "Translates a drawable object or function by the specified x and y offsets",
                     "parameters": {
                         "type": "object",
                         "properties": {
