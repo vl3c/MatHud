@@ -1,34 +1,37 @@
-# MathUD - Mathematical Understanding and Drawing
+# MathHud - Mathematical Heads-Up Display
 
-MathUD is an interactive mathematical visualization tool that combines a drawing canvas with an AI assistant to help understand and solve mathematical problems.
+MathHud is an interactive mathematical visualization tool that combines a drawing canvas with an AI assistant to help understand and solve real-world mathematical problems. It serves as a heads-up display system for mathematical analysis, allowing users to visualize, analyze, and solve problems in real-time.
 
 ## Features
 
 - Interactive SVG-based drawing canvas
 - AI-powered mathematical assistant
-- Real-time geometric visualization
+- Real-time geometric visualization and analysis
 - Support for mathematical expressions and calculations
 - Visual problem-solving with multimodal AI
+- Real-world problem analysis and modeling
 
 ## Vision Mechanism
 
-The application includes a visual understanding system that allows the AI to "see" and interpret the mathematical drawings:
+The application includes a visual understanding system that allows the AI to analyze both drawn elements and real-world mathematical scenarios:
 
-1. **Visual Context**: The AI assistant can see the actual canvas state through screenshots, enabling it to:
-   - Understand geometric relationships visually
-   - Interpret mathematical drawings directly
-   - Provide more accurate and contextual responses
+1. **Visual Context**: The AI assistant processes visual information through:
+   - Real-time canvas state monitoring
+   - Interpretation of mathematical drawings and diagrams
+   - Analysis of imported real-world problem images
+   - Context-aware mathematical reasoning
 
 2. **Implementation**: 
-   - Uses a headless Firefox WebDriver to capture canvas state
-   - Synchronizes the main browser view with the AI's view
-   - Sends canvas screenshots to multimodal AI for visual analysis
+   - Uses a headless Firefox WebDriver for canvas state capture
+   - Synchronizes the main browser view with the AI's analysis
+   - Processes both drawn elements and imported images
+   - Provides real-time mathematical insights
 
 3. **Benefits**:
-   - More intuitive problem-solving
-   - Better understanding of geometric relationships
-   - Enhanced ability to spot patterns and symmetries
-   - Visual verification of mathematical properties
+   - Practical problem-solving in real-world contexts
+   - Dynamic visualization of mathematical concepts
+   - Enhanced pattern recognition and analysis
+   - Bridge between theoretical and applied mathematics
 
 ## Installation
 
