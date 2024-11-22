@@ -407,30 +407,34 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "create_ellipse",
-                    "description": "Creates and draws an ellipse with the specified center coordinates and x and y radii. If only a name is given, search for appropriate point coordinates in the canvas state.",
+                    "description": "Creates an ellipse with the specified center point, x-radius, y-radius, and optional rotation angle",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "center_x": {
                                 "type": "number",
-                                "description": "The X coordinate of the ellipse's center"
+                                "description": "The x-coordinate of the ellipse's center"
                             },
                             "center_y": {
                                 "type": "number",
-                                "description": "The Y coordinate of the ellipse's center"
+                                "description": "The y-coordinate of the ellipse's center"
                             },
                             "radius_x": {
                                 "type": "number",
-                                "description": "The X radius of the ellipse"
+                                "description": "The radius of the ellipse in the x-direction (half the width)"
                             },
                             "radius_y": {
                                 "type": "number",
-                                "description": "The Y radius of the ellipse"
+                                "description": "The radius of the ellipse in the y-direction (half the height)"
+                            },
+                            "rotation_angle": {
+                                "type": "number",
+                                "description": "Optional angle in degrees to rotate the ellipse around its center (default: 0)"
                             },
                             "name": {
                                 "type": "string",
-                                "description": "The name of the ellipse"
-                            }
+                                "description": "Optional name for the ellipse"
+                            },
                         },
                         "required": ["center_x", "center_y", "radius_x", "radius_y"]
                     }
@@ -746,6 +750,27 @@ FUNCTIONS = [
                             }
                         },
                         "required": ["name", "x_offset", "y_offset"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "rotate_object",
+                    "description": "Rotates a drawable object around its center by the specified angle",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the object to rotate"
+                            },
+                            "angle": {
+                                "type": "number",
+                                "description": "The angle in degrees to rotate the object (positive for counterclockwise)"
+                            }
+                        },
+                        "required": ["name", "angle"]
                     }
                 }
             }
