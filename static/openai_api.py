@@ -26,7 +26,22 @@ class OpenAIChatCompletionsAPI:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.tools = tools
-        system_message = "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. IMPORTANT: Before answering, please analize the canvas state and previous results."
+        system_message = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. 
+
+IMPORTANT: When performing intermediate calculations or multi-step actions:
+1. First call enable_multi_step_mode to enable result tracking (sets the flag which will allow you to receive intermediate results in the canvas state)
+2. Then in the same message also immediately call evaluate_expression or other functions for your calculations
+3. You will receive the results in the next message's canvas state
+4. Use those results for your next calculations or actions
+5. Repeat this process for complex multi-step calculations
+
+Example problem: <draw a random triangle, then calculate its perimeter and then draw a circle with the same perimeter>
+- First call: enable_multi_step_mode + evaluate_expression for side lengths
+- Next call: enable_multi_step_mode + use the results to calculate perimeter
+- Next call: enable_multi_step_mode + use perimeter value to calculate radius
+- Next call: use radius to draw circle
+
+Always analyze the canvas state to see previously computed results before proceeding."""
         self.messages = [{"role": "system", "content": system_message}]
 
     def create_chat_completion(self, prompt):
@@ -42,18 +57,6 @@ class OpenAIChatCompletionsAPI:
                     except json.JSONDecodeError:
                         pass
         
-        def remove_previous_results_from_last_user_message():
-            if len(self.messages) >= 2 and "content" in self.messages[-2]:
-                previous_message_content = self.messages[-2]["content"]
-                if isinstance(previous_message_content, str):
-                    try:
-                        previous_message_content_json = json.loads(previous_message_content)
-                        if "previous_results" in previous_message_content_json:
-                            del previous_message_content_json["previous_results"]
-                            self.messages[-2]["content"] = json.dumps(previous_message_content_json)
-                    except json.JSONDecodeError:
-                        pass
-
         def remove_image_from_last_user_message():
             if len(self.messages) >= 2 and "content" in self.messages[-2]:
                 content = self.messages[-2]["content"]
@@ -108,9 +111,8 @@ class OpenAIChatCompletionsAPI:
         self.messages.append({"role": "assistant", "content": content})
         
         # Clean up the messages
-        print(f"All messages BEFORE removing canvas_state and previous_results: \n{self.messages}\n\n")
+        print(f"All messages BEFORE removing canvas_state: \n{self.messages}\n\n")
         remove_canvas_state_from_last_user_message()
-        remove_previous_results_from_last_user_message()
         remove_image_from_last_user_message()
         
         return response_message

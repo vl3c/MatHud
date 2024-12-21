@@ -719,8 +719,8 @@ FUNCTIONS = [
             {
                 "type": "function",
                 "function": {
-                    "name": "request_results",
-                    "description": "Requests results of function calls for intermediate actions or calculations to be returned to you directly. Note: The user will be notified of the request and the results. Important: never call just this function by itself. Only use it in combination with other functions.",
+                    "name": "enable_multi_step_mode",
+                    "description": "Turns on multi-step mode to perform intermediate actions. Calculation results to be sent back to you in the canvas state. The user will be informed of the request and the subsequent results.",
                     "parameters": {
                         "type": "object",
                         "properties": {},
