@@ -1,0 +1,75 @@
+# MatHud - Mathematical Heads-Up Display
+
+MathHud is an interactive mathematical visualization tool that combines a drawing canvas with an AI assistant to help understand and solve real-world mathematical problems. It serves as a heads-up display system for mathematical analysis, allowing users to visualize, analyze, and solve problems in real-time.
+
+## Key Features
+- Interactive SVG-based drawing canvas
+- AI-powered mathematical assistant
+- Real-time geometric visualization and analysis
+- Support for mathematical expressions and calculations
+- Visual problem-solving with multimodal AI
+- Real-world problem analysis and modeling
+
+## Vision Mechanism
+The application includes a visual understanding system that allows the AI to analyze both drawn elements and real-world mathematical scenarios through:
+- Real-time canvas state monitoring
+- Interpretation of mathematical drawings and diagrams
+- Analysis of imported real-world problem images
+- Context-aware mathematical reasoning
+
+---
+
+# Technical Architecture
+
+## Frontend Chat Interface (index.html and main.py)
+- Simple HTML structure with chat history div, input field, and send button
+- Chat interface bound to both button click and Enter key events
+- Vision toggle checkbox for canvas image capture control
+- Uses Brython (Python in the browser) for frontend logic
+
+## AI Interface Layer (ai_interface.py)
+- Core class `AIInterface` manages communication between UI and backend
+- Maintains dictionary of available functions for math operations and canvas manipulation
+- Handles function call results and maintains state between interactions
+- Key methods:
+  - `interact_with_ai`: Entry point for user interactions
+  - `_send_prompt_to_ai`: Prepares and sends prompts with canvas state
+  - `_parse_ai_response`: Processes AI responses and function calls
+
+## Backend API (app.py and openai_api.py)
+- Flask server handles message routing and AI communication
+- `OpenAIChatCompletionsAPI` class manages OpenAI API interactions
+- Maintains conversation history and handles vision-based features
+- Uses Selenium WebDriver for canvas image capture when vision is enabled
+
+## Function Call Processing
+- `ProcessFunctionCalls` class handles execution and undo/redo functionality
+- Supports both synchronous and intermediate result requests
+- Validates function calls against available functions
+- Maintains execution state and results
+
+## Canvas System
+- Uses SVG for rendering mathematical objects and functions
+- Supports zooming, panning, and coordinate system transformations
+- Maintains object state for undo/redo operations
+- Handles real-time updates and user interactions
+
+## Error Handling and Logging
+- Comprehensive logging system for debugging and session tracking
+- Error handling at multiple levels (UI, function calls, API)
+- Graceful fallbacks for vision system failures
+- Session-based log files with timestamped entries
+
+## Vision Integration
+- Optional vision system using Selenium WebDriver
+- Captures canvas state as images for AI context
+- Maintains synchronization between visual and internal states
+- Handles browser-based SVG manipulation and image capture
+
+## Function Call Flow
+1. User sends message → `interact_with_ai`
+2. Message bundled with canvas state → `_send_prompt_to_ai`
+3. AJAX request to Flask backend → `/send_message`
+4. OpenAI API processes request → `create_chat_completion`
+5. Response parsed and function calls executed → `_parse_ai_response`
+6. Results displayed in chat and/or rendered on canvas 
