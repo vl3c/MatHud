@@ -30,16 +30,10 @@ class OpenAIChatCompletionsAPI:
 
 IMPORTANT: When performing intermediate calculations or multi-step actions:
 1. First call enable_multi_step_mode to enable result tracking (sets the flag which will allow you to receive intermediate results in the canvas state)
-2. Then in the same message also immediately call evaluate_expression or other functions for your calculations
+2. Immediately call evaluate_expression or other functions for your calculations
 3. You will receive the results in the next message's canvas state
-4. Use those results for your next calculations or actions
+4. Use those results for your next calculations or actions (don't forget to call enable_multi_step_mode again if needed)
 5. Repeat this process for complex multi-step calculations
-
-Example problem: <draw a random triangle, then calculate its perimeter and then draw a circle with the same perimeter>
-- First call: enable_multi_step_mode + evaluate_expression for side lengths
-- Next call: enable_multi_step_mode + use the results to calculate perimeter
-- Next call: enable_multi_step_mode + use perimeter value to calculate radius
-- Next call: use radius to draw circle
 
 Always analyze the canvas state to see previously computed results before proceeding."""
         self.messages = [{"role": "system", "content": system_message}]
