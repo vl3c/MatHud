@@ -10,6 +10,43 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Visual problem-solving with multimodal AI
 - Real-world problem analysis and modeling
 
+## Mathematical Functions
+- Basic Arithmetic: addition, subtraction, multiplication, division, exponents, roots
+- Trigonometric Functions: sin, cos, tan, arcsin, arccos, arctan
+- Logarithmic Functions: natural log, log base 10, log with custom base
+- Statistical Functions: mean, median, mode, standard deviation, variance
+- Calculus Operations: derivatives, integrals, limits
+- Complex Numbers: operations with real and imaginary components
+- Graphing Functions: plot functions, parametric equations, polar coordinates
+- Geometric Calculations: distance, angle, area, volume, intersections
+- Equation Solving: linear equations, quadratic equations, systems of equations
+
+## Geometric Shape Management
+- Points: create, delete, translate points with coordinates and labels
+- Segments: create line segments between points, calculate length and midpoint
+- Vectors: create vectors with origin and tip, support for vector operations
+- Triangles: create from three points, calculate area, centroid, and angles
+- Rectangles: create from diagonal points, validate right angles, calculate area
+- Circles: create with center and radius, calculate area and circumference
+- Ellipses: create with center and radii, support rotation and transformation
+
+## Drawing and Visualization
+- Interactive SVG Canvas: real-time drawing and manipulation
+- Coordinate System: automatic scaling and axis management
+- Shape Transformations: translate, rotate, and scale geometric objects
+- Function Plotting: adaptive resolution based on zoom level
+- Visual Feedback: color-coded shapes and labels
+- Undo/Redo: track and reverse drawing operations
+
+## Multi-Step Calculations
+- Expressions: evaluate mathematical expressions and functions
+- Step-by-Step Problem Solving: break down complex problems
+- Intermediate Results: display partial calculations
+- Expression Validation: check mathematical syntax and semantics
+- Unit Conversions: support for various measurement units
+- State Management: track calculation history and dependencies
+- Error Handling: graceful recovery from invalid operations
+
 ## Vision Mechanism
 The application includes a visual understanding system that allows the AI to analyze both drawn elements and real-world mathematical scenarios through:
 - Real-time canvas state monitoring
