@@ -1,4 +1,5 @@
 # Core Features
+- fix custom naming of drawables
 - add support for saving and loading workspaces/calculations
 
 # Basic Mathematical Tools
@@ -20,12 +21,12 @@
 - add financial mathematics (interest rates, amortization, bond calculations)
 
 # 2D Graphing Enhancements
+- add region coloring (for areas between curves, inside shapes, bounded regions)
 - add piecewise function support and graphing
 - add implicit function plotting
 - add conic section specialized tools
 - add inequality graphing and systems of inequalities
 - add vector field visualization
-- add region coloring (for areas between curves, inside shapes, bounded regions)
 - add animation capabilities for transformations and function changes
 - add split screen mode to compare different graphs/calculations
 
