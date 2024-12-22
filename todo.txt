@@ -1,2 +1,34 @@
-- add multi-step evaluation for more complex problems that require calculating intermediate results
-- be able to upload images to extract math problems from real-life context
+# Core Features
+- add support for saving and loading workspaces/calculations
+
+# Basic Mathematical Tools
+- implement full matrix operations (addition, multiplication, inverse, row operations)
+- add base-n calculations and conversions (binary, octal, hexadecimal)
+- add number theory functions (prime factorization, modular arithmetic)
+- add truth tables and boolean algebra
+- add table view for function values
+
+# Advanced Mathematical Tools
+- add sequence and series calculations (summation, products, convergence tests)
+- add differential equations solver and visualization
+- add numerical methods (Newton's method, numerical integration, etc.)
+- add eigenvalues and eigenvector calculations
+
+# Statistics and Analysis
+- add probability distributions and statistical hypothesis testing
+- add regression analysis with multiple models (linear, polynomial, exponential, etc.)
+- add financial mathematics (interest rates, amortization, bond calculations)
+
+# 2D Graphing Enhancements
+- add piecewise function support and graphing
+- add implicit function plotting
+- add conic section specialized tools
+- add inequality graphing and systems of inequalities
+- add vector field visualization
+- add region coloring (for areas between curves, inside shapes, bounded regions)
+- add animation capabilities for transformations and function changes
+- add split screen mode to compare different graphs/calculations
+
+# Future 3D Features
+- add 3D graphing capabilities and 3D shape visualization
+- add parametric equation plotting in 3D
