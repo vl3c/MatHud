@@ -63,21 +63,21 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "create_point",
-                    "description": "Creates and draws a point at the given coordinates",
+                    "description": "Creates and draws a point at the given coordinates. If a name is provided, it will try to use the first available letter from that name as the point's name.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "x": {
                                 "type": "number",
-                                "description": "The X coordinate of the point",
+                                "description": "The X coordinate of the point"
                             },
                             "y": {
                                 "type": "number",
-                                "description": "The Y coordinate of the point",
+                                "description": "The Y coordinate of the point"
                             },
                             "name": {
                                 "type": "string",
-                                "description": "The name of the point",
+                                "description": "Optional name for the point. If provided, the first available letter from this name will be used."
                             }
                         },
                         "required": ["x", "y"]
@@ -109,29 +109,29 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "create_segment",
-                    "description": "Creates and draws a segment at the given coordinates for two points. If only a name is given, search for appropriate point coordinates in the canvas state.",
+                    "description": "Creates and draws a segment at the given coordinates for two points. If a name is provided, the first two available letters from that name will be used to name the endpoints.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "x1": {
                                 "type": "number",
-                                "description": "The X coordinate of the first point",
+                                "description": "The X coordinate of the first point"
                             },
                             "y1": {
                                 "type": "number",
-                                "description": "The Y coordinate of the first point",
+                                "description": "The Y coordinate of the first point"
                             },
                             "x2": {
                                 "type": "number",
-                                "description": "The X coordinate of the second point",
+                                "description": "The X coordinate of the second point"
                             },
                             "y2": {
                                 "type": "number",
-                                "description": "The Y coordinate of the second point",
+                                "description": "The Y coordinate of the second point"
                             },
                             "name": {
                                 "type": "string",
-                                "description": "The name of the segment",
+                                "description": "Optional name for the segment. If provided, the first two available letters will be used to name the endpoints."
                             }
                         },
                         "required": ["x1", "y1", "x2", "y2"]
@@ -171,29 +171,29 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "create_vector",
-                    "description": "Creates and draws a vector at the given coordinates for two points called origin and tip. If only a name is given, search for appropriate point coordinates in the canvas state.",
+                    "description": "Creates and draws a vector at the given coordinates for two points called origin and tip. If a name is provided, the first two available letters will be used to name the origin and tip points.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "origin_x": {
                                 "type": "number",
-                                "description": "The X coordinate of the origin point",
+                                "description": "The X coordinate of the origin point"
                             },
                             "origin_y": {
                                 "type": "number",
-                                "description": "The Y coordinate of the origin point",
+                                "description": "The Y coordinate of the origin point"
                             },
                             "tip_x": {
                                 "type": "number",
-                                "description": "The X coordinate of the tip point",
+                                "description": "The X coordinate of the tip point"
                             },
                             "tip_y": {
                                 "type": "number",
-                                "description": "The Y coordinate of the tip point",
+                                "description": "The Y coordinate of the tip point"
                             },
                             "name": {
                                 "type": "string",
-                                "description": "The name of the vector",
+                                "description": "Optional name for the vector. If provided, the first two available letters will be used to name the origin and tip points."
                             }
                         },
                         "required": ["origin_x", "origin_y", "tip_x", "tip_y"]
@@ -233,37 +233,37 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "create_triangle",
-                    "description": "Creates and draws a triangle at the given coordinates for three points. If only a name is given, search for appropriate point coordinates in the canvas state.",
+                    "description": "Creates and draws a triangle at the given coordinates for three points. If a name is provided, the first three available letters will be used to name the vertices.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "x1": {
                                 "type": "number",
-                                "description": "The X coordinate of the first point",
+                                "description": "The X coordinate of the first point"
                             },
                             "y1": {
                                 "type": "number",
-                                "description": "The Y coordinate of the first point",
+                                "description": "The Y coordinate of the first point"
                             },
                             "x2": {
                                 "type": "number",
-                                "description": "The X coordinate of the second point",
+                                "description": "The X coordinate of the second point"
                             },
                             "y2": {
                                 "type": "number",
-                                "description": "The Y coordinate of the second point",
+                                "description": "The Y coordinate of the second point"
                             },
                             "x3": {
                                 "type": "number",
-                                "description": "The X coordinate of the third point",
+                                "description": "The X coordinate of the third point"
                             },
                             "y3": {
                                 "type": "number",
-                                "description": "The Y coordinate of the third point",
+                                "description": "The Y coordinate of the third point"
                             },
                             "name": {
                                 "type": "string",
-                                "description": "The name of the triangle",
+                                "description": "Optional name for the triangle. If provided, the first three available letters will be used to name the vertices."
                             }
                         },
                         "required": ["x1", "y1", "x2", "y2", "x3", "y3"]
@@ -311,29 +311,29 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "create_rectangle",
-                    "description": "Creates and draws a rectangle at the given coordinates for two diagonal points. If only a name is given, search for appropriate point coordinates in the canvas state.",
+                    "description": "Creates and draws a rectangle at the given coordinates for two diagonal points. If a name is provided, the first four available letters will be used to name the corners.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "px": {
                                 "type": "number",
-                                "description": "The X coordinate of the origin point",
+                                "description": "The X coordinate of the origin point"
                             },
                             "py": {
                                 "type": "number",
-                                "description": "The Y coordinate of the origin point",
+                                "description": "The Y coordinate of the origin point"
                             },
                             "opposite_px": {
                                 "type": "number",
-                                "description": "The X coordinate of the tip point",
+                                "description": "The X coordinate of the opposite point"
                             },
                             "opposite_py": {
                                 "type": "number",
-                                "description": "The Y coordinate of the tip point",
+                                "description": "The Y coordinate of the opposite point"
                             },
                             "name": {
                                 "type": "string",
-                                "description": "The name of the rectangle",
+                                "description": "Optional name for the rectangle. If provided, the first four available letters will be used to name the corners."
                             }
                         },
                         "required": ["px", "py", "opposite_px", "opposite_py"]
