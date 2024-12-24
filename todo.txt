@@ -1,5 +1,4 @@
 # Core Features
-- fix custom naming of drawables
 - add support for saving and loading workspaces/calculations
 
 # Basic Mathematical Tools

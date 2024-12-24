@@ -773,5 +773,51 @@ FUNCTIONS = [
                         "required": ["name", "angle"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "save_workspace",
+                    "description": "Saves the current workspace state to a file. If no name is provided, saves to the current workspace file.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Optional name for the workspace. If not provided, saves to current workspace."
+                            }
+                        },
+                        "required": []
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "load_workspace",
+                    "description": "Loads a workspace from a file. If no name is provided, loads the current workspace.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Optional name of the workspace to load. If not provided, loads current workspace."
+                            }
+                        },
+                        "required": []
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_workspaces",
+                    "description": "Lists all saved workspaces.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                }
             }
         ]
