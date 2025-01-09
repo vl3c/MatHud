@@ -778,13 +778,13 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "save_workspace",
-                    "description": "Saves the current workspace state to a file. If no name is provided, saves to the current workspace file.",
+                    "description": "Saves the current workspace state to a file. If no name is provided, saves to the current workspace file with timestamp. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "name": {
                                 "type": "string",
-                                "description": "Optional name for the workspace. If not provided, saves to current workspace."
+                                "description": "Optional name for the workspace. Must contain only alphanumeric characters, underscores, or hyphens (e.g., 'my_workspace', 'workspace-1', 'test123'). If not provided, saves to current workspace."
                             }
                         },
                         "required": []
@@ -795,13 +795,13 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "load_workspace",
-                    "description": "Loads a workspace from a file. If no name is provided, loads the current workspace.",
+                    "description": "Loads a workspace from a file. If no name is provided, loads the (most recent) current workspace. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "name": {
                                 "type": "string",
-                                "description": "Optional name of the workspace to load. If not provided, loads current workspace."
+                                "description": "Optional name of the workspace to load. Must contain only alphanumeric characters, underscores, or hyphens (e.g., 'my_workspace', 'workspace-1', 'test123'). If not provided, loads current workspace."
                             }
                         },
                         "required": []
@@ -812,7 +812,7 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "list_workspaces",
-                    "description": "Lists all saved workspaces.",
+                    "description": "Lists all saved workspaces. Only shows workspaces with valid names (containing only alphanumeric characters, underscores, or hyphens).",
                     "parameters": {
                         "type": "object",
                         "properties": {},
@@ -824,13 +824,13 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "delete_workspace",
-                    "description": "Delete a workspace by name",
+                    "description": "Delete a workspace by name. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "name": {
                                 "type": "string",
-                                "description": "Name of the workspace to delete"
+                                "description": "Name of the workspace to delete. Must contain only alphanumeric characters, underscores, or hyphens (e.g., 'my_workspace', 'workspace-1', 'test123')."
                             }
                         },
                         "required": ["name"]
