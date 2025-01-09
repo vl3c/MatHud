@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import datetime
-from flask import Flask, json, request, render_template
+from flask import Flask, json, request, render_template, jsonify
 from static.openai_api import OpenAIChatCompletionsAPI
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -190,6 +190,10 @@ def create_app():
     
     # Initialize driver as None; will be set after Flask starts
     app.driver = None
+    
+    # Initialize workspace manager
+    from static.workspace_manager import WorkspaceManager
+    workspace_manager = WorkspaceManager()
 
     @app.route('/')
     def get_index():
@@ -201,6 +205,47 @@ def create_app():
         if not app.driver:
             init_webdriver(app)
         return "WebDriver initialization attempted"
+
+    @app.route('/save_workspace', methods=['POST'])
+    def save_workspace_route():
+        """Save the current workspace state."""
+        try:
+            data = request.get_json()
+            state = data.get('state')
+            name = data.get('name')
+            
+            success = workspace_manager.save_workspace(state, name)
+            if success:
+                return jsonify({'status': 'success', 'message': 'Workspace saved successfully'})
+            else:
+                return jsonify({'status': 'error', 'message': 'Failed to save workspace'}), 500
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    @app.route('/load_workspace', methods=['GET'])
+    def load_workspace_route():
+        """Load a workspace state."""
+        try:
+            name = request.args.get('name')
+            state = workspace_manager.load_workspace(name)
+            
+            return jsonify({
+                'status': 'success',
+                'state': state
+            })
+        except FileNotFoundError as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 404
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    @app.route('/list_workspaces', methods=['GET'])
+    def list_workspaces_route():
+        """List all saved workspaces."""
+        try:
+            workspaces = workspace_manager.list_workspaces()
+            return jsonify(workspaces)
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 500
 
     @app.route('/send_message', methods=['POST'])
     def send_message():

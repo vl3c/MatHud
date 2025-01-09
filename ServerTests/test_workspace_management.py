@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from . import python_path_setup  # Import this first to set up the Python path
 from ServerTests.test_mocks import MockCanvas
-from workspace_manager import save_workspace, load_workspace, list_workspaces, WORKSPACES_DIR, ensure_workspaces_dir
+from static.workspace_manager import save_workspace, load_workspace, list_workspaces, WORKSPACES_DIR, ensure_workspaces_dir
 
 TEST_DIR = "Test"
 
