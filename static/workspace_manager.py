@@ -32,8 +32,9 @@ class WorkspaceManager:
         """
         target_dir = self.ensure_workspaces_dir(test_dir)
         if name is None:
-            # For current workspace, use a special name
-            return os.path.join(target_dir, "current_workspace.json")
+            # For current workspace, use a special name with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            return os.path.join(target_dir, f"current_workspace_{timestamp}.json")
         return os.path.join(target_dir, f"{name}.json")
 
     def save_workspace(self, state, name=None, test_dir=None):
@@ -48,9 +49,10 @@ class WorkspaceManager:
             bool: True if save was successful, False otherwise.
         """
         try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             workspace_data = {
                 "metadata": {
-                    "name": name or "current_workspace",
+                    "name": name or f"current_workspace_{timestamp}",
                     "last_modified": datetime.now().isoformat(),
                 },
                 "state": state
@@ -99,7 +101,6 @@ class WorkspaceManager:
         for filename in os.listdir(target_dir):
             if filename.endswith('.json'):
                 name = filename[:-5]  # Remove .json extension
-                if name != "current_workspace":  # Don't include the current workspace in the list
-                    workspaces.append(name)
+                workspaces.append(name)
         
-        return workspaces 
+        return sorted(workspaces)  # Sort the list for consistent ordering 

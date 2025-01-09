@@ -1,5 +1,6 @@
 # Bug Fixes
 - fix the bug where objects are not rotated correctly because of point dependency under deletion
+- fix bug when deleting an object with non-existent name
 
 # Core Features
 - add support for saving and loading workspaces/calculations
