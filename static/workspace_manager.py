@@ -128,6 +128,34 @@ class WorkspaceManager:
             print(f"Error saving workspace: {str(e)}")
             return False
 
+    def _get_most_recent_current_workspace(self, test_dir=None):
+        """Get the path of the most recent current workspace.
+        
+        Args:
+            test_dir: Optional test directory path
+            
+        Returns:
+            str: Path to the most recent current workspace file
+            
+        Raises:
+            FileNotFoundError: If no current workspace exists
+        """
+        target_dir = self.ensure_workspaces_dir(test_dir)
+        current_workspaces = []
+        
+        # Find all current workspace files
+        for filename in os.listdir(target_dir):
+            if filename.startswith('current_workspace_') and filename.endswith('.json'):
+                file_path = os.path.join(target_dir, filename)
+                current_workspaces.append(file_path)
+        
+        if not current_workspaces:
+            raise FileNotFoundError("No current workspace found")
+            
+        # Sort by modification time, newest first
+        current_workspaces.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+        return current_workspaces[0]
+
     def load_workspace(self, name=None, test_dir=None):
         """Load a workspace state from a file.
         
@@ -138,14 +166,24 @@ class WorkspaceManager:
         Returns:
             dict: The loaded state data
         """
-        file_path = self.get_workspace_path(name, test_dir)  # This now includes security checks
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"No workspace found at {file_path}")
-        
-        with open(file_path, 'r') as f:
-            workspace_data = json.load(f)
-        
-        return workspace_data["state"]
+        try:
+            if name is None:
+                # Load most recent current workspace
+                file_path = self._get_most_recent_current_workspace(test_dir)
+            else:
+                file_path = self.get_workspace_path(name, test_dir)
+                
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"No workspace found at {file_path}")
+            
+            with open(file_path, 'r') as f:
+                workspace_data = json.load(f)
+            
+            return workspace_data["state"]
+        except FileNotFoundError:
+            raise
+        except Exception as e:
+            raise ValueError(f"Error loading workspace: {str(e)}")
 
     def list_workspaces(self, test_dir=None):
         """List all saved workspaces.
