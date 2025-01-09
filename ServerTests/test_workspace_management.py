@@ -2,13 +2,14 @@ import unittest
 import os
 import json
 from datetime import datetime
-from canvas import Canvas
+from . import python_path_setup  # Import this first to set up the Python path
+from ServerTests.test_mocks import MockCanvas
 from workspace_manager import save_workspace, load_workspace, list_workspaces, WORKSPACES_DIR, ensure_workspaces_dir
 
 class TestWorkspaceManagement(unittest.TestCase):
     def setUp(self):
         """Set up test environment before each test."""
-        self.canvas = Canvas(500, 500, draw_enabled=False)
+        self.canvas = MockCanvas(500, 500, draw_enabled=False)
         # Create test workspace directory if it doesn't exist
         ensure_workspaces_dir()
         # Clean up any existing test workspaces
@@ -108,7 +109,7 @@ class TestWorkspaceManagement(unittest.TestCase):
         # Verify canvas state
         self.assertEqual(len(self.canvas.get_drawables_by_class_name("Triangle")), 1)
         triangle = self.canvas.get_drawables_by_class_name("Triangle")[0]
-        self.assertEqual(triangle.name, "ABC")
+        self.assertEqual(triangle["name"], "ABC")
 
     def test_load_nonexistent_workspace(self):
         """Test loading a workspace that doesn't exist."""
