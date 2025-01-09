@@ -247,6 +247,22 @@ def create_app():
         except Exception as e:
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
+    @app.route('/delete_workspace', methods=['GET'])
+    def delete_workspace_route():
+        """Delete a workspace."""
+        try:
+            name = request.args.get('name')
+            if not name:
+                return jsonify({'status': 'error', 'message': 'Workspace name is required'}), 400
+                
+            success = workspace_manager.delete_workspace(name)
+            if success:
+                return jsonify({'status': 'success', 'message': 'Workspace deleted successfully'})
+            else:
+                return jsonify({'status': 'error', 'message': 'Failed to delete workspace'}), 404
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+
     @app.route('/send_message', methods=['POST'])
     def send_message():
         message = request.json.get('message')

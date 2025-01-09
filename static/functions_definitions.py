@@ -819,5 +819,22 @@ FUNCTIONS = [
                         "required": []
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "delete_workspace",
+                    "description": "Delete a workspace by name",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the workspace to delete"
+                            }
+                        },
+                        "required": ["name"]
+                    }
+                }
             }
         ]

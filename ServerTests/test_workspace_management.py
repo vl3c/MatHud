@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from . import python_path_setup  # Import this first to set up the Python path
 from ServerTests.test_mocks import MockCanvas
-from static.workspace_manager import save_workspace, load_workspace, list_workspaces, WORKSPACES_DIR, ensure_workspaces_dir
+from static.workspace_manager import WorkspaceManager, WORKSPACES_DIR
 
 TEST_DIR = "Test"
 
@@ -12,8 +12,9 @@ class TestWorkspaceManagement(unittest.TestCase):
     def setUp(self):
         """Set up test environment before each test."""
         self.canvas = MockCanvas(500, 500, draw_enabled=False)
+        self.workspace_manager = WorkspaceManager(WORKSPACES_DIR)
         # Create test workspace directory if it doesn't exist
-        ensure_workspaces_dir(TEST_DIR)
+        self.workspace_manager.ensure_workspaces_dir(TEST_DIR)
         # Clean up any existing test workspaces
         self.cleanup_test_workspaces()
 
@@ -43,7 +44,7 @@ class TestWorkspaceManagement(unittest.TestCase):
 
         # Save workspace
         test_current = "test_current_workspace"
-        success = save_workspace(self.canvas, test_current, TEST_DIR)
+        success = self.workspace_manager.save_workspace(self.canvas.get_canvas_state(), test_current, TEST_DIR)
         self.assertTrue(success, "Save workspace should return True on success")
         
         # Check if file exists
@@ -66,7 +67,7 @@ class TestWorkspaceManagement(unittest.TestCase):
         
         # Save workspace
         workspace_name = "test_circle_workspace"
-        success = save_workspace(self.canvas, workspace_name, TEST_DIR)
+        success = self.workspace_manager.save_workspace(self.canvas.get_canvas_state(), workspace_name, TEST_DIR)
         self.assertTrue(success, "Save workspace should return True on success")
         
         # Check if file exists
@@ -82,12 +83,12 @@ class TestWorkspaceManagement(unittest.TestCase):
 
     def test_save_workspace_failure(self):
         """Test saving workspace with invalid conditions."""
-        # Test with invalid canvas
-        success = save_workspace(None, test_dir=TEST_DIR)
-        self.assertFalse(success, "Save workspace should return False when canvas is None")
+        # Test with invalid state
+        success = self.workspace_manager.save_workspace(None, test_dir=TEST_DIR)
+        self.assertFalse(success, "Save workspace should return False when state is None")
         
         # Test with invalid workspace name (containing invalid characters)
-        success = save_workspace(self.canvas, "test/invalid/name", TEST_DIR)
+        success = self.workspace_manager.save_workspace(self.canvas.get_canvas_state(), "test/invalid/name", TEST_DIR)
         self.assertFalse(success, "Save workspace should return False with invalid name")
         
         # Test with read-only directory (if possible)
@@ -96,7 +97,7 @@ class TestWorkspaceManagement(unittest.TestCase):
             original_mode = os.stat(test_dir).st_mode
             try:
                 os.chmod(test_dir, 0o444)  # Read-only
-                success = save_workspace(self.canvas, "test_readonly", TEST_DIR)
+                success = self.workspace_manager.save_workspace(self.canvas.get_canvas_state(), "test_readonly", TEST_DIR)
                 self.assertFalse(success, "Save workspace should return False with read-only directory")
             finally:
                 os.chmod(test_dir, original_mode)
@@ -106,7 +107,7 @@ class TestWorkspaceManagement(unittest.TestCase):
         # Create and save test data
         self.canvas.create_triangle(0, 0, 100, 0, 50, 100, "ABC")
         workspace_name = "test_triangle_workspace"
-        success = save_workspace(self.canvas, workspace_name, TEST_DIR)
+        success = self.workspace_manager.save_workspace(self.canvas.get_canvas_state(), workspace_name, TEST_DIR)
         self.assertTrue(success, "Initial save should succeed")
         
         # Clear canvas
@@ -114,28 +115,29 @@ class TestWorkspaceManagement(unittest.TestCase):
         self.assertEqual(len(self.canvas.get_drawables()), 0)
         
         # Load workspace
-        result = load_workspace(self.canvas, workspace_name, TEST_DIR)
+        state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
         
-        # Verify canvas state
-        self.assertEqual(len(self.canvas.get_drawables_by_class_name("Triangle")), 1)
-        triangle = self.canvas.get_drawables_by_class_name("Triangle")[0]
+        # Verify state contents
+        self.assertIn("Triangles", state)
+        self.assertEqual(len(state["Triangles"]), 1)
+        triangle = state["Triangles"][0]
         self.assertEqual(triangle["name"], "ABC")
 
     def test_load_nonexistent_workspace(self):
         """Test loading a workspace that doesn't exist."""
         with self.assertRaises(FileNotFoundError):
-            load_workspace(self.canvas, "nonexistent_workspace", TEST_DIR)
+            self.workspace_manager.load_workspace("nonexistent_workspace", TEST_DIR)
 
     def test_list_workspaces(self):
         """Test listing all workspaces."""
         # Create multiple test workspaces
         workspace_names = ["test_ws1", "test_ws2", "test_ws3"]
         for name in workspace_names:
-            success = save_workspace(self.canvas, name, TEST_DIR)
+            success = self.workspace_manager.save_workspace(self.canvas.get_canvas_state(), name, TEST_DIR)
             self.assertTrue(success, f"Failed to save workspace {name}")
         
         # Get list of workspaces
-        workspaces = list_workspaces(TEST_DIR)
+        workspaces = self.workspace_manager.list_workspaces(TEST_DIR)
         
         # Verify each test workspace is in the list
         for name in workspace_names:
@@ -149,7 +151,7 @@ class TestWorkspaceManagement(unittest.TestCase):
         
         # Save workspace
         workspace_name = "test_computations"
-        success = save_workspace(self.canvas, workspace_name, TEST_DIR)
+        success = self.workspace_manager.save_workspace(self.canvas.get_canvas_state(), workspace_name, TEST_DIR)
         self.assertTrue(success, "Failed to save workspace with computations")
         
         # Clear canvas
@@ -157,12 +159,13 @@ class TestWorkspaceManagement(unittest.TestCase):
         self.assertEqual(len(self.canvas.computations), 0)
         
         # Load workspace
-        load_workspace(self.canvas, workspace_name, TEST_DIR)
+        state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
         
         # Verify computations were restored
-        self.assertEqual(len(self.canvas.computations), 2)
-        expressions = [comp["expression"] for comp in self.canvas.computations]
-        results = [comp["result"] for comp in self.canvas.computations]
+        self.assertIn("computations", state)
+        self.assertEqual(len(state["computations"]), 2)
+        expressions = [comp["expression"] for comp in state["computations"]]
+        results = [comp["result"] for comp in state["computations"]]
         self.assertIn("2+2", expressions)
         self.assertIn("sin(pi/2)", expressions)
         self.assertIn(4, results)
@@ -179,7 +182,7 @@ class TestWorkspaceManagement(unittest.TestCase):
         
         # Save workspace
         workspace_name = "test_complex"
-        success = save_workspace(self.canvas, workspace_name, TEST_DIR)
+        success = self.workspace_manager.save_workspace(self.canvas.get_canvas_state(), workspace_name, TEST_DIR)
         self.assertTrue(success, "Failed to save complex workspace")
         
         # Verify file contents
@@ -197,6 +200,45 @@ class TestWorkspaceManagement(unittest.TestCase):
             self.assertEqual(len(state["Rectangles"]), 1)
             self.assertEqual(len(state["Functions"]), 1)
             self.assertEqual(len(state["computations"]), 1)
+
+    def test_delete_workspace(self):
+        """Test deleting a workspace."""
+        # Create and save test workspace
+        self.canvas.create_point(100, 100, "A")
+        workspace_name = "test_delete_ws"
+        success = self.workspace_manager.save_workspace(self.canvas.get_canvas_state(), workspace_name, TEST_DIR)
+        self.assertTrue(success, "Initial save should succeed")
+        
+        # Verify workspace exists
+        workspace_path = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{workspace_name}.json")
+        self.assertTrue(os.path.exists(workspace_path))
+        
+        # Delete workspace
+        success = self.workspace_manager.delete_workspace(workspace_name, TEST_DIR)
+        self.assertTrue(success, "Delete workspace should return True on success")
+        
+        # Verify workspace no longer exists
+        self.assertFalse(os.path.exists(workspace_path))
+        
+        # Verify workspace is not in list
+        workspaces = self.workspace_manager.list_workspaces(TEST_DIR)
+        self.assertNotIn(workspace_name, workspaces)
+
+    def test_delete_nonexistent_workspace(self):
+        """Test deleting a workspace that doesn't exist."""
+        # Try to delete non-existent workspace
+        success = self.workspace_manager.delete_workspace("nonexistent_workspace", TEST_DIR)
+        self.assertFalse(success, "Delete workspace should return False for non-existent workspace")
+
+    def test_delete_workspace_with_invalid_name(self):
+        """Test deleting a workspace with invalid name."""
+        # Try to delete workspace with None name
+        success = self.workspace_manager.delete_workspace(None, TEST_DIR)
+        self.assertFalse(success, "Delete workspace should return False for None name")
+        
+        # Try to delete workspace with invalid characters
+        success = self.workspace_manager.delete_workspace("test/invalid/name", TEST_DIR)
+        self.assertFalse(success, "Delete workspace should return False for invalid name")
 
 if __name__ == '__main__':
     unittest.main() 

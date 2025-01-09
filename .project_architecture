@@ -9,6 +9,7 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Support for mathematical expressions and calculations
 - Visual problem-solving with multimodal AI
 - Real-world problem analysis and modeling
+- Workspace management for saving and loading states
 
 ## Mathematical Functions
 - Basic Arithmetic: addition, subtraction, multiplication, division, exponents, roots
@@ -37,6 +38,7 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Function Plotting: adaptive resolution based on zoom level
 - Visual Feedback: color-coded shapes and labels
 - Undo/Redo: track and reverse drawing operations
+- Workspace Management: save and load canvas states with metadata
 
 ## Multi-Step Calculations
 - Expressions: evaluate mathematical expressions and functions
@@ -68,16 +70,34 @@ The application includes a visual understanding system that allows the AI to ana
 - Core class `AIInterface` manages communication between UI and backend
 - Maintains dictionary of available functions for math operations and canvas manipulation
 - Handles function call results and maintains state between interactions
+- Manages workspace operations (save, load, list, delete)
 - Key methods:
   - `interact_with_ai`: Entry point for user interactions
   - `_send_prompt_to_ai`: Prepares and sends prompts with canvas state
   - `_parse_ai_response`: Processes AI responses and function calls
+  - `save_workspace`: Saves current canvas state with metadata
+  - `load_workspace`: Restores canvas state from saved workspace
+  - `list_workspaces`: Lists available workspaces
+  - `delete_workspace`: Removes a workspace by name
+
+## Workspace Management (workspace_manager.py)
+- `WorkspaceManager` class handles workspace file operations
+- Saves canvas states with metadata and timestamps
+- Supports named workspaces and timestamped unnamed saves
+- Maintains workspace directory structure
+- Key features:
+  - JSON-based workspace storage
+  - Automatic timestamping for unnamed saves
+  - Metadata tracking (name, last modified)
+  - Directory management and file handling
+  - Safe workspace deletion with validation
 
 ## Backend API (app.py and openai_api.py)
 - Flask server handles message routing and AI communication
 - `OpenAIChatCompletionsAPI` class manages OpenAI API interactions
 - Maintains conversation history and handles vision-based features
 - Uses Selenium WebDriver for canvas image capture when vision is enabled
+- Handles workspace file operations through endpoints
 
 ## Function Call Processing
 - `ProcessFunctionCalls` class handles execution and undo/redo functionality
@@ -90,6 +110,7 @@ The application includes a visual understanding system that allows the AI to ana
 - Supports zooming, panning, and coordinate system transformations
 - Maintains object state for undo/redo operations
 - Handles real-time updates and user interactions
+- Provides state serialization for workspace saving
 
 ## Error Handling and Logging
 - Comprehensive logging system for debugging and session tracking
@@ -109,4 +130,26 @@ The application includes a visual understanding system that allows the AI to ana
 3. AJAX request to Flask backend → `/send_message`
 4. OpenAI API processes request → `create_chat_completion`
 5. Response parsed and function calls executed → `_parse_ai_response`
-6. Results displayed in chat and/or rendered on canvas 
+6. Results displayed in chat and/or rendered on canvas
+
+## Workspace Flow
+1. Save workspace:
+   - User requests save → `save_workspace`
+   - Canvas state serialized with metadata
+   - JSON file created with timestamp
+   - Success/error message displayed
+2. Load workspace:
+   - User requests load → `load_workspace`
+   - JSON file loaded and parsed
+   - Canvas state restored with drawables
+   - Success/error message displayed
+3. List workspaces:
+   - User requests list → `list_workspaces`
+   - Directory scanned for workspace files
+   - Names extracted and sorted
+   - List sent to AI for user feedback
+4. Delete workspace:
+   - User requests delete → `delete_workspace`
+   - Workspace name validated
+   - File removed if exists
+   - Success/error message displayed 
