@@ -836,5 +836,59 @@ FUNCTIONS = [
                         "required": ["name"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "create_colored_area",
+                    "description": "Creates a colored area between two drawables (functions, segments, or a function and a segment). If only one drawable is provided, the area will be between that drawable and the x-axis.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "drawable1_name": {
+                                "type": "string",
+                                "description": "Name of the first drawable (function or segment). Use 'x_axis' for the x-axis."
+                            },
+                            "drawable2_name": {
+                                "type": "string",
+                                "description": "Optional name of the second drawable (function or segment). Use 'x_axis' for the x-axis. If not provided, area will be between drawable1 and x-axis."
+                            },
+                            "left_bound": {
+                                "type": "number",
+                                "description": "Optional left bound for function areas. Only used when at least one drawable is a function."
+                            },
+                            "right_bound": {
+                                "type": "number",
+                                "description": "Optional right bound for function areas. Only used when at least one drawable is a function."
+                            },
+                            "color": {
+                                "type": "string",
+                                "description": "Optional color for the area. Default is 'lightblue'."
+                            },
+                            "opacity": {
+                                "type": "number",
+                                "description": "Optional opacity for the area between 0 and 1. Default is 0.3."
+                            }
+                        },
+                        "required": ["drawable1_name"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "delete_colored_area",
+                    "description": "Deletes a colored area by its name",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the colored area to delete"
+                            }
+                        },
+                        "required": ["name"]
+                    }
+                }
             }
         ]
