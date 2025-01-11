@@ -1,9 +1,5 @@
 # Bug Fixes
-- fix bug with generated triangle names repeating one point in the name
 - fix bug when deleting an object with non-existent name
-
-# Core Features
-- add support for saving and loading workspaces/calculations
 
 # Basic Mathematical Tools
 - implement full matrix operations (addition, multiplication, inverse, row operations)
