@@ -4,10 +4,12 @@ FUNCTIONS = [
                 "function": {
                     "name": "reset_canvas",
                     "description": "Resets the canvas zoom and offset",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {},
-                        "required": []
+                        "required": [],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -16,10 +18,12 @@ FUNCTIONS = [
                 "function": {
                     "name": "clear_canvas",
                     "description": "Clears the canvas by deleting all drawable objects",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {},
-                        "required": []
+                        "required": [],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -28,10 +32,12 @@ FUNCTIONS = [
                 "function": {
                     "name": "undo",
                     "description": "Undoes the last action on the canvas",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {},
-                        "required": []
+                        "required": [],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -40,10 +46,12 @@ FUNCTIONS = [
                 "function": {
                     "name": "redo",
                     "description": "Redoes the last action on the canvas",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {},
-                        "required": []
+                        "required": [],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -52,10 +60,12 @@ FUNCTIONS = [
                 "function": {
                     "name": "run_tests",
                     "description": "Runs the test suite for the canvas",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {},
-                        "required": []
+                        "required": [],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -64,6 +74,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "create_point",
                     "description": "Creates and draws a point at the given coordinates. If a name is provided, it will try to use the first available letter from that name as the point's name.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -76,11 +87,12 @@ FUNCTIONS = [
                                 "description": "The Y coordinate of the point"
                             },
                             "name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Optional name for the point. If provided, the first available letter from this name will be used."
                             }
                         },
-                        "required": ["x", "y"]
+                        "required": ["x", "y", "name"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -89,19 +101,21 @@ FUNCTIONS = [
                 "function": {
                     "name": "delete_point",
                     "description": "Deletes the point with the given coordinates",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "x": {
                                 "type": "number",
-                                "description": "The X coordinate of the point",
+                                "description": "The X coordinate of the point"
                             },
                             "y": {
                                 "type": "number",
-                                "description": "The Y coordinate of the point",
+                                "description": "The Y coordinate of the point"
                             }
                         },
-                        "required": ["x", "y"]
+                        "required": ["x", "y"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -110,6 +124,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "create_segment",
                     "description": "Creates and draws a segment at the given coordinates for two points. If a name is provided, the first two available letters from that name will be used to name the endpoints.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -130,11 +145,12 @@ FUNCTIONS = [
                                 "description": "The Y coordinate of the second point"
                             },
                             "name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Optional name for the segment. If provided, the first two available letters will be used to name the endpoints."
                             }
                         },
-                        "required": ["x1", "y1", "x2", "y2"]
+                        "required": ["x1", "y1", "x2", "y2", "name"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -143,27 +159,29 @@ FUNCTIONS = [
                 "function": {
                     "name": "delete_segment",
                     "description": "Deletes the segment found at the given coordinates for two points. If only a name is given, search for appropriate point coordinates in the canvas state.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "x1": {
                                 "type": "number",
-                                "description": "The X coordinate of the first point",
+                                "description": "The X coordinate of the first point"
                             },
                             "y1": {
                                 "type": "number",
-                                "description": "The Y coordinate of the first point",
+                                "description": "The Y coordinate of the first point"
                             },
                             "x2": {
                                 "type": "number",
-                                "description": "The X coordinate of the second point",
+                                "description": "The X coordinate of the second point"
                             },
                             "y2": {
                                 "type": "number",
-                                "description": "The Y coordinate of the second point",
+                                "description": "The Y coordinate of the second point"
                             }
                         },
-                        "required": ["x1", "y1", "x2", "y2"]
+                        "required": ["x1", "y1", "x2", "y2"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -172,6 +190,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "create_vector",
                     "description": "Creates and draws a vector at the given coordinates for two points called origin and tip. If a name is provided, the first two available letters will be used to name the origin and tip points.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -192,11 +211,12 @@ FUNCTIONS = [
                                 "description": "The Y coordinate of the tip point"
                             },
                             "name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Optional name for the vector. If provided, the first two available letters will be used to name the origin and tip points."
                             }
                         },
-                        "required": ["origin_x", "origin_y", "tip_x", "tip_y"]
+                        "required": ["origin_x", "origin_y", "tip_x", "tip_y", "name"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -205,6 +225,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "delete_vector",
                     "description": "Deletes the vector found at the given coordinates for two points called origin and tip. If only a name is given, search for appropriate point coordinates in the canvas state.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -225,7 +246,8 @@ FUNCTIONS = [
                                 "description": "The Y coordinate of the tip point",
                             }
                         },
-                        "required": ["origin_x", "origin_y", "tip_x", "tip_y"]
+                        "required": ["origin_x", "origin_y", "tip_x", "tip_y"],
+                        "additionalProperties": False
                     }
                 }
             },            
@@ -234,6 +256,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "create_triangle",
                     "description": "Creates and draws a triangle at the given coordinates for three points. If a name is provided, the first three available letters will be used to name the vertices.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -266,7 +289,8 @@ FUNCTIONS = [
                                 "description": "Optional name for the triangle. If provided, the first three available letters will be used to name the vertices."
                             }
                         },
-                        "required": ["x1", "y1", "x2", "y2", "x3", "y3"]
+                        "required": ["x1", "y1", "x2", "y2", "x3", "y3"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -275,6 +299,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "delete_triangle",
                     "description": "Deletes the triangle found at the given coordinates for three points. If only a name is given, search for appropriate point coordinates in the canvas state.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -303,7 +328,8 @@ FUNCTIONS = [
                                 "description": "The Y coordinate of the third point",
                             }
                         },
-                        "required": ["x1", "y1", "x2", "y2", "x3", "y3"]
+                        "required": ["x1", "y1", "x2", "y2", "x3", "y3"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -312,6 +338,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "create_rectangle",
                     "description": "Creates and draws a rectangle at the given coordinates for two diagonal points. If a name is provided, the first four available letters will be used to name the corners.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -336,7 +363,8 @@ FUNCTIONS = [
                                 "description": "Optional name for the rectangle. If provided, the first four available letters will be used to name the corners."
                             }
                         },
-                        "required": ["px", "py", "opposite_px", "opposite_py"]
+                        "required": ["px", "py", "opposite_px", "opposite_py"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -345,6 +373,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "delete_rectangle",
                     "description": "Deletes the rectangle with the given name",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -353,7 +382,8 @@ FUNCTIONS = [
                                 "description": "The name of the rectangle",
                             }
                         },
-                        "required": ["name"]
+                        "required": ["name"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -362,6 +392,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "create_circle",
                     "description": "Creates and draws a circle with the specified center coordinates and radius. If only a name is given, search for appropriate point coordinates in the canvas state.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -382,7 +413,8 @@ FUNCTIONS = [
                                 "description": "The name of the circle"
                             }
                         },
-                        "required": ["center_x", "center_y", "radius"]
+                        "required": ["center_x", "center_y", "radius"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -391,6 +423,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "delete_circle",
                     "description": "Deletes the circle with the given name",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -399,7 +432,8 @@ FUNCTIONS = [
                                 "description": "The name of the circle"
                             }
                         },
-                        "required": ["name"]
+                        "required": ["name"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -408,6 +442,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "create_ellipse",
                     "description": "Creates an ellipse with the specified center point, x-radius, y-radius, and optional rotation angle",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -428,15 +463,16 @@ FUNCTIONS = [
                                 "description": "The radius of the ellipse in the y-direction (half the height)"
                             },
                             "rotation_angle": {
-                                "type": "number",
+                                "type": ["number", "null"],
                                 "description": "Optional angle in degrees to rotate the ellipse around its center (default: 0)"
                             },
                             "name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Optional name for the ellipse"
-                            },
+                            }
                         },
-                        "required": ["center_x", "center_y", "radius_x", "radius_y"]
+                        "required": ["center_x", "center_y", "radius_x", "radius_y", "rotation_angle", "name"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -445,6 +481,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "delete_ellipse",
                     "description": "Deletes the ellipse with the given name",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -453,7 +490,8 @@ FUNCTIONS = [
                                 "description": "The name of the ellipse"
                             }
                         },
-                        "required": ["name"]
+                        "required": ["name"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -462,6 +500,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "draw_function",
                     "description": "Plots the given mathematical function on the canvas between the specified left and right bounds.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -474,15 +513,16 @@ FUNCTIONS = [
                                 "description": "The name or label for the plotted function. Useful for referencing later."
                             },
                             "left_bound": {
-                                "type": "number",
+                                "type": ["number", "null"],
                                 "description": "The left bound of the interval on which to plot the function."
                             },
                             "right_bound": {
-                                "type": "number",
+                                "type": ["number", "null"],
                                 "description": "The right bound of the interval on which to plot the function."
-                            },
+                            }
                         },
-                        "required": ["function_string", "name"]
+                        "required": ["function_string", "name", "left_bound", "right_bound"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -491,6 +531,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "delete_function",
                     "description": "Removes the plotted mathematical function with the given name from the canvas.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -499,7 +540,8 @@ FUNCTIONS = [
                                 "description": "The name or label of the function to be deleted."
                             }
                         },
-                        "required": ["name"]
+                        "required": ["name"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -516,11 +558,12 @@ FUNCTIONS = [
                                 "description": "The mathematical expression to be evaluated. Example: '5*x - 1' or 'sin(x)'"
                             },
                             "variables": {
-                                "type": "object",
+                                "type": ["object", "null"],
                                 "description": "Dictionary containing key-value pairs of the variables and values to be substituted in the expression. Example: {'x': 2, 'y': 3}"
-                            },
+                            }
                         },
-                        "required": ["expression"]
+                        "required": ["expression", "variables"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -529,6 +572,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "convert",
                     "description": "Converts a value from one unit to another",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -545,7 +589,8 @@ FUNCTIONS = [
                                 "description": "The unit to convert to"
                             }
                         },
-                        "required": ["value", "from_unit", "to_unit"]
+                        "required": ["value", "from_unit", "to_unit"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -554,6 +599,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "limit",
                     "description": "Computes the limit of a function as it approaches a value",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -570,7 +616,8 @@ FUNCTIONS = [
                                 "description": "The value the variable approaches."
                             }
                         },
-                        "required": ["expression", "variable", "value_to_approach"]
+                        "required": ["expression", "variable", "value_to_approach"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -579,6 +626,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "derive",
                     "description": "Computes the derivative of a function with respect to a variable",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -591,7 +639,8 @@ FUNCTIONS = [
                                 "description": "The variable with respect to which the derivative is computed."
                             }
                         },
-                        "required": ["expression", "variable"]
+                        "required": ["expression", "variable"],
+                        "additionalProperties": False
                     }
                 }
             },            
@@ -600,6 +649,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "integrate",
                     "description": "Computes the integral of a function with respect to a variable. Specify the lower and upper bounds only for definite integrals.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -612,15 +662,16 @@ FUNCTIONS = [
                                 "description": "The variable with respect to which the integral is computed. Example: 'x'"
                             },
                             "lower_bound": {
-                                "type": "number",
+                                "type": ["number", "null"],
                                 "description": "The lower bound of the integral."
                             },
                             "upper_bound": {
-                                "type": "number",
+                                "type": ["number", "null"],
                                 "description": "The upper bound of the integral."
                             }
                         },
-                        "required": ["expression", "variable"]
+                        "required": ["expression", "variable", "lower_bound", "upper_bound"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -629,6 +680,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "simplify",
                     "description": "Simplifies a mathematical expression.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -637,7 +689,8 @@ FUNCTIONS = [
                                 "description": "The mathematical expression represented as a string. Example: 'x^2 + 2*x + 1'"
                             }
                         },
-                        "required": ["expression"]
+                        "required": ["expression"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -646,6 +699,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "expand",
                     "description": "Expands a mathematical expression.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -654,7 +708,8 @@ FUNCTIONS = [
                                 "description": "The mathematical expression represented as a string. Example: '(x+1)^2'"
                             }
                         },
-                        "required": ["expression"]
+                        "required": ["expression"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -663,6 +718,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "factor",
                     "description": "Factors a mathematical expression.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -671,7 +727,8 @@ FUNCTIONS = [
                                 "description": "The mathematical expression represented as a string. Example: 'x^2 - 1'"
                             }
                         },
-                        "required": ["expression"]
+                        "required": ["expression"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -680,6 +737,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "solve",
                     "description": "Solves a mathematical equation for a given variable.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -692,7 +750,8 @@ FUNCTIONS = [
                                 "description": "The variable to solve for. Example: 'x'"
                             }
                         },
-                        "required": ["equation", "variable"]
+                        "required": ["equation", "variable"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -701,6 +760,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "solve_system_of_equations",
                     "description": "Solves a system of mathematical equations.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -712,7 +772,8 @@ FUNCTIONS = [
                                 }
                             }
                         },
-                        "required": ["equations"]
+                        "required": ["equations"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -721,6 +782,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "enable_multi_step_mode",
                     "description": "Turns on multi-step mode to perform intermediate actions. Multi-step mode is used to break down complex problems into smaller, more manageable steps. Calculation results to be sent back to you in the canvas state. The user will be informed of the request and the subsequent results. Multi-step mode is turned off when this function is not called. There is no need to call this function again to turn it off.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {},
@@ -733,6 +795,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "translate_object",
                     "description": "Translates a drawable object or function by the specified x and y offsets",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -749,7 +812,8 @@ FUNCTIONS = [
                                 "description": "The vertical translation distance (positive moves up, negative moves down)"
                             }
                         },
-                        "required": ["name", "x_offset", "y_offset"]
+                        "required": ["name", "x_offset", "y_offset"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -758,6 +822,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "rotate_object",
                     "description": "Rotates a drawable object around its center by the specified angle",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -770,7 +835,8 @@ FUNCTIONS = [
                                 "description": "The angle in degrees to rotate the object (positive for counterclockwise)"
                             }
                         },
-                        "required": ["name", "angle"]
+                        "required": ["name", "angle"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -779,15 +845,17 @@ FUNCTIONS = [
                 "function": {
                     "name": "save_workspace",
                     "description": "Saves the current workspace state to a file. If no name is provided, saves to the current workspace file with timestamp. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Optional name for the workspace. Must contain only alphanumeric characters, underscores, or hyphens (e.g., 'my_workspace', 'workspace-1', 'test123'). If not provided, saves to current workspace."
                             }
                         },
-                        "required": []
+                        "required": ["name"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -796,15 +864,17 @@ FUNCTIONS = [
                 "function": {
                     "name": "load_workspace",
                     "description": "Loads a workspace from a file. If no name is provided, loads the (most recent) current workspace. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Optional name of the workspace to load. Must contain only alphanumeric characters, underscores, or hyphens (e.g., 'my_workspace', 'workspace-1', 'test123'). If not provided, loads current workspace."
                             }
                         },
-                        "required": []
+                        "required": ["name"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -813,6 +883,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "list_workspaces",
                     "description": "Lists all saved workspaces. Only shows workspaces with valid names (containing only alphanumeric characters, underscores, or hyphens).",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {},
@@ -825,6 +896,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "delete_workspace",
                     "description": "Delete a workspace by name. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -833,7 +905,8 @@ FUNCTIONS = [
                                 "description": "Name of the workspace to delete. Must contain only alphanumeric characters, underscores, or hyphens (e.g., 'my_workspace', 'workspace-1', 'test123')."
                             }
                         },
-                        "required": ["name"]
+                        "required": ["name"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -842,6 +915,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "create_colored_area",
                     "description": "Creates a colored area between two drawables (functions, segments, or a function and a segment). If only one drawable is provided, the area will be between that drawable and the x-axis.",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -850,27 +924,28 @@ FUNCTIONS = [
                                 "description": "Name of the first drawable (function or segment). Use 'x_axis' for the x-axis."
                             },
                             "drawable2_name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Optional name of the second drawable (function or segment). Use 'x_axis' for the x-axis. If not provided, area will be between drawable1 and x-axis."
                             },
                             "left_bound": {
-                                "type": "number",
+                                "type": ["number", "null"],
                                 "description": "Optional left bound for function areas. Only used when at least one drawable is a function."
                             },
                             "right_bound": {
-                                "type": "number",
+                                "type": ["number", "null"],
                                 "description": "Optional right bound for function areas. Only used when at least one drawable is a function."
                             },
                             "color": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Optional color for the area. Default is 'lightblue'."
                             },
                             "opacity": {
-                                "type": "number",
+                                "type": ["number", "null"],
                                 "description": "Optional opacity for the area between 0 and 1. Default is 0.3."
                             }
                         },
-                        "required": ["drawable1_name"]
+                        "required": ["drawable1_name", "drawable2_name", "left_bound", "right_bound", "color", "opacity"],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -879,6 +954,7 @@ FUNCTIONS = [
                 "function": {
                     "name": "delete_colored_area",
                     "description": "Deletes a colored area by its name",
+                    "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -887,7 +963,8 @@ FUNCTIONS = [
                                 "description": "Name of the colored area to delete"
                             }
                         },
-                        "required": ["name"]
+                        "required": ["name"],
+                        "additionalProperties": False
                     }
                 }
             }
