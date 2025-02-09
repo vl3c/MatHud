@@ -6,16 +6,6 @@ from static.functions_definitions import FUNCTIONS
 import base64
 from static.ai_model import AIModel
 
-system_message = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. 
-
-IMPORTANT: When performing intermediate calculations or multi-step actions:
-1. First call enable_multi_step_mode to enable result tracking (sets the flag which will allow you to receive intermediate results in the canvas state)
-2. Immediately call evaluate_expression or other functions for your calculations
-3. You will receive the results in the next message's canvas state
-4. Use those results for your next calculations or actions (don't forget to call enable_multi_step_mode again if needed)
-5. Repeat this process for complex multi-step calculations
-
-Always analyze the canvas state to see previously computed results before proceeding."""
 
 # First check if OPENAI_API_KEY is already set in environment
 api_key = os.getenv("OPENAI_API_KEY")
@@ -30,14 +20,24 @@ if not api_key:
         raise ValueError("OPENAI_API_KEY not found in environment or .env file")
 
 class OpenAIChatCompletionsAPI:
+    DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. 
+
+    IMPORTANT: When performing intermediate calculations or multi-step actions:
+    1. First call enable_multi_step_mode to enable result tracking (sets the flag which will allow you to receive intermediate results in the canvas state)
+    2. Immediately call evaluate_expression or other functions for your calculations
+    3. You will receive the results in the next message's canvas state
+    4. Use those results for your next calculations or actions (don't forget to call enable_multi_step_mode again if needed)
+    5. Repeat this process for complex multi-step calculations
+
+    Always analyze the canvas state to see previously computed results before proceeding."""
+
     def __init__(self, model=None, temperature=0.2, tools=FUNCTIONS, max_tokens=32000):
         self.client = OpenAI(api_key=api_key)  # Use the api_key we found
         self.model = model if model else AIModel.get_default_model()
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.tools = tools
-        self.system_message = system_message
-        self.messages = [{"role": "system", "content": self.system_message}]
+        self.messages = [{"role": "developer", "content": OpenAIChatCompletionsAPI.DEV_MSG}]
 
     def get_model(self):
         return self.model
