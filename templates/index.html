@@ -13,9 +13,18 @@
             <svg id="math-svg" style="width:100%; height:100%"></svg>
         </div>        
         <div class="chat-container">
-            <div class="vision-toggle">
-                <input type="checkbox" id="vision-toggle" checked>
-                <label for="vision-toggle">Enable Vision</label>
+            <div class="selection-container" style="float: right;">
+                <div class="ai-model-selector">
+                    <label for="ai-model-selector">Select AI Model:</label>
+                    <select id="ai-model-selector">
+                        <option value="gpt-4o">GPT-4o</option>
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                    </select>
+                </div>
+                <div class="vision-toggle" style="margin-top: 10px;">
+                    <input type="checkbox" id="vision-toggle">
+                    <label for="vision-toggle">Enable Vision</label>
+                </div>
             </div>
             <div class="chat-history" id="chat-history"></div>
             <div class="chat-input-container">
@@ -25,5 +34,34 @@
         </div>
     </div>
     <script type="text/python" src="{{ url_for('static', filename='Brython-3.11.3/Lib/site-packages/main.py') }}"></script>
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var aiModelSelector = document.getElementById("ai-model-selector");
+        var visionToggle = document.getElementById("vision-toggle");
+        var visionLabel = document.querySelector("label[for='vision-toggle']");
+        
+        // Ensure vision is unchecked on page load
+        visionToggle.checked = false;
+        
+        function updateVisionToggle() {
+            if (aiModelSelector.value === "gpt-4o") {
+                visionToggle.disabled = false;
+                visionToggle.style.opacity = "1";
+                visionLabel.style.color = "";
+            } else {
+                visionToggle.disabled = true;
+                visionToggle.checked = false;
+                visionToggle.style.opacity = "0.5";
+                visionLabel.style.color = "gray";
+            }
+        }
+        
+        // Call update on page load
+        updateVisionToggle();
+
+        // Listen for changes on the AI model selector
+        aiModelSelector.addEventListener("change", updateVisionToggle);
+    });
+    </script>
 </body>
 </html>

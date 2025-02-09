@@ -186,7 +186,7 @@ def init_webdriver(app):
 def create_app():
     app = Flask(__name__)
     set_up_logging()
-    openai_api = OpenAIChatCompletionsAPI()
+    app.ai_api = OpenAIChatCompletionsAPI()
     
     # Initialize driver as None; will be set after Flask starts
     app.driver = None
@@ -267,7 +267,13 @@ def create_app():
     def send_message():
         message = request.json.get('message')
         svg_state = request.json.get('svg_state')  # Get SVG state from request
-        use_vision = json.loads(message).get('use_vision', False)  # Get vision state from message
+        message_json = json.loads(message)
+        use_vision = message_json.get('use_vision', False)  # Get vision state from message
+        ai_model = message_json.get('ai_model')  # Get AI model from message
+        
+        if ai_model:
+            app.ai_api.set_model(ai_model)
+
         log_user_message(message)
 
         # Check if WebDriver needs to be initialized
@@ -314,7 +320,7 @@ def create_app():
                 logging.error(f"Failed to capture canvas: {str(e)}")
 
         # Proceed with creating chat completion
-        response = openai_api.create_chat_completion(message)
+        response = app.ai_api.create_chat_completion(message)
         ai_message = response.content or ""
         logging.info(f'### AI response: {ai_message}')
         ai_tool_calls = response.tool_calls or []
