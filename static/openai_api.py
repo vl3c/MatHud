@@ -135,13 +135,21 @@ class OpenAIChatCompletionsAPI:
         self.messages.append(message)   
 
         # Make the API call
-        response = self.client.chat.completions.create(
-            model=self.model.id,
-            messages=self.messages,
-            tools=self.tools,
-            # temperature=self.temperature,
-            # max_tokens=self.max_tokens
-        )
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model.id,
+                messages=self.messages,
+                tools=self.tools,
+                # temperature=self.temperature,
+                # max_tokens=self.max_tokens
+            )
+        except Exception as e:
+            print(f"Error during API call: {str(e)}")
+            # Return a basic error message that can be handled by the frontend
+            return {
+                "content": "I encountered an error processing your request. Please try again.",
+                "tool_calls": None
+            }
 
         # Extract the response message
         response_message = response.choices[0].message
