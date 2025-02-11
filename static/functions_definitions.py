@@ -786,7 +786,8 @@ FUNCTIONS = [
                     "parameters": {
                         "type": "object",
                         "properties": {},
-                        "required": []
+                        "required": [],
+                        "additionalProperties": False
                     }
                 }
             },
@@ -887,7 +888,8 @@ FUNCTIONS = [
                     "parameters": {
                         "type": "object",
                         "properties": {},
-                        "required": []
+                        "required": [],
+                        "additionalProperties": False
                     }
                 }
             },
