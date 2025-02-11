@@ -7,18 +7,6 @@ import base64
 from static.ai_model import AIModel
 
 
-# First check if OPENAI_API_KEY is already set in environment
-api_key = os.getenv("OPENAI_API_KEY")
-
-# If not found, try to load from .env file
-if not api_key:
-    dotenv_path = ".env"
-    if os.path.exists(dotenv_path):
-        load_dotenv(dotenv_path)
-        api_key = os.getenv("OPENAI_API_KEY")
-    else:
-        raise ValueError("OPENAI_API_KEY not found in environment or .env file")
-
 class OpenAIChatCompletionsAPI:
     DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. 
 
@@ -31,8 +19,32 @@ class OpenAIChatCompletionsAPI:
 
     Always analyze the canvas state to see previously computed results before proceeding."""
 
+    @staticmethod
+    def _initialize_api_key():
+        """Initialize the OpenAI API key from environment or .env file.
+        
+        Returns:
+            str: The initialized API key
+            
+        Raises:
+            ValueError: If API key is not found in environment or .env file
+        """
+        # First check if OPENAI_API_KEY is already set in environment
+        api_key = os.getenv("OPENAI_API_KEY")
+
+        # If not found, try to load from .env file
+        if not api_key:
+            dotenv_path = ".env"
+            if os.path.exists(dotenv_path):
+                load_dotenv(dotenv_path)
+                api_key = os.getenv("OPENAI_API_KEY")
+            else:
+                raise ValueError("OPENAI_API_KEY not found in environment or .env file")
+                
+        return api_key
+
     def __init__(self, model=None, temperature=0.2, tools=FUNCTIONS, max_tokens=32000):
-        self.client = OpenAI(api_key=api_key)  # Use the api_key we found
+        self.client = OpenAI(api_key=self._initialize_api_key())  # Initialize and use the api_key
         self.model = model if model else AIModel.get_default_model()
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -48,52 +60,75 @@ class OpenAIChatCompletionsAPI:
             self.model = AIModel.from_identifier(identifier)
             print(f"API model updated to: {identifier}")
 
-    def create_chat_completion(self, prompt):
-        def remove_canvas_state_from_last_user_message():
-            if len(self.messages) >= 2 and "content" in self.messages[-2]:
-                previous_message_content = self.messages[-2]["content"]
-                if isinstance(previous_message_content, str):
-                    try:
-                        previous_message_content_json = json.loads(previous_message_content)
-                        if "canvas_state" in previous_message_content_json:
-                            del previous_message_content_json["canvas_state"]
-                            self.messages[-2]["content"] = json.dumps(previous_message_content_json)
-                    except json.JSONDecodeError:
-                        pass
-        
-        def remove_image_from_last_user_message():
-            if len(self.messages) >= 2 and "content" in self.messages[-2]:
-                content = self.messages[-2]["content"]
-                if isinstance(content, list):
-                    # Keep only the text part
-                    text_parts = [part for part in content if part.get("type") == "text"]
-                    if text_parts:
-                        self.messages[-2]["content"] = text_parts[0]["text"]
+    def _remove_canvas_state_from_last_user_message(self):
+        if len(self.messages) >= 2 and "content" in self.messages[-2]:
+            previous_message_content = self.messages[-2]["content"]
+            if isinstance(previous_message_content, str):
+                try:
+                    previous_message_content_json = json.loads(previous_message_content)
+                    if "canvas_state" in previous_message_content_json:
+                        del previous_message_content_json["canvas_state"]
+                        self.messages[-2]["content"] = json.dumps(previous_message_content_json)
+                except json.JSONDecodeError:
+                    pass
 
+    def _remove_image_from_last_user_message(self):
+        if len(self.messages) >= 2 and "content" in self.messages[-2]:
+            content = self.messages[-2]["content"]
+            if isinstance(content, list):
+                # Keep only the text part
+                text_parts = [part for part in content if part.get("type") == "text"]
+                if text_parts:
+                    self.messages[-2]["content"] = text_parts[0]["text"]
+
+    def clean_conversation_history(self):
+        """Clean up the conversation history by removing canvas states and images from the last user message."""
+        print(f"All messages BEFORE removing canvas_state: \n{self.messages}\n\n")
+        self._remove_canvas_state_from_last_user_message()
+        self._remove_image_from_last_user_message()
+
+    def _prepare_message_content(self, user_message, use_vision, full_prompt):
+        """Prepare message content with optional canvas image for vision-enabled messages.
+        
+        Args:
+            text_content (str): The text content of the message
+            use_vision (bool): Whether to include canvas image
+            prompt (str): The original prompt to use as fallback
+            
+        Returns:
+            The prepared message content with or without image
+        """
+        if not use_vision:
+            return full_prompt
+
+        try:
+            with open("CanvasSnapshots/canvas.png", "rb") as image_file:
+                image_data = base64.b64encode(image_file.read()).decode('utf-8')
+                enhanced_prompt = [
+                    {
+                        "type": "text", 
+                        "text": user_message
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{image_data}"
+                        }
+                    }
+                ]
+                return enhanced_prompt
+        except Exception as e:
+            print(f"Failed to load canvas image: {e}")
+            return full_prompt
+
+    def create_chat_completion(self, full_prompt):
         # Parse the prompt which is a JSON string
-        prompt_json = json.loads(prompt)
-        text_content = prompt_json.get("user_message", "")
+        prompt_json = json.loads(full_prompt)
+        user_message = prompt_json.get("user_message", "")
         use_vision = prompt_json.get("use_vision", True)  # Get vision toggle state
 
-        # Try to add the canvas image if vision is enabled
-        if use_vision:
-            try:
-                with open("CanvasSnapshots/canvas.png", "rb") as image_file:
-                    image_data = base64.b64encode(image_file.read()).decode('utf-8')
-                    message_content = [
-                        {"type": "text", "text": text_content},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{image_data}"
-                            }
-                        }
-                    ]
-            except Exception as e:
-                print(f"Failed to load canvas image: {e}")
-                message_content = prompt
-        else:
-            message_content = prompt
+        # Prepare message content with optional canvas image
+        message_content = self._prepare_message_content(user_message, use_vision, full_prompt)
 
         # Append the new user message
         message = {"role": "user", "content": message_content}
@@ -115,8 +150,6 @@ class OpenAIChatCompletionsAPI:
         self.messages.append({"role": "assistant", "content": content})
         
         # Clean up the messages
-        print(f"All messages BEFORE removing canvas_state: \n{self.messages}\n\n")
-        remove_canvas_state_from_last_user_message()
-        remove_image_from_last_user_message()
+        self.clean_conversation_history()
         
         return response_message
