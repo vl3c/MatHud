@@ -321,9 +321,9 @@ def create_app():
 
         # Proceed with creating chat completion
         response = app.ai_api.create_chat_completion(message)
-        ai_message = response.content or ""
+        ai_message = response.content if response.content is not None else ""
         logging.info(f'### AI response: {ai_message}')
-        ai_tool_calls = response.tool_calls or []
+        ai_tool_calls = response.tool_calls if response.tool_calls is not None else []
         ai_tool_calls = jsonify_tool_calls(ai_tool_calls)
         logging.info(f'### AI tool calls: {ai_tool_calls}')
         response = json.dumps({"ai_message": ai_message, "ai_tool_calls": ai_tool_calls})

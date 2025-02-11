@@ -132,7 +132,7 @@ class OpenAIChatCompletionsAPI:
 
         # Append the new user message
         message = {"role": "user", "content": message_content}
-        self.messages.append(message)
+        self.messages.append(message)   
 
         # Make the API call
         response = self.client.chat.completions.create(
@@ -145,9 +145,13 @@ class OpenAIChatCompletionsAPI:
 
         # Extract the response message
         response_message = response.choices[0].message
-        content = response_message.content or ""
+        content = response_message.content
         # Append the AI's response to messages
-        self.messages.append({"role": "assistant", "content": content})
+        self.messages.append({
+            "role": "assistant", 
+            "content": content,
+            "tool_calls": response_message.tool_calls
+        })
         
         # Clean up the messages
         self.clean_conversation_history()
