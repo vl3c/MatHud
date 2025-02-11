@@ -285,11 +285,11 @@ FUNCTIONS = [
                                 "description": "The Y coordinate of the third point"
                             },
                             "name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Optional name for the triangle. If provided, the first three available letters will be used to name the vertices."
                             }
                         },
-                        "required": ["x1", "y1", "x2", "y2", "x3", "y3"],
+                        "required": ["x1", "y1", "x2", "y2", "x3", "y3", "name"],
                         "additionalProperties": False
                     }
                 }
@@ -359,11 +359,11 @@ FUNCTIONS = [
                                 "description": "The Y coordinate of the opposite point"
                             },
                             "name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Optional name for the rectangle. If provided, the first four available letters will be used to name the corners."
                             }
                         },
-                        "required": ["px", "py", "opposite_px", "opposite_py"],
+                        "required": ["px", "py", "opposite_px", "opposite_py", "name"],
                         "additionalProperties": False
                     }
                 }
@@ -391,7 +391,7 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "create_circle",
-                    "description": "Creates and draws a circle with the specified center coordinates and radius. If only a name is given, search for appropriate point coordinates in the canvas state.",
+                    "description": "Creates and draws a circle with the specified center coordinates and radius. If a name is provided, it will be used to reference the circle.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -409,11 +409,11 @@ FUNCTIONS = [
                                 "description": "The radius of the circle"
                             },
                             "name": {
-                                "type": "string",
-                                "description": "The name of the circle"
+                                "type": ["string", "null"],
+                                "description": "Optional name for the circle"
                             }
                         },
-                        "required": ["center_x", "center_y", "radius"],
+                        "required": ["center_x", "center_y", "radius", "name"],
                         "additionalProperties": False
                     }
                 }
@@ -509,7 +509,7 @@ FUNCTIONS = [
                                 "description": "The mathematical expression represented as a string, e.g., '2*x + 3'."
                             },
                             "name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "The name or label for the plotted function. Useful for referencing later."
                             },
                             "left_bound": {
