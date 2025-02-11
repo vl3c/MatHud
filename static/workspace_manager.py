@@ -3,8 +3,10 @@ import json
 import re
 from datetime import datetime
 
+WORKSPACES_DIR = "workspaces"
+
 class WorkspaceManager:
-    def __init__(self, workspaces_dir="workspaces"):
+    def __init__(self, workspaces_dir=WORKSPACES_DIR):
         """Initialize the workspace manager.
         
         Args:
