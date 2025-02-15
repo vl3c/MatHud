@@ -2,7 +2,6 @@ import unittest
 import os
 import json
 from datetime import datetime
-from . import python_path_setup  # Import this first to set up the Python path
 from ServerTests.test_mocks import MockCanvas
 from static.workspace_manager import WorkspaceManager, WORKSPACES_DIR
 
