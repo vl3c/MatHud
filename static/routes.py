@@ -1,7 +1,6 @@
 from flask import request, render_template, json
 from static.tool_call_processor import ToolCallProcessor
 from static.app_manager import AppManager
-from static.webdriver_manager import WebDriverManager
 
 
 def register_routes(app):
@@ -16,6 +15,7 @@ def register_routes(app):
         """Route to initialize WebDriver after Flask has started"""
         if not app.webdriver_manager:
             try:
+                from static.webdriver_manager import WebDriverManager
                 app.webdriver_manager = WebDriverManager()
             except Exception as e:
                 print(f"Failed to initialize WebDriverManager: {str(e)}")
@@ -115,8 +115,23 @@ def register_routes(app):
     @app.route('/send_message', methods=['POST'])
     def send_message():
         message = request.json.get('message')
+        if not message:
+            return AppManager.make_response(
+                message='Message is required',
+                status='error',
+                code=400
+            )
+
+        try:
+            message_json = json.loads(message)
+        except (json.JSONDecodeError, TypeError):
+            return AppManager.make_response(
+                message='Invalid message format',
+                status='error',
+                code=400
+            )
+
         svg_state = request.json.get('svg_state')  # Get SVG state from request
-        message_json = json.loads(message)
         use_vision = message_json.get('use_vision', False)  # Get vision state from message
         ai_model = message_json.get('ai_model')  # Get AI model from message
         
@@ -134,17 +149,24 @@ def register_routes(app):
         if use_vision and hasattr(app, 'webdriver_manager') and app.webdriver_manager:
             app.webdriver_manager.capture_svg_state(svg_state)
 
-        # Proceed with creating chat completion
-        response = app.ai_api.create_chat_completion(message)
+        try:
+            # Proceed with creating chat completion
+            response = app.ai_api.create_chat_completion(message)
 
-        ai_message = response.content if response.content is not None else ""
-        app.log_manager.log_ai_response(ai_message)
+            ai_message = response.content if response.content is not None else ""
+            app.log_manager.log_ai_response(ai_message)
 
-        ai_tool_calls = response.tool_calls if response.tool_calls is not None else []
-        ai_tool_calls = ToolCallProcessor.jsonify_tool_calls(ai_tool_calls)
-        app.log_manager.log_ai_tool_calls(ai_tool_calls)
+            ai_tool_calls = response.tool_calls if response.tool_calls is not None else []
+            ai_tool_calls = ToolCallProcessor.jsonify_tool_calls(ai_tool_calls)
+            app.log_manager.log_ai_tool_calls(ai_tool_calls)
 
-        return AppManager.make_response(data={
-            "ai_message": ai_message,
-            "ai_tool_calls": ai_tool_calls
-        }) 
+            return AppManager.make_response(data={
+                "ai_message": ai_message,
+                "ai_tool_calls": ai_tool_calls
+            })
+        except Exception as e:
+            return AppManager.make_response(
+                message=str(e),
+                status='error',
+                code=500
+            ) 
