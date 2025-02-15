@@ -11,11 +11,13 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 import signal
 import sys
+from static.webdriver_manager import WebDriverManager
 from static.tool_call_processor import ToolCallProcessor
 
 # Keep the utility functions
 def get_log_file_name():
     return datetime.now().strftime('mathud_session_%y_%m_%d.log')
+
 
 def set_up_logging():
     if not os.path.exists('./logs/'):
@@ -27,9 +29,11 @@ def set_up_logging():
     )
     log_new_session_start()
 
+
 def log_new_session_start():
     session_delimiter = f"\n\n###### SESSION {datetime.now().strftime('%H:%M:%S')} ######\n"
     logging.info(session_delimiter)
+
 
 def log_user_message(user_message):
     try:
@@ -51,133 +55,12 @@ def log_user_message(user_message):
         user_message = user_message_json["user_message"]
         logging.info(f'### User message: {user_message}')
 
-def capture_canvas(driver):
-    print("\nStarting capture_canvas...")
-    try:
-        snapshots_dir = "CanvasSnapshots"
-        if not os.path.exists(snapshots_dir):
-            os.makedirs(snapshots_dir)
-        
-        # Wait for SVG element and ensure it's visible
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "math-svg"))
-        )
-        
-        # Wait for all SVG child elements to be present
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_all_elements_located((
-                By.CSS_SELECTOR, 
-                "#math-svg > *"
-            ))
-        )
-
-        # Verify SVG content is present
-        svg = driver.find_element(By.ID, "math-svg")
-        if not svg.get_attribute("innerHTML").strip():
-            raise Exception("SVG content is empty")
-
-        # Get the actual rendered dimensions using JavaScript
-        dimensions = driver.execute_script("""
-            var container = document.querySelector('.math-container');
-            var rect = container.getBoundingClientRect();
-            return {
-                width: rect.width,
-                height: rect.height
-            };
-        """)
-        
-        width = dimensions['width']
-        height = dimensions['height']
-        
-        # Set explicit size for SVG and ensure container is properly sized
-        driver.execute_script("""
-            var container = document.querySelector('.math-container');
-            var svg = document.getElementById('math-svg');
-            
-            // Set container style
-            container.style.width = arguments[0] + 'px';
-            container.style.height = arguments[1] + 'px';
-            
-            // Set SVG attributes
-            svg.setAttribute('width', arguments[0]);
-            svg.setAttribute('height', arguments[1]);
-            svg.setAttribute('viewBox', '0 0 ' + arguments[0] + ' ' + arguments[1]);
-            svg.style.width = '100%';
-            svg.style.height = '100%';
-            
-            // Force all SVG elements to be visible
-            var elements = svg.getElementsByTagName('*');
-            for(var i=0; i < elements.length; i++) {
-                elements[i].style.visibility = 'visible';
-                elements[i].style.opacity = '1';
-            }
-        """, width, height)
-        
-        time.sleep(1)  # Give time for the changes to take effect
-        
-        # Take screenshot of the container
-        canvas_path = os.path.join(snapshots_dir, "canvas.png")
-        container = driver.find_element(By.CLASS_NAME, "math-container")
-        container.screenshot(canvas_path)
-        print(f"Canvas capture completed successfully (dimensions: {width}x{height})")
-    except Exception as e:
-        print(f"Error in capture_canvas: {str(e)}")
-        logging.error(f"Error in capture_canvas: {str(e)}")
-
-def init_webdriver(app):
-    """Initialize WebDriver after Flask has started"""
-    print("Initializing WebDriver...")
-    firefox_options = Options()
-    firefox_options.add_argument('--headless')  # Make Firefox run in headless mode
-    
-    # Add retry mechanism
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            if not hasattr(app, 'driver') or app.driver is None:
-                app.driver = webdriver.Firefox(options=firefox_options)
-                print("WebDriver started successfully.")
-            
-            # Wait for Flask to start
-            time.sleep(3)  # Increased delay
-            
-            print(f"Attempting to navigate (attempt {attempt + 1}/{max_retries})...")
-            app.driver.get("http://127.0.0.1:5000/")
-            
-            # Hide the chat container
-            app.driver.execute_script("""
-                const chatContainer = document.querySelector('.chat-container');
-                if (chatContainer) {
-                    chatContainer.style.display = 'none';
-                }
-                const mathContainer = document.querySelector('.math-container');
-                if (mathContainer) {
-                    mathContainer.style.width = '100%';
-                }
-            """)
-            
-            print("WebDriver navigation successful.")
-            return  # Success, exit the function
-            
-        except Exception as e:
-            print(f"Attempt {attempt + 1} failed: {str(e)}")
-            if hasattr(app, 'driver') and app.driver:
-                app.driver.quit()
-                app.driver = None
-            
-            if attempt < max_retries - 1:
-                print("Retrying in 2 seconds...")
-                time.sleep(2)
-            else:
-                print("All attempts failed.")
 
 def create_app():
     app = Flask(__name__)
     set_up_logging()
     app.ai_api = OpenAIChatCompletionsAPI()
-    
-    # Initialize driver as None; will be set after Flask starts
-    app.driver = None
+    app.webdriver_manager = None  # Will be set after Flask starts
     
     # Initialize workspace manager
     from static.workspace_manager import WorkspaceManager
@@ -190,9 +73,13 @@ def create_app():
     @app.route('/init_webdriver')
     def init_webdriver_route():
         """Route to initialize WebDriver after Flask has started"""
-        if not app.driver:
-            init_webdriver(app)
-        return "WebDriver initialization attempted"
+        if not app.webdriver_manager:
+            try:
+                app.webdriver_manager = WebDriverManager()
+            except Exception as e:
+                print(f"Failed to initialize WebDriverManager: {str(e)}")
+                return f"WebDriver initialization failed: {str(e)}", 500
+        return "WebDriver initialization successful"
 
     @app.route('/save_workspace', methods=['POST'])
     def save_workspace_route():
@@ -265,47 +152,13 @@ def create_app():
         log_user_message(message)
 
         # Check if WebDriver needs to be initialized
-        if use_vision and (not hasattr(app, 'driver') or app.driver is None):
+        if use_vision and (not hasattr(app, 'webdriver_manager') or app.webdriver_manager is None):
             print("WebDriver not found, attempting to initialize...")
-            init_webdriver(app)
+            init_webdriver_route()
 
         # Capture canvas image before sending to AI
-        if use_vision and hasattr(app, 'driver') and app.driver:
-            try:
-                print("Loading SVG state...")
-                # Set the SVG content and attributes directly
-                app.driver.execute_script("""
-                    const svg = document.getElementById('math-svg');
-                    const container = document.querySelector('.math-container');
-                    
-                    // Set the SVG content
-                    svg.outerHTML = arguments[0].content;
-                    
-                    // Set container dimensions
-                    container.style.width = arguments[0].dimensions.width + 'px';
-                    container.style.height = arguments[0].dimensions.height + 'px';
-                    
-                    // Set SVG attributes
-                    const newSvg = document.getElementById('math-svg');  // Get reference to new SVG after outerHTML
-                    if (arguments[0].viewBox) {
-                        newSvg.setAttribute('viewBox', arguments[0].viewBox);
-                    }
-                    if (arguments[0].transform) {
-                        newSvg.setAttribute('transform', arguments[0].transform);
-                    }
-                    
-                    return true;  // Confirm execution
-                """, svg_state)
-                
-                # Add a small delay to ensure the SVG is redrawn
-                time.sleep(1)
-                
-                # Now capture the canvas
-                capture_canvas(app.driver)
-                
-            except Exception as e:
-                print(f"Failed to capture canvas: {str(e)}")
-                logging.error(f"Failed to capture canvas: {str(e)}")
+        if use_vision and hasattr(app, 'webdriver_manager') and app.webdriver_manager:
+            app.webdriver_manager.capture_svg_state(svg_state)
 
         # Proceed with creating chat completion
         response = app.ai_api.create_chat_completion(message)
@@ -324,10 +177,10 @@ app = create_app()
 
 def signal_handler(sig, frame):
     print('\nShutting down gracefully...')
-    # Only quit the specific WebDriver instance
-    if hasattr(app, 'driver') and app.driver:
+    # Clean up WebDriverManager
+    if hasattr(app, 'webdriver_manager') and app.webdriver_manager:
         try:
-            app.driver.quit()
+            app.webdriver_manager.cleanup()
         except Exception as e:
             print(f"Error closing WebDriver: {e}")
     print("Goodbye!")
@@ -353,7 +206,7 @@ if __name__ == '__main__':
         time.sleep(3)
         
         # Initialize WebDriver
-        if not app.driver:
+        if not app.webdriver_manager:
             import requests
             try:
                 response = requests.get('http://127.0.0.1:5000/init_webdriver')
