@@ -11,6 +11,7 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 import signal
 import sys
+from static.tool_call_processor import ToolCallProcessor
 
 # Keep the utility functions
 def get_log_file_name():
@@ -49,19 +50,6 @@ def log_user_message(user_message):
     if "user_message" in user_message_json:
         user_message = user_message_json["user_message"]
         logging.info(f'### User message: {user_message}')
-
-def jsonify_tool_calls(tool_calls):
-    simple_tool_calls = []
-    for tool_call in tool_calls:
-        function_name = tool_call.function.name
-        try:
-            arguments = json.loads(tool_call.function.arguments)
-        except json.JSONDecodeError:
-            arguments = {}
-            logging.error(f"Failed to decode arguments for function {function_name}.")
-        simple_tool_call = {"function_name": function_name, "arguments": arguments}
-        simple_tool_calls.append(simple_tool_call)
-    return simple_tool_calls
 
 def capture_canvas(driver):
     print("\nStarting capture_canvas...")
@@ -324,7 +312,7 @@ def create_app():
         ai_message = response.content if response.content is not None else ""
         logging.info(f'### AI response: {ai_message}')
         ai_tool_calls = response.tool_calls if response.tool_calls is not None else []
-        ai_tool_calls = jsonify_tool_calls(ai_tool_calls)
+        ai_tool_calls = ToolCallProcessor.jsonify_tool_calls(ai_tool_calls)
         logging.info(f'### AI tool calls: {ai_tool_calls}')
         response = json.dumps({"ai_message": ai_message, "ai_tool_calls": ai_tool_calls})
         return response
