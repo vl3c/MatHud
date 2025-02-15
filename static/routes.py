@@ -151,18 +151,19 @@ def register_routes(app):
 
         try:
             # Proceed with creating chat completion
-            response = app.ai_api.create_chat_completion(message)
+            response_message, finish_reason = app.ai_api.create_chat_completion(message)
 
-            ai_message = response.content if response.content is not None else ""
+            ai_message = response_message.content if response_message.content is not None else ""
             app.log_manager.log_ai_response(ai_message)
 
-            ai_tool_calls = response.tool_calls if response.tool_calls is not None else []
+            ai_tool_calls = response_message.tool_calls if response_message.tool_calls is not None else []
             ai_tool_calls = ToolCallProcessor.jsonify_tool_calls(ai_tool_calls)
             app.log_manager.log_ai_tool_calls(ai_tool_calls)
 
             return AppManager.make_response(data={
                 "ai_message": ai_message,
-                "ai_tool_calls": ai_tool_calls
+                "ai_tool_calls": ai_tool_calls,
+                "finish_reason": finish_reason
             })
         except Exception as e:
             return AppManager.make_response(

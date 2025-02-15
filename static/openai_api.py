@@ -145,13 +145,18 @@ class OpenAIChatCompletionsAPI:
             )
         except Exception as e:
             print(f"Error during API call: {str(e)}")
-            # Return a basic error message that can be handled by the frontend
-            return {
-                "content": "I encountered an error processing your request. Please try again.",
-                "tool_calls": None
-            }
+            # Create a response object that matches OpenAI's structure
+            from types import SimpleNamespace
+            error_msg = "I encountered an error processing your request. Please try again."
+            error_response = SimpleNamespace(
+                content=error_msg,
+                tool_calls=[],  # Return empty list instead of None
+                choices=[SimpleNamespace(message=SimpleNamespace(content=error_msg, tool_calls=[]))]
+            )
+            return error_response, "error"  # Return both response and finish_reason
 
         # Extract the response message
+        finish_reason = response.choices[0].finish_reason
         response_message = response.choices[0].message
         content = response_message.content
         # Append the AI's response to messages
@@ -164,4 +169,4 @@ class OpenAIChatCompletionsAPI:
         # Clean up the messages
         self.clean_conversation_history()
         
-        return response_message
+        return response_message, finish_reason
