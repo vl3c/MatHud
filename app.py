@@ -1,22 +1,28 @@
-import logging
-import os
-from datetime import datetime
 from flask import Flask, json, request, render_template, jsonify
-from static.openai_api import OpenAIChatCompletionsAPI
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 import time
 import signal
 import sys
+from static.openai_api import OpenAIChatCompletionsAPI
 from static.webdriver_manager import WebDriverManager
 from static.tool_call_processor import ToolCallProcessor
 from static.log_manager import LogManager
 
 
+def signal_handler(sig, frame):
+    """Handle graceful shutdown on interrupt signal."""
+    print('\nShutting down gracefully...')
+    # Clean up WebDriverManager
+    if hasattr(app, 'webdriver_manager') and app.webdriver_manager:
+        try:
+            app.webdriver_manager.cleanup()
+        except Exception as e:
+            print(f"Error closing WebDriver: {e}")
+    print("Goodbye!")
+    sys.exit(0)
+
+
 def create_app():
+    """Create and configure the Flask application."""
     app = Flask(__name__)
     
     # Initialize managers
@@ -137,21 +143,11 @@ def create_app():
 
     return app
 
+
 # Create the app at module level for VS Code debugger
 app = create_app()
 
-def signal_handler(sig, frame):
-    print('\nShutting down gracefully...')
-    # Clean up WebDriverManager
-    if hasattr(app, 'webdriver_manager') and app.webdriver_manager:
-        try:
-            app.webdriver_manager.cleanup()
-        except Exception as e:
-            print(f"Error closing WebDriver: {e}")
-    print("Goodbye!")
-    sys.exit(0)
-
-# Register the signal handler
+# Register signal handler at module level for both run modes
 signal.signal(signal.SIGINT, signal_handler)
 
 if __name__ == '__main__':
