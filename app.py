@@ -13,52 +13,14 @@ import signal
 import sys
 from static.webdriver_manager import WebDriverManager
 from static.tool_call_processor import ToolCallProcessor
-
-# Keep the utility functions
-def get_log_file_name():
-    return datetime.now().strftime('mathud_session_%y_%m_%d.log')
-
-
-def set_up_logging():
-    if not os.path.exists('./logs/'):
-        os.makedirs('./logs/')
-    logging.basicConfig(
-        filename=os.path.join('./logs/', get_log_file_name()),
-        level=logging.INFO,
-        format='%(asctime)s %(message)s'
-    )
-    log_new_session_start()
-
-
-def log_new_session_start():
-    session_delimiter = f"\n\n###### SESSION {datetime.now().strftime('%H:%M:%S')} ######\n"
-    logging.info(session_delimiter)
-
-
-def log_user_message(user_message):
-    try:
-        user_message_json = json.loads(user_message)
-    except json.JSONDecodeError:
-        logging.error("Failed to decode user message JSON.")
-        return
-    
-    if "svg_state" in user_message_json:
-        svg_state = user_message_json["svg_state"]
-        logging.info(f'### SVG state dimensions: {svg_state["dimensions"]}')
-    if "canvas_state" in user_message_json:
-        canvas_state = user_message_json["canvas_state"]
-        logging.info(f'### Canvas state: {canvas_state}')
-    if "previous_results" in user_message_json:
-        previous_results = user_message_json["previous_results"]
-        logging.info(f'### Previously calculated results: {previous_results}')
-    if "user_message" in user_message_json:
-        user_message = user_message_json["user_message"]
-        logging.info(f'### User message: {user_message}')
+from static.log_manager import LogManager
 
 
 def create_app():
     app = Flask(__name__)
-    set_up_logging()
+    
+    # Initialize managers
+    app.log_manager = LogManager()
     app.ai_api = OpenAIChatCompletionsAPI()
     app.webdriver_manager = None  # Will be set after Flask starts
     
@@ -149,7 +111,7 @@ def create_app():
         if ai_model:
             app.ai_api.set_model(ai_model)
 
-        log_user_message(message)
+        app.log_manager.log_user_message(message)
 
         # Check if WebDriver needs to be initialized
         if use_vision and (not hasattr(app, 'webdriver_manager') or app.webdriver_manager is None):
@@ -162,11 +124,14 @@ def create_app():
 
         # Proceed with creating chat completion
         response = app.ai_api.create_chat_completion(message)
+
         ai_message = response.content if response.content is not None else ""
-        logging.info(f'### AI response: {ai_message}')
+        app.log_manager.log_ai_response(ai_message)
+
         ai_tool_calls = response.tool_calls if response.tool_calls is not None else []
         ai_tool_calls = ToolCallProcessor.jsonify_tool_calls(ai_tool_calls)
-        logging.info(f'### AI tool calls: {ai_tool_calls}')
+        app.log_manager.log_ai_tool_calls(ai_tool_calls)
+
         response = json.dumps({"ai_message": ai_message, "ai_tool_calls": ai_tool_calls})
         return response
 
