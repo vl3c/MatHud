@@ -61,25 +61,32 @@ class OpenAIChatCompletionsAPI:
             print(f"API model updated to: {identifier}")
 
     def _remove_canvas_state_from_last_user_message(self):
-        if len(self.messages) >= 2 and "content" in self.messages[-2]:
-            previous_message_content = self.messages[-2]["content"]
-            if isinstance(previous_message_content, str):
-                try:
-                    previous_message_content_json = json.loads(previous_message_content)
-                    if "canvas_state" in previous_message_content_json:
-                        del previous_message_content_json["canvas_state"]
-                        self.messages[-2]["content"] = json.dumps(previous_message_content_json)
-                except json.JSONDecodeError:
-                    pass
+        """Remove canvas state from the last user message in the conversation history."""
+        # Find the last user message
+        for message in reversed(self.messages):
+            if message["role"] == "user" and "content" in message:
+                if isinstance(message["content"], str):
+                    try:
+                        message_content_json = json.loads(message["content"])
+                        if "canvas_state" in message_content_json:
+                            del message_content_json["canvas_state"]
+                            message["content"] = json.dumps(message_content_json)
+                    except json.JSONDecodeError:
+                        pass
+                break  # Stop after processing the most recent user message
 
     def _remove_image_from_last_user_message(self):
-        if len(self.messages) >= 2 and "content" in self.messages[-2]:
-            content = self.messages[-2]["content"]
-            if isinstance(content, list):
-                # Keep only the text part
-                text_parts = [part for part in content if part.get("type") == "text"]
-                if text_parts:
-                    self.messages[-2]["content"] = text_parts[0]["text"]
+        """Remove image content from the last user message in the conversation history."""
+        # Find the last user message
+        for message in reversed(self.messages):
+            if message["role"] == "user" and "content" in message:
+                content = message["content"]
+                if isinstance(content, list):
+                    # Keep only the text part
+                    text_parts = [part for part in content if part.get("type") == "text"]
+                    if text_parts:
+                        message["content"] = text_parts[0]["text"]
+                break  # Stop after processing the most recent user message
 
     def clean_conversation_history(self):
         """Clean up the conversation history by removing canvas states and images from the last user message."""
@@ -159,12 +166,30 @@ class OpenAIChatCompletionsAPI:
         finish_reason = response.choices[0].finish_reason
         response_message = response.choices[0].message
         content = response_message.content
-        # Append the AI's response to messages
-        self.messages.append({
+
+        # Create the assistant message first
+        assistant_message = {
             "role": "assistant", 
             "content": content,
-            "tool_calls": response_message.tool_calls
-        })
+        }
+
+        # If the response has tool calls, add them to the assistant message
+        if response_message.tool_calls:
+            assistant_message["tool_calls"] = response_message.tool_calls
+        
+        # Append the AI's response to messages first
+        self.messages.append(assistant_message)
+
+        # Then add tool response messages if there were tool calls
+        if response_message.tool_calls:
+            for tool_call in response_message.tool_calls:
+                tool_message = {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "name": tool_call.function.name,
+                    "content": "Tool execution successful"
+                }
+                self.messages.append(tool_message)
         
         # Clean up the messages
         self.clean_conversation_history()
