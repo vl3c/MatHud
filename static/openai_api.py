@@ -88,30 +88,25 @@ class OpenAIChatCompletionsAPI:
                         message["content"] = text_parts[0]["text"]
                 break  # Stop after processing the most recent user message
 
-    def clean_conversation_history(self):
+    def _clean_conversation_history(self):
         """Clean up the conversation history by removing canvas states and images from the last user message."""
         print(f"All messages BEFORE removing canvas_state: \n{self.messages}\n\n")
         self._remove_canvas_state_from_last_user_message()
         self._remove_image_from_last_user_message()
 
-    def _prepare_message_content(self, user_message, use_vision, full_prompt):
-        """Prepare message content with optional canvas image for vision-enabled messages.
+    def _create_enhanced_prompt_with_image(self, user_message):
+        """Create an enhanced prompt that includes both text and base64 encoded image.
         
         Args:
-            text_content (str): The text content of the message
-            use_vision (bool): Whether to include canvas image
-            prompt (str): The original prompt to use as fallback
+            user_message (str): The user's text message
             
         Returns:
-            The prepared message content with or without image
+            list: Enhanced prompt with text and image data, or None if image loading fails
         """
-        if not use_vision:
-            return full_prompt
-
         try:
             with open("CanvasSnapshots/canvas.png", "rb") as image_file:
                 image_data = base64.b64encode(image_file.read()).decode('utf-8')
-                enhanced_prompt = [
+                ret_val = [
                     {
                         "type": "text", 
                         "text": user_message
@@ -123,23 +118,117 @@ class OpenAIChatCompletionsAPI:
                         }
                     }
                 ]
-                return enhanced_prompt
+                return ret_val
         except Exception as e:
             print(f"Failed to load canvas image: {e}")
-            return full_prompt
+            return None
 
-    def create_chat_completion(self, full_prompt):
+    def _prepare_message_content(self, full_prompt):
+        """Prepare message content with optional canvas image for vision-enabled messages.
+        
+        Args:
+            full_prompt (str): The full JSON prompt string containing user message and vision flag
+            
+        Returns:
+            The prepared message content with or without image
+        """
         # Parse the prompt which is a JSON string
         prompt_json = json.loads(full_prompt)
         user_message = prompt_json.get("user_message", "")
         use_vision = prompt_json.get("use_vision", True)  # Get vision toggle state
 
+        if not use_vision:
+            return full_prompt
+
+        enhanced_prompt = self._create_enhanced_prompt_with_image(user_message)
+        return enhanced_prompt if enhanced_prompt else full_prompt
+
+    def _create_assistant_message(self, response_message):
+        """Create an assistant message from the API response message.
+        
+        Args:
+            response_message: The message from the API response
+            
+        Returns:
+            dict: The formatted assistant message
+        """
+        assistant_message = {
+            "role": "assistant", 
+            "content": response_message.content,
+        }
+
+        if response_message.tool_calls:
+            assistant_message["tool_calls"] = [
+                {
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.function.name,
+                        "arguments": tool_call.function.arguments
+                    }
+                }
+                for tool_call in response_message.tool_calls
+            ]
+        
+        return assistant_message
+
+    def _create_error_response(self, error_message="I encountered an error processing your request. Please try again."):
+        """Create an error response that matches OpenAI's response structure.
+        
+        Args:
+            error_message (str): The error message to include in the response
+            
+        Returns:
+            SimpleNamespace: A response choice object matching OpenAI's structure
+        """
+        from types import SimpleNamespace
+        return SimpleNamespace(
+            message=SimpleNamespace(
+                content=error_message,
+                tool_calls=[]
+            ),
+            finish_reason="error"
+        )
+
+    def _create_tool_message(self, tool_call_id, content):
+        """Create a tool message in response to a tool call.
+        
+        Args:
+            tool_call_id (str): The ID of the tool call being responded to
+            content (str): The content/result of the tool call
+            
+        Returns:
+            dict: The formatted tool message
+        """
+        return {
+            "role": "tool",
+            "tool_call_id": tool_call_id,
+            "content": content
+        }
+
+    def _append_tool_messages(self, tool_calls):
+        """Create and append tool messages for each tool call.
+        
+        Args:
+            tool_calls: List of tool calls from the assistant's response
+        """
+        if tool_calls:
+            for tool_call in tool_calls:
+                # Here you would typically execute the tool and get its result
+                # For now, we'll just create a placeholder response
+                tool_message = self._create_tool_message(
+                    tool_call.id,
+                    f"Tool {tool_call.function.name} executed with args: {tool_call.function.arguments}"
+                )
+                self.messages.append(tool_message)
+
+    def create_chat_completion(self, full_prompt):
         # Prepare message content with optional canvas image
-        message_content = self._prepare_message_content(user_message, use_vision, full_prompt)
+        message_content = self._prepare_message_content(full_prompt)
 
         # Append the new user message
         message = {"role": "user", "content": message_content}
-        self.messages.append(message)   
+        self.messages.append(message)
 
         # Make the API call
         try:
@@ -152,46 +241,18 @@ class OpenAIChatCompletionsAPI:
             )
         except Exception as e:
             print(f"Error during API call: {str(e)}")
-            # Create a response object that matches OpenAI's structure
-            from types import SimpleNamespace
-            error_msg = "I encountered an error processing your request. Please try again."
-            error_response = SimpleNamespace(
-                content=error_msg,
-                tool_calls=[],  # Return empty list instead of None
-                choices=[SimpleNamespace(message=SimpleNamespace(content=error_msg, tool_calls=[]))]
-            )
-            return error_response, "error"  # Return both response and finish_reason
+            return self._create_error_response()
 
-        # Extract the response message
-        finish_reason = response.choices[0].finish_reason
-        response_message = response.choices[0].message
-        content = response_message.content
-
-        # Create the assistant message first
-        assistant_message = {
-            "role": "assistant", 
-            "content": content,
-        }
-
-        # If the response has tool calls, add them to the assistant message
-        if response_message.tool_calls:
-            assistant_message["tool_calls"] = response_message.tool_calls
+        choice = response.choices[0]
         
-        # Append the AI's response to messages first
+        # Create and append the assistant message
+        assistant_message = self._create_assistant_message(choice.message)
         self.messages.append(assistant_message)
-
-        # Then add tool response messages if there were tool calls
-        if response_message.tool_calls:
-            for tool_call in response_message.tool_calls:
-                tool_message = {
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "name": tool_call.function.name,
-                    "content": "Tool execution successful"
-                }
-                self.messages.append(tool_message)
+        
+        # Append tool messages if there are tool calls
+        self._append_tool_messages(choice.message.tool_calls)
         
         # Clean up the messages
-        self.clean_conversation_history()
+        self._clean_conversation_history()
         
-        return response_message, finish_reason
+        return choice
