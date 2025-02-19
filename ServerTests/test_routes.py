@@ -80,9 +80,14 @@ class TestRoutes(unittest.TestCase):
     def test_send_message(self, mock_chat):
         """Test the send_message route."""
         # Configure mock response
-        class MockResponse:
+        class MockMessage:
             content = "Test response"
             tool_calls = None
+            
+        class MockResponse:
+            message = MockMessage()
+            finish_reason = "stop"
+            
         mock_chat.return_value = MockResponse()
         
         test_message = {
