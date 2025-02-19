@@ -8,6 +8,9 @@ class AIModel:
             # "supports_functions": True,
             # etc.
         },
+        "gpt-4o-mini": {
+            "has_vision": True,
+        },
         "gpt-3.5-turbo": {
             "has_vision": False,
         }
