@@ -51,39 +51,57 @@ class OpenAIChatCompletionsAPI:
             self.model = AIModel.from_identifier(identifier)
             print(f"API model updated to: {identifier}")
 
-    def _remove_canvas_state_from_last_user_message(self):
+    def _remove_canvas_state_from_user_messages(self):
         """Remove canvas state from the last user message in the conversation history."""
         # Find the last user message
         for message in reversed(self.messages):
             if message["role"] == "user" and "content" in message:
-                if isinstance(message["content"], str):
+                content = message["content"]
+                
+                # Handle list content (vision messages)
+                if isinstance(content, list):
+                    for part in content:
+                        if part.get("type") == "text":
+                            text_content = part.get("text", "")
+                            if not "canvas_state" in text_content:
+                                continue
+                            try:
+                                text_json = json.loads(text_content)
+                                if "canvas_state" in text_json:
+                                    del text_json["canvas_state"]
+                                    part["text"] = json.dumps(text_json)
+                            except json.JSONDecodeError:
+                                pass
+                    continue
+
+                # Handle string content
+                if isinstance(content, str) and "canvas_state" in content:
                     try:
-                        message_content_json = json.loads(message["content"])
+                        message_content_json = json.loads(content)
                         if "canvas_state" in message_content_json:
                             del message_content_json["canvas_state"]
                             message["content"] = json.dumps(message_content_json)
                     except json.JSONDecodeError:
                         pass
-                break  # Stop after processing the most recent user message
 
-    def _remove_image_from_last_user_message(self):
+    def _remove_images_from_user_messages(self):
         """Remove image content from the last user message in the conversation history."""
         # Find the last user message
         for message in reversed(self.messages):
             if message["role"] == "user" and "content" in message:
                 content = message["content"]
-                if isinstance(content, list):
-                    # Keep only the text part
-                    text_parts = [part for part in content if part.get("type") == "text"]
-                    if text_parts:
-                        message["content"] = text_parts[0]["text"]
-                break  # Stop after processing the most recent user message
+                if not isinstance(content, list):
+                    continue
+                # Keep only the text part
+                text_parts = [part for part in content if part.get("type") == "text"]
+                if text_parts:
+                    message["content"] = text_parts[0]["text"]
 
     def _clean_conversation_history(self):
         """Clean up the conversation history by removing canvas states and images from the last user message."""
         print(f"All messages BEFORE removing canvas_state: \n{self.messages}\n\n")
-        self._remove_canvas_state_from_last_user_message()
-        self._remove_image_from_last_user_message()
+        self._remove_canvas_state_from_user_messages()
+        self._remove_images_from_user_messages()
 
     def _create_enhanced_prompt_with_image(self, user_message):
         """Create an enhanced prompt that includes both text and base64 encoded image.
