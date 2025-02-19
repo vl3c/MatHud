@@ -780,20 +780,6 @@ FUNCTIONS = [
             {
                 "type": "function",
                 "function": {
-                    "name": "enable_multi_step_mode",
-                    "description": "Turns on multi-step mode to perform intermediate actions. Multi-step mode is used to break down complex problems into smaller, more manageable steps. Calculation results to be sent back to you in the canvas state. The user will be informed of the request and the subsequent results. Multi-step mode is turned off when this function is not called. There is no need to call this function again to turn it off.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
                     "name": "translate_object",
                     "description": "Translates a drawable object or function by the specified x and y offsets",
                     "strict": True,

@@ -8,16 +8,7 @@ from static.ai_model import AIModel
 
 
 class OpenAIChatCompletionsAPI:
-    DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. 
-
-    IMPORTANT: When performing intermediate calculations or multi-step actions:
-    1. First call enable_multi_step_mode to enable result tracking (sets the flag which will allow you to receive intermediate results in the canvas state)
-    2. Immediately call evaluate_expression or other functions for your calculations
-    3. You will receive the results in the next message's canvas state
-    4. Use those results for your next calculations or actions (don't forget to call enable_multi_step_mode again if needed)
-    5. Repeat this process for complex multi-step calculations
-
-    Always analyze the canvas state to see previously computed results before proceeding."""
+    DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. DO NOT try to perform calculations by yourself, use the tools provided instead. Always analyze the canvas state to see previously computed results before proceeding."""
 
     @staticmethod
     def _initialize_api_key():
