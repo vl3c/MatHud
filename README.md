@@ -122,3 +122,56 @@ python app.py
    pip install geckodriver-autoinstaller
    # Or download geckodriver from https://github.com/mozilla/geckodriver/releases
    ```
+
+## Testing
+
+MatHud has both server-side and client-side tests to ensure functionality works as expected.
+
+### Server-Side Tests
+
+We've created a convenient script to run server tests. Simply use:
+
+```sh
+python run_server_tests.py
+```
+
+This script provides several options:
+
+- Run all server tests:
+  ```sh
+  python run_server_tests.py
+  ```
+
+- Run tests in a specific file:
+  ```sh
+  python run_server_tests.py test_workspace_management.py
+  ```
+  or just:
+  ```sh
+  python run_server_tests.py test_workspace_management
+  ```
+
+- Run tests matching a keyword:
+  ```sh
+  python run_server_tests.py -k list
+  ```
+
+- Show help information:
+  ```sh
+  python run_server_tests.py --help
+  ```
+
+The script automatically uses the Python environment from your virtual environment and doesn't require remembering complex pytest commands.
+
+### Client-Side Tests
+
+Client-side tests run in the browser using Brython's unittest implementation. These tests verify the mathematical functions, drawing capabilities, and other client-side features.
+
+You can run client-side tests directly from the AI interface by asking the AI to run tests. The AI has access to a special function that executes all client-side tests and returns the results.
+
+Example AI prompt:
+```
+Can you run the client-side tests and tell me if there are any failures?
+```
+
+This integration allows for convenient testing of the browser-based components without leaving the application.
