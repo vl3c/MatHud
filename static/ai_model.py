@@ -1,12 +1,21 @@
 class AIModel:
     # Dictionary of model configurations
     MODEL_CONFIGS = {
-        "gpt-4o": {
+        "gpt-4.1": {
             "has_vision": True,
             # We can add more capabilities here later, like:
             # "max_tokens": 32000,
             # "supports_functions": True,
             # etc.
+        },
+        "gpt-4.1-mini": {
+            "has_vision": True,
+        },
+        "gpt-4.1-nano": {
+            "has_vision": True,
+        },
+        "gpt-4o": {
+            "has_vision": True,
         },
         "gpt-4o-mini": {
             "has_vision": True,
@@ -16,7 +25,7 @@ class AIModel:
         }
     }
 
-    DEFAULT_MODEL = "gpt-4o"
+    DEFAULT_MODEL = "gpt-4.1"
 
     def __init__(self, identifier, has_vision):
         self.id = identifier
