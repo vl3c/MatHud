@@ -60,96 +60,207 @@ The application includes a visual understanding system that allows the AI to ana
 
 # Technical Architecture
 
-## Frontend Chat Interface (index.html and main.py)
-- Simple HTML structure with chat history div, input field, and send button
-- Chat interface bound to both button click and Enter key events
-- Vision toggle checkbox for canvas image capture control
-- Uses Brython (Python in the browser) for frontend logic
+## Frontend Chat Interface (index.html in `templates/` and `static/Brython-3.11.3/Lib/site-packages/main.py`)
+- Simple HTML structure with chat history div, input field, and send button.
+- Chat interface bound to both button click and Enter key events.
+- Vision toggle checkbox for canvas image capture control.
+- Uses Brython (Python in the browser) for frontend logic, initialized by `main.py`.
+- `static/Brython-3.11.3/Lib/site-packages/canvas_event_handler.py` manages user interactions with the canvas.
 
-## AI Interface Layer (ai_interface.py)
-- Core class `AIInterface` manages communication between UI and backend
-- Maintains dictionary of available functions for math operations and canvas manipulation
-- Handles function call results and maintains state between interactions
-- Manages workspace operations (save, load, list, delete)
+## AI Interface Layer (`static/Brython-3.11.3/Lib/site-packages/ai_interface.py`)
+- Core class `AIInterface` manages Brython-side communication between UI and backend.
+- Instantiated in `main.py` and receives events from `CanvasEventHandler`.
+- Initializes client-side `WorkspaceManager` (from `static/Brython-3.11.3/Lib/site-packages/workspace_manager.py`) and `FunctionRegistry`.
+- Maintains dictionary of available functions for math operations and canvas manipulation (via `FunctionRegistry`).
+- Handles function call results and maintains state between interactions.
 - Key methods:
-  - `interact_with_ai`: Entry point for user interactions
-  - `_send_prompt_to_ai`: Prepares and sends prompts with canvas state
-  - `_parse_ai_response`: Processes AI responses and function calls
-  - `save_workspace`: Saves current canvas state with metadata
-  - `load_workspace`: Restores canvas state from saved workspace
-  - `list_workspaces`: Lists available workspaces
-  - `delete_workspace`: Removes a workspace by name
+  - `interact_with_ai`: Entry point for user interactions from UI.
+  - `_send_prompt_to_ai`: Prepares JSON prompt (with canvas state, user message, tool results, vision settings from `document["vision-toggle"]`, AI model from `document["ai-model-selector"]`) and sends AJAX POST request to `/send_message` Flask endpoint.
+  - `_process_ai_response`: Processes AI responses from backend. If tool calls are present, uses `ProcessFunctionCalls.get_results` and then sends results back to AI via `_send_prompt_to_ai`.
+  - (Workspace operations like `save_workspace` are invoked via function calls processed by `ProcessFunctionCalls` which then use the client-side `WorkspaceManager` instance).
 
-## Workspace Management (workspace_manager.py)
-- `WorkspaceManager` class handles workspace file operations
-- Saves canvas states with metadata and timestamps
-- Supports named workspaces and timestamped unnamed saves
-- Maintains workspace directory structure
-- Key features:
-  - JSON-based workspace storage
-  - Automatic timestamping for unnamed saves
-  - Metadata tracking (name, last modified)
-  - Directory management and file handling
-  - Safe workspace deletion with validation
+## Client-Side Brython Managers (in `static/Brython-3.11.3/Lib/site-packages/managers/`)
+- A suite of manager classes, running in the Brython environment, handle the detailed logic for canvas objects and operations.
+- **`DrawableManager`**: Central orchestrator for all drawable objects. It coordinates the specialized managers listed below. Instantiated by `Canvas`.
+- **Specialized Drawable Managers**:
+  - `PointManager`: Manages point objects.
+  - `SegmentManager`: Manages line segment objects.
+  - `VectorManager`: Manages vector objects.
+  - `TriangleManager`: Manages triangle objects.
+  - `RectangleManager`: Manages rectangle objects.
+  - `CircleManager`: Manages circle objects.
+  - `EllipseManager`: Manages ellipse objects.
+  - `FunctionManager`: Manages plotted functions.
+  - `ColoredAreaManager`: Manages colored areas.
+- **Supporting Managers**:
+  - `UndoRedoManager`: Manages undo and redo operations for canvas actions.
+  - `TransformationsManager`: Manages geometric transformations of objects.
+  - `DrawableDependencyManager`: Tracks dependencies between drawable objects.
+  - `DrawableManagerProxy`: A proxy to help manage initialization dependencies for `DrawableManager`.
+  - `DrawablesContainer`: A data structure used by `DrawableManager` to hold drawable instances.
+- These managers are responsible for creating, deleting, updating, and querying drawable objects on the canvas, and are used by `ProcessFunctionCalls` when executing drawing-related function calls.
 
-## Backend API (app.py and openai_api.py)
-- Flask server handles message routing and AI communication
-- `OpenAIChatCompletionsAPI` class manages OpenAI API interactions
-- Maintains conversation history and handles vision-based features
-- Uses Selenium WebDriver for canvas image capture when vision is enabled
-- Handles workspace file operations through endpoints
+## Workspace Management
+- **Client-Side Workspace Interactions (`static/Brython-3.11.3/Lib/site-packages/workspace_manager.py`)**:
+  - A `WorkspaceManager` class, instantiated by `AIInterface` and running in Brython.
+  - Provides methods (`save_workspace`, `load_workspace`, `list_workspaces`, `delete_workspace`) that make synchronous AJAX calls to the respective Flask backend endpoints (e.g., `/save_workspace`, `/load_workspace`).
+  - For `load_workspace`, it receives canvas state from the backend and uses methods like `_restore_workspace_state` to repopulate the Brython-managed canvas by calling appropriate `Canvas` methods.
+- **Server-Side Workspace Management (`static/workspace_manager.py`)**:
+  - A `WorkspaceManager` class (used by `app.py`) that handles actual workspace file operations on the server.
+  - Responds to AJAX calls from the client-side `WorkspaceManager` via Flask routes.
+  - Saves canvas states (received from client) with metadata and timestamps to JSON files in the `workspaces/` directory.
+  - Supports named workspaces and timestamped unnamed saves (e.g., `current_workspace_YYYYMMDD_HHMMSS.json`).
+  - Performs file system operations, path validation (ensuring operations are within the `workspaces/` directory), and manages directory structure.
+  - Handles loading workspace data from JSON files and sending it to the client.
+  - Provides logic for listing and safely deleting workspace files.
+  - Key features: JSON-based storage, automatic timestamping, metadata tracking, directory management, safe file operations.
 
-## Function Call Processing
-- `ProcessFunctionCalls` class handles execution and undo/redo functionality
-- Supports both synchronous and intermediate result requests
-- Validates function calls against available functions
-- Maintains execution state and results
+## Backend API (`app.py`, `static/app_manager.py`, `static/routes.py`, `static/openai_api.py`, `static/webdriver_manager.py`, `static/log_manager.py`)
+- **Flask Application Core (`app.py`, `static/app_manager.py`, `static/routes.py`)**:
+  - `app.py`: Main entry point for the Flask server. Initializes the application using `AppManager` and starts the server. Handles graceful shutdown (e.g., cleaning up `WebDriverManager`).
+  - `static/app_manager.py`: Contains `AppManager` class responsible for creating and configuring the Flask `app` object. Initializes server-side managers (like `LogManager`, `OpenAIChatCompletionsAPI`, server-side `WorkspaceManager`, and `WebDriverManager`).
+  - `static/routes.py`: Defines all Flask routes (e.g., `/`, `/send_message`, `/save_workspace`, `/load_workspace`, `/list_workspaces`, `/delete_workspace`, `/init_webdriver`). Imported and registered by `AppManager`.
+- **AI Communication (`static/openai_api.py`)**:
+  - `OpenAIChatCompletionsAPI` class manages all interactions with the OpenAI API.
+  - Initializes with API key, model details, and available tools/functions (from `static.functions_definitions`).
+  - `create_chat_completion` method constructs the payload and sends requests to OpenAI. Handles conversation history.
+  - If vision is enabled (based on image data being prepared by `routes.py`), it includes the image data in the request to OpenAI's vision-capable models.
+- **Vision Image Capture (`static/webdriver_manager.py`)**:
+  - `WebDriverManager` class uses Selenium WebDriver (headless Firefox) to capture canvas images.
+  - Instantiated by `AppManager` (initialization triggered via `/init_webdriver` route if needed).
+  - `capture_svg_state` method: Receives SVG content and dimensions from the client (via `routes.py`), loads this into the headless browser, and takes a screenshot, saving it to `CanvasSnapshots/canvas.png`.
+  - Handles WebDriver setup, page configuration, and cleanup.
+- **Server-Side Logging (`static/log_manager.py`)**:
+  - `LogManager` class handles application logging on the server.
+  - Configures session-based log files with timestamped entries in the `logs/` directory.
+
+## Function Call Processing (`static/Brython-3.11.3/Lib/site-packages/process_function_calls.py`)
+- `ProcessFunctionCalls` class (Brython client-side) acts as a facade for executing function calls requested by the AI.
+- It is invoked by `AIInterface`\'s `_process_ai_response` method.
+- Key static methods:
+  - `get_results`: Delegates to `ResultProcessor` (likely also in `Lib/site-packages`) to iterate through tool calls, execute them using the `available_functions` map (from `FunctionRegistry`), and collect results. `ResultProcessor` interacts with `DrawableManager`, specific drawable managers, `Canvas`, client-side `WorkspaceManager`, etc., to perform actions.
+  - `evaluate_expression`: Delegates to `ExpressionEvaluator`.
+  - `validate_results` and `is_successful_result`: Delegate to `ResultValidator`.
+- Execution of drawing operations, canvas manipulations, and client-side workspace calls are routed through this system.
+- Undo/redo capabilities are coordinated by `ResultProcessor` potentially interacting with `UndoRedoManager` and `Canvas.archive()`.
 
 ## Canvas System
-- Uses SVG for rendering mathematical objects and functions
-- Supports zooming, panning, and coordinate system transformations
-- Maintains object state for undo/redo operations
-- Handles real-time updates and user interactions
-- Provides state serialization for workspace saving
+- Uses SVG for rendering mathematical objects and functions, manipulated via Brython.
+- The client-side `Canvas` class (likely in `static/Brython-3.11.3/Lib/site-packages/canvas.py`) is the core for drawing.
+- It instantiates and uses `DrawableManager` (from `static/Brython-3.11.3/Lib/site-packages/managers/drawable_manager.py`) to manage all visual elements.
+- `DrawableManager` coordinates specialized managers (e.g., `PointManager`, `SegmentManager`) for creating, updating, and deleting specific geometric shapes and functions.
+- Supports zooming, panning, and coordinate system transformations (likely handled by `Canvas` or a dedicated coordinate system manager it uses).
+- Object state for undo/redo is managed by `UndoRedoManager` in conjunction with `DrawableManager` and `Canvas` (e.g., `Canvas.archive()` for saving states).
+- Handles real-time updates and user interactions via `CanvasEventHandler` which dispatches to `AIInterface` or `Canvas` methods.
+- Provides canvas state serialization (`Canvas.get_canvas_state()`) for workspace saving and for sending to the backend for vision processing.
+
+## Geometric Shape Management (Client-Side Brython)
+- Handled on the client-side (Brython) by a suite of specialized manager classes within `static/Brython-3.11.3/Lib/site-packages/managers/`, coordinated by `DrawableManager`.
+- **Points**: Managed by `PointManager`. Create, delete, translate points with coordinates and labels.
+- **Segments**: Managed by `SegmentManager`. Create line segments between points, calculate length and midpoint.
+- **Vectors**: Managed by `VectorManager`. Create vectors with origin and tip, support for vector operations.
+- **Triangles**: Managed by `TriangleManager`. Create from three points, calculate area, centroid, and angles.
+- **Rectangles**: Managed by `RectangleManager`. Create from diagonal points, validate right angles, calculate area.
+- **Circles**: Managed by `CircleManager`. Create with center and radius, calculate area and circumference.
+- **Ellipses**: Managed by `EllipseManager`. Create with center and radii, support rotation and transformation.
+- **Functions**: Plotted functions are managed by `FunctionManager`.
+- **Colored Areas**: Managed by `ColoredAreaManager`.
+- Dependencies between shapes (e.g., a segment depends on its points) are tracked by `DrawableDependencyManager`.
 
 ## Error Handling and Logging
-- Comprehensive logging system for debugging and session tracking
-- Error handling at multiple levels (UI, function calls, API)
-- Graceful fallbacks for vision system failures
-- Session-based log files with timestamped entries
+- **Client-Side (Brython)**: Error messages from function calls or AJAX requests are displayed in the chat interface. JavaScript console logs for Brython-specific issues.
+- **Server-Side (Flask)**:
+  - `static/log_manager.py` (`LogManager` class) provides comprehensive logging for debugging and session tracking.
+  - Session-based log files with timestamped entries are created in the `logs/` directory.
+  - Flask\'s built-in error handling for HTTP errors. API responses use a consistent JSON structure (`AppManager.make_response`) to report success or errors.
+- Graceful fallbacks for vision system failures (e.g., if `WebDriverManager` fails to capture image, vision process might be skipped or an error reported).
 
 ## Vision Integration
-- Optional vision system using Selenium WebDriver
-- Captures canvas state as images for AI context
-- Maintains synchronization between visual and internal states
-- Handles browser-based SVG manipulation and image capture
+- **Client Trigger**: `AIInterface` (Brython client-side) checks the vision toggle status and includes a `use_vision: true/false` flag and the current `svg_state` (content and dimensions) in the JSON payload to the `/send_message` backend endpoint.
+- **Server-Side Image Capture**: 
+  - The Flask `/send_message` route (in `static/routes.py`) receives the request.
+  - If `use_vision` is true and `svg_state` is provided:
+    1. It ensures `WebDriverManager` is initialized.
+    2. It calls `app.webdriver_manager.capture_svg_state(svg_state)`.
+    3. `WebDriverManager` uses Selenium to launch a headless Firefox browser, injects the received `svg_state` (content, dimensions, viewBox, transform) into the `math-svg` element of the application\'s page loaded in the headless browser, and adjusts container styles.
+    4. A screenshot of the relevant math container div is taken and saved as `CanvasSnapshots/canvas.png`.
+- **AI Processing**: 
+  - `OpenAIChatCompletionsAPI` (server-side), when preparing the call to OpenAI and if vision is active for the request, reads `CanvasSnapshots/canvas.png`, encodes it (e.g., base64), and includes it in the multimodal prompt to the OpenAI API.
+- **Contextual Analysis**: The AI then analyzes both the textual prompt (user message, previous calculations from canvas state) and the visual context from the canvas image.
+- **Error Handling**: If image capture fails, the vision step might be skipped, and the AI would proceed with text-only context, or an error is reported.
 
 ## Function Call Flow
-1. User sends message → `interact_with_ai`
-2. Message bundled with canvas state → `_send_prompt_to_ai`
-3. AJAX request to Flask backend → `/send_message`
-4. OpenAI API processes request → `create_chat_completion`
-5. Response parsed and function calls executed → `_parse_ai_response`
-6. Results displayed in chat and/or rendered on canvas
+1. User sends message via UI → `CanvasEventHandler` captures event, calls `AIInterface.interact_with_ai`.
+2. `AIInterface._print_user_message_in_chat` updates UI.
+3. `AIInterface._send_prompt_to_ai` bundles `user_message`, `canvas_state` (from `Canvas.get_canvas_state()`), `use_vision` flag, and current `ai_model` into a JSON prompt.
+4. `AIInterface` sends AJAX POST request to Flask backend (`/send_message`) with this JSON prompt and, if `use_vision` is false or SVG state is not needed immediately by backend, also sends `svg_state` (SVG content & dimensions from `document["math-svg"]`).
+5. Flask backend (`static/routes.py` - `/send_message`):
+   a. Receives JSON prompt and `svg_state`.
+   b. If `use_vision` is true:
+      i. Ensures `WebDriverManager` is initialized.
+      ii. Calls `app.webdriver_manager.capture_svg_state(svg_state)` to save `CanvasSnapshots/canvas.png`.
+   c. Calls `app.ai_api.create_chat_completion` (from `static/openai_api.py`) with the user message, (path to) image if vision, and conversation history.
+   d. `OpenAIChatCompletionsAPI` makes a call to OpenAI.
+   e. OpenAI response (text, and/or tool_calls) is returned to `routes.py`.
+   f. `routes.py` sends response back to client `AIInterface` (as JSON containing `ai_message`, `ai_tool_calls`, `finish_reason`).
+6. Client `AIInterface._on_complete` receives response.
+7. `AIInterface._process_ai_response`:
+   a. If `finish_reason` is "stop" or "error": `_print_ai_message_in_chat`.
+   b. If `finish_reason` is "tool_calls":
+      i. `ProcessFunctionCalls.get_results` is called with `ai_tool_calls`, `available_functions` (from `FunctionRegistry`), `undoable_functions`, and `canvas`.
+      ii. `ProcessFunctionCalls` delegates to `ResultProcessor`, which executes each function. Functions can be:
+          - Canvas operations (e.g., `create_point`) that call methods on `DrawableManager` or specific drawable managers.
+          - Math evaluations (`ExpressionEvaluator`).
+          - Client-side workspace operations (e.g., `save_workspace`) that call methods on the client `WorkspaceManager`, which then makes further AJAX calls.
+      iii. Results from `ProcessFunctionCalls.get_results` are collected.
+      iv. `AIInterface._store_results_in_canvas_state` updates canvas computations.
+      v. `AIInterface._send_prompt_to_ai` is called again, this time with `tool_call_results` (and no `user_message`), looping back to step 4 (backend forwards tool results to OpenAI).
+8. Canvas is updated by the managers if drawing functions were called. Results are displayed in chat.
 
 ## Workspace Flow
-1. Save workspace:
-   - User requests save → `save_workspace`
-   - Canvas state serialized with metadata
-   - JSON file created with timestamp
-   - Success/error message displayed
-2. Load workspace:
-   - User requests load → `load_workspace`
-   - JSON file loaded and parsed
-   - Canvas state restored with drawables
-   - Success/error message displayed
-3. List workspaces:
-   - User requests list → `list_workspaces`
-   - Directory scanned for workspace files
-   - Names extracted and sorted
-   - List sent to AI for user feedback
-4. Delete workspace:
-   - User requests delete → `delete_workspace`
-   - Workspace name validated
-   - File removed if exists
-   - Success/error message displayed 
+1. **Save Workspace**:
+   a. User requests save (e.g., via AI prompt "save workspace my_work").
+   b. AI responds with a tool call: `{"function_name": "save_workspace", "arguments": {"name": "my_work"}}`.
+   c. Client `AIInterface` processes this via `ProcessFunctionCalls.get_results`.
+   d. `ProcessFunctionCalls` calls the registered `save_workspace` function, which is a method of the client-side `WorkspaceManager` instance.
+   e. Client `WorkspaceManager.save_workspace(name="my_work")`:
+      i. Gets current canvas state: `self.canvas.get_canvas_state()`.
+      ii. Makes a **synchronous** AJAX POST to `/save_workspace` Flask endpoint with `{"state": <canvas_state>, "name": "my_work"}`.
+   f. Server (`static/routes.py` - `/save_workspace`):
+      i. Calls server-side `WorkspaceManager.save_workspace(state, name)`.
+      ii. Server `WorkspaceManager` creates JSON file (e.g., `workspaces/my_work.json`) with state and metadata (timestamp).
+      iii. Returns success/error status to client.
+   g. Client `WorkspaceManager` method returns result string (e.g., "Workspace 'my_work' saved.").
+   h. This result becomes part of `tool_call_results` sent back to AI.
+2. **Load Workspace**:
+   a. User requests load (e.g., "load workspace my_work").
+   b. Tool call: `{"function_name": "load_workspace", "arguments": {"name": "my_work"}}`.
+   c. Client `ProcessFunctionCalls` calls client `WorkspaceManager.load_workspace(name="my_work")`.
+   d. Client `WorkspaceManager.load_workspace()`:
+      i. Makes **synchronous** AJAX GET to `/load_workspace?name=my_work`.
+   e. Server (`static/routes.py` - `/load_workspace`):
+      i. Calls server-side `WorkspaceManager.load_workspace(name)`.
+      ii. Server `WorkspaceManager` reads `workspaces/my_work.json`, extracts state.
+      iii. Returns `{"state": <canvas_state>}` to client.
+   f. Client `WorkspaceManager` receives state. Calls `self._restore_workspace_state(state)`:
+      i. Clears current canvas.
+      ii. Recreates drawables (points, segments etc.) using `Canvas` methods, which in turn use `DrawableManager` and its sub-managers.
+      iii. Restores computations to `Canvas`.
+   g. Returns result string (e.g., "Workspace 'my_work' loaded.").
+3. **List Workspaces**:
+   a. Tool call: `{"function_name": "list_workspaces", "arguments": {}}`.
+   b. Client `ProcessFunctionCalls` calls client `WorkspaceManager.list_workspaces()`.
+   c. Client `WorkspaceManager` makes **synchronous** AJAX GET to `/list_workspaces`.
+   d. Server (`static/routes.py` - `/list_workspaces`):
+      i. Calls server-side `WorkspaceManager.list_workspaces()`.
+      ii. Returns list of workspace names.
+   e. Client `WorkspaceManager` returns comma-separated string of names.
+4. **Delete Workspace**:
+   a. Tool call: `{"function_name": "delete_workspace", "arguments": {"name": "my_work"}}`.
+   b. Client `ProcessFunctionCalls` calls client `WorkspaceManager.delete_workspace(name="my_work")`.
+   c. Client `WorkspaceManager` makes **synchronous** AJAX GET to `/delete_workspace?name=my_work`.
+   d. Server (`static/routes.py` - `/delete_workspace`):
+      i. Calls server-side `WorkspaceManager.delete_workspace(name)`.
+      ii. Server `WorkspaceManager` deletes file.
+      iii. Returns success/error.
+   e. Client `WorkspaceManager` returns result string.

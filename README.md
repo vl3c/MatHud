@@ -10,28 +10,31 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Support for mathematical expressions and calculations
 - Visual problem-solving with multimodal AI
 - Real-world problem analysis and modeling
+- Workspace management for saving and loading states
 
 ## Vision Mechanism
 
-The application includes a visual understanding system that allows the AI to analyze both drawn elements and real-world mathematical scenarios:
+The application includes a visual understanding system that allows the AI to analyze both drawn elements and real-world mathematical scenarios. This enhances problem-solving by providing visual context to the AI.
 
-1. **Visual Context**: The AI assistant processes visual information through:
-   - Real-time canvas state monitoring
-   - Interpretation of mathematical drawings and diagrams
-   - Analysis of imported real-world problem images
-   - Context-aware mathematical reasoning
+1.  **How it Works (High-Level)**:
+    *   When visual context is needed, the user's current canvas drawing (as SVG data) is sent from the browser to the application server.
+    *   The server uses a headless browser (via Selenium WebDriver) to render this SVG data and capture a pixel image (PNG) of the canvas.
+    *   This captured image is then sent to a vision-capable AI model along with the textual part of the user's query and relevant mathematical context.
+    *   The AI processes both the visual information from the image and the textual data to provide a more comprehensive analysis or solution.
 
-2. **Implementation**: 
-   - Uses a headless Firefox WebDriver for canvas state capture
-   - Synchronizes the main browser view with the AI's analysis
-   - Processes both drawn elements and imported images
-   - Provides real-time mathematical insights
+2.  **Key Components Involved**:
+    *   **Client-Side (Browser)**: Captures the SVG state of the canvas and sends it to the server when vision is enabled.
+    *   **Server-Side (Python/Flask)**: 
+        *   Receives the SVG state.
+        *   Uses `WebDriverManager` (a custom module employing Selenium) to control a headless Firefox instance, load the SVG, and take a screenshot.
+        *   The `OpenAIChatCompletionsAPI` module then includes this image in the request to the AI.
 
-3. **Benefits**:
-   - Practical problem-solving in real-world contexts
-   - Dynamic visualization of mathematical concepts
-   - Enhanced pattern recognition and analysis
-   - Bridge between theoretical and applied mathematics
+3.  **Benefits**:
+    *   Allows the AI to "see" and interpret user-drawn diagrams and mathematical constructions.
+    *   Practical problem-solving in real-world contexts.
+    *   Dynamic visualization of mathematical concepts.
+    *   Enhanced pattern recognition and analysis.
+    *   Bridge between theoretical and applied mathematics.
 
 ## Installation
 
@@ -70,10 +73,10 @@ pip install -r requirements.txt
 5. Now all the dependencies should be installed. Please export your OpenAI API key to the OPENAI_API_KEY system variable or place the key in a file called ".env" one level above the main folder:
 
 ```sh
-..\.env should contain the line OPENAI_API_KEY=...
+..\\.env should contain the line OPENAI_API_KEY=...
 ```
 
-7. You can start the application using the VSCode runner or by running the following command in the main folder:
+6. You can start the application using the VSCode runner or by running the following command in the main folder:
 ```sh
 python app.py
 ```
