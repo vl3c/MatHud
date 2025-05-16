@@ -955,5 +955,65 @@ FUNCTIONS = [
                         "additionalProperties": False
                     }
                 }
+            },
+            # START ANGLE FUNCTIONS
+            {
+                "type": "function",
+                "function": {
+                    "name": "create_angle_by_points",
+                    "description": "Creates an angle defined by three points: a common vertex and one point on each arm. Segments will be created if they don't exist.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "vx": {"type": "number", "description": "X-coordinate of the common vertex."},
+                            "vy": {"type": "number", "description": "Y-coordinate of the common vertex."},
+                            "p1x": {"type": "number", "description": "X-coordinate of a point on the first arm."},
+                            "p1y": {"type": "number", "description": "Y-coordinate of a point on the first arm."},
+                            "p2x": {"type": "number", "description": "X-coordinate of a point on the second arm."},
+                            "p2y": {"type": "number", "description": "Y-coordinate of a point on the second arm."},
+                            "label": {"type": ["string", "null"], "description": "Optional label for the angle."},
+                            "color": {"type": ["string", "null"], "description": "Optional color for the angle (e.g., 'red', '#FF0000')."},
+                            "angle_name": {"type": ["string", "null"], "description": "Optional specific name for the angle."}
+                        },
+                        "required": ["vx", "vy", "p1x", "p1y", "p2x", "p2y"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "remove_angle",
+                    "description": "Removes an angle by its name.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "The name of the angle to remove."}
+                        },
+                        "required": ["name"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "update_angle_properties",
+                    "description": "Updates the label and/or color of an existing angle.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "The name of the angle to update."},
+                            "new_label": {"type": ["string", "null"], "description": "Optional new label for the angle. If null, label is not changed."},
+                            "new_color": {"type": ["string", "null"], "description": "Optional new color for the angle. If null, color is not changed."}
+                        },
+                        "required": ["name"],
+                        "additionalProperties": False
+                    }
+                }
             }
+            # END ANGLE FUNCTIONS
         ]
