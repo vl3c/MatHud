@@ -976,7 +976,7 @@ FUNCTIONS = [
                             "color": {"type": ["string", "null"], "description": "Optional color for the angle (e.g., 'red', '#FF0000')."},
                             "angle_name": {"type": ["string", "null"], "description": "Optional specific name for the angle."}
                         },
-                        "required": ["vx", "vy", "p1x", "p1y", "p2x", "p2y"],
+                        "required": ["vx", "vy", "p1x", "p1y", "p2x", "p2y", "label", "color", "angle_name"],
                         "additionalProperties": False
                     }
                 }
@@ -1010,7 +1010,7 @@ FUNCTIONS = [
                             "new_label": {"type": ["string", "null"], "description": "Optional new label for the angle. If null, label is not changed."},
                             "new_color": {"type": ["string", "null"], "description": "Optional new color for the angle. If null, color is not changed."}
                         },
-                        "required": ["name"],
+                        "required": ["name", "new_label", "new_color"],
                         "additionalProperties": False
                     }
                 }
