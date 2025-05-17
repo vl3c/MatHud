@@ -961,22 +961,45 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "create_angle_by_points",
-                    "description": "Creates an angle defined by three points: a common vertex and one point on each arm. Segments will be created if they don't exist.",
+                    "description": "Creates and draws an angle defined by three points: a vertex and two arm points. The angle's visual representation (arc and degree value) will be drawn. Segments forming the angle will be created if they don't exist.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "vx": {"type": "number", "description": "X-coordinate of the common vertex."},
-                            "vy": {"type": "number", "description": "Y-coordinate of the common vertex."},
-                            "p1x": {"type": "number", "description": "X-coordinate of a point on the first arm."},
-                            "p1y": {"type": "number", "description": "Y-coordinate of a point on the first arm."},
-                            "p2x": {"type": "number", "description": "X-coordinate of a point on the second arm."},
-                            "p2y": {"type": "number", "description": "Y-coordinate of a point on the second arm."},
-                            "label": {"type": ["string", "null"], "description": "Optional label for the angle."},
-                            "color": {"type": ["string", "null"], "description": "Optional color for the angle (e.g., 'red', '#FF0000')."},
-                            "angle_name": {"type": ["string", "null"], "description": "Optional specific name for the angle."}
+                            "vx": {
+                                "type": "number",
+                                "description": "The X coordinate of the vertex point."
+                            },
+                            "vy": {
+                                "type": "number",
+                                "description": "The Y coordinate of the vertex point."
+                            },
+                            "p1x": {
+                                "type": "number",
+                                "description": "The X coordinate of the first arm point."
+                            },
+                            "p1y": {
+                                "type": "number",
+                                "description": "The Y coordinate of the first arm point."
+                            },
+                            "p2x": {
+                                "type": "number",
+                                "description": "The X coordinate of the second arm point."
+                            },
+                            "p2y": {
+                                "type": "number",
+                                "description": "The Y coordinate of the second arm point."
+                            },
+                            "color": {
+                                "type": [ "string", "null" ],
+                                "description": "Optional color for the angle's arc and text. Defaults to the canvas default color."
+                            },
+                            "angle_name": {
+                                "type": [ "string", "null" ],
+                                "description": "Optional name for the angle. If not provided, a name might be generated (e.g., 'angle_ABC')."
+                            }
                         },
-                        "required": ["vx", "vy", "p1x", "p1y", "p2x", "p2y", "label", "color", "angle_name"],
+                        "required": ["vx", "vy", "p1x", "p1y", "p2x", "p2y", "color", "angle_name"],
                         "additionalProperties": False
                     }
                 }
@@ -985,12 +1008,15 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "remove_angle",
-                    "description": "Removes an angle by its name.",
+                    "description": "Removes an angle by its name. This will also attempt to remove its constituent segments if they are no longer part of other drawables.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "name": {"type": "string", "description": "The name of the angle to remove."}
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the angle to remove (e.g., 'angle_ABC')."
+                            }
                         },
                         "required": ["name"],
                         "additionalProperties": False
@@ -1001,16 +1027,21 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "update_angle_properties",
-                    "description": "Updates the label and/or color of an existing angle.",
+                    "description": "Updates properties of an existing angle, such as its color.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "name": {"type": "string", "description": "The name of the angle to update."},
-                            "new_label": {"type": ["string", "null"], "description": "Optional new label for the angle. If null, label is not changed."},
-                            "new_color": {"type": ["string", "null"], "description": "Optional new color for the angle. If null, color is not changed."}
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the angle to update."
+                            },
+                            "new_color": {
+                                "type": [ "string", "null" ],
+                                "description": "The new color for the angle. If null, the color is not changed."
+                            }
                         },
-                        "required": ["name", "new_label", "new_color"],
+                        "required": ["name", "new_color"],
                         "additionalProperties": False
                     }
                 }
