@@ -961,18 +961,18 @@ FUNCTIONS = [
                 "type": "function",
                 "function": {
                     "name": "create_angle_by_points",
-                    "description": "Creates and draws an angle defined by three points: a vertex and two arm points. The angle's visual representation (arc and degree value) will be drawn. Segments forming the angle will be created if they don't exist.",
+                    "description": "Creates and draws an angle defined by three points. The first point (vx, vy) is the common vertex, and the other two points (p1x, p1y and p2x, p2y) define the angle's arms. For example, in an angle ABC, (vx, vy) would be the coordinates of point B. The angle's visual representation (arc and degree value) will be drawn. Segments forming the angle will be created if they don't exist.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "vx": {
                                 "type": "number",
-                                "description": "The X coordinate of the vertex point."
+                                "description": "The X coordinate of the common vertex point (e.g., point B in an angle ABC)."
                             },
                             "vy": {
                                 "type": "number",
-                                "description": "The Y coordinate of the vertex point."
+                                "description": "The Y coordinate of the common vertex point (e.g., point B in an angle ABC)."
                             },
                             "p1x": {
                                 "type": "number",
