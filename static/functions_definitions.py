@@ -997,9 +997,13 @@ FUNCTIONS = [
                             "angle_name": {
                                 "type": [ "string", "null" ],
                                 "description": "Optional name for the angle. If not provided, a name might be generated (e.g., 'angle_ABC')."
+                            },
+                            "is_reflex": {
+                                "type": ["boolean", "null"],
+                                "description": "Optional. If true, the reflex angle will be created. Defaults to false (smallest angle)."
                             }
                         },
-                        "required": ["vx", "vy", "p1x", "p1y", "p2x", "p2y", "color", "angle_name"],
+                        "required": ["vx", "vy", "p1x", "p1y", "p2x", "p2y", "color", "angle_name", "is_reflex"],
                         "additionalProperties": False
                     }
                 }
