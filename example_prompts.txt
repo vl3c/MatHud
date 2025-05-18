@@ -1,1 +1,67 @@
-draw a circle radius 300 around origin, draw two circles radius 100 around (-105.0, 121.0) and (126.0, 124.0), and draw an ellipse of width 200 and height 100 around (-1.0, -168.0) 
+# Basic Drawing Commands
+Create a point at (10, 20) and name it A.
+Draw a point B at x=50, y=-30.
+Create point C at (100, 150). Plot a segment AC.
+Create point D at (-10, -10) and point E at (20, 20). Define segment DE.
+Construct a circle with center A and radius 50. Name it Circle1.
+Draw a circle centered at (0,0) with a radius of 75 units. Name it CircleO.
+Create an ellipse centered at the origin with horizontal radius 100 and vertical radius 60.
+Create point F at (30,40) and point G at (50,10). Draw an angle with vertex at A, and other points F and G. (This will be angle FAG)
+Define an angle using points P, Q, R, where Q is the vertex. (Assuming P, Q, R are already defined points)
+Plot the function y = x^2 from x = -5 to 5.
+Graph the equation f(x) = sin(x) * 2.
+Draw a circle radius 300 around origin, draw two circles radius 100 around (-105.0, 121.0) and (126.0, 124.0), and draw an ellipse of width 200 and height 100 around (-1.0, -168.0)
+
+# Geometric Property Calculations
+What is the distance between point A and segment DE's midpoint?
+Calculate the length of segment DE.
+Create point H at (0,0). Find the midpoint of the segment AH.
+Create point I at (30,0). What is the area of a triangle with vertices A, H, and I?
+Determine the area of a circle with radius 25.
+Calculate the circumference of Circle1.
+Is the angle PQR a right angle, assuming P=(0,5), Q=(0,0), R=(5,0)?
+Create point J at (20, -10). Define segment DJ. Measure the angle formed by segments DE and DJ.
+
+# Calculus and Algebra
+Evaluate the expression 3*A.x + 10.
+Calculate 2^5 + sqrt(16).
+What is the derivative of x^3 + 2x - 1 with respect to x?
+Find the derivative of sin(x)*cos(x).
+Calculate the integral of 2x from x=0 to x=3.
+Compute the indefinite integral of 1/x.
+Find the limit of (x^2 - 1)/(x - 1) as x approaches 1.
+Determine the limit of sin(x)/x as x tends to 0.
+Solve the equation x^2 - 5x + 6 = 0 for x.
+Find the solutions for 2a + b = 7 and a - b = 2.
+Simplify the expression (x^2 + 2x + 1)/(x+1).
+Expand (a+b)^3.
+Factorize x^2 - y^2.
+
+# Canvas and View Manipulation
+Zoom in on the canvas.
+Zoom out by a factor of 2.
+Pan the view to the right by 100 units.
+Reset the view to the default state.
+Show the Cartesian coordinate system.
+Hide the grid lines.
+Clear the entire canvas.
+Delete point A.
+Remove segment DE from the drawing.
+Undo the last action.
+Redo the last undone action.
+
+# Workspace Management
+Save the current workspace as 'MyFirstProject'.
+Load the workspace named 'CalculusHomework'.
+List all saved workspaces.
+Delete the workspace 'OldDraft'.
+
+# Complex/Multi-step Prompts
+Create a point K at (0,0) and point L at (100,0). Draw a segment KL. Now, create a point M at (50, 50*sqrt(3)). Draw segments KM and LM. What is the measure of angle KML?
+Plot the function y = x^2. Find its derivative. Then, plot the tangent line to y=x^2 at x=2.
+Draw a circle CirA with center (0,0) and radius 5. Draw another circle CirB with center (8,0) and radius 3. Find the intersection points of CirA and CirB if they exist.
+
+# Prompts Involving Vision (conceptual, if vision is enabled)
+I have drawn two lines that look perpendicular, can you confirm if they are and show their intersection point?
+Based on my drawing, what type of triangle is this? Calculate its area and angles.
+Show me the formula for the ellipse I've just drawn and label its foci. 
