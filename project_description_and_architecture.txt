@@ -30,6 +30,7 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Rectangles: create from diagonal points, validate right angles, calculate area
 - Circles: create with center and radius, calculate area and circumference
 - Ellipses: create with center and radii, support rotation and transformation
+- Angles: create from three points (vertex and two defining points), calculate measure, and display arcs.
 
 ## Drawing and Visualization
 - Interactive SVG Canvas: real-time drawing and manipulation
@@ -90,6 +91,7 @@ The application includes a visual understanding system that allows the AI to ana
   - `RectangleManager`: Manages rectangle objects.
   - `CircleManager`: Manages circle objects.
   - `EllipseManager`: Manages ellipse objects.
+  - `AngleManager`: Manages angle objects.
   - `FunctionManager`: Manages plotted functions.
   - `ColoredAreaManager`: Manages colored areas.
 - **Supporting Managers**:
@@ -163,6 +165,7 @@ The application includes a visual understanding system that allows the AI to ana
 - **Rectangles**: Managed by `RectangleManager`. Create from diagonal points, validate right angles, calculate area.
 - **Circles**: Managed by `CircleManager`. Create with center and radius, calculate area and circumference.
 - **Ellipses**: Managed by `EllipseManager`. Create with center and radii, support rotation and transformation.
+- **Angles**: Managed by `AngleManager`. Create from three points (vertex and two other points defining the rays), calculate measure in degrees or radians, and visually represent with an arc.
 - **Functions**: Plotted functions are managed by `FunctionManager`.
 - **Colored Areas**: Managed by `ColoredAreaManager`.
 - Dependencies between shapes (e.g., a segment depends on its points) are tracked by `DrawableDependencyManager`.
