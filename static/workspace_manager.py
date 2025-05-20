@@ -200,13 +200,33 @@ class WorkspaceManager:
         workspaces = []
         
         for filename in os.listdir(target_dir):
-            if filename.endswith('.json'):
-                name = filename[:-5]  # Remove .json extension
-                # Only include filenames that would be valid workspace names
-                if self._is_safe_workspace_name(name):
-                    workspaces.append(name)
-        
-        return sorted(workspaces)  # Sort the list for consistent ordering 
+            if filename.endswith(".json"):
+                name_without_extension = filename[:-5]
+                # Exclude current_workspace files from the list by default
+                if name_without_extension.startswith("current_workspace_"):
+                    continue
+
+                file_path = os.path.join(target_dir, filename)
+                try:
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                    # Check if the loaded data has the expected structure (e.g., contains a 'state' key)
+                    if isinstance(data, dict) and "state" in data and "metadata" in data:
+                        # Further check if metadata has a name that matches the filename (optional but good practice)
+                        if data.get("metadata", {}).get("name") == name_without_extension:
+                            workspaces.append(name_without_extension)
+                        # If metadata name doesn't match, or if strict matching isn't desired,
+                        # one might still add it based on the presence of 'state' and 'metadata'
+                        # else:
+                        #     workspaces.append(name_without_extension) # Or log a warning
+                except json.JSONDecodeError:
+                    # Not a valid JSON file, skip it
+                    pass
+                except Exception as e:
+                    # Other potential errors during file read or basic check, skip
+                    print(f"Skipping file {filename} due to error: {e}") # Optional: log this
+                    pass
+        return workspaces
 
     def delete_workspace(self, name, test_dir=None):
         """Delete a workspace file.
