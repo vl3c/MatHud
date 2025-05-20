@@ -27,8 +27,7 @@ class WorkspaceManager:
         if not name or not isinstance(name, str):
             return False
             
-        # Only allow alphanumeric characters, underscores, and hyphens
-        if not re.match(r'^[\w\-]+$', name):
+        if not re.match(r'^[\\w\\-]+$', name):
             return False
             
         return True
@@ -42,15 +41,13 @@ class WorkspaceManager:
         Returns:
             bool: True if the path is within workspaces directory, False otherwise
         """
-        # Convert both paths to absolute and normalize them
         abs_path = os.path.abspath(path)
         abs_workspace_dir = os.path.abspath(self.workspaces_dir)
         
-        # Check if the normalized path starts with the workspace directory
         try:
             os.path.commonpath([abs_path, abs_workspace_dir])
             return abs_path.startswith(abs_workspace_dir)
-        except ValueError:  # Different drives or invalid path
+        except ValueError:
             return False
 
     def ensure_workspaces_dir(self, test_dir=None):
@@ -85,13 +82,11 @@ class WorkspaceManager:
         target_dir = self.ensure_workspaces_dir(test_dir)
         
         if name is None:
-            # For current workspace, use a special name with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             file_path = os.path.join(target_dir, f"current_workspace_{timestamp}.json")
         else:
             file_path = os.path.join(target_dir, f"{name}.json")
             
-        # Final safety check
         if not self._is_path_in_workspace_dir(file_path):
             raise ValueError("Workspace path must be within workspace directory")
             
@@ -121,7 +116,7 @@ class WorkspaceManager:
                 "state": state
             }
             
-            file_path = self.get_workspace_path(name, test_dir)  # This now includes security checks
+            file_path = self.get_workspace_path(name, test_dir)
             with open(file_path, 'w') as f:
                 json.dump(workspace_data, f, indent=2)
             
@@ -145,7 +140,6 @@ class WorkspaceManager:
         target_dir = self.ensure_workspaces_dir(test_dir)
         current_workspaces = []
         
-        # Find all current workspace files
         for filename in os.listdir(target_dir):
             if filename.startswith('current_workspace_') and filename.endswith('.json'):
                 file_path = os.path.join(target_dir, filename)
@@ -154,7 +148,6 @@ class WorkspaceManager:
         if not current_workspaces:
             raise FileNotFoundError("No current workspace found")
             
-        # Sort by modification time, newest first
         current_workspaces.sort(key=lambda x: os.path.getmtime(x), reverse=True)
         return current_workspaces[0]
 
@@ -170,7 +163,6 @@ class WorkspaceManager:
         """
         try:
             if name is None:
-                # Load most recent current workspace
                 file_path = self._get_most_recent_current_workspace(test_dir)
             else:
                 file_path = self.get_workspace_path(name, test_dir)
@@ -196,13 +188,12 @@ class WorkspaceManager:
         Returns:
             A list of workspace names (without .json extension)
         """
-        target_dir = self.ensure_workspaces_dir(test_dir)  # This now includes security checks
+        target_dir = self.ensure_workspaces_dir(test_dir)
         workspaces = []
         
         for filename in os.listdir(target_dir):
             if filename.endswith(".json"):
                 name_without_extension = filename[:-5]
-                # Exclude current_workspace files from the list by default
                 if name_without_extension.startswith("current_workspace_"):
                     continue
 
@@ -210,21 +201,13 @@ class WorkspaceManager:
                 try:
                     with open(file_path, 'r') as f:
                         data = json.load(f)
-                    # Check if the loaded data has the expected structure (e.g., contains a 'state' key)
                     if isinstance(data, dict) and "state" in data and "metadata" in data:
-                        # Further check if metadata has a name that matches the filename (optional but good practice)
                         if data.get("metadata", {}).get("name") == name_without_extension:
                             workspaces.append(name_without_extension)
-                        # If metadata name doesn't match, or if strict matching isn't desired,
-                        # one might still add it based on the presence of 'state' and 'metadata'
-                        # else:
-                        #     workspaces.append(name_without_extension) # Or log a warning
                 except json.JSONDecodeError:
-                    # Not a valid JSON file, skip it
                     pass
                 except Exception as e:
-                    # Other potential errors during file read or basic check, skip
-                    print(f"Skipping file {filename} due to error: {e}") # Optional: log this
+                    print(f"Skipping file {filename} due to error: {e}")
                     pass
         return workspaces
 
@@ -242,11 +225,10 @@ class WorkspaceManager:
             if not self._is_safe_workspace_name(name):
                 return False
                 
-            file_path = self.get_workspace_path(name, test_dir)  # This now includes security checks
+            file_path = self.get_workspace_path(name, test_dir)
             if not os.path.exists(file_path):
                 return False
                 
-            # Final safety check before deletion
             if not self._is_path_in_workspace_dir(file_path):
                 return False
                 
