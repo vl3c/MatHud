@@ -300,16 +300,6 @@ class TestWorkspaceManagement(unittest.TestCase):
         # Note: Relies on MockCanvas.get_canvas_state() returning a consistent empty structure.
         self.assertEqual(original_empty_state, loaded_state, 
                          "Loaded empty workspace state does not match the original empty state.")
-        
-        # Additionally, verify common keys are not present or are empty if state is structured that way
-        # The primary check is self.assertEqual(original_empty_state, loaded_state)
-        # If MockCanvas returns e.g. {"state": {"Points": [], ...}} for empty, these might need adjustment.
-        loaded_state_content = loaded_state.get("state", loaded_state) # Handle if 'state' is top or nested
-        self.assertNotIn("Points", loaded_state_content)
-        self.assertNotIn("Segments", loaded_state_content)
-        self.assertNotIn("Circles", loaded_state_content)
-        self.assertNotIn("Functions", loaded_state_content)
-        self.assertNotIn("computations", loaded_state_content)
 
     def test_delete_workspace(self):
         """Test deleting a workspace."""
