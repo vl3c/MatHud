@@ -127,6 +127,54 @@ class TestWorkspaceManagement(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             self.workspace_manager.load_workspace("nonexistent_workspace", TEST_DIR)
 
+    def test_load_workspace_invalid_json(self):
+        """Test loading a workspace file with invalid JSON content."""
+        workspace_name = "test_invalid_json_workspace"
+        workspace_path = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{workspace_name}.json")
+        
+        # Create a file with malformed JSON
+        with open(workspace_path, 'w') as f:
+            f.write("{\"name\": \"test\", \"state\": {this_is_not_valid_json}")
+
+        with self.assertRaises((json.JSONDecodeError, ValueError)):
+            # WorkspaceManager might catch JSONDecodeError and raise a ValueError or similar
+            # or it might let JSONDecodeError propagate. We check for either.
+            self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
+
+    def test_load_workspace_incorrect_schema(self):
+        """Test loading a workspace file with valid JSON but incorrect schema."""
+        workspace_name = "test_incorrect_schema_workspace"
+        workspace_path = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{workspace_name}.json")
+
+        # Valid JSON, but missing the top-level 'state' key required by WorkspaceManager.load_workspace
+        # (load_workspace expects the direct state, not the full save_workspace structure with metadata)
+        malformed_data = {
+            "metadata": {"name": workspace_name, "timestamp": "sometime"},
+            "unexpected_top_level_key": {"Points": []} 
+        }
+        with open(workspace_path, 'w') as f:
+            json.dump(malformed_data, f)
+
+        # Corrected expectation: load_workspace should raise ValueError if 'state' key is missing.
+        with self.assertRaisesRegex(ValueError, "Error loading workspace: 'state'"):
+            self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
+
+        # Test case 2: 'state' key exists, but 'Points' is not a list
+        workspace_name_2 = "test_points_not_list"
+        workspace_path_2 = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{workspace_name_2}.json")
+        malformed_data_2 = {
+            "metadata": {"name": workspace_name_2},
+            "state": {"Points": "this should be a list"}
+        }
+        with open(workspace_path_2, 'w') as f:
+            json.dump(malformed_data_2, f)
+        
+        loaded_state_2 = self.workspace_manager.load_workspace(workspace_name_2, TEST_DIR)
+        self.assertIsInstance(loaded_state_2, dict, "Loaded state should be a dictionary.")
+        self.assertIn("Points", loaded_state_2)
+        self.assertNotIsInstance(loaded_state_2["Points"], list, "Points should not be a list in this malformed case.")
+        self.assertEqual(loaded_state_2["Points"], "this should be a list")
+
     def test_list_workspaces(self):
         """Test listing all workspaces."""
         # Create multiple test workspaces
@@ -141,6 +189,39 @@ class TestWorkspaceManagement(unittest.TestCase):
         # Verify each test workspace is in the list
         for name in workspace_names:
             self.assertIn(name, workspaces)
+
+    def test_list_workspaces_with_non_workspace_files(self):
+        """Test listing workspaces when non-workspace files are present."""
+        # Create a valid workspace
+        self.workspace_manager.save_workspace(self.canvas.get_canvas_state(), "valid_ws_for_list_test", TEST_DIR)
+        
+        # Create some non-workspace files in the test directory
+        test_dir_path = os.path.join(WORKSPACES_DIR, TEST_DIR)
+        with open(os.path.join(test_dir_path, "notes.txt"), 'w') as f:
+            f.write("some notes")
+        with open(os.path.join(test_dir_path, "image.jpg"), 'w') as f:
+            f.write("fake image data")
+        # Create an empty JSON file that isn't a workspace (e.g. missing 'state' or specific structure)
+        with open(os.path.join(test_dir_path, "empty_data.json"), 'w') as f:
+            json.dump({"metadata": {"name": "empty_data"}}, f) 
+        with open(os.path.join(test_dir_path, ".hiddenfile"), 'w') as f:
+            f.write("hidden")
+            
+        workspaces = self.workspace_manager.list_workspaces(TEST_DIR)
+        self.assertEqual(len(workspaces), 1, f"Expected 1 workspace, got {len(workspaces)}: {workspaces}")
+        self.assertIn("valid_ws_for_list_test", workspaces)
+        # Ensure non-workspace files are not listed (list_workspaces should filter by .json and content)
+        self.assertNotIn("notes.txt", workspaces)
+        self.assertNotIn("image.jpg", workspaces)
+        self.assertNotIn("empty_data.json", workspaces) # Assuming list_workspaces checks for valid workspace structure
+        self.assertNotIn(".hiddenfile", workspaces)
+
+    def test_list_workspaces_empty_directory(self):
+        """Test listing workspaces from an empty directory."""
+        # Ensure the directory is clean. setUp usually does this, but explicit call for clarity.
+        self.cleanup_test_workspaces()
+        workspaces = self.workspace_manager.list_workspaces(TEST_DIR)
+        self.assertEqual(len(workspaces), 0)
 
     def test_workspace_with_computations(self):
         """Test saving and loading workspace with computations."""
@@ -243,6 +324,40 @@ class TestWorkspaceManagement(unittest.TestCase):
 
         self.assertEqual(original_state, loaded_state, 
                          "Loaded workspace state does not match the original state.")
+
+    def test_save_and_load_empty_workspace(self):
+        """Test saving and loading an empty workspace."""
+        # 1. Canvas is already empty by default after setUp
+        self.assertEqual(len(self.canvas.get_drawables()), 0)
+        self.assertEqual(len(self.canvas.computations), 0)
+
+        original_empty_state = self.canvas.get_canvas_state()
+        workspace_name = "test_empty_workspace"
+
+        # 2. Save the empty workspace
+        save_success = self.workspace_manager.save_workspace(original_empty_state, workspace_name, TEST_DIR)
+        self.assertTrue(save_success, "Saving an empty workspace should succeed.")
+
+        # 3. Load the empty workspace
+        loaded_state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
+
+        # 4. Deeply compare the loaded state with the original empty state
+        if "metadata" in loaded_state:
+            del loaded_state["metadata"] # Remove metadata for fair comparison
+        
+        # Expected empty state from MockCanvas might be an empty dict or dict with empty lists
+        # Let's check against original_empty_state which captures this structure.
+        self.assertEqual(original_empty_state, loaded_state, 
+                         "Loaded empty workspace state does not match the original empty state.")
+        
+        # Additionally, verify common keys are empty or not present
+        self.assertNotIn("Points", loaded_state.get("state", {}))
+        self.assertNotIn("Segments", loaded_state.get("state", {}))
+        self.assertNotIn("Circles", loaded_state.get("state", {}))
+        self.assertNotIn("Functions", loaded_state.get("state", {}))
+        self.assertNotIn("computations", loaded_state.get("state", {}))
+        # If get_canvas_state() for an empty canvas returns e.g. {'Points': [], ...}, then this needs adjustment.
+        # The primary check is self.assertEqual(original_empty_state, loaded_state)
 
     def test_delete_workspace(self):
         """Test deleting a workspace."""
