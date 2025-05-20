@@ -248,18 +248,24 @@ class TestWorkspaceManagement(unittest.TestCase):
         # 1. Create a complex canvas state
         pointA_coords = (10, 20)
         pointB_coords = (30, 40)
-        pointC_coords = (50, 50)
+        pointC_coords = (50, 50) # For Circle
+        pointD_coords = (5, 15)  # For Vector
+        pointE_coords = (25, 35) # For Vector
 
         self.canvas.create_point(pointA_coords[0], pointA_coords[1], "A")
         self.canvas.create_point(pointB_coords[0], pointB_coords[1], "B")
         self.canvas.create_point(pointC_coords[0], pointC_coords[1], "C")
+        self.canvas.create_point(pointD_coords[0], pointD_coords[1], "D")
+        self.canvas.create_point(pointE_coords[0], pointE_coords[1], "E")
+
         self.canvas.create_segment(pointA_coords[0], pointA_coords[1], pointB_coords[0], pointB_coords[1], "AB")
-        self.canvas.create_circle(pointC_coords[0], pointC_coords[1], 25) 
+        self.canvas.create_circle(pointC_coords[0], pointC_coords[1], 25, "CircleC") 
+        self.canvas.create_vector(pointD_coords[0], pointD_coords[1], pointE_coords[0], pointE_coords[1], "DE")
         self.canvas.draw_function("x**2", "f1")
         self.canvas.add_computation("my_calc", 123.45)
         
         original_state = self.canvas.get_canvas_state()
-        workspace_name = "test_integrity_workspace"
+        workspace_name = "test_integrity_workspace_canvas_methods"
 
         # 2. Save the workspace
         save_success = self.workspace_manager.save_workspace(original_state, workspace_name, TEST_DIR)
@@ -269,13 +275,108 @@ class TestWorkspaceManagement(unittest.TestCase):
         loaded_state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
         
         # 4. Deeply compare the loaded state with the original state.
-        # Note: Assumes order is preserved or lists are sorted before comparison if necessary.
-        # Important: MockCanvas.get_canvas_state() structure must be stable for this to pass.
+        self._assert_states_equal_after_sorting(original_state, loaded_state, 
+                         "Loaded workspace state (from canvas methods) does not match the original state.")
+
+    def _assert_states_equal_after_sorting(self, state1, state2, message):
+        """Helper to compare two canvas states after deep copying and sorting their lists."""
+        
+        # Nested sort_state_lists_recursive function
+        def sort_state_lists_recursive(current_state_item):
+            if isinstance(current_state_item, dict):
+                # Recursively process dictionary values
+                for key, value in current_state_item.items():
+                    current_state_item[key] = sort_state_lists_recursive(value)
+            elif isinstance(current_state_item, list):
+                # Attempt to sort lists.
+                try:
+                    # Try to sort by tuple of items if elements are dicts, ensuring consistent order
+                    if all(isinstance(x, dict) for x in current_state_item):
+                        current_state_item.sort(key=lambda x: tuple(sorted(x.items())))
+                    else:
+                        # For lists of non-dicts, attempt direct sort
+                        current_state_item.sort()
+                except TypeError:
+                    # Fallback: if direct sort or dict item sort fails (e.g., mixed un-sortable types),
+                    # try sorting by string representation.
+                    try:
+                        current_state_item.sort(key=str)
+                    except TypeError:
+                        # If all sorting attempts fail, leave the list as is.
+                        pass 
+            return current_state_item
+
+        # Deep copy states to avoid modifying originals during sorting
+        # Ensure that metadata is handled consistently before comparison.
+        # It's often removed from the loaded state before comparison.
+        
+        state1_copy = json.loads(json.dumps(state1))
+        state2_copy = json.loads(json.dumps(state2))
+
+        # Remove 'metadata' key if present, as it's not part of the core state to compare
+        if isinstance(state1_copy, dict) and "metadata" in state1_copy:
+            del state1_copy["metadata"]
+        if isinstance(state2_copy, dict) and "metadata" in state2_copy:
+            del state2_copy["metadata"]
+
+        state1_sorted = sort_state_lists_recursive(state1_copy)
+        state2_sorted = sort_state_lists_recursive(state2_copy)
+        
+        self.assertEqual(state1_sorted, state2_sorted, message)
+
+    def test_save_and_load_mock_state_preserves_integrity_with_vectors(self):
+        """Test that saving and loading a mock dictionary state with vectors preserves its integrity."""
+        # 1. Define a complex canvas state using a dictionary
+        mock_canvas_state = {
+            "Points": [
+                {"name": "M_A", "args": {"position": {"x": 100, "y": 120}}},
+                {"name": "M_B", "args": {"position": {"x": 130, "y": 140}}},
+                {"name": "M_C", "args": {"position": {"x": 150, "y": 160}}},
+                {"name": "M_D", "args": {"position": {"x": 105, "y": 115}}},
+                {"name": "M_E", "args": {"position": {"x": 125, "y": 135}}}
+            ],
+            "Segments": [
+                {"name": "M_AB", "args": {"p1": "M_A", "p2": "M_B"}}
+            ],
+            "Circles": [
+                {"name": "M_CircleC", "args": {"center": "M_C", "radius": 20}}
+            ],
+            "Vectors": [
+                {"name": "M_DE", "args": {"origin": "M_D", "tip": "M_E"}}
+            ],
+            "Functions": [
+                {"name": "M_Func1", "args": {"function_string": "sin(x)", "left_bound": -10, "right_bound": 10}}
+            ],
+            "computations": [
+                {"expression": "10+20", "result": 30},
+                {"expression": "cos(0)", "result": 1.0} # MockCanvas computation results are floats
+            ]
+        }
+
+        workspace_name = "test_integrity_mock_state_vectors"
+        save_success = self.workspace_manager.save_workspace(mock_canvas_state, workspace_name, TEST_DIR)
+        self.assertTrue(save_success, "Saving the mock state integrity test workspace should succeed.")
+
+        loaded_state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
+        
+        self.assertIsNotNone(loaded_state, "Loaded state content should not be None.")
+        self.assertIsInstance(loaded_state, dict, "Loaded state should be a dictionary.")
+
         if "metadata" in loaded_state:
             del loaded_state["metadata"]
 
-        self.assertEqual(original_state, loaded_state, 
-                         "Loaded workspace state does not match the original state.")
+        # Quick checks for key elements
+        loaded_points_dict = {p['name']: p for p in loaded_state.get("Points", [])}
+        self.assertIn("M_E", loaded_points_dict)
+        self.assertEqual(loaded_points_dict["M_E"]["args"]["position"]["x"], 125)
+
+        loaded_vectors_dict = {v['name']: v for v in loaded_state.get("Vectors", [])}
+        self.assertIn("M_DE", loaded_vectors_dict)
+        self.assertEqual(loaded_vectors_dict["M_DE"]["args"]["origin"], "M_D")
+
+        # Use the helper method for full comparison
+        self._assert_states_equal_after_sorting(mock_canvas_state, loaded_state,
+                         "Loaded mock workspace state with vectors does not match the original mock state.")
 
     def test_save_and_load_empty_workspace(self):
         """Test saving and loading an empty workspace."""
