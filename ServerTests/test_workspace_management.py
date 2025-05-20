@@ -200,6 +200,50 @@ class TestWorkspaceManagement(unittest.TestCase):
             self.assertEqual(len(state["Functions"]), 1)
             self.assertEqual(len(state["computations"]), 1)
 
+    def test_save_and_load_preserves_state_integrity(self):
+        """Test that saving and then loading a workspace recreates the exact same state."""
+        # 1. Create a complex canvas state
+        # Points
+        pointA_coords = (10, 20)
+        pointB_coords = (30, 40)
+        pointC_coords = (50, 50) # For circle center
+
+        self.canvas.create_point(pointA_coords[0], pointA_coords[1], "A")
+        self.canvas.create_point(pointB_coords[0], pointB_coords[1], "B")
+        self.canvas.create_point(pointC_coords[0], pointC_coords[1], "C")
+
+        # Segment
+        self.canvas.create_segment(pointA_coords[0], pointA_coords[1], pointB_coords[0], pointB_coords[1], "AB")
+        
+        # Circle (centered at C)
+        self.canvas.create_circle(pointC_coords[0], pointC_coords[1], 25) 
+
+        self.canvas.draw_function("x**2", "f1")
+        self.canvas.add_computation("my_calc", 123.45)
+        
+        original_state = self.canvas.get_canvas_state()
+        workspace_name = "test_integrity_workspace"
+
+        # 2. Save the workspace
+        save_success = self.workspace_manager.save_workspace(original_state, workspace_name, TEST_DIR)
+        self.assertTrue(save_success, "Saving the integrity test workspace should succeed.")
+
+        # 3. Load the workspace
+        loaded_state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
+        
+        # 4. Deeply compare the loaded state with the original state
+        # For dicts, assertEqual does a deep comparison.
+        # We need to ensure the order of items within lists (like Points, Segments) is preserved or sort them before comparison if order is not guaranteed.
+        # For this initial test, we'll assume order is preserved by get_canvas_state and load_workspace.
+        # If tests fail due to order, we may need to implement a more sophisticated comparison.
+        
+        # Remove metadata from loaded_state for a fair comparison with original_state from canvas
+        if "metadata" in loaded_state:
+            del loaded_state["metadata"]
+
+        self.assertEqual(original_state, loaded_state, 
+                         "Loaded workspace state does not match the original state.")
+
     def test_delete_workspace(self):
         """Test deleting a workspace."""
         # Create and save test workspace
