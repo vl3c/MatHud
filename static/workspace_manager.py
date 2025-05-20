@@ -27,7 +27,7 @@ class WorkspaceManager:
         if not name or not isinstance(name, str):
             return False
             
-        if not re.match(r'^[\\w\\-]+$', name):
+        if not re.match(r'^[\w-]+\Z$', name):  # Only allow alphanumeric characters, underscores, and hyphens
             return False
             
         return True
