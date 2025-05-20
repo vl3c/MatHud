@@ -9,6 +9,7 @@ class MockCanvas:
         self.triangles = []
         self.ellipses = []
         self.functions = []
+        self.vectors = []
         self.computations = []
 
     def get_drawables(self):
@@ -20,7 +21,8 @@ class MockCanvas:
             self.rectangles +
             self.triangles +
             self.ellipses +
-            self.functions
+            self.functions +
+            self.vectors
         )
 
     def get_drawables_by_class_name(self, class_name):
@@ -32,7 +34,8 @@ class MockCanvas:
             "Rectangle": self.rectangles,
             "Triangle": self.triangles,
             "Ellipse": self.ellipses,
-            "Function": self.functions
+            "Function": self.functions,
+            "Vector": self.vectors
         }
         return class_map.get(class_name, [])
 
@@ -46,6 +49,7 @@ class MockCanvas:
             "Triangles": self.triangles,
             "Ellipses": self.ellipses,
             "Functions": self.functions,
+            "Vectors": self.vectors,
             "computations": self.computations
         }
 
@@ -58,6 +62,7 @@ class MockCanvas:
         self.triangles = []
         self.ellipses = []
         self.functions = []
+        self.vectors = []
         self.computations = []
 
     def create_point(self, x, y, name=""):
@@ -129,6 +134,16 @@ class MockCanvas:
         }
         self.functions.append(function)
         return function
+
+    def create_vector(self, x1, y1, x2, y2, name=""):
+        """Create a vector on the canvas."""
+        vector = {
+            "origin": {"x": x1, "y": y1},
+            "tip": {"x": x2, "y": y2},
+            "name": name
+        }
+        self.vectors.append(vector)
+        return vector
 
     def add_computation(self, expression, result):
         """Add a computation to the canvas."""
