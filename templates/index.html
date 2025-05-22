@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MatHud - Mathematical Canvas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="{{ url_for('static', filename='Brython-3.11.3/Lib/math.js') }}"></script>
     <script src="{{ url_for('static', filename='Brython-3.11.3/Lib/nerdamer.js') }}"></script>
     <script src="{{ url_for('static', filename='Brython-3.11.3/brython.js') }}"></script>
@@ -13,7 +19,7 @@
             <svg id="math-svg" style="width:100%; height:100%"></svg>
         </div>        
         <div class="chat-container">
-            <div class="selection-container" style="float: right;">
+            <div class="selection-container">
                 <div class="ai-model-selector">
                     <label for="ai-model-selector">Select AI Model:</label>
                     <select id="ai-model-selector">
@@ -25,7 +31,7 @@
                         <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
                     </select>
                 </div>
-                <div class="vision-toggle" style="margin-top: 10px;">
+                <div class="vision-toggle">
                     <input type="checkbox" id="vision-toggle">
                     <label for="vision-toggle">Enable Vision</label>
                 </div>
