@@ -21,6 +21,7 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Graphing Functions: plot functions, parametric equations, polar coordinates
 - Geometric Calculations: distance, angle, area, volume, intersections
 - Equation Solving: linear equations, quadratic equations, systems of equations
+- Advanced Operations: 40+ AI tool definitions available in `static/functions_definitions.py` including canvas operations, geometric shape creation/deletion, mathematical operations, transformations, and workspace management
 
 ## Geometric Shape Management
 - Points: create, delete, translate points with coordinates and labels
@@ -62,9 +63,10 @@ The application includes a visual understanding system that allows the AI to ana
 # Technical Architecture
 
 ## Frontend Chat Interface (index.html in `templates/` and `static/Brython-3.11.3/Lib/site-packages/main.py`)
-- Simple HTML structure with chat history div, input field, and send button.
+- Simple HTML structure with chat history div, input field, and send button (ID: `send-button`).
 - Chat interface bound to both button click and Enter key events.
 - Vision toggle checkbox for canvas image capture control.
+- AI model selector with options: GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, GPT-4o Mini, GPT-3.5 Turbo etc.
 - Uses Brython (Python in the browser) for frontend logic, initialized by `main.py`.
 - `static/Brython-3.11.3/Lib/site-packages/canvas_event_handler.py` manages user interactions with the canvas.
 
@@ -74,6 +76,7 @@ The application includes a visual understanding system that allows the AI to ana
 - Initializes client-side `WorkspaceManager` (from `static/Brython-3.11.3/Lib/site-packages/workspace_manager.py`) and `FunctionRegistry`.
 - Maintains dictionary of available functions for math operations and canvas manipulation (via `FunctionRegistry`).
 - Handles function call results and maintains state between interactions.
+- **UI Element References**: References `send-button` for button control, `chat-input` for input field, `vision-toggle` for vision checkbox, and `ai-model-selector` for model selection.
 - Key methods:
   - `interact_with_ai`: Entry point for user interactions from UI.
   - `_send_prompt_to_ai`: Prepares JSON prompt (with canvas state, user message, tool results, vision settings from `document["vision-toggle"]`, AI model from `document["ai-model-selector"]`) and sends AJAX POST request to `/send_message` Flask endpoint.
@@ -137,27 +140,30 @@ The application includes a visual understanding system that allows the AI to ana
   - Configures session-based log files with timestamped entries in the `logs/` directory.
 
 ## Function Call Processing (`static/Brython-3.11.3/Lib/site-packages/process_function_calls.py`)
-- `ProcessFunctionCalls` class (Brython client-side) acts as a facade for executing function calls requested by the AI.
-- It is invoked by `AIInterface`\'s `_process_ai_response` method.
+- `ProcessFunctionCalls` class (Brython client-side) acts as a **facade pattern** for executing function calls requested by the AI.
+- It is invoked by `AIInterface`'s `_process_ai_response` method.
 - Key static methods:
-  - `get_results`: Delegates to `ResultProcessor` (likely also in `Lib/site-packages`) to iterate through tool calls, execute them using the `available_functions` map (from `FunctionRegistry`), and collect results. `ResultProcessor` interacts with `DrawableManager`, specific drawable managers, `Canvas`, client-side `WorkspaceManager`, etc., to perform actions.
-  - `evaluate_expression`: Delegates to `ExpressionEvaluator`.
-  - `validate_results` and `is_successful_result`: Delegate to `ResultValidator`.
+  - `get_results`: Delegates to `ResultProcessor` (in `static/Brython-3.11.3/Lib/site-packages/result_processor.py`) to iterate through tool calls, execute them using the `available_functions` map (from `FunctionRegistry`), and collect results. `ResultProcessor` interacts with `DrawableManager`, specific drawable managers, `Canvas`, client-side `WorkspaceManager`, etc., to perform actions.
+  - `evaluate_expression`: Delegates to `ExpressionEvaluator` (in `static/Brython-3.11.3/Lib/site-packages/expression_evaluator.py`).
+  - `validate_results` and `is_successful_result`: Delegate to `ResultValidator` (in `static/Brython-3.11.3/Lib/site-packages/result_validator.py`).
 - Execution of drawing operations, canvas manipulations, and client-side workspace calls are routed through this system.
 - Undo/redo capabilities are coordinated by `ResultProcessor` potentially interacting with `UndoRedoManager` and `Canvas.archive()`.
 
 ## Canvas System
 - Uses SVG for rendering mathematical objects and functions, manipulated via Brython.
-- The client-side `Canvas` class (likely in `static/Brython-3.11.3/Lib/site-packages/canvas.py`) is the core for drawing.
+- The client-side `Canvas` class (in `static/Brython-3.11.3/Lib/site-packages/canvas.py`) is the core for drawing.
 - It instantiates and uses `DrawableManager` (from `static/Brython-3.11.3/Lib/site-packages/managers/drawable_manager.py`) to manage all visual elements.
 - `DrawableManager` coordinates specialized managers (e.g., `PointManager`, `SegmentManager`) for creating, updating, and deleting specific geometric shapes and functions.
-- Supports zooming, panning, and coordinate system transformations (likely handled by `Canvas` or a dedicated coordinate system manager it uses).
+- Supports zooming, panning, and coordinate system transformations (handled by `Canvas` and `cartesian_system_2axis.py`).
 - Object state for undo/redo is managed by `UndoRedoManager` in conjunction with `DrawableManager` and `Canvas` (e.g., `Canvas.archive()` for saving states).
 - Handles real-time updates and user interactions via `CanvasEventHandler` which dispatches to `AIInterface` or `Canvas` methods.
 - Provides canvas state serialization (`Canvas.get_canvas_state()`) for workspace saving and for sending to the backend for vision processing.
 
 ## Geometric Shape Management (Client-Side Brython)
 - Handled on the client-side (Brython) by a suite of specialized manager classes within `static/Brython-3.11.3/Lib/site-packages/managers/`, coordinated by `DrawableManager`.
+- **Drawable Objects**: Actual drawable classes are defined in `static/Brython-3.11.3/Lib/site-packages/drawables/` including:
+  - `Point`, `Segment`, `Vector`, `Triangle`, `Rectangle`, `Circle`, `Ellipse`, `Angle`, `Function`, `ColoredArea`
+  - Additional specialized classes like `FunctionsBoundedColoredArea`, `FunctionSegmentBoundedColoredArea`, `SegmentsBoundedColoredArea`
 - **Points**: Managed by `PointManager`. Create, delete, translate points with coordinates and labels.
 - **Segments**: Managed by `SegmentManager`. Create line segments between points, calculate length and midpoint.
 - **Vectors**: Managed by `VectorManager`. Create vectors with origin and tip, support for vector operations.
@@ -171,11 +177,15 @@ The application includes a visual understanding system that allows the AI to ana
 - Dependencies between shapes (e.g., a segment depends on its points) are tracked by `DrawableDependencyManager`.
 
 ## Error Handling and Logging
-- **Client-Side (Brython)**: Error messages from function calls or AJAX requests are displayed in the chat interface. JavaScript console logs for Brython-specific issues.
+- **Client-Side (Brython)**: Extensive error handling with try-catch blocks throughout the codebase, particularly in:
+  - `CanvasEventHandler`: Every method includes comprehensive error handling for user interactions
+  - `AIInterface`: Error handling for AJAX requests, function call processing, and UI state management
+  - `WorkspaceManager`: Error handling for workspace operations and AJAX calls
+  - Error messages from function calls or AJAX requests are displayed in the chat interface. JavaScript console logs for Brython-specific issues.
 - **Server-Side (Flask)**:
   - `static/log_manager.py` (`LogManager` class) provides comprehensive logging for debugging and session tracking.
   - Session-based log files with timestamped entries are created in the `logs/` directory.
-  - Flask\'s built-in error handling for HTTP errors. API responses use a consistent JSON structure (`AppManager.make_response`) to report success or errors.
+  - Flask's built-in error handling for HTTP errors. API responses use a consistent JSON structure (`AppManager.make_response`) to report success or errors.
 - Graceful fallbacks for vision system failures (e.g., if `WebDriverManager` fails to capture image, vision process might be skipped or an error reported).
 
 ## Vision Integration
@@ -185,7 +195,7 @@ The application includes a visual understanding system that allows the AI to ana
   - If `use_vision` is true and `svg_state` is provided:
     1. It ensures `WebDriverManager` is initialized.
     2. It calls `app.webdriver_manager.capture_svg_state(svg_state)`.
-    3. `WebDriverManager` uses Selenium to launch a headless Firefox browser, injects the received `svg_state` (content, dimensions, viewBox, transform) into the `math-svg` element of the application\'s page loaded in the headless browser, and adjusts container styles.
+    3. `WebDriverManager` uses Selenium to launch a headless Firefox browser, injects the received `svg_state` (content, dimensions, viewBox, transform) into the `math-svg` element of the application's page loaded in the headless browser, and adjusts container styles.
     4. A screenshot of the relevant math container div is taken and saved as `CanvasSnapshots/canvas.png`.
 - **AI Processing**: 
   - `OpenAIChatCompletionsAPI` (server-side), when preparing the call to OpenAI and if vision is active for the request, reads `CanvasSnapshots/canvas.png`, encodes it (e.g., base64), and includes it in the multimodal prompt to the OpenAI API.

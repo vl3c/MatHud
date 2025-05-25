@@ -95,13 +95,45 @@ python app.py
 
 ## Usage
 
-[existing usage instructions...]
+1. **Start the Application**: After installation, start the server:
+   ```sh
+   python app.py
+   ```
+
+2. **Access the Interface**: Open your web browser and navigate to `http://127.0.0.1:5000`
+
+3. **Using the Canvas**:
+   - **Drawing**: Double-click on the canvas to capture coordinates
+   - **Zooming**: Use mouse wheel to zoom in/out
+   - **Panning**: Click and drag to move around the canvas
+
+4. **AI Interaction**:
+   - Type mathematical questions or requests in the chat input
+   - The AI can create geometric shapes, solve equations, and perform calculations
+   - Enable "Vision" mode for the AI to analyze your drawings (works with GPT-4o, GPT-4o Mini, GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano)
+
+5. **Available AI Commands**:
+   - `create point at (2, 3)` - Create geometric shapes
+   - `calculate the distance between points A and B` - Mathematical calculations
+   - `solve x^2 + 2x - 3 = 0` - Equation solving
+   - `save workspace as "my_project"` - Save your work
+   - `load workspace "my_project"` - Load previous work
+   - `run tests` - Execute client-side tests
+
+6. **Workspace Management**:
+   - Save your work with custom names
+   - Load previous sessions
+   - List all saved workspaces
+   - Delete unwanted workspaces
 
 ## Dependencies
 
 - Python 3.x
 - Flask
+- OpenAI API client
+- Python-dotenv (for environment variable management)
 - Selenium
+- Geckodriver-autoinstaller (automatic Firefox WebDriver setup)
 - Firefox WebDriver
 - OpenAI API (optionally vision capable)
 
@@ -120,7 +152,9 @@ python app.py
    OPENAI_API_KEY=your-api-key
    ```
 
-2. Ensure Firefox WebDriver is installed for the vision mechanism:
+2. Firefox WebDriver setup:
+
+   The application includes `geckodriver-autoinstaller` in its dependencies, which automatically handles Firefox WebDriver installation. If you prefer manual installation:
 
    On Ubuntu/Debian:
    ```bash
@@ -134,8 +168,8 @@ python app.py
 
    On Windows:
    ```bash
-   pip install geckodriver-autoinstaller
-   # Or download geckodriver from https://github.com/mozilla/geckodriver/releases
+   # Manual download from https://github.com/mozilla/geckodriver/releases
+   # Or rely on the automatic installer (recommended)
    ```
 
 ## Testing
