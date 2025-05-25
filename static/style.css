@@ -166,6 +166,283 @@ body {
     background: var(--secondary-color);
 }
 
+/* Chat message styling */
+.chat-message {
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    line-height: 1.6;
+}
+
+.chat-message.normal {
+    border-left: 3px solid var(--primary-color);
+}
+
+.chat-sender {
+    font-weight: 600;
+    margin-right: 8px;
+}
+
+.chat-sender.user {
+    color: var(--primary-color);
+}
+
+.chat-sender.ai {
+    color: #059669; /* Green for AI */
+}
+
+.chat-content {
+    display: inline-block;
+    word-wrap: break-word;
+}
+
+/* Markdown content styling */
+.chat-content.markdown {
+    display: block;
+    margin-top: 4px;
+}
+
+.chat-content.markdown h1,
+.chat-content.markdown h2,
+.chat-content.markdown h3,
+.chat-content.markdown h4,
+.chat-content.markdown h5,
+.chat-content.markdown h6 {
+    margin: 16px 0 8px 0;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--text-primary);
+}
+
+.chat-content.markdown h1 {
+    font-size: 1.5em;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 8px;
+}
+
+.chat-content.markdown h2 {
+    font-size: 1.3em;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 4px;
+}
+
+.chat-content.markdown h3 {
+    font-size: 1.1em;
+}
+
+.chat-content.markdown h4,
+.chat-content.markdown h5,
+.chat-content.markdown h6 {
+    font-size: 1em;
+}
+
+.chat-content.markdown p {
+    margin: 8px 0;
+    line-height: 1.6;
+}
+
+.chat-content.markdown code {
+    background: #f1f5f9;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.85em;
+    color: #d63384;
+}
+
+.chat-content.markdown pre {
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 12px;
+    overflow-x: auto;
+    margin: 12px 0;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.85em;
+    line-height: 1.4;
+}
+
+.chat-content.markdown pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-primary);
+}
+
+.chat-content.markdown blockquote {
+    border-left: 4px solid var(--primary-color);
+    margin: 12px 0;
+    padding-left: 16px;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Enhanced list styling */
+.chat-content.markdown ul,
+.chat-content.markdown ol {
+    margin: 8px 0;
+    padding-left: 24px;
+    line-height: 1.4;
+}
+
+.chat-content.markdown li {
+    margin: 2px 0; /* Reduced from 4px to 2px */
+    line-height: 1.5;
+}
+
+/* Nested list styling - FIXED */
+.chat-content.markdown li ul,
+.chat-content.markdown li ol {
+    margin: 4px 0;
+    padding-left: 20px;
+}
+
+/* Checkbox styling - FIXED to remove bullets */
+.chat-content.markdown li.checkbox-item {
+    list-style: none;
+    position: relative;
+    padding-left: 0;
+}
+
+.chat-content.markdown .checkbox {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+}
+
+.chat-content.markdown .checkbox.checked {
+    background: var(--primary-color);
+    border: 2px solid var(--primary-color);
+    border-radius: 3px;
+    color: white;
+    text-align: center;
+    line-height: 12px;
+    font-size: 10px;
+}
+
+.chat-content.markdown .checkbox.unchecked {
+    background: white;
+    border: 2px solid var(--border-color);
+    border-radius: 3px;
+}
+
+.chat-content.markdown strong {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.chat-content.markdown em {
+    font-style: italic;
+    color: var(--text-secondary);
+}
+
+.chat-content.markdown a {
+    color: var(--primary-color);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s ease;
+}
+
+.chat-content.markdown a:hover {
+    border-bottom-color: var(--primary-color);
+}
+
+/* Enhanced table styling */
+.chat-content.markdown table {
+    border-collapse: collapse;
+    margin: 12px 0;
+    width: 100%;
+    font-size: 0.9em;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.chat-content.markdown th,
+.chat-content.markdown td {
+    border: 1px solid var(--border-color);
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.chat-content.markdown th {
+    background: var(--background-color);
+    font-weight: 600;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.chat-content.markdown tr:nth-child(even) {
+    background: #fafbfc;
+}
+
+.chat-content.markdown tr:hover {
+    background: #f1f5f9;
+}
+
+.chat-content.markdown hr {
+    border: none;
+    border-top: 2px solid var(--border-color);
+    margin: 20px 0;
+}
+
+/* Mathematical expressions in markdown */
+.chat-content.markdown .math-inline {
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: 'Times New Roman', serif;
+    color: var(--text-primary);
+    display: inline-block;
+    margin: 0 2px;
+    font-size: 0.95em;
+}
+
+.chat-content.markdown .math-block {
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 16px 0;
+    font-family: 'Times New Roman', serif;
+    color: var(--text-primary);
+    display: block;
+    text-align: center;
+    font-size: 1.1em;
+    overflow-x: auto;
+}
+
+/* Legacy math expression support */
+.chat-content.markdown .math-expression {
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-family: 'Times New Roman', serif;
+    color: var(--text-primary);
+    display: inline-block;
+    margin: 2px;
+}
+
+/* Legacy paragraph support for fallback */
+.chat-history p {
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--primary-color);
+    line-height: 1.6;
+}
+
 /* Chat input container */
 .chat-input-container {
     display: flex;
