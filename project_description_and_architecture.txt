@@ -60,6 +60,164 @@ The application includes a visual understanding system that allows the AI to ana
 
 ---
 
+# Project File Structure
+
+## Root Directory
+```
+MatHud/
+├── app.py                              # Main Flask application entry point
+├── requirements.txt                    # Python dependencies (Flask, OpenAI, Selenium, etc.)
+├── README.md                          # Project documentation and setup instructions
+├── project_description_and_architecture.txt  # Comprehensive technical documentation
+├── example_prompts.txt                # Sample AI prompts for testing
+├── todo.txt                           # Development tasks and improvements
+├── run_server_tests.py                # Server-side test runner script
+├── .gitignore                         # Git ignore patterns
+├── LICENSE                            # Project license
+├── logs/                              # Application log files (session-based)
+├── workspaces/                        # Saved workspace JSON files
+├── CanvasSnapshots/                   # Vision system canvas screenshots
+├── venv/                              # Python virtual environment
+└── .vscode/                           # VS Code configuration
+```
+
+## Backend Structure (`static/`)
+```
+static/
+├── app_manager.py                     # Flask application configuration and initialization
+├── routes.py                          # All Flask route definitions (/send_message, /save_workspace, etc.)
+├── openai_api.py                      # OpenAI API integration and chat completions
+├── webdriver_manager.py               # Selenium WebDriver management for vision system
+├── workspace_manager.py               # Server-side workspace file operations
+├── log_manager.py                     # Application logging system
+├── functions_definitions.py           # 42 AI function/tool definitions
+├── ai_model.py                        # AI model configuration utilities
+├── tool_call_processor.py             # Tool call processing utilities
+├── style.css                          # Frontend CSS styling
+└── Brython-3.11.3/                   # Brython Python-in-browser framework
+    ├── brython.js                     # Core Brython runtime
+    ├── brython_stdlib.js              # Brython standard library
+    └── Lib/
+        ├── math.js                    # Mathematical operations library
+        ├── nerdamer.js                # Symbolic algebra library
+        └── site-packages/             # Custom Brython modules (see below)
+```
+
+## Frontend Structure (`templates/` and Brython Client-Side)
+```
+templates/
+└── index.html                         # Main HTML template with canvas and chat interface
+
+static/Brython-3.11.3/Lib/site-packages/
+├── main.py                            # Brython initialization and entry point
+├── ai_interface.py                    # AI communication and UI management
+├── canvas_event_handler.py            # Mouse/keyboard event handling with extensive error handling
+├── canvas.py                          # Core SVG canvas management
+├── workspace_manager.py               # Client-side workspace operations
+├── function_registry.py               # Available function mapping and registration
+├── process_function_calls.py          # Function call facade pattern implementation
+├── result_processor.py                # Function call execution engine
+├── expression_evaluator.py            # Mathematical expression evaluation
+├── expression_validator.py            # Expression syntax validation
+├── result_validator.py                # Result validation utilities
+├── cartesian_system_2axis.py          # 2D coordinate system management
+├── test_runner.py                     # Client-side test execution framework
+├── constants.py                       # Application constants
+├── geometry.py                        # Geometric utility functions
+├── drawables/                         # Drawable object implementations
+│   ├── drawable.py                    # Base drawable class
+│   ├── point.py                       # Point geometric object
+│   ├── segment.py                     # Line segment object
+│   ├── vector.py                      # Vector object
+│   ├── triangle.py                    # Triangle object
+│   ├── rectangle.py                   # Rectangle object
+│   ├── circle.py                      # Circle object
+│   ├── ellipse.py                     # Ellipse object
+│   ├── angle.py                       # Angle object
+│   ├── function.py                    # Function plotting object
+│   ├── colored_area.py                # Colored area object
+│   ├── functions_bounded_colored_area.py        # Function-bounded areas
+│   ├── function_segment_bounded_colored_area.py # Mixed boundary areas
+│   ├── segments_bounded_colored_area.py         # Segment-bounded areas
+│   ├── rotatable_polygon.py           # Rotatable polygon base class
+│   └── position.py                    # Position utility class
+├── managers/                          # Specialized object managers
+│   ├── drawable_manager.py            # Central drawable orchestrator
+│   ├── drawable_manager_proxy.py      # Initialization dependency management
+│   ├── drawables_container.py         # Drawable storage and organization
+│   ├── drawable_dependency_manager.py # Object dependency tracking
+│   ├── undo_redo_manager.py           # Undo/redo functionality
+│   ├── transformations_manager.py     # Geometric transformations
+│   ├── point_manager.py               # Point creation/management
+│   ├── segment_manager.py             # Segment operations
+│   ├── vector_manager.py              # Vector operations
+│   ├── triangle_manager.py            # Triangle operations
+│   ├── rectangle_manager.py           # Rectangle operations
+│   ├── circle_manager.py              # Circle operations
+│   ├── ellipse_manager.py             # Ellipse operations
+│   ├── angle_manager.py               # Angle operations
+│   ├── function_manager.py            # Function plotting management
+│   └── colored_area_manager.py        # Colored area management
+├── utils/                             # Utility modules
+├── name_generator/                    # Automatic name generation for objects
+│   ├── base.py                        # Base name generator class
+│   ├── drawable.py                    # General drawable object name generation
+│   ├── point.py                       # Point-specific name generation
+│   └── function.py                    # Function name generation
+└── ClientTests/                       # Brython-based client-side tests
+    ├── tests.py                       # Test suite orchestrator
+    ├── test_canvas.py                 # Canvas functionality tests
+    ├── test_math_functions.py         # Mathematical operation tests
+    ├── test_function_calling.py       # Function call system tests
+    ├── test_angle_manager.py          # Angle management tests
+    ├── test_angle.py                  # Angle object tests
+    ├── test_drawable_dependency_manager.py  # Dependency system tests
+    ├── test_drawables_container.py    # Container tests
+    ├── test_custom_drawable_names.py  # Name generation tests
+    ├── test_drawable_name_generator.py # Name generator tests
+    ├── test_cartesian.py              # Coordinate system tests
+    ├── test_event_handler.py          # Event handling tests
+    ├── test_expression_validator.py   # Expression validation tests
+    ├── test_function.py               # Function object tests
+    ├── test_[shape].py                # Individual shape tests (point, segment, etc.)
+    ├── ai_result_formatter.py         # Test result formatting for AI
+    ├── brython_io.py                  # Brython I/O utilities
+    └── simple_mock.py                 # Testing mock utilities
+```
+
+## Server-Side Tests (`ServerTests/`)
+```
+ServerTests/
+├── __init__.py                        # Test package initialization
+├── python_path_setup.py               # Test environment configuration
+├── test_mocks.py                      # Server-side test mocking utilities
+├── test_workspace_management.py       # Workspace operations tests
+└── test_routes.py                     # Flask route testing
+```
+
+## Key Configuration Files
+- **`requirements.txt`**: Contains 5 dependencies: openai, flask, python-dotenv, selenium, geckodriver-autoinstaller
+- **`.env`**: Environment variables (OpenAI API key) - created by user in parent directory
+- **`app.py`**: Main entry point including threaded server startup and graceful shutdown handling
+- **`static/functions_definitions.py`**: Defines 42 AI functions with full JSON schema
+- **`templates/index.html`**: Main HTML template with canvas, chat interface, AI model selector, and vision toggle
+
+## Data Directories
+- **`logs/`**: Session-based application logs with timestamps
+- **`workspaces/`**: JSON files containing saved canvas states and metadata
+- **`CanvasSnapshots/`**: PNG screenshots captured by WebDriver for vision processing
+- **`__pycache__/`**: Python bytecode cache directories throughout the project
+
+## Architecture Notes
+- **Brython Integration**: Extensive use of Python in the browser via Brython framework
+- **Facade Pattern**: `ProcessFunctionCalls` acts as facade for `ResultProcessor`, `ExpressionEvaluator`, `ResultValidator`
+- **Manager Pattern**: Specialized managers for each geometric shape type with centralized coordination
+- **Error Handling**: Comprehensive try-catch blocks throughout client-side code
+- **Testing**: Dual testing system with server-side pytest and client-side Brython unittest
+- **Vision System**: Server-side Selenium WebDriver captures canvas screenshots for AI vision analysis
+
+---
+
 # Technical Architecture
 
 ## Frontend Chat Interface (index.html in `templates/` and `static/Brython-3.11.3/Lib/site-packages/main.py`)
