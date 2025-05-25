@@ -11,6 +11,7 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Visual problem-solving with multimodal AI
 - Real-world problem analysis and modeling
 - Workspace management for saving and loading states
+- Comprehensive chat interface with rich markdown support and LaTeX mathematical notation rendering
 
 ## Architecture Overview
 
@@ -48,6 +49,8 @@ The application includes a visual understanding system that allows the AI to ana
     *   Dynamic visualization of mathematical concepts.
     *   Enhanced pattern recognition and analysis.
     *   Bridge between theoretical and applied mathematics.
+
+
 
 ## Installation
 
@@ -110,6 +113,7 @@ python app.py
 4. **AI Interaction**:
    - Type mathematical questions or requests in the chat input
    - The AI can create geometric shapes, solve equations, and perform calculations
+   - Supports markdown formatting and LaTeX mathematical expressions in responses
    - Enable "Vision" mode for the AI to analyze your drawings (works with GPT-4o, GPT-4o Mini, GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano)
 
 5. **Available AI Commands**:

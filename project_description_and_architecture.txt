@@ -10,6 +10,7 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Visual problem-solving with multimodal AI
 - Real-world problem analysis and modeling
 - Workspace management for saving and loading states
+- Rich text chat interface with with comprehensive markdown support and LaTeX mathematical notation rendering
 
 ## Mathematical Functions
 - Basic Arithmetic: addition, subtraction, multiplication, division, exponents, roots
@@ -57,6 +58,34 @@ The application includes a visual understanding system that allows the AI to ana
 - Interpretation of mathematical drawings and diagrams
 - Analysis of imported real-world problem images
 - Context-aware mathematical reasoning
+
+## Chat Interface and Markdown Support
+The application features a sophisticated chat interface with comprehensive markdown rendering capabilities:
+
+### Markdown Features
+- **Headers**: H1-H6 support using `#` through `######` syntax
+- **Text Formatting**: 
+  - Bold text using `**bold**` or `__bold__` syntax
+  - Italic text using `*italic*` or `_italic_` syntax
+  - Strikethrough text using `~~strikethrough~~` syntax
+- **Code**: Inline code with backticks and code blocks with triple backticks
+- **Lists**: 
+  - Ordered and unordered lists with proper nesting support
+  - Checkbox lists with `- [x]` (checked) and `- [ ]` (unchecked) syntax
+- **Tables**: Full markdown table support with headers and styling
+- **Links**: Standard `[text](url)` link syntax
+- **Mathematical Expressions**: 
+  - Inline LaTeX using `\(expression\)` syntax
+  - Block LaTeX using `$$expression$$` syntax
+  - Powered by MathJax 3.0 for professional mathematical notation rendering
+- **Other Elements**: Blockquotes, horizontal rules, and mixed content support
+
+### Technical Implementation
+- **Dedicated Parser**: `markdown_parser.py` module with `MarkdownParser` class
+- **LaTeX Rendering**: MathJax 3.0 integration for real-time mathematical expression rendering
+- **Smart Processing**: Two-phase parsing to avoid infinite loops and conflicts
+- **CSS Integration**: Comprehensive styling for all markdown elements
+- **Real-time Updates**: Automatic rendering of new chat messages with full markdown support
 
 ---
 
@@ -111,6 +140,7 @@ templates/
 static/Brython-3.11.3/Lib/site-packages/
 ├── main.py                            # Brython initialization and entry point
 ├── ai_interface.py                    # AI communication and UI management
+├── markdown_parser.py                 # Comprehensive markdown parser with LaTeX support
 ├── canvas_event_handler.py            # Mouse/keyboard event handling with extensive error handling
 ├── canvas.py                          # Core SVG canvas management
 ├── workspace_manager.py               # Client-side workspace operations
@@ -226,12 +256,15 @@ ServerTests/
 - Vision toggle checkbox for canvas image capture control.
 - AI model selector with options: GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, GPT-4o Mini, GPT-3.5 Turbo etc.
 - Uses Brython (Python in the browser) for frontend logic, initialized by `main.py`.
+- **MathJax 3.0 Integration**: Automatic LaTeX rendering for mathematical expressions in chat messages.
+- **Comprehensive Markdown Support**: Real-time rendering of headers, lists, tables, code blocks, and formatted text.
 - `static/Brython-3.11.3/Lib/site-packages/canvas_event_handler.py` manages user interactions with the canvas.
 
 ## AI Interface Layer (`static/Brython-3.11.3/Lib/site-packages/ai_interface.py`)
 - Core class `AIInterface` manages Brython-side communication between UI and backend.
 - Instantiated in `main.py` and receives events from `CanvasEventHandler`.
 - Initializes client-side `WorkspaceManager` (from `static/Brython-3.11.3/Lib/site-packages/workspace_manager.py`) and `FunctionRegistry`.
+- **Markdown Integration**: Initializes `MarkdownParser` for comprehensive text formatting and LaTeX rendering.
 - Maintains dictionary of available functions for math operations and canvas manipulation (via `FunctionRegistry`).
 - Handles function call results and maintains state between interactions.
 - **UI Element References**: References `send-button` for button control, `chat-input` for input field, `vision-toggle` for vision checkbox, and `ai-model-selector` for model selection.
@@ -239,6 +272,9 @@ ServerTests/
   - `interact_with_ai`: Entry point for user interactions from UI.
   - `_send_prompt_to_ai`: Prepares JSON prompt (with canvas state, user message, tool results, vision settings from `document["vision-toggle"]`, AI model from `document["ai-model-selector"]`) and sends AJAX POST request to `/send_message` Flask endpoint.
   - `_process_ai_response`: Processes AI responses from backend. If tool calls are present, uses `ProcessFunctionCalls.get_results` and then sends results back to AI via `_send_prompt_to_ai`.
+  - `_parse_markdown_to_html`: Converts markdown text to HTML using the dedicated `MarkdownParser`.
+  - `_render_math`: Triggers MathJax rendering for newly added mathematical expressions.
+  - `_create_message_element`: Creates styled message elements with markdown support for chat display.
   - (Workspace operations like `save_workspace` are invoked via function calls processed by `ProcessFunctionCalls` which then use the client-side `WorkspaceManager` instance).
 
 ## Client-Side Brython Managers (in `static/Brython-3.11.3/Lib/site-packages/managers/`)
