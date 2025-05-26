@@ -1,3 +1,16 @@
+"""
+MatHud Flask Application Entry Point
+
+Main application launcher that initializes the Flask server, manages graceful shutdown,
+and coordinates the WebDriver for vision system functionality.
+
+Dependencies:
+    - static.app_manager: Application configuration and initialization
+    - Flask: Web framework (initialized via AppManager)
+    - Selenium WebDriver: Vision system image capture (lazy-loaded)
+    - Threading: Concurrent server execution
+"""
+
 import time
 import signal
 import sys
@@ -5,7 +18,10 @@ from static.app_manager import AppManager
 
 
 def signal_handler(sig, frame):
-    """Handle graceful shutdown on interrupt signal."""
+    """Handle graceful shutdown on interrupt signal.
+    
+    Cleans up WebDriver resources and exits the application properly.
+    """
     print('\nShutting down gracefully...')
     # Clean up WebDriverManager
     if hasattr(app, 'webdriver_manager') and app.webdriver_manager:
@@ -24,6 +40,11 @@ app = AppManager.create_app()
 signal.signal(signal.SIGINT, signal_handler)
 
 if __name__ == '__main__':
+    """Main execution block.
+    
+    Starts Flask server in a daemon thread, initializes WebDriver for vision system,
+    and maintains the main thread for graceful interrupt handling.
+    """
     try:
         # Start Flask in a thread
         from threading import Thread

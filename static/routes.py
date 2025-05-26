@@ -1,10 +1,29 @@
+"""
+MatHud Flask Route Definitions
+
+Defines all Flask application routes for AI communication, workspace management,
+and WebDriver initialization. Handles JSON requests and provides consistent API responses.
+
+Dependencies:
+    - flask: Request handling, templating, and JSON processing
+    - static.tool_call_processor: OpenAI tool call format conversion
+    - static.app_manager: Consistent API response formatting
+"""
+
 from flask import request, render_template, json
 from static.tool_call_processor import ToolCallProcessor
 from static.app_manager import AppManager
 
 
 def register_routes(app):
-    """Register all routes with the Flask application."""
+    """Register all routes with the Flask application.
+    
+    Configures all application endpoints including main page, AI communication,
+    workspace operations, and WebDriver management routes.
+    
+    Args:
+        app: Flask application instance
+    """
     
     @app.route('/')
     def get_index():

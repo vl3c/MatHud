@@ -1,14 +1,35 @@
 <!DOCTYPE html>
+<!--
+MatHud Mathematical Canvas Web Interface
+
+Main HTML template for the interactive mathematical graphing calculator.
+Provides AI-powered canvas for geometric shapes, calculations, and mathematical exploration.
+
+Key Components:
+    - MathJax: LaTeX mathematical notation rendering
+    - Brython: Python-in-browser execution for canvas operations
+    - SVG Canvas: Interactive mathematical visualization area
+    - Chat Interface: AI communication with model selection and vision toggle
+    - Responsive Layout: Dual-pane interface (canvas + chat)
+
+Dependencies:
+    - Google Fonts (Inter): Modern typography
+    - MathJax 3: Mathematical equation rendering
+    - Brython 3.11.3: Python runtime for browser-side logic
+    - Flask templates: Dynamic asset URL generation
+-->
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MatHud - Mathematical Canvas</title>
+    
+    <!-- Google Fonts for modern typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- MathJax for LaTeX rendering -->
+    <!-- MathJax configuration for LaTeX mathematical notation rendering -->
     <script>
     window.MathJax = {
         tex: {
@@ -25,18 +46,26 @@
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     
+    <!-- Brython Python runtime and mathematical libraries -->
     <script src="{{ url_for('static', filename='Brython-3.11.3/Lib/math.js') }}"></script>
     <script src="{{ url_for('static', filename='Brython-3.11.3/Lib/nerdamer.js') }}"></script>
     <script src="{{ url_for('static', filename='Brython-3.11.3/brython.js') }}"></script>
     <script src="{{ url_for('static', filename='Brython-3.11.3/brython_stdlib.js') }}"></script>
+    
+    <!-- Application styles -->
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">   
 </head>
 <body onload="brython()">
     <div class="container">
+        <!-- Mathematical Canvas Area -->
         <div class="math-container" id="math-container">
+            <!-- SVG canvas for interactive mathematical visualizations -->
             <svg id="math-svg" style="width:100%; height:100%"></svg>
         </div>        
+        
+        <!-- AI Chat Interface -->
         <div class="chat-container">
+            <!-- AI Model and Vision Configuration -->
             <div class="selection-container">
                 <div class="ai-model-selector">
                     <label for="ai-model-selector">Select AI Model:</label>
@@ -54,14 +83,22 @@
                     <label for="vision-toggle">Enable Vision</label>
                 </div>
             </div>
+            
+            <!-- Chat History Display -->
             <div class="chat-history" id="chat-history"></div>
+            
+            <!-- User Input Area -->
             <div class="chat-input-container">
                 <input class="chat-input" id="chat-input" type="text" placeholder="Type your message here...">
                 <button id="send-button">Send</button>
             </div>
         </div>
     </div>
+    
+    <!-- Main Brython application entry point -->
     <script type="text/python" src="{{ url_for('static', filename='Brython-3.11.3/Lib/site-packages/main.py') }}"></script>
+    
+    <!-- Vision toggle functionality based on AI model capabilities -->
     <script>
     document.addEventListener("DOMContentLoaded", function() {
         var aiModelSelector = document.getElementById("ai-model-selector");
@@ -71,6 +108,10 @@
         // Ensure vision is unchecked on page load
         visionToggle.checked = false;
         
+        /**
+         * Updates vision toggle availability based on selected AI model capabilities.
+         * Vision features are only available for GPT-4 family models with vision support.
+         */
         function updateVisionToggle() {
             if (aiModelSelector.value === "gpt-4.1" || 
                 aiModelSelector.value === "gpt-4.1-mini" || 
@@ -88,10 +129,10 @@
             }
         }
         
-        // Call update on page load
+        // Initialize vision toggle state on page load
         updateVisionToggle();
 
-        // Listen for changes on the AI model selector
+        // Update vision toggle when AI model selection changes
         aiModelSelector.addEventListener("change", updateVisionToggle);
     });
     </script>

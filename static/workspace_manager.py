@@ -1,3 +1,16 @@
+"""
+MatHud Server-Side Workspace Management
+
+Handles workspace file operations for saving and loading canvas states.
+Provides secure file operations with path validation and JSON-based storage.
+
+Dependencies:
+    - os: File system operations and path validation
+    - json: Workspace state serialization and deserialization
+    - re: Workspace name validation with regex
+    - datetime: Timestamp generation for metadata
+"""
+
 import os
 import json
 import re
@@ -6,6 +19,12 @@ from datetime import datetime
 WORKSPACES_DIR = "workspaces"
 
 class WorkspaceManager:
+    """Server-side workspace file operations manager.
+    
+    Manages saving, loading, listing, and deleting workspace files with
+    security validation and JSON-based state storage with metadata.
+    """
+    
     def __init__(self, workspaces_dir=WORKSPACES_DIR):
         """Initialize the workspace manager.
         

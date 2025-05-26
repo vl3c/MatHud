@@ -1,6 +1,14 @@
 #!/usr/bin/env python
 """
-Simple script to run the server tests.
+MatHud Server-Side Test Runner
+
+Simple script to run server tests with pytest integration.
+Provides command-line interface for running tests with various options.
+
+Dependencies:
+    - pytest: Testing framework
+    - subprocess: Process execution
+    - ServerTests/: Test modules directory
 
 Usage:
     python run_server_tests.py            - Run all server tests
@@ -15,7 +23,14 @@ import subprocess
 import platform
 
 def run_tests():
-    """Run the server tests with pytest."""
+    """Run the server tests with pytest.
+    
+    Processes command line arguments and executes pytest with appropriate
+    test paths and options. Handles OS-specific Python interpreter paths.
+    
+    Returns:
+        int: pytest exit code (0 for success, non-zero for failure)
+    """
     # Default test path and arguments
     test_path = "ServerTests"
     extra_args = []
@@ -76,7 +91,11 @@ def run_tests():
     return result.returncode
 
 def show_help():
-    """Show help information about this script and pytest options."""
+    """Show help information about this script and pytest options.
+    
+    Displays usage information for both this wrapper script and
+    common pytest command-line options.
+    """
     print(__doc__)
     print("Common pytest options:")
     print("  -v, --verbose       Increase verbosity")

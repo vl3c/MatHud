@@ -1,3 +1,19 @@
+"""
+MatHud OpenAI API Integration
+
+Manages OpenAI API communication with chat completions, vision support, and tool calling.
+Handles conversation history, message formatting, and model configuration.
+
+Dependencies:
+    - openai: OpenAI API client library
+    - dotenv: Environment variable loading for API keys
+    - base64: Image encoding for vision requests
+    - json: Message parsing and formatting
+    - os: Environment variable access
+    - static.functions_definitions: AI tool definitions
+    - static.ai_model: Model configuration and capabilities
+"""
+
 import json
 import os
 from dotenv import load_dotenv
@@ -8,11 +24,19 @@ from static.ai_model import AIModel
 
 
 class OpenAIChatCompletionsAPI:
+    """OpenAI API integration for chat completions with vision and tool calling support.
+    
+    Manages conversation history, handles vision-enabled messages with image data,
+    and processes tool calls for mathematical operations and canvas manipulation.
+    """
+    
     DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. DO NOT try to perform calculations by yourself, use the tools provided instead. Always analyze the canvas state to see previously computed results before proceeding."""
 
     @staticmethod
     def _initialize_api_key():
         """Initialize the OpenAI API key from environment or .env file.
+        
+        Checks environment variables first, then loads from .env file if needed.
         
         Returns:
             str: The initialized API key
@@ -35,6 +59,14 @@ class OpenAIChatCompletionsAPI:
         return api_key
 
     def __init__(self, model=None, temperature=0.2, tools=FUNCTIONS, max_tokens=32000):
+        """Initialize OpenAI API client and conversation state.
+        
+        Args:
+            model: AI model instance (defaults to AIModel.get_default_model())
+            temperature: Response randomness (default: 0.2)
+            tools: Available function definitions for tool calling
+            max_tokens: Maximum response length (default: 32000)
+        """
         self.client = OpenAI(api_key=self._initialize_api_key())  # Initialize and use the api_key
         self.model = model if model else AIModel.get_default_model()
         self.temperature = temperature
@@ -43,16 +75,30 @@ class OpenAIChatCompletionsAPI:
         self.messages = [{"role": "developer", "content": OpenAIChatCompletionsAPI.DEV_MSG}]
 
     def get_model(self):
+        """Get the current AI model instance.
+        
+        Returns:
+            AIModel: Current model configuration
+        """
         return self.model
     
     def set_model(self, identifier):
+        """Set the AI model by identifier string.
+        
+        Args:
+            identifier: Model identifier string (e.g., 'gpt-4.1')
+        """
         # Only create a new AIModel if the identifier is different
         if str(self.model) != identifier:
             self.model = AIModel.from_identifier(identifier)
             print(f"API model updated to: {identifier}")
 
     def _remove_canvas_state_from_user_messages(self):
-        """Remove canvas state from the last user message in the conversation history."""
+        """Remove canvas state from the last user message in the conversation history.
+        
+        Cleans up canvas state data to reduce token usage in subsequent requests
+        while preserving other message content.
+        """
         # Find the last user message
         for message in reversed(self.messages):
             if message["role"] == "user" and "content" in message:
@@ -85,7 +131,11 @@ class OpenAIChatCompletionsAPI:
                         pass
 
     def _remove_images_from_user_messages(self):
-        """Remove image content from the last user message in the conversation history."""
+        """Remove image content from the last user message in the conversation history.
+        
+        Extracts text content from vision messages to reduce token usage
+        in follow-up requests while preserving conversation context.
+        """
         # Find the last user message
         for message in reversed(self.messages):
             if message["role"] == "user" and "content" in message:
@@ -98,7 +148,11 @@ class OpenAIChatCompletionsAPI:
                     message["content"] = text_parts[0]["text"]
 
     def _clean_conversation_history(self):
-        """Clean up the conversation history by removing canvas states and images from the last user message."""
+        """Clean up the conversation history by removing canvas states and images from the last user message.
+        
+        Optimizes conversation history for token efficiency by removing
+        large data elements while preserving conversation flow.
+        """
         print(f"All messages BEFORE removing canvas_state: \n{self.messages}\n\n")
         self._remove_canvas_state_from_user_messages()
         self._remove_images_from_user_messages()
@@ -135,11 +189,14 @@ class OpenAIChatCompletionsAPI:
     def _prepare_message_content(self, full_prompt):
         """Prepare message content with optional canvas image for vision-enabled messages.
         
+        Checks vision toggle and model capabilities to determine whether to include
+        canvas image data in the message for multimodal AI analysis.
+        
         Args:
             full_prompt (str): The full JSON prompt string containing user message and vision flag
             
         Returns:
-            The prepared message content with or without image
+            The prepared message content with or without image (str or list)
         """
         # Parse the prompt which is a JSON string
         prompt_json = json.loads(full_prompt)
@@ -218,6 +275,9 @@ class OpenAIChatCompletionsAPI:
     def _append_tool_messages(self, tool_calls):
         """Create and append tool messages for each tool call.
         
+        Creates placeholder tool messages for conversation history tracking.
+        Actual tool execution happens on the client side.
+        
         Args:
             tool_calls: List of tool calls from the assistant's response
         """
@@ -232,6 +292,17 @@ class OpenAIChatCompletionsAPI:
                 self.messages.append(tool_message)
 
     def create_chat_completion(self, full_prompt):
+        """Create chat completion with OpenAI API.
+        
+        Main entry point for AI communication. Handles message preparation,
+        API calls, response processing, and conversation history management.
+        
+        Args:
+            full_prompt: JSON string containing user message, canvas state, and options
+            
+        Returns:
+            OpenAI response choice object with message and finish_reason
+        """
         # Prepare message content with optional canvas image
         message_content = self._prepare_message_content(full_prompt)
 
