@@ -1,5 +1,5 @@
 # Bug Fixes
-- fix bug when deleting an object with non-existent name
+-
 
 # Basic Mathematical Tools
 - implement full matrix operations (addition, multiplication, inverse, row operations)
