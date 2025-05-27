@@ -979,7 +979,7 @@ FUNCTIONS = [
             {
                 "type": "function",
                 "function": {
-                    "name": "create_angle_by_points",
+                    "name": "create_angle",
                     "description": "Creates and draws an angle defined by three points. The first point (vx, vy) is the common vertex, and the other two points (p1x, p1y and p2x, p2y) define the angle's arms. For example, in an angle ABC, (vx, vy) would be the coordinates of point B. The angle's visual representation (arc and degree value) will be drawn. Segments forming the angle will be created if they don't exist.",
                     "strict": True,
                     "parameters": {
@@ -1030,7 +1030,7 @@ FUNCTIONS = [
             {
                 "type": "function",
                 "function": {
-                    "name": "remove_angle",
+                    "name": "delete_angle",
                     "description": "Removes an angle by its name. This will also attempt to remove its constituent segments if they are no longer part of other drawables.",
                     "strict": True,
                     "parameters": {

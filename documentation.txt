@@ -176,7 +176,7 @@ Attributes:
 - `create_colored_area(drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3)`: Create a colored area between two objects
 - `translate_object(name, x_offset, y_offset)`: Translate an object by specified offsets
 - `rotate_object(name, angle)`: Rotate an object by specified angle
-- `create_angle_by_points(vx, vy, p1x, p1y, p2x, p2y, color=None, angle_name=None, is_reflex=False)`: Create an angle from three points
+- `create_angle(vx, vy, p1x, p1y, p2x, p2y, color=None, angle_name=None, is_reflex=False)`: Create an angle from three points
 
 ### Management Classes
 
@@ -283,8 +283,8 @@ This class coordinates specialized managers for each drawable type:
 - `get_colored_areas_for_drawable(drawable)`: Get colored areas for a drawable
 - `update_colored_area_style(name, color=None, opacity=None)`: Update colored area style
 - `create_drawables_from_new_connections()`: Create drawables from new connections
-- `create_angle_by_points(vx, vy, p1x, p1y, p2x, p2y, label=None, color=None, angle_name=None)`: Create an angle by points
-- `remove_angle(name)`: Remove an angle by name
+- `create_angle(vx, vy, p1x, p1y, p2x, p2y, label=None, color=None, angle_name=None)`: Create an angle by points
+- `delete_angle(name)`: Delete an angle by name
 - `update_angle_properties(name, new_label=None, new_color=None)`: Update angle properties
 
 #### Drawable Manager Proxy (`managers/drawable_manager_proxy.py`)
@@ -920,7 +920,7 @@ State Persistence:
 - `get_angle_by_name(name)`: Retrieves an angle by its name
 - `get_angle_by_segments(segment1, segment2, is_reflex_filter=None)`: Retrieves an angle by its segments
 - `get_angle_by_points(vertex_point, arm1_point, arm2_point, is_reflex_filter=None)`: Retrieves an angle by its defining points
-- `remove_angle(angle_name)`: Removes an angle and its dependencies
+- `delete_angle(angle_name)`: Removes an angle and its dependencies
 - `update_angle_properties(angle_name, new_color=None)`: Updates angle properties
 - `handle_segment_updated(updated_segment_name)`: Handles segment updates
 - `handle_segment_removed(removed_segment_name)`: Handles segment removal
