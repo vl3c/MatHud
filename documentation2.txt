@@ -963,6 +963,78 @@ providing a cleaner separation of concerns.
 - `SegmentsBoundedColoredAreas`: Get all SegmentsBoundedColoredArea objects
 - `FunctionSegmentBoundedColoredAreas`: Get all FunctionSegmentBoundedColoredArea objects
 
+#### Drawable Dependency Manager (`managers/drawable_dependency_manager.py`)
+
+**File Header:**
+```
+MatHud Drawable Dependency Management System
+
+Maintains hierarchical relationships between drawable objects to preserve geometric integrity
+and enable intelligent cascading operations. Tracks parent-child dependencies and manages
+the propagation of changes through the dependency graph.
+
+Dependency Architecture:
+    - Hierarchical Relationships: Parent-child tracking between geometric objects
+    - Type-Based Hierarchy: Points → Segments → Triangles/Rectangles → Complex Objects
+    - Bidirectional Mapping: Efficient lookup of both parents and children
+    - Transitive Closure: Recursive traversal of entire dependency chains
+
+Core Dependency Rules:
+    - Segments depend on their endpoint Points
+    - Vectors depend on their origin and tip Points  
+    - Triangles depend on their three Segments and six Points
+    - Rectangles depend on their four Segments and four Points
+    - Circles/Ellipses depend on their center Points
+    - ColoredAreas depend on their boundary Functions and/or Segments
+    - Angles depend on their vertex Point and two arm Segments
+
+Change Propagation:
+    - Canvas Reference Updates: Ensures all objects maintain proper canvas references
+    - Dependency Analysis: Automatic detection of relationships during object creation
+    - Cascading Operations: Moving/deleting parents affects all children
+    - Integrity Maintenance: Prevents orphaned objects and broken references
+
+Graph Operations:
+    - Dependency Registration: register_dependency(child, parent)
+    - Relationship Queries: get_parents(), get_children(), get_all_parents(), get_all_children()
+    - Graph Cleanup: remove_drawable() removes all references
+    - Topological Sorting: resolve_dependency_order() for proper operation sequencing
+
+State Management:
+    - Deep Copying Support: Handles state serialization for undo/redo
+    - Reference Restoration: Rebuilds dependency graph after state restoration
+    - Validation: Ensures all objects have required methods (get_class_name)
+    - Error Recovery: Graceful handling of missing or invalid dependencies
+
+Mathematical Integration:
+    - Coordinate Matching: Uses MathUtils for floating-point coordinate comparisons
+    - Geometric Validation: Ensures relationships match geometric reality
+    - Tolerance Handling: Robust matching with mathematical precision considerations
+```
+
+**Class Documentation:**
+```
+Manages dependencies between drawable objects to maintain hierarchical structure.
+
+This class:
+- Tracks parent-child relationships between drawables
+- Resolves dependency chains
+- Handles propagation of changes (like canvas references)
+```
+
+**Key Methods:**
+- `__init__(drawable_manager_proxy=None)`: Initialize the dependency manager with drawable manager proxy
+- `register_dependency(child, parent)`: Register a child-parent dependency relationship
+- `unregister_dependency(child, parent)`: Unregister a specific child-parent dependency
+- `get_parents(drawable)`: Get all direct parents of a drawable
+- `get_children(drawable)`: Get all direct children of a drawable
+- `get_all_parents(drawable)`: Get all parents recursively (transitive closure)
+- `get_all_children(drawable)`: Get all children recursively (transitive closure)
+- `remove_drawable(drawable)`: Remove all dependencies for a drawable
+- `update_canvas_references(drawable, canvas)`: Update canvas references for drawable and its dependencies
+- `analyze_drawable_for_dependencies(drawable)`: Analyze a drawable and register its dependencies
+- `resolve_dependency_order(drawables)`: Resolve dependency order using topological sorting
+
 #### Point Manager (`managers/point_manager.py`)
 
 **File Header:**
@@ -1578,46 +1650,54 @@ Provides coordinated access and updates to dependent objects.
 ```
 MatHud Undo/Redo State Management System
 
-Manages state archiving and restoration for the mathematical canvas system.
-Provides complete undo/redo functionality with deep state preservation.
+Provides comprehensive undo and redo functionality for canvas operations through state archiving
+and restoration. Maintains operation history and handles complex object relationships during
+state transitions.
 
-Core Responsibilities:
-    - State Archiving: Deep serialization of entire canvas state
-    - Stack Management: Efficient undo and redo stack operations
-    - State Restoration: Complete reconstruction of canvas from archived states
-    - Memory Management: Optimized storage and cleanup of historical states
+State Management Architecture:
+    - Snapshot System: Deep copying of entire canvas state for each operation
+    - Dual Stack System: Separate undo and redo stacks for bidirectional navigation
+    - Automatic Archiving: State capture before any destructive operation
+    - State Restoration: Complete canvas reconstruction from archived states
 
-State Architecture:
-    - Deep Copy Strategy: Complete object state preservation using deepcopy
-    - Stack-Based Storage: LIFO operations for undo/redo functionality
-    - Atomic Operations: Full state capture prevents partial state corruption
-    - Efficient Restoration: Quick canvas reconstruction from archived states
+Archived State Components:
+    - Drawable Objects: Complete deep copy of all geometric objects and their properties
+    - Computation History: Mathematical operation results and expressions
+    - Object Relationships: Preservation of parent-child dependencies
+    - Canvas References: Proper object-to-canvas relationship maintenance
+
+Operation Flow:
+    - archive(): Captures current state before modifications
+    - undo(): Restores previous state and moves current to redo stack
+    - redo(): Restores next state and moves current to undo stack
+    - State clearing: Automatic redo stack clearing on new operations
+
+Complex State Handling:
+    - Reference Reconstruction: _fix_drawable_canvas_references() ensures proper canvas links
+    - Dependency Rebuilding: _rebuild_dependency_graph() recreates object relationships
+    - Deep Copy Management: Handles nested object structures and circular references
+    - Memory Efficiency: Strategic state limitation to prevent memory bloat
 
 Integration Points:
-    - Canvas: Primary integration point for state operations
-    - DrawableManager: State serialization of all drawable objects
-    - Mathematical Operations: Automatic archiving before significant operations
-    - User Interface: Responsive undo/redo commands
+    - DrawableManager: State capture of all drawable objects
+    - DrawableDependencyManager: Dependency graph reconstruction
+    - Canvas: Automatic redrawing after state changes
+    - Mathematical Operations: Computation history preservation
 
-Advanced Features:
-    - Memory Optimization: Intelligent cleanup of old states
-    - State Validation: Ensures archived states are complete and valid
-    - Error Recovery: Graceful handling of state restoration failures
-    - Performance Monitoring: Efficient state operations without lag
-
-Mathematical Context:
-    - Geometric State: Preserves all geometric object states and relationships
-    - Coordinate Systems: Maintains viewport and coordinate transformations
-    - Operation History: Tracks mathematical computation sequences
-    - Visual State: Preserves styling, colors, and visual properties
+Error Recovery:
+    - Graceful Degradation: Continues operation even if some references can't be restored
+    - Validation: Checks for required manager instances before operations
+    - Logging: Comprehensive warning system for debugging state issues
 ```
 
 **Class Documentation:**
 ```
-Manages undo/redo operations for a Canvas by storing and restoring states.
+Manages undo and redo operations for a Canvas object.
 
-Uses deep copying to preserve complete object states and provides stack-based
-undo/redo functionality for mathematical visualization operations.
+This class is responsible for:
+- Archiving canvas states (for undo operations)
+- Handling undo operations (restore previous state)
+- Handling redo operations (restore undone state)
 ```
 
 **Key Methods:**
@@ -1628,6 +1708,8 @@ undo/redo functionality for mathematical visualization operations.
 - `can_undo()`: Check if undo operation is possible
 - `can_redo()`: Check if redo operation is possible
 - `clear()`: Clear all archived states
+- `_fix_drawable_canvas_references()`: Ensure all drawables have proper canvas references
+- `_rebuild_dependency_graph()`: Rebuild dependency relationships between drawables
 
 ### Drawable Classes
 
