@@ -1,0 +1,2708 @@
+# MatHud Project Documentation
+
+## Complete Reference Manual
+
+This documentation serves as a **complete reference manual** for:
+- **System Architecture Understanding**: Comprehensive overview of design patterns and component relationships
+- **Developer Onboarding**: Complete guide for new developers joining the project
+- **API Reference**: Detailed documentation of all available methods and interfaces
+- **Mathematical Implementation**: Deep dive into mathematical computation and visualization capabilities
+- **AI Integration**: Complete guide to AI interface and function call processing
+- **State Management**: Comprehensive coverage of undo/redo and workspace persistence
+
+This document contains comprehensive documentation extracted from all files in the MatHud project, including file headers and method documentation.
+
+## Table of Contents
+
+### Core Application Files
+1. Main Application (`app.py`)
+2. Canvas System (`canvas.py`)
+3. Canvas Event Handler (`canvas_event_handler.py`)
+4. AI Interface (`ai_interface.py`)
+5. Result Processor (`result_processor.py`)
+6. Test Runner (`test_runner.py`)
+7. Workspace Manager (`workspace_manager.py`)
+8. Cartesian System (`cartesian_system_2axis.py`)
+9. Expression Validator (`expression_validator.py`)
+10. Markdown Parser (`markdown_parser.py`)
+
+### Drawable Classes
+1. Base Drawable (`drawables/drawable.py`)
+2. Position (`drawables/position.py`)
+3. Point (`drawables/point.py`)
+4. Segment (`drawables/segment.py`)
+5. Vector (`drawables/vector.py`)
+6. Triangle (`drawables/triangle.py`)
+7. Rectangle (`drawables/rectangle.py`)
+8. Circle (`drawables/circle.py`)
+9. Ellipse (`drawables/ellipse.py`)
+10. Angle (`drawables/angle.py`)
+11. Function (`drawables/function.py`)
+12. Colored Area (`drawables/colored_area.py`)
+13. Functions Bounded Colored Area (`drawables/functions_bounded_colored_area.py`)
+14. Segments Bounded Colored Area (`drawables/segments_bounded_colored_area.py`)
+15. Function Segment Bounded Colored Area (`drawables/function_segment_bounded_colored_area.py`)
+16. Rotatable Polygon (`drawables/rotatable_polygon.py`)
+
+### Management Classes
+1. Drawable Manager (`managers/drawable_manager.py`)
+2. Drawable Manager Proxy (`managers/drawable_manager_proxy.py`)
+3. Drawables Container (`managers/drawables_container.py`)
+4. Drawable Dependency Manager (`managers/drawable_dependency_manager.py`)
+5. Undo Redo Manager (`managers/undo_redo_manager.py`)
+6. Transformations Manager (`managers/transformations_manager.py`)
+
+### Specialized Managers
+1. Point Manager (`managers/point_manager.py`)
+2. Segment Manager (`managers/segment_manager.py`)
+3. Vector Manager (`managers/vector_manager.py`)
+4. Triangle Manager (`managers/triangle_manager.py`)
+5. Rectangle Manager (`managers/rectangle_manager.py`)
+6. Circle Manager (`managers/circle_manager.py`)
+7. Ellipse Manager (`managers/ellipse_manager.py`)
+8. Function Manager (`managers/function_manager.py`)
+9. Colored Area Manager (`managers/colored_area_manager.py`)
+10. Angle Manager (`managers/angle_manager.py`)
+
+### Utility Modules
+1. Math Utils (`utils/math_utils.py`)
+2. Style Utils (`utils/style_utils.py`)
+3. Geometry Utils (`utils/geometry_utils.py`)
+4. Computation Utils (`utils/computation_utils.py`)
+
+### Name Generators
+1. Base Name Generator (`name_generator/base.py`)
+2. Drawable Name Generator (`name_generator/drawable.py`)
+3. Point Name Generator (`name_generator/point.py`)
+4. Function Name Generator (`name_generator/function.py`)
+
+### Supporting Files
+1. Expression Evaluator (`expression_evaluator.py`)
+2. Function Registry (`function_registry.py`)
+3. Process Function Calls (`process_function_calls.py`)
+4. Constants (`constants.py`)
+5. Geometry (`geometry.py`)
+6. Result Validator (`result_validator.py`)
+7. Main (`main.py`)
+
+### Server-Side Components
+1. Server-Side Workspace Manager (`static/workspace_manager.py`)
+
+---
+
+## Detailed Documentation
+
+### Core Application Files
+
+#### Main Application (`app.py`)
+
+**File Header:**
+```
+MatHud Flask Application Entry Point
+
+Main application launcher that initializes the Flask server, manages graceful shutdown,
+and coordinates the WebDriver for vision system functionality.
+
+Dependencies:
+    - static.app_manager: Application configuration and initialization
+    - Flask: Web framework (initialized via AppManager)
+    - Selenium WebDriver: Vision system image capture (lazy-loaded)
+    - Threading: Concurrent server execution
+```
+
+**Methods:**
+- `signal_handler(sig, frame)`: Handle graceful shutdown on interrupt signal. Cleans up WebDriver resources and exits the application properly.
+- `__main__`: Main execution block. Starts Flask server in a daemon thread, initializes WebDriver for vision system, and maintains the main thread for graceful interrupt handling.
+
+#### Canvas System (`canvas.py`)
+
+**File Header:**
+```
+MatHud Mathematical Canvas System
+
+Core SVG-based canvas for interactive mathematical visualization and geometric construction.
+Serves as the central coordinator for all drawable objects, coordinate systems, and user interactions.
+
+Key Features:
+    - SVG viewport management with zoom/pan capabilities
+    - Geometric object creation (points, segments, vectors, shapes, functions)
+    - Coordinate system with Cartesian grid visualization
+    - Undo/redo state management for user actions
+    - Mathematical computation history tracking
+    - Colored area visualization between objects
+    - Angle measurement and display
+    - Object transformations (translate, rotate)
+
+Architecture:
+    - Canvas: Central coordinator and state manager
+    - DrawableManager: Handles all geometric object lifecycle
+    - UndoRedoManager: Provides state archiving and restoration
+    - TransformationsManager: Manages object positioning and rotation
+    - Cartesian2Axis: Coordinate system visualization
+
+Dependencies:
+    - browser.document: DOM manipulation for SVG rendering
+    - geometry: Geometric object definitions (Point, Position, etc.)
+    - cartesian_system_2axis: Coordinate grid system
+    - utils.*: Mathematical, styling, and geometry utilities
+    - managers.*: Specialized management components
+```
+
+**Class Documentation:**
+```
+Central mathematical visualization canvas coordinating all drawable objects and interactions.
+
+Manages the SVG viewport, coordinate system, geometric objects, and user interactions.
+Provides the main interface for creating, manipulating, and visualizing mathematical content.
+
+Attributes:
+    width (float): Canvas viewport width in pixels
+    height (float): Canvas viewport height in pixels
+    center (Position): Current viewport center point
+    scale_factor (float): Current zoom level (1.0 = normal)
+    computations (list): History of mathematical computations performed
+    cartesian2axis (Cartesian2Axis): Coordinate grid system
+    drawable_manager (DrawableManager): Manages all geometric objects
+    undo_redo_manager (UndoRedoManager): Handles state archiving/restoration
+    transformations_manager (TransformationsManager): Manages object transformations
+```
+
+**Key Methods:**
+- `__init__(width, height, draw_enabled=True)`: Initialize the mathematical canvas with specified dimensions. Sets up the coordinate system, managers, and initial state for mathematical visualization.
+- `add_drawable(drawable)`: Add a drawable object to the canvas
+- `draw(apply_zoom=False)`: Draw all canvas content including coordinate system and drawable objects
+- `clear()`: Clear all drawables from the canvas
+- `reset()`: Reset the canvas to its initial state
+- `archive()`: Archive the current state for undo functionality
+- `undo()`: Restores the last archived state from the undo stack
+- `redo()`: Restores the last undone state from the redo stack
+- `get_drawables()`: Get all drawables as a flat list
+- `create_point(x, y, name="", extra_graphics=True)`: Create a point at the specified coordinates
+- `delete_point(x, y)`: Delete a point at the specified coordinates
+- `create_segment(x1, y1, x2, y2, name="", extra_graphics=True)`: Create a line segment between two points
+- `create_vector(origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True)`: Create a vector from origin to tip
+- `create_triangle(x1, y1, x2, y2, x3, y3, name="", extra_graphics=True)`: Create a triangle from three points
+- `create_rectangle(px, py, opposite_px, opposite_py, name="", extra_graphics=True)`: Create a rectangle from diagonal points
+- `create_circle(center_x, center_y, radius, name="", extra_graphics=True)`: Create a circle with specified center and radius
+- `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", extra_graphics=True)`: Create an ellipse with specified parameters
+- `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a mathematical function on the canvas
+- `create_colored_area(drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3)`: Create a colored area between two objects
+- `translate_object(name, x_offset, y_offset)`: Translate an object by specified offsets
+- `rotate_object(name, angle)`: Rotate an object by specified angle
+- `create_angle(vx, vy, p1x, p1y, p2x, p2y, color=None, angle_name=None, is_reflex=False)`: Create an angle from three points
+
+#### Canvas Event Handler (`canvas_event_handler.py`)
+
+**File Header:**
+```
+MatHud Canvas Event Management System
+
+Handles all user interactions with the mathematical canvas including mouse events, keyboard input,
+and coordinate system navigation. Provides smooth zoom, pan, and click detection capabilities.
+
+Key Features:
+    - Mouse wheel zooming with dynamic zoom point tracking
+    - Canvas panning via mouse drag operations
+    - Double-click coordinate capture for precise input
+    - Throttled mouse movement for performance optimization
+    - Chat interface keyboard shortcuts (Enter key)
+    - Error handling for robust user experience
+
+Event Types:
+    - Wheel: Zoom in/out with scale factor adjustments
+    - Mouse down/up: Drag initialization and termination
+    - Mouse move: Canvas panning and coordinate tracking
+    - Key press: Chat input shortcuts and navigation
+    - Double-click: Coordinate capture for mathematical input
+
+Dependencies:
+    - browser: DOM event handling and element access
+    - constants: Timing thresholds and scaling factors
+    - geometry: Position calculations for coordinate systems
+```
+
+**Class Documentation:**
+```
+Manages all user interaction events for the mathematical canvas interface.
+
+Coordinates mouse and keyboard events to provide intuitive navigation, input capture,
+and canvas manipulation capabilities. Implements performance optimizations through
+event throttling and efficient coordinate calculations.
+
+Attributes:
+    canvas (Canvas): Mathematical canvas for visualization and state updates
+    ai_interface (AIInterface): Communication interface for user input processing
+    last_click_timestamp (float): Timestamp of last click for double-click detection
+    current_mouse_position (Position): Current mouse coordinates for drag calculations
+```
+
+**Key Methods:**
+- `__init__(canvas, ai_interface)`: Initialize event handler with canvas and AI interface integration
+- `bind_events()`: Bind all event handlers with error handling
+- `check_enter(event)`: Handle enter key press in chat input
+- `handle_wheel(event)`: Handle mouse wheel events for zooming
+- `handle_mousedown(event)`: Handle mouse down events for drag initialization and double-click detection
+- `handle_mouseup(event)`: Handle mouse up events for drag termination
+- `handle_mousemove(event)`: Handle mouse move events for canvas panning and coordinate tracking
+- `get_decimal_places(value)`: Calculate appropriate decimal places for coordinate display
+- `throttle(wait_ms)`: Decorator factory for throttling function calls
+
+#### AI Interface (`ai_interface.py`)
+
+**File Header:**
+```
+MatHud AI Communication Interface
+
+Handles bidirectional communication between the client-side canvas and backend AI services.
+Manages user interactions, function call processing, and visual presentation of AI responses.
+
+Key Features:
+    - AJAX-based communication with backend AI API
+    - Function call execution and result aggregation
+    - Markdown parsing and MathJax rendering for AI responses
+    - Chat interface management with styled messages
+    - SVG state transmission for AI vision capabilities
+    - Computation history integration with canvas state
+    - Testing framework integration
+
+Communication Flow:
+    1. User input → JSON payload creation with canvas state
+    2. Backend AI processing with function calls
+    3. Function execution and result collection
+    4. Response rendering with markdown and math support
+    5. Canvas state updates with computation results
+
+Dependencies:
+    - browser: DOM manipulation and AJAX requests
+    - function_registry: Available AI function mappings
+    - process_function_calls: Function execution coordination
+    - workspace_manager: File persistence operations
+    - markdown_parser: Rich text formatting support
+```
+
+**Class Documentation:**
+```
+Communication bridge between the mathematical canvas and backend AI services.
+
+Orchestrates the complete interaction cycle from user input to AI response processing,
+including function call execution, state management, and visual presentation.
+
+Attributes:
+    canvas (Canvas): Mathematical canvas for visualization and state management
+    workspace_manager (WorkspaceManager): Handles workspace persistence operations
+    is_processing (bool): Tracks whether an AI request is currently being processed
+    available_functions (dict): Registry of all functions available to the AI
+    undoable_functions (tuple): Functions that support undo/redo operations
+    markdown_parser (MarkdownParser): Converts markdown text to HTML for rich formatting
+```
+
+**Key Methods:**
+- `__init__(canvas)`: Initialize the AI interface with canvas integration and function registry
+- `run_tests()`: Run unit tests for the AIInterface class and return results to the AI
+- `interact_with_ai(event)`: Main entry point for user interactions with the AI system
+- `_create_message_element(sender, message, message_type="normal")`: Create a styled message element with markdown support
+- `_parse_markdown_to_html(text)`: Parse markdown text to HTML using the dedicated markdown parser
+- `_render_math()`: Trigger MathJax rendering for newly added content
+- `_store_results_in_canvas_state(call_results)`: Store valid function call results in the canvas state
+- `_send_prompt_to_ai(user_message=None, tool_call_results=None)`: Send request to AI backend with canvas state
+- `_create_request_payload(prompt, include_svg=True)`: Create JSON payload for AI requests
+- `_disable_send_controls()`: Disable send functionality while processing
+- `_enable_send_controls()`: Enable send functionality after processing
+
+#### Result Processor (`result_processor.py`)
+
+**File Header:**
+```
+MatHud Function Call Result Processing
+
+Handles execution of AI function calls and aggregation of their results.
+Manages state archiving, computation tracking, and error handling for function execution.
+
+Key Features:
+    - Function call validation and execution
+    - Result formatting and type consistency
+    - State archiving for undoable operations
+    - Computation history integration
+    - Error handling and exception management
+    - Expression evaluation result processing
+
+Processing Flow:
+    1. Input validation for function calls and available functions
+    2. State archiving for undoable operations
+    3. Individual function call execution with error handling
+    4. Result formatting and key generation
+    5. Computation history integration (for mathematical operations)
+    6. Result aggregation into structured dictionary
+
+Dependencies:
+    - constants: Success message definitions for result formatting
+```
+
+**Class Documentation:**
+```
+Handles the processing of function calls and their results.
+
+Executes AI function calls, manages state for undoable operations, and aggregates
+results with proper formatting and error handling. Integrates with canvas
+computation history for mathematical operations.
+```
+
+**Key Methods:**
+- `get_results(calls, available_functions, undoable_functions, canvas)`: Process function calls and collect their results
+- `_validate_inputs(calls, available_functions, undoable_functions)`: Validate the input parameters
+- `_prepare_helper_variables(undoable_functions)`: Prepare helper variables needed for processing
+- `_process_function_call(call, available_functions, non_computation_functions, unformattable_functions, canvas, results)`: Process a single function call and update results
+- `_is_function_available(function_name, available_functions, results)`: Check if the function exists and update results if not
+- `_execute_function(function_name, args, available_functions)`: Execute the function with the provided arguments
+- `_generate_result_key(function_name, args)`: Generate a consistent key format for the results dictionary
+- `_process_result(function_name, args, result, key, unformattable_functions, non_computation_functions, canvas, results)`: Process the result based on function type
+- `_handle_exception(exception, function_name, results)`: Handle exceptions during function calls
+- `_add_computation_if_needed(result, function_name, non_computation_functions, expression, canvas)`: Add computation to canvas if needed
+
+#### Test Runner (`test_runner.py`)
+
+**File Header:**
+```
+MatHud Testing Framework Runner
+
+Executes test suites for mathematical functions and canvas operations.
+Provides formatted test results for AI analysis and validation of system functionality.
+
+Testing Categories:
+    - Graphics drawing capabilities and geometric object creation
+    - Mathematical function evaluation and computation accuracy
+    - Canvas state management and object interactions
+    - Error handling and edge case validation
+
+Key Features:
+    - Automated test execution with result aggregation
+    - AI-formatted output for integration testing
+    - Function call validation using real canvas operations
+    - Error tracking and debugging information
+    - State isolation between test runs
+
+Dependencies:
+    - process_function_calls: Function execution framework for testing
+```
+
+**Class Documentation:**
+```
+Executes test suites and formats results for AI analysis and validation.
+
+Provides comprehensive testing capabilities for mathematical functions, canvas operations,
+and system integration. Manages test execution state and result formatting for both
+human and AI consumption.
+
+Attributes:
+    canvas (Canvas): Canvas instance for testing geometric operations
+    available_functions (dict): Function registry for validation testing
+    undoable_functions (tuple): Functions that support undo/redo testing
+    test_results: Aggregated results from test execution
+    internal_failures (list): Collection of test failures for debugging
+    internal_errors (list): Collection of test errors for analysis
+    internal_tests_run (int): Counter of executed test cases
+```
+
+**Key Methods:**
+- `__init__(canvas, available_functions, undoable_functions)`: Initialize test runner with canvas and function registry access
+- `run_tests()`: Execute all test suites and return formatted results
+- `get_test_results()`: Get the current test results
+- `format_results_for_ai(results)`: Format test results for AI analysis and consumption
+- `_test_graphics_drawing()`: Run tests for graphics drawing capabilities
+- `_test_undoable_functions()`: Test that all undoable functions are available
+- `_get_graphics_test_function_calls()`: Return the list of function calls for graphics drawing tests
+- `_validate_undoable_functions()`: Validate that all undoable functions are in the available functions list
+- `_run_client_tests()`: Execute client-side test modules
+- `_merge_test_results(client_results)`: Merge internal and client test results
+- `_add_internal_failure(test_name, error_message)`: Add a failure to the internal failures list
+- `_add_internal_error(test_name, error_message)`: Add an error to the internal errors list
+
+#### Client-Side Workspace Manager (`workspace_manager.py`)
+
+**File Header:**
+```
+MatHud Client-Side Workspace Persistence and State Management System
+
+Client-side workspace manager that runs in the browser using Brython. Manages workspace 
+operations including saving, loading, listing and deleting workspaces through AJAX 
+communication with the Flask backend server.
+
+Key Features:
+    - Canvas state serialization with complete object preservation
+    - AJAX-based communication with backend workspace API
+    - Incremental object restoration with dependency resolution
+    - Error handling and validation for workspace operations
+    - Support for all drawable object types and relationships
+    - Computation history preservation and restoration
+
+Workspace Operations:
+    - Save: Serializes current canvas state and sends to server via AJAX
+    - Load: Requests workspace data from server and restores canvas state
+    - List: Retrieves available workspace names from server storage
+    - Delete: Removes workspace files from server persistent storage
+
+Object Restoration:
+    - Points: Coordinate-based geometric primitives
+    - Segments: Line segments with endpoint dependency resolution
+    - Vectors: Directed segments with origin/tip point relationships
+    - Triangles: Three-vertex polygons with automatic edge detection
+    - Rectangles: Four-corner polygons with diagonal point calculation and segment reuse
+    - Circles: Circular objects with center point dependencies
+    - Ellipses: Elliptical objects with center and rotation parameters
+    - Functions: Mathematical function expressions with domain settings
+    - Colored Areas: Bounded regions with drawable object relationships
+    - Angles: Angular measurements with vertex and arm dependencies
+
+Dependencies:
+    - browser: AJAX communication for backend workspace operations
+    - utils.math_utils: Geometric calculations for object restoration
+    - json: State serialization and deserialization
+```
+
+**Class Documentation:**
+```
+Client-side workspace manager that handles workspace operations via AJAX communication.
+
+This class handles all workspace-related operations and their associated error handling.
+It works with the canvas to save and restore workspace states, including all geometric
+objects and computations. Runs in the browser using Brython.
+
+Args:
+    canvas: The canvas instance to manage workspaces for.
+```
+
+**Key Methods:**
+- `__init__(canvas)`: Initialize workspace manager with canvas reference
+- `save_workspace(name=None)`: Save the current workspace state to server via AJAX
+- `load_workspace(name=None)`: Load and restore workspace state from server
+- `list_workspaces()`: Retrieve list of available workspace names from server
+- `delete_workspace(name)`: Remove workspace from server persistent storage
+- `_create_points(state)`: Create points from workspace state during restoration
+- `_create_segments(state)`: Create segments from workspace state with endpoint validation
+- `_create_vectors(state)`: Create vectors from workspace state with origin/tip resolution
+- `_create_triangles(state)`: Create triangles from workspace state with vertex dependencies
+- `_create_rectangles(state)`: Create rectangles from workspace state with diagonal point calculation and segment reuse
+- `_create_circles(state)`: Create circles from workspace state with center point dependencies
+- `_create_ellipses(state)`: Create ellipses from workspace state with parameter restoration
+- `_create_functions(state)`: Create mathematical functions from workspace state
+- `_create_colored_areas(state)`: Create colored areas from workspace state with boundary resolution
+- `_create_angles(state)`: Create angles from workspace state with vertex/arm dependencies
+- `_restore_computations(state)`: Restore computation history from workspace state
+- `_restore_workspace_state(state)`: Main restoration orchestrator for complete workspace state
+- `_find_rectangle_segments(points)`: Find existing segments that form a rectangle
+- `_get_properly_oriented_rectangle_segments(segments, points)`: Arrange segments in proper rectangle order
+
+#### Cartesian System (`cartesian_system_2axis.py`)
+
+**File Header:**
+```
+MatHud Two-Axis Cartesian Coordinate System
+
+Implements a complete Cartesian coordinate system with grid visualization, axis rendering,
+and coordinate transformations. Provides the mathematical foundation for geometric object
+positioning and user interaction coordinate mapping.
+
+Key Features:
+    - Dynamic grid scaling with zoom-adaptive tick spacing
+    - Axis rendering with numerical labels and origin marking
+    - Coordinate transformation between screen and mathematical space
+    - Viewport boundary calculations for efficient rendering
+    - Grid line visualization with customizable spacing
+    - Origin point management and positioning
+
+Visual Components:
+    - X and Y axes with customizable colors and thickness
+    - Tick marks with automatic spacing calculation
+    - Numerical labels with mathematical formatting
+    - Grid lines for visual coordinate reference
+    - Origin marker ('O') at coordinate system center
+
+Coordinate Transformations:
+    - Screen to mathematical coordinate conversion
+    - Mathematical to screen coordinate conversion
+    - Zoom and pan transformation support
+    - Viewport boundary calculations
+    - Visible area determination for rendering optimization
+
+Dependencies:
+    - browser.document: DOM manipulation for SVG rendering
+    - geometry: Drawable base class and Position utilities
+    - constants: Default styling and configuration values
+    - utils.math_utils: Mathematical calculations and number formatting
+```
+
+**Class Documentation:**
+```
+Two-axis Cartesian coordinate system with dynamic scaling and grid visualization.
+
+Inherits from Drawable to provide complete coordinate system rendering with
+automatic scaling, tick spacing calculation, and viewport management.
+
+Attributes:
+    width (float): Canvas width for coordinate system bounds
+    height (float): Canvas height for coordinate system bounds
+    origin (Position): Current origin position in screen coordinates
+    default_tick_spacing (float): Base tick spacing for coordinate labels
+    current_tick_spacing (float): Current tick spacing adjusted for zoom level
+    max_ticks (int): Maximum number of ticks to display
+    tick_size (int): Visual size of tick marks in pixels
+    tick_color (str): Color for axis lines and tick marks
+    tick_label_color (str): Color for numerical coordinate labels
+    tick_label_font_size (int): Font size for coordinate labels
+    grid_color (str): Color for grid lines
+```
+
+**Key Methods:**
+- `__init__(canvas, color=default_color)`: Initialize Cartesian coordinate system with canvas
+- `reset()`: Reset coordinate system to initial state with centered origin
+- `get_class_name()`: Return the class name 'Cartesian2Axis'
+- `get_visible_left_bound()`: Calculate visible left boundary in mathematical coordinates
+- `get_visible_right_bound()`: Calculate visible right boundary in mathematical coordinates
+- `get_visible_top_bound()`: Calculate visible top boundary in mathematical coordinates
+- `get_visible_bottom_bound()`: Calculate visible bottom boundary in mathematical coordinates
+- `get_relative_width()`: Get canvas width adjusted for current scale factor
+- `get_relative_height()`: Get canvas height adjusted for current scale factor
+- `draw()`: Render complete coordinate system including axes, ticks, labels, and grid
+- `zoom()`: Update coordinate system for zoom operations with dynamic tick spacing
+- `pan()`: Update coordinate system for pan operations
+- `get_state()`: Serialize coordinate system state for persistence
+- `_draw_axes()`: Render X and Y axis lines
+- `_draw_ticks(step)`: Draw tick marks and numerical labels on both axes
+- `_draw_grid(step)`: Render grid lines for visual coordinate reference
+- `_calculate_tick_spacing()`: Calculate appropriate tick spacing for current zoom level
+
+### Management Classes
+
+#### Drawable Manager (`managers/drawable_manager.py`)
+
+**File Header:**
+```
+MatHud Drawable Management System
+
+Central orchestration hub for all drawable objects in the mathematical visualization system.
+Coordinates specialized managers for each drawable type and handles object lifecycle management.
+
+Core Architecture:
+    - Proxy Pattern: Uses DrawableManagerProxy to resolve circular dependencies during initialization
+    - Specialized Managers: Delegates type-specific operations to dedicated manager classes
+    - Dependency Tracking: Maintains hierarchical relationships between geometric objects
+    - Container Management: Organizes drawables by type with efficient access patterns
+    - Name Generation: Automatic naming system for drawable objects
+
+Manager Hierarchy:
+    - PointManager: Point creation, retrieval, and deletion operations
+    - SegmentManager: Line segment operations with endpoint validation
+    - VectorManager: Vector operations with origin and tip management
+    - TriangleManager: Triangle operations with vertex coordinate matching
+    - RectangleManager: Rectangle operations with diagonal point handling
+    - CircleManager: Circle operations with center and radius validation
+    - EllipseManager: Ellipse operations with center, radii, and rotation
+    - AngleManager: Angle operations with vertex and arm management
+    - FunctionManager: Mathematical function plotting and analysis
+    - ColoredAreaManager: Bounded area creation with function/segment boundaries
+
+Dependency System:
+    - DrawableDependencyManager: Tracks parent-child relationships between objects
+    - Propagates changes through dependency chains (e.g., moving a point updates dependent segments)
+    - Handles cascading deletions while preserving object integrity
+
+Storage Organization:
+    - DrawablesContainer: Type-based storage with property access patterns
+    - Layered rendering support (colored areas behind geometric objects)
+    - State serialization for undo/redo functionality
+
+Integration Points:
+    - Canvas drawing system for visual representation
+    - UndoRedoManager for state persistence
+    - TransformationsManager for geometric transformations
+    - Mathematical computation engine for geometric analysis
+```
+
+**Class Documentation:**
+```
+Manages drawable objects for a Canvas.
+
+This class coordinates specialized managers for each drawable type:
+- Points
+- Segments
+- Vectors
+- Triangles
+- Functions
+- Circles
+- Ellipses
+- Rectangles
+- Colored Areas
+```
+
+**Key Methods:**
+- `__init__(canvas)`: Initialize the DrawableManager with canvas
+- `get_drawables()`: Get all drawables as a flat list, with colored areas first (behind other elements)
+- `get_point(x, y)`: Get a point at the specified coordinates
+- `get_point_by_name(name)`: Get a point by its name
+- `create_point(x, y, name="", extra_graphics=True)`: Create a new point at the specified coordinates
+- `delete_point(x, y)`: Delete a point at the specified coordinates
+- `delete_point_by_name(name)`: Delete a point by its name
+- `get_segment_by_coordinates(x1, y1, x2, y2)`: Get a segment by its endpoint coordinates
+- `get_segment_by_name(name)`: Get a segment by its name
+- `get_segment_by_points(p1, p2)`: Get a segment by its endpoint points
+- `create_segment(x1, y1, x2, y2, name="", extra_graphics=True)`: Create a new segment between the specified points
+- `delete_segment(x1, y1, x2, y2, delete_children=True, delete_parents=False)`: Delete a segment at the specified coordinates
+- `delete_segment_by_name(name, delete_children=True, delete_parents=False)`: Delete a segment by its name
+- `get_vector(origin_x, origin_y, tip_x, tip_y)`: Get a vector by its origin and tip coordinates
+- `create_vector(origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True)`: Create a vector from origin to tip
+- `delete_vector(origin_x, origin_y, tip_x, tip_y)`: Delete a vector by its coordinates
+- `get_triangle(x1, y1, x2, y2, x3, y3)`: Get a triangle by its vertex coordinates
+- `create_triangle(x1, y1, x2, y2, x3, y3, name="", extra_graphics=True)`: Create a triangle from three points
+- `delete_triangle(x1, y1, x2, y2, x3, y3)`: Delete a triangle by its vertex coordinates
+- `get_function(name)`: Get a function by its name
+- `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a function on the canvas
+- `delete_function(name)`: Delete a function by its name
+- `get_circle(center_x, center_y, radius)`: Get a circle by its center coordinates and radius
+- `get_circle_by_name(name)`: Get a circle by its name
+- `create_circle(center_x, center_y, radius, name="", extra_graphics=True)`: Create a circle with specified center and radius
+- `delete_circle(name)`: Delete a circle by its name
+- `get_ellipse(center_x, center_y, radius_x, radius_y)`: Get an ellipse by its center coordinates and radii
+- `get_ellipse_by_name(name)`: Get an ellipse by its name
+- `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", extra_graphics=True)`: Create an ellipse with specified parameters
+- `delete_ellipse(name)`: Delete an ellipse by its name
+- `get_rectangle_by_diagonal_points(px, py, opposite_px, opposite_py)`: Get a rectangle by two diagonal points
+- `get_rectangle_by_name(name)`: Get a rectangle by its name
+- `create_rectangle(px, py, opposite_px, opposite_py, name="", extra_graphics=True)`: Create a rectangle with specified diagonal points
+- `delete_rectangle(name)`: Delete a rectangle by its name
+- `create_colored_area(drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3)`: Creates a colored area between objects
+- `delete_colored_area(name)`: Delete a colored area by its name
+- `delete_colored_areas_for_function(func)`: Delete colored areas for a function
+- `delete_colored_areas_for_segment(segment)`: Delete colored areas for a segment
+- `get_colored_areas_for_drawable(drawable)`: Get colored areas for a drawable
+- `update_colored_area_style(name, color=None, opacity=None)`: Update colored area style
+- `create_drawables_from_new_connections()`: Create drawables from new connections
+- `create_angle(vx, vy, p1x, p1y, p2x, p2y, label=None, color=None, angle_name=None)`: Create an angle by points
+- `delete_angle(name)`: Delete an angle by name
+- `update_angle_properties(name, new_label=None, new_color=None)`: Update angle properties
+
+#### Drawable Manager Proxy (`managers/drawable_manager_proxy.py`)
+
+**File Header:**
+```
+MatHud Drawable Manager Proxy System
+
+Resolves circular dependencies during manager initialization using the Proxy Pattern.
+Enables specialized managers to access each other through the main DrawableManager without 
+creating dependency cycles during object construction.
+
+Design Pattern:
+    - Proxy Pattern: Defers attribute resolution until runtime access
+    - Dependency Injection: Provides access to DrawableManager functionality
+    - Circular Dependency Resolution: Breaks initialization order constraints
+
+Use Cases:
+    - SegmentManager accessing PointManager functionality
+    - TriangleManager accessing both PointManager and SegmentManager
+    - Any manager needing to call methods on other managers
+
+Implementation:
+    - __getattr__ magic method forwards all attribute access to real manager
+    - Lazy evaluation ensures managers are fully initialized before access
+    - Transparent proxy - specialized managers treat it as the real DrawableManager
+
+Architecture Benefits:
+    - Clean initialization order independence
+    - Maintains strong typing and IDE support
+    - No performance overhead after initialization
+    - Enables complex inter-manager operations
+```
+
+**Class Documentation:**
+```
+A proxy for the DrawableManager that forwards all attribute access to the real manager.
+
+This breaks circular dependencies during initialization by deferring attribute resolution
+until runtime access. Specialized managers can access other managers through this proxy
+without creating initialization order constraints.
+```
+
+**Key Methods:**
+- `__init__(real_manager)`: Initialize the proxy with a reference to the real manager
+- `__getattr__(name)`: Delegate attribute access to the real manager. This is called when an attribute doesn't exist on the proxy.
+
+#### Drawables Container (`managers/drawables_container.py`)
+
+**File Header:**
+```
+MatHud Drawable Storage and Organization System
+
+Centralized container for all drawable objects with type-based organization and efficient access patterns.
+Provides clean separation of storage concerns from Canvas operations and supports layered rendering.
+
+Storage Architecture:
+    - Type-Based Organization: Groups drawables by class name for efficient access
+    - Property Access: Convenient attribute-style access to drawable collections
+    - Dictionary Interface: Supports both object-oriented and dictionary-style access
+    - Layered Storage: Separates colored areas from geometric objects for proper z-ordering
+
+Supported Drawable Types:
+    - Points: Coordinate-based geometric primitives
+    - Segments: Line segments connecting two points
+    - Vectors: Directed line segments with origin and tip
+    - Triangles: Three-sided polygons with vertex tracking
+    - Rectangles: Four-sided polygons with diagonal point definition
+    - Circles: Circular objects with center and radius
+    - Ellipses: Elliptical objects with center, radii, and rotation
+    - Functions: Mathematical function plots and curves
+    - Angles: Angular measurements between line segments
+    - ColoredAreas: Various bounded colored regions
+
+Rendering Support:
+    - Z-Order Management: Colored areas rendered behind geometric objects
+    - Layered Access: get_all_with_layering() provides proper rendering order
+    - Background/Foreground Separation: Efficient separation for rendering pipeline
+
+State Management:
+    - State Serialization: get_state() for undo/redo functionality
+    - Clear Operations: Bulk removal for canvas reset
+    - Container Introspection: Type checking and content validation
+
+Access Patterns:
+    - Property Style: container.Points, container.Segments
+    - Dictionary Style: container['Point'], container['Segment']
+    - Bulk Operations: get_all(), get_colored_areas(), get_non_colored_areas()
+```
+
+**Class Documentation:**
+```
+A container for storing and accessing drawable objects by their class names.
+
+This class extracts the drawable storage functionality from Canvas,
+providing a cleaner separation of concerns.
+```
+
+**Key Methods:**
+- `__init__()`: Initialize an empty drawables container
+- `add(drawable)`: Add a drawable to the container
+- `remove(drawable)`: Remove a drawable from the container
+- `get_by_class_name(class_name)`: Get all drawables of a specific class name (private method)
+- `get_all()`: Get all drawables as a flat list
+- `get_colored_areas()`: Get all colored area drawables (for background rendering)
+- `get_non_colored_areas()`: Get all non-colored area drawables (for foreground rendering)
+- `get_all_with_layering()`: Get all drawables with proper layering (colored areas first, then others)
+- `clear()`: Remove all drawables from the container
+- `get_state()`: Get the state of all drawables in the container
+
+**Properties:**
+- `Points`: Get all Point objects
+- `Segments`: Get all Segment objects
+- `Vectors`: Get all Vector objects
+- `Triangles`: Get all Triangle objects
+- `Rectangles`: Get all Rectangle objects
+- `Circles`: Get all Circle objects
+- `Ellipses`: Get all Ellipse objects
+- `Functions`: Get all Function objects
+- `ColoredAreas`: Get all ColoredArea objects
+- `FunctionsBoundedColoredAreas`: Get all FunctionsBoundedColoredArea objects
+- `Angles`: Get all Angle objects
+- `SegmentsBoundedColoredAreas`: Get all SegmentsBoundedColoredArea objects
+- `FunctionSegmentBoundedColoredAreas`: Get all FunctionSegmentBoundedColoredArea objects
+
+#### Point Manager (`managers/point_manager.py`)
+
+**File Header:**
+```
+MatHud Point Management System
+
+Manages point creation, retrieval, and deletion operations for geometric visualization.
+Points serve as the fundamental building blocks for all other geometric objects.
+
+Core Responsibilities:
+    - Point Creation: Creates points at specified coordinates with collision detection
+    - Point Retrieval: Efficient lookup by coordinates or name
+    - Dependency Management: Handles cascading deletion of dependent objects
+    - Extra Graphics: Automatically splits segments and creates new connections
+
+Geometric Integration:
+    - Segment Splitting: New points automatically split intersecting segments
+    - Connection Creation: Generates appropriate segments between nearby points
+    - Coordinate Validation: Ensures point placement follows mathematical constraints
+    - Name Generation: Provides systematic naming for mathematical clarity
+
+Dependency Hierarchy:
+    - Points are used by: Segments, Vectors, Triangles, Rectangles, Circles, Ellipses
+    - Deletion cascades to: All dependent geometric objects
+    - Preservation logic: Maintains parent segments when deleting child points
+
+Canvas Integration:
+    - State Management: Automatic undo/redo archiving for all point operations
+    - Visual Updates: Immediate canvas redrawing after point modifications
+    - Extra Graphics: Optional geometric enhancement features
+
+Error Handling:
+    - Coordinate Validation: Ensures valid mathematical coordinates
+    - Existence Checking: Prevents duplicate points at same location
+    - Dependency Safety: Safe deletion with preservation of essential objects
+```
+
+**Class Documentation:**
+```
+Manages point drawables for a Canvas.
+
+This class is responsible for:
+- Creating point objects
+- Retrieving point objects by various criteria
+- Deleting point objects
+```
+
+**Key Methods:**
+- `__init__(canvas, drawables_container, name_generator, dependency_manager, drawable_manager_proxy)`: Initialize the PointManager
+- `get_point(x, y)`: Get a point at the specified coordinates
+- `get_point_by_name(name)`: Get a point by its name
+- `create_point(x, y, name="", extra_graphics=True)`: Create a new point at the specified coordinates. Handles collision detection, name generation, extra graphics, and dependency management.
+- `delete_point(x, y)`: Delete a point at the specified coordinates
+- `delete_point_by_name(name)`: Delete a point by its name
+
+#### Segment Manager (`managers/segment_manager.py`)
+
+**File Header:**
+```
+MatHud Segment Management System
+
+Manages line segment creation, retrieval, and deletion with comprehensive geometric integration.
+Handles segment operations including point-to-point connections, intersections, and splitting.
+
+Core Responsibilities:
+    - Segment Creation: Creates line segments between points with endpoint management
+    - Segment Retrieval: Lookup by coordinates, endpoints, or segment names
+    - Segment Splitting: Automatic division when new points intersect existing segments
+    - Dependency Tracking: Manages relationships with triangles, rectangles, and vectors
+
+Geometric Operations:
+    - Point Integration: Automatically creates missing endpoint points
+    - Intersection Detection: Identifies and handles segment intersections
+    - Splitting Logic: Divides segments while preserving dependent objects
+    - Collinearity Handling: Manages segments that share the same line
+
+Advanced Features:
+    - Dependency Preservation: Maintains parent-child relationships during operations
+    - Connection Finding: Identifies potential new segments from point arrangements
+    - Validation: Ensures mathematical validity of segment configurations
+    - Name Generation: Systematic naming based on endpoint coordinates
+
+Integration Points:
+    - PointManager: Automatic point creation for segment endpoints
+    - TriangleManager: Provides segments for triangle construction
+    - RectangleManager: Supplies edges for rectangle formation
+    - VectorManager: Creates underlying segments for vector visualization
+
+State Management:
+    - Undo/Redo: Complete state archiving for all segment operations
+    - Canvas Updates: Immediate visual feedback for segment modifications
+    - Dependency Updates: Cascading updates to dependent geometric objects
+```
+
+**Key Methods:**
+- `get_segment_by_coordinates(x1, y1, x2, y2)`: Get a segment by its endpoint coordinates
+- `get_segment_by_name(name)`: Get a segment by its name
+- `get_segment_by_points(p1, p2)`: Get a segment by its endpoint points
+- `create_segment(x1, y1, x2, y2, name="", extra_graphics=True)`: Create a new segment between specified points
+- `delete_segment(x1, y1, x2, y2, delete_children=True, delete_parents=False)`: Delete a segment by coordinates
+- `delete_segment_by_name(name, delete_children=True, delete_parents=False)`: Delete a segment by name
+
+#### Vector Manager (`managers/vector_manager.py`)
+
+**File Header:**
+```
+MatHud Vector Management System
+
+Manages vector creation, retrieval, and deletion for directed line segment visualization.
+Handles vector operations with automatic point and segment management.
+
+Core Responsibilities:
+    - Vector Creation: Creates directed line segments from origin to tip points
+    - Vector Retrieval: Lookup by origin/tip coordinates with mathematical precision
+    - Vector Deletion: Safe removal with underlying segment cleanup
+    - Point Integration: Automatic creation and management of endpoint points
+
+Vector Properties:
+    - Direction: Maintains explicit origin and tip point relationships
+    - Visualization: Renders with directional arrows and proper styling
+    - Mathematical Accuracy: Preserves vector mathematics with coordinate precision
+    - Naming: Systematic naming based on endpoint coordinates or custom names
+
+Integration Points:
+    - PointManager: Creates and manages origin and tip points
+    - SegmentManager: Creates underlying line segments for vector visualization
+    - DrawableManager: Coordinates with other geometric objects
+    - Canvas: Handles rendering and visual updates
+
+Advanced Features:
+    - Extra Graphics: Optional creation of related geometric objects
+    - Dependency Management: Tracks relationships with underlying segments
+    - State Preservation: Maintains vector integrity during operations
+    - Cleanup Logic: Intelligent removal of unused segments during deletion
+
+Mathematical Context:
+    - Vector Mathematics: Supports standard vector operations and properties
+    - Coordinate System: Works within canvas coordinate space
+    - Precision Handling: Uses mathematical tolerance for coordinate matching
+    - Geometric Relationships: Integrates with other geometric constructions
+```
+
+**Key Methods:**
+- `get_vector(x1, y1, x2, y2)`: Get a vector by its origin and tip coordinates
+- `create_vector(origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True)`: Create a vector from origin to tip
+- `delete_vector(origin_x, origin_y, tip_x, tip_y)`: Delete a vector by its coordinates
+
+#### Triangle Manager (`managers/triangle_manager.py`)
+
+**File Header:**
+```
+MatHud Triangle Management System
+
+Manages triangle creation, retrieval, and deletion with comprehensive geometric validation.
+Handles triangle construction from three vertices with automatic segment and point management.
+
+Core Responsibilities:
+    - Triangle Creation: Constructs triangles from three vertex coordinates
+    - Triangle Retrieval: Efficient lookup by vertex coordinates
+    - Triangle Deletion: Safe removal with cleanup of constituent segments
+    - Dependency Management: Tracks relationships with points and segments
+
+Geometric Validation:
+    - Collinearity Detection: Prevents creation of degenerate triangles
+    - Coordinate Precision: Uses mathematical tolerance for vertex matching
+    - Connectivity Analysis: Automatically detects triangles from segment arrangements
+    - Graph Theory Integration: Leverages connectivity algorithms for triangle identification
+
+Advanced Features:
+    - Automatic Triangle Detection: Identifies triangles from connected segments
+    - Smart Construction: Creates missing points and segments as needed
+    - Name Parsing: Extracts vertex names from triangle identifiers
+    - Extra Graphics: Optional creation of related geometric objects
+
+Integration Points:
+    - PointManager: Creates and manages triangle vertices
+    - SegmentManager: Creates and manages triangle edges
+    - GeometryUtils: Graph connectivity and geometric analysis
+    - DependencyManager: Tracks triangle relationships with constituent elements
+
+Mathematical Properties:
+    - Area Calculation: Supports triangle area computation
+    - Centroid Finding: Enables geometric center calculations
+    - Orientation Testing: Determines vertex ordering (clockwise/counterclockwise)
+    - Validity Checking: Ensures triangles meet geometric requirements
+
+State Management:
+    - Undo/Redo: Complete state archiving for triangle operations
+    - Canvas Integration: Immediate visual updates after modifications
+    - Dependency Tracking: Maintains relationships during operations
+```
+
+**Key Methods:**
+- `get_triangle(x1, y1, x2, y2, x3, y3)`: Get a triangle by its vertex coordinates
+- `create_triangle(x1, y1, x2, y2, x3, y3, name="", extra_graphics=True)`: Create a triangle from three points
+- `delete_triangle(x1, y1, x2, y2, x3, y3)`: Delete a triangle by its vertex coordinates
+- `create_new_triangles_from_connected_segments()`: Automatically detect and create triangles from connected segments
+
+#### Rectangle Manager (`managers/rectangle_manager.py`)
+
+**File Header:**
+```
+MatHud Rectangle Management System
+
+Manages rectangle creation, retrieval, and deletion with diagonal-based construction.
+Handles rectangle operations through four-corner coordinate systems and segment management.
+
+Core Responsibilities:
+    - Rectangle Creation: Constructs rectangles from diagonal point coordinates
+    - Rectangle Retrieval: Lookup by diagonal points or rectangle name
+    - Rectangle Deletion: Safe removal with cleanup of all four edge segments
+    - Dependency Management: Tracks relationships with constituent points and segments
+
+Geometric Construction:
+    - Diagonal-Based Creation: Uses two opposite corners to define complete rectangle
+    - Automatic Corner Calculation: Computes all four vertices from diagonal points
+    - Edge Segment Creation: Creates all four boundary segments automatically
+    - Point Management: Generates corner points with systematic naming
+
+Advanced Features:
+    - Collision Detection: Prevents creation of duplicate rectangles
+    - Name Parsing: Extracts vertex names from rectangle identifiers
+    - Coordinate Validation: Ensures mathematically valid rectangle construction
+    - Extra Graphics: Optional creation of related geometric objects
+
+Integration Points:
+    - PointManager: Creates and manages rectangle corner points
+    - SegmentManager: Creates and manages rectangle edge segments
+    - DependencyManager: Tracks rectangle relationships with constituent elements
+    - Canvas: Handles rendering and visual updates
+
+Mathematical Properties:
+    - Area Calculation: Supports rectangle area computation from diagonal points
+    - Coordinate System: Works within canvas coordinate space
+    - Precision Handling: Uses mathematical tolerance for coordinate operations
+    - Geometric Validation: Ensures rectangles maintain proper geometric properties
+
+State Management:
+    - Undo/Redo: Complete state archiving for rectangle operations
+    - Canvas Integration: Immediate visual updates after modifications
+    - Dependency Tracking: Maintains relationships during operations
+    - Cleanup Logic: Intelligent removal of constituent segments during deletion
+```
+
+**Key Methods:**
+- `get_rectangle_by_diagonal_points(px, py, opposite_px, opposite_py)`: Get a rectangle by two diagonal points
+- `get_rectangle_by_name(name)`: Get a rectangle by its name
+- `create_rectangle(px, py, opposite_px, opposite_py, name="", extra_graphics=True)`: Create a rectangle with specified diagonal points
+- `delete_rectangle(name)`: Delete a rectangle by its name
+
+#### Circle Manager (`managers/circle_manager.py`)
+
+**File Header:**
+```
+MatHud Circle Management System
+
+Manages circle creation, retrieval, and deletion for curved geometric visualization.
+Handles circle operations with center point management and radius-based construction.
+
+Core Responsibilities:
+    - Circle Creation: Creates circles from center coordinates and radius values
+    - Circle Retrieval: Lookup by center/radius parameters or circle name
+    - Circle Deletion: Safe removal with proper cleanup
+    - Center Point Management: Automatic creation and tracking of circle centers
+
+Geometric Properties:
+    - Center-Radius Model: Uses mathematical center point and radius distance
+    - Coordinate Precision: Maintains exact center coordinates
+    - Radius Validation: Ensures positive radius values for valid circles
+    - Mathematical Accuracy: Preserves circular geometry properties
+
+Advanced Features:
+    - Collision Detection: Prevents creation of duplicate circles
+    - Name Parsing: Extracts center point names from circle identifiers
+    - Point Integration: Seamless integration with point management system
+    - Extra Graphics: Optional creation of related geometric objects
+
+Integration Points:
+    - PointManager: Creates and manages circle center points
+    - DependencyManager: Tracks circle relationships with center points
+    - Canvas: Handles rendering and visual updates
+    - DrawableManager: Coordinates with other geometric objects
+
+Mathematical Context:
+    - Circular Geometry: Supports standard circle properties and calculations
+    - Coordinate System: Works within canvas coordinate space
+    - Distance Calculations: Uses radius for geometric relationships
+    - Intersection Logic: Enables geometric analysis with other objects
+
+State Management:
+    - Undo/Redo: Complete state archiving for circle operations
+    - Canvas Integration: Immediate visual updates after modifications
+    - Dependency Tracking: Maintains relationships with center points
+    - Name Generation: Systematic naming for mathematical clarity
+```
+
+**Key Methods:**
+- `get_circle(center_x, center_y, radius)`: Get a circle by its center coordinates and radius
+- `get_circle_by_name(name)`: Get a circle by its name
+- `create_circle(center_x, center_y, radius, name="", extra_graphics=True)`: Create a circle with specified center and radius
+- `delete_circle(name)`: Delete a circle by its name
+
+#### Ellipse Manager (`managers/ellipse_manager.py`)
+
+**File Header:**
+```
+MatHud Ellipse Geometric Object
+
+Represents an ellipse with center point, dual radii, and rotation capabilities.
+Provides advanced geometric calculations and algebraic formula generation with rotation support.
+
+Key Features:
+    - Center-based ellipse representation with dual radii
+    - Rotation angle support for arbitrary ellipse orientation
+    - Automatic algebraic equation calculation with rotation
+    - Scaling transformations for both radii
+    - Mathematical property calculations
+
+Mathematical Properties:
+    - Ellipse equation with rotation: complex algebraic form
+    - Semi-major and semi-minor axis tracking
+    - Center coordinate management
+    - Rotation angle in degrees
+    - Scaling factors for zoom operations
+
+Dependencies:
+    - constants: Default styling values
+    - drawables.drawable: Base class interface
+    - drawables.point: Center point object
+    - utils.math_utils: Ellipse equation calculations
+```
+
+**Class Documentation:**
+```
+Represents an ellipse with center point, dual radii, and rotation angle.
+
+Maintains a center Point object, two radius values, and rotation angle, providing
+complete elliptical geometry functionality with rotation support.
+
+Attributes:
+    center (Point): Center point of the ellipse
+    radius_x (float): Horizontal radius of the ellipse
+    radius_y (float): Vertical radius of the ellipse
+    rotation_angle (float): Rotation angle in degrees
+    drawn_radius_x (float): Current horizontal radius adjusted for canvas scale
+    drawn_radius_y (float): Current vertical radius adjusted for canvas scale
+```
+
+**Key Methods:**
+- `__init__(center, radius_x, radius_y, canvas, rotation_angle=0, color=default_color)`: Initialize ellipse with center, radii, and rotation
+- `get_class_name()`: Return the class name 'Ellipse'
+- `draw()`: Render the ellipse to the SVG canvas with rotation transform
+- `zoom()`: Update ellipse radii for zoom operations
+- `pan()`: Update ellipse for pan operations (handled by center point)
+- `get_state()`: Serialize ellipse state for persistence
+- `translate(x_offset, y_offset)`: Move ellipse by translating the center point
+- `rotate(angle)`: Rotate ellipse by updating the rotation angle
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Function Manager (`managers/function_manager.py`)
+
+**File Header:**
+```
+MatHud Mathematical Function Object
+
+Represents a mathematical function plot with expression evaluation and curve rendering.
+Provides function plotting, domain management, and mathematical analysis capabilities.
+
+Key Features:
+    - Mathematical expression parsing and evaluation
+    - Smooth curve rendering with adaptive point sampling
+    - Domain boundary management (left/right bounds)
+    - Asymptote and discontinuity detection
+    - Function expression validation and correction
+
+Mathematical Properties:
+    - Function expression in string format
+    - Domain boundaries for plotting range
+    - Point sampling for curve smoothness
+    - Asymptote calculations
+    - Discontinuity analysis
+
+Dependencies:
+    - expression_validator: Mathematical expression parsing
+    - utils.math_utils: Function evaluation and analysis
+    - constants: Plotting parameters and styling
+    - drawables.drawable: Base class interface
+```
+
+**Class Documentation:**
+```
+Represents a mathematical function with expression evaluation and curve plotting.
+
+Manages function expressions, evaluates them over specified domains, and renders
+smooth curves with proper handling of asymptotes and discontinuities.
+
+Attributes:
+    expression (str): Mathematical function expression (e.g., "sin(x)", "x^2")
+    left_bound (float): Left boundary of the function domain
+    right_bound (float): Right boundary of the function domain
+    points (list): Calculated points for curve rendering
+    asymptotes (dict): Vertical and horizontal asymptotes
+    discontinuities (list): Point discontinuities in the function
+```
+
+**Key Methods:**
+- `__init__(expression, canvas, name="", left_bound=None, right_bound=None, color=default_color)`: Initialize function with expression and domain
+- `get_class_name()`: Return the class name 'Function'
+- `draw()`: Render the function curve to the SVG canvas
+- `update_expression(new_expression, left_bound=None, right_bound=None)`: Update function expression and domain
+- `zoom()`: Update function plotting for zoom operations
+- `pan()`: Update function for pan operations
+- `get_state()`: Serialize function state for persistence
+- `translate(x_offset, y_offset)`: Translation not applicable for functions
+- `rotate(angle)`: Rotation not applicable for functions
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Colored Area Manager (`managers/colored_area_manager.py`)
+
+**File Header:**
+```
+MatHud Base Colored Area Object
+
+Abstract base class for colored regions bounded by mathematical objects.
+Provides the foundation for area visualization between functions, segments, and axes.
+
+Key Features:
+    - Abstract interface for bounded area visualization
+    - Color and opacity management
+    - Boundary object tracking
+    - SVG path generation for complex shapes
+    - Integration with mathematical boundaries
+
+Area Types:
+    - Function-bounded areas
+    - Segment-bounded areas
+    - Mixed boundary areas
+    - Axis-bounded regions
+
+Dependencies:
+    - constants: Default styling values
+    - drawables.drawable: Base class interface
+    - utils.style_utils: Color and opacity validation
+```
+
+**Class Documentation:**
+```
+Abstract base class for colored regions bounded by mathematical objects.
+
+Provides the common interface and functionality for all types of colored areas,
+including color management, boundary tracking, and rendering capabilities.
+
+Attributes:
+    color (str): Fill color for the area
+    opacity (float): Transparency level (0.0 to 1.0)
+    boundary_objects (list): Objects that define the area boundaries
+```
+
+**Key Methods:**
+- `__init__(canvas, color="lightblue", opacity=0.3)`: Initialize colored area with styling
+- `get_class_name()`: Abstract method to return the class name
+- `update_style(color=None, opacity=None)`: Update area color and/or opacity
+- `draw()`: Abstract method for rendering (implemented by subclasses)
+- `get_state()`: Abstract method for state serialization
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Angle Manager (`managers/angle_manager.py`)
+
+**File Header:**
+```
+MatHud Angle Geometric Object
+
+Represents an angle formed by three points with arc visualization and measurement display.
+Provides angle calculation, arc rendering, and label management with reflex angle support.
+
+Key Features:
+    - Three-point angle definition (vertex and two arm points)
+    - Automatic angle measurement in degrees
+    - Arc visualization with customizable radius
+    - Angle label display with degree symbol
+    - Reflex angle support (angles > 180°)
+    - Color customization for visual distinction
+
+Mathematical Properties:
+    - Angle measurement using vector mathematics
+    - Arc calculation for visual representation
+    - Reflex angle detection and handling
+    - Geometric validation of angle points
+
+Dependencies:
+    - constants: Default styling and arc parameters
+    - drawables.drawable: Base class interface
+    - drawables.point: Vertex and arm point objects
+    - drawables.segment: Arm segments
+    - utils.math_utils: Angle calculations
+```
+
+**Class Documentation:**
+```
+Represents an angle formed by three points with measurement and arc visualization.
+
+Manages the geometric relationship between a vertex point and two arm-defining points,
+calculating angle measurements and rendering visual arc indicators.
+
+Attributes:
+    vertex (Point): Vertex point of the angle
+    arm1_point (Point): Point defining the first arm of the angle
+    arm2_point (Point): Point defining the second arm of the angle
+    segment1 (Segment): First arm segment from vertex to arm1_point
+    segment2 (Segment): Second arm segment from vertex to arm2_point
+    angle_degrees (float): Calculated angle measurement in degrees
+    is_reflex (bool): Whether this is a reflex angle (> 180°)
+    label (str): Display label for the angle
+```
+
+**Key Methods:**
+- `__init__(vertex, arm1_point, arm2_point, canvas, is_reflex=False, label=None, color=default_color)`: Initialize angle with three defining points
+- `get_class_name()`: Return the class name 'Angle'
+- `draw()`: Render the angle arc and label to the SVG canvas
+- `update_angle()`: Recalculate angle measurement and properties
+- `update_color(new_color)`: Update the angle's display color
+- `zoom()`: Update angle for zoom operations
+- `pan()`: Update angle for pan operations
+- `get_state()`: Serialize angle state for persistence
+- `translate(x_offset, y_offset)`: Move angle by translating all defining points
+- `rotate(angle)`: Rotate angle by rotating the arm points around vertex
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Transformations Manager (`managers/transformations_manager.py`)
+
+**File Header:**
+```
+MatHud Geometric Transformations Management System
+
+Handles geometric transformations of drawable objects including translation and rotation.
+Provides coordinated transformation operations with proper state management and canvas integration.
+
+Transformation Types:
+    - Translation: Moving objects by specified x and y offsets
+    - Rotation: Rotating objects around specified points or their centers
+
+Operation Coordination:
+    - State Archiving: Automatic undo/redo state capture before transformations
+    - Object Validation: Ensures target objects exist before transformation
+    - Method Delegation: Calls transformation methods on drawable objects
+    - Canvas Integration: Automatic redrawing after successful transformations
+
+Error Handling:
+    - Object Existence Validation: Checks for drawable presence before operations
+    - Transformation Validation: Ensures objects support required transformation methods
+    - Exception Management: Graceful error handling with descriptive messages
+    - State Consistency: Maintains proper canvas state even if transformations fail
+
+Integration Points:
+    - DrawableManager: Object lookup and validation
+    - UndoRedoManager: State preservation for transformation operations
+    - Canvas: Visual updates after transformations
+    - Drawable Objects: Delegation to object-specific transformation methods
+```
+
+**Class Documentation:**
+```
+Manages geometric transformations of drawable objects on a Canvas.
+
+Coordinates translation and rotation operations with proper state management,
+object validation, and canvas integration.
+```
+
+**Key Methods:**
+- `__init__(canvas)`: Initialize the TransformationsManager
+- `translate_object(name, x_offset, y_offset)`: Translates a drawable object by the specified offset
+- `rotate_object(name, angle)`: Rotates a drawable object by the specified angle
+
+#### Drawable Dependency Manager (`managers/drawable_dependency_manager.py`)
+
+**File Header:**
+```
+MatHud Drawable Dependency Management System
+
+Manages hierarchical relationships between drawable objects.
+Provides coordinated access and updates to dependent objects.
+
+Core Responsibilities:
+    - Dependency Tracking: Manages parent-child relationships between objects
+    - Propagation Logic: Updates dependent objects when a parent object changes
+    - Cascade Deletion: Handles cascading deletions when a parent object is deleted
+
+Integration Points:
+    - DrawableManager: Object lookup and validation
+    - UndoRedoManager: State preservation for object updates
+    - Canvas: Visual updates after object modifications
+    - Drawable Objects: Delegation to object-specific update methods
+```
+
+**Class Documentation:**
+```
+Manages hierarchical relationships between drawable objects.
+
+Provides coordinated access and updates to dependent objects.
+```
+
+**Key Methods:**
+- `__init__(canvas)`: Initialize the DrawableDependencyManager
+- `update_dependent_objects(parent_name, new_parent_name)`: Update dependent objects when a parent object changes
+- `delete_object(name)`: Delete an object and its dependent objects
+
+#### Undo Redo Manager (`managers/undo_redo_manager.py`)
+
+**File Header:**
+```
+MatHud Undo/Redo State Management System
+
+Manages state archiving and restoration for the mathematical canvas system.
+Provides complete undo/redo functionality with deep state preservation.
+
+Core Responsibilities:
+    - State Archiving: Deep serialization of entire canvas state
+    - Stack Management: Efficient undo and redo stack operations
+    - State Restoration: Complete reconstruction of canvas from archived states
+    - Memory Management: Optimized storage and cleanup of historical states
+
+State Architecture:
+    - Deep Copy Strategy: Complete object state preservation using deepcopy
+    - Stack-Based Storage: LIFO operations for undo/redo functionality
+    - Atomic Operations: Full state capture prevents partial state corruption
+    - Efficient Restoration: Quick canvas reconstruction from archived states
+
+Integration Points:
+    - Canvas: Primary integration point for state operations
+    - DrawableManager: State serialization of all drawable objects
+    - Mathematical Operations: Automatic archiving before significant operations
+    - User Interface: Responsive undo/redo commands
+
+Advanced Features:
+    - Memory Optimization: Intelligent cleanup of old states
+    - State Validation: Ensures archived states are complete and valid
+    - Error Recovery: Graceful handling of state restoration failures
+    - Performance Monitoring: Efficient state operations without lag
+
+Mathematical Context:
+    - Geometric State: Preserves all geometric object states and relationships
+    - Coordinate Systems: Maintains viewport and coordinate transformations
+    - Operation History: Tracks mathematical computation sequences
+    - Visual State: Preserves styling, colors, and visual properties
+```
+
+**Class Documentation:**
+```
+Manages undo/redo operations for a Canvas by storing and restoring states.
+
+Uses deep copying to preserve complete object states and provides stack-based
+undo/redo functionality for mathematical visualization operations.
+```
+
+**Key Methods:**
+- `__init__(canvas)`: Initialize the UndoRedoManager with canvas reference
+- `archive()`: Archive the current canvas state for undo functionality
+- `undo()`: Restore the most recent archived state
+- `redo()`: Restore a previously undone state
+- `can_undo()`: Check if undo operation is possible
+- `can_redo()`: Check if redo operation is possible
+- `clear()`: Clear all archived states
+
+### Drawable Classes
+
+#### Base Drawable (`drawables/drawable.py`)
+
+**File Header:**
+```
+MatHud Base Drawable Abstract Class
+
+Abstract base class for all geometric and mathematical objects in the visualization system.
+Defines the common interface and functionality shared by all drawable objects.
+
+Core Interface:
+    - Abstract Methods: get_class_name(), draw(), get_state()
+    - Common Functionality: Canvas integration, coordinate systems, styling
+    - State Management: Serialization support for undo/redo operations
+    - Transformation Support: Translation and rotation operations
+
+Coordinate Systems:
+    - Canvas Coordinates: Integration with SVG viewport coordinate system
+    - Mathematical Coordinates: Preservation of original mathematical values
+    - Zoom/Pan Support: Automatic scaling and translation operations
+    - Viewport Management: Efficient rendering within visible canvas area
+
+Visual Properties:
+    - Color Management: Customizable colors for all drawable objects
+    - Styling: CSS-compatible styling system
+    - Visibility: Show/hide functionality for complex visualizations
+    - Z-Order: Layering support for proper rendering order
+
+Dependencies:
+    - browser.document: DOM manipulation for SVG rendering
+    - constants: Default values and configuration
+    - copy: Deep copying for state management
+```
+
+**Class Documentation:**
+```
+Abstract base class for all drawable objects in the mathematical visualization system.
+
+Provides common functionality for geometric objects including rendering, state management,
+coordinate systems, and transformation operations.
+
+Attributes:
+    canvas: Reference to the parent Canvas object
+    color: Visual color for the drawable object
+    name: Unique identifier for the object
+```
+
+**Key Methods:**
+- `__init__(canvas, color=default_color)`: Initialize base drawable with canvas and color
+- `get_class_name()`: Abstract method to return the class name (implemented by subclasses)
+- `draw()`: Abstract method for rendering (implemented by subclasses)
+- `get_state()`: Abstract method for state serialization (implemented by subclasses)
+- `zoom()`: Update object for zoom operations (implemented by subclasses)
+- `pan()`: Update object for pan operations (implemented by subclasses)
+- `translate(x_offset, y_offset)`: Move object by specified offsets (implemented by subclasses)
+- `rotate(angle)`: Rotate object by specified angle (implemented by subclasses)
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Position (`drawables/position.py`)
+
+**File Header:**
+```
+MatHud Position Coordinate Container
+
+Simple coordinate pair container for 2D mathematical space.
+Provides basic coordinate storage and manipulation operations.
+
+Key Features:
+    - X/Y coordinate storage
+    - Coordinate arithmetic operations
+    - Distance calculations
+    - String representation for debugging
+
+Mathematical Operations:
+    - Addition and subtraction
+    - Distance calculation between positions
+    - Coordinate transformation support
+    - Mathematical precision handling
+
+Dependencies:
+    - math: Mathematical operations and calculations
+```
+
+**Class Documentation:**
+```
+Represents a 2D coordinate position with x and y values.
+
+Simple container class for coordinate pairs used throughout the mathematical
+visualization system for position tracking and calculations.
+
+Attributes:
+    x (float): X-coordinate value
+    y (float): Y-coordinate value
+```
+
+**Key Methods:**
+- `__init__(x, y)`: Initialize position with x and y coordinates
+- `distance_to(other_position)`: Calculate distance to another position
+- `__add__(other)`: Add coordinates (position + position)
+- `__sub__(other)`: Subtract coordinates (position - position)
+- `__str__()`: String representation for debugging
+- `__repr__()`: Formal string representation
+
+#### Point (`drawables/point.py`)
+
+**File Header:**
+```
+MatHud Point Geometric Object
+
+Fundamental geometric building block representing a point in 2D mathematical space.
+Provides coordinate tracking, labeling, and serves as endpoints for other geometric objects.
+
+Key Features:
+    - Original and screen coordinate tracking
+    - Automatic label display with coordinates
+    - Scale factor and viewport transformation support
+    - Translation operations for object manipulation
+    - Visibility checking based on canvas bounds
+
+Coordinate Systems:
+    - original_position: Mathematical coordinates (unchanged by zoom/pan)
+    - x, y: Screen coordinates (updated by zoom/pan transformations)
+    - Scale factor integration for zoom operations
+    - Viewport boundary checking for efficient rendering
+
+Visual Properties:
+    - Point radius for visual representation
+    - Color customization for visual distinction
+    - Label display with coordinate information
+    - Visibility management based on canvas viewport
+
+Dependencies:
+    - constants: Default point styling and parameters
+    - drawables.drawable: Base class functionality
+    - drawables.position: Coordinate container
+    - browser.document: DOM manipulation for SVG rendering
+```
+
+**Class Documentation:**
+```
+Represents a geometric point with coordinate tracking and visual representation.
+
+Maintains both original mathematical coordinates and screen coordinates for proper
+zoom/pan operations while providing visual point rendering and labeling.
+
+Attributes:
+    original_position (Position): Original mathematical coordinates (unchanged by transformations)
+    x (float): Current screen x-coordinate (updated by zoom/pan)
+    y (float): Current screen y-coordinate (updated by zoom/pan)
+    radius (float): Visual radius for point rendering
+    label_text (str): Display label for the point
+```
+
+**Key Methods:**
+- `__init__(original_position, canvas, name="", color=default_color)`: Initialize point with position and styling
+- `get_class_name()`: Return the class name 'Point'
+- `draw()`: Render the point to the SVG canvas with label
+- `update_screen_coordinates()`: Update screen coordinates based on canvas transformations
+- `zoom()`: Update point for zoom operations
+- `pan()`: Update point screen coordinates for pan operations
+- `translate(x_offset, y_offset)`: Move point by translating original position
+- `get_state()`: Serialize point state for persistence
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Segment (`drawables/segment.py`)
+
+**File Header:**
+```
+MatHud Segment Geometric Object
+
+Represents a line segment connecting two points with endpoint management and visualization.
+Provides fundamental linear geometry functionality and serves as the basis for complex shapes.
+
+Key Features:
+    - Two-point line segment representation
+    - Automatic endpoint coordinate tracking
+    - Length calculation and geometric properties
+    - Splitting operations when intersected by new points
+    - Integration with point management system
+
+Geometric Properties:
+    - Start and end point objects
+    - Automatic length calculation
+    - Midpoint calculations
+    - Slope and angle computations
+    - Intersection detection with other segments
+
+Visual Representation:
+    - SVG line rendering between endpoints
+    - Color customization for visual distinction
+    - Line style and thickness options
+    - Visibility management for complex diagrams
+
+Dependencies:
+    - constants: Default segment styling
+    - drawables.drawable: Base class functionality
+    - drawables.point: Endpoint objects
+    - utils.math_utils: Geometric calculations
+```
+
+**Class Documentation:**
+```
+Represents a line segment between two points with geometric calculations.
+
+Manages endpoint Point objects and provides linear geometry functionality
+including length calculations, splitting operations, and visual rendering.
+
+Attributes:
+    start_point (Point): Starting endpoint of the segment
+    end_point (Point): Ending endpoint of the segment
+    length (float): Calculated length of the segment
+    slope (float): Mathematical slope of the segment
+```
+
+**Key Methods:**
+- `__init__(start_point, end_point, canvas, name="", color=default_color)`: Initialize segment with two endpoints
+- `get_class_name()`: Return the class name 'Segment'
+- `draw()`: Render the segment as SVG line between endpoints
+- `calculate_length()`: Calculate and update segment length
+- `get_midpoint()`: Calculate the midpoint of the segment
+- `zoom()`: Update segment for zoom operations (handled by endpoints)
+- `pan()`: Update segment for pan operations (handled by endpoints)
+- `translate(x_offset, y_offset)`: Move segment by translating both endpoints
+- `get_state()`: Serialize segment state for persistence
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Vector (`drawables/vector.py`)
+
+**File Header:**
+```
+MatHud Vector Geometric Object
+
+Represents a directed line segment with arrow visualization and vector mathematics.
+Provides vector operations, magnitude calculations, and directional representation.
+
+Key Features:
+    - Origin and tip point representation
+    - Directional arrow rendering
+    - Vector magnitude and direction calculations
+    - Mathematical vector operations support
+    - Integration with underlying segment system
+
+Vector Mathematics:
+    - Magnitude (length) calculations
+    - Direction angle computations
+    - Vector addition and subtraction support
+    - Dot and cross product capabilities
+    - Unit vector calculations
+
+Visual Properties:
+    - Arrow head rendering for direction indication
+    - Color customization for vector distinction
+    - Magnitude-based styling options
+    - Origin point highlighting
+
+Dependencies:
+    - constants: Default vector styling and arrow parameters
+    - drawables.drawable: Base class functionality
+    - drawables.point: Origin and tip point objects
+    - drawables.segment: Underlying line segment
+    - utils.math_utils: Vector calculations
+```
+
+**Class Documentation:**
+```
+Represents a mathematical vector with origin and tip points.
+
+Provides directed line segment functionality with arrow visualization
+and supports standard vector mathematical operations.
+
+Attributes:
+    origin (Point): Origin point of the vector
+    tip (Point): Tip point of the vector
+    segment (Segment): Underlying line segment
+    magnitude (float): Length/magnitude of the vector
+    direction_angle (float): Direction angle in degrees
+```
+
+**Key Methods:**
+- `__init__(origin, tip, canvas, name="", color=default_color)`: Initialize vector with origin and tip points
+- `get_class_name()`: Return the class name 'Vector'
+- `draw()`: Render the vector with arrow head
+- `calculate_magnitude()`: Calculate vector magnitude/length
+- `calculate_direction()`: Calculate direction angle
+- `zoom()`: Update vector for zoom operations (handled by endpoints)
+- `pan()`: Update vector for pan operations (handled by endpoints)
+- `translate(x_offset, y_offset)`: Move vector by translating origin and tip
+- `get_state()`: Serialize vector state for persistence
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Triangle (`drawables/triangle.py`)
+
+**File Header:**
+```
+MatHud Triangle Geometric Object
+
+Represents a three-sided polygon with automatic edge management and geometric calculations.
+Provides comprehensive triangle geometry including area, perimeter, and angle calculations.
+
+Key Features:
+    - Three-vertex triangle representation
+    - Automatic edge segment creation and management
+    - Area and perimeter calculations
+    - Interior angle computations
+    - Centroid and geometric center calculations
+
+Triangle Properties:
+    - Vertex point management
+    - Edge segment coordination
+    - Area calculation using cross product
+    - Perimeter calculation from edge lengths
+    - Interior angle calculations using law of cosines
+
+Advanced Geometry:
+    - Centroid calculation
+    - Circumcenter and incenter support
+    - Triangle type classification (equilateral, isosceles, scalene)
+    - Orientation testing (clockwise/counterclockwise)
+    - Validity checking for geometric constraints
+
+Dependencies:
+    - constants: Default triangle styling
+    - drawables.drawable: Base class functionality
+    - drawables.point: Vertex objects
+    - drawables.segment: Edge segments
+    - utils.math_utils: Triangle calculations
+```
+
+**Class Documentation:**
+```
+Represents a triangle with three vertices and automatic edge management.
+
+Maintains three Point objects as vertices and creates Segment objects for edges,
+providing comprehensive triangle geometry calculations and visualizations.
+
+Attributes:
+    vertex1 (Point): First vertex of the triangle
+    vertex2 (Point): Second vertex of the triangle
+    vertex3 (Point): Third vertex of the triangle
+    edge1 (Segment): Edge between vertex1 and vertex2
+    edge2 (Segment): Edge between vertex2 and vertex3
+    edge3 (Segment): Edge between vertex3 and vertex1
+    area (float): Calculated area of the triangle
+    perimeter (float): Calculated perimeter of the triangle
+```
+
+**Key Methods:**
+- `__init__(vertex1, vertex2, vertex3, canvas, name="", color=default_color)`: Initialize triangle with three vertices
+- `get_class_name()`: Return the class name 'Triangle'
+- `draw()`: Render the triangle (edges are drawn by constituent segments)
+- `calculate_area()`: Calculate triangle area using cross product
+- `calculate_perimeter()`: Calculate perimeter from edge lengths
+- `get_centroid()`: Calculate geometric center of the triangle
+- `zoom()`: Update triangle for zoom operations (handled by vertices)
+- `pan()`: Update triangle for pan operations (handled by vertices)
+- `translate(x_offset, y_offset)`: Move triangle by translating all vertices
+- `get_state()`: Serialize triangle state for persistence
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Rectangle (`drawables/rectangle.py`)
+
+**File Header:**
+```
+MatHud Rectangle Geometric Object
+
+Represents a four-sided rectangular polygon with diagonal-based construction.
+Provides rectangular geometry calculations and automatic corner/edge management.
+
+Key Features:
+    - Diagonal-point construction method
+    - Automatic corner point calculation
+    - Four-edge segment management
+    - Area and perimeter calculations
+    - Rectangle property validation
+
+Geometric Construction:
+    - Two diagonal points define complete rectangle
+    - Automatic calculation of remaining corners
+    - Edge segment creation for all four sides
+    - Coordinate validation for proper rectangle formation
+    - Orientation and size calculations
+
+Mathematical Properties:
+    - Area calculation from diagonal points
+    - Perimeter calculation from dimensions
+    - Center point determination
+    - Width and height calculations
+    - Diagonal length calculations
+
+Dependencies:
+    - constants: Default rectangle styling
+    - drawables.drawable: Base class functionality
+    - drawables.point: Corner point objects
+    - drawables.segment: Edge segments
+    - utils.math_utils: Rectangle calculations
+```
+
+**Class Documentation:**
+```
+Represents a rectangle defined by two diagonal points.
+
+Automatically calculates all four corners and creates edge segments,
+providing complete rectangular geometry functionality.
+
+Attributes:
+    point1 (Point): First diagonal corner
+    point2 (Point): Second diagonal corner  
+    point3 (Point): Third corner (calculated)
+    point4 (Point): Fourth corner (calculated)
+    edges (list): List of four edge segments
+    area (float): Calculated area of the rectangle
+    perimeter (float): Calculated perimeter of the rectangle
+```
+
+**Key Methods:**
+- `__init__(point1, point2, canvas, name="", color=default_color)`: Initialize rectangle with diagonal points
+- `get_class_name()`: Return the class name 'Rectangle'
+- `draw()`: Render the rectangle (edges are drawn by constituent segments)
+- `calculate_corners()`: Calculate remaining corners from diagonal points
+- `calculate_area()`: Calculate rectangle area
+- `calculate_perimeter()`: Calculate perimeter from dimensions
+- `zoom()`: Update rectangle for zoom operations (handled by corners)
+- `pan()`: Update rectangle for pan operations (handled by corners)
+- `translate(x_offset, y_offset)`: Move rectangle by translating all corners
+- `get_state()`: Serialize rectangle state for persistence
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Circle (`drawables/circle.py`)
+
+**File Header:**
+```
+MatHud Circle Geometric Object
+
+Represents a circular object with center point and radius-based geometry.
+Provides circular mathematics and visualization with precise geometric calculations.
+
+Key Features:
+    - Center-point and radius representation
+    - Circumference and area calculations
+    - Point-on-circle testing and calculations
+    - Scaling operations for zoom functionality
+    - Integration with coordinate transformation system
+
+Circular Mathematics:
+    - Area calculation (π × r²)
+    - Circumference calculation (2 × π × r)
+    - Point distance testing from center
+    - Intersection calculations with other objects
+    - Tangent line calculations
+
+Visual Representation:
+    - SVG circle rendering with center and radius
+    - Color customization and styling options
+    - Radius scaling for zoom operations
+    - Center point coordination with point system
+
+Dependencies:
+    - constants: Default circle styling
+    - drawables.drawable: Base class functionality
+    - drawables.point: Center point object
+    - utils.math_utils: Circular calculations
+    - math: Mathematical constants and functions
+```
+
+**Class Documentation:**
+```
+Represents a circle with center point and radius.
+
+Maintains a center Point object and radius value, providing complete
+circular geometry functionality and mathematical calculations.
+
+Attributes:
+    center (Point): Center point of the circle
+    radius (float): Radius of the circle
+    drawn_radius (float): Current radius adjusted for canvas scale
+    area (float): Calculated area of the circle
+    circumference (float): Calculated circumference of the circle
+```
+
+**Key Methods:**
+- `__init__(center, radius, canvas, name="", color=default_color)`: Initialize circle with center and radius
+- `get_class_name()`: Return the class name 'Circle'
+- `draw()`: Render the circle to the SVG canvas
+- `calculate_area()`: Calculate circle area (π × r²)
+- `calculate_circumference()`: Calculate circumference (2 × π × r)
+- `zoom()`: Update circle radius for zoom operations
+- `pan()`: Update circle for pan operations (handled by center point)
+- `translate(x_offset, y_offset)`: Move circle by translating center point
+- `get_state()`: Serialize circle state for persistence
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+### Utility Modules
+
+#### Math Utils (`utils/math_utils.py`)
+
+**File Header:**
+```
+MatHud Mathematical Utilities Library
+
+Comprehensive collection of mathematical functions for geometric calculations,
+function analysis, and numerical operations supporting the visualization system.
+
+Core Mathematical Functions:
+    - Basic arithmetic and algebraic operations
+    - Trigonometric functions and angle calculations
+    - Distance and geometric relationship calculations
+    - Statistical analysis functions
+    - Function analysis and asymptote detection
+
+Geometric Mathematics:
+    - Point-to-point distance calculations
+    - Line intersection and perpendicular calculations
+    - Angle measurements and conversions
+    - Area calculations for various shapes
+    - Coordinate transformation mathematics
+
+Function Analysis:
+    - Mathematical function evaluation
+    - Asymptote detection (vertical and horizontal)
+    - Discontinuity analysis
+    - Domain and range calculations
+    - Derivative approximations
+
+Numerical Methods:
+    - Root finding algorithms
+    - Numerical integration methods
+    - Statistical calculations (mean, median, variance)
+    - Precision handling for floating-point operations
+    - Error tolerance management
+
+Dependencies:
+    - math: Standard mathematical functions
+    - expression_evaluator: Function evaluation system
+    - constants: Mathematical constants and tolerances
+```
+
+**Key Functions:**
+- `distance(x1, y1, x2, y2)`: Calculate distance between two points
+- `angle_between_points(x1, y1, x2, y2, x3, y3)`: Calculate angle formed by three points
+- `line_intersection(x1, y1, x2, y2, x3, y3, x4, y4)`: Find intersection of two lines
+- `point_on_line(px, py, x1, y1, x2, y2, tolerance=1e-6)`: Test if point lies on line
+- `perpendicular_distance(px, py, x1, y1, x2, y2)`: Distance from point to line
+- `area_of_triangle(x1, y1, x2, y2, x3, y3)`: Calculate triangle area
+- `area_of_polygon(points)`: Calculate polygon area using shoelace formula
+- `mean(values)`: Calculate arithmetic mean
+- `median(values)`: Calculate median value
+- `variance(values)`: Calculate variance
+- `calculate_vertical_asymptotes(function_string, left_bound=None, right_bound=None)`: Find vertical asymptotes
+- `calculate_horizontal_asymptotes(function_string)`: Find horizontal asymptotes
+- `calculate_asymptotes_and_discontinuities(function_string, left_bound=None, right_bound=None)`: Complete asymptote analysis
+- `calculate_point_discontinuities(function_string, left_bound=None, right_bound=None)`: Find point discontinuities
+- `triangle_matches_coordinates(triangle, x1, y1, x2, y2, x3, y3)`: Check if triangle matches coordinates
+- `find_diagonal_points(points, rect_name_for_warning)`: Find diagonal points for rectangle construction
+
+#### Style Utils (`utils/style_utils.py`)
+
+**File Header:**
+```
+MatHud Styling and CSS Utilities
+
+Validation and management utilities for CSS styling, colors, and visual properties.
+Provides consistent styling across the mathematical visualization system.
+
+Color Management:
+    - CSS color validation and parsing
+    - Color format conversion (hex, rgb, named colors)
+    - Opacity and transparency validation
+    - Color scheme management
+
+CSS Validation:
+    - Style property validation
+    - CSS syntax checking
+    - Property value validation
+    - Cross-browser compatibility checking
+
+Visual Properties:
+    - Line width and stroke styling
+    - Fill and stroke color management
+    - Font and text styling validation
+    - Animation and transition properties
+
+Dependencies:
+    - re: Regular expression for pattern matching
+    - constants: Default styling values
+```
+
+**Key Functions:**
+- `is_valid_color(color)`: Validate CSS color format
+- `is_valid_opacity(opacity)`: Validate opacity value (0.0 to 1.0)
+- `normalize_color(color)`: Convert color to standard format
+- `validate_css_property(property, value)`: Validate CSS property-value pairs
+- `get_default_style(object_type)`: Get default styling for object types
+- `merge_styles(base_style, override_style)`: Merge styling dictionaries
+
+#### Geometry Utils (`utils/geometry_utils.py`)
+
+**File Header:**
+```
+MatHud Geometric Analysis and Graph Theory Utilities
+
+Advanced geometric analysis functions supporting complex shape detection,
+connectivity analysis, and graph theory operations for the visualization system.
+
+Graph Theory Operations:
+    - Connectivity analysis for geometric objects
+    - Triangle detection from connected segments
+    - Path finding algorithms
+    - Network topology analysis
+
+Geometric Analysis:
+    - Shape recognition algorithms
+    - Intersection detection between complex objects
+    - Containment testing (point-in-polygon, etc.)
+    - Geometric relationship analysis
+
+Advanced Algorithms:
+    - Convex hull calculations
+    - Triangulation algorithms
+    - Polygon decomposition
+    - Geometric clustering analysis
+
+Integration Features:
+    - Drawable object connectivity analysis
+    - Automatic shape detection from existing objects
+    - Geometric constraint solving
+    - Spatial indexing for efficient queries
+
+Dependencies:
+    - itertools: Combination and permutation operations
+    - collections: Data structure utilities
+    - utils.math_utils: Basic geometric calculations
+```
+
+**Key Functions:**
+- `find_connected_segments(segments)`: Find all connected segment groups
+- `detect_triangles_from_segments(segments)`: Automatically detect triangles
+- `calculate_convex_hull(points)`: Calculate convex hull of point set
+- `point_in_polygon(point, polygon)`: Test if point is inside polygon
+- `polygon_intersection(poly1, poly2)`: Find intersection of two polygons
+- `simplify_polygon(polygon, tolerance)`: Simplify polygon by removing redundant points
+- `analyze_connectivity(drawables)`: Analyze connectivity between drawable objects
+
+#### Computation Utils (`utils/computation_utils.py`)
+
+**File Header:**
+```
+MatHud Computation History and Analysis Utilities
+
+Management and analysis of mathematical computations performed on the canvas.
+Provides computation tracking, history management, and analysis capabilities.
+
+Computation Tracking:
+    - Mathematical operation logging
+    - Result validation and verification
+    - Computation history management
+    - Performance monitoring
+
+Analysis Capabilities:
+    - Statistical analysis of results
+    - Trend analysis in computations
+    - Error detection and reporting
+    - Computation optimization suggestions
+
+History Management:
+    - Chronological computation storage
+    - Search and filtering capabilities
+    - Export and import functionality
+    - Computation replay capabilities
+
+Integration Features:
+    - Canvas operation integration
+    - AI computation coordination
+    - Result presentation formatting
+    - Mathematical expression analysis
+
+Dependencies:
+    - datetime: Timestamp management
+    - json: Data serialization
+    - utils.math_utils: Mathematical analysis
+```
+
+**Key Functions:**
+- `log_computation(operation, inputs, result, timestamp=None)`: Log a mathematical computation
+- `get_computation_history()`: Retrieve complete computation history
+- `analyze_computation_trends()`: Analyze patterns in computations
+- `validate_computation_result(operation, inputs, result)`: Validate computation accuracy
+- `export_computation_history(format='json')`: Export history in various formats
+- `search_computations(query)`: Search computation history
+- `get_computation_statistics()`: Generate statistical analysis of computations
+
+### Name Generators
+
+#### Base Name Generator (`name_generator/base.py`)
+
+**File Header:**
+```
+MatHud Base Name Generation System
+
+Abstract base class for systematic naming of mathematical objects.
+Provides the foundation for consistent naming conventions across object types.
+
+Naming Strategy:
+    - Abstract interface for name generation
+    - Collision detection and resolution
+    - Systematic naming patterns
+    - Reset and initialization capabilities
+
+Object Coordination:
+    - Type-specific naming strategies
+    - Cross-object name consistency
+    - Name uniqueness validation
+    - Name format standardization
+
+Integration Points:
+    - Drawable object creation systems
+    - Manager class coordination
+    - User interface integration
+    - Persistence and state management
+
+Dependencies:
+    - abc: Abstract base class functionality
+```
+
+**Class Documentation:**
+```
+Abstract base class for name generation systems.
+
+Defines the interface for systematic naming of mathematical objects
+with collision detection and consistent naming patterns.
+```
+
+**Key Methods:**
+- `__init__()`: Initialize base name generator
+- `generate_name()`: Abstract method to generate next available name
+- `reset()`: Abstract method to reset naming sequence
+- `is_name_taken(name)`: Abstract method to check name availability
+- `register_name(name)`: Abstract method to register used name
+- `unregister_name(name)`: Abstract method to unregister name
+
+#### Drawable Name Generator (`name_generator/drawable.py`)
+
+**File Header:**
+```
+MatHud Multi-Type Drawable Name Generator
+
+Coordinated name generation system managing names across all drawable object types.
+Provides unified naming interface with type-specific delegation.
+
+Multi-Type Coordination:
+    - Point naming (alphabetical sequence)
+    - Function naming (mathematical notation)
+    - Shape naming (geometric conventions)
+    - Area naming (descriptive identifiers)
+
+Name Management:
+    - Global name uniqueness validation
+    - Type-specific naming strategies
+    - Name collision resolution
+    - Systematic name progression
+
+Integration Features:
+    - DrawableManager coordination
+    - Canvas object integration
+    - Undo/redo state preservation
+    - Name persistence across sessions
+
+Dependencies:
+    - name_generator.base: Base class functionality
+    - name_generator.point: Point naming system
+    - name_generator.function: Function naming system
+```
+
+**Class Documentation:**
+```
+Coordinates name generation across all drawable object types.
+
+Manages type-specific name generators and provides unified interface
+for consistent naming throughout the mathematical visualization system.
+```
+
+**Key Methods:**
+- `__init__()`: Initialize multi-type name generator
+- `generate_name(object_type)`: Generate name for specific object type
+- `is_name_taken(name)`: Check if name is used by any object type
+- `register_name(name, object_type)`: Register name usage
+- `unregister_name(name, object_type)`: Unregister name
+- `reset_type(object_type)`: Reset naming for specific type
+- `reset_all()`: Reset all naming generators
+
+#### Point Name Generator (`name_generator/point.py`)
+
+**File Header:**
+```
+MatHud Point Name Generation System
+
+Alphabetical naming system for geometric points following mathematical conventions.
+Provides systematic progression through single and multiple letter combinations.
+
+Naming Sequence:
+    - Single letters: A, B, C, ..., Z
+    - Double letters: AA, AB, AC, ..., ZZ
+    - Extended sequences for large point sets
+    - Mathematical naming conventions
+
+Name Management:
+    - Alphabetical progression algorithm
+    - Skip used names automatically
+    - Reset capability for fresh sequences
+    - Name validation and collision detection
+
+Mathematical Conventions:
+    - Standard geometric point naming
+    - Coordinate system integration
+    - Label compatibility with mathematical notation
+    - International naming standards support
+
+Dependencies:
+    - name_generator.base: Base class functionality
+    - string: String manipulation utilities
+```
+
+**Class Documentation:**
+```
+Generates alphabetical names for geometric points.
+
+Implements systematic alphabetical progression for point naming
+following standard mathematical conventions.
+
+Attributes:
+    current_index (int): Current position in naming sequence
+    used_names (set): Set of already used names
+```
+
+**Key Methods:**
+- `__init__()`: Initialize point name generator
+- `generate_name()`: Generate next alphabetical point name
+- `reset()`: Reset to beginning of naming sequence (A)
+- `is_name_taken(name)`: Check if point name is already used
+- `register_name(name)`: Register point name as used
+- `unregister_name(name)`: Unregister point name
+- `get_next_alphabetical()`: Calculate next letter combination
+
+#### Function Name Generator (`name_generator/function.py`)
+
+**File Header:**
+```
+MatHud Function Name Generation System
+
+Mathematical function naming system using standard notation conventions.
+Provides systematic naming for mathematical functions and expressions.
+
+Function Naming:
+    - Standard notation: f(x), g(x), h(x), ...
+    - Custom function identifiers
+
+Mathematical Conventions:
+    - Standard function notation
+    - Variable designation (x, t, θ, etc.)
+    - Function family organization
+    - Domain-specific naming
+
+Name Progression:
+    - Systematic function letter progression
+    - Subscript numbering for families
+    - Special function recognition
+    - Mathematical symbol integration
+
+Dependencies:
+    - name_generator.base: Base class functionality
+    - mathematical notation: Unicode mathematical symbols
+```
+
+**Class Documentation:**
+```
+Generates mathematical names for function objects.
+
+Implements systematic function naming using mathematical notation
+conventions with support for standard and extended naming patterns.
+
+Attributes:
+    current_letter (str): Current function letter (f, g, h, ...)
+    subscript_number (int): Current subscript for repeated letters
+    used_names (set): Set of already used function names
+```
+
+**Key Methods:**
+- `__init__()`: Initialize function name generator
+- `generate_name()`: Generate next mathematical function name
+- `reset()`: Reset to beginning of naming sequence (f)
+- `is_name_taken(name)`: Check if function name is already used
+- `register_name(name)`: Register function name as used
+- `unregister_name(name)`: Unregister function name
+- `get_next_function_symbol()`: Calculate next function symbol
+
+### Supporting Files
+
+#### Expression Evaluator (`expression_evaluator.py`)
+
+**File Header:**
+```
+MatHud Expression Evaluator Module
+
+Mathematical expression parsing and evaluation system for function processing.
+Provides safe expression evaluation with mathematical function support and error handling.
+
+Key Features:
+    - Safe mathematical expression evaluation
+    - Function parsing and validation
+    - Variable substitution and computation
+    - Error handling for invalid expressions
+    - Integration with mathematical computation systems
+
+Mathematical Support:
+    - Standard arithmetic operations (+, -, *, /, ^)
+    - Mathematical functions (sin, cos, tan, log, exp, sqrt, etc.)
+    - Mathematical constants (pi, e)
+    - Variable substitution (primarily x for function evaluation)
+    - Complex mathematical expressions
+
+Safety Features:
+    - Restricted execution environment
+    - Input validation and sanitization
+    - Error handling and reporting
+    - Timeout protection for complex expressions
+    - Memory usage monitoring
+
+Dependencies:
+    - math: Standard mathematical functions
+    - ast: Abstract syntax tree parsing
+    - operator: Safe operator implementations
+```
+
+**Key Functions:**
+- `evaluate_expression(expression, x=None)`: Safely evaluate mathematical expression
+- `validate_expression_syntax(expression)`: Validate expression syntax
+- `parse_function_expression(expression)`: Parse function for analysis
+- `substitute_variables(expression, variables)`: Replace variables with values
+- `get_supported_functions()`: List available mathematical functions
+- `sanitize_expression(expression)`: Clean and validate expression input
+
+#### Function Registry (`function_registry.py`)
+
+**File Header:**
+```
+MatHud AI-Accessible Function Registry
+
+Registry of mathematical functions available to AI for canvas operations.
+Provides structured interface for AI interaction with canvas functionality.
+
+Function Categories:
+    - Point operations: Creation, deletion, manipulation
+    - Shape operations: Geometric object management
+    - Function operations: Mathematical function plotting
+    - Analysis operations: Geometric and mathematical analysis
+    - Canvas operations: Viewport and state management
+
+AI Integration:
+    - Function signatures and parameter documentation
+    - Return value specifications
+    - Usage examples and patterns
+    - Error handling guidance
+    - Operation coordination
+
+Function Documentation:
+    - Comprehensive parameter descriptions
+    - Expected return values and formats
+    - Usage examples and best practices
+    - Integration patterns with other functions
+    - Error conditions and handling
+
+Dependencies:
+    - canvas: Canvas operations
+    - utils.*: Utility function access
+    - managers.*: Manager system integration
+```
+
+**Key Functions:**
+- `get_available_functions()`: List all AI-accessible functions
+- `get_function_signature(function_name)`: Get detailed function documentation
+- `execute_canvas_function(function_name, parameters)`: Execute canvas operation
+- `validate_parameters(function_name, parameters)`: Validate function parameters
+- `get_function_examples(function_name)`: Get usage examples
+- `get_function_categories()`: Get organized function categories
+
+#### Process Function Calls (`process_function_calls.py`)
+
+**File Header:**
+```
+MatHud AI Function Call Processing System
+
+Processes and executes function calls from AI with validation and error handling.
+Coordinates between AI requests and canvas operations with safety mechanisms.
+
+Processing Pipeline:
+    - Function call parsing and validation
+    - Parameter extraction and validation
+    - Canvas operation execution
+    - Result formatting and return
+    - Error handling and reporting
+
+Safety Mechanisms:
+    - Input validation and sanitization
+    - Parameter type checking
+    - Canvas state protection
+    - Operation rollback capabilities
+    - Error isolation and recovery
+
+AI Coordination:
+    - Request parsing from AI interface
+    - Response formatting for AI consumption
+    - Operation status reporting
+    - Batch operation support
+    - Asynchronous operation handling
+
+Dependencies:
+    - function_registry: Available function definitions
+    - canvas: Canvas operation execution
+    - result_validator: Result validation
+    - json: Data serialization
+```
+
+**Key Functions:**
+- `process_function_call(call_data)`: Main function call processing
+- `validate_function_call(call_data)`: Validate call structure and parameters
+- `execute_canvas_operation(function_name, parameters)`: Execute on canvas
+- `format_result(result, function_name)`: Format result for AI
+- `handle_execution_error(error, context)`: Handle and report errors
+- `batch_process_calls(call_list)`: Process multiple function calls
+
+#### Constants (`constants.py`)
+
+**File Header:**
+```
+MatHud Global Constants and Configuration
+
+Central configuration file containing all global constants, default values,
+and configuration parameters for the mathematical visualization system.
+
+Configuration Categories:
+    - Visual styling: Colors, sizes, fonts
+    - Mathematical parameters: Tolerances, precision, limits
+    - Canvas settings: Dimensions, zoom limits, coordinate systems
+    - Performance settings: Rendering limits, optimization parameters
+    - UI constants: Interface dimensions, control parameters
+
+Default Values:
+    - Object styling defaults (colors, sizes, fonts)
+    - Mathematical precision tolerances
+    - Canvas viewport settings
+    - Animation and interaction parameters
+    - File format specifications
+
+System Parameters:
+    - Memory usage limits
+    - Performance optimization settings
+    - Error tolerance values
+    - Debug and logging configurations
+    - Feature flags and experimental settings
+
+Dependencies:
+    - None (standalone configuration)
+```
+
+**Key Constants:**
+- `DEFAULT_CANVAS_WIDTH`: Default canvas width in pixels
+- `DEFAULT_CANVAS_HEIGHT`: Default canvas height in pixels
+- `DEFAULT_POINT_COLOR`: Default color for point objects
+- `DEFAULT_LINE_COLOR`: Default color for line objects
+- `MATHEMATICAL_TOLERANCE`: Precision tolerance for calculations
+- `MAX_ZOOM_FACTOR`: Maximum allowed zoom level
+- `MIN_ZOOM_FACTOR`: Minimum allowed zoom level
+- `GRID_SPACING`: Default grid spacing for coordinate system
+- `FONT_SIZE`: Default font size for labels
+- `ANIMATION_DURATION`: Default animation duration in milliseconds
+
+#### Geometry (`geometry.py`)
+
+**File Header:**
+```
+MatHud Basic Geometric Classes and Definitions
+
+Fundamental geometric class definitions and basic mathematical structures.
+Provides foundational classes for coordinate systems and basic geometric operations.
+
+Core Classes:
+    - Position: 2D coordinate pair container
+    - Basic geometric primitive definitions
+    - Coordinate system foundations
+    - Mathematical structure definitions
+
+Mathematical Foundations:
+    - 2D coordinate mathematics
+    - Basic geometric relationships
+    - Coordinate transformation basics
+    - Mathematical precision handling
+
+Integration Support:
+    - Canvas coordinate system integration
+    - Drawable object foundation support
+    - Manager system coordination
+    - State serialization support
+
+Dependencies:
+    - math: Basic mathematical operations
+    - copy: Object copying functionality
+```
+
+**Key Classes and Functions:**
+- `Position(x, y)`: Basic 2D coordinate container
+- `coordinate_distance(pos1, pos2)`: Distance between positions
+- `coordinate_midpoint(pos1, pos2)`: Midpoint calculation
+- `normalize_coordinates(coords)`: Coordinate normalization
+- `transform_coordinates(coords, transformation)`: Apply coordinate transformation
+
+#### Result Validator (`result_validator.py`)
+
+**File Header:**
+```
+MatHud Result Validation and Processing System
+
+Validates and processes results from mathematical operations and AI interactions.
+Ensures data integrity and proper formatting throughout the system.
+
+Validation Categories:
+    - Mathematical result validation
+    - Geometric object validation
+    - AI response validation
+    - Data format validation
+    - State consistency validation
+
+Processing Functions:
+    - Result formatting and standardization
+    - Error detection and reporting
+    - Data type conversion and validation
+    - Consistency checking across operations
+    - Integration validation
+
+Quality Assurance:
+    - Mathematical accuracy verification
+    - Geometric constraint validation
+    - Performance impact assessment
+    - Memory usage validation
+    - Error recovery mechanisms
+
+Dependencies:
+    - utils.math_utils: Mathematical validation
+    - json: Data format validation
+    - constants: Validation parameters
+```
+
+**Key Functions:**
+- `validate_mathematical_result(result, operation)`: Validate math operation results
+- `validate_geometric_object(object_data)`: Validate geometric object integrity
+- `validate_ai_response(response)`: Validate AI response format and content
+- `process_operation_result(result, context)`: Process and standardize results
+- `check_state_consistency(state_data)`: Validate system state consistency
+- `format_error_report(error, context)`: Format error reports for logging
+
+#### Main (`main.py`)
+
+**File Header:**
+```
+MatHud Application Initialization and Startup Coordination
+
+Central application initialization module that coordinates system startup,
+component initialization, and application lifecycle management.
+
+Initialization Sequence:
+    - System component initialization
+    - Configuration loading and validation
+    - Canvas system startup
+    - Manager system initialization
+    - UI component initialization
+
+Component Coordination:
+    - Canvas and manager integration
+    - AI system initialization
+    - Name generator setup
+    - Utility system initialization
+    - State management system startup
+
+Application Lifecycle:
+    - Startup sequence coordination
+    - Component dependency resolution
+    - Error handling during initialization
+    - Graceful shutdown procedures
+    - Resource cleanup and management
+
+Dependencies:
+    - canvas: Main canvas system
+    - managers.*: All manager components
+    - utils.*: Utility systems
+    - constants: Configuration values
+```
+
+**Key Functions:**
+- `initialize_application()`: Main application initialization
+- `setup_canvas_system()`: Initialize canvas and coordinate system
+- `initialize_managers()`: Setup all manager components
+- `setup_name_generators()`: Initialize naming systems
+- `configure_ai_integration()`: Setup AI interface components
+- `startup_application()`: Complete application startup sequence
+- `shutdown_application()`: Graceful application shutdown
+
+---
+
+## Server-Side Components
+
+### Server-Side Workspace Manager (`static/workspace_manager.py`)
+
+**File Header:**
+```
+MatHud Server-Side Workspace Management
+
+Handles workspace file operations for saving and loading canvas states.
+Provides secure file operations with path validation and JSON-based storage.
+
+Dependencies:
+    - os: File system operations and path validation
+    - json: Workspace state serialization and deserialization
+    - re: Workspace name validation with regex
+    - datetime: Timestamp generation for metadata
+```
+
+**Class Documentation:**
+```
+Server-side workspace file operations manager.
+
+Manages saving, loading, listing, and deleting workspace files with
+security validation and JSON-based state storage with metadata.
+
+Attributes:
+    workspaces_dir (str): Base directory for storing workspace files
+```
+
+**Key Methods:**
+- `__init__(workspaces_dir=WORKSPACES_DIR)`: Initialize the workspace manager with base directory
+- `save_workspace(state, name=None, test_dir=None)`: Save workspace state to file with metadata
+- `load_workspace(name=None, test_dir=None)`: Load workspace state from file
