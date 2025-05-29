@@ -571,6 +571,166 @@ Attributes:
 - `_draw_grid(step)`: Render grid lines for visual coordinate reference
 - `_calculate_tick_spacing()`: Calculate appropriate tick spacing for current zoom level
 
+#### Expression Validator (`expression_validator.py`)
+
+**File Header:**
+```
+MatHud Mathematical Expression Validation and Evaluation System
+
+Secure mathematical expression parser and evaluator that validates and processes user input
+for function plotting and mathematical computation. Provides safe expression evaluation
+with comprehensive mathematical function support and syntax validation.
+
+Key Features:
+    - AST-based expression validation for security
+    - Safe mathematical function evaluation
+    - Expression syntax correction and normalization
+    - Mathematical notation conversion (degrees, symbols, operators)
+    - Comprehensive mathematical function library support
+    - Python and Math.js compatibility modes
+
+Security Features:
+    - Restricted execution environment using AST parsing
+    - Whitelist-based function and operator validation
+    - Prevention of dangerous operations (imports, assignments, etc.)
+    - Input sanitization and validation
+    - Safe evaluation with controlled variable scope
+
+Mathematical Support:
+    - Standard arithmetic operations (+, -, *, /, ^, **)
+    - Trigonometric functions (sin, cos, tan, asin, acos, atan)
+    - Hyperbolic functions (sinh, cosh, tanh)
+    - Logarithmic functions (log, log10, log2, ln)
+    - Advanced functions (sqrt, exp, abs, factorial)
+    - Statistical functions (mean, median, mode, variance, stdev)
+    - Mathematical constants (pi, e)
+    - Calculus operations (derivative, integral, limit)
+    - Algebraic operations (simplify, expand, factor, solve)
+
+Expression Processing:
+    - Automatic syntax correction and normalization
+    - Mathematical notation conversion (√, °, π, !)
+    - Implicit multiplication insertion (2x → 2*x)
+    - Power operator conversion (^ ↔ **)
+    - Function name standardization
+
+Dependencies:
+    - ast: Abstract syntax tree parsing for security
+    - math: Standard mathematical functions
+    - random: Random number generation
+    - re: Regular expression pattern matching
+    - utils.math_utils: Advanced mathematical operations
+```
+
+**Class Documentation:**
+```
+Secure mathematical expression validator and evaluator using AST parsing.
+
+Validates mathematical expressions against a whitelist of allowed operations
+and functions, then provides safe evaluation capabilities. Uses abstract
+syntax tree (AST) parsing to ensure security by preventing dangerous
+operations like imports, assignments, and arbitrary code execution.
+
+Security Model:
+    - AST-based validation prevents code injection
+    - Whitelist approach for allowed functions and operations
+    - Controlled variable scope during evaluation
+    - Prevention of dangerous Python operations
+
+Mathematical Capabilities:
+    - Full arithmetic operation support
+    - Comprehensive mathematical function library
+    - Advanced mathematical operations (calculus, algebra)
+    - Statistical analysis functions
+    - Mathematical constant access
+
+Attributes:
+    ALLOWED_NODES (set): Whitelist of permitted AST node types
+    ALLOWED_FUNCTIONS (set): Whitelist of permitted mathematical functions
+```
+
+**Key Methods:**
+- `_is_allowed_node_type(node)`: Check if AST node type is in allowed whitelist
+- `visit(node)`: Visit AST node and validate against security constraints
+- `visit_Call(node)`: Visit function call nodes and validate against allowed functions
+- `validate_expression_tree(expression)`: Validate mathematical expression using AST parsing
+- `evaluate_expression(expression, x=0)`: Safely evaluate mathematical expression with controlled scope
+- `fix_math_expression(expression, python_compatible=False)`: Automatically correct and normalize expression syntax
+- `parse_function_string(function_string, use_mathjs=False)`: Parse function string into callable function object
+- `_convert_degrees(expression)`: Convert degree symbols and text to radians
+- `_handle_special_symbols(expression, python_compatible)`: Handle square roots, absolute values, and factorials
+- `_replace_function_names(expression)`: Replace common mathematical function names with Python equivalents
+- `_handle_power_and_imaginary(expression, python_compatible)`: Handle power operators and imaginary numbers
+- `_insert_multiplication_operators(expression, python_compatible)`: Insert multiplication operators for implicit multiplication
+
+#### Markdown Parser (`markdown_parser.py`)
+
+**File Header:**
+```
+Markdown Parser for MatHud Chat Interface
+
+A comprehensive markdown parser that supports:
+- Headers (H1-H6: # ## ### #### ######)
+- Bold text (**bold** or __bold__)
+- Italic text (*italic* or _italic_)
+- Strikethrough text (~~strikethrough~~)
+- Inline and block code (` and ```)
+- Links and images
+- Ordered and unordered lists with nesting
+- Checkboxes (- [x] and - [ ])
+- Tables
+- Blockquotes
+- Horizontal rules
+- Mathematical expressions (LaTeX: \(...\) for inline, $$...$$ for block)
+```
+
+**Class Documentation:**
+```
+Custom markdown parser optimized for chat interface display.
+
+Provides comprehensive markdown parsing capabilities specifically designed
+for the MatHud chat interface, with special support for mathematical
+expressions and complex formatting structures.
+
+Key Features:
+    - Complete markdown syntax support
+    - Mathematical expression rendering (LaTeX)
+    - Nested list handling with proper indentation
+    - Table parsing and formatting
+    - Checkbox support for task lists
+    - Inline formatting (bold, italic, strikethrough)
+    - Code block and inline code support
+    - Link and image processing
+    - Blockquote and horizontal rule support
+
+Mathematical Integration:
+    - Inline math expressions using \(...\)
+    - Block math expressions using $$...$$
+    - Integration with MathJax for rendering
+    - Proper escaping and formatting
+
+Advanced Features:
+    - Smart line break handling
+    - Proper list nesting with indentation levels
+    - Table structure detection and HTML generation
+    - Error handling with graceful fallbacks
+    - Performance optimization for chat interfaces
+```
+
+**Key Methods:**
+- `parse(text)`: Parse markdown text to HTML with error handling
+- `_simple_markdown_parse(text)`: Main markdown parsing logic using string operations
+- `_process_tables(text)`: Process markdown tables into HTML table structures
+- `_build_table_html(table_lines)`: Build HTML table from markdown table lines
+- `_is_list_item(line)`: Check if line is a list item (ordered, unordered, or checkbox)
+- `_process_list_item(line)`: Process list item and determine type and indentation
+- `_join_lines_with_smart_breaks(lines)`: Join lines with intelligent line break handling
+- `_wrap_list_items_improved(html)`: Wrap list items with proper <ul>/<ol> tags and nesting
+- `_extract_data_attr(line, attr_name)`: Extract data attribute values from HTML
+- `_build_nested_list_html(list_items)`: Build properly nested HTML from list items
+- `_process_inline_markdown(text)`: Process inline markdown elements (bold, italic, code)
+- `_process_math_expressions(text)`: Process LaTeX mathematical expressions for rendering
+
 ### Management Classes
 
 #### Drawable Manager (`managers/drawable_manager.py`)
