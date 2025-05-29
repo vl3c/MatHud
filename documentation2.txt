@@ -1326,59 +1326,61 @@ Attributes:
 
 **File Header:**
 ```
-MatHud Mathematical Function Object
+MatHud Function Management System
 
-Represents a mathematical function plot with expression evaluation and curve rendering.
-Provides function plotting, domain management, and mathematical analysis capabilities.
+Manages mathematical function creation, modification, and deletion for graph visualization.
+Handles function plotting with expression validation, bounds management, and colored area integration.
 
-Key Features:
-    - Mathematical expression parsing and evaluation
-    - Smooth curve rendering with adaptive point sampling
-    - Domain boundary management (left/right bounds)
-    - Asymptote and discontinuity detection
-    - Function expression validation and correction
+Core Responsibilities:
+    - Function Creation: Creates mathematical function objects from string expressions
+    - Function Modification: Updates existing function expressions and bounds
+    - Function Deletion: Safe removal with cleanup of associated colored areas
+    - Expression Validation: Ensures mathematical expressions are properly formatted
 
-Mathematical Properties:
-    - Function expression in string format
-    - Domain boundaries for plotting range
-    - Point sampling for curve smoothness
-    - Asymptote calculations
-    - Discontinuity analysis
+Mathematical Integration:
+    - Expression Parsing: Converts string expressions to plottable mathematical functions
+    - Bounds Management: Handles left and right domain boundaries for function visualization
+    - Domain Validation: Ensures mathematical validity of function domains
+    - Function Evaluation: Supports real-time function plotting and computation
 
-Dependencies:
-    - expression_validator: Mathematical expression parsing
-    - utils.math_utils: Function evaluation and analysis
-    - constants: Plotting parameters and styling
-    - drawables.drawable: Base class interface
+Advanced Features:
+    - Expression Fixing: Automatic correction of common mathematical notation issues
+    - Function Updates: Modifies existing functions without recreation
+    - Name Generation: Systematic naming for function identification
+    - Colored Area Integration: Automatic cleanup of dependent area visualizations
+
+Integration Points:
+    - ExpressionValidator: Mathematical expression parsing and validation
+    - ColoredAreaManager: Manages function-bounded area visualizations
+    - Canvas: Handles function plotting and visual updates
+    - DrawableManager: Coordinates with other geometric objects
+
+Expression Support:
+    - Mathematical Functions: sin, cos, tan, log, exp, sqrt, and more
+    - Variables: x as primary variable for function expressions
+    - Constants: pi, e, and other mathematical constants
+    - Operations: Standard arithmetic and advanced mathematical operations
+
+State Management:
+    - Undo/Redo: Complete state archiving for function operations
+    - Canvas Integration: Immediate visual updates after modifications
+    - Dependency Tracking: Maintains relationships with colored areas
+    - Expression Persistence: Preserves function expressions across operations
 ```
 
 **Class Documentation:**
 ```
-Represents a mathematical function with expression evaluation and curve plotting.
+Manages function drawables for a Canvas with mathematical expression support.
 
-Manages function expressions, evaluates them over specified domains, and renders
-smooth curves with proper handling of asymptotes and discontinuities.
-
-Attributes:
-    expression (str): Mathematical function expression (e.g., "sin(x)", "x^2")
-    left_bound (float): Left boundary of the function domain
-    right_bound (float): Right boundary of the function domain
-    points (list): Calculated points for curve rendering
-    asymptotes (dict): Vertical and horizontal asymptotes
-    discontinuities (list): Point discontinuities in the function
+Handles the complete lifecycle of mathematical function objects from expression
+parsing through visualization to deletion with proper cleanup of dependencies.
 ```
 
 **Key Methods:**
-- `__init__(expression, canvas, name="", left_bound=None, right_bound=None, color=default_color)`: Initialize function with expression and domain
-- `get_class_name()`: Return the class name 'Function'
-- `draw()`: Render the function curve to the SVG canvas
-- `update_expression(new_expression, left_bound=None, right_bound=None)`: Update function expression and domain
-- `zoom()`: Update function plotting for zoom operations
-- `pan()`: Update function for pan operations
-- `get_state()`: Serialize function state for persistence
-- `translate(x_offset, y_offset)`: Translation not applicable for functions
-- `rotate(angle)`: Rotation not applicable for functions
-- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+- `__init__(canvas, drawables_container, name_generator, dependency_manager, drawable_manager_proxy)`: Initialize the FunctionManager with dependencies
+- `get_function(name)`: Get a function by its name
+- `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a function on the canvas or update existing function
+- `delete_function(name)`: Delete a function by its name with cleanup of associated colored areas
 
 #### Colored Area Manager (`managers/colored_area_manager.py`)
 
@@ -1428,6 +1430,7 @@ Attributes:
 - `draw()`: Abstract method for rendering (implemented by subclasses)
 - `get_state()`: Abstract method for state serialization
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+- `_create_svg_path(forward_points, reverse_points)`: Create SVG path from boundary points
 
 #### Angle Manager (`managers/angle_manager.py`)
 
@@ -2149,6 +2152,251 @@ Attributes:
 - `update_points_based_on_segments()`: Re-evaluate vertex and arm points if segments have changed
 - `reset()`: Reset the angle to its initial state based on its segments
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Function (`drawables/function.py`)
+
+**File Header:**
+```
+MatHud Mathematical Function Object
+
+Represents a mathematical function plot with expression evaluation and curve rendering.
+Provides function plotting, domain management, and mathematical analysis capabilities.
+
+Key Features:
+    - Mathematical expression parsing and evaluation
+    - Smooth curve rendering with adaptive point sampling
+    - Domain boundary management (left/right bounds)
+    - Asymptote and discontinuity detection
+    - Function expression validation and correction
+    - Performance optimized path caching
+
+Mathematical Properties:
+    - Function expression in string format
+    - Domain boundaries for plotting range
+    - Point sampling for curve smoothness
+    - Asymptote calculations (vertical and horizontal)
+    - Discontinuity analysis and handling
+
+Visual Optimization:
+    - Adaptive step size calculation based on function type
+    - Path caching for performance optimization
+    - Intelligent path regeneration on zoom/pan
+    - Boundary clipping for efficient rendering
+
+Dependencies:
+    - expression_validator: Mathematical expression parsing and validation
+    - constants: Plotting parameters and styling
+    - drawables.drawable: Base class interface
+    - drawables.position: Coordinate calculations
+```
+
+**Class Documentation:**
+```
+Represents a mathematical function with expression evaluation and curve plotting.
+
+Manages function expressions, evaluates them over specified domains, and renders
+smooth curves with proper handling of asymptotes and discontinuities.
+
+Attributes:
+    function_string (str): Mathematical function expression (e.g., "sin(x)", "x^2")
+    function (callable): Parsed function object for evaluation
+    left_bound (float): Left boundary of the function domain
+    right_bound (float): Right boundary of the function domain
+    step (float): Sampling step size for curve generation
+    vertical_asymptotes (list): List of vertical asymptote x-coordinates
+    horizontal_asymptotes (list): List of horizontal asymptote equations
+    point_discontinuities (list): Point discontinuities in the function
+```
+
+**Key Methods:**
+- `__init__(function_string, canvas, name, step=default_point_size, color=default_color, left_bound=None, right_bound=None, vertical_asymptotes=None, horizontal_asymptotes=None, point_discontinuities=None)`: Initialize function with expression and domain
+- `get_class_name()`: Return the class name 'Function'
+- `draw()`: Render the function curve to the SVG canvas with path optimization
+- `zoom()`: Update function plotting for zoom operations (handled by path regeneration)
+- `pan()`: Update function for pan operations (handled by path regeneration)
+- `translate(x_offset, y_offset)`: Translation not applicable for functions
+- `rotate(angle)`: Rotation not applicable for functions
+- `get_state()`: Serialize function state for persistence
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+- `_generate_paths()`: Generate optimized SVG paths for function curve rendering
+- `_calculate_asymptotes_and_discontinuities()`: Calculate mathematical function properties
+
+#### Colored Area (`drawables/colored_area.py`)
+
+**File Header:**
+```
+MatHud Colored Area Base Class
+
+Abstract base class for all colored area visualizations between geometric objects.
+Provides SVG path creation and common area rendering functionality.
+
+Key Features:
+    - SVG path generation from boundary points
+    - Color and opacity customization
+    - Forward and reverse path construction for closed areas
+    - Base state management for all area types
+
+Area Types Supported:
+    - Functions bounded areas (between two functions)
+    - Segment bounded areas (between segments and axes)
+    - Function-segment bounded areas (between function and segment)
+
+Dependencies:
+    - drawables.drawable: Base class interface
+    - constants: Default styling values
+```
+
+**Class Documentation:**
+```
+Abstract base class for all colored area visualizations between geometric objects.
+
+Provides the foundation for area fill operations with SVG path generation
+and common styling capabilities for opacity and color.
+
+Attributes:
+    opacity (float): Fill opacity value between 0.0 and 1.0
+    color (str): CSS color value for area fill
+```
+
+**Key Methods:**
+- `__init__(name, canvas=None, color="lightblue", opacity=0.3)`: Initialize a colored area with basic properties
+- `get_class_name()`: Return the class name 'ColoredArea'
+- `draw()`: Abstract method for rendering (implemented by subclasses)
+- `zoom()`: Update area for zoom operations (handled by boundary objects)
+- `pan()`: Update area for pan operations (handled by boundary objects)
+- `get_state()`: Serialize colored area state for persistence
+- `__deepcopy__(memo)`: Abstract method for deep copy (implemented by subclasses)
+- `_create_svg_path(forward_points, reverse_points)`: Create SVG path from boundary points
+
+#### Functions Bounded Colored Area (`drawables/functions_bounded_colored_area.py`)
+
+**File Header:**
+```
+MatHud Functions Bounded Colored Area
+
+Represents a colored area bounded by mathematical functions with asymptote handling.
+Provides area visualization between two functions or between a function and the x-axis.
+
+Key Features:
+    - Two-function or function-to-axis area visualization
+    - Support for function objects, constants, and x-axis boundaries
+    - Asymptote and discontinuity aware path generation
+    - Boundary detection and coordinate transformation
+
+Dependencies:
+    - drawables.colored_area: Base class for area visualization
+    - drawables.function: Function objects for boundary definitions
+    - copy: Deep copying capabilities for state management
+```
+
+**Class Documentation:**
+```
+Creates a colored area bounded by mathematical functions with asymptote handling.
+
+This class creates a visual representation of the area between two functions
+or between a function and the x-axis. Supports Function objects, constants, and None (x-axis).
+
+Attributes:
+    func1 (Function, None, or number): The first bounding function
+    func2 (Function, None, or number): The second bounding function
+    left_bound (float): Left boundary of the colored area
+    right_bound (float): Right boundary of the colored area
+    num_sample_points (int): Number of points for path generation
+```
+
+**Key Methods:**
+- `__init__(func1, func2=None, canvas=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3, num_sample_points=100)`: Initialize functions bounded colored area
+- `get_class_name()`: Return the class name 'FunctionsBoundedColoredArea'
+- `draw()`: Draw the colored area between the functions on the canvas
+- `get_state()`: Serialize functions bounded area state for persistence
+- `__deepcopy__(memo)`: Create a deep copy for undo/redo functionality
+- `_validate_parameters(func1, func2, left_bound, right_bound, num_sample_points)`: Validate input parameters for function bounded area creation
+- `_generate_name(func1, func2)`: Generate a descriptive name for the colored area
+- `_get_function_y_at_x(func, x)`: Get y value for a given x, handling different function types
+
+#### Segments Bounded Colored Area (`drawables/segments_bounded_colored_area.py`)
+
+**File Header:**
+```
+MatHud Segments Bounded Colored Area
+
+Represents a colored area bounded by line segments with overlap detection and linear interpolation.
+Provides area visualization between two segments or between a segment and the x-axis.
+
+Key Features:
+    - Two-segment or segment-to-axis area visualization
+    - Overlap region detection and calculation
+    - Linear interpolation for boundary generation
+    - Geometric validation and path optimization
+
+Dependencies:
+    - drawables.colored_area: Base class for area visualization
+    - drawables.segment: Segment objects for boundary definitions
+    - copy: Deep copying capabilities for state management
+```
+
+**Class Documentation:**
+```
+Creates a colored area bounded by line segments with geometric overlap detection.
+
+This class creates a visual representation of the area between two line segments
+or between a segment and the x-axis, using linear interpolation for smooth boundaries.
+
+Attributes:
+    segment1 (Segment): The first bounding segment
+    segment2 (Segment or None): The second bounding segment (None means x-axis)
+```
+
+**Key Methods:**
+- `__init__(segment1, segment2=None, canvas=None, color="lightblue", opacity=0.3)`: Initialize segments bounded colored area
+- `get_class_name()`: Return the class name 'SegmentsBoundedColoredArea'
+- `draw()`: Render the colored area with segment boundary interpolation
+- `get_state()`: Serialize segments bounded area state for persistence
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+- `_generate_name(segment1, segment2)`: Generate descriptive name based on segment names
+- `uses_segment(segment)`: Check if this colored area uses a specific segment
+
+#### Function Segment Bounded Colored Area (`drawables/function_segment_bounded_colored_area.py`)
+
+**File Header:**
+```
+MatHud Function Segment Bounded Colored Area
+
+Represents a colored area bounded by a mathematical function and a line segment.
+Provides area visualization between a function and a segment with coordinate transformation.
+
+Key Features:
+    - Function-to-segment area visualization
+    - Support for function objects, constants, and x-axis boundaries
+    - Coordinate transformation between canvas and mathematical space
+    - Boundary intersection calculation
+
+Dependencies:
+    - drawables.colored_area: Base class for area visualization
+    - drawables.function: Function objects for boundary definitions
+```
+
+**Class Documentation:**
+```
+Creates a colored area bounded by a mathematical function and a line segment.
+
+This class creates a visual representation of the area between a function
+and a segment with coordinate transformation support.
+
+Attributes:
+    func (Function, None, or number): The bounding function
+    segment (Segment): The bounding line segment
+```
+
+**Key Methods:**
+- `__init__(func, segment, canvas=None, color="lightblue", opacity=0.3)`: Initialize a function segment bounded colored area
+- `get_class_name()`: Return the class name 'FunctionSegmentBoundedColoredArea'
+- `draw()`: Draw the colored area between the function and segment on the canvas
+- `get_state()`: Serialize function segment bounded area state for persistence
+- `__deepcopy__(memo)`: Create a deep copy for undo/redo functionality
+- `_generate_name(func, segment)`: Generate a descriptive name for the colored area
+- `_get_function_y_at_x(x)`: Get y value for a given x from the function
+- `uses_segment(segment)`: Check if this colored area uses a specific segment
 
 ### Utility Modules
 
