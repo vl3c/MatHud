@@ -1632,103 +1632,89 @@ undo/redo functionality for mathematical visualization operations.
 
 **File Header:**
 ```
-MatHud Base Drawable Abstract Class
+MatHud Base Drawable Class
 
-Abstract base class for all geometric and mathematical objects in the visualization system.
-Defines the common interface and functionality shared by all drawable objects.
+Abstract base class for all mathematical objects that can be visualized on the canvas.
+Defines the core interface for geometric objects including drawing, state management, and transformations.
+
+Key Features:
+    - SVG element creation and management
+    - Color and naming system
+    - Canvas integration for coordinate transformations
+    - State serialization for persistence
+    - Abstract interface for zoom, pan, and draw operations
 
 Core Interface:
-    - Abstract Methods: get_class_name(), draw(), get_state()
-    - Common Functionality: Canvas integration, coordinate systems, styling
-    - State Management: Serialization support for undo/redo operations
-    - Transformation Support: Translation and rotation operations
-
-Coordinate Systems:
-    - Canvas Coordinates: Integration with SVG viewport coordinate system
-    - Mathematical Coordinates: Preservation of original mathematical values
-    - Zoom/Pan Support: Automatic scaling and translation operations
-    - Viewport Management: Efficient rendering within visible canvas area
-
-Visual Properties:
-    - Color Management: Customizable colors for all drawable objects
-    - Styling: CSS-compatible styling system
-    - Visibility: Show/hide functionality for complex visualizations
-    - Z-Order: Layering support for proper rendering order
+    - draw(): Render the object to SVG canvas
+    - zoom(): Update object for scale factor changes
+    - pan(): Update object for viewport translation
+    - get_state(): Serialize object state for persistence
+    - rotate(): Apply rotation transformation
 
 Dependencies:
-    - browser.document: DOM manipulation for SVG rendering
-    - constants: Default values and configuration
-    - copy: Deep copying for state management
+    - browser: DOM manipulation for SVG rendering
+    - constants: Default styling values
 ```
 
 **Class Documentation:**
 ```
-Abstract base class for all drawable objects in the mathematical visualization system.
+Abstract base class for all mathematical objects that can be visualized on the canvas.
 
-Provides common functionality for geometric objects including rendering, state management,
-coordinate systems, and transformation operations.
+Provides the fundamental interface and common functionality for geometric objects,
+including SVG rendering capabilities, state management, and coordinate system integration.
 
 Attributes:
-    canvas: Reference to the parent Canvas object
-    color: Visual color for the drawable object
-    name: Unique identifier for the object
+    name (str): Unique identifier for the object within the canvas
+    color (str): CSS color value for object visualization
+    canvas (Canvas): Reference to the parent canvas for coordinate transformations
 ```
 
 **Key Methods:**
-- `__init__(canvas, color=default_color)`: Initialize base drawable with canvas and color
+- `__init__(name="", color=default_color, canvas=None)`: Initialize a drawable object with basic properties
 - `get_class_name()`: Abstract method to return the class name (implemented by subclasses)
+- `get_name()`: Return the object's name
 - `draw()`: Abstract method for rendering (implemented by subclasses)
 - `get_state()`: Abstract method for state serialization (implemented by subclasses)
-- `zoom()`: Update object for zoom operations (implemented by subclasses)
-- `pan()`: Update object for pan operations (implemented by subclasses)
-- `translate(x_offset, y_offset)`: Move object by specified offsets (implemented by subclasses)
-- `rotate(angle)`: Rotate object by specified angle (implemented by subclasses)
-- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+- `zoom()`: Abstract method to update object for zoom operations (implemented by subclasses)
+- `pan()`: Abstract method to update object for pan operations (implemented by subclasses)
+- `rotate(angle)`: Abstract method to rotate object by specified angle (implemented by subclasses)
+- `reset()`: Reset the object to its initial state
+- `create_svg_element(element_name, **attributes)`: Create SVG elements with text content support
 
 #### Position (`drawables/position.py`)
 
 **File Header:**
 ```
-MatHud Position Coordinate Container
+MatHud Geometric Position Container
 
-Simple coordinate pair container for 2D mathematical space.
-Provides basic coordinate storage and manipulation operations.
+Fundamental coordinate representation for all mathematical objects in the canvas system.
+Provides simple x, y coordinate storage with state serialization capabilities.
 
 Key Features:
-    - X/Y coordinate storage
-    - Coordinate arithmetic operations
-    - Distance calculations
-    - String representation for debugging
-
-Mathematical Operations:
-    - Addition and subtraction
-    - Distance calculation between positions
-    - Coordinate transformation support
-    - Mathematical precision handling
+    - Immutable coordinate pair storage
+    - State serialization for persistence and undo/redo
+    - String representation for debugging and display
 
 Dependencies:
-    - math: Mathematical operations and calculations
+    - None (pure data container)
 ```
 
 **Class Documentation:**
 ```
-Represents a 2D coordinate position with x and y values.
+Represents a 2D coordinate position in the mathematical coordinate system.
 
-Simple container class for coordinate pairs used throughout the mathematical
-visualization system for position tracking and calculations.
+Fundamental building block for all geometric objects, providing x,y coordinate
+storage with serialization capabilities for state management.
 
 Attributes:
-    x (float): X-coordinate value
-    y (float): Y-coordinate value
+    x (float): X-coordinate in the mathematical coordinate system
+    y (float): Y-coordinate in the mathematical coordinate system
 ```
 
 **Key Methods:**
-- `__init__(x, y)`: Initialize position with x and y coordinates
-- `distance_to(other_position)`: Calculate distance to another position
-- `__add__(other)`: Add coordinates (position + position)
-- `__sub__(other)`: Subtract coordinates (position - position)
+- `__init__(x, y)`: Initialize a position with x and y coordinates
 - `__str__()`: String representation for debugging
-- `__repr__()`: Formal string representation
+- `get_state()`: Serialize position state for persistence
 
 #### Point (`drawables/point.py`)
 
@@ -1749,109 +1735,95 @@ Key Features:
 Coordinate Systems:
     - original_position: Mathematical coordinates (unchanged by zoom/pan)
     - x, y: Screen coordinates (updated by zoom/pan transformations)
-    - Scale factor integration for zoom operations
-    - Viewport boundary checking for efficient rendering
-
-Visual Properties:
-    - Point radius for visual representation
-    - Color customization for visual distinction
-    - Label display with coordinate information
-    - Visibility management based on canvas viewport
 
 Dependencies:
-    - constants: Default point styling and parameters
-    - drawables.drawable: Base class functionality
+    - constants: Point sizing and labeling configuration
+    - drawables.drawable: Base class interface
     - drawables.position: Coordinate container
-    - browser.document: DOM manipulation for SVG rendering
+    - utils.math_utils: Mathematical operations
 ```
 
 **Class Documentation:**
 ```
-Represents a geometric point with coordinate tracking and visual representation.
+Represents a point in 2D mathematical space with coordinate tracking and labeling.
 
-Maintains both original mathematical coordinates and screen coordinates for proper
-zoom/pan operations while providing visual point rendering and labeling.
+Fundamental building block for all geometric constructions, maintaining both original
+mathematical coordinates and transformed screen coordinates for proper rendering.
 
 Attributes:
-    original_position (Position): Original mathematical coordinates (unchanged by transformations)
-    x (float): Current screen x-coordinate (updated by zoom/pan)
-    y (float): Current screen y-coordinate (updated by zoom/pan)
-    radius (float): Visual radius for point rendering
-    label_text (str): Display label for the point
+    original_position (Position): Mathematical coordinates (unaffected by zoom/pan)
+    x (float): Current screen x-coordinate (affected by transformations)
+    y (float): Current screen y-coordinate (affected by transformations)
 ```
 
 **Key Methods:**
-- `__init__(original_position, canvas, name="", color=default_color)`: Initialize point with position and styling
+- `__init__(x, y, canvas, name="", color=default_color)`: Initialize a point with mathematical coordinates and canvas integration
 - `get_class_name()`: Return the class name 'Point'
 - `draw()`: Render the point to the SVG canvas with label
-- `update_screen_coordinates()`: Update screen coordinates based on canvas transformations
 - `zoom()`: Update point for zoom operations
 - `pan()`: Update point screen coordinates for pan operations
 - `translate(x_offset, y_offset)`: Move point by translating original position
+- `rotate(angle)`: Rotate point (placeholder implementation)
 - `get_state()`: Serialize point state for persistence
+- `is_visible()`: Check if the point is within the canvas visible area
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+- `__eq__(other)`: Check if two points are equal based on coordinates within tolerance
+- `__hash__()`: Compute hash based on rounded coordinates
 
 #### Segment (`drawables/segment.py`)
 
 **File Header:**
 ```
-MatHud Segment Geometric Object
+MatHud Line Segment Geometric Object
 
-Represents a line segment connecting two points with endpoint management and visualization.
-Provides fundamental linear geometry functionality and serves as the basis for complex shapes.
+Represents a line segment between two points in 2D mathematical space.
+Provides line equation calculation, visibility detection, and rotation capabilities.
 
 Key Features:
-    - Two-point line segment representation
-    - Automatic endpoint coordinate tracking
-    - Length calculation and geometric properties
-    - Splitting operations when intersected by new points
-    - Integration with point management system
+    - Two-endpoint line segment representation
+    - Automatic line equation calculation (ax + by + c = 0)
+    - Visibility detection based on canvas viewport intersection
+    - Translation and rotation transformations
+    - Midpoint-based rotation around segment center
 
-Geometric Properties:
-    - Start and end point objects
-    - Automatic length calculation
-    - Midpoint calculations
-    - Slope and angle computations
-    - Intersection detection with other segments
-
-Visual Representation:
-    - SVG line rendering between endpoints
-    - Color customization for visual distinction
-    - Line style and thickness options
-    - Visibility management for complex diagrams
+Mathematical Properties:
+    - line_formula: Algebraic line equation coefficients
+    - Endpoint coordinate tracking through Point objects
+    - Visibility optimization for performance
 
 Dependencies:
-    - constants: Default segment styling
-    - drawables.drawable: Base class functionality
-    - drawables.point: Endpoint objects
-    - utils.math_utils: Geometric calculations
+    - constants: Default styling values
+    - drawables.drawable: Base class interface
+    - drawables.position: Coordinate calculations
+    - utils.math_utils: Line equation and intersection calculations
 ```
 
 **Class Documentation:**
 ```
-Represents a line segment between two points with geometric calculations.
+Represents a line segment between two points with mathematical line properties.
 
-Manages endpoint Point objects and provides linear geometry functionality
-including length calculations, splitting operations, and visual rendering.
+Maintains references to two Point objects and calculates line equation properties
+for mathematical operations and geometric intersections.
 
 Attributes:
-    start_point (Point): Starting endpoint of the segment
-    end_point (Point): Ending endpoint of the segment
-    length (float): Calculated length of the segment
-    slope (float): Mathematical slope of the segment
+    point1 (Point): First endpoint of the segment
+    point2 (Point): Second endpoint of the segment
+    line_formula (dict): Algebraic line equation coefficients (a, b, c for ax + by + c = 0)
 ```
 
 **Key Methods:**
-- `__init__(start_point, end_point, canvas, name="", color=default_color)`: Initialize segment with two endpoints
+- `__init__(p1, p2, canvas, color=default_color)`: Initialize a line segment between two points
 - `get_class_name()`: Return the class name 'Segment'
 - `draw()`: Render the segment as SVG line between endpoints
-- `calculate_length()`: Calculate and update segment length
-- `get_midpoint()`: Calculate the midpoint of the segment
 - `zoom()`: Update segment for zoom operations (handled by endpoints)
 - `pan()`: Update segment for pan operations (handled by endpoints)
 - `translate(x_offset, y_offset)`: Move segment by translating both endpoints
+- `rotate(angle)`: Rotate the segment around its midpoint by the given angle in degrees
 - `get_state()`: Serialize segment state for persistence
+- `is_visible()`: Check if any part of the segment is visible in the canvas area
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+- `__eq__(other)`: Check if two segments are equal based on their endpoints
+- `__hash__()`: Compute hash based on endpoint hashes
 
 #### Vector (`drawables/vector.py`)
 
@@ -1859,61 +1831,49 @@ Attributes:
 ```
 MatHud Vector Geometric Object
 
-Represents a directed line segment with arrow visualization and vector mathematics.
-Provides vector operations, magnitude calculations, and directional representation.
+Represents a directed line segment (vector) with origin and tip points, displayed with an arrow tip.
+Built on top of the Segment class with additional directional visualization.
 
 Key Features:
-    - Origin and tip point representation
-    - Directional arrow rendering
-    - Vector magnitude and direction calculations
-    - Mathematical vector operations support
-    - Integration with underlying segment system
+    - Directed line segment with origin and tip designation
+    - Automatic arrow head calculation and rendering
+    - Translation and rotation operations maintaining direction
+    - Integration with segment properties for mathematical operations
 
-Vector Mathematics:
-    - Magnitude (length) calculations
-    - Direction angle computations
-    - Vector addition and subtraction support
-    - Dot and cross product capabilities
-    - Unit vector calculations
-
-Visual Properties:
-    - Arrow head rendering for direction indication
-    - Color customization for vector distinction
-    - Magnitude-based styling options
-    - Origin point highlighting
+Visual Elements:
+    - Line segment: Rendered using underlying Segment object
+    - Arrow tip: Triangular polygon calculated from direction and size
+    - Directional properties: Origin and tip point distinction
 
 Dependencies:
-    - constants: Default vector styling and arrow parameters
-    - drawables.drawable: Base class functionality
-    - drawables.point: Origin and tip point objects
-    - drawables.segment: Underlying line segment
-    - utils.math_utils: Vector calculations
+    - constants: Default styling and arrow sizing
+    - drawables.drawable: Base class interface
+    - drawables.point: Endpoint objects
+    - drawables.segment: Underlying line representation
+    - utils.math_utils: Angle and geometric calculations
 ```
 
 **Class Documentation:**
 ```
-Represents a mathematical vector with origin and tip points.
+Represents a directed line segment (vector) with origin, tip, and arrow head visualization.
 
-Provides directed line segment functionality with arrow visualization
-and supports standard vector mathematical operations.
+Extends the concept of a line segment to include directionality, displayed with
+an arrow head at the tip to indicate vector direction and magnitude.
 
 Attributes:
-    origin (Point): Origin point of the vector
-    tip (Point): Tip point of the vector
-    segment (Segment): Underlying line segment
-    magnitude (float): Length/magnitude of the vector
-    direction_angle (float): Direction angle in degrees
+    segment (Segment): Underlying line segment providing mathematical properties
+    origin (Point): Starting point of the vector (property access to segment.point1)
+    tip (Point): Ending point of the vector (property access to segment.point2)
 ```
 
 **Key Methods:**
-- `__init__(origin, tip, canvas, name="", color=default_color)`: Initialize vector with origin and tip points
+- `__init__(origin, tip, canvas, color=default_color)`: Initialize a vector with origin and tip points
 - `get_class_name()`: Return the class name 'Vector'
 - `draw()`: Render the vector with arrow head
-- `calculate_magnitude()`: Calculate vector magnitude/length
-- `calculate_direction()`: Calculate direction angle
 - `zoom()`: Update vector for zoom operations (handled by endpoints)
 - `pan()`: Update vector for pan operations (handled by endpoints)
 - `translate(x_offset, y_offset)`: Move vector by translating origin and tip
+- `rotate(angle)`: Rotate the vector around its origin by the given angle in degrees
 - `get_state()`: Serialize vector state for persistence
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
 
@@ -1923,67 +1883,51 @@ Attributes:
 ```
 MatHud Triangle Geometric Object
 
-Represents a three-sided polygon with automatic edge management and geometric calculations.
-Provides comprehensive triangle geometry including area, perimeter, and angle calculations.
+Represents a triangle formed by three connected line segments in 2D mathematical space.
+Extends RotatablePolygon to provide rotation capabilities around the triangle's center.
 
 Key Features:
-    - Three-vertex triangle representation
-    - Automatic edge segment creation and management
-    - Area and perimeter calculations
-    - Interior angle computations
-    - Centroid and geometric center calculations
+    - Three-segment triangle validation and construction
+    - Automatic vertex naming from segment endpoints
+    - Rotation around geometric center
+    - Translation operations for all vertices
+    - Segment connectivity validation
 
-Triangle Properties:
-    - Vertex point management
-    - Edge segment coordination
-    - Area calculation using cross product
-    - Perimeter calculation from edge lengths
-    - Interior angle calculations using law of cosines
-
-Advanced Geometry:
-    - Centroid calculation
-    - Circumcenter and incenter support
-    - Triangle type classification (equilateral, isosceles, scalene)
-    - Orientation testing (clockwise/counterclockwise)
-    - Validity checking for geometric constraints
+Geometric Properties:
+    - Three segments forming a closed triangle
+    - Unique vertex identification and naming
+    - Center-based rotation capabilities
+    - Vertex set management for transformations
 
 Dependencies:
-    - constants: Default triangle styling
-    - drawables.drawable: Base class functionality
-    - drawables.point: Vertex objects
-    - drawables.segment: Edge segments
-    - utils.math_utils: Triangle calculations
+    - constants: Default styling values
+    - drawables.drawable: Base class interface
+    - drawables.rotatable_polygon: Rotation capabilities
+    - utils.math_utils: Geometric validation
 ```
 
 **Class Documentation:**
 ```
-Represents a triangle with three vertices and automatic edge management.
+Represents a triangle formed by three connected line segments.
 
-Maintains three Point objects as vertices and creates Segment objects for edges,
-providing comprehensive triangle geometry calculations and visualizations.
+Validates that three segments form a proper triangle and provides rotation
+capabilities around the triangle's geometric center.
 
 Attributes:
-    vertex1 (Point): First vertex of the triangle
-    vertex2 (Point): Second vertex of the triangle
-    vertex3 (Point): Third vertex of the triangle
-    edge1 (Segment): Edge between vertex1 and vertex2
-    edge2 (Segment): Edge between vertex2 and vertex3
-    edge3 (Segment): Edge between vertex3 and vertex1
-    area (float): Calculated area of the triangle
-    perimeter (float): Calculated perimeter of the triangle
+    segment1 (Segment): First side of the triangle
+    segment2 (Segment): Second side of the triangle  
+    segment3 (Segment): Third side of the triangle
 ```
 
 **Key Methods:**
-- `__init__(vertex1, vertex2, vertex3, canvas, name="", color=default_color)`: Initialize triangle with three vertices
+- `__init__(segment1, segment2, segment3, canvas, color=default_color)`: Initialize a triangle from three connected line segments
 - `get_class_name()`: Return the class name 'Triangle'
-- `draw()`: Render the triangle (edges are drawn by constituent segments)
-- `calculate_area()`: Calculate triangle area using cross product
-- `calculate_perimeter()`: Calculate perimeter from edge lengths
-- `get_centroid()`: Calculate geometric center of the triangle
-- `zoom()`: Update triangle for zoom operations (handled by vertices)
-- `pan()`: Update triangle for pan operations (handled by vertices)
-- `translate(x_offset, y_offset)`: Move triangle by translating all vertices
+- `draw()`: Render the triangle (drawing is done by the canvas for the segments)
+- `zoom()`: Update triangle for zoom operations (handled by segment points)
+- `pan()`: Update triangle for pan operations (handled by segment points)
+- `translate(x_offset, y_offset)`: Move triangle by translating all unique vertices
 - `get_state()`: Serialize triangle state for persistence
+- `get_vertices()`: Return the set of unique vertices of the triangle
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
 
 #### Rectangle (`drawables/rectangle.py`)
@@ -1992,66 +1936,52 @@ Attributes:
 ```
 MatHud Rectangle Geometric Object
 
-Represents a four-sided rectangular polygon with diagonal-based construction.
-Provides rectangular geometry calculations and automatic corner/edge management.
+Represents a rectangle formed by four connected line segments in 2D mathematical space.
+Extends RotatablePolygon to provide rotation capabilities around the rectangle's center.
 
 Key Features:
-    - Diagonal-point construction method
-    - Automatic corner point calculation
-    - Four-edge segment management
-    - Area and perimeter calculations
-    - Rectangle property validation
+    - Four-segment rectangle validation and construction
+    - Right angle and parallel side verification
+    - Rotation around geometric center
+    - Translation operations for all vertices
+    - Segment connectivity and geometric validation
 
-Geometric Construction:
-    - Two diagonal points define complete rectangle
-    - Automatic calculation of remaining corners
-    - Edge segment creation for all four sides
-    - Coordinate validation for proper rectangle formation
-    - Orientation and size calculations
-
-Mathematical Properties:
-    - Area calculation from diagonal points
-    - Perimeter calculation from dimensions
-    - Center point determination
-    - Width and height calculations
-    - Diagonal length calculations
+Geometric Properties:
+    - Four segments forming a closed rectangle
+    - Right angles at all vertices
+    - Parallel opposite sides
+    - Center-based rotation capabilities
 
 Dependencies:
-    - constants: Default rectangle styling
-    - drawables.drawable: Base class functionality
-    - drawables.point: Corner point objects
-    - drawables.segment: Edge segments
-    - utils.math_utils: Rectangle calculations
+    - constants: Default styling values
+    - drawables.drawable: Base class interface
+    - drawables.rotatable_polygon: Rotation capabilities
+    - utils.math_utils: Rectangle validation and geometric calculations
 ```
 
 **Class Documentation:**
 ```
-Represents a rectangle defined by two diagonal points.
+Represents a rectangle formed by four connected line segments.
 
-Automatically calculates all four corners and creates edge segments,
-providing complete rectangular geometry functionality.
+Validates that four segments form a proper rectangle with right angles and
+provides rotation capabilities around the rectangle's geometric center.
 
 Attributes:
-    point1 (Point): First diagonal corner
-    point2 (Point): Second diagonal corner  
-    point3 (Point): Third corner (calculated)
-    point4 (Point): Fourth corner (calculated)
-    edges (list): List of four edge segments
-    area (float): Calculated area of the rectangle
-    perimeter (float): Calculated perimeter of the rectangle
+    segment1 (Segment): First side of the rectangle
+    segment2 (Segment): Second side of the rectangle
+    segment3 (Segment): Third side of the rectangle
+    segment4 (Segment): Fourth side of the rectangle
 ```
 
 **Key Methods:**
-- `__init__(point1, point2, canvas, name="", color=default_color)`: Initialize rectangle with diagonal points
+- `__init__(segment1, segment2, segment3, segment4, canvas, color=default_color)`: Initialize a rectangle from four connected line segments
 - `get_class_name()`: Return the class name 'Rectangle'
-- `draw()`: Render the rectangle (edges are drawn by constituent segments)
-- `calculate_corners()`: Calculate remaining corners from diagonal points
-- `calculate_area()`: Calculate rectangle area
-- `calculate_perimeter()`: Calculate perimeter from dimensions
-- `zoom()`: Update rectangle for zoom operations (handled by corners)
-- `pan()`: Update rectangle for pan operations (handled by corners)
-- `translate(x_offset, y_offset)`: Move rectangle by translating all corners
+- `draw()`: Render the rectangle (drawing is done by the canvas for the segments)
+- `zoom()`: Update rectangle for zoom operations (handled by segment points)
+- `pan()`: Update rectangle for pan operations (handled by segment points)
+- `translate(x_offset, y_offset)`: Move rectangle by translating all segments
 - `get_state()`: Serialize rectangle state for persistence
+- `get_vertices()`: Return the set of unique vertices of the rectangle
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
 
 #### Circle (`drawables/circle.py`)
@@ -2060,62 +1990,164 @@ Attributes:
 ```
 MatHud Circle Geometric Object
 
-Represents a circular object with center point and radius-based geometry.
-Provides circular mathematics and visualization with precise geometric calculations.
+Represents a circle defined by a center point and radius in 2D mathematical space.
+Provides algebraic equation calculation and scale-aware rendering.
 
 Key Features:
-    - Center-point and radius representation
-    - Circumference and area calculations
-    - Point-on-circle testing and calculations
-    - Scaling operations for zoom functionality
-    - Integration with coordinate transformation system
+    - Center point and radius definition
+    - Automatic circle equation calculation ((x-h)² + (y-k)² = r²)
+    - Scale factor adaptation for zoom operations
+    - Mathematical formula generation for geometric operations
 
-Circular Mathematics:
-    - Area calculation (π × r²)
-    - Circumference calculation (2 × π × r)
-    - Point distance testing from center
-    - Intersection calculations with other objects
-    - Tangent line calculations
-
-Visual Representation:
-    - SVG circle rendering with center and radius
-    - Color customization and styling options
-    - Radius scaling for zoom operations
-    - Center point coordination with point system
+Mathematical Properties:
+    - circle_formula: Algebraic equation coefficients
+    - Center point tracking through Point object
+    - Radius scaling for viewport transformations
 
 Dependencies:
-    - constants: Default circle styling
-    - drawables.drawable: Base class functionality
-    - drawables.point: Center point object
-    - utils.math_utils: Circular calculations
-    - math: Mathematical constants and functions
+    - constants: Default styling values
+    - drawables.drawable: Base class interface
+    - utils.math_utils: Circle equation calculations
 ```
 
 **Class Documentation:**
 ```
-Represents a circle with center point and radius.
+Represents a circle with center point and radius, including mathematical properties.
 
-Maintains a center Point object and radius value, providing complete
-circular geometry functionality and mathematical calculations.
+Maintains a center Point object and radius value, calculating circle equation
+properties for mathematical operations and geometric intersections.
 
 Attributes:
     center (Point): Center point of the circle
-    radius (float): Radius of the circle
-    drawn_radius (float): Current radius adjusted for canvas scale
-    area (float): Calculated area of the circle
-    circumference (float): Calculated circumference of the circle
+    radius (float): Radius in mathematical coordinate units
+    circle_formula (dict): Algebraic circle equation coefficients
+    drawn_radius (float): Current screen radius (affected by scale factor)
 ```
 
 **Key Methods:**
-- `__init__(center, radius, canvas, name="", color=default_color)`: Initialize circle with center and radius
+- `__init__(center_point, radius, canvas, color=default_color)`: Initialize a circle with center point and radius
 - `get_class_name()`: Return the class name 'Circle'
 - `draw()`: Render the circle to the SVG canvas
-- `calculate_area()`: Calculate circle area (π × r²)
-- `calculate_circumference()`: Calculate circumference (2 × π × r)
 - `zoom()`: Update circle radius for zoom operations
 - `pan()`: Update circle for pan operations (handled by center point)
 - `translate(x_offset, y_offset)`: Move circle by translating center point
+- `rotate(angle)`: Rotate circle (placeholder implementation)
 - `get_state()`: Serialize circle state for persistence
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Ellipse (`drawables/ellipse.py`)
+
+**File Header:**
+```
+MatHud Ellipse Geometric Object
+
+Represents an ellipse defined by center point, radii, and rotation angle in 2D mathematical space.
+Provides algebraic equation calculation and rotation transformation capabilities.
+
+Key Features:
+    - Center point and dual radius definition (rx, ry)
+    - Rotation angle support for arbitrary ellipse orientation
+    - Automatic ellipse equation calculation
+    - Scale factor adaptation for zoom operations
+    - SVG rotation transformation for rendering
+
+Mathematical Properties:
+    - ellipse_formula: Algebraic equation coefficients
+    - Center point tracking through Point object
+    - Dual radius scaling for viewport transformations
+    - Rotation angle preservation and application
+
+Dependencies:
+    - constants: Default styling values
+    - drawables.drawable: Base class interface
+    - utils.math_utils: Ellipse equation calculations
+```
+
+**Class Documentation:**
+```
+Represents an ellipse with center point, dual radii, and rotation angle.
+
+Maintains center Point object, x/y radius values, and rotation angle,
+calculating ellipse equation properties for mathematical operations.
+
+Attributes:
+    center (Point): Center point of the ellipse
+    radius_x (float): Horizontal radius in mathematical coordinate units
+    radius_y (float): Vertical radius in mathematical coordinate units
+    rotation_angle (float): Rotation angle in degrees for ellipse orientation
+    ellipse_formula (dict): Algebraic ellipse equation coefficients
+    drawn_radius_x (float): Current screen x-radius (affected by scale factor)
+    drawn_radius_y (float): Current screen y-radius (affected by scale factor)
+```
+
+**Key Methods:**
+- `__init__(center_point, radius_x, radius_y, canvas, rotation_angle=0, color=default_color)`: Initialize an ellipse with center point, radii, and rotation
+- `get_class_name()`: Return the class name 'Ellipse'
+- `draw()`: Render the ellipse to the SVG canvas with rotation transformation
+- `zoom()`: Update ellipse radii for zoom operations
+- `pan()`: Update ellipse for pan operations (handled by center point)
+- `translate(x_offset, y_offset)`: Move ellipse by translating center point
+- `rotate(angle)`: Rotate ellipse around its center by the given angle in degrees
+- `get_state()`: Serialize ellipse state for persistence including rotation
+- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+
+#### Angle (`drawables/angle.py`)
+
+**File Header:**
+```
+MatHud Angle Geometric Object
+
+Represents an angle formed by two intersecting line segments with arc and label visualization.
+Provides angle measurement, arc rendering, and support for both standard and reflex angles.
+
+Key Features:
+    - Two-segment angle construction and validation
+    - Angle measurement in degrees with arc visualization
+    - Support for standard (0-180°) and reflex (180-360°) angles
+    - Automatic arc radius calculation and SVG path generation
+    - Dynamic text labeling with angle values
+
+Geometric Properties:
+    - Vertex point identification from segment intersection
+    - Arm point extraction for angle calculation
+    - Arc radius adaptation for screen display
+    - Angle sweep calculation for proper arc rendering
+
+Dependencies:
+    - constants: Default angle styling and sizing values
+    - drawables.drawable: Base class interface
+    - utils.math_utils: Angle calculation and geometric validation
+```
+
+**Class Documentation:**
+```
+Represents an angle formed by two intersecting line segments with arc visualization.
+
+Validates that two segments form a proper angle and provides arc rendering
+with angle measurement display for both standard and reflex angles.
+
+Attributes:
+    segment1 (Segment): First segment forming the angle
+    segment2 (Segment): Second segment forming the angle
+    is_reflex (bool): Whether to display the reflex (outer) angle
+    vertex_point (Point): Common vertex where segments intersect
+    arm1_point (Point): End point of first segment arm
+    arm2_point (Point): End point of second segment arm
+    raw_angle_degrees (float): Fundamental angle measurement (0-360°)
+    angle_degrees (float): Display angle (small or reflex based on is_reflex)
+    drawn_arc_radius (float): Screen radius for arc rendering
+```
+
+**Key Methods:**
+- `__init__(segment1, segment2, canvas, color=DEFAULT_ANGLE_COLOR, is_reflex=False)`: Initialize an angle from two intersecting line segments
+- `get_class_name()`: Return the class name 'Angle'
+- `draw()`: Render the angle arc and label to the SVG canvas
+- `zoom()`: Update angle for zoom operations (arc radius is fixed on screen)
+- `pan()`: Update angle for pan operations (handled by underlying points)
+- `get_state()`: Serialize angle state for persistence
+- `from_state(state_data, canvas)`: Create an Angle instance from a state dictionary (class method)
+- `update_points_based_on_segments()`: Re-evaluate vertex and arm points if segments have changed
+- `reset()`: Reset the angle to its initial state based on its segments
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
 
 ### Utility Modules
