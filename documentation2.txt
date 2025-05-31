@@ -15,16 +15,17 @@ This document contains comprehensive documentation extracted from all files in t
 ## Table of Contents
 
 ### Core Application Files
-1. Main Application (`app.py`)
-2. Canvas System (`canvas.py`)
-3. Canvas Event Handler (`canvas_event_handler.py`)
-4. AI Interface (`ai_interface.py`)
-5. Result Processor (`result_processor.py`)
-6. Test Runner (`test_runner.py`)
-7. Workspace Manager (`workspace_manager.py`)
-8. Cartesian System (`cartesian_system_2axis.py`)
-9. Expression Validator (`expression_validator.py`)
-10. Markdown Parser (`markdown_parser.py`)
+1. Flask entry point (`app.py`)
+2. Brython entry point (`main.py`)
+3. Canvas System (`canvas.py`)
+4. Canvas Event Handler (`canvas_event_handler.py`)
+5. AI Interface (`ai_interface.py`)
+6. Result Processor (`result_processor.py`)
+7. Test Runner (`test_runner.py`)
+8. Workspace Manager (`workspace_manager.py`)
+9. Cartesian System (`cartesian_system_2axis.py`)
+10. Expression Validator (`expression_validator.py`)
+11. Markdown Parser (`markdown_parser.py`)
 
 ### Drawable Classes
 1. Base Drawable (`drawables/drawable.py`)
@@ -83,10 +84,19 @@ This document contains comprehensive documentation extracted from all files in t
 4. Constants (`constants.py`)
 5. Geometry (`geometry.py`)
 6. Result Validator (`result_validator.py`)
-7. Main (`main.py`)
+7. HTML Template (`templates/index.html`)
+8. CSS Stylesheet (`static/style.css`)
 
 ### Server-Side Components
 1. Server-Side Workspace Manager (`static/workspace_manager.py`)
+2. OpenAI API Integration (`static/openai_api.py`)
+3. AI Function Definitions (`static/functions_definitions.py`)
+4. Flask Application Manager (`static/app_manager.py`)
+5. Flask Route Definitions (`static/routes.py`)
+6. Application Logging System (`static/log_manager.py`)
+7. Selenium WebDriver Manager (`static/webdriver_manager.py`)
+8. AI Model Configuration (`static/ai_model.py`)
+9. Tool Call Processing Utilities (`static/tool_call_processor.py`)
 
 ---
 
@@ -110,9 +120,51 @@ Dependencies:
     - Threading: Concurrent server execution
 ```
 
-**Methods:**
-- `signal_handler(sig, frame)`: Handle graceful shutdown on interrupt signal. Cleans up WebDriver resources and exits the application properly.
-- `__main__`: Main execution block. Starts Flask server in a daemon thread, initializes WebDriver for vision system, and maintains the main thread for graceful interrupt handling.
+**Key Components:**
+- **Signal Handling**: Graceful shutdown management with WebDriver cleanup
+- **Flask Threading**: Daemon thread execution for non-blocking server startup
+- **WebDriver Initialization**: Lazy loading of vision system components
+- **Application Factory**: Integration with AppManager for dependency injection
+
+**Key Functions:**
+- `signal_handler(sig, frame)`: Handle graceful shutdown on interrupt signal with WebDriver cleanup
+- `__main__`: Main execution block that starts Flask server in daemon thread and initializes WebDriver
+
+**Execution Flow:**
+1. **App Creation**: Creates Flask application using AppManager factory pattern
+2. **Signal Registration**: Sets up interrupt handlers for graceful shutdown
+3. **Threaded Server**: Starts Flask server in daemon thread for responsive main thread
+4. **WebDriver Setup**: Initializes vision system after Flask startup delay
+5. **Main Loop**: Maintains responsive main thread for interrupt handling
+
+**Key Features:**
+- **Graceful Shutdown**: Proper cleanup of WebDriver resources on application exit
+- **Non-Blocking Startup**: Daemon thread prevents blocking main thread execution
+- **Vision System Integration**: Automatic WebDriver initialization for AI vision capabilities
+- **Debug Configuration**: Production-ready settings with debug and reloader disabled
+
+#### Main (`main.py`)
+
+**File Header:**
+```
+MatHud Client-Side Application Entry Point
+
+Initializes the browser-based Python environment for mathematical canvas operations.
+Sets up the SVG canvas, AI communication interface, and event handling system.
+
+Components Initialized:
+    - Canvas: SVG-based mathematical visualization system
+    - AIInterface: Communication bridge to backend AI services  
+    - CanvasEventHandler: User interaction and input processing
+
+Dependencies:
+    - Brython: Python-in-browser runtime environment
+    - browser.document: DOM access for SVG manipulation
+    - Custom modules: canvas, ai_interface, canvas_event_handler
+```
+
+**Key Functions:**
+- `main()`: Initialize the MatHud client-side application by creating the mathematical canvas, AI interface, and event handling system
 
 #### Canvas System (`canvas.py`)
 
@@ -1500,6 +1552,48 @@ Attributes:
 - `_get_function_y_at_x(x)`: Get y value for a given x from the function
 - `uses_segment(segment)`: Check if this colored area uses a specific segment
 
+#### Rotatable Polygon (`drawables/rotatable_polygon.py`)
+
+**File Header:**
+```
+MatHud Rotatable Polygon Base Class
+
+Abstract base class for polygonal shapes that support rotation around their geometric center.
+Provides common rotation functionality for triangles, rectangles, and other multi-vertex shapes.
+
+Key Features:
+    - Center point calculation from vertex coordinates
+    - Point rotation around arbitrary center using rotation matrices
+    - Abstract vertex management interface
+    - Mathematical coordinate preservation during transformations
+
+Rotation Mathematics:
+    - Uses standard 2D rotation matrix: [cos θ -sin θ; sin θ cos θ]
+    - Rotates around calculated geometric center of shape
+    - Preserves original mathematical coordinates during transformation
+
+Dependencies:
+    - drawables.drawable: Base class interface
+    - math: Trigonometric functions for rotation calculations
+```
+
+**Class Documentation:**
+```
+Abstract base class for polygons that can be rotated around their geometric center.
+
+Provides rotation capabilities for multi-vertex shapes using center-based rotation
+with mathematical coordinate transformations.
+
+Subclasses must implement:
+    get_vertices(): Returns set of vertex Point objects for the polygon
+```
+
+**Key Methods:**
+- `_get_shape_center(points)`: Calculate center point of a shape given its vertices
+- `_rotate_point_around_center(point, center_x, center_y, angle_rad)`: Rotate a single point around a center by given angle in radians
+- `get_vertices()`: Abstract method to be implemented by subclasses to return their vertices
+- `rotate(angle)`: Rotate the polygon around its center by the given angle in degrees
+
 ### Management Classes
 
 #### Drawable Manager (`managers/drawable_manager.py`)
@@ -2880,309 +2974,279 @@ Attributes:
 
 **File Header:**
 ```
-MatHud Expression Evaluator Module
+MatHud Mathematical Expression Evaluator
 
-Mathematical expression parsing and evaluation system for function processing.
-Provides safe expression evaluation with mathematical function support and error handling.
+Handles evaluation of mathematical expressions and function calls within the canvas system.
+Supports both numeric computations and custom function evaluation with error handling.
 
-Key Features:
-    - Safe mathematical expression evaluation
-    - Function parsing and validation
-    - Variable substitution and computation
-    - Error handling for invalid expressions
-    - Integration with mathematical computation systems
-
-Mathematical Support:
-    - Standard arithmetic operations (+, -, *, /, ^)
-    - Mathematical functions (sin, cos, tan, log, exp, sqrt, etc.)
-    - Mathematical constants (pi, e)
-    - Variable substitution (primarily x for function evaluation)
-    - Complex mathematical expressions
-
-Safety Features:
-    - Restricted execution environment
-    - Input validation and sanitization
-    - Error handling and reporting
-    - Timeout protection for complex expressions
-    - Memory usage monitoring
+Evaluation Types:
+    - Numeric expressions: Basic mathematical operations with variables
+    - Function expressions: Canvas-defined functions with argument substitution
+    - Hybrid evaluation: Fallback from numeric to function evaluation
 
 Dependencies:
-    - math: Standard mathematical functions
-    - ast: Abstract syntax tree parsing
-    - operator: Safe operator implementations
+    - utils.math_utils: Core mathematical computation engine
+    - re: Regular expression parsing for function calls
 ```
 
-**Key Functions:**
-- `evaluate_expression(expression, x=None)`: Safely evaluate mathematical expression
-- `validate_expression_syntax(expression)`: Validate expression syntax
-- `parse_function_expression(expression)`: Parse function for analysis
-- `substitute_variables(expression, variables)`: Replace variables with values
-- `get_supported_functions()`: List available mathematical functions
-- `sanitize_expression(expression)`: Clean and validate expression input
+**Class Documentation:**
+```
+Handles evaluation of mathematical expressions and custom functions.
+
+Provides static methods for evaluating numeric expressions and canvas-defined
+functions with comprehensive error handling and type consistency.
+```
+
+**Key Methods:**
+- `evaluate_numeric_expression(expression, variables)`: Evaluates a numeric mathematical expression with variable substitution
+- `evaluate_function(expression, canvas)`: Evaluates a function expression using canvas-defined functions
+- `evaluate_expression(expression, variables=None, canvas=None)`: Main method to evaluate expressions with fallback from numeric to function evaluation
 
 #### Function Registry (`function_registry.py`)
 
 **File Header:**
 ```
-MatHud AI-Accessible Function Registry
+MatHud Function Registry System
 
-Registry of mathematical functions available to AI for canvas operations.
-Provides structured interface for AI interaction with canvas functionality.
+Central registry for mapping AI function names to their implementations.
+Manages available functions and defines which operations support undo/redo functionality.
 
 Function Categories:
-    - Point operations: Creation, deletion, manipulation
-    - Shape operations: Geometric object management
-    - Function operations: Mathematical function plotting
-    - Analysis operations: Geometric and mathematical analysis
-    - Canvas operations: Viewport and state management
-
-AI Integration:
-    - Function signatures and parameter documentation
-    - Return value specifications
-    - Usage examples and patterns
-    - Error handling guidance
-    - Operation coordination
-
-Function Documentation:
-    - Comprehensive parameter descriptions
-    - Expected return values and formats
-    - Usage examples and best practices
-    - Integration patterns with other functions
-    - Error conditions and handling
+    - Canvas operations: reset, clear, undo, redo
+    - Geometric shapes: points, segments, vectors, triangles, rectangles, circles, ellipses
+    - Mathematical functions: plotting, evaluation, symbolic computation
+    - Object transformations: translate, rotate
+    - Workspace management: save, load, list, delete
+    - Special features: colored areas, angle measurement, testing
 
 Dependencies:
-    - canvas: Canvas operations
-    - utils.*: Utility function access
-    - managers.*: Manager system integration
+    - utils.math_utils: Mathematical computation functions
+    - process_function_calls: Expression evaluation facade
 ```
 
-**Key Functions:**
-- `get_available_functions()`: List all AI-accessible functions
-- `get_function_signature(function_name)`: Get detailed function documentation
-- `execute_canvas_function(function_name, parameters)`: Execute canvas operation
-- `validate_parameters(function_name, parameters)`: Validate function parameters
-- `get_function_examples(function_name)`: Get usage examples
-- `get_function_categories()`: Get organized function categories
+**Class Documentation:**
+```
+Static registry mapping function names to implementations and undo capabilities.
+
+Maintains the central mapping between AI function names and their Python implementations,
+and defines which functions support undo/redo operations for state management.
+```
+
+**Key Methods:**
+- `get_available_functions(canvas, workspace_manager, ai_interface=None)`: Get the complete dictionary of all available functions with their implementations
+- `get_undoable_functions()`: Get the tuple of function names that support undo/redo operations
 
 #### Process Function Calls (`process_function_calls.py`)
 
 **File Header:**
 ```
-MatHud AI Function Call Processing System
+MatHud Function Call Processing Facade
 
-Processes and executes function calls from AI with validation and error handling.
-Coordinates between AI requests and canvas operations with safety mechanisms.
+Main coordinator for processing AI function calls, expression evaluation, and result validation.
+Provides a unified interface to the various specialized processing modules for backward compatibility.
 
-Processing Pipeline:
-    - Function call parsing and validation
-    - Parameter extraction and validation
-    - Canvas operation execution
-    - Result formatting and return
-    - Error handling and reporting
-
-Safety Mechanisms:
-    - Input validation and sanitization
-    - Parameter type checking
-    - Canvas state protection
-    - Operation rollback capabilities
-    - Error isolation and recovery
-
-AI Coordination:
-    - Request parsing from AI interface
-    - Response formatting for AI consumption
-    - Operation status reporting
-    - Batch operation support
-    - Asynchronous operation handling
+Key Features:
+    - Expression evaluation with variable substitution
+    - Function call execution and result collection
+    - Result validation and error detection
+    - Canvas state management during processing
 
 Dependencies:
-    - function_registry: Available function definitions
-    - canvas: Canvas operation execution
-    - result_validator: Result validation
-    - json: Data serialization
+    - expression_evaluator: Mathematical expression parsing and computation
+    - result_processor: Function call execution and result aggregation
+    - result_validator: Result structure and success validation
 ```
 
-**Key Functions:**
-- `process_function_call(call_data)`: Main function call processing
-- `validate_function_call(call_data)`: Validate call structure and parameters
-- `execute_canvas_operation(function_name, parameters)`: Execute on canvas
-- `format_result(result, function_name)`: Format result for AI
-- `handle_execution_error(error, context)`: Handle and report errors
-- `batch_process_calls(call_list)`: Process multiple function calls
+**Class Documentation:**
+```
+Main facade for processing function calls, evaluating expressions, and validating results.
+
+This class serves as a unified interface for the various specialized processing modules,
+maintaining backward compatibility while delegating to appropriate specialized handlers.
+```
+
+**Key Methods:**
+- `evaluate_expression(expression, variables=None, canvas=None)`: Evaluates a mathematical expression with optional variable substitution
+- `get_results(calls, available_functions, undoable_functions, canvas)`: Process function calls and collect their results with state management
+- `validate_results(results)`: Validates result structure and data types for integrity
+- `is_successful_result(value)`: Checks if a result represents successful computation vs error
 
 #### Constants (`constants.py`)
 
 **File Header:**
 ```
-MatHud Global Constants and Configuration
+MatHud Client-Side Constants Configuration
 
-Central configuration file containing all global constants, default values,
-and configuration parameters for the mathematical visualization system.
+Global configuration values for the mathematical canvas visualization system.
+Defines styling, interaction thresholds, and performance parameters for consistent behavior.
 
-Configuration Categories:
-    - Visual styling: Colors, sizes, fonts
-    - Mathematical parameters: Tolerances, precision, limits
-    - Canvas settings: Dimensions, zoom limits, coordinate systems
-    - Performance settings: Rendering limits, optimization parameters
-    - UI constants: Interface dimensions, control parameters
-
-Default Values:
-    - Object styling defaults (colors, sizes, fonts)
-    - Mathematical precision tolerances
-    - Canvas viewport settings
-    - Animation and interaction parameters
-    - File format specifications
-
-System Parameters:
-    - Memory usage limits
-    - Performance optimization settings
-    - Error tolerance values
-    - Debug and logging configurations
-    - Feature flags and experimental settings
+Categories:
+    - Visual Styling: Point sizes, colors, fonts
+    - User Interaction: Click thresholds, zoom factors
+    - Angle Visualization: Arc display and text positioning
+    - Performance: Event throttling for smooth interactions
 
 Dependencies:
-    - None (standalone configuration)
+    - None (pure configuration module)
 ```
 
 **Key Constants:**
-- `DEFAULT_CANVAS_WIDTH`: Default canvas width in pixels
-- `DEFAULT_CANVAS_HEIGHT`: Default canvas height in pixels
-- `DEFAULT_POINT_COLOR`: Default color for point objects
-- `DEFAULT_LINE_COLOR`: Default color for line objects
-- `MATHEMATICAL_TOLERANCE`: Precision tolerance for calculations
-- `MAX_ZOOM_FACTOR`: Maximum allowed zoom level
-- `MIN_ZOOM_FACTOR`: Minimum allowed zoom level
-- `GRID_SPACING`: Default grid spacing for coordinate system
-- `FONT_SIZE`: Default font size for labels
-- `ANIMATION_DURATION`: Default animation duration in milliseconds
+- `default_point_size`: Default size for point objects (2 pixels)
+- `default_color`: Default color for canvas elements ("black")
+- `default_font_size`: Default font size for text elements (16)
+- `point_label_font_size`: Font size for point labels (5/8 ratio of default)
+- `successful_call_message`: Success message for function calls ("Call successful!")
+- `double_click_threshold_s`: Maximum time between clicks for double-click detection (0.2 seconds)
+- `DEFAULT_ANGLE_COLOR`: Default color for angle indicators ("blue")
+- `DEFAULT_ANGLE_ARC_SCREEN_RADIUS`: Arc radius in pixels for angle indicators (15)
+- `DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR`: Text positioning relative to arc radius (1.8)
+- `zoom_in_scale_factor`: Scale factor for zoom in operations (1.1)
+- `zoom_out_scale_factor`: Scale factor for zoom out operations (0.9)
+- `mousemove_throttle_ms`: Mouse movement throttling for smooth panning (8ms)
 
 #### Geometry (`geometry.py`)
 
 **File Header:**
 ```
-MatHud Basic Geometric Classes and Definitions
+MatHud Geometry Module
 
-Fundamental geometric class definitions and basic mathematical structures.
-Provides foundational classes for coordinate systems and basic geometric operations.
+Convenience import aggregator for all drawable geometric objects.
+Provides a single import point for all mathematical visualization classes.
 
-Core Classes:
-    - Position: 2D coordinate pair container
-    - Basic geometric primitive definitions
-    - Coordinate system foundations
-    - Mathematical structure definitions
-
-Mathematical Foundations:
-    - 2D coordinate mathematics
-    - Basic geometric relationships
-    - Coordinate transformation basics
-    - Mathematical precision handling
-
-Integration Support:
-    - Canvas coordinate system integration
-    - Drawable object foundation support
-    - Manager system coordination
-    - State serialization support
+Exported Classes:
+    - Drawable: Base class for all canvas objects
+    - Point, Position: Point and position representations
+    - Segment, Vector: Line-based geometric objects  
+    - Triangle, Rectangle: Polygon shapes
+    - Circle, Ellipse: Curved geometric objects
+    - Function: Mathematical function plotting
 
 Dependencies:
-    - math: Basic mathematical operations
-    - copy: Object copying functionality
+    - drawables.*: Individual geometric class implementations
 ```
 
-**Key Classes and Functions:**
-- `Position(x, y)`: Basic 2D coordinate container
-- `coordinate_distance(pos1, pos2)`: Distance between positions
-- `coordinate_midpoint(pos1, pos2)`: Midpoint calculation
-- `normalize_coordinates(coords)`: Coordinate normalization
-- `transform_coordinates(coords, transformation)`: Apply coordinate transformation
+**Exported Classes:**
+- `Drawable`: Base class for all canvas objects
+- `Point`: Point geometric object with coordinates
+- `Position`: 2D coordinate pair container
+- `Segment`: Line segment between two points
+- `Vector`: Directed line segment with arrow
+- `Triangle`: Three-sided polygon
+- `Rectangle`: Four-sided polygon
+- `Circle`: Circular geometric object
+- `Ellipse`: Elliptical geometric object
+- `Function`: Mathematical function plotting object
 
 #### Result Validator (`result_validator.py`)
 
 **File Header:**
 ```
-MatHud Result Validation and Processing System
+MatHud Result Validation System
 
-Validates and processes results from mathematical operations and AI interactions.
-Ensures data integrity and proper formatting throughout the system.
+Validates the structure and content of AI function call results.
+Ensures data integrity and distinguishes between successful computations and errors.
 
-Validation Categories:
-    - Mathematical result validation
-    - Geometric object validation
-    - AI response validation
-    - Data format validation
-    - State consistency validation
-
-Processing Functions:
-    - Result formatting and standardization
-    - Error detection and reporting
-    - Data type conversion and validation
-    - Consistency checking across operations
-    - Integration validation
-
-Quality Assurance:
-    - Mathematical accuracy verification
-    - Geometric constraint validation
-    - Performance impact assessment
-    - Memory usage validation
-    - Error recovery mechanisms
+Validation Features:
+    - Structure validation: Checks result dictionary format and types
+    - Success detection: Identifies successful vs failed computations
+    - Type safety: Enforces allowed data types for results
 
 Dependencies:
-    - utils.math_utils: Mathematical validation
-    - json: Data format validation
-    - constants: Validation parameters
+    - constants: Success message definitions
 ```
 
-**Key Functions:**
-- `validate_mathematical_result(result, operation)`: Validate math operation results
-- `validate_geometric_object(object_data)`: Validate geometric object integrity
-- `validate_ai_response(response)`: Validate AI response format and content
-- `process_operation_result(result, context)`: Process and standardize results
-- `check_state_consistency(state_data)`: Validate system state consistency
-- `format_error_report(error, context)`: Format error reports for logging
+**Class Documentation:**
+```
+Handles validation of function call results and error detection.
 
-#### Main (`main.py`)
+Provides static methods for validating result structure and determining
+whether function calls completed successfully or encountered errors.
+```
+
+**Key Methods:**
+- `validate_results(results)`: Validates that results have the correct structure and data types
+- `is_successful_result(value)`: Checks if a result value represents a successful computation
+
+
+#### HTML Template (`templates/index.html`)
 
 **File Header:**
 ```
-MatHud Application Initialization and Startup Coordination
+MatHud Mathematical Canvas Web Interface
 
-Central application initialization module that coordinates system startup,
-component initialization, and application lifecycle management.
+Main HTML template for the interactive mathematical graphing calculator.
+Provides AI-powered canvas for geometric shapes, calculations, and mathematical exploration.
 
-Initialization Sequence:
-    - System component initialization
-    - Configuration loading and validation
-    - Canvas system startup
-    - Manager system initialization
-    - UI component initialization
-
-Component Coordination:
-    - Canvas and manager integration
-    - AI system initialization
-    - Name generator setup
-    - Utility system initialization
-    - State management system startup
-
-Application Lifecycle:
-    - Startup sequence coordination
-    - Component dependency resolution
-    - Error handling during initialization
-    - Graceful shutdown procedures
-    - Resource cleanup and management
+Key Components:
+    - MathJax: LaTeX mathematical notation rendering
+    - Brython: Python-in-browser execution for canvas operations
+    - SVG Canvas: Interactive mathematical visualization area
+    - Chat Interface: AI communication with model selection and vision toggle
+    - Responsive Layout: Dual-pane interface (canvas + chat)
 
 Dependencies:
-    - canvas: Main canvas system
-    - managers.*: All manager components
-    - utils.*: Utility systems
-    - constants: Configuration values
+    - Google Fonts (Inter): Modern typography
+    - MathJax 3: Mathematical equation rendering
+    - Brython 3.11.3: Python runtime for browser-side logic
+    - Flask templates: Dynamic asset URL generation
 ```
 
-**Key Functions:**
-- `initialize_application()`: Main application initialization
-- `setup_canvas_system()`: Initialize canvas and coordinate system
-- `initialize_managers()`: Setup all manager components
-- `setup_name_generators()`: Initialize naming systems
-- `configure_ai_integration()`: Setup AI interface components
-- `startup_application()`: Complete application startup sequence
-- `shutdown_application()`: Graceful application shutdown
+**Key Sections:**
+- **Head Section**: Meta tags, font loading, MathJax configuration, and Brython library inclusion
+- **Math Container**: SVG canvas element for interactive mathematical visualizations
+- **Chat Interface**: AI model selector, vision toggle, chat history display, and user input area
+- **JavaScript Integration**: MathJax setup, Brython initialization, and vision toggle functionality
+
+**Key Features:**
+- **MathJax Configuration**: LaTeX rendering with inline `\(...\)` and display `$$...$$` math
+- **AI Model Selection**: Dropdown with GPT-4 family and GPT-3.5-turbo options
+- **Vision Toggle**: Conditional enabling based on model capabilities
+- **Responsive Design**: Flexible dual-pane layout for different screen sizes
+
+#### CSS Stylesheet (`static/style.css`)
+
+**File Header:**
+```
+MatHud Mathematical Canvas Stylesheet
+
+Modern CSS styling for the interactive mathematical graphing calculator interface.
+Implements a dual-pane layout with responsive design and comprehensive theming system.
+
+Architecture:
+    - CSS Custom Properties: Consistent color scheme and spacing system
+    - Flexbox Layout: Responsive dual-pane interface (60% canvas, 40% chat)
+    - Component-Based Styling: Modular styles for chat, controls, and canvas areas
+    - Responsive Design: Mobile-first approach with tablet and desktop breakpoints
+    - Mathematical Typography: Specialized styling for LaTeX and mathematical notation
+
+Key Features:
+    - Modern Inter font family with multiple weights
+    - Subtle shadows and rounded corners for depth
+    - Hover states and smooth transitions for interactivity
+    - Custom scrollbar styling for better UX
+    - Markdown content support in chat messages
+    - Accessible form controls with focus states
+
+Dependencies:
+    - Google Fonts (Inter): Loaded via HTML link
+    - CSS Custom Properties: Modern browser support required
+    - Flexbox: Modern layout system for responsive design
+```
+
+**Key Style Categories:**
+- **Design Tokens**: CSS custom properties for colors, shadows, and spacing
+- **Layout System**: Flexbox-based dual-pane container with responsive breakpoints
+- **Chat Interface**: Comprehensive styling for messages, controls, and markdown content
+- **Mathematical Content**: Specialized styling for LaTeX expressions and mathematical notation
+- **Form Controls**: Modern input styling with focus states and accessibility features
+- **Responsive Design**: Mobile and tablet breakpoints for optimal viewing on all devices
+
+**Key Features:**
+- **Color System**: Modern color palette with primary, secondary, and surface colors
+- **Typography Scale**: Hierarchical text sizing with Inter font family
+- **Shadow System**: Layered shadows for depth and visual hierarchy
+- **Markdown Support**: Complete styling for headings, code blocks, tables, and mathematical expressions
+- **Accessibility**: Focus indicators, color contrast, and keyboard navigation support
 
 ---
 
@@ -3219,3 +3283,319 @@ Attributes:
 - `__init__(workspaces_dir=WORKSPACES_DIR)`: Initialize the workspace manager with base directory
 - `save_workspace(state, name=None, test_dir=None)`: Save workspace state to file with metadata
 - `load_workspace(name=None, test_dir=None)`: Load workspace state from file
+
+### OpenAI API Integration (`static/openai_api.py`)
+
+**File Header:**
+```
+MatHud OpenAI API Integration
+
+Manages OpenAI API communication with chat completions, vision support, and tool calling.
+Handles conversation history, message formatting, and model configuration.
+
+Key Features:
+    - Chat completions with OpenAI GPT models
+    - Vision-enabled conversations with canvas image analysis
+    - Tool calling for mathematical operations and canvas manipulation
+    - Conversation history management with token optimization
+    - Message content preparation with multimodal support
+    - Canvas state cleaning for memory efficiency
+
+Communication Flow:
+    - User message processing with optional canvas vision
+    - API request formation with conversation context
+    - Response handling with tool call extraction
+    - Conversation history updates and cleanup
+    - Token optimization through state removal
+
+Vision Integration:
+    - Canvas screenshot encoding for AI analysis
+    - Base64 image data embedding in messages
+    - Vision toggle support for optional image inclusion
+    - Model capability checking for vision features
+
+Tool Calling Support:
+    - Mathematical function execution coordination
+    - Canvas operation tool definitions
+    - Tool response message formatting
+    - Client-side tool execution integration
+
+Message Management:
+    - Conversation history persistence
+    - Canvas state removal for token efficiency
+    - Image data cleanup after processing
+    - Error response generation and handling
+
+Dependencies:
+    - openai: OpenAI API client library
+    - dotenv: Environment variable loading for API keys
+    - base64: Image encoding for vision requests
+    - json: Message parsing and formatting
+    - os: Environment variable access
+    - static.functions_definitions: AI tool definitions
+    - static.ai_model: Model configuration and capabilities
+```
+
+**Class Documentation:**
+```
+OpenAI API integration for chat completions with vision and tool calling support.
+
+Manages conversation history, handles vision-enabled messages with image data,
+and processes tool calls for mathematical operations and canvas manipulation.
+
+Attributes:
+    client (OpenAI): OpenAI API client instance
+    model (AIModel): Current AI model configuration
+    temperature (float): Response randomness setting
+    max_tokens (int): Maximum response length
+    tools (list): Available function definitions for tool calling
+    messages (list): Conversation history with role-based messages
+    DEV_MSG (str): System message defining AI behavior and capabilities
+```
+
+**Key Methods:**
+- `_initialize_api_key()`: Initialize the OpenAI API key from environment or .env file (static method)
+- `__init__(model=None, temperature=0.2, tools=FUNCTIONS, max_tokens=32000)`: Initialize OpenAI API client and conversation state
+- `get_model()`: Get the current AI model instance
+- `set_model(identifier)`: Set the AI model by identifier string
+- `_remove_canvas_state_from_user_messages()`: Remove canvas state from the last user message in conversation history
+- `_remove_images_from_user_messages()`: Remove image content from the last user message in conversation history
+- `_clean_conversation_history()`: Clean up conversation history by removing canvas states and images
+- `_create_enhanced_prompt_with_image(user_message)`: Create enhanced prompt with both text and base64 encoded image
+- `_prepare_message_content(full_prompt)`: Prepare message content with optional canvas image for vision-enabled messages
+- `_create_assistant_message(response_message)`: Create assistant message from API response message
+- `_create_error_response(error_message)`: Create error response matching OpenAI's response structure
+- `_create_tool_message(tool_call_id, content)`: Create tool message in response to a tool call
+- `_append_tool_messages(tool_calls)`: Create and append tool messages for each tool call
+- `create_chat_completion(full_prompt)`: Create chat completion with OpenAI API (main entry point)
+
+### AI Function Definitions (`static/functions_definitions.py`)
+
+**File Header:**
+```
+MatHud AI Function Definitions
+
+Comprehensive set of 40+ AI function definitions for mathematical operations and canvas manipulation.
+Provides OpenAI tool calling schema for geometric shapes, calculations, transformations, and workspace management.
+
+Categories:
+    - Canvas Operations: reset, clear, undo, redo, run_tests
+    - Geometric Shapes: points, segments, vectors, triangles, rectangles, circles, ellipses, angles
+    - Mathematical Functions: plotting, colored areas, bounded regions
+    - Calculations: expressions, trigonometry, algebra, calculus
+    - Transformations: translate, rotate, scale geometric objects
+    - Workspace Management: save, load, list, delete workspaces
+
+Dependencies:
+    - OpenAI Function Calling: Structured function definitions with strict schema validation
+    - JSON Schema: Parameter validation and type checking for all function arguments
+```
+
+**Key Components:**
+- `FUNCTIONS`: Complete list of OpenAI function definitions with JSON schema
+- Function categories: Canvas operations, geometric shapes, mathematical functions, calculations, transformations, workspace management
+- Parameter validation: Strict JSON schema enforcement for all function arguments
+- Type safety: Required parameters and type checking for robust AI integration
+
+### Flask Application Manager (`static/app_manager.py`)
+
+**File Header:**
+```
+MatHud Flask Application Manager
+
+Core Flask application configuration and initialization.
+Manages dependency injection for AI API, WebDriver, workspace operations, and logging.
+
+Dependencies:
+    - Flask: Web framework core
+    - static.openai_api: OpenAI API integration
+    - static.webdriver_manager: Selenium WebDriver for vision system
+    - static.workspace_manager: Workspace file operations
+    - static.log_manager: Application logging
+    - static.routes: Route definitions and registration
+```
+
+**Class Documentation:**
+```
+Manages core Flask application setup and utilities for the MatHud mathematical visualization system.
+
+Coordinates Flask application initialization with comprehensive dependency injection for all core services.
+Provides standardized API response formatting and error handling across the entire application.
+
+Core Responsibilities:
+    - Flask Application Factory: Creates and configures Flask app instances
+    - Dependency Injection: Initializes and coordinates OpenAI API, WebDriver, workspace, and logging managers
+    - Response Standardization: Consistent JSON API response formatting
+    - Service Integration: Bridges Flask web framework with specialized application managers
+
+Managed Dependencies:
+    - OpenAIChatCompletionsAPI: AI-powered mathematical problem solving
+    - WebDriverManager: Selenium-based vision system for canvas image capture
+    - WorkspaceManager: File system operations and workspace organization
+    - LogManager: Application-wide logging and debugging support
+    - Route Registration: RESTful API endpoint configuration
+```
+
+**Key Methods:**
+- `make_response(data=None, message=None, status='success', code=200)`: Create a consistent JSON response format (static method)
+- `create_app()`: Create and configure the Flask application with all managers and routes (static method)
+
+### Flask Route Definitions (`static/routes.py`)
+
+**File Header:**
+```
+MatHud Flask Route Definitions
+
+Defines all Flask application routes for AI communication, workspace management,
+and WebDriver initialization. Handles JSON requests and provides consistent API responses.
+
+Dependencies:
+    - flask: Request handling, templating, and JSON processing
+    - static.tool_call_processor: OpenAI tool call format conversion
+    - static.app_manager: Consistent API response formatting
+```
+
+**Key Routes:**
+- `@app.route('/')`: Main application page serving the mathematical visualization interface
+- `@app.route('/init_webdriver')`: Initialize WebDriver for vision system after Flask startup
+- `@app.route('/save_workspace', methods=['POST'])`: Save current workspace state to file
+- `@app.route('/load_workspace', methods=['GET'])`: Load workspace state from file
+- `@app.route('/list_workspaces', methods=['GET'])`: List all saved workspaces
+- `@app.route('/delete_workspace', methods=['GET'])`: Delete workspace by name
+- `@app.route('/send_message', methods=['POST'])`: Process AI chat messages with tool calling support
+
+**Key Functions:**
+- `register_routes(app)`: Register all routes with the Flask application instance
+- `_process_ai_response(app, choice)`: Process AI response choice and log results
+
+### Application Logging System (`static/log_manager.py`)
+
+**File Header:**
+```
+MatHud Application Logging System
+
+Session-based logging with timestamped entries for debugging and monitoring.
+Creates daily log files and tracks user interactions, AI responses, and tool calls.
+
+Dependencies:
+    - logging: Python logging framework
+    - os: File system operations
+    - datetime: Timestamp generation
+    - json: Message parsing and validation
+```
+
+**Class Documentation:**
+```
+Manages application logging operations.
+
+Provides session-based logging with automatic file rotation by date.
+Logs user messages, AI responses, tool calls, and system events.
+```
+
+**Key Methods:**
+- `__init__(logs_dir='./logs/')`: Initialize LogManager with specified logs directory
+- `_get_log_file_name()`: Get date-based log filename (private method)
+- `_setup_logging()`: Initialize logging configuration with daily rotation (private method)
+- `log_new_session()`: Log new session delimiter with timestamp
+- `log_user_message(user_message)`: Log user message and parse JSON components
+- `log_ai_response(ai_message)`: Log AI-generated response text
+- `log_ai_tool_calls(ai_tool_calls)`: Log AI-requested function calls
+
+### Selenium WebDriver Manager (`static/webdriver_manager.py`)
+
+**File Header:**
+```
+MatHud Selenium WebDriver Management
+
+Manages headless Firefox WebDriver for capturing canvas images for vision system.
+Handles SVG state injection, page configuration, and screenshot capture operations.
+
+Dependencies:
+    - selenium: WebDriver automation framework
+    - selenium.webdriver: Firefox WebDriver and configuration
+    - selenium.webdriver.support: WebDriverWait and expected conditions
+    - logging: Error logging for WebDriver operations
+    - os: File system operations for screenshot storage
+    - time: Timing delays for WebDriver operations
+```
+
+**Class Documentation:**
+```
+Manages Selenium WebDriver operations for capturing math visualizations.
+
+Provides headless Firefox WebDriver for injecting SVG states and capturing
+canvas screenshots for the vision system. Handles page configuration,
+error recovery, and resource cleanup.
+```
+
+**Key Methods:**
+- `__init__(base_url="http://127.0.0.1:5000/")`: Initialize WebDriverManager with base URL
+- `capture_svg_state(svg_state)`: Update SVG state and capture canvas (main entry point)
+- `update_svg_state(svg_state)`: Update SVG content and attributes with provided state
+- `_setup_driver()`: Initialize Firefox WebDriver with headless mode (private method)
+- `_configure_page_layout()`: Configure page layout for screenshot capture (private method)
+- `capture_canvas()`: Capture math visualization canvas as PNG image
+- `_wait_for_svg_elements()`: Wait for SVG elements to be present (private method)
+- `_verify_svg_content()`: Verify SVG content is not empty (private method)
+- `_get_container_dimensions()`: Get container dimensions for sizing (private method)
+- `_configure_svg_size(dimensions)`: Configure SVG size for capture (private method)
+- `cleanup()`: Clean up WebDriver resources
+
+### AI Model Configuration (`static/ai_model.py`)
+
+**File Header:**
+```
+MatHud AI Model Configuration
+
+AI model definitions and capability management for OpenAI models.
+Handles model-specific features like vision support and provides factory methods.
+
+Dependencies:
+    - None (pure configuration module)
+```
+
+**Class Documentation:**
+```
+AI model configuration and capability management.
+
+Manages model-specific capabilities (like vision support) and provides
+factory methods for creating model instances from identifiers.
+```
+
+**Key Methods:**
+- `__init__(identifier, has_vision)`: Initialize AIModel instance with identifier and vision capability
+- `from_identifier(identifier)`: Create AIModel instance from identifier string (static method)
+- `get_default_model()`: Get the default AI model instance (static method)
+- `__str__()`: String representation returning model identifier
+
+**Key Attributes:**
+- `MODEL_CONFIGS`: Dictionary of model configurations with capabilities
+- `DEFAULT_MODEL`: Default model identifier string
+- `id`: Model identifier string
+- `has_vision`: Boolean indicating vision capability support
+
+### Tool Call Processing Utilities (`static/tool_call_processor.py`)
+
+**File Header:**
+```
+MatHud Tool Call Processing Utilities
+
+Converts OpenAI tool call objects into JSON-serializable format for client processing.
+Handles argument parsing and error recovery for malformed tool calls.
+
+Dependencies:
+    - json: JSON parsing and serialization
+    - logging: Error logging for malformed arguments
+```
+
+**Class Documentation:**
+```
+Static class for processing tool calls into JSON-serializable format.
+
+Provides utilities to convert OpenAI tool call objects into simplified
+dictionaries that can be sent to the client-side function processing system.
+```
+
+**Key Methods:**
+- `jsonify_tool_call(tool_call)`: Convert single tool call into JSON-serializable dictionary (static method)
+- `jsonify_tool_calls(tool_calls)`: Convert list of tool calls into simplified format (static method)
