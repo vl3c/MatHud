@@ -22,7 +22,7 @@ This document contains comprehensive documentation extracted from all files in t
 5. AI Interface (`ai_interface.py`)
 6. Result Processor (`result_processor.py`)
 7. Test Runner (`test_runner.py`)
-8. Workspace Manager (`workspace_manager.py`)
+8. Client-Side Workspace Manager (`workspace_manager.py`)
 9. Cartesian System (`cartesian_system_2axis.py`)
 10. Expression Validator (`expression_validator.py`)
 11. Markdown Parser (`markdown_parser.py`)
@@ -97,6 +97,10 @@ This document contains comprehensive documentation extracted from all files in t
 7. Selenium WebDriver Manager (`static/webdriver_manager.py`)
 8. AI Model Configuration (`static/ai_model.py`)
 9. Tool Call Processing Utilities (`static/tool_call_processor.py`)
+
+### Testing and Quality Assurance
+1. Client-Side Testing (`ClientTests/` and `test_runner.py`)
+2. Server-Side Testing (`ServerTests/` and `run_server_tests.py`)
 
 ---
 
@@ -3599,3 +3603,35 @@ dictionaries that can be sent to the client-side function processing system.
 **Key Methods:**
 - `jsonify_tool_call(tool_call)`: Convert single tool call into JSON-serializable dictionary (static method)
 - `jsonify_tool_calls(tool_calls)`: Convert list of tool calls into simplified format (static method)
+
+### Testing and Quality Assurance
+
+MatHud implements a comprehensive dual-sided testing architecture that mirrors the application's client-server structure. The testing system ensures reliability across both the browser-based mathematical visualization components and the server-side AI integration services.
+
+#### Client-Side Testing (`static/Brython-3.11.3/Lib/site-packages/ClientTests/tests.py`)
+The client-side testing framework runs in the browser using Brython and covers all mathematical visualization components. The `Tests` class orchestrates comprehensive testing of:
+- Mathematical utilities and geometric calculations
+- Drawable objects (points, segments, shapes, functions)
+- Canvas operations and coordinate systems
+- AI interface and function call processing
+- Expression validation and mathematical computations
+- Name generation systems and dependency management
+
+The client tests are integrated into the AI interface through `test_runner.py`, allowing the AI to validate system functionality in real-time and ensure mathematical operations produce expected results.
+
+#### Server-Side Testing (`run_server_tests.py`)
+The server-side testing uses pytest and focuses on Flask application components and API functionality. The `run_server_tests.py` script provides a command-line interface for:
+- Testing Flask routes and HTTP endpoints
+- Validating workspace management operations
+- Verifying AI API integration and tool calling
+- Testing WebDriver vision system functionality
+- Ensuring proper error handling and response formatting
+
+The server tests are organized in the `ServerTests/` directory and include mock objects for isolated testing of individual components without external dependencies.
+
+#### Integrated Testing Approach
+The dual testing architecture ensures complete coverage of the mathematical visualization system:
+- **Client tests** validate mathematical accuracy and geometric operations
+- **Server tests** verify API reliability and data persistence
+- **Cross-system validation** through AI interface testing bridges both environments
+- **Real-time testing** capabilities allow the AI to self-validate operations during user interactions
