@@ -1568,7 +1568,7 @@ This class coordinates specialized managers for each drawable type:
 - `get_drawables()`: Get all drawables as a flat list, with colored areas first (behind other elements)
 - `get_point(x, y)`: Get a point at the specified coordinates
 - `get_point_by_name(name)`: Get a point by its name
-- `create_point(x, y, name="", extra_graphics=True)`: Create a new point at the specified coordinates
+- `create_point(x, y, name="", extra_graphics=True)`: Create a new point at the specified coordinates. Handles collision detection, name generation, extra graphics, and dependency management.
 - `delete_point(x, y)`: Delete a point at the specified coordinates
 - `delete_point_by_name(name)`: Delete a point by its name
 - `get_segment_by_coordinates(x1, y1, x2, y2)`: Get a segment by its endpoint coordinates
@@ -2474,198 +2474,241 @@ This class is responsible for:
 
 **File Header:**
 ```
-MatHud Mathematical Utilities Library
+MatHud Mathematical Utilities Module
 
-Comprehensive collection of mathematical functions for geometric calculations,
-function analysis, and numerical operations supporting the visualization system.
+Comprehensive mathematical computation library for geometric analysis, symbolic algebra, and numerical calculations.
+Provides the mathematical foundation for all geometric objects and canvas operations.
 
-Core Mathematical Functions:
-    - Basic arithmetic and algebraic operations
-    - Trigonometric functions and angle calculations
-    - Distance and geometric relationship calculations
-    - Statistical analysis functions
-    - Function analysis and asymptote detection
+Key Features:
+    - Geometric analysis: point matching, distance, area, angle calculations
+    - Coordinate validation and tolerance-based comparisons
+    - Line and curve equation generation (lines, circles, ellipses)
+    - Symbolic mathematics: derivatives, integrals, limits, simplification
+    - System of equations solving (linear, quadratic, mixed systems)
+    - Statistical functions: mean, median, mode, variance
+    - Asymptote and discontinuity analysis for function plotting
+    - Rectangle and triangle validation algorithms
 
-Geometric Mathematics:
-    - Point-to-point distance calculations
-    - Line intersection and perpendicular calculations
-    - Angle measurements and conversions
-    - Area calculations for various shapes
-    - Coordinate transformation mathematics
+Mathematical Categories:
+    - Point/Segment Operations: coordinate matching, distance, collinearity
+    - Shape Analysis: area calculations, centroid finding, geometric validation
+    - Equation Generation: algebraic formulas for geometric objects
+    - Symbolic Computation: calculus operations via MathJS integration
+    - Numerical Methods: equation solving, statistical analysis
+    - Function Analysis: asymptotes, discontinuities, behavior analysis
 
-Function Analysis:
-    - Mathematical function evaluation
-    - Asymptote detection (vertical and horizontal)
-    - Discontinuity analysis
-    - Domain and range calculations
-    - Derivative approximations
-
-Numerical Methods:
-    - Root finding algorithms
-    - Numerical integration methods
-    - Statistical calculations (mean, median, variance)
-    - Precision handling for floating-point operations
-    - Error tolerance management
+Tolerance System:
+    - EPSILON = 1e-9: Global tolerance for floating-point comparisons
+    - Adaptive thresholds for segment-based calculations
+    - Coordinate-aware precision handling
 
 Dependencies:
-    - math: Standard mathematical functions
-    - expression_evaluator: Function evaluation system
-    - constants: Mathematical constants and tolerances
+    - browser.window: MathJS library integration for symbolic math
+    - math: Standard mathematical functions and constants
+    - statistics: Statistical computation functions
+    - drawables.position: Coordinate container for geometric calculations
 ```
 
-**Key Functions:**
-- `distance(x1, y1, x2, y2)`: Calculate distance between two points
-- `angle_between_points(x1, y1, x2, y2, x3, y3)`: Calculate angle formed by three points
-- `line_intersection(x1, y1, x2, y2, x3, y3, x4, y4)`: Find intersection of two lines
-- `point_on_line(px, py, x1, y1, x2, y2, tolerance=1e-6)`: Test if point lies on line
-- `perpendicular_distance(px, py, x1, y1, x2, y2)`: Distance from point to line
-- `area_of_triangle(x1, y1, x2, y2, x3, y3)`: Calculate triangle area
-- `area_of_polygon(points)`: Calculate polygon area using shoelace formula
+**Class Documentation:**
+```
+Comprehensive mathematical utilities class for geometric analysis and symbolic computation.
+
+Provides static methods for all mathematical operations required by the MatHud canvas system,
+including coordinate validation, geometric calculations, equation generation, and symbolic mathematics.
+
+Class Attributes:
+    EPSILON (float): Global tolerance constant (1e-9) for floating-point comparisons
+```
+
+**Key Methods:**
+- `format_number_for_cartesian(n, max_digits=6)`: Formats the number to a string with a maximum number of significant digits or in scientific notation
+- `point_matches_coordinates(point, x, y)`: Check if a point matches given coordinates within tolerance
+- `segment_matches_coordinates(segment, x1, y1, x2, y2)`: Check if a segment matches given endpoint coordinates in any order
+- `segment_matches_point_names(segment, p1_name, p2_name)`: Check if a segment connects two points by their names
+- `segment_has_end_point(segment, x, y)`: Check if a segment has an endpoint at the given coordinates
+- `get_2D_distance(p1, p2)`: Calculate Euclidean distance between two points in 2D space
+- `get_2D_midpoint(p1, p2)`: Calculate the midpoint between two points in 2D space
+- `is_point_on_segment(px, py, sp1x, sp1y, sp2x, sp2y)`: Check if a point lies on a line segment between two endpoints
+- `get_triangle_area(p1, p2, p3)`: Calculate the area of a triangle given three points
+- `get_triangle_centroid(p1, p2, p3)`: Calculate the centroid (center of mass) of a triangle
+- `get_rectangle_area(diagonal_p1, diagonal_p2)`: Calculate rectangle area using diagonal points
+- `cross_product(origin, p1, p2)`: Calculate the cross product of two vectors
+- `dot_product(origin, p1, p2)`: Calculate the dot product of two vectors
+- `calculate_angle_degrees(vertex_coords, arm1_coords, arm2_coords)`: Calculate angle in degrees between three points
+- `are_points_valid_for_angle_geometry(vertex_coords, arm1_coords, arm2_coords)`: Validate if three points can form a valid angle
+- `is_right_angle(origin, p1, p2)`: Check if three points form a right angle
+- `is_rectangle(x1, y1, x2, y2, x3, y3, x4, y4)`: Check if four points form a rectangle
+- `evaluate_expression_using_python(expression)`: Evaluate mathematical expression using Python's eval
+- `points_orientation(p1x, p1y, p2x, p2y, p3x, p3y)`: Find orientation of ordered triplet of points
+- `segments_intersect(s1x1, s1y1, s1x2, s1y2, s2x1, s2y1, s2x2, s2y2)`: Check if two line segments intersect
+- `get_line_formula(x1, y1, x2, y2)`: Calculate the algebraic line equation from two points
+- `get_segments_intersection(s1_x1, s1_y1, s1_x2, s1_y2, s2_x1, s2_y1, s2_x2, s2_y2)`: Find intersection point of two line segments
+- `get_circle_formula(x, y, r)`: Generate circle equation in algebraic form
+- `get_ellipse_formula(x, y, rx, ry, rotation_angle=0)`: Generate ellipse equation with optional rotation
+- `try_convert_to_number(value)`: Safely convert value to number
+- `sqrt(x)`: Calculate square root using MathJS
+- `pow(x, exp)`: Calculate power using MathJS
+- `det(matrix)`: Calculate matrix determinant using MathJS
+- `convert(value, from_unit, to_unit)`: Unit conversion using MathJS
+- `evaluate(expression, variables=None)`: Evaluate mathematical expression using MathJS
+- `derivative(expression, variable)`: Calculate derivative using MathJS
+- `limit(expression, variable, value_to_approach)`: Calculate limit using MathJS
+- `integral(expression, variable, lower_bound=None, upper_bound=None)`: Calculate integral using MathJS
+- `simplify(expression)`: Simplify mathematical expression using MathJS
+- `expand(expression)`: Expand mathematical expression using MathJS
+- `factor(expression)`: Factor mathematical expression using MathJS
+- `get_equation_type(equation)`: Determine the type of mathematical equation
+- `determine_max_number_of_solutions(equations)`: Determine maximum number of solutions for equation system
+- `solve(equation, variable)`: Solve equation for specified variable using MathJS
+- `solve_linear_system(equations)`: Solve system of linear equations
+- `solve_linear_quadratic_system(equations)`: Solve mixed linear-quadratic equation system
+- `solve_quadratic_system(equations)`: Solve system of quadratic equations
+- `solve_system_of_equations(equations)`: Main system solver with type detection
+- `random(min_value=0, max_value=1)`: Generate random number
+- `round(value, ndigits=0)`: Round number to specified digits
+- `gcd(*values)`: Calculate greatest common divisor
+- `lcm(*values)`: Calculate least common multiple
 - `mean(values)`: Calculate arithmetic mean
 - `median(values)`: Calculate median value
+- `mode(values)`: Calculate mode of values
+- `stdev(values)`: Calculate standard deviation
 - `variance(values)`: Calculate variance
-- `calculate_vertical_asymptotes(function_string, left_bound=None, right_bound=None)`: Find vertical asymptotes
-- `calculate_horizontal_asymptotes(function_string)`: Find horizontal asymptotes
-- `calculate_asymptotes_and_discontinuities(function_string, left_bound=None, right_bound=None)`: Complete asymptote analysis
-- `calculate_point_discontinuities(function_string, left_bound=None, right_bound=None)`: Find point discontinuities
-- `triangle_matches_coordinates(triangle, x1, y1, x2, y2, x3, y3)`: Check if triangle matches coordinates
+- `calculate_vertical_asymptotes(function_string, left_bound=None, right_bound=None)`: Find vertical asymptotes of function
+- `calculate_horizontal_asymptotes(function_string)`: Find horizontal asymptotes of function
+- `calculate_asymptotes_and_discontinuities(function_string, left_bound=None, right_bound=None)`: Complete asymptote and discontinuity analysis
+- `calculate_point_discontinuities(function_string, left_bound=None, right_bound=None)`: Find point discontinuities in function
+- `triangle_matches_coordinates(triangle, x1, y1, x2, y2, x3, y3)`: Check if triangle matches given coordinates
 - `find_diagonal_points(points, rect_name_for_warning)`: Find diagonal points for rectangle construction
 
 #### Style Utils (`utils/style_utils.py`)
 
 **File Header:**
 ```
-MatHud Styling and CSS Utilities
+MatHud Style Utilities Module
 
-Validation and management utilities for CSS styling, colors, and visual properties.
-Provides consistent styling across the mathematical visualization system.
+CSS validation and styling utilities for mathematical visualization objects.
+Provides validation functions for colors, opacity values, and other styling properties.
 
-Color Management:
-    - CSS color validation and parsing
-    - Color format conversion (hex, rgb, named colors)
-    - Opacity and transparency validation
-    - Color scheme management
+Key Features:
+    - CSS color validation for named colors, hex values, rgb(), rgba(), hsl(), hsla()
+    - Opacity value validation (0.0 to 1.0 range)
+    - Combined color and opacity validation
+    - Comprehensive named color support (HTML/CSS standard colors)
 
-CSS Validation:
-    - Style property validation
-    - CSS syntax checking
-    - Property value validation
-    - Cross-browser compatibility checking
+Supported Color Formats:
+    - Named colors: Standard CSS color names (red, blue, etc.)
+    - Hex colors: #RGB and #RRGGBB formats
+    - Functional colors: rgb(), rgba(), hsl(), hsla() formats
 
-Visual Properties:
-    - Line width and stroke styling
-    - Fill and stroke color management
-    - Font and text styling validation
-    - Animation and transition properties
+Validation Features:
+    - Type safety for opacity values
+    - Range checking for opacity (0-1)
+    - Format validation for all color types
+    - Error handling with descriptive messages
 
 Dependencies:
-    - re: Regular expression for pattern matching
-    - constants: Default styling values
+    - None (pure validation utilities)
 ```
 
-**Key Functions:**
-- `is_valid_color(color)`: Validate CSS color format
-- `is_valid_opacity(opacity)`: Validate opacity value (0.0 to 1.0)
-- `normalize_color(color)`: Convert color to standard format
-- `validate_css_property(property, value)`: Validate CSS property-value pairs
-- `get_default_style(object_type)`: Get default styling for object types
-- `merge_styles(base_style, override_style)`: Merge styling dictionaries
+**Class Documentation:**
+```
+CSS styling validation utilities for mathematical visualization objects.
+
+Provides static methods for validating color values, opacity settings, and other
+styling properties used throughout the MatHud canvas system.
+```
+
+**Key Methods:**
+- `is_valid_css_color(color)`: Validates if a string is a valid CSS color. Supports named colors, hex colors, rgb(), rgba(), hsl(), and hsla()
+- `validate_opacity(opacity)`: Validates if an opacity value is between 0 and 1
+- `validate_color_and_opacity(color, opacity)`: Validates both color and opacity values
 
 #### Geometry Utils (`utils/geometry_utils.py`)
 
 **File Header:**
 ```
-MatHud Geometric Analysis and Graph Theory Utilities
+MatHud Geometry Utilities Module
 
-Advanced geometric analysis functions supporting complex shape detection,
-connectivity analysis, and graph theory operations for the visualization system.
+Graph theory and geometric analysis utilities for connectivity and relationship validation.
+Provides functions for analyzing connections between geometric objects and validating graph structures.
+
+Key Features:
+    - Point name extraction from segment collections
+    - Graph connectivity analysis for geometric networks
+    - Segment relationship validation
+    - Unique identifier management for geometric objects
 
 Graph Theory Operations:
-    - Connectivity analysis for geometric objects
-    - Triangle detection from connected segments
-    - Path finding algorithms
-    - Network topology analysis
+    - Fully connected graph validation
+    - Point-to-segment mapping
+    - Connectivity analysis for shape construction
+    - Network topology validation
 
-Geometric Analysis:
-    - Shape recognition algorithms
-    - Intersection detection between complex objects
-    - Containment testing (point-in-polygon, etc.)
-    - Geometric relationship analysis
-
-Advanced Algorithms:
-    - Convex hull calculations
-    - Triangulation algorithms
-    - Polygon decomposition
-    - Geometric clustering analysis
-
-Integration Features:
-    - Drawable object connectivity analysis
-    - Automatic shape detection from existing objects
-    - Geometric constraint solving
-    - Spatial indexing for efficient queries
+Use Cases:
+    - Triangle validation (three connected segments)
+    - Rectangle validation (four connected segments in proper topology)
+    - Shape completion checking
+    - Geometric network analysis
 
 Dependencies:
-    - itertools: Combination and permutation operations
-    - collections: Data structure utilities
-    - utils.math_utils: Basic geometric calculations
+    - itertools.combinations: Graph pair analysis
+    - utils.math_utils: Segment matching operations
 ```
 
-**Key Functions:**
-- `find_connected_segments(segments)`: Find all connected segment groups
-- `detect_triangles_from_segments(segments)`: Automatically detect triangles
-- `calculate_convex_hull(points)`: Calculate convex hull of point set
-- `point_in_polygon(point, polygon)`: Test if point is inside polygon
-- `polygon_intersection(poly1, poly2)`: Find intersection of two polygons
-- `simplify_polygon(polygon, tolerance)`: Simplify polygon by removing redundant points
-- `analyze_connectivity(drawables)`: Analyze connectivity between drawable objects
+**Class Documentation:**
+```
+Graph theory and geometric analysis utilities for connectivity validation.
+
+Provides static methods for analyzing relationships between geometric objects,
+particularly for validating connectivity in geometric networks and shapes.
+```
+
+**Key Methods:**
+- `get_unique_point_names_from_segments(segments)`: Extract unique point names from a list of segments
+- `is_fully_connected_graph(list_of_point_names, segments)`: Check if all points in the list are connected by segments
 
 #### Computation Utils (`utils/computation_utils.py`)
 
 **File Header:**
 ```
-MatHud Computation History and Analysis Utilities
+MatHud Computation Utilities Module
 
-Management and analysis of mathematical computations performed on the canvas.
-Provides computation tracking, history management, and analysis capabilities.
+Computation history management and expression tracking utilities.
+Provides functions for managing mathematical computation history and avoiding duplicate calculations.
 
-Computation Tracking:
-    - Mathematical operation logging
-    - Result validation and verification
-    - Computation history management
-    - Performance monitoring
-
-Analysis Capabilities:
-    - Statistical analysis of results
-    - Trend analysis in computations
-    - Error detection and reporting
-    - Computation optimization suggestions
+Key Features:
+    - Computation history tracking
+    - Duplicate expression detection
+    - Expression-result pair management
+    - Computation history persistence
 
 History Management:
-    - Chronological computation storage
-    - Search and filtering capabilities
-    - Export and import functionality
-    - Computation replay capabilities
+    - Expression uniqueness validation
+    - Result caching and retrieval
+    - Computation deduplication
+    - History list maintenance
 
-Integration Features:
-    - Canvas operation integration
-    - AI computation coordination
-    - Result presentation formatting
-    - Mathematical expression analysis
+Use Cases:
+    - AI computation result tracking
+    - Mathematical expression caching
+    - Computation history display
+    - Performance optimization through caching
 
 Dependencies:
-    - datetime: Timestamp management
-    - json: Data serialization
-    - utils.math_utils: Mathematical analysis
+    - None (pure data management utilities)
 ```
 
-**Key Functions:**
-- `log_computation(operation, inputs, result, timestamp=None)`: Log a mathematical computation
-- `get_computation_history()`: Retrieve complete computation history
-- `analyze_computation_trends()`: Analyze patterns in computations
-- `validate_computation_result(operation, inputs, result)`: Validate computation accuracy
-- `export_computation_history(format='json')`: Export history in various formats
-- `search_computations(query)`: Search computation history
-- `get_computation_statistics()`: Generate statistical analysis of computations
+**Class Documentation:**
+```
+Computation history management utilities for mathematical expression tracking.
+
+Provides static methods for managing computation history, detecting duplicates,
+and maintaining a record of mathematical calculations performed in the canvas.
+```
+
+**Key Methods:**
+- `has_computation(computations, expression)`: Check if a computation with the given expression already exists
+- `add_computation(computations, expression, result)`: Add a computation to the history if it doesn't already exist
 
 ### Name Generators
 
@@ -2678,43 +2721,31 @@ MatHud Base Name Generation System
 Abstract base class for systematic naming of mathematical objects.
 Provides the foundation for consistent naming conventions across object types.
 
-Naming Strategy:
-    - Abstract interface for name generation
-    - Collision detection and resolution
-    - Systematic naming patterns
-    - Reset and initialization capabilities
-
-Object Coordination:
-    - Type-specific naming strategies
-    - Cross-object name consistency
-    - Name uniqueness validation
-    - Name format standardization
-
-Integration Points:
-    - Drawable object creation systems
-    - Manager class coordination
-    - User interface integration
-    - Persistence and state management
+Key Features:
+    - Common name utilities and validation
+    - Drawable name retrieval by class type
+    - String filtering for mathematical naming
+    - Canvas integration for name conflict detection
 
 Dependencies:
-    - abc: Abstract base class functionality
+    - re: Regular expression pattern matching for name filtering
 ```
 
 **Class Documentation:**
 ```
-Abstract base class for name generation systems.
+Base class for name generation systems with common utilities.
 
-Defines the interface for systematic naming of mathematical objects
-with collision detection and consistent naming patterns.
+Provides shared functionality for systematic naming of mathematical objects
+including name filtering, drawable retrieval, and canvas integration.
+
+Attributes:
+    canvas (Canvas): Canvas instance for accessing drawable objects
 ```
 
 **Key Methods:**
-- `__init__()`: Initialize base name generator
-- `generate_name()`: Abstract method to generate next available name
-- `reset()`: Abstract method to reset naming sequence
-- `is_name_taken(name)`: Abstract method to check name availability
-- `register_name(name)`: Abstract method to register used name
-- `unregister_name(name)`: Abstract method to unregister name
+- `__init__(canvas)`: Initialize base name generator with canvas reference
+- `get_drawable_names(class_name)`: Get sorted list of names for drawables of a specific class
+- `filter_string(name)`: Filter a string to keep only letters, apostrophes, digits, and parentheses
 
 #### Drawable Name Generator (`name_generator/drawable.py`)
 
@@ -2725,26 +2756,13 @@ MatHud Multi-Type Drawable Name Generator
 Coordinated name generation system managing names across all drawable object types.
 Provides unified naming interface with type-specific delegation.
 
-Multi-Type Coordination:
-    - Point naming (alphabetical sequence)
-    - Function naming (mathematical notation)
-    - Shape naming (geometric conventions)
-    - Area naming (descriptive identifiers)
-
-Name Management:
+Key Features:
+    - Multi-type name coordination (points, functions, shapes, areas)
+    - Type-specific naming strategy delegation
     - Global name uniqueness validation
-    - Type-specific naming strategies
-    - Name collision resolution
-    - Systematic name progression
-
-Integration Features:
-    - DrawableManager coordination
-    - Canvas object integration
-    - Undo/redo state preservation
-    - Name persistence across sessions
+    - Angle name generation from geometric relationships
 
 Dependencies:
-    - name_generator.base: Base class functionality
     - name_generator.point: Point naming system
     - name_generator.function: Function naming system
 ```
@@ -2755,16 +2773,24 @@ Coordinates name generation across all drawable object types.
 
 Manages type-specific name generators and provides unified interface
 for consistent naming throughout the mathematical visualization system.
+
+Attributes:
+    canvas (Canvas): Canvas instance for drawable object access
+    used_letters_from_names (dict): Backward compatibility tracking
+    point_generator (PointNameGenerator): Specialized point name generator
+    function_generator (FunctionNameGenerator): Specialized function name generator
 ```
 
 **Key Methods:**
-- `__init__()`: Initialize multi-type name generator
-- `generate_name(object_type)`: Generate name for specific object type
-- `is_name_taken(name)`: Check if name is used by any object type
-- `register_name(name, object_type)`: Register name usage
-- `unregister_name(name, object_type)`: Unregister name
-- `reset_type(object_type)`: Reset naming for specific type
-- `reset_all()`: Reset all naming generators
+- `__init__(canvas)`: Initialize multi-type name generator with specialized generators
+- `reset_state()`: Reset the state of all specialized name generators
+- `print_names()`: Print all drawable names by category for debugging
+- `get_drawable_names(class_name)`: Get sorted list of names for drawables of a specific class
+- `filter_string(name)`: Filter a string to keep only letters, apostrophes, digits, and parentheses
+- `split_point_names(expression, n=2)`: Split a point expression into individual point names
+- `generate_point_name(preferred_name)`: Generate a unique point name, using preferred_name if possible
+- `generate_function_name(preferred_name)`: Generate a unique function name, using preferred_name if possible
+- `generate_angle_name_from_segments(segment1_name, segment2_name)`: Generate canonical angle name from two segment names
 
 #### Point Name Generator (`name_generator/point.py`)
 
@@ -2775,27 +2801,15 @@ MatHud Point Name Generation System
 Alphabetical naming system for geometric points following mathematical conventions.
 Provides systematic progression through single and multiple letter combinations.
 
-Naming Sequence:
-    - Single letters: A, B, C, ..., Z
-    - Double letters: AA, AB, AC, ..., ZZ
-    - Extended sequences for large point sets
-    - Mathematical naming conventions
-
-Name Management:
-    - Alphabetical progression algorithm
-    - Skip used names automatically
-    - Reset capability for fresh sequences
-    - Name validation and collision detection
-
-Mathematical Conventions:
-    - Standard geometric point naming
-    - Coordinate system integration
-    - Label compatibility with mathematical notation
-    - International naming standards support
+Key Features:
+    - Alphabetical sequence progression (A, B, C, ..., Z, A', B', ...)
+    - Mathematical naming conventions support
+    - Name collision detection and resolution
+    - Expression parsing for multi-point extraction
 
 Dependencies:
+    - re: Regular expression pattern matching for name parsing
     - name_generator.base: Base class functionality
-    - string: String manipulation utilities
 ```
 
 **Class Documentation:**
@@ -2803,21 +2817,21 @@ Dependencies:
 Generates alphabetical names for geometric points.
 
 Implements systematic alphabetical progression for point naming
-following standard mathematical conventions.
+following standard mathematical conventions with apostrophe extensions.
 
 Attributes:
-    current_index (int): Current position in naming sequence
-    used_names (set): Set of already used names
+    canvas (Canvas): Canvas instance for accessing drawable objects
+    used_letters_from_names (dict): Tracks which letters have been used for each name
 ```
 
 **Key Methods:**
-- `__init__()`: Initialize point name generator
-- `generate_name()`: Generate next alphabetical point name
-- `reset()`: Reset to beginning of naming sequence (A)
-- `is_name_taken(name)`: Check if point name is already used
-- `register_name(name)`: Register point name as used
-- `unregister_name(name)`: Unregister point name
-- `get_next_alphabetical()`: Calculate next letter combination
+- `__init__(canvas)`: Initialize point name generator with canvas reference
+- `reset_state()`: Reset the internal tracking of used letters from names
+- `split_point_names(expression, n=2)`: Split a point expression into individual point names
+- `generate_point_name(preferred_name)`: Generate a unique point name, using preferred_name if possible
+- `_generate_unique_point_name()`: Generate a unique point name using alphabetical sequence with apostrophes
+- `_find_available_name_from_alphabet(alphabet, existing_names)`: Find an available name from an alphabet, adding apostrophes as needed
+- `_try_add_apostrophes(base_letter, point_names, initial_count=1, max_attempts=5)`: Try adding apostrophes to a base letter until finding an unused name
 
 #### Function Name Generator (`name_generator/function.py`)
 
@@ -2828,25 +2842,16 @@ MatHud Function Name Generation System
 Mathematical function naming system using standard notation conventions.
 Provides systematic naming for mathematical functions and expressions.
 
-Function Naming:
-    - Standard notation: f(x), g(x), h(x), ...
-    - Custom function identifiers
-
-Mathematical Conventions:
-    - Standard function notation
-    - Variable designation (x, t, θ, etc.)
-    - Function family organization
-    - Domain-specific naming
-
-Name Progression:
-    - Systematic function letter progression
-    - Subscript numbering for families
-    - Special function recognition
-    - Mathematical symbol integration
+Key Features:
+    - Standard mathematical notation (f, g, h, f1, f2, ...)
+    - Function name incrementation with numeric suffixes
+    - Parenthesis handling for function expressions
+    - Collision detection and resolution
 
 Dependencies:
+    - re: Regular expression pattern matching for name parsing
+    - itertools.count: Infinite counting for name generation
     - name_generator.base: Base class functionality
-    - mathematical notation: Unicode mathematical symbols
 ```
 
 **Class Documentation:**
@@ -2857,19 +2862,17 @@ Implements systematic function naming using mathematical notation
 conventions with support for standard and extended naming patterns.
 
 Attributes:
-    current_letter (str): Current function letter (f, g, h, ...)
-    subscript_number (int): Current subscript for repeated letters
-    used_names (set): Set of already used function names
+    canvas (Canvas): Canvas instance for accessing drawable objects
 ```
 
 **Key Methods:**
-- `__init__()`: Initialize function name generator
-- `generate_name()`: Generate next mathematical function name
-- `reset()`: Reset to beginning of naming sequence (f)
-- `is_name_taken(name)`: Check if function name is already used
-- `register_name(name)`: Register function name as used
-- `unregister_name(name)`: Unregister function name
-- `get_next_function_symbol()`: Calculate next function symbol
+- `_extract_number_suffix(func_name)`: Extract a numeric suffix from a function name if present
+- `_increment_function_name(func_name)`: Increment a function name by adding or incrementing a number suffix
+- `_generate_unique_function_name()`: Generate a unique function name using alphabetical sequence
+- `generate_function_name(preferred_name)`: Generate a unique function name, using preferred_name if possible
+- `_extract_function_name_before_parenthesis(preferred_name)`: Extract the function name before any parenthesis
+- `_find_available_function_name(preferred_name, function_names)`: Find an available function name based on the preferred name
+- `reset_state()`: Reset any internal state for function naming
 
 ### Supporting Files
 
