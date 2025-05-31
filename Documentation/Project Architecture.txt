@@ -97,15 +97,20 @@ MatHud/
 ├── app.py                              # Main Flask application entry point
 ├── requirements.txt                    # Python dependencies (Flask, OpenAI, Selenium, etc.)
 ├── README.md                          # Project documentation and setup instructions
-├── project_description_and_architecture.txt  # Comprehensive technical documentation
-├── example_prompts.txt                # Sample AI prompts for testing
-├── todo.txt                           # Development tasks and improvements
 ├── run_server_tests.py                # Server-side test runner script
 ├── .gitignore                         # Git ignore patterns
 ├── LICENSE                            # Project license
+├── Documentation/                     # Project documentation folder
+│   ├── Project Architecture.txt       # Comprehensive technical documentation (this file)
+│   ├── Reference Manual.txt           # Detailed reference manual
+│   ├── Example Prompts.txt            # Sample AI prompts for testing
+│   └── todo.txt                       # Development tasks and improvements
 ├── logs/                              # Application log files (session-based)
 ├── workspaces/                        # Saved workspace JSON files
 ├── CanvasSnapshots/                   # Vision system canvas screenshots
+├── ServerTests/                       # Server-side test files
+├── templates/                         # HTML templates
+├── static/                            # Backend Python modules and frontend assets
 ├── venv/                              # Python virtual environment
 └── .vscode/                           # VS Code configuration
 ```
