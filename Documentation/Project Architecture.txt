@@ -194,6 +194,10 @@ static/Brython-3.11.3/Lib/site-packages/
 │   ├── function_manager.py            # Function plotting management
 │   └── colored_area_manager.py        # Colored area management
 ├── utils/                             # Utility modules
+│   ├── math_utils.py                  # Mathematical utility functions
+│   ├── computation_utils.py           # Computational helper functions
+│   ├── geometry_utils.py              # Geometric utility functions
+│   └── style_utils.py                 # Style and UI utility functions
 ├── name_generator/                    # Automatic name generation for objects
 │   ├── base.py                        # Base name generator class
 │   ├── drawable.py                    # General drawable object name generation
