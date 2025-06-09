@@ -537,11 +537,25 @@ class DiagramGenerator:
             print(f"  ⚠ Function analysis error for {name}: {e}")
     
     def generate_architecture_diagram(self):
-        """Generate a high-level architecture diagram using Python diagrams library."""
-        print("Generating architecture diagram...")
-        print("  ⚠ Architecture diagram generation skipped")
-        print("    Note: You can manually create architecture diagrams using the 'diagrams' library")
-        print("    See WORKFLOW_SUMMARY.md for examples")
+        """Generate comprehensive architecture diagrams using Python diagrams library."""
+        try:
+            from generate_arch import ArchitectureDiagramGenerator
+            
+            # Create architecture diagram generator with same settings
+            arch_generator = ArchitectureDiagramGenerator(
+                png_dir=str(self.png_dir), 
+                svg_dir=str(self.svg_dir), 
+                formats=self.formats
+            )
+            
+            # Generate all architecture diagrams
+            arch_generator.generate_all_architecture_diagrams()
+            
+        except ImportError as e:
+            print(f"  ✗ Missing architecture diagram generator: {e}")
+            print("    Make sure generate_arch.py is in the same directory")
+        except Exception as e:
+            print(f"  ✗ Error generating architecture diagrams: {e}")
     
     def generate_dependency_graph(self):
         """Generate a dependency graph using pydeps."""
