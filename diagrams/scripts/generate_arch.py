@@ -99,49 +99,62 @@ class ArchitectureDiagramGenerator:
                             graph_attr={
                                 "fontname": self.DIAGRAM_FONT, 
                                 "fontsize": self.DIAGRAM_FONT_SIZE,
-                                "dpi": "150"  # Higher DPI for smaller icons
+                                "dpi": "150"
                             },
                             node_attr={
                                 "fontname": self.DIAGRAM_FONT,
                                 "fontsize": self.DIAGRAM_FONT_SIZE,
-                                "width": "1.2",  # Smaller icon width
-                                "height": "1.2"  # Smaller icon height
+                                "width": "1.2",
+                                "height": "1.2"
                             }):
                     
                     # User Interface Layer
                     user = Client("User Browser")
                     
-                    with Cluster("Frontend Layer"):
-                        brython = Python("Brython\n(Client-side Python)")
-                        canvas = Python("SVG Canvas\n& Drawing System")
-                        ui = Python("User Interface\n& Controls")
+                    with Cluster("Frontend Layer (Brython)"):
+                        brython = Python("Brython Runtime\n(Python in Browser)")
+                        canvas = Python("SVG Canvas System\n& Drawable Managers")
+                        ui = Python("Chat Interface\n(Markdown + MathJax)")
+                        event_handler = Python("Canvas Event\nHandler")
                     
-                    with Cluster("Flask Backend"):
-                        flask_app = Flask("Flask Server\n(app.py)")
+                    with Cluster("Flask Backend Server"):
+                        flask_app = Flask("Flask Application\n(app.py)")
                         app_manager = Python("App Manager\n(Dependency Injection)")
-                        routes = Python("Routes\n(API Endpoints)")
+                        routes = Python("API Routes\n(/send_message, /save_workspace)")
                     
-                    with Cluster("Core Services"):
+                    with Cluster("Core Service Managers"):
                         ai_service = Python("OpenAI API\nManager")
-                        webdriver_service = Python("WebDriver\nManager")
-                        workspace_service = Python("Workspace\nManager")
-                        log_service = Python("Log Manager")
+                        webdriver_service = Python("WebDriver Manager\n(Selenium + Firefox)")
+                        workspace_service = Python("Workspace Manager\n(Server-side)")
+                        log_service = Python("Log Manager\n(Session-based)")
                         tool_processor = Python("Tool Call\nProcessor")
+                    
+                    with Cluster("Client-Side Managers (Brython)"):
+                        drawable_manager = Python("Drawable Manager\n(Central Orchestrator)")
+                        shape_managers = Python("Shape Managers\n(Point, Segment, etc.)")
+                        undo_manager = Python("Undo/Redo\nManager")
+                        workspace_client = Python("Workspace Manager\n(Client-side)")
                     
                     with Cluster("External Services"):
                         openai_api = Slack("OpenAI API\n(GPT-4, Vision)")
-                        selenium = Python("Selenium\n+ Firefox")
+                        selenium = Python("Firefox Browser\n(Headless)")
                         internet = Internet("Internet")
                     
-                    with Cluster("Data Storage"):
-                        workspaces = Mongodb("JSON\nWorkspaces")
-                        logs = Redis("Application\nLogs")
-                        snapshots = Python("Canvas\nSnapshots")
+                    with Cluster("Data & Storage"):
+                        workspaces = Mongodb("JSON Workspaces\n(File System)")
+                        logs = Redis("Application Logs\n(Timestamped)")
+                        snapshots = Python("Canvas Snapshots\n(PNG Images)")
+                        state_data = Python("Canvas State\n(SVG + Metadata)")
                     
-                    # Connections - User to Frontend
-                    user >> [brython, ui]
+                    with Cluster("Testing Systems"):
+                        server_tests = Python("Server Tests\n(pytest)")
+                        client_tests = Python("Client Tests\n(Brython unittest)")
+                    
+                    # User to Frontend connections
+                    user >> [brython, ui, event_handler]
                     brython >> canvas
-                    ui >> canvas
+                    ui >> brython
+                    event_handler >> canvas
                     
                     # Frontend to Backend
                     [brython, ui] >> flask_app
@@ -152,16 +165,28 @@ class ArchitectureDiagramGenerator:
                     routes >> [ai_service, webdriver_service, workspace_service, log_service]
                     ai_service >> tool_processor
                     
+                    # Client-side manager coordination
+                    canvas >> drawable_manager
+                    drawable_manager >> shape_managers
+                    drawable_manager >> undo_manager
+                    brython >> workspace_client
+                    
                     # Services to External
                     ai_service >> openai_api
                     webdriver_service >> selenium
                     openai_api >> internet
                     selenium >> internet
                     
-                    # Services to Storage
+                    # Data flows
                     workspace_service >> workspaces
+                    workspace_client >> workspace_service
                     log_service >> logs
                     webdriver_service >> snapshots
+                    canvas >> state_data
+                    
+                    # Testing connections
+                    flask_app >> server_tests
+                    brython >> client_tests
                     
                 print(f"  ✓ System overview diagram: {diagram_path}.{fmt}")
                 
@@ -186,7 +211,7 @@ class ArchitectureDiagramGenerator:
                 output_dir = self.get_output_dir(fmt)
                 diagram_path = output_dir / "ai_integration"
                 
-                with Diagram("MatHud AI Integration Flow", 
+                with Diagram("MatHud AI Integration & Function Call Flow", 
                             filename=str(diagram_path), 
                             show=False,
                             direction="LR",
@@ -205,36 +230,45 @@ class ArchitectureDiagramGenerator:
                     
                     # Input Sources
                     with Cluster("User Input"):
-                        user_text = Client("Text Input\n(Math Problems)")
-                        canvas_state = Python("Canvas State\n(SVG)")
-                        vision_data = Python("Vision Capture\n(Screenshot)")
+                        user_text = Client("User Message\n(Math Problems)")
+                        canvas_state = Python("Canvas State\n(SVG + Computations)")
+                        vision_toggle = Python("Vision Toggle\n(UI Control)")
                     
-                    # Processing Pipeline
-                    with Cluster("AI Processing Pipeline"):
-                        message_prep = Python("Message\nPreparation")
-                        openai_api = Python("OpenAI API\nManager")
-                        model_selection = Python("Model Selection\n(GPT-4/Vision)")
+                    # Client Processing
+                    with Cluster("Client-Side Processing (Brython)"):
+                        ai_interface = Python("AI Interface\n(Main Controller)")
+                        function_registry = Python("Function Registry\n(42 Available Functions)")
+                        markdown_parser = Python("Markdown Parser\n+ MathJax Renderer")
+                        
+                    # Backend Processing Pipeline
+                    with Cluster("Backend AI Pipeline"):
+                        flask_route = Python("Flask Route\n(/send_message)")
+                        message_prep = Python("Message Preparation\n+ Context Assembly")
+                        model_selection = Python("AI Model Selection\n(GPT-4, GPT-4o, etc.)")
                         
                     with Cluster("OpenAI Services"):
-                        gpt4 = Slack("GPT-4\n(Text Processing)")
+                        gpt4 = Slack("GPT-4\n(Text + Function Calls)")
                         gpt4_vision = Slack("GPT-4 Vision\n(Image Analysis)")
-                        function_calls = Python("Function Calls\n& Tool Usage")
+                        function_calls = Python("Function Definitions\n(42 Tools Available)")
                     
-                    # Response Processing
-                    with Cluster("Response Processing"):
-                        tool_processor = Python("Tool Call\nProcessor")
-                        response_formatter = Python("Response\nFormatter")
+                    # Function Execution (Client-Side)
+                    with Cluster("Function Call Execution (Brython)"):
+                        process_calls = Python("ProcessFunctionCalls\n(Facade Pattern)")
+                        result_processor = Python("Result Processor\n(Execution Engine)")
+                        expression_evaluator = Python("Expression Evaluator\n(Math Operations)")
+                        drawable_operations = Python("Drawable Operations\n(Canvas Manipulation)")
                         
-                    # Output
-                    with Cluster("Output"):
-                        ai_response = Python("AI Response\n(Text)")
-                        tool_calls = Python("Tool Calls\n(JSON)")
-                        canvas_updates = Python("Canvas Updates\n(Drawing Commands)")
+                    # Response Processing
+                    with Cluster("Response & UI Update"):
+                        tool_results = Python("Tool Call Results\n(JSON)")
+                        ui_update = Python("Chat UI Update\n(Markdown Rendering)")
+                        canvas_update = Python("Canvas Update\n(SVG Manipulation)")
                     
                     # Flow connections
-                    [user_text, canvas_state, vision_data] >> message_prep
-                    message_prep >> openai_api
-                    openai_api >> model_selection
+                    [user_text, canvas_state, vision_toggle] >> ai_interface
+                    ai_interface >> flask_route
+                    flask_route >> message_prep
+                    message_prep >> model_selection
                     
                     model_selection >> Edge(label="text") >> gpt4
                     model_selection >> Edge(label="vision") >> gpt4_vision
@@ -242,10 +276,16 @@ class ArchitectureDiagramGenerator:
                     gpt4 >> function_calls
                     gpt4_vision >> function_calls
                     
-                    function_calls >> tool_processor
-                    tool_processor >> response_formatter
+                    function_calls >> process_calls
+                    process_calls >> [result_processor, expression_evaluator, drawable_operations]
                     
-                    response_formatter >> [ai_response, tool_calls, canvas_updates]
+                    [result_processor, expression_evaluator, drawable_operations] >> tool_results
+                    tool_results >> Edge(label="back to AI") >> flask_route
+                    tool_results >> [ui_update, canvas_update]
+                    
+                    # UI rendering
+                    ui_update >> markdown_parser
+                    function_registry >> process_calls
                     
                 print(f"  ✓ AI integration diagram: {diagram_path}.{fmt}")
                 
@@ -269,7 +309,7 @@ class ArchitectureDiagramGenerator:
                 output_dir = self.get_output_dir(fmt)
                 diagram_path = output_dir / "webdriver_flow"
                 
-                with Diagram("MatHud WebDriver Vision Flow", 
+                with Diagram("MatHud Vision System & WebDriver Flow", 
                             filename=str(diagram_path), 
                             show=False,
                             direction="TB",
@@ -287,42 +327,58 @@ class ArchitectureDiagramGenerator:
                             }):
                     
                     # Trigger
-                    user_request = Client("User Requests\nVision Analysis")
+                    with Cluster("Vision Request Trigger"):
+                        user_request = Client("User Enables Vision\n+ Sends Message")
+                        vision_check = Python("Vision Toggle\nStatus Check")
+                        canvas_state = Python("Current Canvas State\n(SVG Content)")
                     
-                    with Cluster("WebDriver Initialization"):
-                        webdriver_manager = Python("WebDriver\nManager")
-                        firefox_setup = Python("Firefox Browser\nSetup")
+                    with Cluster("Client-Side State Capture"):
+                        svg_extraction = Python("SVG State Extraction\n(Content + Dimensions)")
+                        ajax_request = Python("AJAX Request\nto /send_message")
+                        
+                    with Cluster("Backend WebDriver Management"):
+                        route_handler = Python("Flask Route Handler\n(/send_message)")
+                        webdriver_init = Python("WebDriver Manager\nInitialization")
+                        firefox_setup = Python("Headless Firefox\nLaunch + Configuration")
                         
                     with Cluster("Vision Capture Process"):
-                        svg_injection = Python("SVG State\nInjection")
-                        page_render = Python("Page Rendering\n& Layout")
-                        screenshot = Python("Screenshot\nCapture")
-                        image_processing = Python("Image\nProcessing")
+                        svg_injection = Python("SVG State Injection\ninto Browser DOM")
+                        page_setup = Python("Page Layout\n+ Style Application")
+                        screenshot = Python("Canvas Screenshot\nCapture (PNG)")
+                        image_save = Python("Save to CanvasSnapshots/\ncanvas.png")
                         
-                    with Cluster("Integration with AI"):
-                        image_encoding = Python("Base64\nEncoding")
-                        openai_vision = Python("OpenAI Vision\nAPI Call")
-                        vision_analysis = Python("Vision Analysis\nResults")
+                    with Cluster("AI Vision Integration"):
+                        image_encoding = Python("Base64 Image\nEncoding")
+                        openai_payload = Python("Multimodal Payload\nPreparation")
+                        vision_analysis = Python("OpenAI Vision API\nImage Analysis")
+                        contextual_response = Python("AI Response with\nVisual Context")
                         
-                    with Cluster("Storage & Cleanup"):
-                        snapshot_storage = Python("Canvas\nSnapshot Storage")
-                        cleanup = Python("Browser\nCleanup")
+                    with Cluster("Cleanup & Error Handling"):
+                        browser_cleanup = Python("WebDriver Browser\nCleanup")
+                        error_fallback = Python("Vision Failure\nFallback (Text-only)")
                         
                     # Flow
-                    user_request >> webdriver_manager
-                    webdriver_manager >> firefox_setup
+                    user_request >> vision_check
+                    vision_check >> Edge(label="enabled") >> canvas_state
+                    canvas_state >> svg_extraction
+                    svg_extraction >> ajax_request
+                    
+                    ajax_request >> route_handler
+                    route_handler >> webdriver_init
+                    webdriver_init >> firefox_setup
+                    
                     firefox_setup >> svg_injection
+                    svg_injection >> page_setup
+                    page_setup >> screenshot
+                    screenshot >> image_save
                     
-                    svg_injection >> page_render
-                    page_render >> screenshot  
-                    screenshot >> image_processing
+                    image_save >> image_encoding
+                    image_encoding >> openai_payload
+                    openai_payload >> vision_analysis
+                    vision_analysis >> contextual_response
                     
-                    image_processing >> image_encoding
-                    image_encoding >> openai_vision
-                    openai_vision >> vision_analysis
-                    
-                    image_processing >> snapshot_storage
-                    webdriver_manager >> cleanup
+                    webdriver_init >> browser_cleanup
+                    route_handler >> Edge(label="on error") >> error_fallback
                     
                 print(f"  ✓ WebDriver flow diagram: {diagram_path}.{fmt}")
                 
@@ -426,6 +482,121 @@ class ArchitectureDiagramGenerator:
         except Exception as e:
             print(f"  ✗ Data flow diagram failed: {e}")
 
+    def generate_manager_architecture_diagram(self):
+        """Generate detailed manager pattern architecture diagram."""
+        try:
+            from diagrams import Diagram, Cluster, Edge
+            from diagrams.programming.language import Python
+            from diagrams.onprem.client import Client
+            
+            # Generate for each format
+            for fmt in self.formats:
+                output_dir = self.get_output_dir(fmt)
+                diagram_path = output_dir / "manager_architecture"
+                
+                with Diagram("MatHud Manager Pattern Architecture", 
+                            filename=str(diagram_path), 
+                            show=False,
+                            direction="TB",
+                            outformat=fmt,
+                            graph_attr={
+                                "fontname": self.DIAGRAM_FONT, 
+                                "fontsize": self.DIAGRAM_FONT_SIZE,
+                                "dpi": "150"
+                            },
+                            node_attr={
+                                "fontname": self.DIAGRAM_FONT,
+                                "fontsize": self.DIAGRAM_FONT_SIZE,
+                                "width": "1.2",
+                                "height": "1.2"
+                            }):
+                    
+                    # Central Coordinator
+                    with Cluster("Central Canvas System"):
+                        canvas = Python("Canvas\n(SVG Manipulation)")
+                        drawable_manager = Python("DrawableManager\n(Central Orchestrator)")
+                        drawables_container = Python("DrawablesContainer\n(Object Storage)")
+                    
+                    # Specialized Shape Managers
+                    with Cluster("Specialized Shape Managers"):
+                        point_mgr = Python("PointManager")
+                        segment_mgr = Python("SegmentManager")
+                        vector_mgr = Python("VectorManager")
+                        triangle_mgr = Python("TriangleManager")
+                        rectangle_mgr = Python("RectangleManager")
+                        circle_mgr = Python("CircleManager")
+                        ellipse_mgr = Python("EllipseManager")
+                        angle_mgr = Python("AngleManager")
+                        function_mgr = Python("FunctionManager")
+                        area_mgr = Python("ColoredAreaManager")
+                    
+                    # Supporting Managers
+                    with Cluster("Supporting Management Systems"):
+                        undo_redo = Python("UndoRedo\n(State History)")
+                        dependency_mgr = Python("DrawableDependency\n(Object Dependencies)")
+                        transform_mgr = Python("Transformations\n(Geometric Operations)")
+                        coord_system = Python("CartesianSystem2Axis\n(Coordinate Management)")
+                    
+                    # Drawable Objects
+                    with Cluster("Drawable Object Classes"):
+                        point_obj = Python("Point")
+                        segment_obj = Python("Segment")
+                        vector_obj = Python("Vector")
+                        triangle_obj = Python("Triangle")
+                        rectangle_obj = Python("Rectangle")
+                        circle_obj = Python("Circle")
+                        ellipse_obj = Python("Ellipse")
+                        angle_obj = Python("Angle")
+                        function_obj = Python("Function")
+                        colored_area_obj = Python("ColoredArea")
+                    
+                    # Name Generation System
+                    with Cluster("Name Generation System"):
+                        name_generator = Python("Name Generator\n(Base Class)")
+                        drawable_names = Python("DrawableNameGenerator")
+                        point_names = Python("PointNameGenerator")
+                        function_names = Python("FunctionNameGenerator")
+                    
+                    # Connections - Canvas to DrawableManager
+                    canvas >> drawable_manager
+                    drawable_manager >> drawables_container
+                    drawable_manager >> [undo_redo, dependency_mgr, transform_mgr]
+                    canvas >> coord_system
+                    
+                    # DrawableManager coordinates all shape managers
+                    drawable_manager >> [point_mgr, segment_mgr, vector_mgr, triangle_mgr, rectangle_mgr]
+                    drawable_manager >> [circle_mgr, ellipse_mgr, angle_mgr, function_mgr, area_mgr]
+                    
+                    # Shape managers create and manage their respective objects
+                    point_mgr >> point_obj
+                    segment_mgr >> segment_obj
+                    vector_mgr >> vector_obj
+                    triangle_mgr >> triangle_obj
+                    rectangle_mgr >> rectangle_obj
+                    circle_mgr >> circle_obj
+                    ellipse_mgr >> ellipse_obj
+                    angle_mgr >> angle_obj
+                    function_mgr >> function_obj
+                    area_mgr >> colored_area_obj
+                    
+                    # Name generation
+                    [point_mgr, segment_mgr, vector_mgr, triangle_mgr, rectangle_mgr] >> name_generator
+                    [circle_mgr, ellipse_mgr, angle_mgr, function_mgr, area_mgr] >> name_generator
+                    name_generator >> [drawable_names, point_names, function_names]
+                    
+                    # Dependencies
+                    dependency_mgr >> [point_obj, segment_obj, vector_obj, triangle_obj, rectangle_obj]
+                    dependency_mgr >> [circle_obj, ellipse_obj, angle_obj, function_obj, colored_area_obj]
+                    
+                print(f"  ✓ Manager architecture diagram: {diagram_path}.{fmt}")
+                
+                # Post-process SVG files to use configured font
+                if fmt == 'svg':
+                    self._post_process_svg_fonts(output_dir / f'manager_architecture.{fmt}')
+            
+        except Exception as e:
+            print(f"  ✗ Manager architecture diagram failed: {e}")
+
     def generate_all_architecture_diagrams(self):
         """Generate all architecture diagrams."""
         print("Generating architecture diagrams...")
@@ -435,6 +606,7 @@ class ArchitectureDiagramGenerator:
             self.generate_ai_integration_diagram() 
             self.generate_webdriver_flow_diagram()
             self.generate_data_flow_diagram()
+            self.generate_manager_architecture_diagram()  # New detailed manager diagram
             
         except ImportError as e:
             print(f"  ✗ Missing diagrams library: {e}")
