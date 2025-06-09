@@ -74,22 +74,33 @@ class DiagramGenerator:
         """Generate UML class diagrams for the entire project."""
         print("Generating class diagrams...")
         
+        # List of all Python files with classes
+        class_files = [
+            'static/app_manager.py',
+            'static/openai_api.py', 
+            'static/webdriver_manager.py',
+            'static/workspace_manager.py',
+            'static/ai_model.py',
+            'static/log_manager.py',
+            'static/tool_call_processor.py'
+        ]
+        
         for fmt in self.formats:
             output_dir = self.get_output_dir(fmt)
             cmd = [
                 'pyreverse',
                 '-o', fmt,
-                '-p', 'MatHud',
+                '-p', 'MatHud_AllClasses',
                 '--output-directory', str(output_dir),
-                'static/',
-                'app.py'
-            ]
+                '--show-associated', '1',
+                '--show-ancestors', '1'
+            ] + class_files  # Add all class files explicitly
             
             try:
                 subprocess.run(cmd, check=True, capture_output=True, text=True, cwd='../..')
-                print(f"  ✓ Class diagram generated: {output_dir}/classes_MatHud.{fmt}")
+                print(f"  ✓ Main class diagram generated: {output_dir}/classes_MatHud_AllClasses.{fmt}")
             except subprocess.CalledProcessError as e:
-                print(f"  ✗ Error generating class diagram: {e.stderr}")
+                print(f"  ✗ Error generating main class diagram: {e.stderr}")
     
     def generate_package_diagrams(self):
         """Generate package dependency diagrams."""
@@ -104,7 +115,10 @@ class DiagramGenerator:
                 '--output-directory', str(output_dir),
                 '--show-associated', '1',
                 '--show-ancestors', '1',
-                'static/'
+                '-m', 'yes',  # Show module names
+                'static/',  # Main application code
+                'app.py',   # Entry point
+                'run_server_tests.py'  # Test code
             ]
             
             try:
@@ -145,6 +159,32 @@ class DiagramGenerator:
                     except subprocess.CalledProcessError as e:
                         print(f"  ✗ Error generating {name} diagram: {e.stderr}")
     
+    def generate_flask_routes_diagram(self):
+        """Generate a Flask routes diagram by analyzing route functions."""
+        print("Generating Flask routes diagram...")
+        
+        try:
+            # Create a custom routes analysis using pyreverse on routes.py with functions
+            for fmt in self.formats:
+                output_dir = self.get_output_dir(fmt)
+                cmd = [
+                    'pyreverse',
+                    '-o', fmt,
+                    '-p', 'FlaskRoutes',
+                    '--output-directory', str(output_dir),
+                    '--show-associated', '1',
+                    'static/routes.py'
+                ]
+                
+                try:
+                    subprocess.run(cmd, check=True, capture_output=True, text=True, cwd='../..')
+                    print(f"  ✓ Flask routes diagram generated: {output_dir}/classes_FlaskRoutes.{fmt}")
+                except subprocess.CalledProcessError:
+                    print(f"  ⚠ Routes diagram minimal (routes.py contains functions, not classes)")
+                    
+        except Exception as e:
+            print(f"  ✗ Error generating routes diagram: {e}")
+    
     def generate_architecture_diagram(self):
         """Generate a high-level architecture diagram using Python diagrams library."""
         print("Generating architecture diagram...")
@@ -160,22 +200,40 @@ class DiagramGenerator:
         output_dir = self.svg_dir if "svg" in self.formats else self.png_dir
         
         try:
+            # Generate main project dependency graph
+            cmd = [
+                'pydeps',
+                '--show-deps',
+                '--max-bacon', '4',  # Increased depth
+                '--cluster',
+                '--rankdir', 'TB',
+                '--no-show',  # Prevent automatic opening of the generated file
+                '--include-missing',  # Show external dependencies
+                '-o', str(output_dir / 'dependencies_main.svg'),
+                'app.py'  # Start from main entry point
+            ]
+            
+            subprocess.run(cmd, check=True, capture_output=True, text=True, cwd='../..')
+            print(f"  ✓ Main dependency graph generated: {output_dir}/dependencies_main.svg")
+            
+            # Generate static module dependencies
             cmd = [
                 'pydeps',
                 '--show-deps',
                 '--max-bacon', '3',
                 '--cluster',
-                '--rankdir', 'TB',
-                '--no-show',  # Prevent automatic opening of the generated file
-                '-o', str(output_dir / 'dependencies.svg'),
+                '--rankdir', 'LR',  # Left-to-right for better readability
+                '--no-show',
+                '-o', str(output_dir / 'dependencies_static.svg'),
                 'static/'
             ]
             
             subprocess.run(cmd, check=True, capture_output=True, text=True, cwd='../..')
-            print(f"  ✓ Dependency graph generated: {output_dir}/dependencies.svg")
+            print(f"  ✓ Static module dependencies generated: {output_dir}/dependencies_static.svg")
             
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as e:
             print("  ✗ Error generating dependency graph")
+            print(f"    Error: {e.stderr if e.stderr else 'Unknown error'}")
             print("    Note: Install with 'pip install pydeps' for dependency graphs")
         except FileNotFoundError:
             print("  ⚠ pydeps not found - skipping dependency graph")
@@ -222,6 +280,7 @@ class DiagramGenerator:
         self.generate_class_diagrams()
         self.generate_package_diagrams()
         self.generate_module_specific_diagrams()
+        self.generate_flask_routes_diagram()
         self.generate_architecture_diagram()
         self.generate_dependency_graph()
         self.generate_call_graph()
