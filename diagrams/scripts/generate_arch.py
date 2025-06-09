@@ -12,67 +12,106 @@ Dependencies:
     pip install diagrams
 """
 
-import os
 from pathlib import Path
+
+# Import shared utilities
+from utils import (
+    setup_graphviz_path, 
+    post_process_svg_fonts,
+    DIAGRAM_FONT,
+    DIAGRAM_FONT_SIZE
+)
 
 
 class ArchitectureDiagramGenerator:
-    # Font configuration constants
-    DIAGRAM_FONT = "Arial"
-    DIAGRAM_FONT_SIZE = "12"  # Larger font size as requested
     
-    def __init__(self, png_dir="../generated_png", svg_dir="../generated_svg", formats=["png", "svg"]):
+    def __init__(self, png_dir="diagrams/generated_png", svg_dir="diagrams/generated_svg", formats=["png", "svg"]):
         # Convert to absolute paths to avoid issues with cwd changes
         self.png_dir = Path(png_dir).resolve()
         self.svg_dir = Path(svg_dir).resolve()
         self.formats = formats
         
-        # Create output directories
+        # Setup Graphviz PATH for Windows
+        setup_graphviz_path()
+        
+        # Create output directories and architecture subdirectories
         if "png" in formats:
             self.png_dir.mkdir(exist_ok=True)
+            (self.png_dir / "architecture").mkdir(exist_ok=True)
         if "svg" in formats:
             self.svg_dir.mkdir(exist_ok=True)
+            (self.svg_dir / "architecture").mkdir(exist_ok=True)
+    
+
+    
+    def clean_generated_folders(self):
+        """Carefully delete all content from generated_png and generated_svg folders."""
+        print("Cleaning generated folders before architecture diagram generation...")
+        
+        folders_to_clean = []
+        if "png" in self.formats and self.png_dir.exists():
+            folders_to_clean.append(self.png_dir)
+        if "svg" in self.formats and self.svg_dir.exists():
+            folders_to_clean.append(self.svg_dir)
+        
+        if not folders_to_clean:
+            print("  ℹ No existing generated folders found - starting fresh")
+            return
+        
+        total_deleted_files = 0
+        total_deleted_dirs = 0
+        
+        for folder in folders_to_clean:
+            try:
+                print(f"  Processing folder: {folder.name}")
+                folder_files = 0
+                folder_dirs = 0
+                
+                # Get all files and subdirectories
+                items = list(folder.iterdir())
+                if not items:
+                    print(f"    Folder {folder.name} is already empty")
+                    continue
+                
+                for item in items:
+                    if item.is_file():
+                        item.unlink()
+                        folder_files += 1
+                        total_deleted_files += 1
+                        print(f"    + Deleted file: {item.name}")
+                    elif item.is_dir():
+                        # Recursively delete directory contents
+                        import shutil
+                        shutil.rmtree(item)
+                        folder_dirs += 1
+                        total_deleted_dirs += 1
+                        print(f"    + Deleted directory: {item.name}")
+                
+                print(f"  + Cleaned {folder.name}: {folder_files} files, {folder_dirs} directories")
+                
+            except PermissionError as e:
+                print(f"  ❌ Permission denied cleaning {folder.name}: {e}")
+                print(f"     Please close any programs using files in {folder.name}")
+            except FileNotFoundError:
+                print(f"  ℹ Folder {folder.name} not found - skipping")
+            except Exception as e:
+                print(f"  ⚠ Could not clean {folder.name}: {e}")
+        
+        if total_deleted_files > 0 or total_deleted_dirs > 0:
+            print(f"Cleanup complete: {total_deleted_files} files and {total_deleted_dirs} directories removed")
+        else:
+            print("All folders were already clean - ready for generation!")
     
     def get_output_dir(self, fmt):
         """Get the appropriate output directory for the given format."""
         if fmt == "png":
-            return self.png_dir
+            return self.png_dir / "architecture"  # Architecture subfolder
         elif fmt == "svg":
-            return self.svg_dir
+            return self.svg_dir / "architecture"  # Architecture subfolder
         else:
-            return self.png_dir
+            return self.png_dir / "architecture"
     
-    def _post_process_svg_fonts(self, svg_file):
-        """Post-process SVG file to ensure configured font is used."""
-        try:
-            if not svg_file.exists():
-                return
-                
-            content = svg_file.read_text(encoding='utf-8')
-            
-            # Replace common serif fonts with configured font
-            font_replacements = [
-                ('Times New Roman', self.DIAGRAM_FONT),
-                ('Times', self.DIAGRAM_FONT),
-                ('serif', f'{self.DIAGRAM_FONT},sans-serif'),
-                ('font-family="Times-Roman"', f'font-family="{self.DIAGRAM_FONT}"'),
-                ('font-family=\'Times-Roman\'', f'font-family=\'{self.DIAGRAM_FONT}\''),
-                ('Times-Roman', self.DIAGRAM_FONT),
-                ('TimesNewRoman', self.DIAGRAM_FONT)
-            ]
-            
-            modified = False
-            for old_font, new_font in font_replacements:
-                if old_font in content:
-                    content = content.replace(old_font, new_font)
-                    modified = True
-            
-            if modified:
-                svg_file.write_text(content, encoding='utf-8')
-                print(f"  ✓ Updated fonts to {self.DIAGRAM_FONT} in: {svg_file.name}")
-                
-        except Exception as e:
-            print(f"  ⚠ Could not update fonts in {svg_file.name}: {e}")
+
 
     def generate_system_overview_diagram(self):
         """Generate overall MatHud system architecture diagram."""
@@ -97,13 +136,13 @@ class ArchitectureDiagramGenerator:
                             direction="TB",
                             outformat=fmt,
                             graph_attr={
-                                "fontname": self.DIAGRAM_FONT, 
-                                "fontsize": self.DIAGRAM_FONT_SIZE,
+                                "fontname": DIAGRAM_FONT, 
+                                "fontsize": str(DIAGRAM_FONT_SIZE),
                                 "dpi": "150"
                             },
                             node_attr={
-                                "fontname": self.DIAGRAM_FONT,
-                                "fontsize": self.DIAGRAM_FONT_SIZE,
+                                "fontname": DIAGRAM_FONT,
+                                "fontsize": str(DIAGRAM_FONT_SIZE),
                                 "width": "1.2",
                                 "height": "1.2"
                             }):
@@ -188,11 +227,11 @@ class ArchitectureDiagramGenerator:
                     flask_app >> server_tests
                     brython >> client_tests
                     
-                print(f"  ✓ System overview diagram: {diagram_path}.{fmt}")
+                print(f"  + System overview diagram: {diagram_path}.{fmt}")
                 
                 # Post-process SVG files to use configured font
                 if fmt == 'svg':
-                    self._post_process_svg_fonts(output_dir / f'system_overview.{fmt}')
+                    post_process_svg_fonts(output_dir / f'system_overview.{fmt}')
             
         except Exception as e:
             print(f"  ✗ System overview diagram failed: {e}")
@@ -217,13 +256,13 @@ class ArchitectureDiagramGenerator:
                             direction="LR",
                             outformat=fmt,
                             graph_attr={
-                                "fontname": self.DIAGRAM_FONT, 
-                                "fontsize": self.DIAGRAM_FONT_SIZE,
+                                "fontname": DIAGRAM_FONT, 
+                                "fontsize": str(DIAGRAM_FONT_SIZE),
                                 "dpi": "150"
                             },
                             node_attr={
-                                "fontname": self.DIAGRAM_FONT,
-                                "fontsize": self.DIAGRAM_FONT_SIZE,
+                                "fontname": DIAGRAM_FONT,
+                                "fontsize": str(DIAGRAM_FONT_SIZE),
                                 "width": "1.2",
                                 "height": "1.2"
                             }):
@@ -287,11 +326,11 @@ class ArchitectureDiagramGenerator:
                     ui_update >> markdown_parser
                     function_registry >> process_calls
                     
-                print(f"  ✓ AI integration diagram: {diagram_path}.{fmt}")
+                print(f"  + AI integration diagram: {diagram_path}.{fmt}")
                 
                 # Post-process SVG files to use configured font
                 if fmt == 'svg':
-                    self._post_process_svg_fonts(output_dir / f'ai_integration.{fmt}')
+                    post_process_svg_fonts(output_dir / f'ai_integration.{fmt}')
             
         except Exception as e:
             print(f"  ✗ AI integration diagram failed: {e}")
@@ -315,13 +354,13 @@ class ArchitectureDiagramGenerator:
                             direction="TB",
                             outformat=fmt,
                             graph_attr={
-                                "fontname": self.DIAGRAM_FONT, 
-                                "fontsize": self.DIAGRAM_FONT_SIZE,
+                                "fontname": DIAGRAM_FONT, 
+                                "fontsize": str(DIAGRAM_FONT_SIZE),
                                 "dpi": "150"
                             },
                             node_attr={
-                                "fontname": self.DIAGRAM_FONT,
-                                "fontsize": self.DIAGRAM_FONT_SIZE,
+                                "fontname": DIAGRAM_FONT,
+                                "fontsize": str(DIAGRAM_FONT_SIZE),
                                 "width": "1.2",
                                 "height": "1.2"
                             }):
@@ -380,11 +419,11 @@ class ArchitectureDiagramGenerator:
                     webdriver_init >> browser_cleanup
                     route_handler >> Edge(label="on error") >> error_fallback
                     
-                print(f"  ✓ WebDriver flow diagram: {diagram_path}.{fmt}")
+                print(f"  + WebDriver flow diagram: {diagram_path}.{fmt}")
                 
                 # Post-process SVG files to use configured font
                 if fmt == 'svg':
-                    self._post_process_svg_fonts(output_dir / f'webdriver_flow.{fmt}')
+                    post_process_svg_fonts(output_dir / f'webdriver_flow.{fmt}')
             
         except Exception as e:
             print(f"  ✗ WebDriver flow diagram failed: {e}")
@@ -410,13 +449,13 @@ class ArchitectureDiagramGenerator:
                             direction="LR",
                             outformat=fmt,
                             graph_attr={
-                                "fontname": self.DIAGRAM_FONT, 
-                                "fontsize": self.DIAGRAM_FONT_SIZE,
+                                "fontname": DIAGRAM_FONT, 
+                                "fontsize": str(DIAGRAM_FONT_SIZE),
                                 "dpi": "150"
                             },
                             node_attr={
-                                "fontname": self.DIAGRAM_FONT,
-                                "fontsize": self.DIAGRAM_FONT_SIZE,
+                                "fontname": DIAGRAM_FONT,
+                                "fontsize": str(DIAGRAM_FONT_SIZE),
                                 "width": "1.2",
                                 "height": "1.2"
                             }):
@@ -473,11 +512,11 @@ class ArchitectureDiagramGenerator:
                     # Workspace operations (separate flow)
                     canvas_state >> workspace_save
                     
-                print(f"  ✓ Data flow diagram: {diagram_path}.{fmt}")
+                print(f"  + Data flow diagram: {diagram_path}.{fmt}")
                 
                 # Post-process SVG files to use configured font
                 if fmt == 'svg':
-                    self._post_process_svg_fonts(output_dir / f'data_flow.{fmt}')
+                    post_process_svg_fonts(output_dir / f'data_flow.{fmt}')
             
         except Exception as e:
             print(f"  ✗ Data flow diagram failed: {e}")
@@ -500,13 +539,13 @@ class ArchitectureDiagramGenerator:
                             direction="TB",
                             outformat=fmt,
                             graph_attr={
-                                "fontname": self.DIAGRAM_FONT, 
-                                "fontsize": self.DIAGRAM_FONT_SIZE,
+                                "fontname": DIAGRAM_FONT, 
+                                "fontsize": str(DIAGRAM_FONT_SIZE),
                                 "dpi": "150"
                             },
                             node_attr={
-                                "fontname": self.DIAGRAM_FONT,
-                                "fontsize": self.DIAGRAM_FONT_SIZE,
+                                "fontname": DIAGRAM_FONT,
+                                "fontsize": str(DIAGRAM_FONT_SIZE),
                                 "width": "1.2",
                                 "height": "1.2"
                             }):
@@ -588,37 +627,72 @@ class ArchitectureDiagramGenerator:
                     dependency_mgr >> [point_obj, segment_obj, vector_obj, triangle_obj, rectangle_obj]
                     dependency_mgr >> [circle_obj, ellipse_obj, angle_obj, function_obj, colored_area_obj]
                     
-                print(f"  ✓ Manager architecture diagram: {diagram_path}.{fmt}")
+                print(f"  + Manager architecture diagram: {diagram_path}.{fmt}")
                 
                 # Post-process SVG files to use configured font
                 if fmt == 'svg':
-                    self._post_process_svg_fonts(output_dir / f'manager_architecture.{fmt}')
+                    post_process_svg_fonts(output_dir / f'manager_architecture.{fmt}')
             
         except Exception as e:
             print(f"  ✗ Manager architecture diagram failed: {e}")
 
-    def generate_all_architecture_diagrams(self):
+    def generate_all_architecture_diagrams(self, clean_first=True):
         """Generate all architecture diagrams."""
+        if clean_first:
+            print("Starting MatHud Architecture Diagram Generation...")
+            print("=" * 60)
+            self.clean_generated_folders()
+            print("")  # Add spacing after cleanup
+        else:
+            print("   Creating architecture diagrams (preserving existing files)...")
+        
         print("Generating architecture diagrams...")
         
         try:
+            diagram_count = 0
+            
+            print("  Creating system overview diagram...")
             self.generate_system_overview_diagram()
-            self.generate_ai_integration_diagram() 
+            diagram_count += 1
+            
+            print("  Creating AI integration flow diagram...")
+            self.generate_ai_integration_diagram()
+            diagram_count += 1
+            
+            print("  Creating WebDriver vision flow diagram...")
             self.generate_webdriver_flow_diagram()
+            diagram_count += 1
+            
+            print("  Creating data flow pipeline diagram...")
             self.generate_data_flow_diagram()
-            self.generate_manager_architecture_diagram()  # New detailed manager diagram
+            diagram_count += 1
+            
+            print("  Creating manager pattern architecture diagram...")
+            self.generate_manager_architecture_diagram()
+            diagram_count += 1
+            
+            print("")
+            print(f"Architecture diagram generation complete!")
+            print(f"   Generated {diagram_count} diagrams in {len(self.formats)} format(s)")
+            print(f"   PNG files: {self.png_dir / 'architecture'}")
+            print(f"   SVG files: {self.svg_dir / 'architecture'}")
             
         except ImportError as e:
-            print(f"  ✗ Missing diagrams library: {e}")
-            print("    Install with: pip install diagrams")
+            print(f"  ❌ Missing diagrams library: {e}")
+            print("     💡 Install with: pip install diagrams")
         except Exception as e:
-            print(f"  ✗ Error generating architecture diagrams: {e}")
+            print(f"  ❌ Error generating architecture diagrams: {e}")
+            print(f"     💡 Check that Graphviz is properly installed and accessible")
 
 
 def main():
     """Main function for standalone execution."""
+    print("MatHud Architecture Diagram Generator (Standalone Mode)")
+    print("   Running architecture diagram generation with full cleanup...")
+    print("")
+    
     generator = ArchitectureDiagramGenerator()
-    generator.generate_all_architecture_diagrams()
+    generator.generate_all_architecture_diagrams(clean_first=True)
 
 
 if __name__ == '__main__':
