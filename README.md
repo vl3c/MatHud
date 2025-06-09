@@ -176,6 +176,41 @@ python app.py
    # Or rely on the automatic installer (recommended)
    ```
 
+## Diagram Generation
+
+MatHud includes a comprehensive diagram generation system for visualizing the codebase architecture and dependencies. This system automatically creates UML class diagrams, package diagrams, dependency graphs, and Flask route documentation.
+
+### Quick Start
+
+```bash
+# Generate all diagrams
+python generate_diagrams_launcher.py
+```
+
+### Generated Diagrams
+
+The system creates multiple visualization types:
+- **Class Diagrams** - UML class relationships and inheritance
+- **Flask Routes** - Professional API endpoint documentation 
+- **Function Analysis** - Function-level dependency tracking
+- **Module Diagrams** - Individual component visualizations
+- **Dependency Graphs** - Import relationship analysis
+
+### Output Formats
+
+- **PNG** - High-quality raster images for documentation
+- **SVG** - Vector graphics for presentations and scaling
+
+All diagrams are automatically generated in both formats and saved to:
+- `diagrams/generated_png/` - PNG format diagrams
+- `diagrams/generated_svg/` - SVG format diagrams
+
+### Documentation
+
+For detailed setup and usage instructions, see:
+- [`diagrams/README.md`](diagrams/README.md) - Complete setup guide
+- [`diagrams/WORKFLOW_SUMMARY.md`](diagrams/WORKFLOW_SUMMARY.md) - Quick reference
+
 ## Testing
 
 MatHud has both server-side and client-side tests to ensure functionality works as expected.

@@ -13,6 +13,7 @@ graphviz>=0.20.0        # Python Graphviz bindings (requires system Graphviz)
 diagrams>=0.23.0        # Architecture diagrams
 pydeps>=1.12.0          # Dependency analysis
 pycallgraph2>=1.1.3     # Call graph generation
+cairosvg>=2.5.0         # SVG to PNG conversion (optional, fallback to 'dot')
 
 # Optional tools (install manually if needed)
 # plantuml               # Alternative UML tool

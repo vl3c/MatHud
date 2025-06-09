@@ -16,9 +16,18 @@ I've set up a diagram generation system for your MatHud Python client-server pro
 
 ✅ **Successfully Generated:**
 - **Class Diagrams** (`classes_*.png/svg`) - UML class relationships
-- **Package Diagrams** (`packages_*.png/svg`) - Module dependencies  
-- **Module-Specific Diagrams** - Individual component views
-- **Dependency Graph** (`dependencies.svg`) - Import relationships
+  - `classes_MatHud_AllClasses.*` (33KB SVG, 284KB PNG) - Complete overview
+  - `packages_MatHud_AllClasses.*` (2.9KB SVG) - Package structure
+- **Module-Specific Diagrams** - Individual component views:
+  - AppManager, OpenAI_API, WebDriver, Workspace (all with PNG + SVG)
+- **Flask Routes Visualization** - HTTP endpoint documentation:
+  - `flask_routes_custom.*` (5.4KB SVG, 48KB PNG) - Professional API diagram
+  - `classes_FlaskRoutes.*` - Pyreverse analysis
+  - `routes_functions.svg` - Function dependencies
+- **Function Analysis** - Enhanced function-level diagrams:
+  - `functions_appmain.svg`, `functions_functiondefinitions.svg`, etc.
+- **Dependency Graphs** - Import relationship analysis:
+  - `dependencies_main.svg` (19KB), `dependencies_static.svg`
 - **Call Graph** - Runtime execution flow (manual generation)
 
 ## 🚀 Quick Start Commands
@@ -69,6 +78,7 @@ MatHud/
 | **graphviz** | Diagram rendering | ✅ Working |
 | **pydeps** | Dependency analysis | ✅ Working |
 | **pycallgraph2** | Call graph generation | ✅ Working |
+| **cairosvg** | SVG to PNG conversion | ✅ Working |
 | **diagrams** | Architecture visualization | ⚠️ Optional |
 
 ## 📈 Recommended Workflow
@@ -116,9 +126,29 @@ AppManager → LogManager
 - `OpenAI_API` - AI service integration  
 - `WebDriver` - Browser automation
 - `Workspace` - File management
-- `Routes` - HTTP endpoints
 
-### 4. Dependency Graph (`dependencies.svg`)
+### 4. Flask Routes Visualization
+**New comprehensive HTTP endpoint documentation:**
+- `flask_routes_custom.*` - Professional API routes with methods, paths, handlers
+- `classes_FlaskRoutes.*` - Pyreverse analysis of route structures
+- `routes_functions.svg` - Function call dependencies in routes
+
+**Best for MatHud:**
+- API documentation and planning
+- Understanding HTTP endpoint structure
+- Route handler relationships
+
+### 5. Function Analysis
+**Enhanced function-level visualization:**
+- `functions_appmain.svg` - App.py function analysis
+- `functions_functiondefinitions.svg` - Function definitions analysis
+- `functions_servertests.svg` - Server test functions
+
+### 6. Dependency Graphs
+**Multiple dependency analysis approaches:**
+- `dependencies_main.svg` (19KB) - Complete project dependencies
+- `dependencies_static.svg` - Static module dependencies
+
 **Best for MatHud:**
 - Analyzing code complexity
 - Planning modular refactoring
@@ -183,10 +213,13 @@ The generated diagrams help visualize MatHud's client-server architecture, AI in
 
 Your MatHud project now has:
 - ✅ **Automated UML generation** from Python code
-- ✅ **Multiple diagram formats** (PNG, SVG)
+- ✅ **Multiple diagram formats** (PNG, SVG) with automatic conversion
 - ✅ **Module-specific visualizations** for key components
+- ✅ **Enhanced Flask routes documentation** with custom visualization
+- ✅ **Function-level analysis** for comprehensive code coverage
 - ✅ **Dependency analysis** for architecture insights
-- ✅ **File watching** for continuous updates
+- ✅ **Duplicate elimination** - no redundant diagrams
+- ✅ **SVG-to-PNG conversion** with cairosvg integration
 - ✅ **Cross-platform compatibility** (Windows, macOS, Linux)
 - ✅ **Comprehensive documentation** and guides
 

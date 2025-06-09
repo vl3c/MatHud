@@ -22,6 +22,10 @@ import sys
 from pathlib import Path
 
 class DiagramGenerator:
+    # Font configuration constants
+    DIAGRAM_FONT = "Arial"
+    DIAGRAM_FONT_SIZE = "10"
+    
     def __init__(self, png_dir="../generated_png", svg_dir="../generated_svg", formats=["png", "svg"]):
         # Convert to absolute paths to avoid issues with cwd changes
         self.png_dir = Path(png_dir).resolve()
@@ -33,7 +37,58 @@ class DiagramGenerator:
             self.png_dir.mkdir(exist_ok=True)
         if "svg" in formats:
             self.svg_dir.mkdir(exist_ok=True)
+            
+        # Setup font configuration for all diagrams
+        self._setup_font_environment()
     
+    def _setup_font_environment(self):
+        """Setup environment variables to use configured font in Graphviz."""
+        import os
+        # Set Graphviz font preferences
+        os.environ['FONTNAME'] = self.DIAGRAM_FONT
+        os.environ['FONTSIZE'] = self.DIAGRAM_FONT_SIZE
+        # Some systems use different environment variables
+        os.environ['GRAPHVIZ_DOT_FONTNAME'] = self.DIAGRAM_FONT
+        os.environ['GRAPHVIZ_DOT_FONTSIZE'] = self.DIAGRAM_FONT_SIZE
+    
+    def _post_process_svg_fonts(self, svg_file):
+        """Post-process SVG file to ensure configured font is used."""
+        try:
+            if not svg_file.exists():
+                return
+                
+            content = svg_file.read_text(encoding='utf-8')
+            
+            # Replace common serif fonts with configured font
+            font_replacements = [
+                ('Times New Roman', self.DIAGRAM_FONT),
+                ('Times', self.DIAGRAM_FONT),
+                ('serif', f'{self.DIAGRAM_FONT},sans-serif'),
+                ('font-family="Times-Roman"', f'font-family="{self.DIAGRAM_FONT}"'),
+                ('font-family=\'Times-Roman\'', f'font-family=\'{self.DIAGRAM_FONT}\''),
+                # Fix any remaining Times references
+                ('Times-Roman', self.DIAGRAM_FONT),
+                ('TimesNewRoman', self.DIAGRAM_FONT)
+            ]
+            
+            modified = False
+            for old_font, new_font in font_replacements:
+                if old_font in content:
+                    content = content.replace(old_font, new_font)
+                    modified = True
+            
+            # Add default font if no font-family is specified in text elements
+            if 'font-family' not in content and '<text' in content:
+                content = content.replace('<text', f'<text font-family="{self.DIAGRAM_FONT}"')
+                modified = True
+            
+            if modified:
+                svg_file.write_text(content, encoding='utf-8')
+                print(f"  ✓ Updated fonts to {self.DIAGRAM_FONT} in: {svg_file.name}")
+                
+        except Exception as e:
+            print(f"  ⚠ Could not update fonts in {svg_file.name}: {e}")
+
     def get_output_dir(self, fmt):
         """Get the appropriate output directory for the given format."""
         if fmt == "png":
@@ -99,6 +154,11 @@ class DiagramGenerator:
             try:
                 subprocess.run(cmd, check=True, capture_output=True, text=True, cwd='../..')
                 print(f"  ✓ Main class diagram generated: {output_dir}/classes_MatHud_AllClasses.{fmt}")
+                
+                # Post-process SVG files to use configured font
+                if fmt == 'svg':
+                    self._post_process_svg_fonts(output_dir / f'classes_MatHud_AllClasses.{fmt}')
+                    
             except subprocess.CalledProcessError as e:
                 print(f"  ✗ Error generating main class diagram: {e.stderr}")
     
@@ -124,6 +184,11 @@ class DiagramGenerator:
             try:
                 subprocess.run(cmd, check=True, capture_output=True, text=True, cwd='../..')
                 print(f"  ✓ Package diagram generated: {output_dir}/packages_MatHud_packages.{fmt}")
+                
+                # Post-process SVG files to use configured font
+                if fmt == 'svg':
+                    self._post_process_svg_fonts(output_dir / f'packages_MatHud_packages.{fmt}')
+                    
             except subprocess.CalledProcessError as e:
                 print(f"  ✗ Error generating package diagram: {e.stderr}")
     
@@ -135,8 +200,8 @@ class DiagramGenerator:
             ('static/app_manager.py', 'AppManager'),
             ('static/openai_api.py', 'OpenAI_API'),
             ('static/webdriver_manager.py', 'WebDriver'),
-            ('static/workspace_manager.py', 'Workspace'),
-            ('static/routes.py', 'Routes')
+            ('static/workspace_manager.py', 'Workspace')
+            # Note: routes.py is handled separately in generate_flask_routes_diagram()
         ]
         
         for module_path, name in important_modules:
@@ -156,15 +221,170 @@ class DiagramGenerator:
                     try:
                         subprocess.run(cmd, check=True, capture_output=True, text=True, cwd='../..')
                         print(f"  ✓ {name} diagram generated: {output_dir}/classes_{name}.{fmt}")
+                        
+                        # Post-process SVG files to use configured font
+                        if fmt == 'svg':
+                            self._post_process_svg_fonts(output_dir / f'classes_{name}.{fmt}')
+                            
                     except subprocess.CalledProcessError as e:
                         print(f"  ✗ Error generating {name} diagram: {e.stderr}")
     
     def generate_flask_routes_diagram(self):
-        """Generate a Flask routes diagram by analyzing route functions."""
-        print("Generating Flask routes diagram...")
+        """Generate comprehensive Flask routes diagrams and function analysis."""
+        print("Generating Flask routes visualization...")
         
+        # Generate custom Flask routes diagram
+        self._generate_custom_routes_diagram()
+        
+        # Try pyreverse for any class-like structures
+        self._generate_pyreverse_routes_diagram()
+        
+        # Generate function call diagram for routes.py
+        self._generate_function_call_diagram()
+    
+    def _generate_custom_routes_diagram(self):
+        """Create a custom SVG diagram showing Flask routes and their relationships."""
         try:
-            # Create a custom routes analysis using pyreverse on routes.py with functions
+            import re
+            from pathlib import Path
+            
+            # Read routes.py content
+            routes_file = Path('../../static/routes.py')
+            if not routes_file.exists():
+                print("  ⚠ routes.py not found for custom analysis")
+                return
+                
+            content = routes_file.read_text()
+            
+            # Extract route information using regex
+            route_pattern = r"@app\.route\(['\"]([^'\"]+)['\"](?:,\s*methods=\[([^\]]+)\])?\)\s*\n\s*def\s+(\w+)"
+            routes = re.findall(route_pattern, content)
+            
+            # Extract function definitions
+            function_pattern = r"def\s+(\w+)\([^)]*\):"
+            functions = re.findall(function_pattern, content)
+            
+            # Create custom SVG for routes
+            svg_content = self._create_routes_svg(routes, functions)
+            
+            # Save SVG version
+            if "svg" in self.formats:
+                svg_output_dir = self.get_output_dir('svg')
+                svg_output_file = svg_output_dir / 'flask_routes_custom.svg'
+                svg_output_file.write_text(svg_content)
+                print(f"  ✓ Custom Flask routes diagram (SVG): {svg_output_file}")
+                
+                # Convert to PNG if needed
+                if "png" in self.formats:
+                    png_output_dir = self.get_output_dir('png')
+                    png_output_file = png_output_dir / 'flask_routes_custom.png'
+                    self._convert_svg_to_png(svg_output_file, png_output_file)
+            
+            # If only PNG format requested, create SVG first then convert
+            elif "png" in self.formats:
+                # Create temporary SVG
+                temp_svg = Path('temp_flask_routes.svg')
+                temp_svg.write_text(svg_content)
+                
+                png_output_dir = self.get_output_dir('png')
+                png_output_file = png_output_dir / 'flask_routes_custom.png'
+                self._convert_svg_to_png(temp_svg, png_output_file)
+                
+                # Clean up temporary file
+                temp_svg.unlink()
+                print(f"  ✓ Custom Flask routes diagram (PNG): {png_output_file}")
+                    
+        except Exception as e:
+            print(f"  ⚠ Custom routes diagram generation failed: {e}")
+    
+    def _convert_svg_to_png(self, svg_file, png_file):
+        """Convert SVG file to PNG using cairosvg."""
+        try:
+            import cairosvg
+            cairosvg.svg2png(url=str(svg_file), write_to=str(png_file))
+            print(f"  ✓ Converted to PNG: {png_file}")
+        except ImportError:
+            print("  ⚠ cairosvg not available - trying alternative conversion methods...")
+            self._convert_svg_to_png_fallback(svg_file, png_file)
+        except Exception as e:
+            print(f"  ⚠ SVG to PNG conversion failed: {e}")
+            self._convert_svg_to_png_fallback(svg_file, png_file)
+    
+    def _convert_svg_to_png_fallback(self, svg_file, png_file):
+        """Fallback SVG to PNG conversion using dot command."""
+        try:
+            # Use dot (Graphviz) to convert SVG to PNG
+            result = subprocess.run([
+                'dot', '-Tpng', str(svg_file), '-o', str(png_file)
+            ], capture_output=True, text=True, check=True)
+            print(f"  ✓ Converted to PNG (via dot): {png_file}")
+        except subprocess.CalledProcessError as e:
+            print(f"  ⚠ Fallback conversion failed: {e}")
+            print(f"    Consider installing cairosvg: pip install cairosvg")
+        except FileNotFoundError:
+            print("  ⚠ No conversion tool available (dot command not found)")
+            print(f"    Consider installing cairosvg: pip install cairosvg")
+
+    def _create_routes_svg(self, routes, functions):
+        """Create SVG content showing Flask routes."""
+        # SVG header
+        svg_width = max(600, len(routes) * 150)
+        svg_height = max(400, len(routes) * 80 + 100)
+        
+        svg = f'''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="{svg_width}pt" height="{svg_height}pt" viewBox="0.00 0.00 {svg_width}.00 {svg_height}.00" 
+     xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 {svg_height-4})">
+<title>Flask Routes</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-{svg_height-4} {svg_width-4},-{svg_height-4} {svg_width-4},4 -4,4"/>
+'''
+        
+        # Add title
+        svg += f'''
+<!-- Title -->
+<text x="{svg_width/2}" y="-{svg_height-30}" text-anchor="middle" font-family="{self.DIAGRAM_FONT},sans-serif" font-size="16" font-weight="bold">MatHud Flask API Routes</text>
+'''
+        
+        # Add routes
+        y_offset = svg_height - 80
+        for i, (path, methods, func_name) in enumerate(routes):
+            methods_clean = methods.replace("'", "").replace('"', '') if methods else "GET"
+            
+            # Route box
+            box_y = y_offset - (i * 70)
+            svg += f'''
+<!-- Route {i+1}: {path} -->
+<g id="route_{i+1}" class="node">
+<rect x="50" y="-{box_y+40}" width="300" height="60" fill="#e8f4fd" stroke="#1f77b4" stroke-width="2" rx="5"/>
+<text x="60" y="-{box_y+15}" font-family="{self.DIAGRAM_FONT},sans-serif" font-size="12" font-weight="bold" fill="#1f77b4">{methods_clean}</text>
+<text x="60" y="-{box_y}" font-family="{self.DIAGRAM_FONT},sans-serif" font-size="14" font-weight="bold">{path}</text>
+<text x="60" y="-{box_y-15}" font-family="{self.DIAGRAM_FONT},sans-serif" font-size="11" fill="#666">{func_name}()</text>
+</g>
+'''
+        
+        # Add function summary
+        func_y = 50
+        svg += f'''
+<!-- Functions Summary -->
+<g id="functions" class="node">
+<rect x="400" y="-{func_y+len(functions)*15+20}" width="180" height="{len(functions)*20+30}" fill="#f0f0f0" stroke="#666" stroke-width="1" rx="5"/>
+<text x="410" y="-{func_y+len(functions)*15+5}" font-family="{self.DIAGRAM_FONT},sans-serif" font-size="12" font-weight="bold">All Functions:</text>
+'''
+        
+        for i, func in enumerate(functions):
+            svg += f'<text x="415" y="-{func_y+len(functions)*15-10-i*15}" font-family="{self.DIAGRAM_FONT},sans-serif" font-size="{self.DIAGRAM_FONT_SIZE}" fill="#333">{func}()</text>\n'
+        
+        svg += '</g>\n'
+        
+        # Close SVG
+        svg += '</g>\n</svg>'
+        
+        return svg
+    
+    def _generate_pyreverse_routes_diagram(self):
+        """Try pyreverse analysis for any class-like structures in routes."""
+        try:
             for fmt in self.formats:
                 output_dir = self.get_output_dir(fmt)
                 cmd = [
@@ -178,12 +398,92 @@ class DiagramGenerator:
                 
                 try:
                     subprocess.run(cmd, check=True, capture_output=True, text=True, cwd='../..')
-                    print(f"  ✓ Flask routes diagram generated: {output_dir}/classes_FlaskRoutes.{fmt}")
+                    print(f"  ✓ Pyreverse routes diagram: {output_dir}/classes_FlaskRoutes.{fmt}")
+                    
+                    # Post-process SVG files to use configured font
+                    if fmt == 'svg':
+                        self._post_process_svg_fonts(output_dir / f'classes_FlaskRoutes.{fmt}')
+                        
                 except subprocess.CalledProcessError:
-                    print(f"  ⚠ Routes diagram minimal (routes.py contains functions, not classes)")
+                    print(f"  ⚠ Pyreverse routes minimal (functions only, no classes)")
                     
         except Exception as e:
-            print(f"  ✗ Error generating routes diagram: {e}")
+            print(f"  ⚠ Pyreverse routes analysis failed: {e}")
+    
+    def _generate_function_call_diagram(self):
+        """Generate function call relationships for routes.py."""
+        try:
+            # Use pydeps to analyze function calls in routes.py specifically
+            output_dir = self.svg_dir if "svg" in self.formats else self.png_dir
+            
+            cmd = [
+                'pydeps',
+                '--show-deps',
+                '--max-bacon', '2',
+                '--cluster',
+                '--rankdir', 'LR',
+                '--no-show',
+                '-o', str(output_dir / 'routes_functions.svg'),
+                'static/routes.py'
+            ]
+            
+            subprocess.run(cmd, check=True, capture_output=True, text=True, cwd='../..')
+            print(f"  ✓ Routes function calls: {output_dir}/routes_functions.svg")
+            
+            # Post-process SVG file to use configured font
+            self._post_process_svg_fonts(output_dir / 'routes_functions.svg')
+            
+        except subprocess.CalledProcessError:
+            print("  ⚠ Routes function call analysis failed")
+        except FileNotFoundError:
+            print("  ⚠ pydeps not available for function analysis")
+    
+    def generate_function_analysis(self):
+        """Generate enhanced function analysis for files with minimal class content."""
+        print("Generating function analysis for enhanced visualization...")
+        
+        # Files that may benefit from function analysis
+        files_to_analyze = [
+            ('static/functions_definitions.py', 'FunctionDefinitions'),
+            ('app.py', 'AppMain'),
+            ('run_server_tests.py', 'ServerTests')
+        ]
+        
+        for file_path, name in files_to_analyze:
+            # Check if file exists
+            abs_file_path = Path('../..') / file_path
+            if abs_file_path.exists():
+                self._generate_file_function_analysis(file_path, name)
+    
+    def _generate_file_function_analysis(self, file_path, name):
+        """Generate function analysis for a specific file."""
+        try:
+            # Use pydeps for function dependency analysis
+            output_dir = self.svg_dir if "svg" in self.formats else self.png_dir
+            
+            cmd = [
+                'pydeps',
+                '--show-deps',
+                '--max-bacon', '2',
+                '--cluster',
+                '--rankdir', 'TB',
+                '--no-show',
+                '-o', str(output_dir / f'functions_{name.lower()}.svg'),
+                file_path
+            ]
+            
+            try:
+                subprocess.run(cmd, check=True, capture_output=True, text=True, cwd='../..')
+                print(f"  ✓ Function analysis for {name}: {output_dir}/functions_{name.lower()}.svg")
+                
+                # Post-process SVG file to use configured font
+                self._post_process_svg_fonts(output_dir / f'functions_{name.lower()}.svg')
+                
+            except subprocess.CalledProcessError:
+                print(f"  ⚠ Function analysis for {name} failed - file may have no dependencies")
+                
+        except Exception as e:
+            print(f"  ⚠ Function analysis error for {name}: {e}")
     
     def generate_architecture_diagram(self):
         """Generate a high-level architecture diagram using Python diagrams library."""
@@ -216,6 +516,9 @@ class DiagramGenerator:
             subprocess.run(cmd, check=True, capture_output=True, text=True, cwd='../..')
             print(f"  ✓ Main dependency graph generated: {output_dir}/dependencies_main.svg")
             
+            # Post-process SVG file to use configured font
+            self._post_process_svg_fonts(output_dir / 'dependencies_main.svg')
+            
             # Generate static module dependencies
             cmd = [
                 'pydeps',
@@ -230,6 +533,9 @@ class DiagramGenerator:
             
             subprocess.run(cmd, check=True, capture_output=True, text=True, cwd='../..')
             print(f"  ✓ Static module dependencies generated: {output_dir}/dependencies_static.svg")
+            
+            # Post-process SVG file to use configured font
+            self._post_process_svg_fonts(output_dir / 'dependencies_static.svg')
             
         except subprocess.CalledProcessError as e:
             print("  ✗ Error generating dependency graph")
@@ -281,6 +587,7 @@ class DiagramGenerator:
         self.generate_package_diagrams()
         self.generate_module_specific_diagrams()
         self.generate_flask_routes_diagram()
+        self.generate_function_analysis()
         self.generate_architecture_diagram()
         self.generate_dependency_graph()
         self.generate_call_graph()
