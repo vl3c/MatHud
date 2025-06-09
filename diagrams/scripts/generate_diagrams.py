@@ -32,6 +32,9 @@ class DiagramGenerator:
         self.svg_dir = Path(svg_dir).resolve()
         self.formats = formats
         
+        # Setup Graphviz PATH for Windows
+        self._setup_graphviz_path()
+        
         # Create output directories
         if "png" in formats:
             self.png_dir.mkdir(exist_ok=True)
@@ -40,6 +43,54 @@ class DiagramGenerator:
             
         # Setup font configuration for all diagrams
         self._setup_font_environment()
+    
+    def _setup_graphviz_path(self):
+        """Setup Graphviz PATH on Windows if not already available."""
+        import sys
+        
+        # Only setup on Windows
+        if sys.platform != 'win32':
+            return
+            
+        # Check if dot is already available
+        try:
+            import subprocess
+            subprocess.run(['dot', '-V'], capture_output=True, check=True)
+            return  # dot is already available
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass  # dot not found, continue with setup
+        
+        # Common Graphviz installation paths on Windows
+        potential_paths = [
+            r"C:\Program Files\Graphviz\bin",
+            r"C:\Program Files (x86)\Graphviz\bin"
+        ]
+        
+        # Find existing installation
+        graphviz_path = None
+        for path in potential_paths:
+            dot_exe = Path(path) / "dot.exe"
+            if dot_exe.exists():
+                graphviz_path = path
+                break
+        
+        if graphviz_path:
+            # Add to current session PATH
+            current_path = os.environ.get('PATH', '')
+            if graphviz_path not in current_path:
+                os.environ['PATH'] = f"{current_path};{graphviz_path}"
+                print(f"  ✓ Added Graphviz to PATH: {graphviz_path}")
+            
+            # Verify it's now working
+            try:
+                subprocess.run(['dot', '-V'], capture_output=True, check=True)
+                print(f"  ✓ Graphviz dot command is now available")
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                print(f"  ⚠ Graphviz found but dot command still not working")
+        else:
+            print(f"  ⚠ Graphviz not found in common installation paths")
+            print(f"    Install with: winget install graphviz")
+            print(f"    Or download from: https://graphviz.org/download/")
     
     def _setup_font_environment(self):
         """Setup environment variables to use configured font in Graphviz."""
