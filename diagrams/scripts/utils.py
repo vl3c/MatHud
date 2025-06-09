@@ -81,7 +81,7 @@ def post_process_svg_fonts(svg_file, diagram_font=DIAGRAM_FONT):
     """Post-process SVG file to ensure configured font is used."""
     try:
         if not svg_file.exists():
-            return
+            return False
             
         content = svg_file.read_text(encoding='utf-8')
         
@@ -109,7 +109,9 @@ def post_process_svg_fonts(svg_file, diagram_font=DIAGRAM_FONT):
         
         if modified:
             svg_file.write_text(content, encoding='utf-8')
-            print(f"  + Updated fonts to {diagram_font} in: {svg_file.name}")
+            return True
+        return False
             
     except Exception as e:
-        print(f"  ⚠ Could not update fonts in {svg_file.name}: {e}") 
+        print(f"  Warning: Could not update fonts in {svg_file.name}: {e}")
+        return False 

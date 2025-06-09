@@ -34,7 +34,14 @@ def main():
         os.chdir("diagrams/scripts")
         
         # Forward all command line arguments to the actual script
-        cmd = [sys.executable, "generate_diagrams.py"] + sys.argv[1:]
+        args = sys.argv[1:]
+        
+        # Add --include-brython by default if not already specified
+        if "--include-brython" not in args and "--no-brython" not in args:
+            args.append("--include-brython")
+            print("   Including Brython diagrams by default (use --no-brython to disable)")
+        
+        cmd = [sys.executable, "generate_diagrams.py"] + args
         result = subprocess.run(cmd)
         
         sys.exit(result.returncode)
