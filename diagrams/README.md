@@ -42,6 +42,87 @@ python setup_diagram_tools.py
 python generate_diagrams.py
 ```
 
+## ⚙️ System Setup Requirements
+
+### 1. Install Graphviz (System Package)
+
+The diagram generation requires the **Graphviz system package** (provides the `dot` executable):
+
+#### Windows
+```powershell
+# Using winget (recommended)
+winget install graphviz
+
+# Or download from: https://graphviz.org/download/
+```
+
+#### macOS
+```bash
+# Using Homebrew
+brew install graphviz
+```
+
+#### Linux
+```bash
+# Ubuntu/Debian
+sudo apt-get install graphviz
+
+# RHEL/CentOS/Fedora
+sudo yum install graphviz
+# or
+sudo dnf install graphviz
+```
+
+### 2. Add Graphviz to PATH (Windows)
+
+After installing Graphviz on Windows, you may need to add it to your PATH:
+
+#### Option A: PowerShell (Recommended)
+```powershell
+# Add to user PATH (permanent)
+[Environment]::SetEnvironmentVariable("PATH", $env:PATH + ";C:\Program Files\Graphviz\bin", [EnvironmentVariableTarget]::User)
+```
+
+#### Option B: Command Prompt
+```cmd
+setx PATH "%PATH%;C:\Program Files\Graphviz\bin"
+```
+
+#### Option C: GUI Method
+1. Right-click "This PC" → Properties
+2. Advanced System Settings → Environment Variables
+3. Under "User variables", select PATH → Edit
+4. Add: `C:\Program Files\Graphviz\bin`
+
+### 3. Verify Installation
+
+Test that everything is working:
+
+```bash
+# Check if dot command is available
+dot -V
+
+# Should output something like:
+# dot - graphviz version 13.0.0 (20250608.1624)
+```
+
+### 4. Install Python Dependencies
+
+```bash
+# Install Python packages
+pip install -r diagrams/diagram_requirements.txt
+```
+
+### 🚨 Troubleshooting
+
+**Problem:** `dot is not available` error
+
+**Solutions:**
+1. **Restart your terminal/shell** after PATH changes
+2. **Verify Graphviz installation:** Check if `C:\Program Files\Graphviz\bin\dot.exe` exists
+3. **Manual PATH check:** Run `$env:PATH -split ';' | Select-String "Graphviz"` (PowerShell)
+4. **Re-run setup:** `python diagrams/scripts/setup_diagram_tools.py`
+
 ## 📊 Generated Diagrams
 
 ✅ **Currently Working:**
