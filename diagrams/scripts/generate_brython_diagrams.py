@@ -54,9 +54,9 @@ class BrythonDiagramGenerator:
         # Setup Graphviz PATH for Windows
         setup_graphviz_path()
         
-        # Create brython-specific output directories
-        self.brython_png_dir = self.png_dir / "brython"
-        self.brython_svg_dir = self.svg_dir / "brython"
+        # Create client-specific output directories
+        self.brython_png_dir = self.png_dir / "client"
+        self.brython_svg_dir = self.svg_dir / "client"
         
         if "png" in formats:
             self.brython_png_dir.mkdir(parents=True, exist_ok=True)
@@ -166,7 +166,7 @@ class BrythonDiagramGenerator:
         print(f"   PNG diagrams: {self.brython_png_dir}")
         print(f"   SVG diagrams: {self.brython_svg_dir}")
         if "svg" in self.formats and self.svg_files_processed > 0:
-            print(f"Fonts updated to {DIAGRAM_FONT} in {self.svg_files_processed} Brython SVG files")
+            print(f"Fonts updated to {DIAGRAM_FONT} in {self.svg_files_processed} client SVG files")
 
     def generate_core_system_diagrams(self):
         """Generate diagrams for core system classes."""

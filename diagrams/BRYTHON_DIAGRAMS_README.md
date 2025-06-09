@@ -15,7 +15,7 @@ This document describes the comprehensive Brython diagram generation system that
 
 ### **Generated Diagram Categories**
 
-#### **Core System Diagrams** (`brython/core/`)
+#### **Core System Diagrams** (`client/core/`)
 - **`brython_core_classes`** - Complete core system overview
 - **`brython_canvas_system`** - Canvas and rendering system
 - **`brython_ai_interface`** - AI communication interface
@@ -24,33 +24,33 @@ This document describes the comprehensive Brython diagram generation system that
 - **`brython_result_processor`** - Result processing pipeline
 - **`brython_function_execution`** - Function execution system
 
-#### **Drawable System Diagrams** (`brython/drawables/`)
+#### **Drawable System Diagrams** (`client/drawables/`)
 - **`brython_geometric_objects`** - Point, Segment, Vector, Triangle, Rectangle, Circle, Ellipse, Angle
 - **`brython_function_plotting`** - Function plotting system
 - **`brython_colored_areas`** - Colored area rendering system
 - **`brython_base_drawable_system`** - Base drawable infrastructure
 
-#### **Manager System Diagrams** (`brython/managers/`)
+#### **Manager System Diagrams** (`client/managers/`)
 - **`brython_shape_managers`** - All geometric shape managers
 - **`brython_specialized_managers`** - Function and colored area managers
 - **`brython_core_managers`** - Core manager infrastructure
 - **`brython_system_managers`** - Transformation and undo/redo managers
 
-#### **Integration Diagrams** (`brython/integration/`)
+#### **Integration Diagrams** (`client/integration/`)
 - **`brython_ajax_communication`** - Client-server AJAX communication
 - **`brython_function_execution_pipeline`** - Complete function execution flow
 
-#### **Utility System Diagrams** (`brython/utilities/`)
+#### **Utility System Diagrams** (`client/utilities/`)
 - **`brython_expression_system`** - Expression evaluation and validation
 - **`brython_content_processing`** - Markdown parsing and function registry
 - **`brython_utils`** - Utility modules
 - **`brython_name_generator`** - Name generation system
 
-#### **Testing Framework Diagrams** (`brython/testing/`)
+#### **Testing Framework Diagrams** (`client/testing/`)
 - **`brython_test_framework`** - Client-side testing infrastructure
 - **`brython_test_runner`** - Test execution system
 
-#### **Package Structure Diagrams** (`brython/`)
+#### **Package Structure Diagrams** (`client/`)
 - **`brython_complete_system`** - Complete system overview
 - **`brython_drawables_package`** - Drawables package structure
 - **`brython_managers_package`** - Managers package structure
@@ -118,7 +118,7 @@ python generate_diagrams.py --include-brython --format svg
 
 ### **File Organization**
 ```
-generated_png/brython/
+generated_png/client/
 ├── core/           # Core system diagrams (7 files)
 ├── drawables/      # Drawable class system (8 files)
 ├── managers/       # Manager pattern diagrams (8 files)
@@ -127,7 +127,7 @@ generated_png/brython/
 ├── utilities/      # Utility systems (8 files)
 └── [root]          # Package overview diagrams (12 files)
 
-generated_svg/brython/
+generated_svg/client/
 └── [same structure as PNG with SVG files]
 ```
 

@@ -61,6 +61,13 @@ class DiagramGenerator:
             # For other formats like dot, use svg directory
             return self.svg_dir
     
+    def get_server_output_dir(self, fmt):
+        """Get the server-specific output directory for a format."""
+        base_dir = self.get_output_dir(fmt)
+        server_dir = base_dir / 'server'
+        server_dir.mkdir(parents=True, exist_ok=True)
+        return server_dir
+    
     def _update_fonts_and_count(self, svg_file):
         """Update SVG fonts and track count."""
         if post_process_svg_fonts(svg_file):
@@ -108,7 +115,7 @@ class DiagramGenerator:
         ]
         
         for fmt in self.formats:
-            output_dir = self.get_output_dir(fmt)
+            output_dir = self.get_server_output_dir(fmt)
             cmd = [
                 'pyreverse',
                 '-o', fmt,
@@ -134,7 +141,7 @@ class DiagramGenerator:
         print("Generating package diagrams...")
         
         for fmt in self.formats:
-            output_dir = self.get_output_dir(fmt)
+            output_dir = self.get_server_output_dir(fmt)
             cmd = [
                 'pyreverse',
                 '-o', fmt,
@@ -176,7 +183,7 @@ class DiagramGenerator:
             abs_module_path = Path('../..') / module_path
             if abs_module_path.exists():
                 for fmt in self.formats:
-                    output_dir = self.get_output_dir(fmt)
+                    output_dir = self.get_server_output_dir(fmt)
                     cmd = [
                         'pyreverse',
                         '-o', fmt,
@@ -236,14 +243,14 @@ class DiagramGenerator:
             
             # Save SVG version
             if "svg" in self.formats:
-                svg_output_dir = self.get_output_dir('svg')
+                svg_output_dir = self.get_server_output_dir('svg')
                 svg_output_file = svg_output_dir / 'flask_routes_custom.svg'
                 svg_output_file.write_text(svg_content)
                 print(f"  + Custom Flask routes diagram (SVG): {svg_output_file}")
                 
                 # Convert to PNG if needed
                 if "png" in self.formats:
-                    png_output_dir = self.get_output_dir('png')
+                    png_output_dir = self.get_server_output_dir('png')
                     png_output_file = png_output_dir / 'flask_routes_custom.png'
                     self._convert_svg_to_png(svg_output_file, png_output_file)
             
@@ -253,7 +260,7 @@ class DiagramGenerator:
                 temp_svg = Path('temp_flask_routes.svg')
                 temp_svg.write_text(svg_content)
                 
-                png_output_dir = self.get_output_dir('png')
+                png_output_dir = self.get_server_output_dir('png')
                 png_output_file = png_output_dir / 'flask_routes_custom.png'
                 self._convert_svg_to_png(temp_svg, png_output_file)
                 
@@ -353,7 +360,7 @@ class DiagramGenerator:
         """Try pyreverse analysis for any class-like structures in routes."""
         try:
             for fmt in self.formats:
-                output_dir = self.get_output_dir(fmt)
+                output_dir = self.get_server_output_dir(fmt)
                 cmd = [
                     'pyreverse',
                     '-o', fmt,
@@ -381,7 +388,7 @@ class DiagramGenerator:
         """Generate function call relationships for routes.py."""
         try:
             # Use pydeps to analyze function calls in routes.py specifically
-            output_dir = self.svg_dir if "svg" in self.formats else self.png_dir
+            output_dir = self.get_server_output_dir('svg') if "svg" in self.formats else self.get_server_output_dir('png')
             
             cmd = [
                 'pydeps',
@@ -423,8 +430,8 @@ class DiagramGenerator:
     def _generate_file_function_analysis(self, file_path, name):
         """Generate function analysis for a specific file."""
         try:
-            # Use pydeps for function dependency analysis
-            output_dir = self.svg_dir if "svg" in self.formats else self.png_dir
+            # Use pydeps for enhanced function call visualization
+            output_dir = self.get_server_output_dir('svg') if "svg" in self.formats else self.get_server_output_dir('png')
             
             cmd = [
                 'pydeps',
@@ -479,7 +486,7 @@ class DiagramGenerator:
         print("Generating dependency graph...")
         
         # Dependencies are typically SVG, so use SVG directory if available
-        output_dir = self.svg_dir if "svg" in self.formats else self.png_dir
+        output_dir = self.get_server_output_dir('svg') if "svg" in self.formats else self.get_server_output_dir('png')
         
         try:
             # Generate main project dependency graph
@@ -536,7 +543,7 @@ class DiagramGenerator:
             from pycallgraph2.output import GraphvizOutput
             
             # Use PNG directory for call graph output
-            output_dir = self.png_dir
+            output_dir = self.get_server_output_dir('png')
             output_file = output_dir / 'call_graph.png'
             
             print(f"  Warning: Call graph generation is experimental")
@@ -547,7 +554,7 @@ class DiagramGenerator:
             # For now, just show the command to run manually
             print("  Note: To generate call graph manually:")
             print("     cd to project root, then run:")
-            print("     pycallgraph graphviz --output-file=diagrams/generated_png/call_graph.png -- python app.py")
+            print("     pycallgraph graphviz --output-file=diagrams/generated_png/server/call_graph.png -- python app.py")
             
         except ImportError:
             print("  Error: pycallgraph2 not found")
@@ -569,7 +576,7 @@ class DiagramGenerator:
             )
             
             # Generate all Brython diagrams
-            print("   Brython diagrams will be saved to: brython/ subfolder")
+            print("   Client diagrams will be saved to: client/ subfolder")
             brython_generator.generate_all_brython_diagrams()
             
         except ImportError as e:
