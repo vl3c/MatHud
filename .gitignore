@@ -23,3 +23,5 @@ CanvasSnapshots/
 
 # Workspaces
 workspaces/
+diagrams/generated_png/
+diagrams/generated_svg/
