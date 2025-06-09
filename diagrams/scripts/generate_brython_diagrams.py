@@ -132,6 +132,27 @@ class BrythonDiagramGenerator:
         if post_process_svg_fonts(svg_file):
             self.svg_files_processed += 1
 
+    def _process_all_client_svg_fonts(self):
+        """Process all client SVG files for font optimization, regardless of individual generation success."""
+        if "svg" not in self.formats:
+            return
+            
+        # Find all SVG files in the client output directory
+        svg_files = list(self.brython_svg_dir.rglob("*.svg"))
+        
+        if not svg_files:
+            return
+            
+        # Reset counter for comprehensive processing
+        total_processed = 0
+        
+        for svg_file in svg_files:
+            if post_process_svg_fonts(svg_file):
+                total_processed += 1
+        
+        # Update the counter to the actual total processed
+        self.svg_files_processed = total_processed
+
     def generate_all_brython_diagrams(self):
         """Generate all Brython system diagrams."""
         print("GENERATING COMPREHENSIVE BRYTHON DIAGRAMS")
@@ -161,6 +182,10 @@ class BrythonDiagramGenerator:
         
         self.generate_package_structure_diagrams()
         print()
+        
+        # Process all SVG fonts comprehensively at the end
+        if "svg" in self.formats:
+            self._process_all_client_svg_fonts()
         
         print("Brython diagram generation completed!")
         print(f"   PNG diagrams: {self.brython_png_dir}")
