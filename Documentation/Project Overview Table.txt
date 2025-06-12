@@ -1,53 +1,61 @@
 MatHud Project Overview Table
 ==================================================
-Generated on: 2025-06-09 15:55:03
+Generated on: 2025-06-09 16:17:53
 
 PROJECT METRICS OVERVIEW
 --------------------------------------------------
 Metric                    Count      Details        
 --------------------------------------------------
 Total Files               127        All types      
-Total Lines of Code       60,113     All files      
-Python Files              110        22,112 lines
+Total Lines of Code       60,202     All files      
+Python Files              110        22,222 lines
 HTML Files                2          196 lines
 CSS Files                 1          601 lines
 JavaScript Files          0          0 lines
-Documentation Files       14         37,204 lines
+Documentation Files       14         37,183 lines
 
 --------------------------------------------------
 CODE ARCHITECTURE
 --------------------------------------------------
 Classes                   100        OOP Design     
-Methods                   1432       Class methods  
+Methods                   1434       Class methods  
 Functions                 16         Module functions
 Drawable Classes          23         Geometric shapes
 Manager Classes           22         System managers
 
 --------------------------------------------------
-TESTING & QUALITY
+DEPENDENCIES
 --------------------------------------------------
+Python Dependencies       11         External packages
+JavaScript Libraries      5          Frontend libs  
+Import Statements         451        All imports    
+Unique Python Imports     57         Distinct modules
+
+--------------------------------------------------
+TESTING
+--------------------------------------------------
+Test Files                32         Test modules   
 Test Functions            489        Unit tests     
 
 --------------------------------------------------
 DOCUMENTATION
 --------------------------------------------------
-Comments                  2230       Code comments  
-Docstrings                994        Documentation  
-Docstring Lines           5978       Doc content    
+Comments                  2243       Code comments  
+Docstrings                996        Documentation  
+Docstring Lines           5980       Doc content    
 
 --------------------------------------------------
 AI INTEGRATION
 --------------------------------------------------
 AI Functions              42         Tool definitions
-Import Statements         451        Dependencies   
 
 ==================================================
 PROJECT SUMMARY
 ==================================================
 MatHud is a comprehensive mathematical visualization tool featuring:
 
-• 60,113 lines of code across 127 files
-• 100 classes with 1432 methods
+• 60,202 lines of code across 127 files
+• 100 classes with 1434 methods
 • 23 drawable geometric shapes
 • 22 specialized system managers
 • 42 AI-powered mathematical functions

@@ -16,9 +16,8 @@ Output:
 
 import os
 import re
-import json
 from pathlib import Path
-from collections import defaultdict, Counter
+from collections import defaultdict
 from datetime import datetime
 
 class ProjectMetricsAnalyzer:
@@ -39,6 +38,10 @@ class ProjectMetricsAnalyzer:
             'docstrings': 0,
             'docstring_lines': 0,
             'reference_manual_lines': 0,
+            'unique_python_imports': set(),
+            'python_dependencies': 0,
+            'javascript_libraries': 0,
+            'test_files': 0,
             'file_details': defaultdict(list)
         }
         
@@ -49,8 +52,8 @@ class ProjectMetricsAnalyzer:
             '.css': 'CSS',
             '.txt': 'Text',
             '.md': 'Markdown',
-            #'.js': 'JavaScript',
-            #'.json': 'JSON'
+            # '.js': 'JavaScript',
+            '.json': 'JSON'
         }
         
         # Directories to exclude
@@ -72,6 +75,8 @@ class ProjectMetricsAnalyzer:
                 file_path = Path(root) / file
                 self.analyze_file(file_path)
         
+        # Analyze dependencies after all files are processed
+        self.analyze_dependencies()
         self.generate_reports()
     
     def analyze_file(self, file_path):
@@ -123,6 +128,13 @@ class ProjectMetricsAnalyzer:
                 self.metrics['docstring_lines'] += docstring_lines
                 file_info['lines'] -= docstring_lines
                 file_info['docstring_lines'] = docstring_lines
+            
+            # Count test files from ServerTests and ClientTests directories
+            relative_path = file_path.relative_to(self.project_root)
+            if any(part in str(relative_path).lower() for part in ['servertests', 'clienttests']):
+                if file_path.suffix.lower() == '.py':  # Only count Python test files
+                    self.metrics['test_files'] += 1
+                    file_info['is_test_file'] = True
             
             self.metrics['file_details'][file_type].append(file_info)
             
@@ -219,6 +231,11 @@ class ProjectMetricsAnalyzer:
             elif stripped.startswith('import ') or stripped.startswith('from '):
                 file_metrics['imports'] += 1
                 self.metrics['imports'] += 1
+                
+                # Track unique imports for dependency analysis
+                import_module = self.extract_import_module(stripped)
+                if import_module:
+                    self.metrics['unique_python_imports'].add(import_module)
             
             # Comments
             elif stripped.startswith('#'):
@@ -236,6 +253,87 @@ class ProjectMetricsAnalyzer:
             file_metrics['ai_functions'] = ai_functions
         
         return file_metrics
+    
+    def extract_import_module(self, import_line):
+        """Extract the main module name from an import statement."""
+        try:
+            # Handle 'import module' and 'from module import ...'
+            if import_line.startswith('import '):
+                module = import_line[7:].split('.')[0].split(' as ')[0].split(',')[0].strip()
+            elif import_line.startswith('from '):
+                module = import_line[5:].split('.')[0].split(' import')[0].strip()
+            else:
+                return None
+            
+            # Filter out relative imports and local modules
+            if module and not module.startswith('.') and module.isidentifier():
+                return module
+            return None
+        except:
+            return None
+    
+    def analyze_dependencies(self):
+        """Analyze Python and JavaScript dependencies."""
+        # Analyze Python requirements files
+        deps = set()
+        
+        # Main requirements.txt
+        requirements_files = [
+            self.project_root / 'requirements.txt',
+            self.project_root / 'diagrams' / 'diagram_requirements.txt'
+        ]
+        
+        for requirements_file in requirements_files:
+            if requirements_file.exists():
+                try:
+                    with open(requirements_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        lines = [line.strip() for line in content.split('\n') if line.strip() and not line.strip().startswith('#')]
+                        # Count dependencies (remove version specs)
+                        for line in lines:
+                            dep = line.split('==')[0].split('>=')[0].split('<=')[0].split('~=')[0].split('!=')[0].strip()
+                            if dep:
+                                deps.add(dep)
+                except:
+                    pass
+        
+        self.metrics['python_dependencies'] = len(deps)
+        
+        # Analyze index.html for JavaScript libraries
+        index_file = self.project_root / 'templates' / 'index.html'
+        if index_file.exists():
+            try:
+                with open(index_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    # Count script tags and CDN libraries
+                    js_libs = set()
+                    
+                    # Look for script src tags
+                    import re
+                    script_pattern = r'<script[^>]+src=["\']([^"\']+)["\']'
+                    matches = re.findall(script_pattern, content, re.IGNORECASE)
+                    
+                    for src in matches:
+                        if 'http' in src or 'cdn' in src:
+                            # External library
+                            lib_name = src.split('/')[-1].split('.')[0]
+                            js_libs.add(lib_name)
+                        elif '.js' in src:
+                            # Local library
+                            lib_name = src.split('/')[-1].split('.')[0]
+                            js_libs.add(lib_name)
+                    
+                    # Also check for specific known libraries mentioned in text
+                    if 'brython' in content.lower():
+                        js_libs.add('brython')
+                    if 'mathjax' in content.lower():
+                        js_libs.add('mathjax')
+                    if 'nerdamer' in content.lower():
+                        js_libs.add('nerdamer')
+                    
+                    self.metrics['javascript_libraries'] = len(js_libs)
+            except:
+                pass
     
     def count_ai_functions(self, content):
         """Count AI function definitions in functions_definitions.py."""
@@ -271,7 +369,12 @@ class ProjectMetricsAnalyzer:
         print(f"   Classes:          {self.metrics['classes']:>4}")
         print(f"   Methods:          {self.metrics['methods']:>4}")
         print(f"   Functions:        {self.metrics['functions']:>4}")
+        
+        print(f"\nDEPENDENCIES:")
+        print(f"   Python Dependencies:{self.metrics['python_dependencies']:>4}")
+        print(f"   JavaScript Libraries:{self.metrics['javascript_libraries']:>3}")
         print(f"   Import Statements:{self.metrics['imports']:>4}")
+        print(f"   Unique Python Imports:{len(self.metrics['unique_python_imports']):>3}")
         
         print(f"\nDOCUMENTATION:")
         print(f"   Comments:         {self.metrics['comments']:>4}")
@@ -279,6 +382,7 @@ class ProjectMetricsAnalyzer:
         print(f"   Docstring Lines:  {self.metrics['docstring_lines']:>4}")
         
         print(f"\nTESTING:")
+        print(f"   Test Files:       {self.metrics['test_files']:>4}")
         print(f"   Test Functions:   {self.metrics['test_functions']:>4}")
         
         print(f"\nAI INTEGRATION:")
@@ -324,8 +428,17 @@ class ProjectMetricsAnalyzer:
             f.write(f"{'Manager Classes':<25} {self.metrics['manager_classes']:<10} {'System managers':<15}\n")
             
             f.write("\n" + "-" * 50 + "\n")
-            f.write("TESTING & QUALITY\n")
+            f.write("DEPENDENCIES\n")
             f.write("-" * 50 + "\n")
+            f.write(f"{'Python Dependencies':<25} {self.metrics['python_dependencies']:<10} {'External packages':<15}\n")
+            f.write(f"{'JavaScript Libraries':<25} {self.metrics['javascript_libraries']:<10} {'Frontend libs':<15}\n")
+            f.write(f"{'Import Statements':<25} {self.metrics['imports']:<10} {'All imports':<15}\n")
+            f.write(f"{'Unique Python Imports':<25} {len(self.metrics['unique_python_imports']):<10} {'Distinct modules':<15}\n")
+            
+            f.write("\n" + "-" * 50 + "\n")
+            f.write("TESTING\n")
+            f.write("-" * 50 + "\n")
+            f.write(f"{'Test Files':<25} {self.metrics['test_files']:<10} {'Test modules':<15}\n")
             f.write(f"{'Test Functions':<25} {self.metrics['test_functions']:<10} {'Unit tests':<15}\n")
             
             f.write("\n" + "-" * 50 + "\n")
@@ -339,7 +452,6 @@ class ProjectMetricsAnalyzer:
             f.write("AI INTEGRATION\n")
             f.write("-" * 50 + "\n")
             f.write(f"{'AI Functions':<25} {self.metrics['ai_functions']:<10} {'Tool definitions':<15}\n")
-            f.write(f"{'Import Statements':<25} {self.metrics['imports']:<10} {'Dependencies':<15}\n")
             
             f.write("\n" + "=" * 50 + "\n")
             f.write("PROJECT SUMMARY\n")
