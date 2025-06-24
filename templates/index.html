@@ -55,7 +55,7 @@ Dependencies:
     <!-- Application styles -->
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">   
 </head>
-<body onload="brython()">
+<body onload="initBrython()">
     <div class="container">
         <!-- Mathematical Canvas Area -->
         <div class="math-container" id="math-container">
@@ -94,6 +94,19 @@ Dependencies:
             </div>
         </div>
     </div>
+    
+    <!-- Brython initialization and configuration -->
+    <script>
+    function initBrython() {
+        // Configure Brython to use local paths for our modules
+        brython({
+            debug: 1,
+            cache: 'none',
+            static_stdlib_import: true,
+            pythonpath: ['{{ url_for("static", filename="Brython-3.11.3/Lib/site-packages") }}']
+        });
+    }
+    </script>
     
     <!-- Main Brython application entry point -->
     <script type="text/python" src="{{ url_for('static', filename='Brython-3.11.3/Lib/site-packages/main.py') }}"></script>
