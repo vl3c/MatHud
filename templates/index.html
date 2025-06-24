@@ -46,9 +46,13 @@ Dependencies:
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     
-    <!-- Brython Python runtime from CDN (v3.12.5 - more stable) and local mathematical libraries -->
-    <script src="{{ url_for('static', filename='Brython-3.11.3/Lib/math.js') }}"></script>
-    <script src="{{ url_for('static', filename='Brython-3.11.3/Lib/nerdamer.js') }}"></script>
+    <!-- Brython Python runtime and mathematical libraries from CDN (2025 latest versions) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.5.2/math.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/nerdamer.core.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Algebra.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Calculus.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Solve.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Extra.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.12.5/brython.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.12.5/brython_stdlib.min.js"></script>
     
