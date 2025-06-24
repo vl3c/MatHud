@@ -3191,12 +3191,14 @@ Key Components:
 Dependencies:
     - Google Fonts (Inter): Modern typography
     - MathJax 3: Mathematical equation rendering
-    - Brython 3.11.3: Python runtime for browser-side logic
+    - Brython 3.12.5: Python runtime for browser-side logic (CDN)
+    - Math.js 14.5.2: Mathematical computation library (CDN)
+    - Nerdamer 1.1.13: Symbolic algebra and calculus (CDN with full modules)
     - Flask templates: Dynamic asset URL generation
 ```
 
 **Key Sections:**
-- **Head Section**: Meta tags, font loading, MathJax configuration, and Brython library inclusion
+- **Head Section**: Meta tags, font loading, MathJax configuration, and Brython/math libraries from CDN
 - **Math Container**: SVG canvas element for interactive mathematical visualizations
 - **Chat Interface**: AI model selector, vision toggle, chat history display, and user input area
 - **JavaScript Integration**: MathJax setup, Brython initialization, and vision toggle functionality
@@ -3608,7 +3610,7 @@ dictionaries that can be sent to the client-side function processing system.
 
 MatHud implements a comprehensive dual-sided testing architecture that mirrors the application's client-server structure. The testing system ensures reliability across both the browser-based mathematical visualization components and the server-side AI integration services.
 
-#### Client-Side Testing (`static/Brython-3.11.3/Lib/site-packages/ClientTests/tests.py`)
+#### Client-Side Testing (`static/python/ClientTests/tests.py`)
 The client-side testing framework runs in the browser using Brython and covers all mathematical visualization components. The `Tests` class orchestrates comprehensive testing of:
 - Mathematical utilities and geometric calculations
 - Drawable objects (points, segments, shapes, functions)

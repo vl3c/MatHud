@@ -60,7 +60,7 @@ MatHud is a comprehensive mathematical visualization tool featuring:
 • 22 specialized system managers
 • 42 AI-powered mathematical functions
 • 489 test functions for quality assurance
-• Flask backend with Brython frontend architecture
+• Flask backend with Brython 3.12.5 (CDN) frontend architecture
 • Interactive SVG canvas with real-time mathematical visualization
 
 NOTE: Reference Manual.txt (3,637 lines) contains duplicated docstring
