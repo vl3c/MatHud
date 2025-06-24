@@ -11,7 +11,7 @@ if PROJECT_ROOT not in sys.path:
 # Add the site-packages directory to Python path
 SITE_PACKAGES_PATH = os.path.join(
     PROJECT_ROOT,
-    'static', 'Brython-3.11.3', 'Lib', 'site-packages'
+    'static', 'python'
 )
 if SITE_PACKAGES_PATH not in sys.path:
     sys.path.append(SITE_PACKAGES_PATH)
