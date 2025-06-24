@@ -43,7 +43,6 @@ Dependencies:
         }
     };
     </script>
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     
     <!-- Brython Python runtime and mathematical libraries from CDN (2025 latest versions) -->
@@ -104,9 +103,10 @@ Dependencies:
     function initBrython() {
         // Configure Brython to use local paths for our modules
         brython({
-            debug: 1,
-            cache: 'none',
+            debug: 0,
+            cache: 'browser',
             static_stdlib_import: true,
+            async: true,
             pythonpath: ['{{ url_for("static", filename="Brython-3.11.3/Lib/site-packages") }}']
         });
     }
