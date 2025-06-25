@@ -72,42 +72,44 @@ body {
 .container {
     display: flex;
     gap: 20px;
-    max-width: 1400px;
     margin: 0 auto;
     height: calc(100vh - 40px);
+    padding: 0 20px;
 }
 
-/* Mathematical canvas area (60% width) */
+/* Mathematical canvas area (flexible width - fills remaining space) */
 .math-container {
     background: var(--surface-color);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
-    width: 60%;
+    flex: 1;
     height: 100%;
     font-size: 16px;
     overflow: hidden;
     transition: box-shadow 0.2s ease;
+    min-width: 400px; /* Minimum width to maintain usability */
 }
 
 .math-container:hover {
     box-shadow: var(--shadow-lg);
 }
 
-/* Chat interface area (40% width) */
+/* Chat interface area (fixed width on the right) */
 .chat-container {
     position: relative;
     background: var(--surface-color);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
-    width: 40%;
+    width: 580px;
     height: 100%;
     font-size: 16px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     transition: box-shadow 0.2s ease;
+    flex-shrink: 0; /* Prevent chat from shrinking */
 }
 
 .chat-container:hover {
@@ -123,7 +125,8 @@ body {
     padding: 0.75rem;
     background-color: var(--surface-color);
     border-bottom: 1px solid var(--border-color);
-    gap: 0.75rem;
+    gap: 2rem; /* Increased gap to ensure separator never overlaps button */
+    min-width: 0; /* Allow proper flexbox shrinking */
 }
 
 #new-conversation-button {
@@ -154,6 +157,29 @@ body {
     display: flex;
     align-items: center;
     gap: 1rem;
+    position: relative;
+}
+
+.controls-group::before {
+    content: '';
+    position: absolute;
+    left: -1.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: 36px;
+    background-color: var(--border-color);
+}
+
+/* Hide separator on smaller screens to prevent overlap */
+@media (max-width: 580px) {
+    .controls-group::before {
+        display: none;
+    }
+    
+    .selection-container {
+        gap: 0.75rem; /* Reduce gap on small screens */
+    }
 }
 
 .ai-model-selector {
@@ -585,21 +611,25 @@ body {
 
 /* ===== RESPONSIVE DESIGN ===== */
 /* Mobile-first responsive breakpoints for tablets and phones */
-@media (max-width: 1200px) {
+@media (max-width: 1024px) {
     .container {
         flex-direction: column;
         height: auto;
         min-height: calc(100vh - 40px);
+        padding: 0 10px;
     }
     
-    .math-container,
-    .chat-container {
+    .math-container {
         width: 100%;
         height: 500px;
+        min-width: unset;
+        flex: none;
     }
     
     .chat-container {
+        width: 100%;
         height: 400px;
+        flex-shrink: 1;
     }
 }
 
