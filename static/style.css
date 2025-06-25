@@ -117,34 +117,67 @@ body {
 /* ===== CHAT INTERFACE COMPONENTS ===== */
 /* AI model and vision controls at the top of chat area */
 .selection-container {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border-color);
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
     display: flex;
-    flex-direction: column;
-    gap: 12px;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background-color: var(--surface-color);
+    border-bottom: 1px solid var(--border-color);
+    gap: 0.75rem;
 }
 
-/* AI Model Selection Dropdown */
+#new-conversation-button {
+    padding: 12px 20px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+#new-conversation-button:hover {
+    background-color: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+#new-conversation-button:active {
+    transform: translateY(0);
+}
+
+.controls-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
 .ai-model-selector {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .ai-model-selector label {
     font-weight: 600;
+    color: var(--text-secondary);
     font-size: 14px;
-    color: var(--text-primary);
+    font-family: inherit;
+    white-space: nowrap;
 }
 
 .ai-model-selector select {
-    padding: 8px 12px;
+    padding: 12px 16px;
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
-    background: var(--surface-color);
-    font-size: 14px;
+    background-color: var(--surface-color);
     color: var(--text-primary);
+    font-size: 14px;
+    font-family: inherit;
     cursor: pointer;
     transition: all 0.2s ease;
 }
@@ -155,18 +188,10 @@ body {
     box-shadow: 0 0 0 3px rgb(37 99 235 / 0.1);
 }
 
-.ai-model-selector select:hover {
-    border-color: var(--secondary-color);
-}
-
-/* Vision Toggle Checkbox */
 .vision-toggle {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    position: static;
-    margin: 0;
+    gap: 0.5rem;
 }
 
 .vision-toggle input[type="checkbox"] {
@@ -178,8 +203,10 @@ body {
 }
 
 .vision-toggle label {
-    font-weight: 500;
-    color: var(--text-primary);
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-family: inherit;
     cursor: pointer;
     user-select: none;
 }

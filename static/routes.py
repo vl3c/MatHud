@@ -131,6 +131,20 @@ def register_routes(app):
                 code=500
             )
 
+    @app.route('/new_conversation', methods=['POST'])
+    def new_conversation_route():
+        """Reset the AI conversation history for a new session."""
+        try:
+            app.ai_api.reset_conversation()
+            app.log_manager.log_new_session()
+            return AppManager.make_response(message='New conversation started.')
+        except Exception as e:
+            return AppManager.make_response(
+                message=str(e),
+                status='error',
+                code=500
+            )
+
     def _process_ai_response(app, choice):
         """Process the AI response choice and log the results.
         

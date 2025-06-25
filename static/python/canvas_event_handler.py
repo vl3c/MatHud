@@ -124,6 +124,7 @@ class CanvasEventHandler:
             document["math-svg"].bind("mousedown", self.handle_mousedown)
             document["math-svg"].bind("mouseup", self.handle_mouseup)
             document["math-svg"].bind("mousemove", self.handle_mousemove)
+            document["new-conversation-button"].bind("click", self.ai_interface.start_new_conversation)
         except Exception as e:
             print(f"Error binding events: {str(e)}")
 

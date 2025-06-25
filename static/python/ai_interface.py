@@ -334,3 +334,20 @@ class AIInterface:
         self._disable_send_controls()
         # Send the user's message to the AI
         self._send_prompt_to_ai(user_message)
+
+    def start_new_conversation(self, event):
+        """Saves the current workspace, resets the canvas and chat, and starts a new backend session."""
+        # 1. Save the current workspace automatically
+        self.workspace_manager.save_workspace()
+
+        # 2. Reset the client-side canvas
+        self.canvas.clear()
+
+        # 3. Clear the chat history UI
+        document["chat-history"].clear()
+
+        # 4. Call the backend to reset the AI conversation state
+        req = ajax.ajax()
+        req.open('POST', '/new_conversation', True)
+        req.set_header('content-type', 'application/json')
+        req.send()

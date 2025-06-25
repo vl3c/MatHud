@@ -70,20 +70,23 @@ Dependencies:
         <div class="chat-container">
             <!-- AI Model and Vision Configuration -->
             <div class="selection-container">
-                <div class="ai-model-selector">
-                    <label for="ai-model-selector">Select AI Model:</label>
-                    <select id="ai-model-selector">
-                        <option value="gpt-4.1">GPT-4.1</option>
-                        <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
-                        <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
-                        <option value="gpt-4o">GPT-4o</option>
-                        <option value="gpt-4o-mini">GPT-4o Mini</option>
-                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                    </select>
-                </div>
-                <div class="vision-toggle">
-                    <input type="checkbox" id="vision-toggle">
-                    <label for="vision-toggle">Enable Vision</label>
+                <button id="new-conversation-button" title="Save workspace and start a new conversation">New Conversation</button>
+                <div class="controls-group">
+                    <div class="ai-model-selector">
+                        <label for="ai-model-selector">Model:</label>
+                        <select id="ai-model-selector">
+                            <option value="gpt-4.1">GPT-4.1</option>
+                            <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
+                            <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
+                            <option value="gpt-4o">GPT-4o</option>
+                            <option value="gpt-4o-mini">GPT-4o Mini</option>
+                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        </select>
+                    </div>
+                    <div class="vision-toggle">
+                        <input type="checkbox" id="vision-toggle">
+                        <label for="vision-toggle">Enable Vision</label>
+                    </div>
                 </div>
             </div>
             

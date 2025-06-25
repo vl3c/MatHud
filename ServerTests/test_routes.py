@@ -104,6 +104,48 @@ class TestRoutes(unittest.TestCase):
         self.assertIn('ai_message', data['data'])
         self.assertIn('ai_tool_calls', data['data'])
 
+    def test_new_conversation_route(self):
+        """Test the new_conversation route resets the AI conversation history."""
+        # First, send a message to create some conversation history
+        with patch.object(self.app.ai_api.client.chat.completions, 'create') as mock_create:
+            class MockMessage:
+                content = "Test response"
+                tool_calls = None
+            
+            class MockChoice:
+                message = MockMessage()
+                finish_reason = "stop"
+
+            class MockResponse:
+                choices = [MockChoice()]
+
+            mock_create.return_value = MockResponse()
+            
+            test_message = {
+                'message': json.dumps({
+                    'user_message': 'test message',
+                    'use_vision': False
+                }),
+                'svg_state': None
+            }
+            self.client.post('/send_message', json=test_message)
+
+        # Check that the conversation history has more than the initial developer message
+        self.assertGreater(len(self.app.ai_api.messages), 1)
+
+        # Now, call the new_conversation route
+        response = self.client.post('/new_conversation')
+        data = json.loads(response.data)
+
+        # Check that the response is successful
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data['status'], 'success')
+        self.assertEqual(data['message'], 'New conversation started.')
+
+        # Check that the conversation history has been reset
+        self.assertEqual(len(self.app.ai_api.messages), 1)
+        self.assertEqual(self.app.ai_api.messages[0]["role"], "developer")
+
     def test_error_handling(self):
         """Test error handling in routes."""
         # Test invalid workspace name

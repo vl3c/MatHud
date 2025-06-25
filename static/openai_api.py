@@ -81,6 +81,10 @@ class OpenAIChatCompletionsAPI:
             AIModel: Current model configuration
         """
         return self.model
+
+    def reset_conversation(self):
+        """Reset the conversation history to start a new session."""
+        self.messages = [{"role": "developer", "content": OpenAIChatCompletionsAPI.DEV_MSG}]
     
     def set_model(self, identifier):
         """Set the AI model by identifier string.
