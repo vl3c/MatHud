@@ -95,7 +95,9 @@ Dependencies:
             
             <!-- User Input Area -->
             <div class="chat-input-container">
-                <input class="chat-input" id="chat-input" type="text" placeholder="Type your message here...">
+                <input class="chat-input" id="chat-input" type="text" placeholder="Type your message here..." 
+                       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                       inputmode="text" enterkeyhint="send">
                 <button id="send-button">Send</button>
             </div>
         </div>
@@ -274,6 +276,97 @@ Dependencies:
             }
         }
         
+        /**
+         * Handle touch events on input to ensure keyboard opens
+         */
+        function handleInputTouch(event) {
+            // Only handle if input is not already focused or if it's a quick tap
+            if (document.activeElement !== chatInput) {
+                // Stop event propagation only for initial focus
+                event.stopPropagation();
+                
+                // Force focus on the input immediately
+                chatInput.focus();
+                
+                // Trigger keyboard mode immediately
+                forceKeyboardMode();
+                
+                // Additional focus attempts for stubborn browsers
+                setTimeout(function() {
+                    if (document.activeElement !== chatInput) {
+                        chatInput.focus();
+                        chatInput.click();
+                    }
+                }, 50);
+                
+                // For iOS specifically, try multiple approaches
+                if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+                    setTimeout(function() {
+                        if (document.activeElement !== chatInput) {
+                            // Method 1: Programmatic click
+                            var clickEvent = new MouseEvent('click', {
+                                view: window,
+                                bubbles: true,
+                                cancelable: true
+                            });
+                            chatInput.dispatchEvent(clickEvent);
+                            
+                            // Method 2: Focus with selection
+                            chatInput.focus();
+                            chatInput.setSelectionRange(0, 0);
+                        }
+                    }, 100);
+                }
+            }
+            // If input is already focused, allow normal touch behavior for text selection
+        }
+        
+        /**
+         * Force input focus with multiple methods
+         */
+        function forceFocus() {
+            // Remove any existing focus
+            document.activeElement.blur();
+            
+            // Multiple focus attempts
+            chatInput.focus();
+            
+            setTimeout(function() {
+                chatInput.focus();
+                chatInput.click();
+                
+                // For mobile browsers, fix cursor positioning
+                if (chatInput.setSelectionRange) {
+                    // Move cursor to end of text (or beginning if empty)
+                    var textLength = chatInput.value.length;
+                    chatInput.setSelectionRange(textLength, textLength);
+                }
+                
+                // Force cursor to show by triggering input event
+                var inputEvent = new Event('input', { bubbles: true });
+                chatInput.dispatchEvent(inputEvent);
+            }, 100);
+        }
+        
+        /**
+         * Fix cursor positioning when input gains focus
+         */
+        function fixCursorPosition() {
+            setTimeout(function() {
+                if (document.activeElement === chatInput) {
+                    // Ensure cursor is positioned correctly
+                    var textLength = chatInput.value.length;
+                    chatInput.setSelectionRange(textLength, textLength);
+                    
+                    // Force a repaint to show cursor
+                    chatInput.style.caretColor = 'transparent';
+                    setTimeout(function() {
+                        chatInput.style.caretColor = 'var(--text-primary)';
+                    }, 10);
+                }
+            }, 50);
+        }
+        
         // Listen for viewport changes (keyboard open/close)
         window.addEventListener('resize', handleViewportChange);
         window.addEventListener('orientationchange', function() {
@@ -284,13 +377,63 @@ Dependencies:
         });
         
         // Listen for input focus and blur
-        chatInput.addEventListener('focus', handleInputFocus);
+        chatInput.addEventListener('focus', function(event) {
+            handleInputFocus();
+            fixCursorPosition();
+        });
         chatInput.addEventListener('blur', handleInputBlur);
         
         // Additional event listeners for more reliable detection
-        chatInput.addEventListener('touchstart', forceKeyboardMode);
-        chatInput.addEventListener('click', forceKeyboardMode);
+        chatInput.addEventListener('touchstart', handleInputTouch, { passive: false });
+        chatInput.addEventListener('touchend', function(event) {
+            // Only ensure focus if input wasn't already focused (for initial tap)
+            if (document.activeElement !== chatInput) {
+                setTimeout(function() {
+                    chatInput.focus();
+                }, 50);
+            }
+        });
+        chatInput.addEventListener('click', function(event) {
+            forceFocus();
+            forceKeyboardMode();
+            fixCursorPosition();
+        });
         chatInput.addEventListener('input', forceKeyboardMode);
+        
+        // Also listen for touches on the input container
+        chatInputContainer.addEventListener('touchstart', function(event) {
+            // Only handle if touching the input directly and it's not focused
+            if (event.target === chatInput && document.activeElement !== chatInput) {
+                handleInputTouch(event);
+            }
+        }, { passive: false });
+        
+        // Double-tap to focus (backup method) - only if not already focused
+        var lastTap = 0;
+        chatInputContainer.addEventListener('touchend', function(event) {
+            var currentTime = new Date().getTime();
+            var tapLength = currentTime - lastTap;
+            if (tapLength < 500 && tapLength > 0 && document.activeElement !== chatInput) {
+                // Double tap detected and input not focused - force focus
+                forceFocus();
+            }
+            lastTap = currentTime;
+        });
+        
+        // Allow text selection when input is focused
+        chatInput.addEventListener('selectstart', function(event) {
+            // Always allow text selection when input is focused
+            if (document.activeElement === chatInput) {
+                event.stopPropagation();
+                return true;
+            }
+        });
+        
+        // Handle selection changes
+        chatInput.addEventListener('selectionchange', function(event) {
+            // Allow normal selection behavior
+            event.stopPropagation();
+        });
         
         // Enhanced visual viewport API handling (newer browsers)
         if (window.visualViewport) {

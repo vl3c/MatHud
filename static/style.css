@@ -563,6 +563,14 @@ body {
     background: var(--surface-color);
     color: var(--text-primary);
     transition: all 0.2s ease;
+    /* Ensure proper cursor positioning */
+    text-align: left;
+    direction: ltr;
+    -webkit-text-fill-color: var(--text-primary);
+    caret-color: var(--text-primary);
+    /* Reset any potential interference */
+    text-indent: 0;
+    cursor: text;
 }
 
 .chat-input:focus {
@@ -699,6 +707,28 @@ body {
     /* Reduce input padding */
     .chat-input {
         padding: 10px 12px; /* Reduced padding */
+        /* Ensure input is touchable on mobile */
+        -webkit-user-select: text !important;
+        user-select: text !important;
+        -webkit-touch-callout: default;
+        touch-action: manipulation;
+        /* Force input to be focusable */
+        pointer-events: auto;
+        /* Fix cursor positioning */
+        text-align: left;
+        direction: ltr;
+        /* Ensure proper text input behavior */
+        -webkit-text-fill-color: var(--text-primary);
+        caret-color: var(--text-primary);
+        /* Reset any potential interference */
+        text-indent: 0;
+        padding-left: 12px !important;
+        /* Ensure cursor shows properly */
+        cursor: text;
+        -webkit-appearance: textfield;
+        /* Ensure text selection works */
+        -moz-user-select: text;
+        -ms-user-select: text;
     }
     
     /* Reduce chat message padding */
