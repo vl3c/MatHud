@@ -172,15 +172,6 @@ body {
 }
 
 /* Hide separator on smaller screens to prevent overlap */
-@media (max-width: 580px) {
-    .controls-group::before {
-        display: none;
-    }
-    
-    .selection-container {
-        gap: 0.75rem; /* Reduce gap on small screens */
-    }
-}
 
 .ai-model-selector {
     display: flex;
@@ -556,6 +547,10 @@ body {
     padding: 16px 20px;
     border-top: 1px solid var(--border-color);
     background: var(--surface-color);
+    /* Mobile keyboard support */
+    position: relative;
+    bottom: env(keyboard-inset-height, 0);
+    transition: bottom 0.3s ease;
 }
 
 .chat-input {
@@ -611,6 +606,8 @@ body {
 
 /* ===== RESPONSIVE DESIGN ===== */
 /* Mobile-first responsive breakpoints for tablets and phones */
+
+/* Tablet breakpoint - 1024px and below */
 @media (max-width: 1024px) {
     .container {
         flex-direction: column;
@@ -633,6 +630,7 @@ body {
     }
 }
 
+/* Mobile breakpoint - 768px and below */
 @media (max-width: 768px) {
     body {
         padding: 10px;
@@ -646,13 +644,36 @@ body {
         padding: 12px 16px;
     }
     
+    /* Chat input mobile layout and keyboard handling */
     .chat-input-container {
         padding: 12px 16px;
         flex-direction: column;
         gap: 8px;
+        /* Ensure it stays above keyboard */
+        position: sticky;
+        bottom: 0;
+        z-index: 1000;
+    }
+    
+    .chat-input-container.keyboard-open {
+        /* Additional adjustment when keyboard is detected */
+        margin-bottom: 0;
+        transform: translateY(0);
     }
     
     #send-button {
         width: 100%;
+    }
+}
+
+/* Small mobile breakpoint - 580px and below */
+@media (max-width: 580px) {
+    .controls-group::before {
+        display: none;
+    }
+    
+    .selection-container {
+        flex-direction: column;
+        gap: 0.75rem; /* Reduce gap on small screens */
     }
 }

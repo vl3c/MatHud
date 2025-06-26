@@ -21,7 +21,7 @@ Dependencies:
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>MatHud - Mathematical Canvas</title>
     
     <!-- Google Fonts for modern typography -->
@@ -154,6 +154,82 @@ Dependencies:
 
         // Update vision toggle when AI model selection changes
         aiModelSelector.addEventListener("change", updateVisionToggle);
+        
+        // ===== MOBILE KEYBOARD HANDLING =====
+        // Detect virtual keyboard opening/closing and adjust UI
+        var chatInputContainer = document.querySelector('.chat-input-container');
+        var chatInput = document.getElementById('chat-input');
+        var initialViewportHeight = window.innerHeight;
+        var isKeyboardOpen = false;
+        
+        /**
+         * Detects virtual keyboard state by monitoring viewport height changes
+         * and adjusts the chat input position accordingly.
+         */
+        function handleViewportChange() {
+            var currentViewportHeight = window.innerHeight;
+            var heightDifference = initialViewportHeight - currentViewportHeight;
+            
+            // Threshold for detecting keyboard (typically 150px+ on mobile)
+            var keyboardThreshold = 150;
+            
+            if (heightDifference > keyboardThreshold && !isKeyboardOpen) {
+                // Keyboard opened
+                isKeyboardOpen = true;
+                chatInputContainer.classList.add('keyboard-open');
+                
+                // Scroll the input into view
+                setTimeout(function() {
+                    chatInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
+                
+            } else if (heightDifference <= keyboardThreshold && isKeyboardOpen) {
+                // Keyboard closed
+                isKeyboardOpen = false;
+                chatInputContainer.classList.remove('keyboard-open');
+            }
+        }
+        
+        /**
+         * Handle input focus - ensure input is visible when keyboard opens
+         */
+        function handleInputFocus() {
+            // Small delay to allow keyboard animation to start
+            setTimeout(function() {
+                if (window.innerHeight < initialViewportHeight * 0.8) {
+                    chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 300);
+        }
+        
+        // Listen for viewport changes (keyboard open/close)
+        window.addEventListener('resize', handleViewportChange);
+        window.addEventListener('orientationchange', function() {
+            setTimeout(function() {
+                initialViewportHeight = window.innerHeight;
+                handleViewportChange();
+            }, 500);
+        });
+        
+        // Listen for input focus
+        chatInput.addEventListener('focus', handleInputFocus);
+        
+        // Also handle visual viewport API if available (newer browsers)
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', function() {
+                var keyboardHeight = window.innerHeight - window.visualViewport.height;
+                
+                if (keyboardHeight > 150 && !isKeyboardOpen) {
+                    isKeyboardOpen = true;
+                    chatInputContainer.classList.add('keyboard-open');
+                    chatInputContainer.style.transform = `translateY(-${Math.min(keyboardHeight, 250)}px)`;
+                } else if (keyboardHeight <= 150 && isKeyboardOpen) {
+                    isKeyboardOpen = false;
+                    chatInputContainer.classList.remove('keyboard-open');
+                    chatInputContainer.style.transform = '';
+                }
+            });
+        }
     });
     </script>
 </body>
