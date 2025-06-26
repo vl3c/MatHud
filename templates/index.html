@@ -209,11 +209,29 @@ Dependencies:
             // Store current scroll position
             originalScrollTop = document.documentElement.scrollTop || document.body.scrollTop;
             
-            // Small delay to detect if keyboard will open
+            // Immediately assume keyboard will open on mobile
+            if (window.innerWidth <= 768) {
+                // Force keyboard-open state immediately on focus
+                setTimeout(function() {
+                    if (!isKeyboardOpen) {
+                        isKeyboardOpen = true;
+                        chatInputContainer.classList.add('keyboard-open');
+                        document.body.style.overflow = 'hidden';
+                        window.scrollTo(0, 0);
+                    }
+                }, 100);
+            }
+            
+            // Also check viewport change as backup
             setTimeout(function() {
                 var currentHeight = window.innerHeight;
                 if (currentHeight < initialViewportHeight * 0.85) {
                     // Keyboard is opening, ensure input is visible
+                    if (!isKeyboardOpen) {
+                        isKeyboardOpen = true;
+                        chatInputContainer.classList.add('keyboard-open');
+                        document.body.style.overflow = 'hidden';
+                    }
                     window.scrollTo(0, 0);
                 }
             }, 300);
@@ -223,14 +241,37 @@ Dependencies:
          * Handle input blur - prepare for keyboard closing
          */
         function handleInputBlur() {
-            // Small delay to allow keyboard to close
+            // Delay to allow for potential refocus (e.g., clicking send button)
             setTimeout(function() {
-                if (!isKeyboardOpen) {
-                    // Keyboard has closed, restore state
-                    document.body.style.overflow = '';
-                    window.scrollTo(0, originalScrollTop);
+                // Check if input is still focused or if send button is being clicked
+                if (document.activeElement !== chatInput && 
+                    !document.querySelector('#send-button:active')) {
+                    // Input truly lost focus, close keyboard mode
+                    if (isKeyboardOpen) {
+                        isKeyboardOpen = false;
+                        chatInputContainer.classList.remove('keyboard-open');
+                        document.body.style.overflow = '';
+                        
+                        // Restore scroll position
+                        setTimeout(function() {
+                            window.scrollTo(0, originalScrollTop);
+                        }, 100);
+                    }
                 }
-            }, 300);
+            }, 150); // Shorter delay for better responsiveness
+        }
+        
+        /**
+         * Force keyboard mode on any input interaction (backup method)
+         */
+        function forceKeyboardMode() {
+            if (window.innerWidth <= 768 && !isKeyboardOpen) {
+                isKeyboardOpen = true;
+                originalScrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                chatInputContainer.classList.add('keyboard-open');
+                document.body.style.overflow = 'hidden';
+                window.scrollTo(0, 0);
+            }
         }
         
         // Listen for viewport changes (keyboard open/close)
@@ -245,6 +286,11 @@ Dependencies:
         // Listen for input focus and blur
         chatInput.addEventListener('focus', handleInputFocus);
         chatInput.addEventListener('blur', handleInputBlur);
+        
+        // Additional event listeners for more reliable detection
+        chatInput.addEventListener('touchstart', forceKeyboardMode);
+        chatInput.addEventListener('click', forceKeyboardMode);
+        chatInput.addEventListener('input', forceKeyboardMode);
         
         // Enhanced visual viewport API handling (newer browsers)
         if (window.visualViewport) {
