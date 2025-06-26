@@ -160,7 +160,6 @@ Dependencies:
         var chatInputContainer = document.querySelector('.chat-input-container');
         var chatInput = document.getElementById('chat-input');
         var chatContainer = document.querySelector('.chat-container');
-        var mathContainer = document.querySelector('.math-container');
         var initialViewportHeight = window.innerHeight;
         var isKeyboardOpen = false;
         var originalScrollTop = 0;
@@ -176,12 +175,10 @@ Dependencies:
             var keyboardThreshold = 150;
             
             if (heightDifference > keyboardThreshold && !isKeyboardOpen) {
-                // Mobile keyboard opened - shrink math canvas and move input up
+                // Keyboard opened
                 isKeyboardOpen = true;
                 originalScrollTop = document.documentElement.scrollTop || document.body.scrollTop;
                 
-                // Apply keyboard-open class to both math container and input container
-                mathContainer.classList.add('keyboard-open');
                 chatInputContainer.classList.add('keyboard-open');
                 document.body.style.overflow = 'hidden'; // Prevent scrolling
                 
@@ -193,11 +190,8 @@ Dependencies:
                 }, 100);
                 
             } else if (heightDifference <= keyboardThreshold && isKeyboardOpen) {
-                // Mobile keyboard closed - restore original state
+                // Keyboard closed - restore original state
                 isKeyboardOpen = false;
-                
-                // Remove keyboard-open class from both containers
-                mathContainer.classList.remove('keyboard-open');
                 chatInputContainer.classList.remove('keyboard-open');
                 document.body.style.overflow = ''; // Restore scrolling
                 

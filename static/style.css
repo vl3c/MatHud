@@ -673,12 +673,6 @@ body {
         transition: transform 0.3s ease;
     }
     
-    /* When mobile keyboard is open, shrink math canvas AND move input up */
-    .math-container.keyboard-open {
-        height: 250px; /* Reduced height when mobile keyboard is open */
-        transition: height 0.3s ease;
-    }
-    
     .chat-input-container.keyboard-open {
         /* Move input higher when keyboard is open */
         transform: translateY(-50px);
