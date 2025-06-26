@@ -159,45 +159,76 @@ Dependencies:
         // Detect virtual keyboard opening/closing and adjust UI
         var chatInputContainer = document.querySelector('.chat-input-container');
         var chatInput = document.getElementById('chat-input');
+        var chatContainer = document.querySelector('.chat-container');
         var initialViewportHeight = window.innerHeight;
         var isKeyboardOpen = false;
+        var originalScrollTop = 0;
         
         /**
-         * Detects virtual keyboard state by monitoring viewport height changes
-         * and adjusts the chat input position accordingly.
+         * Detects virtual keyboard state and adjusts UI accordingly
          */
         function handleViewportChange() {
             var currentViewportHeight = window.innerHeight;
             var heightDifference = initialViewportHeight - currentViewportHeight;
             
-            // Threshold for detecting keyboard (typically 150px+ on mobile)
+            // Threshold for detecting keyboard (150px+ indicates keyboard)
             var keyboardThreshold = 150;
             
             if (heightDifference > keyboardThreshold && !isKeyboardOpen) {
                 // Keyboard opened
                 isKeyboardOpen = true;
-                chatInputContainer.classList.add('keyboard-open');
+                originalScrollTop = document.documentElement.scrollTop || document.body.scrollTop;
                 
-                // Scroll the input into view
+                chatInputContainer.classList.add('keyboard-open');
+                document.body.style.overflow = 'hidden'; // Prevent scrolling
+                
+                // Ensure input stays visible and centered
                 setTimeout(function() {
-                    chatInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    chatInput.focus();
+                    // Scroll to top to ensure input is visible
+                    window.scrollTo(0, 0);
                 }, 100);
                 
             } else if (heightDifference <= keyboardThreshold && isKeyboardOpen) {
-                // Keyboard closed
+                // Keyboard closed - restore original state
                 isKeyboardOpen = false;
                 chatInputContainer.classList.remove('keyboard-open');
+                document.body.style.overflow = ''; // Restore scrolling
+                
+                // Restore original scroll position
+                setTimeout(function() {
+                    window.scrollTo(0, originalScrollTop);
+                }, 100);
             }
         }
         
         /**
-         * Handle input focus - ensure input is visible when keyboard opens
+         * Handle input focus - prepare for keyboard opening
          */
         function handleInputFocus() {
-            // Small delay to allow keyboard animation to start
+            // Store current scroll position
+            originalScrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+            
+            // Small delay to detect if keyboard will open
             setTimeout(function() {
-                if (window.innerHeight < initialViewportHeight * 0.8) {
-                    chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                var currentHeight = window.innerHeight;
+                if (currentHeight < initialViewportHeight * 0.85) {
+                    // Keyboard is opening, ensure input is visible
+                    window.scrollTo(0, 0);
+                }
+            }, 300);
+        }
+        
+        /**
+         * Handle input blur - prepare for keyboard closing
+         */
+        function handleInputBlur() {
+            // Small delay to allow keyboard to close
+            setTimeout(function() {
+                if (!isKeyboardOpen) {
+                    // Keyboard has closed, restore state
+                    document.body.style.overflow = '';
+                    window.scrollTo(0, originalScrollTop);
                 }
             }, 300);
         }
@@ -211,22 +242,32 @@ Dependencies:
             }, 500);
         });
         
-        // Listen for input focus
+        // Listen for input focus and blur
         chatInput.addEventListener('focus', handleInputFocus);
+        chatInput.addEventListener('blur', handleInputBlur);
         
-        // Also handle visual viewport API if available (newer browsers)
+        // Enhanced visual viewport API handling (newer browsers)
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', function() {
                 var keyboardHeight = window.innerHeight - window.visualViewport.height;
                 
                 if (keyboardHeight > 150 && !isKeyboardOpen) {
                     isKeyboardOpen = true;
+                    originalScrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                    
                     chatInputContainer.classList.add('keyboard-open');
-                    chatInputContainer.style.transform = `translateY(-${Math.min(keyboardHeight, 250)}px)`;
+                    document.body.style.overflow = 'hidden';
+                    window.scrollTo(0, 0);
+                    
                 } else if (keyboardHeight <= 150 && isKeyboardOpen) {
                     isKeyboardOpen = false;
                     chatInputContainer.classList.remove('keyboard-open');
-                    chatInputContainer.style.transform = '';
+                    document.body.style.overflow = '';
+                    
+                    // Restore scroll position
+                    setTimeout(function() {
+                        window.scrollTo(0, originalScrollTop);
+                    }, 100);
                 }
             });
         }
