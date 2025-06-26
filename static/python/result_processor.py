@@ -167,8 +167,8 @@ class ResultProcessor:
     def _handle_regular_function(key, result, function_name, non_computation_functions, canvas, results):
         """Handle result for regular functions."""
         # Save computation to canvas state if it's not a non-computation function
-        ResultProcessor._add_computation_if_needed(result, function_name, non_computation_functions, 
-                                                 key, canvas)
+        # DISABLED: Saving basic calculations to canvas state (takes up too many tokens, not useful info to store)
+        # ResultProcessor._add_computation_if_needed(result, function_name, non_computation_functions, key, canvas)
         
         print(f"Appending result for {key}: {result}")  # DEBUG
         results[key] = result
@@ -224,9 +224,9 @@ class ResultProcessor:
         expression = args.get('expression').replace(' ', '')
         key = ResultProcessor._format_expression_key(expression, args)
             
-        # Save computation to canvas state if it's not a non-computation function
-        ResultProcessor._add_computation_if_needed(result, function_name, non_computation_functions, 
-                                                  expression, canvas)
+        # DISABLED: Saving expression evaluation computations to canvas state (takes up too many tokens, not useful info to store)
+        # ResultProcessor._add_computation_if_needed(result, function_name, non_computation_functions, 
+        #                                            expression, canvas)
         
         print(f"Appending result for {key}: {result}")  # DEBUG
         results[key] = result

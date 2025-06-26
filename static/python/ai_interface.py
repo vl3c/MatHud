@@ -108,10 +108,11 @@ class AIInterface:
             else:
                 formatted_value = value
                 
-            self.canvas.add_computation(
-                expression=key,  # The key is already the expression
-                result=formatted_value
-            )
+            # DISABLED: Saving basic calculations to canvas state (takes up too many tokens, not useful info to store)
+            # self.canvas.add_computation(
+            #     expression=key,  # The key is already the expression
+            #     result=formatted_value
+            # )
 
     def _parse_markdown_to_html(self, text):
         """Parse markdown text to HTML using the dedicated markdown parser."""
