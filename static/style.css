@@ -50,6 +50,9 @@ Dependencies:
     /* Border radius system */
     --radius: 8px;
     --radius-lg: 12px;
+    
+    /* Force light theme - override system preferences */
+    color-scheme: light only;
 }
 
 /* ===== GLOBAL STYLES ===== */
@@ -58,13 +61,31 @@ Dependencies:
     box-sizing: border-box;
 }
 
+/* Force light theme globally - override any system dark mode preferences */
+html {
+    color-scheme: light only;
+}
+
 body {
     margin: 0;
     padding: 20px;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background-color: var(--background-color);
-    color: var(--text-primary);
+    background-color: var(--background-color) !important;
+    color: var(--text-primary) !important;
     line-height: 1.5;
+    /* Explicitly force light theme colors */
+    background: var(--background-color) !important;
+}
+
+/* Force light theme for all form elements and containers */
+input, select, textarea, button {
+    color-scheme: light only;
+}
+
+/* Override any system dark mode styling for containers */
+.container, .math-container, .chat-container {
+    background-color: var(--surface-color) !important;
+    color: var(--text-primary) !important;
 }
 
 /* ===== LAYOUT SYSTEM ===== */
