@@ -563,14 +563,6 @@ body {
     background: var(--surface-color);
     color: var(--text-primary);
     transition: all 0.2s ease;
-    /* Ensure proper cursor positioning */
-    text-align: left;
-    direction: ltr;
-    -webkit-text-fill-color: var(--text-primary);
-    caret-color: var(--text-primary);
-    /* Reset any potential interference */
-    text-indent: 0;
-    cursor: text;
 }
 
 .chat-input:focus {
@@ -682,19 +674,14 @@ body {
     }
     
     .chat-input-container.keyboard-open {
-        /* Completely detach and float above keyboard */
-        position: fixed !important;
-        top: auto !important;
-        bottom: 0 !important;
-        left: 4px !important;
-        right: 4px !important;
-        z-index: 9999 !important;
-        transform: translateY(-20px) !important; /* Float higher above keyboard */
-        border-radius: var(--radius) !important;
-        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25) !important; /* Stronger shadow for floating effect */
-        border: 1px solid var(--border-color) !important;
-        background: var(--surface-color) !important;
-        margin: 0 !important;
+        /* Move input higher when keyboard is open */
+        transform: translateY(-50px);
+        position: fixed;
+        bottom: 0;
+        left: 4px; /* Match body padding */
+        right: 4px; /* Match body padding */
+        border-radius: var(--radius) var(--radius) 0 0;
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
     }
     
     /* Adjust send button for mobile but keep it on the right */
@@ -707,28 +694,6 @@ body {
     /* Reduce input padding */
     .chat-input {
         padding: 10px 12px; /* Reduced padding */
-        /* Ensure input is touchable on mobile */
-        -webkit-user-select: text !important;
-        user-select: text !important;
-        -webkit-touch-callout: default;
-        touch-action: manipulation;
-        /* Force input to be focusable */
-        pointer-events: auto;
-        /* Fix cursor positioning */
-        text-align: left;
-        direction: ltr;
-        /* Ensure proper text input behavior */
-        -webkit-text-fill-color: var(--text-primary);
-        caret-color: var(--text-primary);
-        /* Reset any potential interference */
-        text-indent: 0;
-        padding-left: 12px !important;
-        /* Ensure cursor shows properly */
-        cursor: text;
-        -webkit-appearance: textfield;
-        /* Ensure text selection works */
-        -moz-user-select: text;
-        -ms-user-select: text;
     }
     
     /* Reduce chat message padding */
