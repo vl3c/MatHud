@@ -633,17 +633,17 @@ body {
 /* Mobile breakpoint - 768px and below */
 @media (max-width: 768px) {
     body {
-        padding: 10px;
+        padding: 4px; /* Minimal edge padding */
     }
     
     .container {
-        gap: 8px; /* Reduce gap to minimize space between sections */
+        gap: 4px; /* Minimal gap between sections */
         height: 100vh;
         min-height: 100vh;
     }
     
     .selection-container {
-        padding: 12px 16px;
+        padding: 8px 12px; /* Reduced padding */
         flex-shrink: 0; /* Prevent shrinking */
     }
     
@@ -658,14 +658,14 @@ body {
     .chat-history {
         flex: 1;
         min-height: 0; /* Allow scrolling */
-        padding: 16px;
+        padding: 12px; /* Reduced padding */
     }
     
     /* Chat input mobile layout - keep horizontal layout */
     .chat-input-container {
-        padding: 12px 16px;
+        padding: 8px 12px; /* Reduced padding */
         /* Keep horizontal layout (don't change flex-direction) */
-        gap: 8px;
+        gap: 6px; /* Smaller gap */
         flex-shrink: 0; /* Prevent shrinking */
         /* Enhanced keyboard handling */
         position: relative;
@@ -678,16 +678,28 @@ body {
         transform: translateY(-50px);
         position: fixed;
         bottom: 0;
-        left: 10px;
-        right: 10px;
+        left: 4px; /* Match body padding */
+        right: 4px; /* Match body padding */
         border-radius: var(--radius) var(--radius) 0 0;
         box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
     }
     
     /* Adjust send button for mobile but keep it on the right */
     #send-button {
-        min-width: 80px; /* Ensure minimum width */
+        min-width: 70px; /* Slightly smaller minimum width */
         flex-shrink: 0; /* Prevent shrinking */
+        padding: 10px 16px; /* Reduced padding */
+    }
+    
+    /* Reduce input padding */
+    .chat-input {
+        padding: 10px 12px; /* Reduced padding */
+    }
+    
+    /* Reduce chat message padding */
+    .chat-message {
+        margin-bottom: 12px; /* Reduced margin */
+        padding: 10px 12px; /* Reduced padding */
     }
 }
 
