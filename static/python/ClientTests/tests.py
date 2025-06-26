@@ -8,7 +8,9 @@ from .test_drawable_dependency_manager import TestDrawableDependencyManager
 from .test_drawable_name_generator import TestDrawableNameGenerator
 from .test_drawables_container import TestDrawablesContainer
 from .test_ellipse import TestEllipse
-from .test_event_handler import TestThrottle
+from .test_event_handler import TestCanvasEventHandlerTouch
+from .test_throttle import TestThrottle
+from .test_window_mocks import TestWindowMocks
 from .test_expression_validator import TestExpressionValidator
 from .test_function import TestFunction
 from .test_function_calling import TestProcessFunctionCalls
@@ -72,6 +74,8 @@ class Tests:
             TestProcessFunctionCalls,
             TestCustomDrawableNames,
             TestThrottle,
+            TestWindowMocks,
+            TestCanvasEventHandlerTouch,
             TestDrawableDependencyManager,
             TestDrawablesContainer,
             TestMarkdownParser

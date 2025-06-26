@@ -98,12 +98,15 @@ class CanvasEventHandler:
         ai_interface (AIInterface): Communication interface for user input processing
         last_click_timestamp (float): Timestamp of last click for double-click detection
         current_mouse_position (Position): Current mouse coordinates for drag calculations
+        touch_start_positions (list): List of touch start positions for multi-touch gestures
+        initial_pinch_distance (float): Initial distance between two fingers for pinch-to-zoom
+        last_pinch_distance (float): Last recorded distance for pinch gesture
     """
     def __init__(self, canvas, ai_interface):
         """Initialize event handler with canvas and AI interface integration.
         
         Sets up event bindings for all supported user interactions including mouse
-        events, keyboard shortcuts, and coordinate system navigation.
+        events, keyboard shortcuts, touch events, and coordinate system navigation.
         
         Args:
             canvas (Canvas): The mathematical canvas to handle events for
@@ -113,6 +116,10 @@ class CanvasEventHandler:
         self.ai_interface = ai_interface
         self.last_click_timestamp = None
         self.current_mouse_position = None
+        # Touch support attributes
+        self.touch_start_positions = []
+        self.initial_pinch_distance = None
+        self.last_pinch_distance = None
         self.bind_events()
     
     def bind_events(self):
@@ -125,6 +132,16 @@ class CanvasEventHandler:
             document["math-svg"].bind("mouseup", self.handle_mouseup)
             document["math-svg"].bind("mousemove", self.handle_mousemove)
             document["new-conversation-button"].bind("click", self.ai_interface.start_new_conversation)
+            
+            # Mobile touch events
+            document["math-svg"].bind("touchstart", self.handle_touchstart)
+            document["math-svg"].bind("touchend", self.handle_touchend)
+            document["math-svg"].bind("touchmove", self.handle_touchmove)
+            document["math-svg"].bind("touchcancel", self.handle_touchcancel)
+            
+            # Prevent default touch behaviors that interfere with canvas interaction
+            document["math-svg"].style.touchAction = "none"
+            
         except Exception as e:
             print(f"Error binding events: {str(e)}")
 
@@ -348,4 +365,166 @@ class CanvasEventHandler:
         try:
             self.canvas.last_mouse_position = self.current_mouse_position
         except Exception as e:
-            print(f"Error updating last mouse position: {str(e)}") 
+            print(f"Error updating last mouse position: {str(e)}")
+
+    def handle_touchstart(self, event):
+        """Handle touch start events for mobile panning and zooming."""
+        try:
+            event.preventDefault()  # Prevent default scrolling/zooming
+            
+            touches = event.touches
+            if len(touches) == 1:
+                # Single touch - start panning (similar to mousedown)
+                touch = touches[0]
+                self._handle_single_touch_start(touch)
+            elif len(touches) == 2:
+                # Two fingers - start pinch-to-zoom
+                self._handle_pinch_start(touches)
+                
+        except Exception as e:
+            print(f"Error handling touchstart: {str(e)}")
+    
+    def _handle_single_touch_start(self, touch):
+        """Handle single touch start for panning."""
+        try:
+            current_timestamp = time.time()
+            
+            # Check for double tap (similar to double click)
+            if self._is_double_click(current_timestamp):
+                self._handle_double_tap(touch)
+                
+            self.last_click_timestamp = current_timestamp
+            self._initialize_touch_dragging(touch)
+        except Exception as e:
+            print(f"Error handling single touch start: {str(e)}")
+    
+    def _handle_pinch_start(self, touches):
+        """Initialize pinch-to-zoom gesture."""
+        try:
+            touch1, touch2 = touches[0], touches[1]
+            
+            # Calculate initial distance between fingers
+            self.initial_pinch_distance = self._calculate_touch_distance(touch1, touch2)
+            self.last_pinch_distance = self.initial_pinch_distance
+            
+            # Set zoom point to center between the two touches
+            center_x = (touch1.clientX + touch2.clientX) / 2
+            center_y = (touch1.clientY + touch2.clientY) / 2
+            
+            rect = document["math-svg"].getBoundingClientRect()
+            self.canvas.zoom_point = Position(center_x - rect.left, center_y - rect.top)
+            
+        except Exception as e:
+            print(f"Error handling pinch start: {str(e)}")
+    
+    def _calculate_touch_distance(self, touch1, touch2):
+        """Calculate distance between two touch points."""
+        try:
+            dx = touch2.clientX - touch1.clientX
+            dy = touch2.clientY - touch1.clientY
+            return (dx * dx + dy * dy) ** 0.5
+        except Exception as e:
+            print(f"Error calculating touch distance: {str(e)}")
+            return 0
+
+    def handle_touchmove(self, event):
+        """Handle touch move events for panning and pinch-to-zoom."""
+        try:
+            event.preventDefault()  # Prevent default scrolling
+            
+            touches = event.touches
+            if len(touches) == 1 and self.canvas.dragging:
+                # Single finger - panning
+                self._handle_touch_pan(touches[0])
+            elif len(touches) == 2:
+                # Two fingers - pinch-to-zoom
+                self._handle_pinch_zoom(touches)
+                
+        except Exception as e:
+            print(f"Error handling touchmove: {str(e)}")
+    
+    def _handle_touch_pan(self, touch):
+        """Handle single finger panning."""
+        try:
+            # Create a mock event object similar to mouse event
+            mock_event = type('obj', (object,), {
+                'clientX': touch.clientX,
+                'clientY': touch.clientY
+            })
+            
+            self._update_mouse_position(mock_event)
+            self._update_canvas_position(mock_event)
+        except Exception as e:
+            print(f"Error handling touch pan: {str(e)}")
+    
+    def _handle_pinch_zoom(self, touches):
+        """Handle two-finger pinch-to-zoom."""
+        try:
+            touch1, touch2 = touches[0], touches[1]
+            current_distance = self._calculate_touch_distance(touch1, touch2)
+            
+            if self.last_pinch_distance and current_distance > 0:
+                # Calculate scale change
+                scale_change = current_distance / self.last_pinch_distance
+                
+                # Apply zoom with sensitivity adjustment
+                if scale_change > 1.02:  # Zoom in threshold
+                    self.canvas.scale_factor *= 1.02
+                    self.canvas.zoom_direction = -1
+                    self.canvas.draw(True)
+                elif scale_change < 0.98:  # Zoom out threshold
+                    self.canvas.scale_factor *= 0.98
+                    self.canvas.zoom_direction = 1
+                    self.canvas.draw(True)
+                    
+            self.last_pinch_distance = current_distance
+            
+        except Exception as e:
+            print(f"Error handling pinch zoom: {str(e)}")
+
+    def handle_touchend(self, event):
+        """Handle touch end events."""
+        try:
+            event.preventDefault()
+            
+            # Reset dragging state
+            self.canvas.dragging = False
+            self.current_mouse_position = None
+            
+            # Reset pinch state
+            self.initial_pinch_distance = None
+            self.last_pinch_distance = None
+            
+        except Exception as e:
+            print(f"Error handling touchend: {str(e)}")
+
+    def handle_touchcancel(self, event):
+        """Handle touch cancel events (same as touch end)."""
+        try:
+            self.handle_touchend(event)
+        except Exception as e:
+            print(f"Error handling touchcancel: {str(e)}")
+    
+    def _handle_double_tap(self, touch):
+        """Handle double tap action - capture coordinates."""
+        try:
+            # Create a mock event object similar to mouse event
+            mock_event = type('obj', (object,), {
+                'clientX': touch.clientX,
+                'clientY': touch.clientY
+            })
+            
+            coordinates = self._calculate_click_coordinates(mock_event)
+            self._add_coordinates_to_chat(coordinates)
+        except Exception as e:
+            print(f"Error handling double tap: {str(e)}")
+    
+    def _initialize_touch_dragging(self, touch):
+        """Initialize dragging state with current touch position."""
+        try:
+            self.canvas.dragging = True
+            self.current_mouse_position = Position(touch.clientX, touch.clientY)
+            self.canvas.last_mouse_position = self.current_mouse_position
+        except Exception as e:
+            print(f"Error initializing touch dragging: {str(e)}")
+            self.canvas.dragging = False 

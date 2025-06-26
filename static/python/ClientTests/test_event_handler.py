@@ -1,238 +1,268 @@
 import unittest
-from canvas_event_handler import throttle
+from canvas_event_handler import CanvasEventHandler
 from .simple_mock import SimpleMock
 from browser import window as browser_window
+from geometry import Position
+from canvas import Canvas
+import time
 
 
-class TestWindowMocks(unittest.TestCase):
+class TestCanvasEventHandlerTouch(unittest.TestCase):
+    """Test the touch event handling methods added for mobile support."""
+    
     def setUp(self):
-        # Create a mock for performance.now that we can update
-        self.current_time = 1000
-        self.now_mock = SimpleMock(return_value=self.current_time)
+        """Set up test fixtures with mock canvas, AI interface, and document elements."""
+        # Create mock canvas
+        self.mock_canvas = Canvas(500, 500, draw_enabled=False)
+        self.mock_canvas.dragging = False
+        self.mock_canvas.scale_factor = 1.0
+        self.mock_canvas.zoom_direction = 0
+        self.mock_canvas.zoom_point = Position(0, 0)
+        self.mock_canvas.last_mouse_position = None
         
-        # Create the performance mock with our updatable now function
-        self.mock_performance = SimpleMock(now=self.now_mock)
+        # Mock canvas methods
+        self.mock_canvas.draw = SimpleMock()
         
-        # Create the window mock with all its parts
-        self.mock_window = SimpleMock(
-            setTimeout=SimpleMock(return_value=123),  # Return a mock timer ID
-            clearTimeout=SimpleMock(),
-            performance=self.mock_performance
-        )
+        # Create mock AI interface
+        self.mock_ai_interface = SimpleMock()
+        self.mock_ai_interface.interact_with_ai = SimpleMock()
+        self.mock_ai_interface.start_new_conversation = SimpleMock()
         
-        # Save original window references
-        self.original_performance = browser_window.performance
-        self.original_setTimeout = browser_window.setTimeout
-        self.original_clearTimeout = browser_window.clearTimeout
+        # Mock document elements
+        self.mock_svg_element = SimpleMock()
+        self.mock_svg_element.getBoundingClientRect = SimpleMock(return_value=SimpleMock(left=10, top=20))
+        self.mock_svg_element.style = SimpleMock()
+        self.mock_svg_element.bind = SimpleMock()
         
-        # Replace the browser window objects
-        browser_window.performance = self.mock_performance
-        browser_window.setTimeout = self.mock_window.setTimeout
-        browser_window.clearTimeout = self.mock_window.clearTimeout
+        self.mock_chat_input = SimpleMock(value="")
+        self.mock_chat_input.bind = SimpleMock()
+        self.mock_send_button = SimpleMock()
+        self.mock_send_button.bind = SimpleMock()
+        self.mock_new_conversation_button = SimpleMock()
+        self.mock_new_conversation_button.bind = SimpleMock()
+        
+        # Mock document
+        self.mock_document = {
+            "math-svg": self.mock_svg_element,
+            "chat-input": self.mock_chat_input,
+            "send-button": self.mock_send_button,
+            "new-conversation-button": self.mock_new_conversation_button
+        }
+        
+        # Replace the actual document with our mock
+        import canvas_event_handler
+        self.original_document = canvas_event_handler.document
+        canvas_event_handler.document = self.mock_document
+        
+        # Create event handler
+        self.event_handler = CanvasEventHandler(self.mock_canvas, self.mock_ai_interface)
 
     def tearDown(self):
-        # Restore original window objects
-        browser_window.performance = self.original_performance
-        browser_window.setTimeout = self.original_setTimeout
-        browser_window.clearTimeout = self.original_clearTimeout
+        """Restore original document."""
+        import canvas_event_handler
+        canvas_event_handler.document = self.original_document
 
-    def test_performance_now(self):
-        """Test that window.performance.now() returns the correct time and updates properly."""
-        # Initial time check
-        self.assertEqual(browser_window.performance.now(), 1000)
-        
-        # Update time and check again
-        self.current_time = 2000
-        self.now_mock.return_value = self.current_time
-        self.assertEqual(browser_window.performance.now(), 2000)
-        
-        # Verify the mock was actually called
-        self.assertTrue(len(self.now_mock.calls) > 0)
+    def _create_mock_touch(self, client_x, client_y):
+        """Helper to create a mock touch object."""
+        return SimpleMock(clientX=client_x, clientY=client_y)
 
-    def test_set_timeout(self):
-        """Test that setTimeout stores the callback and returns the expected timer ID."""
-        callback = lambda: None
-        wait_time = 100
-        
-        # Call setTimeout and verify return value
-        timer_id = browser_window.setTimeout(callback, wait_time)
-        self.assertEqual(timer_id, 123)  # Our mock always returns 123
-        
-        # Verify the call was recorded with correct arguments
-        self.assertEqual(len(self.mock_window.setTimeout.calls), 1)
-        call_args = self.mock_window.setTimeout.calls[0][0]
-        self.assertEqual(call_args[0], callback)
-        self.assertEqual(call_args[1], wait_time)
+    def _create_mock_touch_event(self, touches, event_type="touchstart"):
+        """Helper to create a mock touch event."""
+        mock_event = SimpleMock()
+        mock_event.type = event_type
+        mock_event.touches = touches
+        mock_event.preventDefault = SimpleMock()
+        return mock_event
 
-    def test_clear_timeout(self):
-        """Test that clearTimeout is called with the correct timer ID."""
-        timer_id = 123
+    def test_handle_touchstart_single_touch(self):
+        """Test handling single finger touch start for panning."""
+        # Create single touch event
+        touch = self._create_mock_touch(100, 150)
+        event = self._create_mock_touch_event([touch])
         
-        # Call clearTimeout
-        browser_window.clearTimeout(timer_id)
+        # Handle touchstart
+        self.event_handler.handle_touchstart(event)
         
-        # Verify the call was recorded with correct argument
-        self.assertEqual(len(self.mock_window.clearTimeout.calls), 1)
-        call_args = self.mock_window.clearTimeout.calls[0][0]
-        self.assertEqual(call_args[0], timer_id)
+        # Verify dragging was initialized
+        self.assertTrue(self.mock_canvas.dragging)
+        self.assertIsNotNone(self.event_handler.current_mouse_position)
+        
+        # Verify preventDefault was called
+        self.assertEqual(len(event.preventDefault.calls), 1)
 
-    def test_mock_chain(self):
-        """Test that the entire mock chain works together."""
-        callback = lambda: None
+    def test_handle_touchstart_two_fingers_pinch(self):
+        """Test handling two finger touch start for pinch-to-zoom."""
+        # Create two touch event
+        touch1 = self._create_mock_touch(100, 150)
+        touch2 = self._create_mock_touch(200, 250)
+        event = self._create_mock_touch_event([touch1, touch2])
         
-        # Set initial time
-        self.current_time = 1000
-        self.now_mock.return_value = self.current_time
+        # Handle touchstart
+        self.event_handler.handle_touchstart(event)
         
-        # Verify initial time
-        self.assertEqual(browser_window.performance.now(), 1000)
+        # Verify pinch state was initialized
+        self.assertIsNotNone(self.event_handler.initial_pinch_distance)
+        self.assertIsNotNone(self.event_handler.last_pinch_distance)
         
-        # Set a timeout
-        timer_id = browser_window.setTimeout(callback, 100)
-        
-        # Update time
-        self.current_time = 1050
-        self.now_mock.return_value = self.current_time
-        
-        # Verify time updated
-        self.assertEqual(browser_window.performance.now(), 1050)
-        
-        # Clear the timeout
-        browser_window.clearTimeout(timer_id)
-        
-        # Verify all calls were recorded
-        self.assertTrue(len(self.now_mock.calls) >= 2)  # At least two calls to now()
-        self.assertEqual(len(self.mock_window.setTimeout.calls), 1)
-        self.assertEqual(len(self.mock_window.clearTimeout.calls), 1)
+        # Verify zoom point was set
+        self.assertIsNotNone(self.mock_canvas.zoom_point)
 
-
-class TestThrottle(unittest.TestCase):
-    def setUp(self):
-        # Create a mock for performance.now that we can update
-        self.current_time = 1000
+    def test_calculate_touch_distance(self):
+        """Test calculation of distance between two touch points."""
+        touch1 = self._create_mock_touch(0, 0)
+        touch2 = self._create_mock_touch(30, 40)
         
-        # Create a now function that returns the current time
-        def now():
-            return self.current_time
+        # Use the actual method name with underscore
+        distance = self.event_handler._calculate_touch_distance(touch1, touch2)
+        
+        # Distance should be 50 (3-4-5 triangle)
+        self.assertEqual(distance, 50)
+
+    def test_handle_touchmove_single_finger_panning(self):
+        """Test handling single finger movement for panning."""
+        # Setup initial dragging state
+        self.mock_canvas.dragging = True
+        self.event_handler.current_mouse_position = Position(90, 130)
+        
+        # Create move event
+        touch = self._create_mock_touch(120, 170)
+        event = self._create_mock_touch_event([touch], "touchmove")
+        
+        # Handle touchmove
+        self.event_handler.handle_touchmove(event)
+        
+        # Verify preventDefault was called
+        self.assertEqual(len(event.preventDefault.calls), 1)
+
+    def test_handle_touchmove_pinch_zoom_in(self):
+        """Test handling pinch gesture for zooming in."""
+        # Setup initial pinch state
+        self.event_handler.last_pinch_distance = 50
+        self.event_handler.initial_pinch_distance = 50
+        
+        # Create move event with fingers further apart (zoom in)
+        touch1 = self._create_mock_touch(80, 120)  # Moved further from center
+        touch2 = self._create_mock_touch(220, 260)  # Moved further from center
+        event = self._create_mock_touch_event([touch1, touch2], "touchmove")
+        
+        # Handle touchmove
+        self.event_handler.handle_touchmove(event)
+        
+        # Verify preventDefault was called
+        self.assertEqual(len(event.preventDefault.calls), 1)
+        
+        # Verify last_pinch_distance was updated
+        self.assertIsNotNone(self.event_handler.last_pinch_distance)
+
+    def test_handle_touchmove_pinch_zoom_out(self):
+        """Test handling pinch gesture for zooming out."""
+        # Setup initial pinch state
+        self.event_handler.last_pinch_distance = 100
+        self.event_handler.initial_pinch_distance = 100
+        
+        # Create move event with fingers closer together (zoom out)
+        touch1 = self._create_mock_touch(110, 140)  # Moved closer to center
+        touch2 = self._create_mock_touch(170, 220)  # Moved closer to center
+        event = self._create_mock_touch_event([touch1, touch2], "touchmove")
+        
+        # Handle touchmove
+        self.event_handler.handle_touchmove(event)
+        
+        # Verify preventDefault was called
+        self.assertEqual(len(event.preventDefault.calls), 1)
+        
+        # Verify last_pinch_distance was updated
+        self.assertIsNotNone(self.event_handler.last_pinch_distance)
+
+    def test_handle_touchend(self):
+        """Test handling touch end events."""
+        # Setup touch dragging state
+        self.mock_canvas.dragging = True
+        self.event_handler.current_mouse_position = Position(90, 130)
+        self.event_handler.initial_pinch_distance = 100
+        self.event_handler.last_pinch_distance = 100
+        
+        # Create touchend event
+        event = self._create_mock_touch_event([], "touchend")
+        
+        # Handle touchend
+        self.event_handler.handle_touchend(event)
+        
+        # Verify state was reset
+        self.assertFalse(self.mock_canvas.dragging)
+        self.assertIsNone(self.event_handler.current_mouse_position)
+        self.assertIsNone(self.event_handler.initial_pinch_distance)
+        self.assertIsNone(self.event_handler.last_pinch_distance)
+
+    def test_handle_touchcancel(self):
+        """Test handling touch cancel events."""
+        # Setup touch dragging state
+        self.mock_canvas.dragging = True
+        self.event_handler.current_mouse_position = Position(90, 130)
+        
+        # Create touchcancel event
+        event = self._create_mock_touch_event([], "touchcancel")
+        
+        # Handle touchcancel
+        self.event_handler.handle_touchcancel(event)
+        
+        # Verify state was reset (same as touchend)
+        self.assertFalse(self.mock_canvas.dragging)
+        self.assertIsNone(self.event_handler.current_mouse_position)
+
+    def test_handle_double_tap(self):
+        """Test handling double tap for coordinate capture."""
+        # Create first tap
+        touch = self._create_mock_touch(100, 150)
+        
+        # Set timestamp for first tap
+        self.event_handler.last_click_timestamp = 1000
+        
+        # Mock time.time to return time within double-tap threshold
+        original_time = time.time
+        time.time = lambda: 1000.2  # 200ms later
+        
+        try:
+            # Handle double tap directly
+            self.event_handler._handle_double_tap(touch)
             
-        # Create the performance mock with our updatable now function
-        self.mock_performance = SimpleMock(now=now)
-        
-        # Create the window mock with all its parts
-        self.mock_window = SimpleMock(
-            setTimeout=SimpleMock(return_value=123),  # Return a mock timer ID
-            clearTimeout=SimpleMock(),
-            performance=self.mock_performance
-        )
-        
-        # Save original window references
-        self.original_performance = browser_window.performance
-        self.original_setTimeout = browser_window.setTimeout
-        self.original_clearTimeout = browser_window.clearTimeout
-        
-        # Replace the browser window objects
-        browser_window.performance = self.mock_performance
-        browser_window.setTimeout = self.mock_window.setTimeout
-        browser_window.clearTimeout = self.mock_window.clearTimeout
+            # Verify chat input was updated
+            self.assertTrue(len(self.mock_chat_input.value) > 0)
+        finally:
+            # Restore original time
+            time.time = original_time
 
-    def set_time(self, new_time):
-        """Helper to update the mock time."""
-        self.current_time = new_time  # This will automatically update the now function
+    def test_initialize_touch_dragging(self):
+        """Test initialization of touch dragging state."""
+        touch = self._create_mock_touch(100, 150)
+        
+        # Call initialize method
+        self.event_handler._initialize_touch_dragging(touch)
+        
+        # Verify state was set correctly
+        self.assertTrue(self.mock_canvas.dragging)
+        self.assertIsNotNone(self.event_handler.current_mouse_position)
+        self.assertEqual(self.event_handler.current_mouse_position.x, 100)
+        self.assertEqual(self.event_handler.current_mouse_position.y, 150)
 
-    def tearDown(self):
-        # Restore original window objects
-        browser_window.performance = self.original_performance
-        browser_window.setTimeout = self.original_setTimeout
-        browser_window.clearTimeout = self.original_clearTimeout
+    def test_touch_action_none_set_in_bind_events(self):
+        """Test that touch-action: none is set when binding events."""
+        # This test verifies that the CSS property is set to prevent default touch behaviors
+        # The actual binding happens in bind_events which is called in __init__
+        self.assertEqual(self.mock_svg_element.style.touchAction, "none")
 
-    def test_throttle_first_call_executes_immediately(self):
-        """Test that the first call to a throttled function executes immediately."""
-        mock_func = SimpleMock()
-        throttled_func = throttle(100)(mock_func)
+    def test_error_handling_in_touch_methods(self):
+        """Test that touch methods handle errors gracefully."""
+        # Create an event that might cause errors
+        malformed_event = SimpleMock()
+        malformed_event.touches = None  # This should cause an error
+        malformed_event.preventDefault = SimpleMock()
         
-        # First call at t=1000ms should execute immediately
-        self.set_time(1000)
-        throttled_func(1, b=2)
-        self.assertEqual(len(mock_func.calls), 1)
-        mock_func.assert_called_once_with(1, b=2)
-
-    def test_throttle_subsequent_calls_are_delayed(self):
-        """Test that subsequent calls within the wait period are delayed."""
-        mock_func = SimpleMock()
-        throttled_func = throttle(100)(mock_func)
-        
-        # First call at t=1000ms
-        self.set_time(1000)
-        throttled_func(1)
-        
-        # Second call at t=1050ms should be scheduled
-        self.set_time(1050)
-        throttled_func(2)
-        
-        # Function should only have been called once directly
-        self.assertEqual(len(mock_func.calls), 1)
-        
-        # setTimeout should have been called for the second invocation
-        self.assertEqual(len(self.mock_window.setTimeout.calls), 1)
-
-    def test_throttle_clears_previous_timeout(self):
-        """Test that new calls clear previous pending timeouts."""
-        mock_func = SimpleMock()
-        throttled_func = throttle(100)(mock_func)
-        
-        # First call executes immediately at t=1000ms
-        self.set_time(1000)
-        throttled_func(1)
-        self.assertEqual(len(self.mock_window.setTimeout.calls), 0)
-        self.assertEqual(len(mock_func.calls), 1)
-        
-        # Second call at t=1020ms (20ms after first call) should schedule a timeout
-        self.set_time(1020)
-        throttled_func(2)
-        self.assertEqual(len(self.mock_window.setTimeout.calls), 1)
-        
-        # Third call at t=1040ms should clear previous timeout and schedule new one
-        self.set_time(1040)
-        throttled_func(3)
-        
-        # Verify clearTimeout was called with the previous timer ID
-        self.assertEqual(len(self.mock_window.clearTimeout.calls), 1)
-        self.assertEqual(len(self.mock_window.setTimeout.calls), 2)
-        
-        # Verify the timer ID was cleared
-        timer_id = 123  # From our mock setup
-        self.assertEqual(self.mock_window.clearTimeout.calls[0][0], (timer_id,))
-
-    def test_throttle_respects_wait_time(self):
-        """Test that throttle respects the wait time between calls."""
-        mock_func = SimpleMock()
-        wait_ms = 100
-        throttled_func = throttle(wait_ms)(mock_func)
-        
-        # First call at t=1000ms
-        self.set_time(1000)
-        throttled_func(1)
-        
-        # Second call at t=1040ms (40ms after first call)
-        self.set_time(1040)
-        throttled_func(2)
-        
-        # Verify setTimeout was called with correct remaining time
-        self.assertEqual(len(self.mock_window.setTimeout.calls), 1)
-        call_args = self.mock_window.setTimeout.calls[0][0]
-        remaining_time = call_args[1]  # Second argument is the wait time
-        
-        # Should wait remaining 60ms (100ms - 40ms elapsed)
-        self.assertEqual(remaining_time, 60)
-
-    def test_throttle_handles_errors(self):
-        """Test that throttle properly handles errors in the throttled function."""
-        def failing_func():
-            raise ValueError("Test error")
-        
-        throttled_func = throttle(100)(failing_func)
-        
-        # Call at t=1000ms
-        self.set_time(1000)
-        # Should not raise error, just print it
-        throttled_func()  # Error should be caught and printed 
+        # These should not raise exceptions, but handle errors gracefully
+        try:
+            self.event_handler.handle_touchstart(malformed_event)
+            self.event_handler.handle_touchmove(malformed_event)
+            self.event_handler.handle_touchend(malformed_event)
+            self.event_handler.handle_touchcancel(malformed_event)
+        except Exception as e:
+            self.fail(f"Touch methods should handle errors gracefully, but got: {e}") 
