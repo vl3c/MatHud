@@ -1,5 +1,6 @@
 openai
 flask
+flask-session
 python-dotenv
 selenium
 geckodriver-autoinstaller

@@ -110,6 +110,7 @@ input, select, textarea, button {
     overflow: hidden;
     transition: box-shadow 0.2s ease;
     min-width: 400px; /* Minimum width to maintain usability */
+    position: relative; /* For positioning the logout button overlay */
 }
 
 .math-container:hover {
@@ -172,6 +173,48 @@ input, select, textarea, button {
 
 #new-conversation-button:active {
     transform: translateY(0);
+}
+
+/* ===== LOGOUT BUTTON OVERLAY ===== */
+/* Circular logout button positioned over the canvas */
+.logout-overlay-button {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+    color: white;
+    border: none;
+    font-family: inherit;
+    font-size: 18px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(248, 113, 113, 0.3);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1;
+}
+
+.logout-overlay-button:hover {
+    transform: translateY(-1px) scale(1.1);
+    box-shadow: 0 4px 12px rgba(248, 113, 113, 0.4);
+    background: linear-gradient(135deg, #fca5a5 0%, #f87171 100%);
+}
+
+.logout-overlay-button:active {
+    transform: translateY(0) scale(0.95);
+    box-shadow: 0 1px 4px rgba(248, 113, 113, 0.3);
+}
+
+.logout-overlay-button:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.2), 0 4px 12px rgba(248, 113, 113, 0.4);
 }
 
 .controls-group {

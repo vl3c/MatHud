@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<!--
+MatHud Authentication Page
+
+Simple PIN-based authentication for deployed environments.
+Provides secure access control to the mathematical canvas application.
+
+Features:
+    - Clean, minimal design matching the main application
+    - Mobile-responsive layout
+    - PIN-based authentication (no username required)
+    - Flash message support for error handling
+    - Consistent styling with main application
+-->
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>MatHud - Access Required</title>
+    
+    <!-- Google Fonts for modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+
+        .login-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 3rem 2.5rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .app-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #4c51bf;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.025em;
+        }
+
+        .app-subtitle {
+            font-size: 1rem;
+            color: #6b7280;
+            margin-bottom: 2rem;
+            font-weight: 400;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            position: relative;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.5rem;
+            text-align: left;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all 0.2s ease;
+            background: rgba(255, 255, 255, 0.8);
+            text-align: center;
+            letter-spacing: 0.25em;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #4c51bf;
+            box-shadow: 0 0 0 3px rgba(76, 81, 191, 0.1);
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .form-input::placeholder {
+            color: #9ca3af;
+            letter-spacing: normal;
+        }
+
+        .login-button {
+            background: linear-gradient(135deg, #4c51bf 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 0.875rem 2rem;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(76, 81, 191, 0.3);
+        }
+
+        .login-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(76, 81, 191, 0.4);
+        }
+
+        .login-button:active {
+            transform: translateY(0);
+        }
+
+        .flash-messages {
+            margin-bottom: 1.5rem;
+        }
+
+        .flash-message {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border: 1px solid #fecaca;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+
+
+        /* Mobile optimizations */
+        @media (max-width: 480px) {
+            .login-container {
+                margin: 1rem;
+                padding: 2rem 1.5rem;
+            }
+
+            .app-title {
+                font-size: 1.75rem;
+            }
+
+            .form-input {
+                padding: 1rem;
+                font-size: 1.125rem;
+            }
+
+            .login-button {
+                padding: 1rem 2rem;
+                font-size: 1.125rem;
+            }
+        }
+
+        /* Prevent zoom on iOS when focusing input */
+        @media screen and (max-width: 767px) {
+            .form-input {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1 class="app-title">MatHud</h1>
+        <p class="app-subtitle">Mathematical Canvas</p>
+        
+        <!-- Flash messages for errors -->
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for message in messages %}
+                        <div class="flash-message">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        <form method="POST" class="login-form" autocomplete="off">
+            <div class="form-group">
+                <label for="pin" class="form-label">Access Code</label>
+                <input 
+                    type="password" 
+                    id="pin" 
+                    name="pin" 
+                    class="form-input" 
+                    placeholder="Enter your access code"
+                    required
+                    autocomplete="off"
+                >
+            </div>
+            
+            <button type="submit" class="login-button">
+                Access Application
+            </button>
+        </form>
+        
+
+    </div>
+    
+    <script>
+        // Handle form submission with loading state
+        document.querySelector('.login-form').addEventListener('submit', function() {
+            const button = document.querySelector('.login-button');
+            
+            // Disable button on any submission attempt.
+            // The server will be the single source of truth for rate limiting.
+            button.disabled = true;
+            button.textContent = 'Verifying...';
+
+            // Re-enable button after 5 seconds in case of any unexpected error
+            // that prevents a page reload.
+            setTimeout(function() {
+                if(button.disabled) {
+                    button.disabled = false;
+                    button.textContent = 'Access Application';
+                }
+            }, 5000);
+        });
+        
+        // Cooldown timer function for UX
+        function startCooldownTimer(button, seconds) {
+            button.disabled = true;
+            let remaining = seconds;
+            
+            const updateButton = function() {
+                if (remaining > 0) {
+                    button.textContent = `Wait ${remaining}s`;
+                    remaining--;
+                    setTimeout(updateButton, 1000);
+                } else {
+                    button.disabled = false;
+                    button.textContent = 'Access Application';
+                }
+            };
+            
+            updateButton();
+        }
+        
+        // On page load, auto-focus the input and start the cooldown timer if necessary.
+        document.addEventListener('DOMContentLoaded', function() {
+            const pinInput = document.getElementById('pin');
+            pinInput.focus();
+            pinInput.value = '';
+
+            const flashMessage = document.querySelector('.flash-message');
+            if (flashMessage && flashMessage.textContent.includes('Too many attempts')) {
+                const waitMatch = flashMessage.textContent.match(/(\d+) seconds/);
+                if (waitMatch) {
+                    const waitTime = parseInt(waitMatch[1]);
+                    const button = document.querySelector('.login-button');
+                    startCooldownTimer(button, waitTime);
+                }
+            }
+        });
+    </script>
+</body>
+</html> 

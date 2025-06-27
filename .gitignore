@@ -15,6 +15,9 @@ venv/
 # Logs
 logs/
 
+# Flask sessions (server-side session storage)
+flask_session/
+
 # Canvas Snapshots
 CanvasSnapshots/
 

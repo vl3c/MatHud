@@ -13,6 +13,42 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Workspace management for saving and loading states
 - Comprehensive chat interface with rich markdown support and LaTeX mathematical notation rendering
 
+## Authentication (Deployed Environments)
+
+When MatHud is deployed to production environments, it includes a simple access code authentication system to protect the AI chat functionality.
+
+### Configuration
+
+1. Create a `.env` file in the project root with the following variables:
+
+```env
+# OpenAI API Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Authentication Configuration (for deployed environments)
+# Can be alphanumeric (letters, numbers, special characters)
+AUTH_PIN=your_chosen_access_code_here
+
+# Optional: Custom secret key for session management
+SECRET_KEY=your_secret_key_here_for_production
+```
+
+2. The authentication system automatically activates when the `PORT` environment variable is set (indicating deployment mode).
+
+### Behavior
+
+- **Development Mode** (no `PORT` env var): No authentication required, direct access to the application
+- **Deployed Mode** (`PORT` env var set): Access code authentication required before accessing the mathematical canvas
+
+### Security Features
+
+- Session-based authentication with secure cookie settings
+- Access code protection for all application routes and API endpoints
+- **Rate limiting**: Only 1 login attempt per IP address every 5 seconds
+- **Timing attack protection**: Constant-time string comparison for access codes
+- Automatic logout functionality in the deployed interface
+- Environment-based configuration management
+
 ## Architecture Overview
 
 MatHud is a client-server web application with the following key architectural components:
@@ -49,8 +85,6 @@ The application includes a visual understanding system that allows the AI to ana
     *   Dynamic visualization of mathematical concepts.
     *   Enhanced pattern recognition and analysis.
     *   Bridge between theoretical and applied mathematics.
-
-
 
 ## Installation
 
@@ -95,6 +129,10 @@ pip install -r requirements.txt
 ```sh
 python app.py
 ```
+
+## Development
+
+For local development, the application runs without authentication. The access code login only applies to deployed environments.
 
 ## Usage
 

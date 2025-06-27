@@ -2,34 +2,140 @@
 MatHud Flask Route Definitions
 
 Defines all Flask application routes for AI communication, workspace management,
-and WebDriver initialization. Handles JSON requests and provides consistent API responses.
+WebDriver initialization, and authentication. Handles JSON requests and provides consistent API responses.
 
 Dependencies:
-    - flask: Request handling, templating, and JSON processing
+    - flask: Request handling, templating, JSON processing, and session management
     - static.tool_call_processor: OpenAI tool call format conversion
-    - static.app_manager: Consistent API response formatting
+    - static.app_manager: Consistent API response formatting and deployment detection
 """
 
-from flask import request, render_template, json
+import functools
+import hmac
+import time
+import math
+from flask import request, render_template, json, session, redirect, url_for, flash
 from static.tool_call_processor import ToolCallProcessor
 from static.app_manager import AppManager
+
+# Global dictionary to track login attempts by IP address
+# Format: {ip_address: last_attempt_timestamp}
+login_attempts = {}
+
+
+def require_auth(f):
+    """Decorator to require authentication for routes when deployed.
+    
+    Only enforces authentication when running in deployed environments.
+    In development mode, allows unrestricted access.
+    
+    Args:
+        f: The route function to protect
+        
+    Returns:
+        Wrapped function that checks authentication before proceeding
+    """
+    @functools.wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Require authentication when deployed or explicitly enabled
+        if AppManager.requires_auth():
+            if not session.get('authenticated'):
+                return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 def register_routes(app):
     """Register all routes with the Flask application.
     
     Configures all application endpoints including main page, AI communication,
-    workspace operations, and WebDriver management routes.
+    workspace operations, WebDriver management, and authentication routes.
     
     Args:
         app: Flask application instance
     """
     
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        """Handle user authentication with access code."""
+        if not AppManager.requires_auth():
+            return redirect(url_for('get_index'))
+        
+        # If user is already authenticated, redirect to main page
+        if session.get('authenticated'):
+            return redirect(url_for('get_index'))
+        
+        if request.method == 'POST':
+            client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+            current_time = time.time()
+            
+            pin_submitted = request.form.get('pin', '')
+            auth_pin = AppManager.get_auth_pin()
+            
+            if not auth_pin:
+                flash('Authentication not configured')
+                return render_template('login.html')
+
+            is_pin_correct = hmac.compare_digest(pin_submitted, auth_pin)
+
+            # --- NEW, CORRECT LOGIC ---
+
+            if is_pin_correct:
+                # 1. PIN is correct. Login succeeds immediately.
+                session['authenticated'] = True
+                login_attempts.pop(client_ip, None) # Clear any old rate limit.
+                return redirect(url_for('get_index'))
+            else:
+                # 2. PIN is incorrect. Now we handle rate limiting.
+                if client_ip in login_attempts:
+                    time_since_last_failed = current_time - login_attempts[client_ip]
+                    
+                    if time_since_last_failed < 5.0:
+                        # 2a. Cooldown is ACTIVE. Block and show countdown.
+                        remaining_cooldown = 5.0 - time_since_last_failed
+                        display_time = math.ceil(remaining_cooldown)
+                        flash(f'Too many attempts. Please wait {display_time} seconds.')
+                        return render_template('login.html')
+
+                # 2b. PIN was wrong, but no active cooldown. Start a new one.
+                login_attempts[client_ip] = current_time
+                flash('Invalid access code')
+                
+                # Cleanup logic (runs only after a failed attempt)
+                if len(login_attempts) > 1000:
+                    cutoff = current_time - 3600 # 1 hour
+                    for ip, timestamp in list(login_attempts.items()):
+                        if timestamp < cutoff:
+                            del login_attempts[ip]
+                
+                return render_template('login.html')
+
+        # For GET request
+        return render_template('login.html')
+    
+    @app.route('/logout')
+    def logout():
+        """Handle user logout and session cleanup."""
+        session.pop('authenticated', None)
+        if AppManager.requires_auth():
+            return redirect(url_for('login'))
+        return redirect(url_for('get_index'))
+    
+    @app.route('/auth_status')
+    def auth_status():
+        """Return authentication status information."""
+        return AppManager.make_response(data={
+            'auth_required': AppManager.requires_auth(),
+            'authenticated': session.get('authenticated', False)
+        })
+    
     @app.route('/')
+    @require_auth
     def get_index():
         return render_template('index.html')
 
     @app.route('/init_webdriver')
+    @require_auth
     def init_webdriver_route():
         """Route to initialize WebDriver after Flask has started"""
         if not app.webdriver_manager:
@@ -46,6 +152,7 @@ def register_routes(app):
         return AppManager.make_response(message="WebDriver initialization successful")
 
     @app.route('/save_workspace', methods=['POST'])
+    @require_auth
     def save_workspace_route():
         """Save the current workspace state."""
         try:
@@ -70,6 +177,7 @@ def register_routes(app):
             )
 
     @app.route('/load_workspace', methods=['GET'])
+    @require_auth
     def load_workspace_route():
         """Load a workspace state."""
         try:
@@ -91,6 +199,7 @@ def register_routes(app):
             )
 
     @app.route('/list_workspaces', methods=['GET'])
+    @require_auth
     def list_workspaces_route():
         """List all saved workspaces."""
         try:
@@ -104,6 +213,7 @@ def register_routes(app):
             )
 
     @app.route('/delete_workspace', methods=['GET'])
+    @require_auth
     def delete_workspace_route():
         """Delete a workspace."""
         try:
@@ -132,6 +242,7 @@ def register_routes(app):
             )
 
     @app.route('/new_conversation', methods=['POST'])
+    @require_auth
     def new_conversation_route():
         """Reset the AI conversation history for a new session."""
         try:
@@ -165,6 +276,7 @@ def register_routes(app):
         return ai_message, ai_tool_calls
 
     @app.route('/send_message', methods=['POST'])
+    @require_auth
     def send_message():
         message = request.json.get('message')
         if not message:
