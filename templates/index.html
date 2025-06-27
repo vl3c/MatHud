@@ -162,39 +162,32 @@ Dependencies:
         // ===== LOGOUT FUNCTIONALITY =====
         // Show logout button when authentication is enabled
         function checkAuthRequirement() {
-            // Check if we need to show logout button by making a request to a new endpoint
+            // Check if we need to show logout button by making a request to auth status endpoint
             fetch('/auth_status')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Auth status:', data); // Debug log
-                    if (data.data && data.data.auth_required) {
-                        console.log('Showing logout button'); // Debug log
+                    console.log('Auth status response:', data); // Debug log
+                    
+                    // Check if authentication is required
+                    const authRequired = data && data.data && data.data.auth_required;
+                    
+                    if (authRequired) {
+                        console.log('Authentication required - showing logout button'); // Debug log
                         document.getElementById('logout-button-overlay').style.display = 'flex';
                     } else {
-                        console.log('Hiding logout button - auth not required'); // Debug log
+                        console.log('Authentication not required - hiding logout button'); // Debug log
                         document.getElementById('logout-button-overlay').style.display = 'none';
                     }
                 })
                 .catch((error) => {
                     console.error('Error checking auth status:', error); // Debug log
-                    // If there's an error, hide the logout button
+                    // If there's an error, hide the logout button (safer default)
                     document.getElementById('logout-button-overlay').style.display = 'none';
                 });
         }
         
         // Check auth requirement on page load
         checkAuthRequirement();
-        
-        // Fallback: If we're on this page, we must have passed auth (if required)
-        // So show the button after a short delay if the fetch fails
-        setTimeout(function() {
-            const button = document.getElementById('logout-button-overlay');
-            if (button && button.style.display === 'none') {
-                // Try one more time, or show by default since we're authenticated
-                console.log('Fallback: showing logout button since we are on authenticated page');
-                button.style.display = 'flex';
-            }
-        }, 1000);
         
         // Handle logout button click
         document.getElementById('logout-button-overlay').addEventListener('click', function() {
