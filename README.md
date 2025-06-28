@@ -31,15 +31,17 @@ OPENAI_API_KEY=your_openai_api_key_here
 # Can be alphanumeric (letters, numbers, special characters)
 AUTH_PIN=your_chosen_access_code_here
 
-# Optional: Custom secret key for session management
-SECRET_KEY=your_secret_key_here_for_production
+# Enable authentication in development mode (optional)
+# Set to true/1/yes to require authentication even in local development
+REQUIRE_AUTH=true
 ```
 
 2. The authentication system automatically activates when the `PORT` environment variable is set (indicating deployment mode).
 
 ### Behavior
 
-- **Development Mode** (no `PORT` env var): No authentication required, direct access to the application
+- **Development Mode** (no `PORT` env var): No authentication required by default, direct access to the application
+- **Development Mode with Auth** (`REQUIRE_AUTH=true`): Access code authentication required for testing in local development
 - **Deployed Mode** (`PORT` env var set): Access code authentication required before accessing the mathematical canvas
 
 ### Security Features
@@ -134,7 +136,7 @@ python app.py
 
 ## Development
 
-For local development, the application runs without authentication. The access code login only applies to deployed environments.
+For local development, the application runs without authentication by default. To test the authentication system locally, set `REQUIRE_AUTH=true` in your `.env` file. The access code login applies to deployed environments automatically, or to local development when explicitly enabled.
 
 ## Usage
 
@@ -257,39 +259,11 @@ MatHud has both server-side and client-side tests to ensure functionality works 
 
 ### Server-Side Tests
 
-We've created a convenient script to run server tests. Simply use:
+Run all server-side tests with:
 
 ```sh
 python run_server_tests.py
 ```
-
-This script provides several options:
-
-- Run all server tests:
-  ```sh
-  python run_server_tests.py
-  ```
-
-- Run tests in a specific file:
-  ```sh
-  python run_server_tests.py test_workspace_management.py
-  ```
-  or just:
-  ```sh
-  python run_server_tests.py test_workspace_management
-  ```
-
-- Run tests matching a keyword:
-  ```sh
-  python run_server_tests.py -k list
-  ```
-
-- Show help information:
-  ```sh
-  python run_server_tests.py --help
-  ```
-
-The script automatically uses the Python environment from your virtual environment and doesn't require remembering complex pytest commands.
 
 ### Client-Side Tests
 
