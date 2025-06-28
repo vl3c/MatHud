@@ -126,7 +126,7 @@ class TestRunner:
             },
             {
                 "function_name": "create_colored_area",
-                "arguments": {"drawable1_name": "f1", "drawable2_name": "f2", "color": "lightblue", "opacity": 0.3}
+                "arguments": {"drawable1_name": "f1", "drawable2_name": "f2", "color": "orange", "opacity": 0.3}
             },
             {
                 "function_name": "create_colored_area",
@@ -134,7 +134,7 @@ class TestRunner:
             },
             {
                 "function_name": "create_colored_area",
-                "arguments": {"drawable1_name": "f1", "drawable2_name": "f3", "color": "yellow", "opacity": 0.3}
+                "arguments": {"drawable1_name": "f1", "drawable2_name": "f3", "color": "lightblue", "opacity": 0.3}
             },
             {
                 "function_name": "create_angle",
