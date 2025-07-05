@@ -4,6 +4,7 @@ MatHud Server-Side Test Runner
 
 Simple script to run server tests with pytest integration.
 Provides command-line interface for running tests with various options.
+Automatically disables authentication for testing environment.
 
 Dependencies:
     - pytest: Testing framework
@@ -15,6 +16,7 @@ Usage:
     python run_server_tests.py test_file  - Run tests in a specific file
     python run_server_tests.py -k keyword - Run tests matching keyword
     python run_server_tests.py --help     - Show pytest help
+    python run_server_tests.py --with-auth - Run tests with authentication enabled
 """
 
 import os
@@ -27,6 +29,7 @@ def run_tests():
     
     Processes command line arguments and executes pytest with appropriate
     test paths and options. Handles OS-specific Python interpreter paths.
+    Automatically disables authentication for testing unless --with-auth is specified.
     
     Returns:
         int: pytest exit code (0 for success, non-zero for failure)
@@ -34,6 +37,7 @@ def run_tests():
     # Default test path and arguments
     test_path = "ServerTests"
     extra_args = []
+    with_auth = False
     
     # Process command line arguments
     i = 1
@@ -44,6 +48,12 @@ def run_tests():
         if arg == "--help" or arg == "-h":
             show_help()
             return 0
+        
+        # Handle --with-auth flag
+        elif arg == "--with-auth":
+            with_auth = True
+            i += 1
+            continue
             
         # Handle -k for keyword filtering
         elif arg == "-k" and i + 1 < len(sys.argv):
@@ -71,6 +81,13 @@ def run_tests():
             
         i += 1
     
+    # Set test environment - disable authentication by default for testing
+    if not with_auth:
+        os.environ['REQUIRE_AUTH'] = 'false'
+        print("🔧 Test mode: Authentication disabled for testing")
+    else:
+        print("🔐 Test mode: Authentication enabled (--with-auth)")
+    
     # Determine the Python interpreter based on the OS
     is_windows = platform.system() == "Windows"
     
@@ -97,6 +114,9 @@ def show_help():
     common pytest command-line options.
     """
     print(__doc__)
+    print("Test runner specific options:")
+    print("  --with-auth         Enable authentication during testing (default: disabled)")
+    print()
     print("Common pytest options:")
     print("  -v, --verbose       Increase verbosity")
     print("  -k EXPRESSION       Only run tests which match the given substring expression")
