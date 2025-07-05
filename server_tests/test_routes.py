@@ -1,5 +1,6 @@
 import unittest
 import json
+import os
 from unittest.mock import patch, Mock
 from static.app_manager import AppManager
 
@@ -7,6 +8,10 @@ from static.app_manager import AppManager
 class TestRoutes(unittest.TestCase):
     def setUp(self):
         """Set up test client before each test."""
+        # Set test environment variables to disable authentication
+        self.original_require_auth = os.environ.get('REQUIRE_AUTH')
+        os.environ['REQUIRE_AUTH'] = 'false'
+        
         self.app = AppManager.create_app()
         self.client = self.app.test_client()
         self.app.config['TESTING'] = True
@@ -18,6 +23,12 @@ class TestRoutes(unittest.TestCase):
         # Clean up webdriver if it exists
         if hasattr(self.app, 'webdriver_manager') and self.app.webdriver_manager:
             self.app.webdriver_manager = None
+        
+        # Restore original REQUIRE_AUTH environment variable
+        if self.original_require_auth is not None:
+            os.environ['REQUIRE_AUTH'] = self.original_require_auth
+        else:
+            os.environ.pop('REQUIRE_AUTH', None)
 
     @patch('static.webdriver_manager.WebDriverManager')
     def test_init_webdriver_route(self, mock_webdriver_class):

@@ -2,7 +2,7 @@ import unittest
 from canvas import Canvas
 from drawables.drawable import Drawable
 from geometry import Position
-from ClientTests.simple_mock import SimpleMock
+from client_tests.simple_mock import SimpleMock
 
 
 class TestCustomDrawableNames(unittest.TestCase):

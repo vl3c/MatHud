@@ -1,6 +1,6 @@
 import unittest
 from managers.drawable_dependency_manager import DrawableDependencyManager
-from ClientTests.simple_mock import SimpleMock
+from client_tests.simple_mock import SimpleMock
 import inspect
 import re
 

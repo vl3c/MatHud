@@ -574,7 +574,7 @@ class BrythonDiagramGenerator:
         """Generate diagrams for the testing framework."""
         print("Generating Brython testing framework diagrams...")
         
-        tests_dir = self.brython_source_dir / "ClientTests"
+        tests_dir = self.brython_source_dir / "client_tests"
         test_runner_file = self.brython_source_dir / "test_runner.py"
         
         # Test framework structure
@@ -655,7 +655,7 @@ class BrythonDiagramGenerator:
             ('managers', 'brython_managers_package'),
             ('utils', 'brython_utils_package'),
             ('name_generator', 'brython_name_generator_package'),
-            ('ClientTests', 'brython_tests_package')
+            ('client_tests', 'brython_tests_package')
         ]
         
         for package_name, diagram_name in packages:

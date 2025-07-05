@@ -418,7 +418,7 @@ class DiagramGenerator:
         files_to_analyze = [
             ('static/functions_definitions.py', 'FunctionDefinitions'),
             ('app.py', 'AppMain'),
-            ('run_server_tests.py', 'ServerTests')
+            ('run_server_tests.py', 'server_tests')
         ]
         
         for file_path, name in files_to_analyze:

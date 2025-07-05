@@ -9,7 +9,7 @@ Automatically disables authentication for testing environment.
 Dependencies:
     - pytest: Testing framework
     - subprocess: Process execution
-    - ServerTests/: Test modules directory
+    - server_tests/: Test modules directory
 
 Usage:
     python run_server_tests.py            - Run all server tests
@@ -35,7 +35,7 @@ def run_tests():
         int: pytest exit code (0 for success, non-zero for failure)
     """
     # Default test path and arguments
-    test_path = "ServerTests"
+    test_path = "server_tests"
     extra_args = []
     with_auth = False
     
@@ -63,9 +63,9 @@ def run_tests():
             
         # If it's not a recognized flag, treat it as a test path
         elif not arg.startswith("-"):
-            # If it's a path without extension, assume it's in ServerTests
+            # If it's a path without extension, assume it's in server_tests
             if not arg.endswith(".py") and not os.path.exists(arg):
-                possible_path = os.path.join("ServerTests", arg)
+                possible_path = os.path.join("server_tests", arg)
                 if os.path.exists(possible_path):
                     test_path = possible_path
                 elif os.path.exists(possible_path + ".py"):

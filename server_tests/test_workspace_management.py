@@ -2,7 +2,7 @@ import unittest
 import os
 import json
 from datetime import datetime
-from ServerTests.test_mocks import MockCanvas
+from server_tests.test_mocks import MockCanvas
 from static.workspace_manager import WorkspaceManager, WORKSPACES_DIR
 
 TEST_DIR = "Test"

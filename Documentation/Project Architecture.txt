@@ -108,7 +108,7 @@ MatHud/
 ├── logs/                              # Application log files (session-based)
 ├── workspaces/                        # Saved workspace JSON files
 ├── CanvasSnapshots/                   # Vision system canvas screenshots
-├── ServerTests/                       # Server-side test files
+├── server_tests/                       # Server-side test files
 ├── templates/                         # HTML templates
 ├── static/                            # Backend Python modules and frontend assets
 ├── venv/                              # Python virtual environment
@@ -198,7 +198,7 @@ static/python/
 │   ├── drawable.py                    # General drawable object name generation
 │   ├── point.py                       # Point-specific name generation
 │   └── function.py                    # Function name generation
-└── ClientTests/                       # Brython-based client-side tests
+└── client_tests/                       # Brython-based client-side tests
     ├── tests.py                       # Test suite orchestrator
     ├── test_canvas.py                 # Canvas functionality tests
     ├── test_math_functions.py         # Mathematical operation tests
@@ -219,9 +219,9 @@ static/python/
     └── simple_mock.py                 # Testing mock utilities
 ```
 
-## Server-Side Tests (`ServerTests/`)
+## Server-Side Tests (`server_tests/`)
 ```
-ServerTests/
+server_tests/
 ├── __init__.py                        # Test package initialization
 ├── python_path_setup.py               # Test environment configuration
 ├── test_mocks.py                      # Server-side test mocking utilities

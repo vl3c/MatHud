@@ -142,7 +142,7 @@ AppManager → LogManager
 **Enhanced function-level visualization:**
 - `functions_appmain.svg` - App.py function analysis
 - `functions_functiondefinitions.svg` - Function definitions analysis
-- `functions_servertests.svg` - Server test functions
+- `functions_server_tests.svg` - Server test functions
 
 ### 6. Dependency Graphs
 **Multiple dependency analysis approaches:**

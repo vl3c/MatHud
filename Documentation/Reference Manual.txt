@@ -99,8 +99,8 @@ This document contains comprehensive documentation extracted from all files in t
 9. Tool Call Processing Utilities (`static/tool_call_processor.py`)
 
 ### Testing and Quality Assurance
-1. Client-Side Testing (`ClientTests/` and `test_runner.py`)
-2. Server-Side Testing (`ServerTests/` and `run_server_tests.py`)
+1. Client-Side Testing (`client_tests/` and `test_runner.py`)
+2. Server-Side Testing (`server_tests/` and `run_server_tests.py`)
 
 ---
 
@@ -3610,7 +3610,7 @@ dictionaries that can be sent to the client-side function processing system.
 
 MatHud implements a comprehensive dual-sided testing architecture that mirrors the application's client-server structure. The testing system ensures reliability across both the browser-based mathematical visualization components and the server-side AI integration services.
 
-#### Client-Side Testing (`static/python/ClientTests/tests.py`)
+#### Client-Side Testing (`static/python/client_tests/tests.py`)
 The client-side testing framework runs in the browser using Brython and covers all mathematical visualization components. The `Tests` class orchestrates comprehensive testing of:
 - Mathematical utilities and geometric calculations
 - Drawable objects (points, segments, shapes, functions)
@@ -3629,7 +3629,7 @@ The server-side testing uses pytest and focuses on Flask application components 
 - Testing WebDriver vision system functionality
 - Ensuring proper error handling and response formatting
 
-The server tests are organized in the `ServerTests/` directory and include mock objects for isolated testing of individual components without external dependencies.
+The server tests are organized in the `server_tests/` directory and include mock objects for isolated testing of individual components without external dependencies.
 
 #### Integrated Testing Approach
 The dual testing architecture ensures complete coverage of the mathematical visualization system:

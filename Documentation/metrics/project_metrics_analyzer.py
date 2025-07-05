@@ -129,9 +129,9 @@ class ProjectMetricsAnalyzer:
                 file_info['lines'] -= docstring_lines
                 file_info['docstring_lines'] = docstring_lines
             
-            # Count test files from ServerTests and ClientTests directories
+            # Count test files from server_tests and client_tests directories
             relative_path = file_path.relative_to(self.project_root)
-            if any(part in str(relative_path).lower() for part in ['servertests', 'clienttests']):
+            if any(part in str(relative_path).lower() for part in ['server_tests', 'client_tests']):
                 if file_path.suffix.lower() == '.py':  # Only count Python test files
                     self.metrics['test_files'] += 1
                     file_info['is_test_file'] = True

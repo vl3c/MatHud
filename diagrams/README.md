@@ -143,7 +143,7 @@ pip install -r diagrams/diagram_requirements.txt
 - **Function Analysis** - Enhanced function-level visualization:
   - `functions_appmain.svg` (3.3KB) - App.py function analysis
   - `functions_functiondefinitions.svg` - Function definitions analysis
-  - `functions_servertests.svg` - Server test functions
+  - `functions_server_tests.svg` - Server test functions
 - **Dependency Graphs** - Import relationship analysis:
   - `dependencies_main.svg` (19KB) - Complete project dependencies
   - `dependencies_static.svg` (624B) - Static module dependencies

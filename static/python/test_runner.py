@@ -232,12 +232,12 @@ class TestRunner:
     def _run_client_tests(self):
         """Run the client-side tests and return the results."""
         try:
-            from ClientTests.tests import run_tests
+            from client_tests.tests import run_tests
             return run_tests()
         except ImportError as e:
-            print(f"ClientTests import failed: {e}")
+            print(f"client_tests import failed: {e}")
             # Re-raise ImportError to be handled by the calling method
-            raise ImportError(f"ClientTests module not available: {e}")
+            raise ImportError(f"client_tests module not available: {e}")
         
     def _merge_test_results(self, client_results):
         """Merge client test results with internal test results."""
