@@ -114,13 +114,13 @@ Dependencies:
             cache: 'browser',
             static_stdlib_import: true,
             async: true,
-            pythonpath: ['{{ url_for("static", filename="python") }}']
+            pythonpath: ['{{ url_for("static", filename="client") }}']
         });
     }
     </script>
     
     <!-- Main Brython application entry point -->
-    <script type="text/python" src="{{ url_for('static', filename='python/main.py') }}"></script>
+    <script type="text/python" src="{{ url_for('static', filename='client/main.py') }}"></script>
     
     <!-- Vision toggle functionality based on AI model capabilities -->
     <script>

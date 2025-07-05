@@ -9,7 +9,7 @@ Automatically generates comprehensive diagrams for the Brython client-side syste
 - Client-server integration flow diagrams
 - Package structure diagrams
 
-Target Directory: static/Brython-3.11.3/Lib/site-packages/
+Target Directory: static/client/
 Output: generated_png/brython/ and generated_svg/brython/
 
 Dependencies:
@@ -85,7 +85,7 @@ class BrythonDiagramGenerator:
         self.svg_files_processed = 0
         
         # Define the Brython source directory
-        self.brython_source_dir = Path("../../static/Brython-3.11.3/Lib/site-packages").resolve()
+        self.brython_source_dir = Path("../../static/client").resolve()
         
         # System component definitions
         self.drawable_classes = [

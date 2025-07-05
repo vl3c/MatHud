@@ -3610,7 +3610,7 @@ dictionaries that can be sent to the client-side function processing system.
 
 MatHud implements a comprehensive dual-sided testing architecture that mirrors the application's client-server structure. The testing system ensures reliability across both the browser-based mathematical visualization components and the server-side AI integration services.
 
-#### Client-Side Testing (`static/python/client_tests/tests.py`)
+#### Client-Side Testing (`static/client/client_tests/tests.py`)
 The client-side testing framework runs in the browser using Brython and covers all mathematical visualization components. The `Tests` class orchestrates comprehensive testing of:
 - Mathematical utilities and geometric calculations
 - Drawable objects (points, segments, shapes, functions)

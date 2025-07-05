@@ -128,7 +128,7 @@ static/
 ├── ai_model.py                        # AI model configuration utilities
 ├── tool_call_processor.py             # Tool call processing utilities
 ├── style.css                          # Frontend CSS styling
-└── python/                           # Custom Python modules for Brython (moved from Brython-3.11.3/Lib/site-packages/)
+└── client/                           # Custom Python modules for Brython (moved from Brython-3.11.3/Lib/site-packages/)
     # Note: Brython core (3.12.5), Math.js (14.5.2), and Nerdamer (1.1.13) now loaded from CDN
 ```
 
@@ -137,7 +137,7 @@ static/
 templates/
 └── index.html                         # Main HTML template with canvas and chat interface
 
-static/python/
+static/client/
 ├── main.py                            # Brython initialization and entry point
 ├── ai_interface.py                    # AI communication and UI management
 ├── markdown_parser.py                 # Comprehensive markdown parser with LaTeX support
@@ -254,7 +254,7 @@ server_tests/
 
 # Technical Architecture
 
-## Frontend Chat Interface (index.html in `templates/` and `static/python/main.py`)
+## Frontend Chat Interface (index.html in `templates/` and `static/client/main.py`)
 - Simple HTML structure with chat history div, input field, and send button (ID: `send-button`).
 - Chat interface bound to both button click and Enter key events.
 - Vision toggle checkbox for canvas image capture control.
@@ -262,12 +262,12 @@ server_tests/
 - Uses Brython (Python in the browser) for frontend logic, initialized by `main.py`.
 - **MathJax 3.0 Integration**: Automatic LaTeX rendering for mathematical expressions in chat messages.
 - **Comprehensive Markdown Support**: Real-time rendering of headers, lists, tables, code blocks, and formatted text.
-- `static/python/canvas_event_handler.py` manages user interactions with the canvas.
+- `static/client/canvas_event_handler.py` manages user interactions with the canvas.
 
-## AI Interface Layer (`static/python/ai_interface.py`)
+## AI Interface Layer (`static/client/ai_interface.py`)
 - Core class `AIInterface` manages Brython-side communication between UI and backend.
 - Instantiated in `main.py` and receives events from `CanvasEventHandler`.
-- Initializes client-side `WorkspaceManager` (from `static/python/workspace_manager.py`) and `FunctionRegistry`.
+- Initializes client-side `WorkspaceManager` (from `static/client/workspace_manager.py`) and `FunctionRegistry`.
 - **Markdown Integration**: Initializes `MarkdownParser` for comprehensive text formatting and LaTeX rendering.
 - Maintains dictionary of available functions for math operations and canvas manipulation (via `FunctionRegistry`).
 - Handles function call results and maintains state between interactions.
@@ -281,7 +281,7 @@ server_tests/
   - `_create_message_element`: Creates styled message elements with markdown support for chat display.
   - (Workspace operations like `save_workspace` are invoked via function calls processed by `ProcessFunctionCalls` which then use the client-side `WorkspaceManager` instance).
 
-## Client-Side Brython Managers (in `static/python/managers/`)
+## Client-Side Brython Managers (in `static/client/managers/`)
 - A suite of manager classes, running in the Brython environment, handle the detailed logic for canvas objects and operations.
 - **`DrawableManager`**: Central orchestrator for all drawable objects. It coordinates the specialized managers listed below. Instantiated by `Canvas`.
 - **Specialized Drawable Managers**:
@@ -304,7 +304,7 @@ server_tests/
 - These managers are responsible for creating, deleting, updating, and querying drawable objects on the canvas, and are used by `ProcessFunctionCalls` when executing drawing-related function calls.
 
 ## Workspace Management
-- **Client-Side Workspace Interactions (`static/python/workspace_manager.py`)**:
+- **Client-Side Workspace Interactions (`static/client/workspace_manager.py`)**:
   - A `WorkspaceManager` class, instantiated by `AIInterface` and running in Brython.
   - Provides methods (`save_workspace`, `load_workspace`, `list_workspaces`, `delete_workspace`) that make synchronous AJAX calls to the respective Flask backend endpoints (e.g., `/save_workspace`, `/load_workspace`).
   - For `load_workspace`, it receives canvas state from the backend and uses methods like `_restore_workspace_state` to repopulate the Brython-managed canvas by calling appropriate `Canvas` methods.
@@ -337,20 +337,20 @@ server_tests/
   - `LogManager` class handles application logging on the server.
   - Configures session-based log files with timestamped entries in the `logs/` directory.
 
-## Function Call Processing (`static/python/process_function_calls.py`)
+## Function Call Processing (`static/client/process_function_calls.py`)
 - `ProcessFunctionCalls` class (Brython client-side) acts as a **facade pattern** for executing function calls requested by the AI.
 - It is invoked by `AIInterface`'s `_process_ai_response` method.
-- Key static methods:
-  - `get_results`: Delegates to `ResultProcessor` (in `static/python/result_processor.py`) to iterate through tool calls, execute them using the `available_functions` map (from `FunctionRegistry`), and collect results. `ResultProcessor` interacts with `DrawableManager`, specific drawable managers, `Canvas`, client-side `WorkspaceManager`, etc., to perform actions.
-  - `evaluate_expression`: Delegates to `ExpressionEvaluator` (in `static/python/expression_evaluator.py`).
-- `validate_results` and `is_successful_result`: Delegate to `ResultValidator` (in `static/python/result_validator.py`).
+  - Key static methods:
+    - `get_results`: Delegates to `ResultProcessor` (in `static/client/result_processor.py`) to iterate through tool calls, execute them using the `available_functions` map (from `FunctionRegistry`), and collect results. `ResultProcessor` interacts with `DrawableManager`, specific drawable managers, `Canvas`, client-side `WorkspaceManager`, etc., to perform actions.
+  - `evaluate_expression`: Delegates to `ExpressionEvaluator` (in `static/client/expression_evaluator.py`).
+- `validate_results` and `is_successful_result`: Delegate to `ResultValidator` (in `static/client/result_validator.py`).
 - Execution of drawing operations, canvas manipulations, and client-side workspace calls are routed through this system.
 - Undo/redo capabilities are coordinated by `ResultProcessor` potentially interacting with `UndoRedoManager` and `Canvas.archive()`.
 
 ## Canvas System
 - Uses SVG for rendering mathematical objects and functions, manipulated via Brython.
-- The client-side `Canvas` class (in `static/python/canvas.py`) is the core for drawing.
-- It instantiates and uses `DrawableManager` (from `static/python/managers/drawable_manager.py`) to manage all visual elements.
+- The client-side `Canvas` class (in `static/client/canvas.py`) is the core for drawing.
+- It instantiates and uses `DrawableManager` (from `static/client/managers/drawable_manager.py`) to manage all visual elements.
 - `DrawableManager` coordinates specialized managers (e.g., `PointManager`, `SegmentManager`) for creating, updating, and deleting specific geometric shapes and functions.
 - Supports zooming, panning, and coordinate system transformations (handled by `Canvas` and `cartesian_system_2axis.py`).
 - Object state for undo/redo is managed by `UndoRedoManager` in conjunction with `DrawableManager` and `Canvas` (e.g., `Canvas.archive()` for saving states).
@@ -358,8 +358,8 @@ server_tests/
 - Provides canvas state serialization (`Canvas.get_canvas_state()`) for workspace saving and for sending to the backend for vision processing.
 
 ## Geometric Shape Management (Client-Side Brython)
-- Handled on the client-side (Brython) by a suite of specialized manager classes within `static/python/managers/`, coordinated by `DrawableManager`.
-- **Drawable Objects**: Actual drawable classes are defined in `static/python/drawables/` including:
+- Handled on the client-side (Brython) by a suite of specialized manager classes within `static/client/managers/`, coordinated by `DrawableManager`.
+- **Drawable Objects**: Actual drawable classes are defined in `static/client/drawables/` including:
   - `Point`, `Segment`, `Vector`, `Triangle`, `Rectangle`, `Circle`, `Ellipse`, `Angle`, `Function`, `ColoredArea`
   - Additional specialized classes like `FunctionsBoundedColoredArea`, `FunctionSegmentBoundedColoredArea`, `SegmentsBoundedColoredArea`
 - **Points**: Managed by `PointManager`. Create, delete, translate points with coordinates and labels.
