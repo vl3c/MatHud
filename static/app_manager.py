@@ -16,6 +16,7 @@ import os
 import secrets
 from flask import Flask, jsonify
 from flask_session import Session
+from cachelib.file import FileSystemCache
 from dotenv import load_dotenv
 from static.openai_api import OpenAIChatCompletionsAPI
 from static.workspace_manager import WorkspaceManager
@@ -101,7 +102,7 @@ class AppManager:
         Initializes all core managers (logging, AI API, workspace management)
         and registers application routes. WebDriver is initialized separately
         after Flask startup to avoid blocking. Configures session management
-        for authentication in deployed environments.
+        for authentication in deployed environments using modern CacheLib backend.
         
         Returns:
             Flask: Configured Flask application instance
@@ -111,11 +112,17 @@ class AppManager:
         # Load environment variables
         load_dotenv()
         
-        # Configure session management for authentication
+        # Configure session management for authentication using modern CacheLib backend
         app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
-        app.config['SESSION_TYPE'] = 'filesystem'
+        
+        # Create session directory if it doesn't exist
+        session_dir = os.path.join(os.getcwd(), 'flask_session')
+        os.makedirs(session_dir, exist_ok=True)
+        
+        # Modern Flask-Session configuration using CacheLib
+        app.config['SESSION_TYPE'] = 'cachelib'
+        app.config['SESSION_CACHELIB'] = FileSystemCache(cache_dir=session_dir)
         app.config['SESSION_PERMANENT'] = False
-        app.config['SESSION_USE_SIGNER'] = True
         app.config['SESSION_KEY_PREFIX'] = 'mathud:'
         
         # Security settings for deployed environments

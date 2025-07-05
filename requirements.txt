@@ -1,6 +1,7 @@
 openai
 flask
 flask-session
+cachelib
 python-dotenv
 selenium
 geckodriver-autoinstaller
