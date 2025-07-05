@@ -20,7 +20,7 @@ logs/
 flask_session/
 
 # Canvas Snapshots
-CanvasSnapshots/
+canvas_snapshots/
 
 # Environment variables (eg. OPENAI_API_KEY)
 .env
@@ -29,4 +29,4 @@ CanvasSnapshots/
 workspaces/
 diagrams/generated_png/
 diagrams/generated_svg/
-Documentation/metrics/detailed_project_metrics.txt
+documentation/metrics/detailed_project_metrics.txt

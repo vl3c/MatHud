@@ -59,7 +59,7 @@ class ProjectMetricsAnalyzer:
         # Directories to exclude
         self.exclude_dirs = {
             '__pycache__', '.git', 'venv', '.vscode', '.pytest_cache',
-            'logs', 'workspaces', 'CanvasSnapshots', 'generated_svg', 'generated_png'
+            'logs', 'workspaces', 'canvas_snapshots', 'generated_svg', 'generated_png'
         }
     
     def analyze_project(self):

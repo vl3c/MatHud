@@ -150,12 +150,12 @@ class WebDriverManager:
     def capture_canvas(self):
         """Capture the math visualization canvas as a PNG image.
         
-        Takes a screenshot of the math container and saves it to CanvasSnapshots/canvas.png.
+        Takes a screenshot of the math container and saves it to canvas_snapshots/canvas.png.
         Handles element waiting, content verification, and size configuration.
         """
         print("\nStarting capture_canvas...")
         try:
-            snapshots_dir = "CanvasSnapshots"
+            snapshots_dir = "canvas_snapshots"
             if not os.path.exists(snapshots_dir):
                 os.makedirs(snapshots_dir)
             

@@ -384,7 +384,7 @@ class ArchitectureDiagramGenerator:
                         svg_injection = Python("SVG State Injection\ninto Browser DOM")
                         page_setup = Python("Page Layout\n+ Style Application")
                         screenshot = Python("Canvas Screenshot\nCapture (PNG)")
-                        image_save = Python("Save to CanvasSnapshots/\ncanvas.png")
+                        image_save = Python("Save to canvas_snapshots/\ncanvas.png")
                         
                     with Cluster("AI Vision Integration"):
                         image_encoding = Python("Base64 Image\nEncoding")

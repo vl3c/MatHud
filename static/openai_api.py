@@ -171,7 +171,7 @@ class OpenAIChatCompletionsAPI:
             list: Enhanced prompt with text and image data, or None if image loading fails
         """
         try:
-            with open("CanvasSnapshots/canvas.png", "rb") as image_file:
+            with open("canvas_snapshots/canvas.png", "rb") as image_file:
                 image_data = base64.b64encode(image_file.read()).decode('utf-8')
                 ret_val = [
                     {

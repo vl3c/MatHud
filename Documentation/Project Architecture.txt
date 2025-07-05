@@ -107,7 +107,7 @@ MatHud/
 │   └── todo.txt                       # Development tasks and improvements
 ├── logs/                              # Application log files (session-based)
 ├── workspaces/                        # Saved workspace JSON files
-├── CanvasSnapshots/                   # Vision system canvas screenshots
+├── canvas_snapshots/                   # Vision system canvas screenshots
 ├── server_tests/                       # Server-side test files
 ├── templates/                         # HTML templates
 ├── static/                            # Backend Python modules and frontend assets
@@ -239,7 +239,7 @@ server_tests/
 ## Data Directories
 - **`logs/`**: Session-based application logs with timestamps
 - **`workspaces/`**: JSON files containing saved canvas states and metadata
-- **`CanvasSnapshots/`**: PNG screenshots captured by WebDriver for vision processing
+- **`canvas_snapshots/`**: PNG screenshots captured by WebDriver for vision processing
 - **`__pycache__/`**: Python bytecode cache directories throughout the project
 
 ## Architecture Notes
@@ -331,7 +331,7 @@ server_tests/
 - **Vision Image Capture (`static/webdriver_manager.py`)**:
   - `WebDriverManager` class uses Selenium WebDriver (headless Firefox) to capture canvas images.
   - Instantiated by `AppManager` (initialization triggered via `/init_webdriver` route if needed).
-  - `capture_svg_state` method: Receives SVG content and dimensions from the client (via `routes.py`), loads this into the headless browser, and takes a screenshot, saving it to `CanvasSnapshots/canvas.png`.
+  - `capture_svg_state` method: Receives SVG content and dimensions from the client (via `routes.py`), loads this into the headless browser, and takes a screenshot, saving it to `canvas_snapshots/canvas.png`.
   - Handles WebDriver setup, page configuration, and cleanup.
 - **Server-Side Logging (`static/log_manager.py`)**:
   - `LogManager` class handles application logging on the server.
@@ -394,9 +394,9 @@ server_tests/
     1. It ensures `WebDriverManager` is initialized.
     2. It calls `app.webdriver_manager.capture_svg_state(svg_state)`.
     3. `WebDriverManager` uses Selenium to launch a headless Firefox browser, injects the received `svg_state` (content, dimensions, viewBox, transform) into the `math-svg` element of the application's page loaded in the headless browser, and adjusts container styles.
-    4. A screenshot of the relevant math container div is taken and saved as `CanvasSnapshots/canvas.png`.
+    4. A screenshot of the relevant math container div is taken and saved as `canvas_snapshots/canvas.png`.
 - **AI Processing**: 
-  - `OpenAIChatCompletionsAPI` (server-side), when preparing the call to OpenAI and if vision is active for the request, reads `CanvasSnapshots/canvas.png`, encodes it (e.g., base64), and includes it in the multimodal prompt to the OpenAI API.
+  - `OpenAIChatCompletionsAPI` (server-side), when preparing the call to OpenAI and if vision is active for the request, reads `canvas_snapshots/canvas.png`, encodes it (e.g., base64), and includes it in the multimodal prompt to the OpenAI API.
 - **Contextual Analysis**: The AI then analyzes both the textual prompt (user message, previous calculations from canvas state) and the visual context from the canvas image.
 - **Error Handling**: If image capture fails, the vision step might be skipped, and the AI would proceed with text-only context, or an error is reported.
 
@@ -409,7 +409,7 @@ server_tests/
    a. Receives JSON prompt and `svg_state`.
    b. If `use_vision` is true:
       i. Ensures `WebDriverManager` is initialized.
-      ii. Calls `app.webdriver_manager.capture_svg_state(svg_state)` to save `CanvasSnapshots/canvas.png`.
+      ii. Calls `app.webdriver_manager.capture_svg_state(svg_state)` to save `canvas_snapshots/canvas.png`.
    c. Calls `app.ai_api.create_chat_completion` (from `static/openai_api.py`) with the user message, (path to) image if vision, and conversation history.
    d. `OpenAIChatCompletionsAPI` makes a call to OpenAI.
    e. OpenAI response (text, and/or tool_calls) is returned to `routes.py`.
