@@ -15,44 +15,6 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Workspace management for saving and loading states
 - Comprehensive chat interface with rich markdown support and LaTeX mathematical notation rendering
 
-## Authentication (Deployed Environments)
-
-When MatHud is deployed to production environments, it includes a simple access code authentication system to protect the AI chat functionality.
-
-### Configuration
-
-1. Create a `.env` file in the project root with the following variables:
-
-```env
-# OpenAI API Configuration
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Authentication Configuration (for deployed environments)
-# Can be alphanumeric (letters, numbers, special characters)
-AUTH_PIN=your_chosen_access_code_here
-
-# Enable authentication in development mode (optional)
-# Set to true/1/yes to require authentication even in local development
-REQUIRE_AUTH=true
-```
-
-2. The authentication system automatically activates when the `PORT` environment variable is set (indicating deployment mode).
-
-### Behavior
-
-- **Development Mode** (no `PORT` env var): No authentication required by default, direct access to the application
-- **Development Mode with Auth** (`REQUIRE_AUTH=true`): Access code authentication required for testing in local development
-- **Deployed Mode** (`PORT` env var set): Access code authentication required before accessing the mathematical canvas
-
-### Security Features
-
-- Session-based authentication with secure cookie settings
-- Access code protection for all application routes and API endpoints
-- **Rate limiting**: Only 1 login attempt per IP address every 5 seconds
-- **Timing attack protection**: Constant-time string comparison for access codes
-- Automatic logout functionality in the deployed interface
-- Environment-based configuration management
-
 ## Architecture Overview
 
 MatHud is a client-server web application with the following key architectural components:
@@ -65,30 +27,6 @@ MatHud is a client-server web application with the following key architectural c
     -   Mathematical calculations and expression evaluation. Symbolic operations (calculus, equation solving) are primarily handled client-side via Brython interfacing with JavaScript libraries like `nerdamer.js` (for symbolic algebra) and `math.js` (for expression evaluation).
     -   Management of geometric shapes and drawings on the SVG canvas.
     -   Client-side and server-side workspace management for saving and loading user sessions.
-
-## Vision Mechanism
-
-The application includes a visual understanding system that allows the AI to analyze both drawn elements and real-world mathematical scenarios. This enhances problem-solving by providing visual context to the AI.
-
-1.  **How it Works (High-Level)**:
-    *   When visual context is needed, the user's current canvas drawing (as SVG data) is sent from the browser to the application server.
-    *   The server uses a headless browser (via Selenium WebDriver) to render this SVG data and capture a pixel image (PNG) of the canvas.
-    *   This captured image is then sent to a vision-capable AI model along with the textual part of the user's query and relevant mathematical context.
-    *   The AI processes both the visual information from the image and the textual data to provide a more comprehensive analysis or solution.
-
-2.  **Key Components Involved**:
-    *   **Client-Side (Browser)**: Captures the SVG state of the canvas and sends it to the server when vision is enabled.
-    *   **Server-Side (Python/Flask)**: 
-        *   Receives the SVG state.
-        *   Uses `WebDriverManager` (a custom module employing Selenium) to control a headless Firefox instance, load the SVG, and take a screenshot.
-        *   The `OpenAIChatCompletionsAPI` module then includes this image in the request to the AI.
-
-3.  **Benefits**:
-    *   Allows the AI to "see" and interpret user-drawn diagrams and mathematical constructions.
-    *   Practical problem-solving in real-world contexts.
-    *   Dynamic visualization of mathematical concepts.
-    *   Enhanced pattern recognition and analysis.
-    *   Bridge between theoretical and applied mathematics.
 
 ## Installation
 
@@ -218,6 +156,93 @@ For local development, the application runs without authentication by default. T
    # Or rely on the automatic installer (recommended)
    ```
 
+## Authentication (Deployed Environments)
+
+When MatHud is deployed to production environments, it includes a simple access code authentication system to protect the AI chat functionality.
+
+### Configuration
+
+1. Create a `.env` file in the project root with the following variables:
+
+```env
+# OpenAI API Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Authentication Configuration (for deployed environments)
+# Can be alphanumeric (letters, numbers, special characters)
+AUTH_PIN=your_chosen_access_code_here
+
+# Enable authentication in development mode (optional)
+# Set to true/1/yes to require authentication even in local development
+REQUIRE_AUTH=true
+```
+
+2. The authentication system automatically activates when the `PORT` environment variable is set (indicating deployment mode).
+
+### Behavior
+
+- **Development Mode** (no `PORT` env var): No authentication required by default, direct access to the application
+- **Development Mode with Auth** (`REQUIRE_AUTH=true`): Access code authentication required for testing in local development
+- **Deployed Mode** (`PORT` env var set): Access code authentication required before accessing the mathematical canvas
+
+### Security Features
+
+- Session-based authentication with secure cookie settings
+- Access code protection for all application routes and API endpoints
+- **Rate limiting**: Only 1 login attempt per IP address every 5 seconds
+- **Timing attack protection**: Constant-time string comparison for access codes
+- Automatic logout functionality in the deployed interface
+- Environment-based configuration management
+
+## Testing
+
+MatHud has both server-side and client-side tests to ensure functionality works as expected.
+
+### Server-Side Tests
+
+Run all server-side tests with:
+
+```sh
+python run_server_tests.py
+```
+
+### Client-Side Tests
+
+Client-side tests run in the browser using Brython's unittest implementation. These tests verify the mathematical functions, drawing capabilities, and other client-side features.
+
+You can run client-side tests directly from the AI interface by asking the AI to run tests. The AI has access to a special function that executes all client-side tests and returns the results.
+
+Example AI prompt:
+```
+Can you run the client-side tests and tell me if there are any failures?
+```
+
+This integration allows for convenient testing of the browser-based components without leaving the application.
+
+## Vision Mechanism
+
+The application includes a visual understanding system that allows the AI to analyze both drawn elements and real-world mathematical scenarios. This enhances problem-solving by providing visual context to the AI.
+
+1.  **How it Works (High-Level)**:
+    *   When visual context is needed, the user's current canvas drawing (as SVG data) is sent from the browser to the application server.
+    *   The server uses a headless browser (via Selenium WebDriver) to render this SVG data and capture a pixel image (PNG) of the canvas.
+    *   This captured image is then sent to a vision-capable AI model along with the textual part of the user's query and relevant mathematical context.
+    *   The AI processes both the visual information from the image and the textual data to provide a more comprehensive analysis or solution.
+
+2.  **Key Components Involved**:
+    *   **Client-Side (Browser)**: Captures the SVG state of the canvas and sends it to the server when vision is enabled.
+    *   **Server-Side (Python/Flask)**: 
+        *   Receives the SVG state.
+        *   Uses `WebDriverManager` (a custom module employing Selenium) to control a headless Firefox instance, load the SVG, and take a screenshot.
+        *   The `OpenAIChatCompletionsAPI` module then includes this image in the request to the AI.
+
+3.  **Benefits**:
+    *   Allows the AI to "see" and interpret user-drawn diagrams and mathematical constructions.
+    *   Practical problem-solving in real-world contexts.
+    *   Dynamic visualization of mathematical concepts.
+    *   Enhanced pattern recognition and analysis.
+    *   Bridge between theoretical and applied mathematics.
+
 ## Diagram Generation
 
 MatHud includes a comprehensive diagram generation system for visualizing the codebase architecture and dependencies. This system automatically creates UML class diagrams, package diagrams, dependency graphs, and Flask route documentation.
@@ -251,30 +276,4 @@ All diagrams are automatically generated in both formats and saved to:
 
 For detailed setup and usage instructions, see:
 - [`diagrams/README.md`](diagrams/README.md) - Complete setup guide
-- [`diagrams/WORKFLOW_SUMMARY.md`](diagrams/WORKFLOW_SUMMARY.md) - Quick reference
-
-## Testing
-
-MatHud has both server-side and client-side tests to ensure functionality works as expected.
-
-### Server-Side Tests
-
-Run all server-side tests with:
-
-```sh
-python run_server_tests.py
-```
-
-### Client-Side Tests
-
-Client-side tests run in the browser using Brython's unittest implementation. These tests verify the mathematical functions, drawing capabilities, and other client-side features.
-
-You can run client-side tests directly from the AI interface by asking the AI to run tests. The AI has access to a special function that executes all client-side tests and returns the results.
-
-Example AI prompt:
-```
-Can you run the client-side tests and tell me if there are any failures?
-```
-
-This integration allows for convenient testing of the browser-based components without leaving the application.
-
+- [`diagrams/WORKFLOW_SUMMARY.md`](diagrams/WORKFLOW_SUMMARY.md) - Quick reference 
