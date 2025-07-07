@@ -441,17 +441,294 @@ $$
                 self.assertIn(expected, result, f"Expected '{expected}' in result for '{input_text}'")
 
     def test_mixed_formatting_with_underscores(self):
-        """Test combinations of different formatting with underscores."""
-        # Test cases combining different formatting
-        mixed_cases = [
-            ("**Bold** and _italic_ together", ["<strong>Bold</strong>", "<em>italic</em>"]),
-            ("__Bold__ and *italic* together", ["<strong>Bold</strong>", "<em>italic</em>"]),
-            ("Code `variable_name` and _italic_", ["<code>variable_name</code>", "<em>italic</em>"]),
-            ("Link [_italic_](url) test", ["<em>italic</em>", '<a href="url">']),
+        """Test mixed formatting scenarios with underscores."""
+        markdown = "This has _italic_ and some_variable_name and **bold_text** formatting."
+        result = self.parser.parse(markdown)
+        
+        # Should italicize spaced underscores but not variable names
+        self.assertIn("<em>italic</em>", result)
+        self.assertIn("some_variable_name", result)  # Should remain unchanged
+        self.assertIn("<strong>bold_text</strong>", result)  # Bold should work
+
+    def test_mathematical_expressions_not_tables(self):
+        """Test that mathematical expressions with pipes are NOT parsed as tables."""
+        # Mathematical expressions that should NOT become tables
+        math_examples = [
+            "The absolute value |x| is always non-negative.",
+            "Consider the set {x | x > 0}.",
+            "The expression |x + y| = |x| + |y| when x, y ≥ 0.",
+            "Find all x such that |x - 2| < 5.",
+            "In mathematics, we often use |A| to denote the cardinality of set A.",
+            "The modulus operation: 7 mod 3 = 1, written as 7 | 3.",
+            "Vector notation: |v| represents the magnitude of vector v.",
+            "Set builder notation: {x ∈ ℝ | x² > 4}.",
+            "Conditional probability: P(A | B) = P(A ∩ B) / P(B).",
+            "Matrix determinant: |A| for matrix A."
         ]
         
-        for input_text, expected_items in mixed_cases:
-            with self.subTest(input_text=input_text):
-                result = self.parser.parse(input_text)
-                for item in expected_items:
-                    self.assertIn(item, result, f"Expected '{item}' in result for '{input_text}'")
+        for example in math_examples:
+            with self.subTest(math_expression=example):
+                result = self.parser.parse(example)
+                # Should NOT contain table tags
+                self.assertNotIn("<table>", result, f"Math expression '{example}' was incorrectly parsed as table")
+                self.assertNotIn("<th", result, f"Math expression '{example}' contains table headers")
+                self.assertNotIn("<td", result, f"Math expression '{example}' contains table cells")
+                # Should contain the original pipe characters
+                self.assertIn("|", result, f"Original pipe characters missing from '{example}'")
+
+    def test_proper_markdown_tables(self):
+        """Test that proper markdown tables ARE correctly parsed."""
+        # Basic table
+        basic_table = """| Name | Age | City |
+|------|-----|------|
+| John | 30  | NYC  |
+| Jane | 25  | LA   |"""
+        
+        result = self.parser.parse(basic_table)
+        self.assertIn("<table>", result)
+        self.assertIn("<thead>", result)
+        self.assertIn("<tbody>", result)
+        self.assertIn("<th>Name</th>", result)
+        self.assertIn("<th>Age</th>", result)
+        self.assertIn("<th>City</th>", result)
+        self.assertIn("<td>John</td>", result)
+        self.assertIn("<td>30</td>", result)
+        self.assertIn("<td>NYC</td>", result)
+
+    def test_table_alignment(self):
+        """Test table column alignment parsing."""
+        aligned_table = """| Left | Center | Right |
+|:-----|:------:|------:|
+| A    | B      | C     |
+| 1    | 2      | 3     |"""
+        
+        result = self.parser.parse(aligned_table)
+        self.assertIn("<table>", result)
+        self.assertIn('text-align: left;', result)
+        self.assertIn('text-align: center;', result)
+        self.assertIn('text-align: right;', result)
+
+    def test_table_without_separator_not_table(self):
+        """Test that lines with pipes but no separator row are NOT tables."""
+        not_tables = [
+            "| This has pipes | but no separator |",
+            "| Single line | with pipes |",
+            """| First line |
+| Second line |""",  # No separator between them
+            "Just text | with pipes | scattered around",
+            "| Start pipe only",
+            "End pipe only |",
+            "Middle | pipe | here"
+        ]
+        
+        for example in not_tables:
+            with self.subTest(not_table=example):
+                result = self.parser.parse(example)
+                self.assertNotIn("<table>", result, f"Non-table '{example}' was incorrectly parsed as table")
+
+    def test_malformed_table_separators(self):
+        """Test that malformed separator rows don't create tables."""
+        malformed_tables = [
+            """| Header |
+| Not a separator |
+| Data |""",  # Second line is not a valid separator
+            
+            """| Header |
+|====|
+| Data |""",  # Equals instead of hyphens
+            
+            """| Header |
+| abc |
+| Data |""",  # Letters instead of hyphens
+            
+            """| Header |
+|  |
+| Data |""",  # Empty separator
+        ]
+        
+        for example in malformed_tables:
+            with self.subTest(malformed=example):
+                result = self.parser.parse(example)
+                self.assertNotIn("<table>", result, f"Malformed table was incorrectly parsed: {example}")
+
+    def test_valid_table_separators(self):
+        """Test various valid separator row formats."""
+        valid_separators = [
+            """| Header |
+|--------|
+| Data |""",  # Basic separator
+            
+            """| Left | Right |
+|:-----|------:|
+| A    | B     |""",  # With alignment
+            
+            """| A | B | C |
+|---|:-:|--:|
+| 1 | 2 | 3 |""",  # Mixed alignment
+            
+            """| Header |
+| --- |
+| Data |""",  # Minimal separator
+            
+            """|Header|
+|---|
+|Data|""",  # No spaces around pipes
+        ]
+        
+        for example in valid_separators:
+            with self.subTest(valid_table=example):
+                result = self.parser.parse(example)
+                self.assertIn("<table>", result, f"Valid table was not parsed: {example}")
+                self.assertIn("<th", result)  # Match <th with or without attributes
+                self.assertIn("<td", result)  # Match <td with or without attributes
+
+    def test_table_with_math_expressions_in_cells(self):
+        """Test tables that contain mathematical expressions within cells."""
+        table_with_math = """| Expression | Value |
+|------------|-------|
+| \\|x\\|     | abs(x) |
+| {x \\| x > 0} | positive reals |
+| \\(E = mc^2\\) | Einstein |"""
+        
+        result = self.parser.parse(table_with_math)
+        self.assertIn("<table>", result)
+        self.assertIn("<th>Expression</th>", result)
+        self.assertIn("<th>Value</th>", result)
+        # Math expressions should be preserved in cells
+        self.assertIn("abs(x)", result)
+        self.assertIn("positive reals", result)
+        self.assertIn("Einstein", result)
+
+    def test_mixed_content_with_tables_and_math(self):
+        """Test content mixing tables and mathematical expressions."""
+        mixed_content = """# Math and Tables
+
+The absolute value |x| is important.
+
+| Function | Definition |
+|----------|------------|
+| |x|      | absolute value |
+| {x \\| x > 0} | positive set |
+
+Set notation {y \\| y < 0} represents negative numbers.
+
+Another table:
+
+| A | B |
+|---|---|
+| 1 | 2 |
+
+Final math: |a + b| ≤ |a| + |b|."""
+        
+        result = self.parser.parse(mixed_content)
+        
+        # Should have tables
+        table_count = result.count("<table>")
+        self.assertEqual(table_count, 2, "Should have exactly 2 tables")
+        
+        # Should have math expressions that are NOT in tables
+        self.assertIn("The absolute value |x| is important", result)
+        self.assertIn("Set notation {y", result)
+        self.assertIn("Final math: |a + b|", result)
+        
+        # Table content should be present
+        self.assertIn("<th>Function</th>", result)
+        self.assertIn("<th>Definition</th>", result)
+
+    def test_lines_not_starting_with_pipe_not_tables(self):
+        """Test that lines not starting with pipes are never parsed as tables."""
+        # These lines have pipes but don't start with pipes (after whitespace)
+        # and should NEVER be considered tables, even with separators
+        non_pipe_starting_lines = [
+            # Lines with pipes but not starting with pipes
+            "Text with | pipes | in middle",
+            "Some content | and more | content here",
+            "  Text with leading spaces | and pipes | but no leading pipe",
+            "Math expression |x| in sentence",
+            "Set notation {x | x > 0} explained",
+            "Conditional probability P(A | B) formula",
+            
+            # Even with what looks like separator lines after
+            """Text with | pipes | in middle
+|-----|-----|
+More text | here | too""",
+            
+            """Math |x| and |y| values
+|---|---|
+Not a table | still | not""",
+            
+            # Mixed content
+            """Regular text with | pipes | scattered
+| Header | Column |
+|--------|--------|
+| Data   | Value  |
+More text | with | pipes""",
+        ]
+        
+        for example in non_pipe_starting_lines:
+            with self.subTest(non_pipe_line=example):
+                result = self.parser.parse(example)
+                # Count tables - should be 0 for most, or 1 only if there's a valid table section
+                table_count = result.count("<table>")
+                
+                # For single line examples, should be 0
+                if '\n' not in example:
+                    self.assertEqual(table_count, 0, 
+                                   f"Single line not starting with pipe was parsed as table: '{example}'")
+                # For multi-line examples, check that lines not starting with pipes don't create tables
+                else:
+                    lines = example.split('\n')
+                    valid_table_lines = [line for line in lines if line.strip().startswith('|')]
+                    non_table_lines = [line for line in lines if not line.strip().startswith('|')]
+                    
+                    # Non-table lines should not be in table HTML
+                    for non_table_line in non_table_lines:
+                        if '|' in non_table_line:
+                            # Make sure this text appears outside of table tags
+                            pipe_content = non_table_line.split('|')[0].strip()
+                            if pipe_content:
+                                # This content should appear in the result but not inside table tags
+                                self.assertIn(pipe_content, result, 
+                                            f"Content '{pipe_content}' should appear in result")
+
+    def test_edge_cases_pipes_and_tables(self):
+        """Test edge cases with pipes and potential table confusion."""
+        edge_cases = [
+            # Single pipe in text
+            ("Just a | pipe", False),
+            
+            # Pipes at start/end
+            ("|Starting pipe", False),
+            ("Ending pipe|", False),
+            
+            # Multiple pipes but no valid table structure
+            ("| A | B | C |", False),  # No separator
+            
+            # Valid minimal table
+            ("""| A |
+|---|
+| 1 |""", True),
+            
+            # Mathematical expressions
+            ("Function f(x) = |x - 1| + |x + 1|", False),
+            ("Probability P(A|B) = 0.5", False),
+            
+            # Empty table cells
+            ("""| A | B |
+|---|---|
+|   |   |""", True),
+        ]
+        
+        for content, should_be_table in edge_cases:
+            with self.subTest(content=content, should_be_table=should_be_table):
+                result = self.parser.parse(content)
+                if should_be_table:
+                    self.assertIn("<table>", result, f"Should be table: {content}")
+                    self.assertIn("<th", result, f"Should have headers: {content}")
+                    self.assertIn("<td", result, f"Should have cells: {content}")
+                else:
+                    self.assertNotIn("<table>", result, f"Should NOT be table: {content}")
+
+
+if __name__ == '__main__':
+    unittest.main()

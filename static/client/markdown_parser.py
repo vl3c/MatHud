@@ -16,6 +16,7 @@ A comprehensive markdown parser that supports:
 - Mathematical expressions (LaTeX: \(...\) for inline, $$...$$ for block)
 """
 
+import re
 
 class MarkdownParser:
     """Custom markdown parser optimized for chat interface display."""
@@ -114,88 +115,174 @@ class MarkdownParser:
             return text.replace('\n', '<br>')
     
     def _process_tables(self, text):
-        """Process markdown tables."""
-        try:
-            lines = text.split('\n')
-            result_lines = []
-            in_table = False
-            table_lines = []
+        """Process markdown tables using proper GFM table parsing algorithm."""
+        lines = text.split('\n')
+        result_lines = []
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i]
             
-            for i, line in enumerate(lines):
-                # Check if this might be a table line (contains |)
-                if '|' in line.strip() and line.strip() != '':
-                    # Check if next line is a separator (contains | and -)
-                    is_header = False
-                    if i + 1 < len(lines):
-                        next_line = lines[i + 1].strip()
-                        if '|' in next_line and '-' in next_line:
-                            is_header = True
-                    
-                    if not in_table:
-                        in_table = True
-                        table_lines = []
-                    
-                    table_lines.append((line, is_header))
-                    
-                    # Skip the separator line
-                    if is_header and i + 1 < len(lines):
-                        continue
+            # Check if this could be start of a table - must start with pipe
+            if line.strip().startswith('|') and line.strip():
+                # Look ahead to see if next line is a delimiter
+                if i + 1 < len(lines):
+                    next_line = lines[i + 1]
+                    if self._is_delimiter_row(next_line):
+                        # Found table start - collect all table rows
+                        table_lines = [line, next_line]
+                        j = i + 2
                         
-                else:
-                    # Not a table line
-                    if in_table:
-                        # Process the collected table
+                        # Collect data rows - must also start with pipe
+                        while j < len(lines):
+                            if lines[j].strip().startswith('|') and lines[j].strip():
+                                table_lines.append(lines[j])
+                                j += 1
+                            else:
+                                break
+                        
+                        # Process the table
                         table_html = self._build_table_html(table_lines)
                         result_lines.append(table_html)
-                        in_table = False
-                        table_lines = []
-                    
-                    result_lines.append(line)
+                        i = j
+                        continue
             
-            # Handle table at end of text
-            if in_table and table_lines:
-                table_html = self._build_table_html(table_lines)
-                result_lines.append(table_html)
-            
-            return '\n'.join(result_lines)
-            
-        except Exception as e:
-            print(f"Error processing tables: {e}")
-            return text
+            # Not a table - add line as is
+            result_lines.append(line)
+            i += 1
+        
+        return '\n'.join(result_lines)
     
     def _build_table_html(self, table_lines):
-        """Build HTML table from markdown table lines."""
-        try:
-            if not table_lines:
-                return ''
-            
-            html = '<table>'
-            
-            for line_data in table_lines:
-                line, is_header = line_data
-                # Parse table row
-                cells = [cell.strip() for cell in line.split('|')]
-                # Remove empty cells at start/end
-                if cells and cells[0] == '':
-                    cells = cells[1:]
-                if cells and cells[-1] == '':
-                    cells = cells[:-1]
-                
-                if cells:
-                    tag = 'th' if is_header else 'td'
+        """Build HTML table from table lines."""
+        if len(table_lines) < 2:
+            return '\n'.join(table_lines)
+        
+        header_line = table_lines[0]
+        delimiter_line = table_lines[1]
+        data_lines = table_lines[2:] if len(table_lines) > 2 else []
+        
+        # Parse header
+        header_cells = self._parse_table_row(header_line)
+        if not header_cells:
+            return '\n'.join(table_lines)
+        
+        # Parse alignments
+        alignments = self._parse_alignments(delimiter_line)
+        
+        # Build HTML - no internal newlines to avoid extra spacing
+        html = '<table><thead><tr>'
+        for i, cell in enumerate(header_cells):
+            align = alignments[i] if i < len(alignments) else ''
+            align_attr = f' style="text-align: {align};"' if align else ''
+            html += f'<th{align_attr}>{cell}</th>'
+        html += '</tr></thead>'
+        
+        # Process data rows
+        if data_lines:
+            html += '<tbody>'
+            for data_line in data_lines:
+                data_cells = self._parse_table_row(data_line)
+                if data_cells:
                     html += '<tr>'
-                    for cell in cells:
-                        # Process inline markdown in table cells
-                        cell_content = self._process_inline_markdown(cell)
-                        html += f'<{tag}>{cell_content}</{tag}>'
+                    for i, cell in enumerate(data_cells):
+                        align = alignments[i] if i < len(alignments) else ''
+                        align_attr = f' style="text-align: {align};"' if align else ''
+                        html += f'<td{align_attr}>{cell}</td>'
                     html += '</tr>'
+            html += '</tbody>'
+        
+        html += '</table>'
+        return html
+    
+    def _is_delimiter_row(self, line):
+        """Check if a line is a valid table delimiter row."""
+        # Delimiter row must start with | (after whitespace)
+        line = line.strip()
+        if not line.startswith('|'):
+            return False
             
-            html += '</table>'
-            return html
+        # Remove leading/trailing pipes
+        if line.startswith('|'):
+            line = line[1:]
+        if line.endswith('|'):
+            line = line[:-1]
+        
+        # Split by pipes and check each cell
+        cells = [cell.strip() for cell in line.split('|')]
+        
+        # Must have at least one valid delimiter cell
+        valid_cell_count = 0
+        for cell in cells:
+            if not cell:
+                # Empty cells are allowed but don't count toward validity
+                continue
+            # Must be hyphens with optional colons for alignment
+            if re.match(r'^:?-+:?$', cell):
+                valid_cell_count += 1
+            else:
+                return False  # Invalid delimiter character
+        
+        # Must have at least one valid delimiter cell
+        return valid_cell_count > 0
+    
+    def _parse_table_row(self, line):
+        """Parse a table row and return cell contents."""
+        # Remove leading/trailing whitespace
+        line = line.strip()
+        
+        # Remove leading/trailing pipes if present
+        if line.startswith('|'):
+            line = line[1:]
+        if line.endswith('|'):
+            line = line[:-1]
+        
+        # Split by pipes and process each cell
+        cells = [cell.strip() for cell in line.split('|')]
+        
+        # Process inline markdown in each cell
+        processed_cells = []
+        for cell in cells:
+            if cell:
+                # Process inline markdown (bold, italic, etc.)
+                processed_cell = self._process_inline_markdown(cell)
+                processed_cells.append(processed_cell)
+            else:
+                processed_cells.append('')
+        
+        return processed_cells
+    
+    def _parse_alignments(self, delimiter_line):
+        """Parse column alignments from delimiter row."""
+        # Remove leading/trailing whitespace and optional pipes
+        line = delimiter_line.strip()
+        if line.startswith('|'):
+            line = line[1:]
+        if line.endswith('|'):
+            line = line[:-1]
+        
+        # Split by pipes and determine alignment for each column
+        cells = [cell.strip() for cell in line.split('|')]
+        alignments = []
+        
+        for cell in cells:
+            if not cell:
+                alignments.append('')
+                continue
+                
+            starts_with_colon = cell.startswith(':')
+            ends_with_colon = cell.endswith(':')
             
-        except Exception as e:
-            print(f"Error building table HTML: {e}")
-            return ''
+            if starts_with_colon and ends_with_colon:
+                alignments.append('center')
+            elif starts_with_colon:
+                alignments.append('left')
+            elif ends_with_colon:
+                alignments.append('right')
+            else:
+                alignments.append('')
+        
+        return alignments
     
     def _is_list_item(self, line):
         """Check if a line is a list item (ordered, unordered, or checkbox)."""
