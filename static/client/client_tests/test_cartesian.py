@@ -2,12 +2,31 @@ import unittest
 from geometry import Point, Position
 from cartesian_system_2axis import Cartesian2Axis
 from .simple_mock import SimpleMock
+from coordinate_mapper import CoordinateMapper
 
 
 class TestCartesian2Axis(unittest.TestCase):
     def setUp(self):
-        self.canvas = SimpleMock(width=800, height=600, center=Position(400, 300), scale_factor=1, cartesian2axis=None, \
-                                 zoom_direction=0, offset=Position(10, 10), zoom_point=Position(0, 0), zoom_step=0.1)
+        # Create a real CoordinateMapper instance
+        self.coordinate_mapper = CoordinateMapper(800, 600)  # 800x600 canvas
+        
+        # Create canvas mock with all properties that CoordinateMapper needs
+        self.canvas = SimpleMock(
+            width=800,  # Required by sync_from_canvas
+            height=600,  # Required by sync_from_canvas
+            scale_factor=1, 
+            center=Position(400, 300),  # Canvas center
+            cartesian2axis=None,  # Will be set after creating cartesian system
+            coordinate_mapper=self.coordinate_mapper,
+            zoom_direction=0, 
+            offset=Position(0, 0),  # Set to (0,0) for simpler tests
+            zoom_point=Position(0, 0), 
+            zoom_step=0.1
+        )
+        
+        # Sync canvas state with coordinate mapper
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        
         self.cartesian_system = Cartesian2Axis(canvas=self.canvas)
         self.canvas.cartesian2axis = self.cartesian_system
         self.cartesian_system.origin = Point(x=0, y=0, canvas=self.canvas, name="o")
@@ -16,8 +35,9 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertEqual(self.cartesian_system.name, "cartesian-2axis-system")
         self.assertEqual(self.cartesian_system.width, self.canvas.width)
         self.assertEqual(self.cartesian_system.height, self.canvas.height)
-        self.assertEqual(self.cartesian_system.origin.x, self.canvas.center.x)
-        self.assertEqual(self.cartesian_system.origin.y, self.canvas.center.y)
+        # With real coordinate mapper, origin Point(0,0) in math space -> (400,300) in screen space
+        self.assertEqual(self.cartesian_system.origin.x, 400)
+        self.assertEqual(self.cartesian_system.origin.y, 300)
         self.assertEqual(self.cartesian_system.current_tick_spacing, self.cartesian_system.default_tick_spacing)
 
     def test_get_visible_bounds(self):
@@ -52,8 +72,9 @@ class TestCartesian2Axis(unittest.TestCase):
         self.cartesian_system.reset()
         # Testing reset functionality
         self.assertEqual(self.cartesian_system.current_tick_spacing, self.cartesian_system.default_tick_spacing)
-        self.assertEqual(self.cartesian_system.origin.x, self.canvas.center.x)
-        self.assertEqual(self.cartesian_system.origin.y, self.canvas.center.y)
+        # Reset should place origin back at canvas center (400, 300)
+        self.assertEqual(self.cartesian_system.origin.x, 400)
+        self.assertEqual(self.cartesian_system.origin.y, 300)
 
     def test_calculate_tick_spacing(self):
         # Set up a Cartesian2Axis object with a specific width, max_ticks, and canvas scale factor
@@ -96,10 +117,15 @@ class TestCartesian2Axis(unittest.TestCase):
 
     def test_pan(self):
         original_origin = Position(self.cartesian_system.origin.x, self.cartesian_system.origin.y)
+        # Set a non-zero offset to test panning
+        self.canvas.offset = Position(10, 5)
         self.cartesian_system.pan()
         # Verifying that the origin has been moved according to the canvas offset
         self.assertNotEqual(self.cartesian_system.origin.x, original_origin.x)
         self.assertNotEqual(self.cartesian_system.origin.y, original_origin.y)
+        # Verify specific offset values
+        self.assertEqual(self.cartesian_system.origin.x, original_origin.x + 10)
+        self.assertEqual(self.cartesian_system.origin.y, original_origin.y + 5)
 
     def test_state_retrieval(self):
         state = self.cartesian_system.get_state()
