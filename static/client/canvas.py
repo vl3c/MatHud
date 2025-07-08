@@ -25,13 +25,15 @@ Dependencies:
     - browser.document: DOM manipulation for SVG rendering
     - geometry: Geometric object definitions (Point, Position, etc.)
     - cartesian_system_2axis: Coordinate grid system
+    - coordinate_mapper: Coordinate transformation management
     - utils.*: Mathematical, styling, and geometry utilities
     - managers.*: Specialized management components
 """
 
 from browser import document
-from geometry import Point, Position
+from geometry import Point
 from cartesian_system_2axis import Cartesian2Axis
+from coordinate_mapper import CoordinateMapper
 from utils.math_utils import MathUtils
 from utils.style_utils import StyleUtils
 from utils.geometry_utils import GeometryUtils
@@ -50,13 +52,20 @@ class Canvas:
     Attributes:
         width (float): Canvas viewport width in pixels
         height (float): Canvas viewport height in pixels
-        center (Position): Current viewport center point
-        scale_factor (float): Current zoom level (1.0 = normal)
+        coordinate_mapper (CoordinateMapper): Centralized coordinate transformation service
         computations (list): History of mathematical computations performed
         cartesian2axis (Cartesian2Axis): Coordinate grid system
         drawable_manager (DrawableManager): Manages all geometric objects
         undo_redo_manager (UndoRedoManager): Handles state archiving/restoration
         transformations_manager (TransformationsManager): Manages object transformations
+        
+    Legacy Properties (delegated to coordinate_mapper):
+        center (Position): Current viewport center point
+        scale_factor (float): Current zoom level (1.0 = normal)
+        offset (Position): Current pan offset
+        zoom_point (Position): Center point for zoom operations
+        zoom_direction (int): Current zoom direction (-1=in, 1=out, 0=none)
+        zoom_step (float): Zoom increment per step
     """
     def __init__(self, width, height, draw_enabled=True):
         """Initialize the mathematical canvas with specified dimensions.
@@ -71,16 +80,17 @@ class Canvas:
         self.computations = []  # Store computation history
         self.width = width
         self.height = height
-        self.center = Position(self.width / 2, self.height / 2)
-        self.scale_factor = 1  # no scaling
-        self.zoom_point = Position(0, 0)  # Default zoom point is at origin
-        self.zoom_direction = 0  # no zoom
-        self.zoom_step = 0.1  # 10% zoom step
+        
+        # Initialize CoordinateMapper for coordinate transformation management
+        self.coordinate_mapper = CoordinateMapper(width, height)
+        
+        # Legacy properties for backward compatibility - delegate to coordinate_mapper
         self.dragging = False
-        self.offset = Position(0, 0)  # Default offset is 0
+        self.draw_enabled = draw_enabled
+        
+        # Initialize coordinate system and managers
         self.cartesian2axis = Cartesian2Axis(self)
         self.cartesian2axis.origin = Point(x=0, y=0, canvas=self, name="o") # initializing a point requires a cartesian2axis object
-        self.draw_enabled = draw_enabled
         
         # Add managers
         self.undo_redo_manager = UndoRedoManager(self)
@@ -107,7 +117,9 @@ class Canvas:
             if apply_zoom:
                 drawable.zoom()
             drawable.draw()  # Draw each drawable
-        self.offset = Position(0, 0)  # Reset the offset
+        
+        # Reset pan offset after drawing using CoordinateMapper
+        self.coordinate_mapper.reset_pan()
 
     def _draw_cartesian(self, apply_zoom=False):
         self.cartesian2axis.pan()
@@ -132,11 +144,13 @@ class Canvas:
 
     def reset(self):
         """Reset the canvas to its initial state"""
-        self.center = Position(self.width / 2, self.height / 2)
-        self.scale_factor = 1
-        self.offset = Position(0, 0)
-        self.zoom_direction = 0
+        # Reset coordinate transformations using CoordinateMapper
+        self.coordinate_mapper.reset_transformations()
+        
+        # Reset other canvas state
         self.dragging = False
+        
+        # Reset cartesian system and drawables
         self.cartesian2axis.reset()
         for drawable in self.get_drawables():
             drawable.reset()
@@ -474,4 +488,65 @@ class Canvas:
                 name, new_color=new_color
             )
         return False
+
+    # Property delegations to CoordinateMapper for backward compatibility
+    @property
+    def center(self):
+        """Current viewport center point - delegates to coordinate_mapper.origin"""
+        return self.coordinate_mapper.origin
+    
+    @center.setter
+    def center(self, value):
+        """Set viewport center point - delegates to coordinate_mapper.origin"""
+        self.coordinate_mapper.origin = value
+    
+    @property
+    def scale_factor(self):
+        """Current zoom level - delegates to coordinate_mapper.scale_factor"""
+        return self.coordinate_mapper.scale_factor
+    
+    @scale_factor.setter
+    def scale_factor(self, value):
+        """Set zoom level - delegates to coordinate_mapper.scale_factor"""
+        self.coordinate_mapper.scale_factor = value
+    
+    @property
+    def offset(self):
+        """Current pan offset - delegates to coordinate_mapper.offset"""
+        return self.coordinate_mapper.offset
+    
+    @offset.setter
+    def offset(self, value):
+        """Set pan offset - delegates to coordinate_mapper.offset"""
+        self.coordinate_mapper.offset = value
+    
+    @property
+    def zoom_point(self):
+        """Current zoom center point - delegates to coordinate_mapper.zoom_point"""
+        return self.coordinate_mapper.zoom_point
+    
+    @zoom_point.setter
+    def zoom_point(self, value):
+        """Set zoom center point - delegates to coordinate_mapper.zoom_point"""
+        self.coordinate_mapper.zoom_point = value
+    
+    @property
+    def zoom_direction(self):
+        """Current zoom direction - delegates to coordinate_mapper.zoom_direction"""
+        return self.coordinate_mapper.zoom_direction
+    
+    @zoom_direction.setter
+    def zoom_direction(self, value):
+        """Set zoom direction - delegates to coordinate_mapper.zoom_direction"""
+        self.coordinate_mapper.zoom_direction = value
+    
+    @property
+    def zoom_step(self):
+        """Zoom step size - delegates to coordinate_mapper.zoom_step"""
+        return self.coordinate_mapper.zoom_step
+    
+    @zoom_step.setter
+    def zoom_step(self, value):
+        """Set zoom step size - delegates to coordinate_mapper.zoom_step"""
+        self.coordinate_mapper.zoom_step = value
 
