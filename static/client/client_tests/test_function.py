@@ -3,17 +3,39 @@ import copy
 from geometry import Position, Function
 from expression_validator import ExpressionValidator
 from .simple_mock import SimpleMock
+from coordinate_mapper import CoordinateMapper
 
 
 class TestFunction(unittest.TestCase):
     def setUp(self):
-        self.canvas = SimpleMock(scale_factor=1, cartesian2axis=SimpleMock(origin=Position(0, 0),
-                                 get_visible_left_bound=SimpleMock(return_value=-10),
-                                 get_visible_right_bound=SimpleMock(return_value=10),
-                                 get_visible_top_bound=SimpleMock(return_value=10),
-                                 get_visible_bottom_bound=SimpleMock(return_value=-10),
-                                 height=500),
-                                 is_point_within_canvas_visible_area=SimpleMock(return_value=True))
+        # Create a real CoordinateMapper instance
+        self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
+        
+        self.canvas = SimpleMock(
+            scale_factor=1, 
+            cartesian2axis=SimpleMock(
+                origin=Position(250, 250),  # Canvas center for 500x500
+                get_visible_left_bound=SimpleMock(return_value=-10),
+                get_visible_right_bound=SimpleMock(return_value=10),
+                get_visible_top_bound=SimpleMock(return_value=10),
+                get_visible_bottom_bound=SimpleMock(return_value=-10),
+                height=500
+            ),
+            is_point_within_canvas_visible_area=SimpleMock(return_value=True),
+            # Add coordinate_mapper properties
+            width=500,
+            height=500,
+            center=Position(250, 250),
+            coordinate_mapper=self.coordinate_mapper,
+            zoom_point=Position(1, 1),
+            zoom_direction=1,
+            zoom_step=0.1,
+            offset=Position(0, 0)
+        )
+        
+        # Sync canvas state with coordinate mapper
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        
         self.left_bound = -9
         self.right_bound = 9
         self.function_string = "x*2"
@@ -178,6 +200,12 @@ class TestFunction(unittest.TestCase):
 
     def test_bounds_checking(self):
         # Test that points are properly bounded
+        # For a 500x500 canvas with origin at (250, 250), to get bounds from -5 to 5:
+        # scale_factor = 250 / 5 = 50
+        self.coordinate_mapper.scale_factor = 50
+        self.canvas.scale_factor = 50
+        
+        # Update the canvas cartesian2axis mock to reflect new bounds
         self.canvas.cartesian2axis.get_visible_left_bound.return_value = -5
         self.canvas.cartesian2axis.get_visible_right_bound.return_value = 5
         self.canvas.cartesian2axis.get_visible_top_bound.return_value = 5
