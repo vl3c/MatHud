@@ -2,15 +2,34 @@ import unittest
 from unittest.mock import MagicMock, patch
 from managers.angle_manager import AngleManager
 from .simple_mock import SimpleMock
+from coordinate_mapper import CoordinateMapper
+from geometry import Position
 
 class TestAngleManager(unittest.TestCase):
     def setUp(self):
+        # Create a real CoordinateMapper instance
+        self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
+        
         self.canvas_mock = SimpleMock(
             name="CanvasMock",
             undo_redo_manager=SimpleMock(name="UndoRedoManagerMock", archive=MagicMock()),
             draw_enabled=True,
-            draw=MagicMock()
+            draw=MagicMock(),
+            # Add minimal coordinate_mapper properties
+            width=500,
+            height=500,
+            scale_factor=1,
+            center=Position(250, 250),
+            cartesian2axis=SimpleMock(origin=Position(250, 250)),
+            coordinate_mapper=self.coordinate_mapper,
+            zoom_point=Position(1, 1),
+            zoom_direction=1,
+            zoom_step=0.1,
+            offset=Position(0, 0)
         )
+        
+        # Sync canvas state with coordinate mapper
+        self.coordinate_mapper.sync_from_canvas(self.canvas_mock)
         self.drawables_container_mock = SimpleMock(
             name="DrawablesContainerMock",
             Angles=[], # Holds created Angle instances

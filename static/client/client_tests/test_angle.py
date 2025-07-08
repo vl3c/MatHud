@@ -4,14 +4,33 @@ from copy import deepcopy
 from drawables.angle import Angle
 from .simple_mock import SimpleMock
 from name_generator.drawable import DrawableNameGenerator
+from coordinate_mapper import CoordinateMapper
+from geometry import Position
 
 class TestAngle(unittest.TestCase):
     def setUp(self):
+        # Create a real CoordinateMapper instance
+        self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
+        
         # Setup for Canvas first, as DrawableNameGenerator needs it
         self.canvas = SimpleMock(
             # drawable_manager will be set after it's created
-            create_svg_element = lambda tag_name, attributes, text_content=None: {"tag": tag_name, "attrs": attributes, "text": text_content}
+            create_svg_element = lambda tag_name, attributes, text_content=None: {"tag": tag_name, "attrs": attributes, "text": text_content},
+            # Add minimal coordinate_mapper properties needed by the system
+            width=500,
+            height=500,
+            scale_factor=1,
+            center=Position(250, 250),
+            cartesian2axis=SimpleMock(origin=Position(250, 250)),
+            coordinate_mapper=self.coordinate_mapper,
+            zoom_point=Position(1, 1),
+            zoom_direction=1,
+            zoom_step=0.1,
+            offset=Position(0, 0)
         )
+        
+        # Sync canvas state with coordinate mapper
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
 
         # Instantiate the real name generator
         self.name_generator = DrawableNameGenerator(self.canvas)
