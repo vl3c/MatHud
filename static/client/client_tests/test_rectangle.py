@@ -2,13 +2,33 @@ import unittest
 import copy
 from geometry import Point, Position, Segment, Rectangle
 from .simple_mock import SimpleMock
+from coordinate_mapper import CoordinateMapper
 
 
 class TestRectangle(unittest.TestCase):
     def setUp(self):
-        self.canvas = SimpleMock(scale_factor=1, cartesian2axis=SimpleMock(origin=Position(0, 0)),
-                                 is_point_within_canvas_visible_area=SimpleMock(return_value=True),
-                                 any_segment_part_visible_in_canvas_area=SimpleMock(return_value=True))
+        # Create a real CoordinateMapper instance
+        self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
+        
+        # Create canvas mock with all properties that CoordinateMapper needs
+        self.canvas = SimpleMock(
+            width=500,  # Required by sync_from_canvas
+            height=500,  # Required by sync_from_canvas
+            scale_factor=1, 
+            center=Position(250, 250),  # Canvas center
+            cartesian2axis=SimpleMock(origin=Position(250, 250)),  # Coordinate system origin
+            coordinate_mapper=self.coordinate_mapper,
+            is_point_within_canvas_visible_area=SimpleMock(return_value=True),
+            any_segment_part_visible_in_canvas_area=SimpleMock(return_value=True),
+            zoom_point=Position(1, 1), 
+            zoom_direction=1, 
+            zoom_step=0.1, 
+            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+        )
+        
+        # Sync canvas state with coordinate mapper
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        
         # Setup points for the rectangle
         self.p1 = Point(0, 0, self.canvas, name="P1", color="red")
         self.p2 = Point(4, 0, self.canvas, name="P2", color="green")
@@ -24,16 +44,22 @@ class TestRectangle(unittest.TestCase):
 
     def test_initialize(self):
         self.rectangle._initialize()
-        self.assertEqual(self.rectangle.segment1.point1.x, 0)
-        self.assertEqual(self.rectangle.segment1.point1.y, 0)
-        self.assertEqual(self.rectangle.segment1.point2.x, 4)
-        self.assertEqual(self.rectangle.segment1.point2.y, 0)
-        self.assertEqual(self.rectangle.segment2.point1.x, 4)
-        self.assertEqual(self.rectangle.segment2.point1.y, 0)
-        self.assertEqual(self.rectangle.segment2.point2.x, 4)
-        self.assertEqual(self.rectangle.segment2.point2.y, -3) # Assuming coordinate system adjustments with 0,0 at top-left
-        self.assertEqual(self.rectangle.segment3.point1.x, 4)
-        self.assertEqual(self.rectangle.segment3.point1.y, -3) # Assuming coordinate system adjustments with 0,0 at top-left
+        # Test with real coordinate transformations
+        # P1 (0,0) in math space -> (250,250) in screen space
+        self.assertEqual(self.rectangle.segment1.point1.x, 250)
+        self.assertEqual(self.rectangle.segment1.point1.y, 250)
+        # P2 (4,0) in math space -> (254,250) in screen space
+        self.assertEqual(self.rectangle.segment1.point2.x, 254)
+        self.assertEqual(self.rectangle.segment1.point2.y, 250)
+        # P2 (4,0) in math space -> (254,250) in screen space
+        self.assertEqual(self.rectangle.segment2.point1.x, 254)
+        self.assertEqual(self.rectangle.segment2.point1.y, 250)
+        # P3 (4,3) in math space -> (254,247) in screen space
+        self.assertEqual(self.rectangle.segment2.point2.x, 254)
+        self.assertEqual(self.rectangle.segment2.point2.y, 247)
+        # P3 (4,3) in math space -> (254,247) in screen space
+        self.assertEqual(self.rectangle.segment3.point1.x, 254)
+        self.assertEqual(self.rectangle.segment3.point1.y, 247)
 
     def test_init(self):
         # Test the initial properties of the rectangle
@@ -62,4 +88,19 @@ class TestRectangle(unittest.TestCase):
         # This test would check if draw calls create_svg_element with expected arguments
         # Might require a more complex setup or mocking to verify SVG output
         pass
+
+    def test_translate_rectangle_in_math_space(self):
+        """Test rectangle translation in mathematical space"""
+        # Translate by (2, 1) in mathematical coordinates
+        self.rectangle.translate(2, 1)
+        
+        # P1 should move from (0,0) to (2,1) in math space -> (252,249) in screen space
+        self.assertEqual(self.rectangle.segment1.point1.x, 252)
+        self.assertEqual(self.rectangle.segment1.point1.y, 249)
+        # P2 should move from (4,0) to (6,1) in math space -> (256,249) in screen space
+        self.assertEqual(self.rectangle.segment1.point2.x, 256)
+        self.assertEqual(self.rectangle.segment1.point2.y, 249)
+        # P3 should move from (4,3) to (6,4) in math space -> (256,246) in screen space
+        self.assertEqual(self.rectangle.segment2.point2.x, 256)
+        self.assertEqual(self.rectangle.segment2.point2.y, 246)
 

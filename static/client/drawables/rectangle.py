@@ -139,10 +139,12 @@ class Rectangle(RotatablePolygon):
         return new_rectangle
 
     def translate(self, x_offset, y_offset):
-        self.segment1.translate(x_offset, y_offset)
-        self.segment2.translate(x_offset, y_offset)
-        self.segment3.translate(x_offset, y_offset)
-        self.segment4.translate(x_offset, y_offset)
+        # Translate each unique point only once
+        unique_points = self.get_vertices()
+        
+        for point in unique_points:
+            point.translate(x_offset, y_offset)
+        
         self._initialize()
 
     def get_vertices(self):
