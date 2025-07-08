@@ -3,6 +3,7 @@ import unittest
 from .test_canvas import TestCanvas
 from .test_cartesian import TestCartesian2Axis
 from .test_circle import TestCircle
+from .test_coordinate_mapper import TestCoordinateMapper
 from .test_custom_drawable_names import TestCustomDrawableNames
 from .test_drawable_dependency_manager import TestDrawableDependencyManager
 from .test_drawable_name_generator import TestDrawableNameGenerator
@@ -70,6 +71,7 @@ class Tests:
             TestFunction,
             TestCartesian2Axis,
             TestCanvas,
+            TestCoordinateMapper,
             TestExpressionValidator,
             TestProcessFunctionCalls,
             TestCustomDrawableNames,
