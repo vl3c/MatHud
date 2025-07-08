@@ -7,19 +7,20 @@ Provides coordinate tracking, labeling, and serves as endpoints for other geomet
 Key Features:
     - Original and screen coordinate tracking
     - Automatic label display with coordinates
-    - Scale factor and viewport transformation support
+    - CoordinateMapper integration for zoom/pan transformations
     - Translation operations for object manipulation
     - Visibility checking based on canvas bounds
 
 Coordinate Systems:
     - original_position: Mathematical coordinates (unchanged by zoom/pan)
-    - x, y: Screen coordinates (updated by zoom/pan transformations)
+    - x, y: Screen coordinates (calculated via CoordinateMapper)
 
 Dependencies:
     - constants: Point sizing and labeling configuration
     - drawables.drawable: Base class interface
     - drawables.position: Coordinate container
     - utils.math_utils: Mathematical operations
+    - CoordinateMapper: Coordinate transformation service (via canvas)
 """
 
 from constants import default_color, default_point_size, point_label_font_size
@@ -33,11 +34,12 @@ class Point(Drawable):
     
     Fundamental building block for all geometric constructions, maintaining both original
     mathematical coordinates and transformed screen coordinates for proper rendering.
+    Uses Canvas CoordinateMapper for all coordinate transformations.
     
     Attributes:
         original_position (Position): Mathematical coordinates (unaffected by zoom/pan)
-        x (float): Current screen x-coordinate (affected by transformations)
-        y (float): Current screen y-coordinate (affected by transformations)
+        x (float): Current screen x-coordinate (calculated via CoordinateMapper)
+        y (float): Current screen y-coordinate (calculated via CoordinateMapper)
     """
     def __init__(self, x, y, canvas, name="", color=default_color):
         """Initialize a point with mathematical coordinates and canvas integration.
@@ -82,37 +84,25 @@ class Point(Drawable):
         return f'{x},{y}'
     
     def _initialize(self):
-        scale_factor = self.canvas.scale_factor
-        origin = self.canvas.cartesian2axis.origin
-        self.x = origin.x + self.original_position.x * scale_factor
-        self.y = origin.y - self.original_position.y * scale_factor
+        """Convert mathematical coordinates to screen coordinates using CoordinateMapper."""
+        self.x, self.y = self.canvas.coordinate_mapper.math_to_screen(
+            self.original_position.x, self.original_position.y
+        )
 
     def _translate(self, offset_point):
+        """Translate point by screen offset."""
         self.x += offset_point.x
         self.y += offset_point.y
 
-    def _translate_towards(self, destination, displacement):
-        # Calculate the direction vector from the point to the destination
-        dx = destination.x - self.x
-        dy = destination.y - self.y
-        # Normalize the direction vector
-        magnitude = math.sqrt(dx**2 + dy**2)
-        dx /= magnitude
-        dy /= magnitude
-        # Update the coordinates by adding the displacement in the direction of the destination
-        offset_point = Position(displacement * dx, displacement * dy)
-        self._translate(offset_point)
-
     def zoom(self):
-        zoom_point = self.canvas.zoom_point
-        zoom_direction = self.canvas.zoom_direction
-        zoom_step = self.canvas.zoom_step
-        distance = MathUtils.get_2D_distance(zoom_point, self)
-        displacement = distance * zoom_step * zoom_direction
-        self._translate_towards(zoom_point, displacement)
+        """Apply zoom transformation using CoordinateMapper."""
+        current_screen_pos = Position(self.x, self.y)
+        displacement = self.canvas.coordinate_mapper.get_zoom_towards_point_displacement(current_screen_pos)
+        self._translate(displacement)
 
     def pan(self):
-        self._translate(self.canvas.offset)
+        """Apply pan transformation using CoordinateMapper."""
+        self._translate(self.canvas.coordinate_mapper.offset)
         
     def get_state(self):
         pos = self.original_position
@@ -120,8 +110,8 @@ class Point(Drawable):
         return state
     
     def is_visible(self):
-        # returns true if the point is within the canvas
-        return self.canvas.is_point_within_canvas_visible_area(self.x, self.y)
+        """Check if point is visible within canvas bounds using CoordinateMapper."""
+        return self.canvas.coordinate_mapper.is_point_visible(self.x, self.y)
     
     def __deepcopy__(self, memo):
         if id(self) in memo:

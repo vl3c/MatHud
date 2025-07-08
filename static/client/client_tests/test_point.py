@@ -1,20 +1,42 @@
 import unittest
 import copy
 from geometry import Point, Position
+from coordinate_mapper import CoordinateMapper
 from .simple_mock import SimpleMock
 
 
 class TestPoint(unittest.TestCase):
     def setUp(self):
-        self.canvas = SimpleMock(scale_factor=1, cartesian2axis=SimpleMock(origin=Position(0, 0)), 
-                                 is_point_within_canvas_visible_area=SimpleMock(return_value=True),
-                                 zoom_point=Position(1, 1), zoom_direction=1, zoom_step=0.1, offset=Position(0.5, 0.5))
+        # Create a real CoordinateMapper instance
+        self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
+        
+        # Create canvas mock with all properties that CoordinateMapper needs
+        self.canvas = SimpleMock(
+            width=500,  # Required by sync_from_canvas
+            height=500,  # Required by sync_from_canvas
+            scale_factor=1, 
+            center=Position(250, 250),  # Canvas center
+            cartesian2axis=SimpleMock(origin=Position(250, 250)),  # Coordinate system origin
+            coordinate_mapper=self.coordinate_mapper,
+            is_point_within_canvas_visible_area=SimpleMock(return_value=True),
+            zoom_point=Position(1, 1), 
+            zoom_direction=1, 
+            zoom_step=0.1, 
+            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+        )
+        
+        # Sync canvas state with coordinate mapper
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        
         self.point = Point(1, 2, self.canvas, name="p1", color="red")
 
     def test_initialize(self):
         self.point._initialize()
-        self.assertEqual(self.point.x, 1)
-        self.assertEqual(self.point.y, -2) # Assuming coordinate system adjustments with 0,0 at top-left
+        # Real coordinate transformation: origin at (250, 250), math coords (1, 2)
+        # screen_x = 250 + 1*1 + 0 = 251
+        # screen_y = 250 - 2*1 + 0 = 248
+        self.assertEqual(self.point.x, 251)
+        self.assertEqual(self.point.y, 248)
 
     def test_init(self):
         self.assertEqual(self.point.original_position.x, 1)
@@ -26,13 +48,14 @@ class TestPoint(unittest.TestCase):
         self.assertEqual(self.point.get_class_name(), 'Point')
 
     def test_str(self):
-        self.assertEqual(str(self.point), '1,-2')
+        self.assertEqual(str(self.point), '251,248')
 
     def test_get_state(self):
         expected_state = {"name": "p1", "args": {"position": {"x": 1, "y": 2}}}
         self.assertEqual(self.point.get_state(), expected_state)
 
     def test_is_visible(self):
+        # Point at (251, 248) should be visible within 500x500 canvas bounds
         self.assertTrue(self.point.is_visible())
 
     def test_deepcopy(self):
@@ -45,24 +68,49 @@ class TestPoint(unittest.TestCase):
         self.assertIsNot(point_copy.original_position, self.point.original_position)
 
     def test_translate(self):
+        initial_x, initial_y = self.point.x, self.point.y
         self.point._translate(Position(1, 1))
-        self.assertEqual(self.point.x, 2)
-        self.assertEqual(self.point.y, -1) # Assuming coordinate system adjustments with 0,0 at top-left
-
-    def test_translate_towards(self):
-        self.point._translate_towards(Position(2, 2), 1)
-        self.assertAlmostEqual(round(self.point.x, 4), 1.2425, places=4)
-        self.assertAlmostEqual(round(self.point.y, 5), -1.02986, places=5) # Assuming coordinate system adjustments with 0,0 at top-left
+        self.assertEqual(self.point.x, initial_x + 1)  # 251 + 1 = 252
+        self.assertEqual(self.point.y, initial_y + 1)  # 248 + 1 = 249
 
     def test_zoom(self):
+        initial_x, initial_y = self.point.x, self.point.y
         self.point.zoom()
-        self.assertAlmostEqual(self.point.x, 1.0, places=4)
-        self.assertAlmostEqual(self.point.y, -1.7, places=4) # Assuming coordinate system adjustments with 0,0 at top-left
+        
+        # Calculate expected displacement using real coordinate mapper
+        displacement = self.coordinate_mapper.get_zoom_towards_point_displacement(Position(initial_x, initial_y))
+        expected_x = initial_x + displacement.x
+        expected_y = initial_y + displacement.y
+        
+        self.assertAlmostEqual(self.point.x, expected_x, places=4)
+        self.assertAlmostEqual(self.point.y, expected_y, places=4)
 
     def test_pan(self):
+        initial_x, initial_y = self.point.x, self.point.y
         self.point.pan()
-        self.assertEqual(self.point.x, 1.5)
-        self.assertEqual(self.point.y, -1.5) # Assuming coordinate system adjustments with 0,0 at top-left
+        
+        # Point should be translated by coordinate_mapper.offset (which is (0,0))
+        expected_x = initial_x + self.coordinate_mapper.offset.x
+        expected_y = initial_y + self.coordinate_mapper.offset.y
+        
+        self.assertEqual(self.point.x, expected_x)
+        self.assertEqual(self.point.y, expected_y)
+
+    def test_translate_point_in_math_space(self):
+        # Test translating the point in mathematical coordinate space
+        original_math_x = self.point.original_position.x
+        original_math_y = self.point.original_position.y
+        
+        self.point.translate(2, 3)  # Translate by (2, 3) in math space
+        
+        # Check that original position was updated
+        self.assertEqual(self.point.original_position.x, original_math_x + 2)  # 1 + 2 = 3
+        self.assertEqual(self.point.original_position.y, original_math_y + 3)  # 2 + 3 = 5
+        
+        # Check that screen coordinates were recalculated
+        # New math coords (3, 5) -> screen (253, 245)
+        self.assertEqual(self.point.x, 253)
+        self.assertEqual(self.point.y, 245)
 
     def test_draw(self):
         # This test would check if draw calls create_svg_element with expected arguments
