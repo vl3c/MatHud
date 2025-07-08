@@ -2,12 +2,32 @@ import unittest
 import copy
 from geometry import Point, Position, Ellipse
 from .simple_mock import SimpleMock
+from coordinate_mapper import CoordinateMapper
 
 
 class TestEllipse(unittest.TestCase):
     def setUp(self):
-        self.canvas = SimpleMock(scale_factor=1, cartesian2axis=SimpleMock(origin=Position(0, 0)),
-                                 is_point_within_canvas_visible_area=SimpleMock(return_value=True))
+        # Create a real CoordinateMapper instance
+        self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
+        
+        # Create canvas mock with all properties that CoordinateMapper needs
+        self.canvas = SimpleMock(
+            width=500,  # Required by sync_from_canvas
+            height=500,  # Required by sync_from_canvas
+            scale_factor=1, 
+            center=Position(250, 250),  # Canvas center
+            cartesian2axis=SimpleMock(origin=Position(250, 250)),  # Coordinate system origin
+            coordinate_mapper=self.coordinate_mapper,
+            is_point_within_canvas_visible_area=SimpleMock(return_value=True),
+            zoom_point=Position(1, 1), 
+            zoom_direction=1, 
+            zoom_step=0.1, 
+            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+        )
+        
+        # Sync canvas state with coordinate mapper
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        
         self.center = Point(2, 2, self.canvas, name="Center", color="black")
         self.radius_x = 5
         self.radius_y = 3
@@ -74,4 +94,18 @@ class TestEllipse(unittest.TestCase):
         self.ellipse.rotate(rotation)
         expected_angle = (initial_angle + rotation) % 360
         self.assertEqual(self.ellipse.rotation_angle, expected_angle)
+
+    def test_translate_ellipse_in_math_space(self):
+        """Test ellipse translation in mathematical space"""
+        # Test center point coordinates before translation
+        # Center at (2,2) in math space -> (252,248) in screen space
+        self.assertEqual(self.ellipse.center.x, 252)
+        self.assertEqual(self.ellipse.center.y, 248)
+        
+        # Translate by (3, 1) in mathematical coordinates
+        self.ellipse.translate(3, 1)
+        
+        # Center should move from (2,2) to (5,3) in math space -> (255,247) in screen space
+        self.assertEqual(self.ellipse.center.x, 255)
+        self.assertEqual(self.ellipse.center.y, 247)
 
