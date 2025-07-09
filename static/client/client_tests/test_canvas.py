@@ -389,10 +389,10 @@ class TestCanvas(unittest.TestCase):
         s = self.canvas.create_segment(100, 100, 300, 300)
         self.assertIsNotNone(s)
         self.assertIn(s, self.canvas.get_drawables_by_class_name(s.get_class_name()))
-        self.assertEqual(s.point1.x, 100)
-        self.assertEqual(s.point1.y, -100)
-        self.assertEqual(s.point2.x, 300)
-        self.assertEqual(s.point2.y, -300)
+        self.assertEqual(s.point1.original_position.x, 100)
+        self.assertEqual(s.point1.original_position.y, 100)
+        self.assertEqual(s.point2.original_position.x, 300)
+        self.assertEqual(s.point2.original_position.y, 300)
 
     def test_get_segment_by_coordinates(self):
         s1 = self.canvas.create_segment(10, 10, 20, 20)
@@ -534,10 +534,10 @@ class TestCanvas(unittest.TestCase):
         p2 = vector.segment.point2
         self.assertIsNotNone(vector)
         self.assertIn(vector, self.canvas.get_drawables_by_class_name(vector.get_class_name()))
-        self.assertEqual(p1.x, 100)
-        self.assertEqual(p1.y, -100)
-        self.assertEqual(p2.x, 300)
-        self.assertEqual(p2.y, -300)
+        self.assertEqual(p1.original_position.x, 100)
+        self.assertEqual(p1.original_position.y, 100)
+        self.assertEqual(p2.original_position.x, 300)
+        self.assertEqual(p2.original_position.y, 300)
 
     def test_get_vector(self):
         p1 = self.mock_point1
