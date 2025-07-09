@@ -859,6 +859,10 @@ class TestMathFunctions(unittest.TestCase):
         try:
             from drawables.function import Function
             from .simple_mock import SimpleMock
+            from coordinate_mapper import CoordinateMapper
+            
+            # Create a real CoordinateMapper instance
+            coordinate_mapper = CoordinateMapper(600, 400)  # Canvas dimensions
             
             # Create a mock canvas with required methods and properties
             mock_canvas = SimpleMock()
@@ -866,12 +870,16 @@ class TestMathFunctions(unittest.TestCase):
             mock_canvas.cartesian2axis = SimpleMock()
             mock_canvas.cartesian2axis.origin = SimpleMock(x=300, y=200)
             mock_canvas.cartesian2axis.height = 400
+            mock_canvas.coordinate_mapper = coordinate_mapper
             
             # Mock the visible bounds methods
             mock_canvas.cartesian2axis.get_visible_left_bound = lambda: -10
             mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10  
             mock_canvas.cartesian2axis.get_visible_top_bound = lambda: 8
             mock_canvas.cartesian2axis.get_visible_bottom_bound = lambda: -8
+            
+            # Sync coordinate mapper with canvas state
+            coordinate_mapper.sync_from_canvas(mock_canvas)
             
             # Test function with vertical asymptotes: tan(x) has asymptotes at π/2 + nπ
             function = Function(
@@ -892,7 +900,7 @@ class TestMathFunctions(unittest.TestCase):
             for path in paths:
                 if len(path) >= 2:
                     # Get the x-coordinate range of this path
-                    x_coords = [function._scaled_to_original(p.x, p.y).x for p in path]
+                    x_coords = [mock_canvas.coordinate_mapper.screen_to_math(p.x, p.y)[0] for p in path]
                     path_min_x = min(x_coords)
                     path_max_x = max(x_coords)
                     
@@ -920,7 +928,7 @@ class TestMathFunctions(unittest.TestCase):
             # Verify no path spans across x=0
             for path in paths2:
                 if len(path) >= 2:
-                    x_coords = [function2._scaled_to_original(p.x, p.y).x for p in path]
+                    x_coords = [mock_canvas.coordinate_mapper.screen_to_math(p.x, p.y)[0] for p in path]
                     path_min_x = min(x_coords)
                     path_max_x = max(x_coords)
                     
@@ -941,6 +949,10 @@ class TestMathFunctions(unittest.TestCase):
         try:
             from drawables.function import Function
             from .simple_mock import SimpleMock
+            from coordinate_mapper import CoordinateMapper
+            
+            # Create a real CoordinateMapper instance
+            coordinate_mapper = CoordinateMapper(600, 400)  # Canvas dimensions
             
             # Create a mock canvas
             mock_canvas = SimpleMock()
@@ -948,12 +960,16 @@ class TestMathFunctions(unittest.TestCase):
             mock_canvas.cartesian2axis = SimpleMock()
             mock_canvas.cartesian2axis.origin = SimpleMock(x=300, y=200)
             mock_canvas.cartesian2axis.height = 400
+            mock_canvas.coordinate_mapper = coordinate_mapper
             
             # Mock the visible bounds methods
             mock_canvas.cartesian2axis.get_visible_left_bound = lambda: -10
             mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10  
             mock_canvas.cartesian2axis.get_visible_top_bound = lambda: 8
             mock_canvas.cartesian2axis.get_visible_bottom_bound = lambda: -8
+            
+            # Sync coordinate mapper with canvas state
+            coordinate_mapper.sync_from_canvas(mock_canvas)
             
             # Test a continuous function: sin(x) should have one continuous path
             function_sin = Function(
@@ -977,8 +993,8 @@ class TestMathFunctions(unittest.TestCase):
                 # Check continuity within the path
                 max_gap = 0
                 for i in range(1, len(path)):
-                    x1 = function_sin._scaled_to_original(path[i-1].x, path[i-1].y).x
-                    x2 = function_sin._scaled_to_original(path[i].x, path[i].y).x
+                    x1, _ = mock_canvas.coordinate_mapper.screen_to_math(path[i-1].x, path[i-1].y)
+                    x2, _ = mock_canvas.coordinate_mapper.screen_to_math(path[i].x, path[i].y)
                     gap = abs(x2 - x1)
                     max_gap = max(max_gap, gap)
                 
@@ -1075,8 +1091,8 @@ class TestMathFunctions(unittest.TestCase):
                     # Check for reasonable continuity in the longest path
                     max_gap = 0
                     for i in range(1, len(longest_path)):
-                        x1 = function_complex._scaled_to_original(longest_path[i-1].x, longest_path[i-1].y).x
-                        x2 = function_complex._scaled_to_original(longest_path[i].x, longest_path[i].y).x
+                        x1, _ = mock_canvas.coordinate_mapper.screen_to_math(longest_path[i-1].x, longest_path[i-1].y)
+                        x2, _ = mock_canvas.coordinate_mapper.screen_to_math(longest_path[i].x, longest_path[i].y)
                         gap = abs(x2 - x1)
                         max_gap = max(max_gap, gap)
                     

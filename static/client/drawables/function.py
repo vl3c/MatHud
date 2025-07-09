@@ -47,22 +47,8 @@ class Function(Drawable):
     def get_class_name(self):
         return 'Function'
 
-    def _scaled_to_original(self, x, y):
-        scale_factor = self.canvas.scale_factor
-        origin = self.canvas.cartesian2axis.origin
-        original_x = (x - origin.x) / scale_factor
-        original_y = (y - origin.y) / -scale_factor
-        return Position(original_x, original_y)
-    
-    def _original_to_scaled(self, x, y):
-        scale_factor = self.canvas.scale_factor
-        origin = self.canvas.cartesian2axis.origin
-        scaled_x = origin.x + x * scale_factor
-        scaled_y = origin.y - y * scale_factor
-        return Position(scaled_x, scaled_y)
-
     def _should_regenerate_paths(self):
-        current_scale = self.canvas.scale_factor
+        current_scale = self.canvas.coordinate_mapper.scale_factor
         current_bounds = (
             self.canvas.cartesian2axis.get_visible_left_bound(),
             self.canvas.cartesian2axis.get_visible_right_bound(),
@@ -93,7 +79,8 @@ class Function(Drawable):
         '''Evaluate the function at x and return the scaled point and non-scaled y value'''
         try:
             y = self.function(x)
-            scaled_point = self._original_to_scaled(x, y)
+            screen_x, screen_y = self.canvas.coordinate_mapper.math_to_screen(x, y)
+            scaled_point = Position(screen_x, screen_y)
             return scaled_point, y
         except (ZeroDivisionError, ValueError):
             return None, None
@@ -128,7 +115,9 @@ class Function(Drawable):
         elif unscaled_y < 0:
             return self.canvas.cartesian2axis.height  # bottom bound
         else:
-            return self.canvas.cartesian2axis.origin.y
+            # Return screen Y coordinate where mathematical y=0 is displayed
+            _, screen_y = self.canvas.coordinate_mapper.math_to_screen(0, 0)
+            return screen_y
 
     def _generate_paths(self):
         '''Generate paths for the function as a list of lists, each inner list is a continuous path of scaled points'''

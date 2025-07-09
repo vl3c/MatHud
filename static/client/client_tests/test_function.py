@@ -72,12 +72,12 @@ class TestFunction(unittest.TestCase):
         
         for path in paths:
             for point in path:
-                # Check x bounds (these should still be strict)
-                original_pos = self.function._scaled_to_original(point.x, point.y)
-                self.assertTrue(self.canvas.cartesian2axis.get_visible_left_bound() <= original_pos.x <= self.canvas.cartesian2axis.get_visible_right_bound())
+                # Check x bounds (these should still be strict) using coordinate mapper
+                math_x, math_y = self.canvas.coordinate_mapper.screen_to_math(point.x, point.y)
+                self.assertTrue(self.canvas.cartesian2axis.get_visible_left_bound() <= math_x <= self.canvas.cartesian2axis.get_visible_right_bound())
                 
                 # Count points within and outside y bounds
-                if bottom_bound <= original_pos.y <= top_bound:
+                if bottom_bound <= math_y <= top_bound:
                     points_within_bounds += 1
                 else:
                     points_outside_bounds += 1
@@ -101,13 +101,7 @@ class TestFunction(unittest.TestCase):
         self.assertEqual(function_copy.function_string, self.function.function_string)
         self.assertEqual(function_copy.name, self.function.name)
 
-    def test_scaled_to_original_and_back(self):
-        # Test conversion from scaled to original coordinates and back
-        original = (2, 4)
-        scaled = self.function._original_to_scaled(*original)
-        back_to_original = self.function._scaled_to_original(scaled.x, scaled.y)
-        self.assertAlmostEqual(original[0], back_to_original.x)
-        self.assertAlmostEqual(original[1], back_to_original.y)
+
 
     def test_caching_mechanism(self):
         # Test that points are cached and reused
@@ -187,12 +181,12 @@ class TestFunction(unittest.TestCase):
         # Find gaps in x coordinates that indicate discontinuity
         has_discontinuity = False
         for i in range(1, len(flat_points)):
-            original_p1 = self.function._scaled_to_original(flat_points[i-1].x, flat_points[i-1].y)
-            original_p2 = self.function._scaled_to_original(flat_points[i].x, flat_points[i].y)
+            math_x1, math_y1 = self.canvas.coordinate_mapper.screen_to_math(flat_points[i-1].x, flat_points[i-1].y)
+            math_x2, math_y2 = self.canvas.coordinate_mapper.screen_to_math(flat_points[i].x, flat_points[i].y)
             # Check for either a large x gap or a transition through bounds
-            if (abs(original_p2.x - original_p1.x) > discontinuous_function.step * 2) or \
-               (abs(original_p2.y - original_p1.y) > (self.canvas.cartesian2axis.get_visible_top_bound() - 
-                                                     self.canvas.cartesian2axis.get_visible_bottom_bound())):
+            if (abs(math_x2 - math_x1) > discontinuous_function.step * 2) or \
+               (abs(math_y2 - math_y1) > (self.canvas.cartesian2axis.get_visible_top_bound() - 
+                                          self.canvas.cartesian2axis.get_visible_bottom_bound())):
                 has_discontinuity = True
                 break
         
@@ -225,12 +219,12 @@ class TestFunction(unittest.TestCase):
             self.assertTrue(len(path) > 0)
             for point in path:
                 # We need to check the original coordinates, not the scaled ones
-                original_pos = self.function._scaled_to_original(point.x, point.y)
+                math_x, math_y = self.canvas.coordinate_mapper.screen_to_math(point.x, point.y)
                 # Add some tolerance for floating-point comparisons
-                self.assertGreaterEqual(original_pos.x, -5.1)
-                self.assertLessEqual(original_pos.x, 5.1)
-                self.assertGreaterEqual(original_pos.y, -10.1)  # y=2x means y range is double x range
-                self.assertLessEqual(original_pos.y, 10.1)
+                self.assertGreaterEqual(math_x, -5.1)
+                self.assertLessEqual(math_x, 5.1)
+                self.assertGreaterEqual(math_y, -10.1)  # y=2x means y range is double x range
+                self.assertLessEqual(math_y, 10.1)
 
     def test_should_regenerate_points(self):
         # Test conditions for point regeneration
