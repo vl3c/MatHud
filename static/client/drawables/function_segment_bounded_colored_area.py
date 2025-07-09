@@ -68,23 +68,22 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
         return all(hasattr(obj, attr) for attr in required_attrs)
 
     def _get_function_y_at_x(self, x):
-        """Get y value for a given x from the function."""
+        """Get y value for a given x from the function. Returns math coordinates."""
         if self.func is None:  # x-axis
-            return 0
+            return 0  # Math coordinate: y = 0
         if isinstance(self.func, (int, float)):  # constant function
-            return float(self.func)
+            return float(self.func)  # Math coordinate: y = constant
         if isinstance(self.func, Function) or self._is_function_like(self.func):
-            return self._calculate_function_y_value(x)
+            return self._calculate_function_y_value(x)  # Math coordinate
         return None
 
     def _calculate_function_y_value(self, x):
         """Calculate y value for Function objects with coordinate conversion."""
         try:
-            # Convert from canvas coordinates to original coordinates
-            orig_x = self.canvas.coordinate_mapper.screen_to_math(x, 0)[0]
-            y = self.func.function(orig_x)
-            # Convert y back to canvas coordinates
-            return self.canvas.coordinate_mapper.math_to_screen(orig_x, y)[1]
+            # x is already in math coordinates (after the _get_segment_bounds fix)
+            y = self.func.function(x)
+            # Return math coordinate (will be converted to canvas later)
+            return y
         except (ValueError, ZeroDivisionError):
             return None
 
@@ -102,7 +101,7 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
 
     def _get_segment_bounds(self):
         """Get the left and right bounds of the segment."""
-        x1, x2 = self.segment.point1.x, self.segment.point2.x
+        x1, x2 = self.segment.point1.original_position.x, self.segment.point2.original_position.x
         return min(x1, x2), max(x1, x2)
 
     def _get_intersection_bounds(self, seg_left, seg_right):
@@ -138,10 +137,12 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
         """Generate points along the function curve from left to right bound."""
         points = []
         for i in range(num_points):
-            x = left_bound + i * dx
-            y = self._get_function_y_at_x(x)
-            if y is not None:
-                points.append((x, y))
+            x_math = left_bound + i * dx  # Math coordinate
+            y_math = self._get_function_y_at_x(x_math)  # Math coordinate
+            if y_math is not None:
+                # Convert both coordinates to canvas coordinates for SVG path
+                x_canvas, y_canvas = self.canvas.coordinate_mapper.math_to_screen(x_math, y_math)
+                points.append((x_canvas, y_canvas))
         return points
 
     def uses_segment(self, segment):

@@ -238,24 +238,6 @@ class FunctionsBoundedColoredArea(ColoredArea):
 
         return bounds[0], bounds[1]
 
-    def _convert_to_canvas_x(self, x_orig):
-        """
-        Convert original x coordinate to canvas x coordinate using CoordinateMapper.
-        
-        Parameters:
-        -----------
-        x_orig : float
-            The original x coordinate.
-            
-        Returns:
-        --------
-        float
-            The canvas x coordinate.
-        """
-        # For points on the x-axis, use y=0 for the conversion
-        canvas_x, canvas_y = self.canvas.coordinate_mapper.math_to_screen(x_orig, 0)
-        return canvas_x
-
     def _has_asymptote_at(self, func, x_orig, dx):
         """
         Check if a function has an asymptote at a given x position.
@@ -339,7 +321,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
         for i in range_iterator:
             # Convert x to canvas coordinates
             x_orig = left_bound + i * dx
-            x = self._convert_to_canvas_x(x_orig)
+            x, _ = self.canvas.coordinate_mapper.math_to_screen(x_orig, 0)
             
             # Try to get y value with asymptote handling
             y = self._get_function_y_at_x_with_asymptote_handling(func, x, x_orig, dx, canvas_top, canvas_bottom, canvas_margin)
