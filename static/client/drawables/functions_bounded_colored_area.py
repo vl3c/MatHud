@@ -111,25 +111,26 @@ class FunctionsBoundedColoredArea(ColoredArea):
         """Get y value for a given x, handling different function types."""
         try:
             if func is None:  # x-axis
-                # Convert y=0 to canvas coordinates
-                return self.canvas.cartesian2axis.origin.y - 0 * self.canvas.scale_factor
+                # Convert y=0 to canvas coordinates using CoordinateMapper
+                canvas_x, canvas_y = self.canvas.coordinate_mapper.math_to_screen(x, 0)
+                return canvas_y
                 
             if isinstance(func, (int, float)):  # constant function
-                # Convert constant y value to canvas coordinates
-                return self.canvas.cartesian2axis.origin.y - float(func) * self.canvas.scale_factor
+                # Convert constant y value to canvas coordinates using CoordinateMapper
+                canvas_x, canvas_y = self.canvas.coordinate_mapper.math_to_screen(x, float(func))
+                return canvas_y
                 
             if isinstance(func, Function):
                 try:
-                    # Convert from canvas coordinates to original coordinates
-                    orig_x = (x - self.canvas.cartesian2axis.origin.x) / self.canvas.scale_factor
-                    y = func.function(orig_x)
+                    # Use the actual math x value directly
+                    y = func.function(x)
                     
                     # Check if result is valid
                     if y is None or not isinstance(y, (int, float)) or (isinstance(y, float) and (float('nan') == y or float('inf') == abs(y))):
                         return None
                         
-                    # Convert y back to canvas coordinates
-                    canvas_y = self.canvas.cartesian2axis.origin.y - y * self.canvas.scale_factor
+                    # Convert y to canvas coordinates using CoordinateMapper
+                    canvas_x, canvas_y = self.canvas.coordinate_mapper.math_to_screen(x, y)
                     return canvas_y
                 except (ValueError, ZeroDivisionError, TypeError) as e:
                     return None
@@ -143,7 +144,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
 
     def _get_initial_bounds(self):
         """
-        Get initial bounds from the cartesian system.
+        Get initial bounds from the coordinate mapper.
         
         Returns:
         --------
@@ -152,8 +153,8 @@ class FunctionsBoundedColoredArea(ColoredArea):
         """
         try:
             return [
-                self.canvas.cartesian2axis.get_visible_left_bound(),
-                self.canvas.cartesian2axis.get_visible_right_bound()
+                self.canvas.coordinate_mapper.get_visible_left_bound(),
+                self.canvas.coordinate_mapper.get_visible_right_bound()
             ]
         except Exception as e:
             # If canvas bounds can't be determined, use reasonable defaults
@@ -202,23 +203,22 @@ class FunctionsBoundedColoredArea(ColoredArea):
 
     def _get_bounds(self):
         """
-        Calculate the left and right bounds for the colored area.
-        
-        This method combines bounds from the canvas, functions, and user inputs.
+        Get the left and right bounds for the colored area.
         
         Returns:
         --------
         tuple
-            A tuple (left_bound, right_bound) for the final bounds.
+            A tuple (left_bound, right_bound) with the final bounds.
         """
-        # Start with cartesian system bounds
         bounds = self._get_initial_bounds()
-
-        # Apply function bounds
-        bounds = self._apply_function_bounds(bounds, self.func1)
-        bounds = self._apply_function_bounds(bounds, self.func2)
-
-        # Apply user-specified bounds
+        
+        # Apply function bounds if available
+        if self.func1:
+            bounds = self._apply_function_bounds(bounds, self.func1)
+        if self.func2:
+            bounds = self._apply_function_bounds(bounds, self.func2)
+            
+        # Apply user bounds if provided
         bounds = self._apply_user_bounds(bounds)
 
         # Ensure left_bound < right_bound
@@ -228,40 +228,42 @@ class FunctionsBoundedColoredArea(ColoredArea):
             bounds = [center - 0.1, center + 0.1]  # Small range around center
 
         return bounds[0], bounds[1]
-        
+
     def _convert_to_canvas_x(self, x_orig):
         """
-        Convert original x coordinate to canvas coordinate.
+        Convert original x coordinate to canvas x coordinate using CoordinateMapper.
         
         Parameters:
         -----------
         x_orig : float
-            The original x coordinate in the function's coordinate system.
+            The original x coordinate.
             
         Returns:
         --------
         float
-            The x coordinate in canvas coordinates.
+            The canvas x coordinate.
         """
-        return self.canvas.cartesian2axis.origin.x + x_orig * self.canvas.scale_factor
-        
+        # For points on the x-axis, use y=0 for the conversion
+        canvas_x, canvas_y = self.canvas.coordinate_mapper.math_to_screen(x_orig, 0)
+        return canvas_x
+
     def _has_asymptote_at(self, func, x_orig, dx):
         """
-        Check if the function has a vertical asymptote at the given x position.
+        Check if a function has an asymptote at a given x position.
         
         Parameters:
         -----------
         func : Function, None, or number
             The function to check.
         x_orig : float
-            The x coordinate to check in the original coordinate system.
+            The original x coordinate.
         dx : float
             The delta x to consider for asymptote detection.
             
         Returns:
         --------
         bool
-            True if an asymptote is detected, False otherwise.
+            True if there's an asymptote at this x position.
         """
         try:
             # Manual asymptote detection for functions with tangent asymptotes (e.g. f3)
@@ -284,32 +286,31 @@ class FunctionsBoundedColoredArea(ColoredArea):
         
     def _generate_path(self, func, left_bound, right_bound, dx, num_points, reverse=False):
         """
-        Generate a path of points for the given function, handling asymptotes gracefully.
+        Generate a path of points for a function between bounds.
         
         Parameters:
         -----------
         func : Function, None, or number
-            The function to generate the path for.
+            The function to generate points for.
         left_bound : float
-            The left bound of the path.
+            The left boundary.
         right_bound : float
-            The right bound of the path.
+            The right boundary.
         dx : float
-            The step size between points.
+            The step size.
         num_points : int
-            The number of points to generate.
-        reverse : bool, optional
-            Whether to generate the path in reverse order. Default is False.
+            Number of points to generate.
+        reverse : bool
+            Whether to generate points in reverse order.
             
         Returns:
         --------
         list
-            A list of (x, y) points in canvas coordinates.
+            A list of (x, y) tuples representing the path.
         """
         points = []
-        current_path = []  # Track current continuous path
         
-        # Get canvas bounds for clipping
+        # Get canvas bounds for asymptote handling
         canvas_top = 0
         canvas_bottom = self.canvas.height if hasattr(self.canvas, 'height') else 800
         canvas_margin = 50  # Margin for very large values
@@ -349,29 +350,29 @@ class FunctionsBoundedColoredArea(ColoredArea):
 
     def _get_function_y_at_x_with_asymptote_handling(self, func, x, x_orig, dx, canvas_top, canvas_bottom, canvas_margin):
         """
-        Get y value for a function with improved asymptote handling.
+        Get y value for a function at x with asymptote handling.
         
         Parameters:
         -----------
         func : Function, None, or number
             The function to evaluate.
         x : float
-            The x coordinate in canvas coordinates.
+            The x coordinate (canvas).
         x_orig : float
-            The x coordinate in original coordinates.
+            The original x coordinate.
         dx : float
-            The step size for asymptote detection.
+            The step size.
         canvas_top : float
-            Top boundary of canvas.
+            The top of the canvas.
         canvas_bottom : float
-            Bottom boundary of canvas.
+            The bottom of the canvas.
         canvas_margin : float
-            Margin for clipping large values.
+            The margin for asymptote handling.
             
         Returns:
         --------
         float or None
-            The y value in canvas coordinates, or None if at asymptote.
+            The y value or None if invalid.
         """
         # For non-function types, use the original method
         if not isinstance(func, Function):

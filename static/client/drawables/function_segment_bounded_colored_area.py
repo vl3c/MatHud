@@ -76,20 +76,12 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
         """Calculate y value for Function objects with coordinate conversion."""
         try:
             # Convert from canvas coordinates to original coordinates
-            orig_x = self._canvas_to_original_x(x)
+            orig_x = self.canvas.coordinate_mapper.screen_to_math(x, 0)[0]
             y = self.func.function(orig_x)
             # Convert y back to canvas coordinates
-            return self._original_to_canvas_y(y)
+            return self.canvas.coordinate_mapper.math_to_screen(orig_x, y)[1]
         except (ValueError, ZeroDivisionError):
             return None
-
-    def _canvas_to_original_x(self, canvas_x):
-        """Convert x from canvas coordinates to original coordinates."""
-        return (canvas_x - self.canvas.cartesian2axis.origin.x) / self.canvas.scale_factor
-    
-    def _original_to_canvas_y(self, original_y):
-        """Convert y from original coordinates to canvas coordinates."""
-        return self.canvas.cartesian2axis.origin.y - original_y * self.canvas.scale_factor
 
     def _get_bounds(self):
         """Calculate the left and right bounds for the colored area."""
