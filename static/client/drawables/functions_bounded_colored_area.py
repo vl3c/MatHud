@@ -309,6 +309,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
             A list of (x, y) tuples representing the path.
         """
         points = []
+        current_path = []  # FIX: Initialize current_path variable
         
         # Get canvas bounds for asymptote handling
         canvas_top = 0
