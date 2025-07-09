@@ -14,8 +14,9 @@ from .test_throttle import TestThrottle
 from .test_window_mocks import TestWindowMocks
 from .test_expression_validator import TestExpressionValidator
 from .test_function import TestFunction
-from .test_function_calling import TestProcessFunctionCalls
-from .test_math_functions import TestMathFunctions
+from .test_functions_bounded_colored_area import TestFunctionsBoundedColoredArea
+from .test_function_segment_bounded_colored_area import TestFunctionSegmentBoundedColoredArea
+from .test_segments_bounded_colored_area import TestSegmentsBoundedColoredArea
 from .test_point import TestPoint
 from .test_position import TestPosition
 from .test_rectangle import TestRectangle
@@ -69,6 +70,9 @@ class Tests:
             TestAngleManager,
             TestEllipse,
             TestFunction,
+            TestFunctionsBoundedColoredArea,
+            TestFunctionSegmentBoundedColoredArea,
+            TestSegmentsBoundedColoredArea,
             TestCartesian2Axis,
             TestCanvas,
             TestCoordinateMapper,
