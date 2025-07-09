@@ -54,6 +54,11 @@ class SimpleMock:
         if call_args != args or call_kwargs != kwargs:
             raise AssertionError(f'Expected call with ({args}, {kwargs}), got ({call_args}, {call_kwargs})')
 
+    def assert_called_once(self):
+        """Assert that the mock was called exactly once (regardless of arguments)."""
+        if len(self.calls) != 1:
+            raise AssertionError(f'Expected one call, got {len(self.calls)}')
+
     def reset_mock(self):
         """Reset the mock's call history."""
         self.calls = [] 
