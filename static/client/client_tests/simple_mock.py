@@ -59,6 +59,11 @@ class SimpleMock:
         if len(self.calls) != 1:
             raise AssertionError(f'Expected one call, got {len(self.calls)}')
 
+    def assert_not_called(self):
+        """Assert that the mock was never called."""
+        if len(self.calls) > 0:
+            raise AssertionError(f"Expected 0 calls, got {len(self.calls)}")
+
     def reset_mock(self):
         """Reset the mock's call history."""
         self.calls = [] 
