@@ -62,13 +62,18 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
         """Return the class name 'FunctionSegmentBoundedColoredArea'."""
         return 'FunctionSegmentBoundedColoredArea'
 
+    def _is_function_like(self, obj):
+        """Check if an object has the necessary attributes to be treated as a function (duck typing)."""
+        required_attrs = ['name', 'function']
+        return all(hasattr(obj, attr) for attr in required_attrs)
+
     def _get_function_y_at_x(self, x):
         """Get y value for a given x from the function."""
         if self.func is None:  # x-axis
             return 0
         if isinstance(self.func, (int, float)):  # constant function
             return float(self.func)
-        if isinstance(self.func, Function):
+        if isinstance(self.func, Function) or self._is_function_like(self.func):
             return self._calculate_function_y_value(x)
         return None
 
@@ -89,7 +94,7 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
         seg_left, seg_right = self._get_segment_bounds()
         
         # For function bounds
-        if isinstance(self.func, Function):
+        if isinstance(self.func, Function) or self._is_function_like(self.func):
             return self._get_intersection_bounds(seg_left, seg_right)
         else:
             # For x-axis or constant function, use segment bounds

@@ -60,12 +60,12 @@ class FunctionsBoundedColoredArea(ColoredArea):
 
     def _validate_parameters(self, func1, func2, left_bound, right_bound, num_sample_points):
         """Validate input parameters for function bounded area creation."""
-        # Validate that func1 is provided in valid format
-        if func1 is not None and not isinstance(func1, (int, float)) and not isinstance(func1, Function):
+        # Validate that func1 is provided in valid format (use duck typing for testing)
+        if func1 is not None and not isinstance(func1, (int, float)) and not isinstance(func1, Function) and not self._is_function_like(func1):
             raise ValueError("func1 must be provided as a Function, None, or a number")
             
-        # Validate func2 type if provided
-        if func2 is not None and not isinstance(func2, (int, float)) and not isinstance(func2, Function):
+        # Validate func2 type if provided (use duck typing for testing)
+        if func2 is not None and not isinstance(func2, (int, float)) and not isinstance(func2, Function) and not self._is_function_like(func2):
             raise ValueError("func2 must be a Function, None, or a number")
             
         # Validate bounds if provided
@@ -87,6 +87,15 @@ class FunctionsBoundedColoredArea(ColoredArea):
             
         if num_sample_points <= 0:
             raise ValueError("num_sample_points must be a positive integer")
+
+    def _is_function_like(self, obj):
+        """Check if an object has the necessary attributes to be treated as a function (duck typing)."""
+        required_attrs = ['name', 'function']
+        return all(hasattr(obj, attr) for attr in required_attrs)
+    
+    def _is_function_or_function_like(self, obj):
+        """Check if an object is a Function or function-like object."""
+        return isinstance(obj, Function) or self._is_function_like(obj)
 
     def _get_function_name(self, func):
         """Generate a descriptive name for a function."""
@@ -120,7 +129,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
                 canvas_x, canvas_y = self.canvas.coordinate_mapper.math_to_screen(x, float(func))
                 return canvas_y
                 
-            if isinstance(func, Function):
+            if self._is_function_or_function_like(func):
                 try:
                     # Use the actual math x value directly
                     y = func.function(x)
@@ -176,7 +185,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
         list
             The updated bounds.
         """
-        if isinstance(func, Function) and func.left_bound is not None and func.right_bound is not None:
+        if self._is_function_or_function_like(func) and hasattr(func, 'left_bound') and hasattr(func, 'right_bound') and func.left_bound is not None and func.right_bound is not None:
             bounds[0] = max(bounds[0], func.left_bound)
             bounds[1] = min(bounds[1], func.right_bound)
         return bounds
@@ -279,7 +288,9 @@ class FunctionsBoundedColoredArea(ColoredArea):
                         break
                 return has_asym
             # Default asymptote detection for other functions
-            return isinstance(func, Function) and func.has_vertical_asymptote_between_x(x_orig - dx, x_orig + dx)
+            return (self._is_function_or_function_like(func) and 
+                   hasattr(func, 'has_vertical_asymptote_between_x') and 
+                   func.has_vertical_asymptote_between_x(x_orig - dx, x_orig + dx))
         except Exception:
             # If asymptote detection fails, assume no asymptote
             return False
@@ -376,7 +387,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
             The y value or None if invalid.
         """
         # For non-function types, use the original method
-        if not isinstance(func, Function):
+        if not self._is_function_or_function_like(func):
             return self._get_function_y_at_x(func, x)
         
         try:
