@@ -33,6 +33,7 @@ class Ellipse(Drawable):
     
     Maintains center Point object, x/y radius values, and rotation angle,
     calculating ellipse equation properties for mathematical operations.
+    Screen radii are calculated dynamically using CoordinateMapper.
     
     Attributes:
         center (Point): Center point of the ellipse
@@ -40,8 +41,6 @@ class Ellipse(Drawable):
         radius_y (float): Vertical radius in mathematical coordinate units
         rotation_angle (float): Rotation angle in degrees for ellipse orientation
         ellipse_formula (dict): Algebraic ellipse equation coefficients
-        drawn_radius_x (float): Current screen x-radius (affected by scale factor)
-        drawn_radius_y (float): Current screen y-radius (affected by scale factor)
     """
     def __init__(self, center_point, radius_x, radius_y, canvas, rotation_angle=0, color=default_color):
         """Initialize an ellipse with center point, radii, and rotation.
@@ -76,8 +75,9 @@ class Ellipse(Drawable):
         return 'Ellipse'
 
     def draw(self):
-        rx = self.drawn_radius_x
-        ry = self.drawn_radius_y
+        # Calculate screen radii using CoordinateMapper (similar to Circle class)
+        rx = self.canvas.coordinate_mapper.scale_value(self.radius_x)
+        ry = self.canvas.coordinate_mapper.scale_value(self.radius_y)
         x, y = self.center.x, self.center.y
         
         # Create transform attribute for rotation
@@ -97,24 +97,13 @@ class Ellipse(Drawable):
                                   fill="none", stroke=self.color)
 
     def _initialize(self):
-        scale_factor = self.canvas.scale_factor
-        self.drawn_radius_x = self.radius_x * scale_factor
-        self.drawn_radius_y = self.radius_y * scale_factor
+        # Remove cached drawn_radius calculation - now calculated dynamically in draw()
         self.center._initialize()
 
     def _calculate_ellipse_algebraic_formula(self):
         x = self.center.original_position.x
         y = self.center.original_position.y
         return MathUtils.get_ellipse_formula(x, y, self.radius_x, self.radius_y, self.rotation_angle)
-
-    def zoom(self):
-        scale_factor = self.canvas.scale_factor
-        self.drawn_radius_x = self.radius_x * scale_factor
-        self.drawn_radius_y = self.radius_y * scale_factor
-        # Zooming is done by the canvas for the center point
-    
-    def pan(self):
-        pass   # Panning is done by the canvas for the center point        
         
     def get_state(self):
         """Return the state of the ellipse including rotation"""

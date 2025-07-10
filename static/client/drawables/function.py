@@ -292,10 +292,12 @@ class Function(Drawable):
                                   fill=self.color, text_content=self.name, 
                                   text_font_size=point_label_font_size)
 
-    def zoom(self):
-        self._cache_valid = False
-    
-    def pan(self):
+    def _invalidate_cache_on_zoom(self):
+        """Invalidate function path cache when zoom changes.
+        
+        This ensures cache regeneration on any zoom operation, providing
+        immediate visual feedback for zoom changes.
+        """
         self._cache_valid = False
 
     def get_state(self):

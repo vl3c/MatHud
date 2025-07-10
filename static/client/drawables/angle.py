@@ -394,16 +394,6 @@ class Angle(Drawable):
         self._initialize() # This recalculates angle_degrees and ensures drawn_arc_radius is set
         return True 
 
-    def pan(self):
-        """Handles panning of the angle. Relies on underlying points being panned by the canvas."""
-        # The angle's visual position is determined by its points.
-        # If points are panned correctly, the angle will be redrawn correctly.
-        pass
-
-    def zoom(self):
-        """Zooming does not change the screen size of the arc. Points are zoomed by the canvas."""
-        pass # Arc radius is fixed on screen. Points are handled by their own zoom methods.
-
     def reset(self):
         """Resets the angle to its initial state based on its segments."""
         # The Drawable base class reset calls _initialize.

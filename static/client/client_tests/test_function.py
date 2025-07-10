@@ -86,10 +86,6 @@ class TestFunction(unittest.TestCase):
         self.assertGreater(points_within_bounds, points_outside_bounds, 
                           "Majority of points should be within y bounds")
 
-    def test_zoom(self):
-        # Test zoom functionality (mainly impacts _generate_values)
-        self.function.zoom()  # This might not change anything directly but can prepare for future tests with scale_factor changes
-
     def test_get_state(self):
         state = self.function.get_state()
         expected_state = {"name": self.name, "args": {"function_string": self.function_string, "left_bound": self.left_bound, "right_bound": self.right_bound}}
@@ -100,8 +96,6 @@ class TestFunction(unittest.TestCase):
         self.assertIsNot(function_copy, self.function)
         self.assertEqual(function_copy.function_string, self.function.function_string)
         self.assertEqual(function_copy.name, self.function.name)
-
-
 
     def test_caching_mechanism(self):
         # Test that points are cached and reused
@@ -117,37 +111,45 @@ class TestFunction(unittest.TestCase):
         self.assertIsNotNone(initial_points)
         self.assertTrue(self.function._cache_valid)
 
-    def test_cache_invalidation_on_zoom(self):
-        # Test that cache is invalidated on zoom
-        paths = self.function._generate_paths()
-        self.function._cached_paths = paths
-        self.function._cache_valid = True
+    def test_cache_invalidation_on_zoom_new_mechanism(self):
+        """Test that cache is invalidated when _invalidate_cache_on_zoom() is called"""
+        # Generate initial cache
+        self.function.draw()
+        self.assertTrue(self.function._cache_valid)
         initial_paths = self.function._cached_paths
         
-        self.function.zoom()
+        # Simulate zoom by calling the new cache invalidation mechanism
+        self.function._invalidate_cache_on_zoom()
+        
+        # Cache should be invalidated
         self.assertFalse(self.function._cache_valid)
         
-        # Change scale factor to simulate zoom
-        self.canvas.scale_factor = 2
-        new_paths = self.function._generate_paths()
-        self.function._cached_paths = new_paths
-        
-        # Calculate total points before and after zoom
-        initial_total_points = sum(len(path) for path in initial_paths)
-        new_total_points = sum(len(path) for path in new_paths)
-        
-        # Number of points or density might change due to zoom
-        # If points remain the same, at least verify cache was invalidated
-        if initial_total_points == new_total_points:
-            self.assertFalse(self.function._cache_valid)
-
-    def test_cache_invalidation_on_pan(self):
-        # Test that cache is invalidated on pan
+        # Draw again to regenerate cache
         self.function.draw()
-        initial_points = self.function._cached_paths
         
-        self.function.pan()
+        # Cache should be valid again with potentially different paths
+        self.assertTrue(self.function._cache_valid)
+        
+    def test_zoom_via_canvas_draw_mechanism(self):
+        """Test zoom cache invalidation through the Canvas.draw(apply_zoom=True) pattern"""
+        # Generate initial cache
+        self.function.draw()
+        self.assertTrue(self.function._cache_valid)
+        
+        # Simulate what Canvas.draw(apply_zoom=True) does:
+        # 1. Check if drawable has _invalidate_cache_on_zoom method
+        # 2. Call it if it exists
+        # 3. Call drawable.draw()
+        if hasattr(self.function, '_invalidate_cache_on_zoom'):
+            self.function._invalidate_cache_on_zoom()
+            
+        # Cache should be invalidated after _invalidate_cache_on_zoom()
         self.assertFalse(self.function._cache_valid)
+        
+        self.function.draw()
+        
+        # Verify cache is now valid again after regeneration
+        self.assertTrue(self.function._cache_valid)
 
     def test_adaptive_step_size(self):
         # Test function with varying slopes

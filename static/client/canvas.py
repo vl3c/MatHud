@@ -30,6 +30,7 @@ Dependencies:
     - managers.*: Specialized management components
 """
 
+import math
 from browser import document
 from geometry import Point
 from cartesian_system_2axis import Cartesian2Axis
@@ -90,7 +91,6 @@ class Canvas:
         
         # Initialize coordinate system and managers
         self.cartesian2axis = Cartesian2Axis(self)
-        self.cartesian2axis.origin = Point(x=0, y=0, canvas=self, name="o") # initializing a point requires a cartesian2axis object
         
         # Add managers
         self.undo_redo_manager = UndoRedoManager(self)
@@ -111,20 +111,142 @@ class Canvas:
         svg_container.clear()
         self._draw_cartesian(apply_zoom)
         
-        # Draw all drawables
-        for drawable in self.drawable_manager.get_drawables():
-            drawable.pan()
-            if apply_zoom:
-                drawable.zoom()
-            drawable.draw()  # Draw each drawable
+        # Apply zoom-towards-point displacement if needed
+        if apply_zoom and self.zoom_direction != 0:
+            self._apply_zoom_towards_point_displacement()
         
-        # Reset pan offset after drawing using CoordinateMapper
-        self.coordinate_mapper.reset_pan()
+        # Draw all drawables - coordinate transformations handled by CoordinateMapper
+        for drawable in self.drawable_manager.get_drawables():
+            # Handle special cases for cache invalidation and radius scaling
+            if apply_zoom and hasattr(drawable, '_invalidate_cache_on_zoom'):
+                drawable._invalidate_cache_on_zoom()
+            drawable.draw()
+    
+    def _apply_zoom_towards_point_displacement(self):
+        """Apply zoom-towards-point displacement to all drawable points.
+        
+        Implements the original zoom algorithm where points move towards the zoom point
+        based on their distance from it, creating a natural zoom-towards-mouse effect.
+        """
+        try:
+            import math
+            
+            zoom_point = self.zoom_point
+            zoom_direction = self.zoom_direction 
+            zoom_step = self.zoom_step
+            
+            # Apply displacement to cartesian system origin first
+            self._apply_cartesian_zoom_displacement(zoom_point, zoom_direction, zoom_step)
+            
+            # Apply displacement to all points in the canvas
+            for drawable in self.drawable_manager.get_drawables():
+                # Handle different drawable types based on their structure
+                if drawable.get_class_name() == 'Point':
+                    # Point objects have direct x,y access
+                    self._apply_point_zoom_displacement(drawable, zoom_point, zoom_direction, zoom_step)
+                    
+                elif drawable.get_class_name() == 'Segment':
+                    # Segments have point1 and point2
+                    self._apply_point_zoom_displacement(drawable.point1, zoom_point, zoom_direction, zoom_step)
+                    self._apply_point_zoom_displacement(drawable.point2, zoom_point, zoom_direction, zoom_step)
+                    
+                elif drawable.get_class_name() == 'Triangle':
+                    # Triangles have get_vertices() method
+                    if hasattr(drawable, 'get_vertices'):
+                        for point in drawable.get_vertices():
+                            self._apply_point_zoom_displacement(point, zoom_point, zoom_direction, zoom_step)
+                    
+                elif drawable.get_class_name() == 'Rectangle':
+                    # Rectangles should have get_vertices() method like triangles
+                    if hasattr(drawable, 'get_vertices'):
+                        for point in drawable.get_vertices():
+                            self._apply_point_zoom_displacement(point, zoom_point, zoom_direction, zoom_step)
+                    
+                elif drawable.get_class_name() in ['Circle', 'Ellipse']:
+                    # Circles and ellipses have center points
+                    if hasattr(drawable, 'center'):
+                        self._apply_point_zoom_displacement(drawable.center, zoom_point, zoom_direction, zoom_step)
+                        
+                elif drawable.get_class_name() == 'Vector':
+                    # Vectors have origin and tip points
+                    if hasattr(drawable, 'origin') and hasattr(drawable, 'tip'):
+                        self._apply_point_zoom_displacement(drawable.origin, zoom_point, zoom_direction, zoom_step)
+                        self._apply_point_zoom_displacement(drawable.tip, zoom_point, zoom_direction, zoom_step)
+                        
+                elif drawable.get_class_name() == 'Angle':
+                    # Angles have vertex, point1, point2
+                    if hasattr(drawable, 'vertex'):
+                        self._apply_point_zoom_displacement(drawable.vertex, zoom_point, zoom_direction, zoom_step)
+                    if hasattr(drawable, 'point1'):
+                        self._apply_point_zoom_displacement(drawable.point1, zoom_point, zoom_direction, zoom_step)
+                    if hasattr(drawable, 'point2'):
+                        self._apply_point_zoom_displacement(drawable.point2, zoom_point, zoom_direction, zoom_step)
+                        
+                # Note: Function and ColoredArea objects likely don't need zoom displacement
+                # as they are rendered based on other objects or mathematical equations
+            
+            # Reset zoom direction after applying displacement
+            self.zoom_direction = 0
+            
+        except Exception as e:
+            print(f"Error applying zoom displacement: {str(e)}")
+    
+    def _apply_cartesian_zoom_displacement(self, zoom_point, zoom_direction, zoom_step):
+        """Apply zoom displacement to the cartesian coordinate system origin.
+        
+        This ensures the coordinate grid participates in the zoom-towards-point effect
+        by adjusting the CoordinateMapper's offset based on the distance from the 
+        cartesian origin to the zoom point.
+        """
+        try:
+            # Get current cartesian origin screen coordinates
+            cartesian_origin = self.cartesian2axis.origin
+            
+            # Calculate distance from cartesian origin to zoom point
+            dx = zoom_point.x - cartesian_origin.x
+            dy = zoom_point.y - cartesian_origin.y
+            distance = math.sqrt(dx * dx + dy * dy)
+            
+            # Calculate displacement magnitude
+            displacement = distance * zoom_step * zoom_direction
+            
+            # Normalize direction vector and apply displacement to coordinate mapper offset
+            if distance > 0:
+                dx /= distance
+                dy /= distance
+                
+                # Apply displacement to CoordinateMapper offset to move the entire coordinate system
+                self.coordinate_mapper.offset.x += displacement * dx
+                self.coordinate_mapper.offset.y += displacement * dy
+                
+        except Exception as e:
+            print(f"Error applying cartesian zoom displacement: {str(e)}")
+    
+    def _apply_point_zoom_displacement(self, point, zoom_point, zoom_direction, zoom_step):
+        """Apply zoom displacement to a single point using the original algorithm."""
+        try:
+            # Calculate distance from point to zoom point
+            dx = zoom_point.x - point.x
+            dy = zoom_point.y - point.y
+            distance = math.sqrt(dx * dx + dy * dy)
+            
+            # Calculate displacement magnitude
+            displacement = distance * zoom_step * zoom_direction
+            
+            # Normalize direction vector and apply displacement
+            if distance > 0:
+                dx /= distance
+                dy /= distance
+                point.x += displacement * dx
+                point.y += displacement * dy
+                
+        except Exception as e:
+            print(f"Error applying point displacement: {str(e)}")
 
     def _draw_cartesian(self, apply_zoom=False):
-        self.cartesian2axis.pan()
-        if apply_zoom:
-            self.cartesian2axis.zoom()
+        # Handle cartesian system cache invalidation if needed
+        if apply_zoom and hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
+            self.cartesian2axis._invalidate_cache_on_zoom()
         self.cartesian2axis.draw()
 
     def _fix_drawable_canvas_references(self):

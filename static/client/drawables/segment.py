@@ -55,7 +55,6 @@ class Segment(Drawable):
         self.line_formula = self._calculate_line_algebraic_formula()
         name = self.point1.name + self.point2.name
         super().__init__(name=name, color=color, canvas=canvas)
-        self._initialize()
 
     @Drawable.canvas.setter
     def canvas(self, value):
@@ -92,19 +91,6 @@ class Segment(Drawable):
             x2, y2 = self.point2.x, self.point2.y
             self.create_svg_element('line', x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=self.color)
 
-    def _initialize(self):
-        self.point1._initialize()
-        self.point2._initialize()
-
-    def zoom(self):
-        pass   # Zooming is done by the canvas for the segment points
-        # self.point1.zoom()
-        # self.point2.zoom()
-    
-    def pan(self):
-        pass   # Panning is done by the canvas for the segment points
-        # self._translate(self.canvas.offset)
-        
     def get_state(self):
         points_names = sorted([self.point1.name, self.point2.name])
         state = {"name": self.name, "args": {"p1": points_names[0], "p2": points_names[1], "line_formula": self.line_formula}}
@@ -129,7 +115,6 @@ class Segment(Drawable):
         self.point1.original_position.y += y_offset
         self.point2.original_position.x += x_offset
         self.point2.original_position.y += y_offset
-        self._initialize()
 
     def _get_midpoint(self):
         """Calculate the midpoint of the segment"""
@@ -157,9 +142,8 @@ class Segment(Drawable):
         self._rotate_point_around_center(self.point1, center_x, center_y, angle_rad)
         self._rotate_point_around_center(self.point2, center_x, center_y, angle_rad)
         
-        # Update line formula and initialize
+        # Update line formula
         self.line_formula = self._calculate_line_algebraic_formula()
-        self._initialize()
         
         # Return tuple (should_proceed, message) to match interface
         return True, None 
@@ -185,4 +169,12 @@ class Segment(Drawable):
              return hash((None, None)) 
         # Use frozenset of point hashes to ensure hash is consistent regardless of point1/point2 order
         # and relies on Point.__hash__ which is value-based.
-        return hash(frozenset([hash(self.point1), hash(self.point2)])) 
+        return hash(frozenset([hash(self.point1), hash(self.point2)]))
+
+    def _initialize(self):
+        """Empty method for backward compatibility.
+        
+        Screen coordinates are now calculated on-demand via Point.x,y properties,
+        so no initialization is needed.
+        """
+        pass 

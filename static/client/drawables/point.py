@@ -27,19 +27,16 @@ from constants import default_color, default_point_size, point_label_font_size
 from drawables.drawable import Drawable
 from drawables.position import Position
 from utils.math_utils import MathUtils
-import math
 
 class Point(Drawable):
     """Represents a point in 2D mathematical space with coordinate tracking and labeling.
     
-    Fundamental building block for all geometric constructions, maintaining both original
-    mathematical coordinates and transformed screen coordinates for proper rendering.
+    Fundamental building block for all geometric constructions, maintaining mathematical
+    coordinates and calculating screen coordinates dynamically via CoordinateMapper.
     Uses Canvas CoordinateMapper for all coordinate transformations.
     
     Attributes:
         original_position (Position): Mathematical coordinates (unaffected by zoom/pan)
-        x (float): Current screen x-coordinate (calculated via CoordinateMapper)
-        y (float): Current screen y-coordinate (calculated via CoordinateMapper)
     """
     def __init__(self, x, y, canvas, name="", color=default_color):
         """Initialize a point with mathematical coordinates and canvas integration.
@@ -53,12 +50,10 @@ class Point(Drawable):
         """
         self.original_position = Position(x, y)
         super().__init__(name=name, color=color, canvas=canvas)
-        self._initialize()
     
     @Drawable.canvas.setter
     def canvas(self, value):
         self._canvas = value
-        self._initialize()
 
     @canvas.getter
     def canvas(self):
@@ -68,8 +63,6 @@ class Point(Drawable):
         return 'Point'
 
     def draw(self):
-        if not self.is_visible():
-            return
         x, y = self.x, self.y
         # Draw point
         self.create_svg_element('circle', cx=str(x), cy=str(y), r=str(default_point_size), fill=self.color)
@@ -79,39 +72,12 @@ class Point(Drawable):
         self.create_svg_element('text', x=str(x+label_offset), y=str(y-label_offset), fill=self.color, text_content=label_text, text_font_size=point_label_font_size)
 
     def __str__(self):
-        x = self.x
-        y = self.y
-        return f'{x},{y}'
+        return f'{self.original_position.x},{self.original_position.y}'
     
-    def _initialize(self):
-        """Convert mathematical coordinates to screen coordinates using CoordinateMapper."""
-        self.x, self.y = self.canvas.coordinate_mapper.math_to_screen(
-            self.original_position.x, self.original_position.y
-        )
-
-    def _translate(self, offset_point):
-        """Translate point by screen offset."""
-        self.x += offset_point.x
-        self.y += offset_point.y
-
-    def zoom(self):
-        """Apply zoom transformation using CoordinateMapper."""
-        current_screen_pos = Position(self.x, self.y)
-        displacement = self.canvas.coordinate_mapper.get_zoom_towards_point_displacement(current_screen_pos)
-        self._translate(displacement)
-
-    def pan(self):
-        """Apply pan transformation using CoordinateMapper."""
-        self._translate(self.canvas.coordinate_mapper.offset)
-        
     def get_state(self):
         pos = self.original_position
         state = {"name": self.name, "args": {"position": {"x": pos.x, "y": pos.y}}}
         return state
-    
-    def is_visible(self):
-        """Check if point is visible within canvas bounds using CoordinateMapper."""
-        return self.canvas.coordinate_mapper.is_point_visible(self.x, self.y)
     
     def __deepcopy__(self, memo):
         if id(self) in memo:
@@ -125,7 +91,6 @@ class Point(Drawable):
     def translate(self, x_offset, y_offset):
         self.original_position.x += x_offset
         self.original_position.y += y_offset
-        self._initialize()
 
     def rotate(self, angle):
         pass
@@ -147,3 +112,57 @@ class Point(Drawable):
         rounded_x = round(self.original_position.x, precision)
         rounded_y = round(self.original_position.y, precision)
         return hash((rounded_x, rounded_y))
+
+    @property
+    def x(self):
+        """Screen x-coordinate - calculated on demand"""
+        screen_x, _ = self.canvas.coordinate_mapper.math_to_screen(
+            self.original_position.x, self.original_position.y)
+        return screen_x
+
+    @property  
+    def y(self):
+        """Screen y-coordinate - calculated on demand"""
+        _, screen_y = self.canvas.coordinate_mapper.math_to_screen(
+            self.original_position.x, self.original_position.y)
+        return screen_y
+
+    def _initialize(self):
+        """Empty method for backward compatibility.
+        
+        Screen coordinates are now calculated on-demand via x,y properties,
+        so no initialization is needed.
+        """
+        pass
+
+    def _translate(self, screen_offset):
+        """Translate point by screen coordinate offset for backward compatibility.
+        
+        Converts screen offset to mathematical offset and applies translation.
+        This maintains compatibility with old code that used screen-space translation.
+        
+        Args:
+            screen_offset (Position): Screen coordinate offset to apply
+        """
+        # Convert screen offset to mathematical offset
+        math_dx = screen_offset.x / self.canvas.coordinate_mapper.scale_factor
+        math_dy = -screen_offset.y / self.canvas.coordinate_mapper.scale_factor  # Y-axis flip
+        
+        # Apply mathematical translation
+        self.translate(math_dx, math_dy)
+
+    def zoom(self):
+        """Empty zoom method for backward compatibility.
+        
+        Zoom transformations are now handled centrally by CoordinateMapper
+        when drawing, so individual drawable zoom() methods do nothing.
+        """
+        pass
+
+    def pan(self):
+        """Empty pan method for backward compatibility.
+        
+        Pan transformations are now handled centrally by CoordinateMapper
+        when drawing, so individual drawable pan() methods do nothing.
+        """
+        pass

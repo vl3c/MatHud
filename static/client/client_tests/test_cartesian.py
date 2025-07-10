@@ -29,7 +29,6 @@ class TestCartesian2Axis(unittest.TestCase):
         
         self.cartesian_system = Cartesian2Axis(canvas=self.canvas)
         self.canvas.cartesian2axis = self.cartesian_system
-        self.cartesian_system.origin = Point(x=0, y=0, canvas=self.canvas, name="o")
 
     def test_init(self):
         self.assertEqual(self.cartesian_system.name, "cartesian-2axis-system")
@@ -41,7 +40,7 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertEqual(self.cartesian_system.current_tick_spacing, self.cartesian_system.default_tick_spacing)
 
     def test_get_visible_bounds(self):
-        # Test initial bounds
+        # Test initial bounds - now calculated dynamically via CoordinateMapper
         left_bound = self.cartesian_system.get_visible_left_bound()
         right_bound = self.cartesian_system.get_visible_right_bound()
         top_bound = self.cartesian_system.get_visible_top_bound()
@@ -52,9 +51,9 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertEqual(top_bound, 300.0)    # self.origin.y / self.canvas.scale_factor
         self.assertEqual(bottom_bound, -300.0)  # (self.origin.y - self.height) / self.canvas.scale_factor
 
-        # Test bounds after zooming in
+        # Test bounds with different scale factor - bounds are now dynamic via CoordinateMapper
         self.canvas.scale_factor = 2
-        self.cartesian_system.zoom()
+        self.coordinate_mapper.sync_from_canvas(self.canvas)  # Update coordinate mapper
         
         left_bound = self.cartesian_system.get_visible_left_bound()
         right_bound = self.cartesian_system.get_visible_right_bound()
@@ -90,24 +89,34 @@ class TestCartesian2Axis(unittest.TestCase):
         # The closest spacing to the ideal tick spacing that is larger or equal to it is 50.
         self.assertEqual(tick_spacing, 50)
 
-    def test_zoom(self):
+    def test_zoom_via_cache_invalidation(self):
+        # Test zoom handling via new _invalidate_cache_on_zoom mechanism
         # Set up a Cartesian2Axis object with specific properties
         self.cartesian_system.width = 1000
         self.cartesian_system.max_ticks = 10
         self.cartesian_system.canvas.scale_factor = 2
         self.cartesian_system.current_tick_spacing = 100
         self.cartesian_system.canvas.zoom_direction = -1  # Zoom in
-        # Call the zoom method
-        self.cartesian_system.zoom()
+        
+        # Update coordinate mapper to reflect new scale
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        
+        # Call the new zoom invalidation method
+        self.cartesian_system._invalidate_cache_on_zoom()
+        
         # The relative width is 500, so the ideal tick spacing is 50.
         # The proposed tick spacing is also 50, which is less than twice the current tick spacing (200).
         # Therefore, the current tick spacing should be updated to the proposed tick spacing.
         self.assertEqual(self.cartesian_system.current_tick_spacing, 50)
+        
         # Change the zoom direction to zoom out
         self.cartesian_system.canvas.zoom_direction = 1
         self.cartesian_system.canvas.scale_factor = 0.5  # Decrease scale factor to simulate zooming out
-        # Call the zoom method again
-        self.cartesian_system.zoom()
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        
+        # Call the cache invalidation method again
+        self.cartesian_system._invalidate_cache_on_zoom()
+        
         # Now, the relative width is 2000, so the ideal tick spacing is 200.
         # The order of magnitude of the ideal tick spacing is 100.
         # The possible spacings are [100, 250, 500, 1000].
@@ -115,17 +124,23 @@ class TestCartesian2Axis(unittest.TestCase):
         # Therefore, the current tick spacing should be updated to 250.
         self.assertEqual(self.cartesian_system.current_tick_spacing, 250)
 
-    def test_pan(self):
+    def test_dynamic_origin_calculation(self):
+        # Test that origin is calculated dynamically from CoordinateMapper
         original_origin = Position(self.cartesian_system.origin.x, self.cartesian_system.origin.y)
-        # Set a non-zero offset to test panning
+        
+        # Set a non-zero offset to test dynamic origin calculation
         self.canvas.offset = Position(10, 5)
-        self.cartesian_system.pan()
-        # Verifying that the origin has been moved according to the canvas offset
-        self.assertNotEqual(self.cartesian_system.origin.x, original_origin.x)
-        self.assertNotEqual(self.cartesian_system.origin.y, original_origin.y)
-        # Verify specific offset values
-        self.assertEqual(self.cartesian_system.origin.x, original_origin.x + 10)
-        self.assertEqual(self.cartesian_system.origin.y, original_origin.y + 5)
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        
+        # Origin should now be different due to dynamic calculation
+        new_origin = self.cartesian_system.origin
+        self.assertNotEqual(new_origin.x, original_origin.x)
+        self.assertNotEqual(new_origin.y, original_origin.y)
+        
+        # Verify origin is calculated dynamically from CoordinateMapper
+        expected_x, expected_y = self.coordinate_mapper.math_to_screen(0, 0)
+        self.assertEqual(new_origin.x, expected_x)
+        self.assertEqual(new_origin.y, expected_y)
 
     def test_state_retrieval(self):
         state = self.cartesian_system.get_state()

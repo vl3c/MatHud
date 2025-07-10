@@ -32,11 +32,6 @@ class TestCircle(unittest.TestCase):
         self.radius = 5
         self.circle = Circle(self.center, self.radius, self.canvas, color="blue")
 
-    def test_initialize(self):
-        self.circle._initialize()
-        self.assertEqual(self.circle.drawn_radius, self.radius * self.canvas.scale_factor)
-        self.assertEqual(self.circle.center, self.center)
-
     def test_init(self):
         self.assertEqual(self.circle.center, self.center)
         self.assertEqual(self.circle.radius, self.radius)
@@ -48,12 +43,6 @@ class TestCircle(unittest.TestCase):
     def test_calculate_circle_algebraic_formula(self):
         formula = self.circle._calculate_circle_algebraic_formula()
         self.assertIsNotNone(formula)
-
-    def test_zoom(self):
-        new_scale_factor = 2
-        self.canvas.scale_factor = new_scale_factor
-        self.circle.zoom()
-        self.assertEqual(self.circle.drawn_radius, self.radius * new_scale_factor)
 
     def test_get_state(self):
         state = self.circle.get_state()

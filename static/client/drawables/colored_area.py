@@ -79,12 +79,6 @@ class ColoredArea(Drawable):
         self.create_svg_element('path', d=path_d, stroke="none", 
                               fill=self.color, fill_opacity=str(self.opacity))
 
-    def zoom(self):
-        pass  # Zooming is handled by the objects defining the area
-
-    def pan(self):
-        pass  # Panning is handled by the objects defining the area
-
     def get_class_name(self):
         return 'ColoredArea'
 

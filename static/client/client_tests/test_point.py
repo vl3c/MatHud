@@ -48,15 +48,11 @@ class TestPoint(unittest.TestCase):
         self.assertEqual(self.point.get_class_name(), 'Point')
 
     def test_str(self):
-        self.assertEqual(str(self.point), '251,248')
+        self.assertEqual(str(self.point), '1,2')
 
     def test_get_state(self):
         expected_state = {"name": "p1", "args": {"position": {"x": 1, "y": 2}}}
         self.assertEqual(self.point.get_state(), expected_state)
-
-    def test_is_visible(self):
-        # Point at (251, 248) should be visible within 500x500 canvas bounds
-        self.assertTrue(self.point.is_visible())
 
     def test_deepcopy(self):
         point_copy = copy.deepcopy(self.point)
@@ -72,29 +68,6 @@ class TestPoint(unittest.TestCase):
         self.point._translate(Position(1, 1))
         self.assertEqual(self.point.x, initial_x + 1)  # 251 + 1 = 252
         self.assertEqual(self.point.y, initial_y + 1)  # 248 + 1 = 249
-
-    def test_zoom(self):
-        initial_x, initial_y = self.point.x, self.point.y
-        self.point.zoom()
-        
-        # Calculate expected displacement using real coordinate mapper
-        displacement = self.coordinate_mapper.get_zoom_towards_point_displacement(Position(initial_x, initial_y))
-        expected_x = initial_x + displacement.x
-        expected_y = initial_y + displacement.y
-        
-        self.assertAlmostEqual(self.point.x, expected_x, places=4)
-        self.assertAlmostEqual(self.point.y, expected_y, places=4)
-
-    def test_pan(self):
-        initial_x, initial_y = self.point.x, self.point.y
-        self.point.pan()
-        
-        # Point should be translated by coordinate_mapper.offset (which is (0,0))
-        expected_x = initial_x + self.coordinate_mapper.offset.x
-        expected_y = initial_y + self.coordinate_mapper.offset.y
-        
-        self.assertEqual(self.point.x, expected_x)
-        self.assertEqual(self.point.y, expected_y)
 
     def test_translate_point_in_math_space(self):
         # Test translating the point in mathematical coordinate space

@@ -34,12 +34,6 @@ class TestEllipse(unittest.TestCase):
         self.rotation_angle = 45
         self.ellipse = Ellipse(self.center, self.radius_x, self.radius_y, self.canvas, color="red", rotation_angle=self.rotation_angle)
 
-    def test_initialize(self):
-        self.ellipse._initialize()
-        self.assertEqual(self.ellipse.drawn_radius_x, self.radius_x * self.canvas.scale_factor)
-        self.assertEqual(self.ellipse.drawn_radius_y, self.radius_y * self.canvas.scale_factor)
-        self.assertEqual(self.ellipse.center, self.center)
-
     def test_init(self):
         self.assertEqual(self.ellipse.center, self.center)
         self.assertEqual(self.ellipse.radius_x, self.radius_x)
@@ -53,13 +47,6 @@ class TestEllipse(unittest.TestCase):
     def test_calculate_ellipse_algebraic_formula(self):
         formula = self.ellipse._calculate_ellipse_algebraic_formula()
         self.assertIsNotNone(formula)
-
-    def test_zoom(self):
-        new_scale_factor = 2
-        self.canvas.scale_factor = new_scale_factor
-        self.ellipse.zoom()
-        self.assertEqual(self.ellipse.drawn_radius_x, self.radius_x * new_scale_factor)
-        self.assertEqual(self.ellipse.drawn_radius_y, self.radius_y * new_scale_factor)
 
     def test_get_state(self):
         state = self.ellipse.get_state()

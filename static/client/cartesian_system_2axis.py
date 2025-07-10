@@ -66,7 +66,6 @@ class Cartesian2Axis(Drawable):
         self.name = "cartesian-2axis-system"
         self.width = canvas.width
         self.height = canvas.height
-        self.origin = Position(canvas.center.x, canvas.center.y)  # initial placement on canvas
         self.default_tick_spacing = 100
         self.current_tick_spacing = 100  # Track the previous tick spacing to determine zoom level
         self.max_ticks = 10
@@ -90,33 +89,33 @@ class Cartesian2Axis(Drawable):
     
     def reset(self):
         """Reset coordinate system to initial state with centered origin."""
-        self.origin.x = self.canvas.center.x
-        self.origin.y = self.canvas.center.y
         self.current_tick_spacing = self.default_tick_spacing
 
     def get_class_name(self):
         """Return the class name 'Cartesian2Axis'."""
         return 'Cartesian2Axis'
     
+    @property
+    def origin(self):
+        """Get the screen coordinates of the mathematical origin (0,0) using CoordinateMapper."""
+        origin_x, origin_y = self.canvas.coordinate_mapper.math_to_screen(0, 0)
+        return Position(origin_x, origin_y)
+    
     def get_visible_left_bound(self):
         """Calculate visible left boundary in mathematical coordinates."""
-        # Calculate the visible left bound system-axis absolute value based on the origin and scale factor
-        return -self.origin.x / self.canvas.scale_factor
+        return self.canvas.coordinate_mapper.get_visible_left_bound()
 
     def get_visible_right_bound(self):
         """Calculate visible right boundary in mathematical coordinates."""
-        # Calculate the visible right bound system-axis absolute value based on the origin, width of the canvas, and scale factor
-        return (self.width - self.origin.x) / self.canvas.scale_factor
+        return self.canvas.coordinate_mapper.get_visible_right_bound()
 
     def get_visible_top_bound(self):
         """Calculate visible top boundary in mathematical coordinates."""
-        # Calculate the visible top bound system-axis absolute value based on the origin and scale factor
-        return self.origin.y / self.canvas.scale_factor
+        return self.canvas.coordinate_mapper.get_visible_top_bound()
 
     def get_visible_bottom_bound(self):
         """Calculate visible bottom boundary in mathematical coordinates."""
-        # Calculate the visible bottom bound system-axis absolute value based on the origin, height of the canvas, and scale factor
-        return (self.origin.y - self.height) / self.canvas.scale_factor
+        return self.canvas.coordinate_mapper.get_visible_bottom_bound()
 
     def get_relative_width(self):
         """Get canvas width adjusted for current scale factor."""
@@ -256,8 +255,7 @@ class Cartesian2Axis(Drawable):
                               y2=str(end_point.y), 
                               stroke=self.grid_color)
 
-    def _translate(self, offset):
-        self.origin._translate(offset)
+
    
     def _calculate_tick_spacing(self):
         ideal_spacing = self._calculate_ideal_tick_spacing()
@@ -280,8 +278,8 @@ class Cartesian2Axis(Drawable):
         # If none of the spacings fit (very unlikely), fallback to the smallest spacing
         return possible_spacings[0]
 
-    def zoom(self):
-        """Update coordinate system for zoom operations with dynamic tick spacing."""
+    def _invalidate_cache_on_zoom(self):
+        """Update tick spacing for zoom operations with dynamic spacing calculation."""
         # Calculate the new display tick spacing based on the current zoom level and scale factor
         proposed_tick_spacing = self._calculate_tick_spacing()
         # Determine whether to zoom in or out based on zoom_direction
@@ -294,11 +292,6 @@ class Cartesian2Axis(Drawable):
             # Zooming out: Increase the tick spacing if it's greater than half the current tick spacing
             if proposed_tick_spacing > self.current_tick_spacing * 0.5:
                 self.current_tick_spacing = proposed_tick_spacing
-        self.origin.zoom()
-
-    def pan(self):
-        """Update coordinate system for pan operations."""
-        self._translate(self.canvas.offset)
 
     def get_state(self):
         """Serialize coordinate system state for persistence."""
@@ -307,7 +300,8 @@ class Cartesian2Axis(Drawable):
 
     def _get_axis_origin(self, axis):
         """Get the origin position for the specified axis"""
-        return self.origin.x if axis == 'x' else self.origin.y
+        origin = self.origin
+        return origin.x if axis == 'x' else origin.y
     
     def _get_axis_boundary(self, axis):
         """Get the boundary (width/height) for the specified axis"""

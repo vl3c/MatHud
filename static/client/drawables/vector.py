@@ -102,12 +102,6 @@ class Vector(Drawable):
         self.segment.draw()
         self._draw_tip_triangle()
 
-    def zoom(self):
-        pass   # Zooming is done by the canvas for the segment points
-    
-    def pan(self):
-        pass   # Panning is done by the canvas for the segment points
-      
     def get_state(self):
         origin = self.segment.point1.name
         tip = self.segment.point2.name

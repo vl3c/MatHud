@@ -9,12 +9,10 @@ Key Features:
     - Color and naming system
     - Canvas integration for coordinate transformations
     - State serialization for persistence
-    - Abstract interface for zoom, pan, and draw operations
+    - Abstract interface for drawing and transformations
 
 Core Interface:
     - draw(): Render the object to SVG canvas
-    - zoom(): Update object for scale factor changes
-    - pan(): Update object for viewport translation
     - get_state(): Serialize object state for persistence
     - rotate(): Apply rotation transformation
 
@@ -80,12 +78,6 @@ class Drawable:
     def get_name(self):
         return self.name
     
-    def zoom(self):
-        raise NotImplementedError("Subclasses must implement zoom method")
-
-    def pan(self):
-        raise NotImplementedError("Subclasses must implement pan method")
-
     def draw(self):
         raise NotImplementedError("Subclasses must implement draw method")
 

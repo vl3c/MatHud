@@ -32,12 +32,12 @@ class Circle(Drawable):
     
     Maintains a center Point object and radius value, calculating circle equation
     properties for mathematical operations and geometric intersections.
+    Screen radius is calculated dynamically using CoordinateMapper.
     
     Attributes:
         center (Point): Center point of the circle
         radius (float): Radius in mathematical coordinate units
         circle_formula (dict): Algebraic circle equation coefficients
-        drawn_radius (float): Current screen radius (affected by scale factor)
     """
     def __init__(self, center_point, radius, canvas, color=default_color):
         """Initialize a circle with center point and radius.
@@ -68,12 +68,12 @@ class Circle(Drawable):
         return 'Circle'
 
     def draw(self):
-        radius = self.drawn_radius
+        # Calculate screen radius using CoordinateMapper
+        screen_radius = self.canvas.coordinate_mapper.scale_value(self.radius)
         x, y = self.center.x, self.center.y
-        self.create_svg_element('circle', cx=str(x), cy=str(y), r=str(radius), fill="none", stroke=self.color)
+        self.create_svg_element('circle', cx=str(x), cy=str(y), r=str(screen_radius), fill="none", stroke=self.color)
 
     def _initialize(self):
-        self.drawn_radius = self.radius * self.canvas.scale_factor
         self.center._initialize()
 
     def _calculate_circle_algebraic_formula(self):
@@ -82,12 +82,6 @@ class Circle(Drawable):
         r = self.radius
         circle_formula = MathUtils.get_circle_formula(x, y, r)
         return circle_formula
-
-    def zoom(self):
-        self.drawn_radius = self.radius * self.canvas.scale_factor
-    
-    def pan(self):
-        pass   # Panning is done by the canvas for the center point 
         
     def get_state(self):
         radius = self.radius

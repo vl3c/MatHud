@@ -102,12 +102,6 @@ class Triangle(RotatablePolygon):
                 return False
         return True
     
-    def zoom(self):
-        pass   # Zooming is done by the canvas for the segment points
-    
-    def pan(self):
-        pass   # Panning is done by the canvas for the segment points
-        
     def get_state(self):
         # Collect all point names into a list
         point_names = [
