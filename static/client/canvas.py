@@ -42,6 +42,11 @@ from utils.computation_utils import ComputationUtils
 from managers.undo_redo_manager import UndoRedoManager
 from managers.drawable_manager import DrawableManager
 from managers.transformations_manager import TransformationsManager
+try:
+    from rendering.svg_renderer import SvgRenderer
+except Exception:
+    # Allow running tests outside browser context without failing imports
+    SvgRenderer = None
 
 
 class Canvas:
@@ -68,7 +73,7 @@ class Canvas:
         zoom_direction (int): Current zoom direction (-1=in, 1=out, 0=none)
         zoom_step (float): Zoom increment per step
     """
-    def __init__(self, width, height, draw_enabled=True):
+    def __init__(self, width, height, draw_enabled=True, renderer=None):
         """Initialize the mathematical canvas with specified dimensions.
         
         Sets up the coordinate system, managers, and initial state for mathematical visualization.
@@ -96,6 +101,12 @@ class Canvas:
         self.undo_redo_manager = UndoRedoManager(self)
         self.drawable_manager = DrawableManager(self)
         self.transformations_manager = TransformationsManager(self)
+
+        # Initialize renderer lazily to avoid hard dependency in non-browser tests
+        if renderer is not None:
+            self.renderer = renderer
+        else:
+            self.renderer = SvgRenderer() if SvgRenderer is not None else None
         
         if self.draw_enabled:
             self.cartesian2axis.draw()
@@ -107,8 +118,15 @@ class Canvas:
     def draw(self, apply_zoom=False):
         if not self.draw_enabled:
             return
-        svg_container = document["math-svg"]
-        svg_container.clear()
+        # If a renderer exists, prefer it to clear and draw
+        if self.renderer is not None:
+            try:
+                self.renderer.clear()
+            except Exception:
+                pass
+        else:
+            svg_container = document["math-svg"]
+            svg_container.clear()
         self._draw_cartesian(apply_zoom)
         
         # Apply zoom-towards-point displacement if needed
@@ -120,7 +138,16 @@ class Canvas:
             # Handle special cases for cache invalidation and radius scaling
             if apply_zoom and hasattr(drawable, '_invalidate_cache_on_zoom'):
                 drawable._invalidate_cache_on_zoom()
-            drawable.draw()
+            # During migration, if a renderer is present and knows this type, use it
+            rendered = False
+            if self.renderer is not None:
+                try:
+                    rendered = self.renderer.render(drawable, self.coordinate_mapper)
+                except Exception:
+                    rendered = False
+            if not rendered:
+                # Fallback to current draw implementation
+                drawable.draw()
     
     def _apply_zoom_towards_point_displacement(self):
         """Apply zoom-towards-point displacement to all drawable points.
