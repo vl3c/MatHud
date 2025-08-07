@@ -74,4 +74,20 @@ class SvgRenderer:
         text_el.setAttribute('font-size', f'{int(font_size_val)}px')
         document["math-svg"] <= text_el
 
+    # ----------------------- Segment -----------------------
+    def register_segment(self, segment_cls):
+        self.register(segment_cls, self._render_segment)
+
+    def _render_segment(self, segment, coordinate_mapper):
+        # Visual params: style override -> model color -> default
+        color = self.style.get('segment_color', getattr(segment, 'color', default_color))
+
+        x1, y1 = coordinate_mapper.math_to_screen(
+            segment.point1.original_position.x, segment.point1.original_position.y)
+        x2, y2 = coordinate_mapper.math_to_screen(
+            segment.point2.original_position.x, segment.point2.original_position.y)
+
+        line_el = svg.line(x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=color)
+        document["math-svg"] <= line_el
+
 

@@ -117,6 +117,12 @@ class Canvas:
                 self.renderer.register_point(_Point)
         except Exception:
             pass
+        try:
+            from drawables.segment import Segment as _Segment
+            if self.renderer is not None and hasattr(self.renderer, 'register_segment'):
+                self.renderer.register_segment(_Segment)
+        except Exception:
+            pass
 
     def add_drawable(self, drawable):
         drawable.canvas = self  # Set the drawable's canvas reference
