@@ -110,6 +110,13 @@ class Canvas:
         
         if self.draw_enabled:
             self.cartesian2axis.draw()
+        # Register handlers incrementally to avoid tight coupling during import time
+        try:
+            from drawables.point import Point as _Point
+            if self.renderer is not None and hasattr(self.renderer, 'register_point'):
+                self.renderer.register_point(_Point)
+        except Exception:
+            pass
 
     def add_drawable(self, drawable):
         drawable.canvas = self  # Set the drawable's canvas reference

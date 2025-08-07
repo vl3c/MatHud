@@ -127,6 +127,20 @@ class Point(Drawable):
             self.original_position.x, self.original_position.y)
         return screen_y
 
+    @property
+    def screen_x(self):
+        """Explicit screen x-coordinate (alias for current behavior)."""
+        screen_x, _ = self.canvas.coordinate_mapper.math_to_screen(
+            self.original_position.x, self.original_position.y)
+        return screen_x
+
+    @property
+    def screen_y(self):
+        """Explicit screen y-coordinate (alias for current behavior)."""
+        _, screen_y = self.canvas.coordinate_mapper.math_to_screen(
+            self.original_position.x, self.original_position.y)
+        return screen_y
+
     def _initialize(self):
         """Empty method for backward compatibility.
         
