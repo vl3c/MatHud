@@ -32,15 +32,15 @@ class TestPoint(unittest.TestCase):
 
     def test_initialize(self):
         self.point._initialize()
-        # Real coordinate transformation: origin at (250, 250), math coords (1, 2)
-        # screen_x = 250 + 1*1 + 0 = 251
-        # screen_y = 250 - 2*1 + 0 = 248
-        self.assertEqual(self.point.x, 251)
-        self.assertEqual(self.point.y, 248)
+        # Screen-space assertions use screen_x/screen_y
+        self.assertEqual(self.point.screen_x, 251)
+        self.assertEqual(self.point.screen_y, 248)
 
     def test_init(self):
         self.assertEqual(self.point.original_position.x, 1)
         self.assertEqual(self.point.original_position.y, 2)
+        self.assertEqual(self.point.x, 1)
+        self.assertEqual(self.point.y, 2)
         self.assertEqual(self.point.name, "p1")
         self.assertEqual(self.point.color, "red")
 
@@ -64,10 +64,10 @@ class TestPoint(unittest.TestCase):
         self.assertIsNot(point_copy.original_position, self.point.original_position)
 
     def test_translate(self):
-        initial_x, initial_y = self.point.x, self.point.y
+        initial_x, initial_y = self.point.screen_x, self.point.screen_y
         self.point._translate(Position(1, 1))
-        self.assertEqual(self.point.x, initial_x + 1)  # 251 + 1 = 252
-        self.assertEqual(self.point.y, initial_y + 1)  # 248 + 1 = 249
+        self.assertEqual(self.point.screen_x, initial_x + 1)  # 251 + 1 = 252
+        self.assertEqual(self.point.screen_y, initial_y + 1)  # 248 + 1 = 249
 
     def test_translate_point_in_math_space(self):
         # Test translating the point in mathematical coordinate space
@@ -82,8 +82,8 @@ class TestPoint(unittest.TestCase):
         
         # Check that screen coordinates were recalculated
         # New math coords (3, 5) -> screen (253, 245)
-        self.assertEqual(self.point.x, 253)
-        self.assertEqual(self.point.y, 245)
+        self.assertEqual(self.point.screen_x, 253)
+        self.assertEqual(self.point.screen_y, 245)
 
     def test_draw(self):
         # This test would check if draw calls create_svg_element with expected arguments

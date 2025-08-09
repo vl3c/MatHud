@@ -90,4 +90,36 @@ class SvgRenderer:
         line_el = svg.line(x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=color)
         document["math-svg"] <= line_el
 
+    # ----------------------- Circle -----------------------
+    def register_circle(self, circle_cls):
+        self.register(circle_cls, self._render_circle)
+
+    def _render_circle(self, circle, coordinate_mapper):
+        color = self.style.get('circle_color', getattr(circle, 'color', default_color))
+        cx, cy = coordinate_mapper.math_to_screen(
+            circle.center.original_position.x, circle.center.original_position.y)
+        r_screen = coordinate_mapper.scale_value(circle.radius)
+        circle_el = svg.circle(cx=str(cx), cy=str(cy), r=str(r_screen), fill="none", stroke=color)
+        document["math-svg"] <= circle_el
+
+    # ----------------------- Ellipse -----------------------
+    def register_ellipse(self, ellipse_cls):
+        self.register(ellipse_cls, self._render_ellipse)
+
+    def _render_ellipse(self, ellipse, coordinate_mapper):
+        color = self.style.get('ellipse_color', getattr(ellipse, 'color', default_color))
+        cx, cy = coordinate_mapper.math_to_screen(
+            ellipse.center.original_position.x, ellipse.center.original_position.y)
+        rx = coordinate_mapper.scale_value(ellipse.radius_x)
+        ry = coordinate_mapper.scale_value(ellipse.radius_y)
+        # Apply rotation around center if needed
+        transform = None
+        if getattr(ellipse, 'rotation_angle', 0) not in (0, None):
+            transform = f"rotate({-ellipse.rotation_angle} {cx} {cy})"
+        if transform:
+            el = svg.ellipse(cx=str(cx), cy=str(cy), rx=str(rx), ry=str(ry), fill="none", stroke=color, transform=transform)
+        else:
+            el = svg.ellipse(cx=str(cx), cy=str(cy), rx=str(rx), ry=str(ry), fill="none", stroke=color)
+        document["math-svg"] <= el
+
 

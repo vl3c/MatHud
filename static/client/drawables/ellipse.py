@@ -78,7 +78,7 @@ class Ellipse(Drawable):
         # Calculate screen radii using CoordinateMapper (similar to Circle class)
         rx = self.canvas.coordinate_mapper.scale_value(self.radius_x)
         ry = self.canvas.coordinate_mapper.scale_value(self.radius_y)
-        x, y = self.center.x, self.center.y
+        x, y = self.center.screen_x, self.center.screen_y
         
         # Create transform attribute for rotation
         transform = f"rotate({-self.rotation_angle} {x} {y})" if self.rotation_angle != 0 else None

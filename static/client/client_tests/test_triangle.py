@@ -44,23 +44,23 @@ class TestTriangle(unittest.TestCase):
         self.triangle._initialize()
         # Test that the triangle's segments have been initialized correctly with real coordinate transformations
         # P1 (0,0) in math space -> (250,250) in screen space
-        self.assertEqual(self.triangle.segment1.point1.x, 250)
-        self.assertEqual(self.triangle.segment1.point1.y, 250)
+        self.assertEqual(self.triangle.segment1.point1.screen_x, 250)
+        self.assertEqual(self.triangle.segment1.point1.screen_y, 250)
         # P2 (4,0) in math space -> (254,250) in screen space
-        self.assertEqual(self.triangle.segment1.point2.x, 254)
-        self.assertEqual(self.triangle.segment1.point2.y, 250)
+        self.assertEqual(self.triangle.segment1.point2.screen_x, 254)
+        self.assertEqual(self.triangle.segment1.point2.screen_y, 250)
         # P2 (4,0) in math space -> (254,250) in screen space
-        self.assertEqual(self.triangle.segment2.point1.x, 254)
-        self.assertEqual(self.triangle.segment2.point1.y, 250)
+        self.assertEqual(self.triangle.segment2.point1.screen_x, 254)
+        self.assertEqual(self.triangle.segment2.point1.screen_y, 250)
         # P3 (0,3) in math space -> (250,247) in screen space
-        self.assertEqual(self.triangle.segment2.point2.x, 250)
-        self.assertEqual(self.triangle.segment2.point2.y, 247)
+        self.assertEqual(self.triangle.segment2.point2.screen_x, 250)
+        self.assertEqual(self.triangle.segment2.point2.screen_y, 247)
         # P3 (0,3) in math space -> (250,247) in screen space
-        self.assertEqual(self.triangle.segment3.point1.x, 250)
-        self.assertEqual(self.triangle.segment3.point1.y, 247)
+        self.assertEqual(self.triangle.segment3.point1.screen_x, 250)
+        self.assertEqual(self.triangle.segment3.point1.screen_y, 247)
         # P1 (0,0) in math space -> (250,250) in screen space
-        self.assertEqual(self.triangle.segment3.point2.x, 250)
-        self.assertEqual(self.triangle.segment3.point2.y, 250)
+        self.assertEqual(self.triangle.segment3.point2.screen_x, 250)
+        self.assertEqual(self.triangle.segment3.point2.screen_y, 250)
 
     def test_init(self):
         # Test the initial properties of the triangle
@@ -110,12 +110,12 @@ class TestTriangle(unittest.TestCase):
         self.triangle.translate(1, 2)
         
         # P1 should move from (0,0) to (1,2) in math space -> (251,248) in screen space
-        self.assertEqual(self.triangle.segment1.point1.x, 251)
-        self.assertEqual(self.triangle.segment1.point1.y, 248)
+        self.assertEqual(self.triangle.segment1.point1.screen_x, 251)
+        self.assertEqual(self.triangle.segment1.point1.screen_y, 248)
         # P2 should move from (4,0) to (5,2) in math space -> (255,248) in screen space
-        self.assertEqual(self.triangle.segment1.point2.x, 255)
-        self.assertEqual(self.triangle.segment1.point2.y, 248)
+        self.assertEqual(self.triangle.segment1.point2.screen_x, 255)
+        self.assertEqual(self.triangle.segment1.point2.screen_y, 248)
         # P3 should move from (0,3) to (1,5) in math space -> (251,245) in screen space
-        self.assertEqual(self.triangle.segment2.point2.x, 251)
-        self.assertEqual(self.triangle.segment2.point2.y, 245)
+        self.assertEqual(self.triangle.segment2.point2.screen_x, 251)
+        self.assertEqual(self.triangle.segment2.point2.screen_y, 245)
 

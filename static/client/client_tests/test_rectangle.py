@@ -46,20 +46,20 @@ class TestRectangle(unittest.TestCase):
         self.rectangle._initialize()
         # Test with real coordinate transformations
         # P1 (0,0) in math space -> (250,250) in screen space
-        self.assertEqual(self.rectangle.segment1.point1.x, 250)
-        self.assertEqual(self.rectangle.segment1.point1.y, 250)
+        self.assertEqual(self.rectangle.segment1.point1.screen_x, 250)
+        self.assertEqual(self.rectangle.segment1.point1.screen_y, 250)
         # P2 (4,0) in math space -> (254,250) in screen space
-        self.assertEqual(self.rectangle.segment1.point2.x, 254)
-        self.assertEqual(self.rectangle.segment1.point2.y, 250)
+        self.assertEqual(self.rectangle.segment1.point2.screen_x, 254)
+        self.assertEqual(self.rectangle.segment1.point2.screen_y, 250)
         # P2 (4,0) in math space -> (254,250) in screen space
-        self.assertEqual(self.rectangle.segment2.point1.x, 254)
-        self.assertEqual(self.rectangle.segment2.point1.y, 250)
+        self.assertEqual(self.rectangle.segment2.point1.screen_x, 254)
+        self.assertEqual(self.rectangle.segment2.point1.screen_y, 250)
         # P3 (4,3) in math space -> (254,247) in screen space
-        self.assertEqual(self.rectangle.segment2.point2.x, 254)
-        self.assertEqual(self.rectangle.segment2.point2.y, 247)
+        self.assertEqual(self.rectangle.segment2.point2.screen_x, 254)
+        self.assertEqual(self.rectangle.segment2.point2.screen_y, 247)
         # P3 (4,3) in math space -> (254,247) in screen space
-        self.assertEqual(self.rectangle.segment3.point1.x, 254)
-        self.assertEqual(self.rectangle.segment3.point1.y, 247)
+        self.assertEqual(self.rectangle.segment3.point1.screen_x, 254)
+        self.assertEqual(self.rectangle.segment3.point1.screen_y, 247)
 
     def test_init(self):
         # Test the initial properties of the rectangle
@@ -95,12 +95,12 @@ class TestRectangle(unittest.TestCase):
         self.rectangle.translate(2, 1)
         
         # P1 should move from (0,0) to (2,1) in math space -> (252,249) in screen space
-        self.assertEqual(self.rectangle.segment1.point1.x, 252)
-        self.assertEqual(self.rectangle.segment1.point1.y, 249)
+        self.assertEqual(self.rectangle.segment1.point1.screen_x, 252)
+        self.assertEqual(self.rectangle.segment1.point1.screen_y, 249)
         # P2 should move from (4,0) to (6,1) in math space -> (256,249) in screen space
-        self.assertEqual(self.rectangle.segment1.point2.x, 256)
-        self.assertEqual(self.rectangle.segment1.point2.y, 249)
+        self.assertEqual(self.rectangle.segment1.point2.screen_x, 256)
+        self.assertEqual(self.rectangle.segment1.point2.screen_y, 249)
         # P3 should move from (4,3) to (6,4) in math space -> (256,246) in screen space
-        self.assertEqual(self.rectangle.segment2.point2.x, 256)
-        self.assertEqual(self.rectangle.segment2.point2.y, 246)
+        self.assertEqual(self.rectangle.segment2.point2.screen_x, 256)
+        self.assertEqual(self.rectangle.segment2.point2.screen_y, 246)
 

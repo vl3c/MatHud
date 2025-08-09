@@ -78,17 +78,20 @@ class Segment(Drawable):
     def _any_segment_part_visible_in_canvas_area(self):
         p1 = self.point1
         p2 = self.point2
-        return self.canvas.is_point_within_canvas_visible_area(p1.x, p1.y) or \
-            self.canvas.is_point_within_canvas_visible_area(p2.x, p2.y) or \
-            self.canvas.any_segment_part_visible_in_canvas_area(p1.x, p1.y, p2.x, p2.y)
+        # Use screen coordinates explicitly to avoid relying on Point.x/y semantics
+        x1, y1 = p1.screen_x, p1.screen_y
+        x2, y2 = p2.screen_x, p2.screen_y
+        return self.canvas.is_point_within_canvas_visible_area(x1, y1) or \
+            self.canvas.is_point_within_canvas_visible_area(x2, y2) or \
+            self.canvas.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
 
     def is_visible(self):
         return self._any_segment_part_visible_in_canvas_area()
 
     def draw(self):
         if self.is_visible():
-            x1, y1 = self.point1.x, self.point1.y
-            x2, y2 = self.point2.x, self.point2.y
+            x1, y1 = self.point1.screen_x, self.point1.screen_y
+            x2, y2 = self.point2.screen_x, self.point2.screen_y
             self.create_svg_element('line', x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=self.color)
 
     def get_state(self):

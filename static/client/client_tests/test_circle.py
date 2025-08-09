@@ -65,12 +65,12 @@ class TestCircle(unittest.TestCase):
         """Test circle translation in mathematical space"""
         # Test center point coordinates before translation
         # Center at (1,1) in math space -> (251,249) in screen space
-        self.assertEqual(self.circle.center.x, 251)
-        self.assertEqual(self.circle.center.y, 249)
+        self.assertEqual(self.circle.center.screen_x, 251)
+        self.assertEqual(self.circle.center.screen_y, 249)
         
         # Translate by (2, 3) in mathematical coordinates
         self.circle.translate(2, 3)
         
         # Center should move from (1,1) to (3,4) in math space -> (253,246) in screen space
-        self.assertEqual(self.circle.center.x, 253)
-        self.assertEqual(self.circle.center.y, 246)
+        self.assertEqual(self.circle.center.screen_x, 253)
+        self.assertEqual(self.circle.center.screen_y, 246)

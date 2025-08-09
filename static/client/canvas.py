@@ -123,6 +123,18 @@ class Canvas:
                 self.renderer.register_segment(_Segment)
         except Exception:
             pass
+        try:
+            from drawables.circle import Circle as _Circle
+            if self.renderer is not None and hasattr(self.renderer, 'register_circle'):
+                self.renderer.register_circle(_Circle)
+        except Exception:
+            pass
+        try:
+            from drawables.ellipse import Ellipse as _Ellipse
+            if self.renderer is not None and hasattr(self.renderer, 'register_ellipse'):
+                self.renderer.register_ellipse(_Ellipse)
+        except Exception:
+            pass
 
     def add_drawable(self, drawable):
         drawable.canvas = self  # Set the drawable's canvas reference

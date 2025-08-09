@@ -37,11 +37,11 @@ class TestVector(unittest.TestCase):
         self.vector._initialize()
         # Test that the vector's segment has been initialized correctly
         # Origin point (0,0) in math space -> (250,250) in screen space
-        self.assertEqual(self.vector.segment.point1.x, 250)
-        self.assertEqual(self.vector.segment.point1.y, 250)
+        self.assertEqual(self.vector.segment.point1.screen_x, 250)
+        self.assertEqual(self.vector.segment.point1.screen_y, 250)
         # Tip point (3,4) in math space -> (253,246) in screen space
-        self.assertEqual(self.vector.segment.point2.x, 253)
-        self.assertEqual(self.vector.segment.point2.y, 246)
+        self.assertEqual(self.vector.segment.point2.screen_x, 253)
+        self.assertEqual(self.vector.segment.point2.screen_y, 246)
 
     def test_init(self):
         # Test the initial properties of the vector
@@ -74,10 +74,10 @@ class TestVector(unittest.TestCase):
         self.vector.translate(2, 3)
         
         # Origin should move from (0,0) to (2,3) in math space -> (252,247) in screen space
-        self.assertEqual(self.vector.origin.x, 252)
-        self.assertEqual(self.vector.origin.y, 247)
+        self.assertEqual(self.vector.origin.screen_x, 252)
+        self.assertEqual(self.vector.origin.screen_y, 247)
         
         # Tip should move from (3,4) to (5,7) in math space -> (255,243) in screen space
-        self.assertEqual(self.vector.tip.x, 255)
-        self.assertEqual(self.vector.tip.y, 243)
+        self.assertEqual(self.vector.tip.screen_x, 255)
+        self.assertEqual(self.vector.tip.screen_y, 243)
 

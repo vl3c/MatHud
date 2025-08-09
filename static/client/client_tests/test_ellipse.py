@@ -86,13 +86,13 @@ class TestEllipse(unittest.TestCase):
         """Test ellipse translation in mathematical space"""
         # Test center point coordinates before translation
         # Center at (2,2) in math space -> (252,248) in screen space
-        self.assertEqual(self.ellipse.center.x, 252)
-        self.assertEqual(self.ellipse.center.y, 248)
+        self.assertEqual(self.ellipse.center.screen_x, 252)
+        self.assertEqual(self.ellipse.center.screen_y, 248)
         
         # Translate by (3, 1) in mathematical coordinates
         self.ellipse.translate(3, 1)
         
         # Center should move from (2,2) to (5,3) in math space -> (255,247) in screen space
-        self.assertEqual(self.ellipse.center.x, 255)
-        self.assertEqual(self.ellipse.center.y, 247)
+        self.assertEqual(self.ellipse.center.screen_x, 255)
+        self.assertEqual(self.ellipse.center.screen_y, 247)
 

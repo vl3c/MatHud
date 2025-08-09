@@ -63,7 +63,7 @@ class Point(Drawable):
         return 'Point'
 
     def draw(self):
-        x, y = self.x, self.y
+        x, y = self.screen_x, self.screen_y
         # Draw point
         self.create_svg_element('circle', cx=str(x), cy=str(y), r=str(default_point_size), fill=self.color)
         # Draw label
@@ -115,17 +115,13 @@ class Point(Drawable):
 
     @property
     def x(self):
-        """Screen x-coordinate - calculated on demand"""
-        screen_x, _ = self.canvas.coordinate_mapper.math_to_screen(
-            self.original_position.x, self.original_position.y)
-        return screen_x
+        """Math x-coordinate (will be flipped to math in this migration step)."""
+        return self.original_position.x
 
     @property  
     def y(self):
-        """Screen y-coordinate - calculated on demand"""
-        _, screen_y = self.canvas.coordinate_mapper.math_to_screen(
-            self.original_position.x, self.original_position.y)
-        return screen_y
+        """Math y-coordinate (will be flipped to math in this migration step)."""
+        return self.original_position.y
 
     @property
     def screen_x(self):
