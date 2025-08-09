@@ -147,6 +147,30 @@ class Canvas:
                 self.renderer.register_angle(_Angle)
         except Exception:
             pass
+        try:
+            from drawables.function import Function as _Function
+            if self.renderer is not None and hasattr(self.renderer, 'register_function'):
+                self.renderer.register_function(_Function)
+        except Exception:
+            pass
+        try:
+            from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea as _FBCA
+            if self.renderer is not None and hasattr(self.renderer, 'register_functions_bounded_colored_area'):
+                self.renderer.register_functions_bounded_colored_area(_FBCA)
+        except Exception:
+            pass
+        try:
+            from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea as _FSBCA
+            if self.renderer is not None and hasattr(self.renderer, 'register_function_segment_bounded_colored_area'):
+                self.renderer.register_function_segment_bounded_colored_area(_FSBCA)
+        except Exception:
+            pass
+        try:
+            from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea as _SBCA
+            if self.renderer is not None and hasattr(self.renderer, 'register_segments_bounded_colored_area'):
+                self.renderer.register_segments_bounded_colored_area(_SBCA)
+        except Exception:
+            pass
 
     def add_drawable(self, drawable):
         drawable.canvas = self  # Set the drawable's canvas reference

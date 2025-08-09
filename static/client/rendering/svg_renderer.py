@@ -213,4 +213,132 @@ class SvgRenderer:
             text_el.style['dominant-baseline'] = 'middle'
             document["math-svg"] <= text_el
 
+    # ----------------------- Function -----------------------
+    def register_function(self, function_cls):
+        self.register(function_cls, self._render_function)
+
+    def _render_function(self, func, coordinate_mapper):
+        # Mirror Function.draw(): use internal caching/path generation
+        try:
+            if getattr(func, '_should_regenerate_paths', None) and func._should_regenerate_paths():
+                paths = func._generate_paths()
+                func._cached_paths = paths
+                func._cache_valid = True
+            else:
+                paths = getattr(func, '_cached_paths', None)
+            if not paths or not any(len(path) >= 2 for path in paths):
+                return
+            color = getattr(func, 'color', default_color)
+            for path in paths:
+                if len(path) >= 2:
+                    d = "M" + " L".join(f"{p.x},{p.y}" for p in path)
+                    document["math-svg"] <= svg.path(d=d, stroke=color, fill="none")
+            # Label at first point of first path
+            first_path = next((path for path in paths if path), [])
+            if first_path:
+                from constants import point_label_font_size
+                label_offset_x = (1 + len(func.name)) * point_label_font_size / 2
+                label_x = first_path[0].x - label_offset_x
+                label_y = max(first_path[0].y, point_label_font_size)
+                text_el = svg.text(func.name, x=str(label_x), y=str(label_y), fill=color)
+                text_el.setAttribute('font-size', str(int(point_label_font_size)))
+                document["math-svg"] <= text_el
+        except Exception:
+            return
+
+    # ----------------------- Colored Areas: FunctionsBoundedColoredArea -----------------------
+    def register_functions_bounded_colored_area(self, cls):
+        self.register(cls, self._render_functions_bounded_colored_area)
+
+    def _render_functions_bounded_colored_area(self, area, coordinate_mapper):
+        try:
+            left_bound, right_bound = area._get_bounds()
+            num_points = area.num_sample_points
+            dx = (right_bound - left_bound) / (num_points - 1)
+            if dx <= 0:
+                left_bound, right_bound = left_bound - 1, right_bound + 1
+                dx = (right_bound - left_bound) / (num_points - 1)
+            points = area._generate_path(area.func1, left_bound, right_bound, dx, num_points, reverse=False)
+            reverse_points = area._generate_path(area.func2, left_bound, right_bound, dx, num_points, reverse=True)
+            if not points or not reverse_points:
+                return
+            # Build closed path
+            d = f"M {points[0][0]},{points[0][1]}" + "".join(f" L {x},{y}" for x,y in points[1:])
+            d += "".join(f" L {x},{y}" for x,y in reverse_points)
+            d += " Z"
+            fill_color = getattr(area, 'color', 'lightblue')
+            fill_opacity = str(getattr(area, 'opacity', 0.3))
+            document["math-svg"] <= svg.path(d=d, stroke="none", fill=fill_color, **{"fill-opacity": fill_opacity})
+        except Exception:
+            return
+
+    # ----------------------- Colored Areas: FunctionSegmentBoundedColoredArea -----------------
+    def register_function_segment_bounded_colored_area(self, cls):
+        self.register(cls, self._render_function_segment_bounded_colored_area)
+
+    def _render_function_segment_bounded_colored_area(self, area, coordinate_mapper):
+        try:
+            left_bound, right_bound = area._get_bounds()
+            num_points = 100
+            dx = (right_bound - left_bound) / (num_points - 1)
+            fwd = area._generate_function_points(left_bound, right_bound, num_points, dx)
+            rev = [(area.segment.point2.screen_x, area.segment.point2.screen_y),
+                   (area.segment.point1.screen_x, area.segment.point1.screen_y)]
+            if not fwd or not rev:
+                return
+            d = f"M {fwd[0][0]},{fwd[0][1]}" + "".join(f" L {x},{y}" for x,y in fwd[1:])
+            d += "".join(f" L {x},{y}" for x,y in rev)
+            d += " Z"
+            fill_color = getattr(area, 'color', 'lightblue')
+            fill_opacity = str(getattr(area, 'opacity', 0.3))
+            document["math-svg"] <= svg.path(d=d, stroke="none", fill=fill_color, **{"fill-opacity": fill_opacity})
+        except Exception:
+            return
+
+    # ----------------------- Colored Areas: SegmentsBoundedColoredArea -----------------------
+    def register_segments_bounded_colored_area(self, cls):
+        self.register(cls, self._render_segments_bounded_colored_area)
+
+    def _render_segments_bounded_colored_area(self, area, coordinate_mapper):
+        try:
+            if not area.segment2:
+                p1 = (area.segment1.point1.screen_x, area.segment1.point1.screen_y)
+                p2 = (area.segment1.point2.screen_x, area.segment1.point2.screen_y)
+                origin_y = area.canvas.cartesian2axis.origin.y
+                if area.segment1.point1.original_position.y > 0 and area.segment1.point2.original_position.y > 0:
+                    rev = [(p2[0], origin_y), (p1[0], origin_y)]
+                else:
+                    rev = [(p2[0], origin_y), (p1[0], origin_y)]
+                points = [p1, p2]
+            else:
+                x1_min = min(area.segment1.point1.screen_x, area.segment1.point2.screen_x)
+                x1_max = max(area.segment1.point1.screen_x, area.segment1.point2.screen_x)
+                x2_min = min(area.segment2.point1.screen_x, area.segment2.point2.screen_x)
+                x2_max = max(area.segment2.point1.screen_x, area.segment2.point2.screen_x)
+                overlap_min = max(x1_min, x2_min)
+                overlap_max = min(x1_max, x2_max)
+                if overlap_max <= overlap_min:
+                    return
+                def get_y_at_x(segment, x):
+                    x1, y1 = segment.point1.screen_x, segment.point1.screen_y
+                    x2, y2 = segment.point2.screen_x, segment.point2.screen_y
+                    if x2 == x1:
+                        return y1
+                    t = (x - x1) / (x2 - x1)
+                    return y1 + t * (y2 - y1)
+                y1_start = get_y_at_x(area.segment1, overlap_min)
+                y1_end = get_y_at_x(area.segment1, overlap_max)
+                y2_start = get_y_at_x(area.segment2, overlap_min)
+                y2_end = get_y_at_x(area.segment2, overlap_max)
+                points = [(overlap_min, y1_start), (overlap_max, y1_end)]
+                rev = [(overlap_max, y2_end), (overlap_min, y2_start)]
+            d = f"M {points[0][0]},{points[0][1]}" + "".join(f" L {x},{y}" for x,y in points[1:])
+            d += "".join(f" L {x},{y}" for x,y in rev)
+            d += " Z"
+            fill_color = getattr(area, 'color', 'lightblue')
+            fill_opacity = str(getattr(area, 'opacity', 0.3))
+            document["math-svg"] <= svg.path(d=d, stroke="none", fill=fill_color, **{"fill-opacity": fill_opacity})
+        except Exception:
+            return
+
 
