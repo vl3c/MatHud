@@ -10,6 +10,7 @@ will be added incrementally (Point first), ensuring non-breaking integration.
 
 from browser import document, svg
 from constants import default_color, default_point_size, point_label_font_size, DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR
+from utils.math_utils import MathUtils
 
 
 class SvgRenderer:
@@ -222,6 +223,86 @@ class SvgRenderer:
             text_el = svg.text(func.name, x=str(label_x), y=str(label_y), fill=color)
             text_el.setAttribute('font-size', str(int(point_label_font_size)))
             document["math-svg"] <= text_el
+        except Exception:
+            return
+
+    # ----------------------- Cartesian Grid -----------------------
+    def render_cartesian(self, cartesian, coordinate_mapper):
+        """Render axes, ticks, labels, and grid lines for the Cartesian system.
+
+        This mirrors the logic in Cartesian2Axis.draw(), using the cartesian object's
+        current_tick_spacing, colors, and the canvas size.
+        """
+        try:
+            width = cartesian.width
+            height = cartesian.height
+            # Origin in screen space via mapper
+            ox, oy = coordinate_mapper.math_to_screen(0, 0)
+            # Axes
+            document["math-svg"] <= svg.line(x1=str(0), y1=str(oy), x2=str(width), y2=str(oy), stroke=cartesian.color)
+            document["math-svg"] <= svg.line(x1=str(ox), y1=str(0), x2=str(ox), y2=str(height), stroke=cartesian.color)
+
+            # Tick spacing displayed in pixels
+            display_tick = cartesian.current_tick_spacing * coordinate_mapper.scale_factor
+
+            def draw_tick_x(x):
+                document["math-svg"] <= svg.line(x1=str(x), y1=str(oy - cartesian.tick_size), x2=str(x), y2=str(oy + cartesian.tick_size), stroke=cartesian.color)
+                if abs(x - ox) > 1e-6:
+                    val = (x - ox) / coordinate_mapper.scale_factor
+                    label = MathUtils.format_number_for_cartesian(val)
+                    tx = x + 2
+                    ty = oy + cartesian.tick_size + cartesian.tick_label_font_size
+                    t = svg.text(label, x=str(tx), y=str(ty), fill=cartesian.tick_label_color)
+                    t.setAttribute('font-size', str(cartesian.tick_label_font_size))
+                    document["math-svg"] <= t
+                else:
+                    t = svg.text('O', x=str(x + 2), y=str(oy + cartesian.tick_size + cartesian.tick_label_font_size), fill=cartesian.tick_label_color)
+                    t.setAttribute('font-size', str(cartesian.tick_label_font_size))
+                    document["math-svg"] <= t
+
+            def draw_tick_y(y):
+                document["math-svg"] <= svg.line(x1=str(ox - cartesian.tick_size), y1=str(y), x2=str(ox + cartesian.tick_size), y2=str(y), stroke=cartesian.color)
+                if abs(y - oy) > 1e-6:
+                    val = (oy - y) / coordinate_mapper.scale_factor
+                    label = MathUtils.format_number_for_cartesian(val)
+                    tx = ox + cartesian.tick_size
+                    ty = y - cartesian.tick_size
+                    t = svg.text(label, x=str(tx), y=str(ty), fill=cartesian.tick_label_color)
+                    t.setAttribute('font-size', str(cartesian.tick_label_font_size))
+                    document["math-svg"] <= t
+
+            # Grid lines
+            def draw_grid_line_x(x):
+                document["math-svg"] <= svg.line(x1=str(x), y1=str(0), x2=str(x), y2=str(height), stroke=cartesian.grid_color)
+
+            def draw_grid_line_y(y):
+                document["math-svg"] <= svg.line(x1=str(0), y1=str(y), x2=str(width), y2=str(y), stroke=cartesian.grid_color)
+
+            # Iterate ticks and grid in both directions
+            # X positive
+            x = ox
+            while x < width:
+                draw_grid_line_x(x)
+                draw_tick_x(x)
+                x += display_tick
+            # X negative
+            x = ox - display_tick
+            while x > 0:
+                draw_grid_line_x(x)
+                draw_tick_x(x)
+                x -= display_tick
+            # Y positive (down)
+            y = oy
+            while y < height:
+                draw_grid_line_y(y)
+                draw_tick_y(y)
+                y += display_tick
+            # Y negative (up)
+            y = oy - display_tick
+            while y > 0:
+                draw_grid_line_y(y)
+                draw_tick_y(y)
+                y -= display_tick
         except Exception:
             return
 

@@ -188,7 +188,18 @@ class Canvas:
         else:
             svg_container = document["math-svg"]
             svg_container.clear()
-        self._draw_cartesian(apply_zoom)
+        if self.renderer is not None:
+            # Render cartesian via renderer
+            try:
+                # Handle cartesian cache invalidation if needed
+                if apply_zoom and hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
+                    self.cartesian2axis._invalidate_cache_on_zoom()
+                self.renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
+            except Exception:
+                # Fallback to original method on error
+                self._draw_cartesian(apply_zoom)
+        else:
+            self._draw_cartesian(apply_zoom)
         
         # Apply zoom-towards-point displacement if needed
         if apply_zoom and self.zoom_direction != 0:
