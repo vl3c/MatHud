@@ -318,30 +318,8 @@ class Angle(Drawable):
         return text_elements
 
     def draw(self):
-        """
-        Generates and returns SVG elements for the angle arc and label.
-        The elements are directly added to the SVG canvas by create_svg_element.
-        """
-        if self.angle_degrees is None: 
-            return 
-
-        coords = self._get_drawing_references()
-        if not coords:
-            return 
-        vx, vy, p1x, p1y, p2x, p2y = coords
-
-        arc_params = self._calculate_arc_parameters(vx, vy, p1x, p1y, p2x, p2y)
-        if not arc_params:
-            return 
-        
-        self._create_arc_svg_element(arc_params["path_d"])
-        
-        self._create_text_svg_elements(
-            vx, vy, 
-            arc_params["arc_radius_on_screen"], 
-            arc_params["angle_v_p1_rad"],
-            arc_params["final_sweep_flag"]
-        )
+        # Rendering handled by renderer; no-op to preserve interface
+        return None
 
     def get_state(self):
         """

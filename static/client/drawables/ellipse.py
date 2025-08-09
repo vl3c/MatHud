@@ -75,26 +75,8 @@ class Ellipse(Drawable):
         return 'Ellipse'
 
     def draw(self):
-        # Calculate screen radii using CoordinateMapper (similar to Circle class)
-        rx = self.canvas.coordinate_mapper.scale_value(self.radius_x)
-        ry = self.canvas.coordinate_mapper.scale_value(self.radius_y)
-        x, y = self.center.screen_x, self.center.screen_y
-        
-        # Create transform attribute for rotation
-        transform = f"rotate({-self.rotation_angle} {x} {y})" if self.rotation_angle != 0 else None
-        
-        # Add transform to SVG element if rotation exists
-        if transform:
-            self.create_svg_element('ellipse', 
-                                  cx=str(x), cy=str(y), 
-                                  rx=str(rx), ry=str(ry), 
-                                  fill="none", stroke=self.color,
-                                  transform=transform)
-        else:
-            self.create_svg_element('ellipse', 
-                                  cx=str(x), cy=str(y), 
-                                  rx=str(rx), ry=str(ry), 
-                                  fill="none", stroke=self.color)
+        # Rendering handled by renderer; no-op to preserve interface
+        return None
 
     def _initialize(self):
         # Remove cached drawn_radius calculation - now calculated dynamically in draw()

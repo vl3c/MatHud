@@ -63,13 +63,8 @@ class Point(Drawable):
         return 'Point'
 
     def draw(self):
-        x, y = self.screen_x, self.screen_y
-        # Draw point
-        self.create_svg_element('circle', cx=str(x), cy=str(y), r=str(default_point_size), fill=self.color)
-        # Draw label
-        label_text = self.name + f'({round(self.original_position.x, 3)}, {round(self.original_position.y, 3)})'
-        label_offset = default_point_size
-        self.create_svg_element('text', x=str(x+label_offset), y=str(y-label_offset), fill=self.color, text_content=label_text, text_font_size=point_label_font_size)
+        # Rendering handled by renderer; no-op to preserve interface
+        return None
 
     def __str__(self):
         return f'{self.original_position.x},{self.original_position.y}'

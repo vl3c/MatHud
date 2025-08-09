@@ -89,10 +89,8 @@ class Segment(Drawable):
         return self._any_segment_part_visible_in_canvas_area()
 
     def draw(self):
-        if self.is_visible():
-            x1, y1 = self.point1.screen_x, self.point1.screen_y
-            x2, y2 = self.point2.screen_x, self.point2.screen_y
-            self.create_svg_element('line', x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=self.color)
+        # Rendering handled by renderer; no-op to preserve interface
+        return None
 
     def get_state(self):
         points_names = sorted([self.point1.name, self.point2.name])

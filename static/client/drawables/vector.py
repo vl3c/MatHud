@@ -82,25 +82,12 @@ class Vector(Drawable):
         self.segment._initialize()
 
     def _draw_tip_triangle(self):
-        # Calculate the triangle points
-        tip = self.segment.point2
-        origin = self.segment.point1
-        dx = tip.screen_x - origin.screen_x
-        dy = tip.screen_y - origin.screen_y
-        angle = math.atan2(dy, dx)
-        side_length = default_point_size * 4  # Adjust to change the size of the tip
-        half_base = side_length / 2
-        height = math.sqrt(side_length**2 - half_base**2)
-        # Calculate the triangle points
-        x1, y1 = tip.screen_x, tip.screen_y
-        x2, y2 = tip.screen_x - height * math.cos(angle) - half_base * math.sin(angle), tip.screen_y - height * math.sin(angle) + half_base * math.cos(angle)
-        x3, y3 = tip.screen_x - height * math.cos(angle) + half_base * math.sin(angle), tip.screen_y - height * math.sin(angle) - half_base * math.cos(angle)
-        points = f'{x1},{y1} {x2},{y2} {x3},{y3}'
-        self.create_svg_element('polygon', points=points, fill=self.color, stroke=self.color)
+        # Rendering handled by renderer; no-op to preserve interface
+        return None
 
     def draw(self):
-        self.segment.draw()
-        self._draw_tip_triangle()
+        # Rendering handled by renderer; no-op to preserve interface
+        return None
 
     def get_state(self):
         origin = self.segment.point1.name

@@ -68,10 +68,8 @@ class Circle(Drawable):
         return 'Circle'
 
     def draw(self):
-        # Calculate screen radius using CoordinateMapper
-        screen_radius = self.canvas.coordinate_mapper.scale_value(self.radius)
-        x, y = self.center.screen_x, self.center.screen_y
-        self.create_svg_element('circle', cx=str(x), cy=str(y), r=str(screen_radius), fill="none", stroke=self.color)
+        # Rendering handled by renderer; no-op to preserve interface
+        return None
 
     def _initialize(self):
         self.center._initialize()
