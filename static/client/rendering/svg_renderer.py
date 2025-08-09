@@ -160,4 +160,57 @@ class SvgRenderer:
         poly_el = svg.polygon(points=points_str, fill=seg_color, stroke=seg_color)
         document["math-svg"] <= poly_el
 
+    # ----------------------- Angle -----------------------
+    def register_angle(self, angle_cls):
+        self.register(angle_cls, self._render_angle)
+
+    def _render_angle(self, angle, coordinate_mapper):
+        # Compute screen coordinates for vertex and arms
+        vx, vy = coordinate_mapper.math_to_screen(angle.vertex_point.original_position.x, angle.vertex_point.original_position.y)
+        p1x, p1y = coordinate_mapper.math_to_screen(angle.arm1_point.original_position.x, angle.arm1_point.original_position.y)
+        p2x, p2y = coordinate_mapper.math_to_screen(angle.arm2_point.original_position.x, angle.arm2_point.original_position.y)
+
+        # Reuse angle math to derive path
+        # Build a lightweight helper mirroring Angle._calculate_arc_parameters behavior
+        import math as _math
+        color = getattr(angle, 'color', default_color)
+        arc_radius = getattr(angle, 'drawn_arc_radius', 15)
+
+        # Geometric arm angles
+        a1 = _math.atan2(p1y - vy, p1x - vx)
+        a2 = _math.atan2(p2y - vy, p2x - vx)
+
+        # Arc endpoints
+        sx = vx + arc_radius * _math.cos(a1)
+        sy = vy + arc_radius * _math.sin(a1)
+        ex = vx + arc_radius * _math.cos(a2)
+        ey = vy + arc_radius * _math.sin(a2)
+
+        # Flags: use angle.is_reflex as a proxy; this matches display angle intent
+        large_arc_flag = '1' if getattr(angle, 'is_reflex', False) else '0'
+        # Sweep: choose direction based on raw vs display; default CW ('0')
+        sweep_flag = '0'
+
+        d = f"M {sx} {sy} A {arc_radius} {arc_radius} 0 {large_arc_flag} {sweep_flag} {ex} {ey}"
+        path_el = svg.path(d=d, stroke=color, **{'stroke-width': '1', 'fill': 'none', 'class': 'angle-arc'})
+        document["math-svg"] <= path_el
+
+        # Label at mid-arc using angle.angle_degrees if available
+        if getattr(angle, 'angle_degrees', None) is not None:
+            mid_delta = (angle.angle_degrees or 0) / 2.0
+            # Convert to radians and apply sign per sweep
+            mid_delta_rad = _math.radians(mid_delta)
+            if sweep_flag == '0':
+                mid_delta_rad = -mid_delta_rad
+            text_angle = a1 + mid_delta_rad
+            text_r = arc_radius * 1.8
+            tx = vx + text_r * _math.cos(text_angle)
+            ty = vy + text_r * _math.sin(text_angle)
+            text = f"{angle.angle_degrees:.1f}°"
+            text_el = svg.text(text, x=str(tx), y=str(ty), fill=color)
+            text_el.setAttribute('font-size', '10px')
+            text_el.style['text-anchor'] = 'middle'
+            text_el.style['dominant-baseline'] = 'middle'
+            document["math-svg"] <= text_el
+
 

@@ -141,6 +141,12 @@ class Canvas:
                 self.renderer.register_vector(_Vector)
         except Exception:
             pass
+        try:
+            from drawables.angle import Angle as _Angle
+            if self.renderer is not None and hasattr(self.renderer, 'register_angle'):
+                self.renderer.register_angle(_Angle)
+        except Exception:
+            pass
 
     def add_drawable(self, drawable):
         drawable.canvas = self  # Set the drawable's canvas reference
