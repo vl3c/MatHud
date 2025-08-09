@@ -122,4 +122,42 @@ class SvgRenderer:
             el = svg.ellipse(cx=str(cx), cy=str(cy), rx=str(rx), ry=str(ry), fill="none", stroke=color)
         document["math-svg"] <= el
 
+    # ----------------------- Vector -----------------------
+    def register_vector(self, vector_cls):
+        self.register(vector_cls, self._render_vector)
+
+    def _render_vector(self, vector, coordinate_mapper):
+        # Draw underlying segment
+        seg = vector.segment
+        seg_color = self.style.get('vector_color', getattr(vector, 'color', getattr(seg, 'color', default_color)))
+
+        x1, y1 = coordinate_mapper.math_to_screen(
+            seg.point1.original_position.x, seg.point1.original_position.y)
+        x2, y2 = coordinate_mapper.math_to_screen(
+            seg.point2.original_position.x, seg.point2.original_position.y)
+
+        line_el = svg.line(x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=seg_color)
+        document["math-svg"] <= line_el
+
+        # Draw arrow tip at the end (near tip point)
+        import math as _math
+        dx = x2 - x1
+        dy = y2 - y1
+        angle = _math.atan2(dy, dx)
+        side_length = self.style.get('vector_tip_size', default_point_size * 4)
+        half_base = side_length / 2
+        height = (_math.sqrt(side_length * side_length - half_base * half_base)
+                  if side_length >= half_base else side_length)
+
+        # Triangle points around (x2, y2)
+        p1x, p1y = x2, y2
+        p2x = x2 - height * _math.cos(angle) - half_base * _math.sin(angle)
+        p2y = y2 - height * _math.sin(angle) + half_base * _math.cos(angle)
+        p3x = x2 - height * _math.cos(angle) + half_base * _math.sin(angle)
+        p3y = y2 - height * _math.sin(angle) - half_base * _math.cos(angle)
+
+        points_str = f"{p1x},{p1y} {p2x},{p2y} {p3x},{p3y}"
+        poly_el = svg.polygon(points=points_str, fill=seg_color, stroke=seg_color)
+        document["math-svg"] <= poly_el
+
 

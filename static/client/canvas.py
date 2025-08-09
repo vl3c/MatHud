@@ -135,6 +135,12 @@ class Canvas:
                 self.renderer.register_ellipse(_Ellipse)
         except Exception:
             pass
+        try:
+            from drawables.vector import Vector as _Vector
+            if self.renderer is not None and hasattr(self.renderer, 'register_vector'):
+                self.renderer.register_vector(_Vector)
+        except Exception:
+            pass
 
     def add_drawable(self, drawable):
         drawable.canvas = self  # Set the drawable's canvas reference
