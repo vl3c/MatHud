@@ -203,31 +203,25 @@ class SvgRenderer:
         self.register(function_cls, self._render_function)
 
     def _render_function(self, func, coordinate_mapper):
-        # Mirror Function.draw(): use internal caching/path generation
+        # Build screen-space paths using validated generator to match original behavior
         try:
-            if getattr(func, '_should_regenerate_paths', None) and func._should_regenerate_paths():
-                paths = func._generate_paths()
-                func._cached_paths = paths
-                func._cache_valid = True
-            else:
-                paths = getattr(func, '_cached_paths', None)
-            if not paths or not any(len(path) >= 2 for path in paths):
+            screen_poly = func.build_screen_paths()
+            screen_paths = screen_poly.paths if screen_poly else []
+            if not screen_paths:
                 return
             color = getattr(func, 'color', default_color)
-            for path in paths:
-                if len(path) >= 2:
-                    d = "M" + " L".join(f"{p.x},{p.y}" for p in path)
-                    document["math-svg"] <= svg.path(d=d, stroke=color, fill="none")
-            # Label at first point of first path
-            first_path = next((path for path in paths if path), [])
-            if first_path:
-                from constants import point_label_font_size
-                label_offset_x = (1 + len(func.name)) * point_label_font_size / 2
-                label_x = first_path[0].x - label_offset_x
-                label_y = max(first_path[0].y, point_label_font_size)
-                text_el = svg.text(func.name, x=str(label_x), y=str(label_y), fill=color)
-                text_el.setAttribute('font-size', str(int(point_label_font_size)))
-                document["math-svg"] <= text_el
+            for sp in screen_paths:
+                d = "M" + " L".join(f"{x},{y}" for x,y in sp)
+                document["math-svg"] <= svg.path(d=d, stroke=color, fill="none")
+            # Label at first point of first screen path
+            from constants import point_label_font_size
+            first = screen_paths[0]
+            label_offset_x = (1 + len(func.name)) * point_label_font_size / 2
+            label_x = first[0][0] - label_offset_x
+            label_y = max(first[0][1], point_label_font_size)
+            text_el = svg.text(func.name, x=str(label_x), y=str(label_y), fill=color)
+            text_el.setAttribute('font-size', str(int(point_label_font_size)))
+            document["math-svg"] <= text_el
         except Exception:
             return
 

@@ -440,8 +440,8 @@ class FunctionsBoundedColoredArea(ColoredArea):
             # Only create path if we have valid points
             if points and reverse_points:
                 self._create_svg_path(points, reverse_points)
-        except Exception as e:
-            pass
+        except Exception:
+            return None
 
     def get_state(self):
         """Serialize functions bounded area state for persistence."""

@@ -3,6 +3,7 @@ from drawables.drawable import Drawable
 from drawables.position import Position
 from expression_validator import ExpressionValidator
 import math
+from rendering.primitives import MathPolyline, ScreenPolyline
 
 
 class Function(Drawable):
@@ -265,6 +266,100 @@ class Function(Drawable):
 
         return paths
 
+    # --------- New IR builder API (math-space) ---------
+    def build_math_paths(self, left_bound=None, right_bound=None):
+        """Build math-space polylines for the function between bounds.
+
+        Returns a MathPolyline where each inner path is a list of (x, y) tuples in math space.
+        """
+        # Determine bounds similar to _generate_paths but in math space
+        if left_bound is None or right_bound is None:
+            visible_left = self.canvas.cartesian2axis.get_visible_left_bound()
+            visible_right = self.canvas.cartesian2axis.get_visible_right_bound()
+            left_bound = visible_left if left_bound is None else left_bound
+            right_bound = right_bound if right_bound is not None else visible_right
+
+        # Clamp with user-defined bounds if present
+        if self.left_bound is not None:
+            left_bound = max(left_bound, self.left_bound)
+        if self.right_bound is not None:
+            right_bound = min(right_bound, self.right_bound)
+
+        # Step size heuristic: reuse generate_paths logic but remain in math space
+        range_width = right_bound - left_bound
+        if range_width == 0:
+            return MathPolyline([])
+        step = range_width / 200.0
+
+        paths = []
+        current_path = []
+
+        x = left_bound
+        expect_asymptote_behind = False
+        while x <= right_bound + step:
+            if hasattr(self, 'point_discontinuities') and self.point_discontinuities and x in self.point_discontinuities:
+                x += step
+                continue
+
+            # Evaluate function in math space
+            try:
+                y = self.function(x)
+            except Exception:
+                y = None
+
+            # Handle asymptotes (math-space aware)
+            asymptote_x = self.get_vertical_asymptote_between_x(x, x + step) if hasattr(self, 'get_vertical_asymptote_between_x') else None
+            has_vertical_asymptote_in_front = asymptote_x is not None
+            has_vertical_asymptote_behind = expect_asymptote_behind
+            if has_vertical_asymptote_in_front:
+                expect_asymptote_behind = True
+                try:
+                    y = self.function(asymptote_x - min(1e-3, step/10))
+                    x = asymptote_x - min(1e-3, step/10)
+                except Exception:
+                    y = None
+
+            # For just-passed asymptote, we do not connect across
+            if has_vertical_asymptote_behind:
+                current_path and paths.append(current_path)
+                current_path = []
+                expect_asymptote_behind = False
+
+            if y is None or isinstance(y, float) and (y != y or abs(y) == float('inf')):
+                # NaN/inf -> break path
+                if current_path:
+                    paths.append(current_path)
+                    current_path = []
+                x += step
+                continue
+
+            # Append point
+            current_path.append((x, y))
+            x += step
+
+        if current_path:
+            paths.append(current_path)
+
+        return MathPolyline(paths)
+
+    def build_screen_paths(self):
+        """Build screen-space polylines using the existing, validated path generator.
+
+        This mirrors the segmentation and discontinuity handling of the original
+        implementation exactly by leveraging _generate_paths().
+        """
+        if self._should_regenerate_paths():
+            self._cached_paths = self._generate_paths()
+            self._cache_valid = True
+        paths = self._cached_paths or []
+        # Convert Position objects to primitive tuples
+        simple_paths = []
+        for path in paths:
+            if not path or len(path) < 2:
+                continue
+            simple_paths.append([(p.x, p.y) for p in path])
+        return ScreenPolyline(simple_paths)
+
     def draw(self):
         if self._should_regenerate_paths():
             self._cached_paths = self._generate_paths()
@@ -273,8 +368,6 @@ class Function(Drawable):
         paths = self._cached_paths
         if not paths or not any(len(path) >= 2 for path in paths):
             return
-
-        # print("### Paths: ", [(path[0].x, path[-1].x) for path in paths])
 
         # Create separate SVG path element for each path
         for path in paths:
