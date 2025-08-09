@@ -203,12 +203,74 @@ class Canvas:
             rendered = False
             if self.renderer is not None:
                 try:
-                    rendered = self.renderer.render(drawable, self.coordinate_mapper)
+                    # Apply simple visibility filtering for performance and to match previous behavior
+                    if self._is_drawable_visible(drawable):
+                        rendered = self.renderer.render(drawable, self.coordinate_mapper)
+                    else:
+                        rendered = True  # Treat as handled (intentionally skipped)
                 except Exception:
                     rendered = False
             if not rendered:
                 # Fallback to current draw implementation
                 drawable.draw()
+
+    def _is_drawable_visible(self, drawable):
+        """Best-effort visibility check to avoid rendering off-canvas objects.
+
+        Mirrors prior behavior for segments and points; other types default to visible
+        because they manage their own bounds or are inexpensive.
+        """
+        try:
+            class_name = drawable.get_class_name() if hasattr(drawable, 'get_class_name') else drawable.__class__.__name__
+        except Exception:
+            class_name = drawable.__class__.__name__
+
+        try:
+            if class_name == 'Point':
+                # Use screen coordinates if available, else compute
+                if hasattr(drawable, 'screen_x') and hasattr(drawable, 'screen_y'):
+                    x, y = drawable.screen_x, drawable.screen_y
+                else:
+                    x, y = self.coordinate_mapper.math_to_screen(drawable.original_position.x, drawable.original_position.y)
+                return self.is_point_within_canvas_visible_area(x, y)
+
+            if class_name == 'Segment':
+                p1 = drawable.point1
+                p2 = drawable.point2
+                x1, y1 = (getattr(p1, 'screen_x', None), getattr(p1, 'screen_y', None))
+                x2, y2 = (getattr(p2, 'screen_x', None), getattr(p2, 'screen_y', None))
+                if x1 is None or y1 is None:
+                    x1, y1 = self.coordinate_mapper.math_to_screen(p1.original_position.x, p1.original_position.y)
+                if x2 is None or y2 is None:
+                    x2, y2 = self.coordinate_mapper.math_to_screen(p2.original_position.x, p2.original_position.y)
+                return (
+                    self.is_point_within_canvas_visible_area(x1, y1) or
+                    self.is_point_within_canvas_visible_area(x2, y2) or
+                    self.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
+                )
+
+            if class_name == 'Vector':
+                seg = getattr(drawable, 'segment', None)
+                if seg is None:
+                    return True
+                p1 = seg.point1
+                p2 = seg.point2
+                x1, y1 = (getattr(p1, 'screen_x', None), getattr(p1, 'screen_y', None))
+                x2, y2 = (getattr(p2, 'screen_x', None), getattr(p2, 'screen_y', None))
+                if x1 is None or y1 is None:
+                    x1, y1 = self.coordinate_mapper.math_to_screen(p1.original_position.x, p1.original_position.y)
+                if x2 is None or y2 is None:
+                    x2, y2 = self.coordinate_mapper.math_to_screen(p2.original_position.x, p2.original_position.y)
+                return (
+                    self.is_point_within_canvas_visible_area(x1, y1) or
+                    self.is_point_within_canvas_visible_area(x2, y2) or
+                    self.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
+                )
+
+            # Default: visible
+            return True
+        except Exception:
+            return True
     
     def _apply_zoom_towards_point_displacement(self):
         """Apply zoom-towards-point displacement to all drawable points.
