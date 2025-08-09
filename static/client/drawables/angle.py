@@ -155,9 +155,17 @@ class Angle(Drawable):
             self.angle_degrees = None
             return
 
-        vertex_coords = (self.vertex_point.x, self.vertex_point.y) 
-        arm1_coords = (self.arm1_point.x, self.arm1_point.y)
-        arm2_coords = (self.arm2_point.x, self.arm2_point.y)
+        # Use screen coordinates when available; fall back to .x/.y for mocks
+        def _pt_screen_xy(pt):
+            sx = getattr(pt, 'screen_x', None)
+            sy = getattr(pt, 'screen_y', None)
+            if sx is None or sy is None:
+                return (pt.x, pt.y)
+            return (sx, sy)
+
+        vertex_coords = _pt_screen_xy(self.vertex_point)
+        arm1_coords = _pt_screen_xy(self.arm1_point)
+        arm2_coords = _pt_screen_xy(self.arm2_point)
 
         # Calculate the fundamental CCW angle from arm1 to arm2 (0-360 degrees)
         self.raw_angle_degrees = math_utils.MathUtils.calculate_angle_degrees(
@@ -185,11 +193,16 @@ class Angle(Drawable):
         """Returns screen coordinates of vertex, arm1 point, and arm2 point, or None if any are missing."""
         if not (self.vertex_point and self.arm1_point and self.arm2_point):
             return None
-        return (
-            self.vertex_point.x, self.vertex_point.y, # These are screen coordinates from Point.x, Point.y
-            self.arm1_point.x, self.arm1_point.y,
-            self.arm2_point.x, self.arm2_point.y
-        )
+        def _pt_screen_xy(pt):
+            sx = getattr(pt, 'screen_x', None)
+            sy = getattr(pt, 'screen_y', None)
+            if sx is None or sy is None:
+                return (pt.x, pt.y)
+            return (sx, sy)
+        vx, vy = _pt_screen_xy(self.vertex_point)
+        a1x, a1y = _pt_screen_xy(self.arm1_point)
+        a2x, a2y = _pt_screen_xy(self.arm2_point)
+        return (vx, vy, a1x, a1y, a2x, a2y)
 
     def _calculate_arc_parameters(self, vx, vy, p1x, p1y, p2x, p2y):
         """
