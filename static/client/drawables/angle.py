@@ -2,23 +2,21 @@
 MatHud Angle Geometric Object
 
 Represents an angle formed by two intersecting line segments with arc and label visualization.
-Provides angle measurement, arc rendering, and support for both standard and reflex angles.
+Provides angle measurement and support for both standard and reflex angles.
 
 Key Features:
     - Two-segment angle construction and validation
     - Angle measurement in degrees with arc visualization
     - Support for standard (0-180°) and reflex (180-360°) angles
-    - Automatic arc radius calculation and SVG path generation
-    - Dynamic text labeling with angle values
+    - Arc parameter generation for renderer consumption
 
 Geometric Properties:
     - Vertex point identification from segment intersection
     - Arm point extraction for angle calculation
-    - Arc radius adaptation for screen display
-    - Angle sweep calculation for proper arc rendering
+    - Angle sweep calculation and mid-arc label positioning support
 
 Dependencies:
-    - constants: Default angle styling and sizing values
+    - constants: Angle defaults
     - drawables.drawable: Base class interface
     - utils.math_utils: Angle calculation and geometric validation
 """
@@ -45,7 +43,7 @@ class Angle(Drawable):
         arm2_point (Point): End point of second segment arm
         raw_angle_degrees (float): Fundamental angle measurement (0-360°)
         angle_degrees (float): Display angle (small or reflex based on is_reflex)
-         (screen arc radius is determined by renderer; a default is used here when needed)
+         (arc radius is provided by the renderer; a default constant is used when not specified)
     """
     def __init__(self, segment1, segment2, canvas, color=DEFAULT_ANGLE_COLOR, is_reflex: bool = False):
         """Initialize an angle from two intersecting line segments.
@@ -154,7 +152,7 @@ class Angle(Drawable):
             self.angle_degrees = None
             return
 
-        # Use screen coordinates when available; fall back to .x/.y for mocks
+        # Use screen coordinates when available; fall back to x/y for test mocks
         def _pt_screen_xy(pt):
             sx = getattr(pt, 'screen_x', None)
             sy = getattr(pt, 'screen_y', None)
@@ -173,7 +171,7 @@ class Angle(Drawable):
         
         self.angle_degrees = self._calculate_display_angle(self.raw_angle_degrees, self.is_reflex, math_utils.MathUtils.EPSILON)
         
-        # Screen arc radius is provided by renderer; default value used in calculations when needed
+        # Arc radius comes from renderer (or default constant when not provided)
 
     @property
     def canvas(self): 
@@ -227,25 +225,29 @@ class Angle(Drawable):
         angle_v_p1_rad = math.atan2(p1y - vy, p1x - vx) # Radians angle of arm1 vector
         angle_v_p2_rad = math.atan2(p2y - vy, p2x - vx) # Radians angle of arm2 vector
 
-        # Calculate SVG arc start and end points on screen
+        # Calculate arc start and end points on screen
         arc_start_x = vx + current_arc_radius * math.cos(angle_v_p1_rad)
         arc_start_y = vy + current_arc_radius * math.sin(angle_v_p1_rad)
         arc_end_x = vx + current_arc_radius * math.cos(angle_v_p2_rad)
         arc_end_y = vy + current_arc_radius * math.sin(angle_v_p2_rad)
         
-        final_sweep_flag, final_large_arc_flag = self._get_svg_arc_flags(
+        final_sweep_flag, final_large_arc_flag = self._get_arc_flags(
             self.angle_degrees, self.raw_angle_degrees, epsilon
         )
             
         return {
             "arc_radius_on_screen": current_arc_radius,
             "angle_v_p1_rad": angle_v_p1_rad, # For text positioning
-            "final_sweep_flag": final_sweep_flag, # For text positioning
-            "path_d": f"M {arc_start_x} {arc_start_y} A {current_arc_radius} {current_arc_radius} 0 {final_large_arc_flag} {final_sweep_flag} {arc_end_x} {arc_end_y}"
+            "final_sweep_flag": final_sweep_flag,
+            "final_large_arc_flag": final_large_arc_flag,
+            "arc_start_x": arc_start_x,
+            "arc_start_y": arc_start_y,
+            "arc_end_x": arc_end_x,
+            "arc_end_y": arc_end_y,
         }
 
-    def _get_svg_arc_flags(self, display_angle_degrees, raw_angle_degrees, epsilon):
-        """Determines SVG sweep and large-arc flags for drawing the angle arc."""
+    def _get_arc_flags(self, display_angle_degrees, raw_angle_degrees, epsilon):
+        """Determines sweep and large-arc flags for drawing the angle arc."""
         is_effectively_raw_angle = False
         diff_abs = abs(display_angle_degrees - raw_angle_degrees)
 
@@ -277,44 +279,7 @@ class Angle(Drawable):
         
         return sweep_flag, large_arc_flag
 
-    def _create_arc_svg_element(self, path_d):
-        """Creates the SVG path element for the arc."""
-        attrs = {
-            'd': path_d, 'stroke': self.color, 'stroke-width': '1', 'fill': 'none', 'class': 'angle-arc'
-        }
-        return self.create_svg_element('path', **attrs)
-
-    def _create_text_svg_elements(self, vx, vy, arc_radius_on_screen, angle_v_p1_rad, final_sweep_flag):
-        """Creates SVG text elements for the angle value."""
-        text_elements = [] 
-        
-        if self.angle_degrees is None: # Check if angle value is available
-            return text_elements
-
-        display_angle_for_text_rad = math.radians(self.angle_degrees)
-        
-        # Adjust text_angle_rad to be in the middle of the *drawn arc*
-        # The drawn arc's effective angle for text placement is self.angle_degrees.
-        # Its direction from angle_v_p1_rad is given by final_sweep_flag.
-        effective_text_mid_arc_delta_rad = display_angle_for_text_rad / 2.0
-        if final_sweep_flag == '0': # CW sweep from arm1
-             effective_text_mid_arc_delta_rad = -effective_text_mid_arc_delta_rad
-        
-        text_angle_rad = angle_v_p1_rad + effective_text_mid_arc_delta_rad
-        
-        # Angle value text
-        # Use DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR for positioning text relative to the arc radius
-        text_x = vx + (arc_radius_on_screen * DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR) * math.cos(text_angle_rad)
-        text_y = vy + (arc_radius_on_screen * DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR) * math.sin(text_angle_rad)
-        angle_display_text = f"{self.angle_degrees:.1f}°"
-        
-        text_attrs = {
-            'x': text_x, 'y': text_y, 'fill': self.color, 'font-size': str(point_label_font_size),
-            'text-anchor': 'middle', 'dominant-baseline': 'middle',
-            'text_content': angle_display_text
-        }
-        text_elements.append(self.create_svg_element('text', **text_attrs))
-        return text_elements
+    # Removed SVG element creation helpers; rendering handled by the renderer
 
     def draw(self):
         # Rendering handled by renderer; no-op to preserve interface

@@ -213,13 +213,19 @@ class SvgRenderer:
 
         # Use model's precise arc parameter computation for correct curvature and flags
         # Provide arc radius from style if set
-        style_radius = self.style.get('angle_arc_radius')
+        style_radius = self.style.get('angle_arc_radius') if isinstance(self.style, dict) else None
         arc_params = angle._calculate_arc_parameters(vx, vy, p1x, p1y, p2x, p2y, arc_radius=style_radius)
         if not arc_params:
             return
 
         color = getattr(angle, 'color', self.style.get('angle_color', default_color))
-        d = arc_params["path_d"]
+        # Build SVG path from parameters
+        d = (
+            f"M {arc_params['arc_start_x']} {arc_params['arc_start_y']} "
+            f"A {arc_params['arc_radius_on_screen']} {arc_params['arc_radius_on_screen']} 0 "
+            f"{arc_params['final_large_arc_flag']} {arc_params['final_sweep_flag']} "
+            f"{arc_params['arc_end_x']} {arc_params['arc_end_y']}"
+        )
         path_el = svg.path(d=d, stroke=color, **{'stroke-width': '1', 'fill': 'none', 'class': 'angle-arc'})
         document["math-svg"] <= path_el
 
