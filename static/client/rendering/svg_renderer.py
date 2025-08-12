@@ -11,6 +11,7 @@ will be added incrementally (Point first), ensuring non-breaking integration.
 from browser import document, svg
 from constants import default_color, default_point_size, point_label_font_size, DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR
 from utils.math_utils import MathUtils
+from rendering.function_renderable import FunctionRenderable
 
 
 class SvgRenderer:
@@ -254,7 +255,8 @@ class SvgRenderer:
     def _render_function(self, func, coordinate_mapper):
         # Build screen-space paths using validated generator to match original behavior
         try:
-            screen_poly = func.build_screen_paths()
+            renderable = FunctionRenderable(func, coordinate_mapper, getattr(func.canvas, 'cartesian2axis', None))
+            screen_poly = renderable.build_screen_paths()
             screen_paths = screen_poly.paths if screen_poly else []
             if not screen_paths:
                 return
