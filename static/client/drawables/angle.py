@@ -45,7 +45,7 @@ class Angle(Drawable):
         arm2_point (Point): End point of second segment arm
         raw_angle_degrees (float): Fundamental angle measurement (0-360°)
         angle_degrees (float): Display angle (small or reflex based on is_reflex)
-        drawn_arc_radius (float): Screen radius for arc rendering
+         (screen arc radius is determined by renderer; a default is used here when needed)
     """
     def __init__(self, segment1, segment2, canvas, color=DEFAULT_ANGLE_COLOR, is_reflex: bool = False):
         """Initialize an angle from two intersecting line segments.
@@ -82,7 +82,6 @@ class Angle(Drawable):
         
         self.raw_angle_degrees = None # To store the fundamental CCW angle (0-360)
         self.angle_degrees = None     # To store the display angle (small or reflex)
-        self.drawn_arc_radius = DEFAULT_ANGLE_ARC_SCREEN_RADIUS
         
         self._initialize()
 
@@ -174,7 +173,7 @@ class Angle(Drawable):
         
         self.angle_degrees = self._calculate_display_angle(self.raw_angle_degrees, self.is_reflex, math_utils.MathUtils.EPSILON)
         
-        self.drawn_arc_radius = DEFAULT_ANGLE_ARC_SCREEN_RADIUS # Ensure fixed screen radius
+        # Screen arc radius is provided by renderer; default value used in calculations when needed
 
     @property
     def canvas(self): 
@@ -204,7 +203,7 @@ class Angle(Drawable):
         a2x, a2y = _pt_screen_xy(self.arm2_point)
         return (vx, vy, a1x, a1y, a2x, a2y)
 
-    def _calculate_arc_parameters(self, vx, vy, p1x, p1y, p2x, p2y):
+    def _calculate_arc_parameters(self, vx, vy, p1x, p1y, p2x, p2y, arc_radius=None):
         """
         Calculates SVG path parameters for the arc using screen coordinates for positioning
         and a fixed self.drawn_arc_radius for size.
@@ -218,7 +217,7 @@ class Angle(Drawable):
         if (p1x == vx and p1y == vy) or (p2x == vx and p2y == vy):
             return None
         
-        current_arc_radius = self.drawn_arc_radius
+        current_arc_radius = arc_radius if arc_radius is not None else DEFAULT_ANGLE_ARC_SCREEN_RADIUS
         if current_arc_radius <= 0: 
              return None
         

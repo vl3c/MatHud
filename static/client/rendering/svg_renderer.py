@@ -24,7 +24,42 @@ class SvgRenderer:
     """
 
     def __init__(self, style_config=None):
-        self.style = style_config or {}
+        # Renderer style defaults; can be overridden via style_config
+        defaults = {
+            'point_color': default_color,
+            'point_radius': default_point_size,
+            'point_label_font_size': point_label_font_size,
+
+            'segment_color': default_color,
+            'segment_stroke_width': 1,
+
+            'circle_color': default_color,
+            'circle_stroke_width': 1,
+
+            'ellipse_color': default_color,
+            'ellipse_stroke_width': 1,
+
+            'vector_color': default_color,
+            'vector_tip_size': default_point_size * 4,
+
+            'angle_color': default_color,
+            'angle_arc_radius': None,  # if None, use model radius
+            'angle_label_font_size': point_label_font_size,
+
+            'function_color': default_color,
+            'function_stroke_width': 1,
+            'function_label_font_size': point_label_font_size,
+
+            'area_fill_color': 'lightblue',
+            'area_opacity': 0.3,
+
+            'cartesian_axis_color': default_color,
+            'cartesian_grid_color': 'lightgrey',
+            'cartesian_tick_size': 3,
+            'cartesian_tick_font_size': 8,
+            'cartesian_label_color': 'grey',
+        }
+        self.style = {**defaults, **(style_config or {})}
         # Handlers will be populated incrementally per shape
         # Example shape registrations will be added in later steps
         self._handlers_by_type = {}
@@ -100,6 +135,8 @@ class SvgRenderer:
             circle.center.original_position.x, circle.center.original_position.y)
         r_screen = coordinate_mapper.scale_value(circle.radius)
         circle_el = svg.circle(cx=str(cx), cy=str(cy), r=str(r_screen), fill="none", stroke=color)
+        if self.style['circle_stroke_width']:
+            circle_el.setAttribute('stroke-width', str(self.style['circle_stroke_width']))
         document["math-svg"] <= circle_el
 
     # ----------------------- Ellipse -----------------------
@@ -120,6 +157,8 @@ class SvgRenderer:
             el = svg.ellipse(cx=str(cx), cy=str(cy), rx=str(rx), ry=str(ry), fill="none", stroke=color, transform=transform)
         else:
             el = svg.ellipse(cx=str(cx), cy=str(cy), rx=str(rx), ry=str(ry), fill="none", stroke=color)
+        if self.style['ellipse_stroke_width']:
+            el.setAttribute('stroke-width', str(self.style['ellipse_stroke_width']))
         document["math-svg"] <= el
 
     # ----------------------- Vector -----------------------
@@ -137,6 +176,8 @@ class SvgRenderer:
             seg.point2.original_position.x, seg.point2.original_position.y)
 
         line_el = svg.line(x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=seg_color)
+        if self.style['segment_stroke_width']:
+            line_el.setAttribute('stroke-width', str(self.style['segment_stroke_width']))
         document["math-svg"] <= line_el
 
         # Draw arrow tip at the end (near tip point)
@@ -171,7 +212,9 @@ class SvgRenderer:
         p2x, p2y = coordinate_mapper.math_to_screen(angle.arm2_point.original_position.x, angle.arm2_point.original_position.y)
 
         # Use model's precise arc parameter computation for correct curvature and flags
-        arc_params = angle._calculate_arc_parameters(vx, vy, p1x, p1y, p2x, p2y)
+        # Provide arc radius from style if set
+        style_radius = self.style.get('angle_arc_radius')
+        arc_params = angle._calculate_arc_parameters(vx, vy, p1x, p1y, p2x, p2y, arc_radius=style_radius)
         if not arc_params:
             return
 
@@ -193,7 +236,7 @@ class SvgRenderer:
             ty = vy + text_r * _math.sin(text_angle_rad)
             text = f"{angle.angle_degrees:.1f}°"
             text_el = svg.text(text, x=str(tx), y=str(ty), fill=color)
-            text_el.setAttribute('font-size', str(int(point_label_font_size)))
+            text_el.setAttribute('font-size', str(int(self.style['angle_label_font_size'])))
             text_el.style['text-anchor'] = 'middle'
             text_el.style['dominant-baseline'] = 'middle'
             document["math-svg"] <= text_el
@@ -212,15 +255,17 @@ class SvgRenderer:
             color = getattr(func, 'color', self.style.get('function_color', default_color))
             for sp in screen_paths:
                 d = "M" + " L".join(f"{x},{y}" for x,y in sp)
-                document["math-svg"] <= svg.path(d=d, stroke=color, fill="none")
+                path_el = svg.path(d=d, stroke=color, fill="none")
+                if self.style['function_stroke_width']:
+                    path_el.setAttribute('stroke-width', str(self.style['function_stroke_width']))
+                document["math-svg"] <= path_el
             # Label at first point of first screen path
-            from constants import point_label_font_size
             first = screen_paths[0]
-            label_offset_x = (1 + len(func.name)) * point_label_font_size / 2
+            label_offset_x = (1 + len(func.name)) * self.style['function_label_font_size'] / 2
             label_x = first[0][0] - label_offset_x
-            label_y = max(first[0][1], point_label_font_size)
+            label_y = max(first[0][1], self.style['function_label_font_size'])
             text_el = svg.text(func.name, x=str(label_x), y=str(label_y), fill=color)
-            text_el.setAttribute('font-size', str(int(point_label_font_size)))
+            text_el.setAttribute('font-size', str(int(self.style['function_label_font_size'])))
             document["math-svg"] <= text_el
         except Exception:
             return
@@ -238,44 +283,47 @@ class SvgRenderer:
             # Origin in screen space via mapper
             ox, oy = coordinate_mapper.math_to_screen(0, 0)
             # Axes
-            document["math-svg"] <= svg.line(x1=str(0), y1=str(oy), x2=str(width), y2=str(oy), stroke=cartesian.color)
-            document["math-svg"] <= svg.line(x1=str(ox), y1=str(0), x2=str(ox), y2=str(height), stroke=cartesian.color)
+            axis_color = self.style['cartesian_axis_color']
+            document["math-svg"] <= svg.line(x1=str(0), y1=str(oy), x2=str(width), y2=str(oy), stroke=axis_color)
+            document["math-svg"] <= svg.line(x1=str(ox), y1=str(0), x2=str(ox), y2=str(height), stroke=axis_color)
 
             # Tick spacing displayed in pixels
             display_tick = cartesian.current_tick_spacing * coordinate_mapper.scale_factor
 
             def draw_tick_x(x):
-                document["math-svg"] <= svg.line(x1=str(x), y1=str(oy - cartesian.tick_size), x2=str(x), y2=str(oy + cartesian.tick_size), stroke=cartesian.color)
+                tick_size = self.style['cartesian_tick_size']
+                document["math-svg"] <= svg.line(x1=str(x), y1=str(oy - tick_size), x2=str(x), y2=str(oy + tick_size), stroke=axis_color)
                 if abs(x - ox) > 1e-6:
                     val = (x - ox) / coordinate_mapper.scale_factor
                     label = MathUtils.format_number_for_cartesian(val)
                     tx = x + 2
-                    ty = oy + cartesian.tick_size + cartesian.tick_label_font_size
-                    t = svg.text(label, x=str(tx), y=str(ty), fill=cartesian.tick_label_color)
-                    t.setAttribute('font-size', str(cartesian.tick_label_font_size))
+                    ty = oy + tick_size + self.style['cartesian_tick_font_size']
+                    t = svg.text(label, x=str(tx), y=str(ty), fill=self.style['cartesian_label_color'])
+                    t.setAttribute('font-size', str(self.style['cartesian_tick_font_size']))
                     document["math-svg"] <= t
                 else:
-                    t = svg.text('O', x=str(x + 2), y=str(oy + cartesian.tick_size + cartesian.tick_label_font_size), fill=cartesian.tick_label_color)
-                    t.setAttribute('font-size', str(cartesian.tick_label_font_size))
+                    t = svg.text('O', x=str(x + 2), y=str(oy + tick_size + self.style['cartesian_tick_font_size']), fill=self.style['cartesian_label_color'])
+                    t.setAttribute('font-size', str(self.style['cartesian_tick_font_size']))
                     document["math-svg"] <= t
 
             def draw_tick_y(y):
-                document["math-svg"] <= svg.line(x1=str(ox - cartesian.tick_size), y1=str(y), x2=str(ox + cartesian.tick_size), y2=str(y), stroke=cartesian.color)
+                tick_size = self.style['cartesian_tick_size']
+                document["math-svg"] <= svg.line(x1=str(ox - tick_size), y1=str(y), x2=str(ox + tick_size), y2=str(y), stroke=axis_color)
                 if abs(y - oy) > 1e-6:
                     val = (oy - y) / coordinate_mapper.scale_factor
                     label = MathUtils.format_number_for_cartesian(val)
-                    tx = ox + cartesian.tick_size
-                    ty = y - cartesian.tick_size
-                    t = svg.text(label, x=str(tx), y=str(ty), fill=cartesian.tick_label_color)
-                    t.setAttribute('font-size', str(cartesian.tick_label_font_size))
+                    tx = ox + tick_size
+                    ty = y - tick_size
+                    t = svg.text(label, x=str(tx), y=str(ty), fill=self.style['cartesian_label_color'])
+                    t.setAttribute('font-size', str(self.style['cartesian_tick_font_size']))
                     document["math-svg"] <= t
 
             # Grid lines
             def draw_grid_line_x(x):
-                document["math-svg"] <= svg.line(x1=str(x), y1=str(0), x2=str(x), y2=str(height), stroke=cartesian.grid_color)
+                document["math-svg"] <= svg.line(x1=str(x), y1=str(0), x2=str(x), y2=str(height), stroke=self.style['cartesian_grid_color'])
 
             def draw_grid_line_y(y):
-                document["math-svg"] <= svg.line(x1=str(0), y1=str(y), x2=str(width), y2=str(y), stroke=cartesian.grid_color)
+                document["math-svg"] <= svg.line(x1=str(0), y1=str(y), x2=str(width), y2=str(y), stroke=self.style['cartesian_grid_color'])
 
             # Iterate ticks and grid in both directions
             # X positive
