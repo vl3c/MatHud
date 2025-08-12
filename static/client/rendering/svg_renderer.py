@@ -52,9 +52,8 @@ class SvgRenderer:
         self.register(point_cls, self._render_point)
 
     def _render_point(self, point, coordinate_mapper):
-        # Visual params: prefer style overrides; fall back to model color for now (gradual migration),
-        # and constants for sizes to match existing behavior.
-        color = self.style.get('point_color', getattr(point, 'color', default_color))
+        # Prefer model color, then style, then default
+        color = getattr(point, 'color', self.style.get('point_color', default_color))
         radius_val = self.style.get('point_radius', default_point_size)
         font_size_val = self.style.get('point_label_font_size', point_label_font_size)
 
@@ -80,8 +79,8 @@ class SvgRenderer:
         self.register(segment_cls, self._render_segment)
 
     def _render_segment(self, segment, coordinate_mapper):
-        # Visual params: style override -> model color -> default
-        color = self.style.get('segment_color', getattr(segment, 'color', default_color))
+        # Prefer model color, then style, then default
+        color = getattr(segment, 'color', self.style.get('segment_color', default_color))
 
         x1, y1 = coordinate_mapper.math_to_screen(
             segment.point1.original_position.x, segment.point1.original_position.y)
@@ -96,7 +95,7 @@ class SvgRenderer:
         self.register(circle_cls, self._render_circle)
 
     def _render_circle(self, circle, coordinate_mapper):
-        color = self.style.get('circle_color', getattr(circle, 'color', default_color))
+        color = getattr(circle, 'color', self.style.get('circle_color', default_color))
         cx, cy = coordinate_mapper.math_to_screen(
             circle.center.original_position.x, circle.center.original_position.y)
         r_screen = coordinate_mapper.scale_value(circle.radius)
@@ -108,7 +107,7 @@ class SvgRenderer:
         self.register(ellipse_cls, self._render_ellipse)
 
     def _render_ellipse(self, ellipse, coordinate_mapper):
-        color = self.style.get('ellipse_color', getattr(ellipse, 'color', default_color))
+        color = getattr(ellipse, 'color', self.style.get('ellipse_color', default_color))
         cx, cy = coordinate_mapper.math_to_screen(
             ellipse.center.original_position.x, ellipse.center.original_position.y)
         rx = coordinate_mapper.scale_value(ellipse.radius_x)
@@ -130,7 +129,7 @@ class SvgRenderer:
     def _render_vector(self, vector, coordinate_mapper):
         # Draw underlying segment
         seg = vector.segment
-        seg_color = self.style.get('vector_color', getattr(vector, 'color', getattr(seg, 'color', default_color)))
+        seg_color = getattr(vector, 'color', getattr(seg, 'color', self.style.get('vector_color', default_color)))
 
         x1, y1 = coordinate_mapper.math_to_screen(
             seg.point1.original_position.x, seg.point1.original_position.y)
@@ -176,7 +175,7 @@ class SvgRenderer:
         if not arc_params:
             return
 
-        color = getattr(angle, 'color', default_color)
+        color = getattr(angle, 'color', self.style.get('angle_color', default_color))
         d = arc_params["path_d"]
         path_el = svg.path(d=d, stroke=color, **{'stroke-width': '1', 'fill': 'none', 'class': 'angle-arc'})
         document["math-svg"] <= path_el
@@ -210,7 +209,7 @@ class SvgRenderer:
             screen_paths = screen_poly.paths if screen_poly else []
             if not screen_paths:
                 return
-            color = getattr(func, 'color', default_color)
+            color = getattr(func, 'color', self.style.get('function_color', default_color))
             for sp in screen_paths:
                 d = "M" + " L".join(f"{x},{y}" for x,y in sp)
                 document["math-svg"] <= svg.path(d=d, stroke=color, fill="none")
