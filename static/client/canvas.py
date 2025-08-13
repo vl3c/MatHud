@@ -110,83 +110,88 @@ class Canvas:
         
         if self.draw_enabled:
             self.cartesian2axis.draw()
-        # Register handlers incrementally to avoid tight coupling during import time
+        self._register_renderer_handlers()
+
+    def add_drawable(self, drawable):
+        drawable.canvas = self  # Set the drawable's canvas reference
+        self.drawable_manager.drawables.add(drawable)
+
+    def _register_renderer_handlers(self):
+        """Register renderer handlers for all drawable types. Kept isolated to avoid tight import coupling."""
+        if self.renderer is None:
+            return
         try:
             from drawables.point import Point as _Point
-            if self.renderer is not None and hasattr(self.renderer, 'register_point'):
+            if hasattr(self.renderer, 'register_point'):
                 self.renderer.register_point(_Point)
         except Exception:
             pass
         try:
             from drawables.segment import Segment as _Segment
-            if self.renderer is not None and hasattr(self.renderer, 'register_segment'):
+            if hasattr(self.renderer, 'register_segment'):
                 self.renderer.register_segment(_Segment)
         except Exception:
             pass
         try:
             from drawables.circle import Circle as _Circle
-            if self.renderer is not None and hasattr(self.renderer, 'register_circle'):
+            if hasattr(self.renderer, 'register_circle'):
                 self.renderer.register_circle(_Circle)
         except Exception:
             pass
         try:
             from drawables.ellipse import Ellipse as _Ellipse
-            if self.renderer is not None and hasattr(self.renderer, 'register_ellipse'):
+            if hasattr(self.renderer, 'register_ellipse'):
                 self.renderer.register_ellipse(_Ellipse)
         except Exception:
             pass
         try:
             from drawables.vector import Vector as _Vector
-            if self.renderer is not None and hasattr(self.renderer, 'register_vector'):
+            if hasattr(self.renderer, 'register_vector'):
                 self.renderer.register_vector(_Vector)
         except Exception:
             pass
         try:
             from drawables.angle import Angle as _Angle
-            if self.renderer is not None and hasattr(self.renderer, 'register_angle'):
+            if hasattr(self.renderer, 'register_angle'):
                 self.renderer.register_angle(_Angle)
         except Exception:
             pass
         try:
             from drawables.function import Function as _Function
-            if self.renderer is not None and hasattr(self.renderer, 'register_function'):
+            if hasattr(self.renderer, 'register_function'):
                 self.renderer.register_function(_Function)
         except Exception:
             pass
         try:
             from drawables.triangle import Triangle as _Triangle
-            if self.renderer is not None and hasattr(self.renderer, 'register_triangle'):
+            if hasattr(self.renderer, 'register_triangle'):
                 self.renderer.register_triangle(_Triangle)
         except Exception:
             pass
         try:
             from drawables.rectangle import Rectangle as _Rectangle
-            if self.renderer is not None and hasattr(self.renderer, 'register_rectangle'):
+            if hasattr(self.renderer, 'register_rectangle'):
                 self.renderer.register_rectangle(_Rectangle)
         except Exception:
             pass
         try:
             from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea as _FBCA
-            if self.renderer is not None and hasattr(self.renderer, 'register_functions_bounded_colored_area'):
+            if hasattr(self.renderer, 'register_functions_bounded_colored_area'):
                 self.renderer.register_functions_bounded_colored_area(_FBCA)
         except Exception:
             pass
         try:
             from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea as _FSBCA
-            if self.renderer is not None and hasattr(self.renderer, 'register_function_segment_bounded_colored_area'):
+            if hasattr(self.renderer, 'register_function_segment_bounded_colored_area'):
                 self.renderer.register_function_segment_bounded_colored_area(_FSBCA)
         except Exception:
             pass
         try:
             from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea as _SBCA
-            if self.renderer is not None and hasattr(self.renderer, 'register_segments_bounded_colored_area'):
+            if hasattr(self.renderer, 'register_segments_bounded_colored_area'):
                 self.renderer.register_segments_bounded_colored_area(_SBCA)
         except Exception:
             pass
-
-    def add_drawable(self, drawable):
-        drawable.canvas = self  # Set the drawable's canvas reference
-        self.drawable_manager.drawables.add(drawable)
 
     def draw(self, apply_zoom=False):
         if not self.draw_enabled:
