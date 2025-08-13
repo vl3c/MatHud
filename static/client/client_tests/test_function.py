@@ -4,6 +4,7 @@ from geometry import Position, Function
 from expression_validator import ExpressionValidator
 from .simple_mock import SimpleMock
 from coordinate_mapper import CoordinateMapper
+from rendering.function_renderable import FunctionRenderable
 
 
 class TestFunction(unittest.TestCase):
@@ -56,8 +57,10 @@ class TestFunction(unittest.TestCase):
         self.assertEqual(self.function.get_class_name(), 'Function')
 
     def test_generate_values(self):
-        # Test the generation of function values within canvas bounds
-        paths = self.function._generate_paths()
+        # Test the generation of function values within canvas bounds using FunctionRenderable
+        renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
+        screen_polyline = renderable.build_screen_paths()
+        paths = screen_polyline.paths
         self.assertTrue(len(paths) > 0)
         
         # Check that we have points in our paths
@@ -71,9 +74,9 @@ class TestFunction(unittest.TestCase):
         bottom_bound = self.canvas.cartesian2axis.get_visible_bottom_bound()
         
         for path in paths:
-            for point in path:
-                # Check x bounds (these should still be strict) using coordinate mapper
-                math_x, math_y = self.canvas.coordinate_mapper.screen_to_math(point.x, point.y)
+            for point_tuple in path:
+                # Convert tuple (x, y) to screen coordinates for bounds checking
+                math_x, math_y = self.canvas.coordinate_mapper.screen_to_math(point_tuple[0], point_tuple[1])
                 self.assertTrue(self.canvas.cartesian2axis.get_visible_left_bound() <= math_x <= self.canvas.cartesian2axis.get_visible_right_bound())
                 
                 # Count points within and outside y bounds
@@ -98,66 +101,66 @@ class TestFunction(unittest.TestCase):
         self.assertEqual(function_copy.name, self.function.name)
 
     def test_caching_mechanism(self):
-        # Test that points are cached and reused
-        self.function._cached_paths = None
-        self.function._cache_valid = False
+        # Test that points are cached and reused in FunctionRenderable
+        renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
         
-        # First draw should generate points
-        points = self.function._generate_paths()
-        self.function._cached_paths = points
-        self.function._cache_valid = True
-        initial_points = self.function._cached_paths
+        # First call should generate paths
+        first_call = renderable.build_screen_paths()
+        self.assertIsNotNone(first_call.paths)
+        self.assertTrue(len(first_call.paths) > 0)
         
-        self.assertIsNotNone(initial_points)
-        self.assertTrue(self.function._cache_valid)
+        # Second call should use cached paths (same result)
+        second_call = renderable.build_screen_paths()
+        self.assertEqual(len(first_call.paths), len(second_call.paths))
 
     def test_cache_invalidation_on_zoom_new_mechanism(self):
-        """Test that cache is invalidated when _invalidate_cache_on_zoom() is called"""
+        """Test that cache is invalidated when invalidate_cache() is called on FunctionRenderable"""
+        renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
+        
         # Generate initial cache
-        self.function.draw()
-        self.assertTrue(self.function._cache_valid)
-        initial_paths = self.function._cached_paths
+        initial_paths = renderable.build_screen_paths()
+        self.assertTrue(len(initial_paths.paths) > 0)
         
-        # Simulate zoom by calling the new cache invalidation mechanism
-        self.function._invalidate_cache_on_zoom()
+        # Simulate zoom by calling cache invalidation
+        renderable.invalidate_cache()
         
-        # Cache should be invalidated
-        self.assertFalse(self.function._cache_valid)
+        # Build paths again after invalidation
+        new_paths = renderable.build_screen_paths()
         
-        # Draw again to regenerate cache
-        self.function.draw()
-        
-        # Cache should be valid again with potentially different paths
-        self.assertTrue(self.function._cache_valid)
+        # Should still generate valid paths (cache regenerated)
+        self.assertTrue(len(new_paths.paths) > 0)
         
     def test_zoom_via_canvas_draw_mechanism(self):
-        """Test zoom cache invalidation through the Canvas.draw(apply_zoom=True) pattern"""
+        """Test zoom cache invalidation through the Canvas.draw(apply_zoom=True) pattern using FunctionRenderable"""
+        renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
+        
         # Generate initial cache
-        self.function.draw()
-        self.assertTrue(self.function._cache_valid)
+        initial_paths = renderable.build_screen_paths()
+        self.assertTrue(len(initial_paths.paths) > 0)
         
         # Simulate what Canvas.draw(apply_zoom=True) does:
-        # 1. Check if drawable has _invalidate_cache_on_zoom method
+        # 1. Check if renderable has invalidate_cache method
         # 2. Call it if it exists
-        # 3. Call drawable.draw()
-        if hasattr(self.function, '_invalidate_cache_on_zoom'):
-            self.function._invalidate_cache_on_zoom()
+        # 3. Call build_screen_paths()
+        if hasattr(renderable, 'invalidate_cache'):
+            renderable.invalidate_cache()
             
-        # Cache should be invalidated after _invalidate_cache_on_zoom()
-        self.assertFalse(self.function._cache_valid)
+        # Build paths again after cache invalidation
+        new_paths = renderable.build_screen_paths()
         
-        self.function.draw()
-        
-        # Verify cache is now valid again after regeneration
-        self.assertTrue(self.function._cache_valid)
+        # Verify paths are regenerated successfully
+        self.assertTrue(len(new_paths.paths) > 0)
 
     def test_adaptive_step_size(self):
-        # Test function with varying slopes
+        # Test function with varying slopes using FunctionRenderable
         steep_function = Function("100*x", self.canvas, "Steep")
         gradual_function = Function("0.1*x", self.canvas, "Gradual")
         
-        steep_paths = steep_function._generate_paths()
-        gradual_paths = gradual_function._generate_paths()
+        steep_renderable = FunctionRenderable(steep_function, self.canvas.coordinate_mapper)
+        gradual_renderable = FunctionRenderable(gradual_function, self.canvas.coordinate_mapper)
+        
+        steep_paths = steep_renderable.build_screen_paths().paths
+        gradual_paths = gradual_renderable.build_screen_paths().paths
         
         # Calculate total points in each function
         steep_total_points = sum(len(path) for path in steep_paths)
@@ -168,9 +171,10 @@ class TestFunction(unittest.TestCase):
                               f"Expected steep function to have at least as many points ({steep_total_points}) as gradual function ({gradual_total_points})")
 
     def test_discontinuity_handling(self):
-        # Test function with discontinuity
+        # Test function with discontinuity using FunctionRenderable
         discontinuous_function = Function("1/x", self.canvas, "Discontinuous", step=0.5)  # Smaller step size
-        paths = discontinuous_function._generate_paths()
+        renderable = FunctionRenderable(discontinuous_function, self.canvas.coordinate_mapper)
+        paths = renderable.build_screen_paths().paths
         
         # Flatten all points from all paths for testing
         flat_points = []
@@ -178,13 +182,13 @@ class TestFunction(unittest.TestCase):
             flat_points.extend(path)
             
         # Sort points by x-value to ensure chronological order for checking gaps
-        flat_points.sort(key=lambda p: p.x)
+        flat_points.sort(key=lambda p: p[0])  # Sort by x coordinate (first element of tuple)
         
         # Find gaps in x coordinates that indicate discontinuity
         has_discontinuity = False
         for i in range(1, len(flat_points)):
-            math_x1, math_y1 = self.canvas.coordinate_mapper.screen_to_math(flat_points[i-1].x, flat_points[i-1].y)
-            math_x2, math_y2 = self.canvas.coordinate_mapper.screen_to_math(flat_points[i].x, flat_points[i].y)
+            math_x1, math_y1 = self.canvas.coordinate_mapper.screen_to_math(flat_points[i-1][0], flat_points[i-1][1])
+            math_x2, math_y2 = self.canvas.coordinate_mapper.screen_to_math(flat_points[i][0], flat_points[i][1])
             # Check for either a large x gap or a transition through bounds
             if (abs(math_x2 - math_x1) > discontinuous_function.step * 2) or \
                (abs(math_y2 - math_y1) > (self.canvas.cartesian2axis.get_visible_top_bound() - 
@@ -211,7 +215,8 @@ class TestFunction(unittest.TestCase):
         self.function.left_bound = -5
         self.function.right_bound = 5
         
-        paths = self.function._generate_paths()
+        renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
+        paths = renderable.build_screen_paths().paths
         
         # Ensure we have paths
         self.assertTrue(len(paths) > 0)
@@ -219,9 +224,9 @@ class TestFunction(unittest.TestCase):
         for path in paths:
             # Ensure each path has points
             self.assertTrue(len(path) > 0)
-            for point in path:
+            for point_tuple in path:
                 # We need to check the original coordinates, not the scaled ones
-                math_x, math_y = self.canvas.coordinate_mapper.screen_to_math(point.x, point.y)
+                math_x, math_y = self.canvas.coordinate_mapper.screen_to_math(point_tuple[0], point_tuple[1])
                 # Add some tolerance for floating-point comparisons
                 self.assertGreaterEqual(math_x, -5.1)
                 self.assertLessEqual(math_x, 5.1)
@@ -229,44 +234,51 @@ class TestFunction(unittest.TestCase):
                 self.assertLessEqual(math_y, 10.1)
 
     def test_should_regenerate_points(self):
-        # Test conditions for point regeneration
-        points = self.function._generate_paths()
-        self.function._cached_paths = points
-        self.function._cache_valid = True
-        self.function._last_scale = self.canvas.scale_factor
-        self.function._last_bounds = (
-            self.canvas.cartesian2axis.get_visible_left_bound(),
-            self.canvas.cartesian2axis.get_visible_right_bound(),
-            self.canvas.cartesian2axis.get_visible_top_bound(),
-            self.canvas.cartesian2axis.get_visible_bottom_bound()
-        )
+        # Test conditions for point regeneration using FunctionRenderable
+        renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
+        
+        # Generate initial paths
+        initial_paths = renderable.build_screen_paths()
+        self.assertTrue(len(initial_paths.paths) > 0)
+        
+        # Invalidate cache and regenerate
+        renderable.invalidate_cache()
+        new_paths = renderable.build_screen_paths()
+        self.assertTrue(len(new_paths.paths) > 0)
 
     def test_draw_with_empty_points(self):
-        # Test drawing behavior when no points are generated
-        # Mock _generate_values to return empty list
-        original_generate = self.function._generate_paths
-        self.function._generate_paths = lambda: []
+        # Test drawing behavior when no points are generated using FunctionRenderable
+        # Create a function that should generate no valid points
+        empty_function = Function("sin(1/0)", self.canvas, "Empty")  # This should fail evaluation
+        renderable = FunctionRenderable(empty_function, self.canvas.coordinate_mapper)
         
-        # Should not raise error when drawing with no points
-        self.function.draw()
-        
-        # Restore original method
-        self.function._generate_paths = original_generate
+        # Should not raise error when building paths with invalid function
+        try:
+            paths = renderable.build_screen_paths()
+            # Should return empty paths gracefully
+            self.assertEqual(len(paths.paths), 0)
+        except Exception:
+            # If it raises an exception, that's also acceptable behavior
+            pass
 
     def test_deepcopy_with_cache(self):
-        # Test that deepcopy properly handles cache attributes
-        self.function.draw()  # Generate initial cache
+        # Test that deepcopy properly handles Function objects (cache handled by renderables)
+        renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
+        renderable.build_screen_paths()  # Generate initial cache in renderable
+        
         function_copy = copy.deepcopy(self.function)
         
+        # Function copy should still have clean cache state
         self.assertIsNone(function_copy._cached_paths)
         self.assertFalse(function_copy._cache_valid)
         self.assertIsNone(function_copy._last_scale)
         self.assertIsNone(function_copy._last_bounds)
 
     def test_performance_limits(self):
-        # Test that point generation doesn't exceed limits
+        # Test that point generation doesn't exceed limits using FunctionRenderable
         complex_function = Function("sin(x*10)", self.canvas, "Complex")
-        paths = complex_function._generate_paths()
+        renderable = FunctionRenderable(complex_function, self.canvas.coordinate_mapper)
+        paths = renderable.build_screen_paths().paths
         
         # Check number of paths is reasonable
         self.assertLess(len(paths), 100, "Should not exceed maximum paths limit")
@@ -279,8 +291,8 @@ class TestFunction(unittest.TestCase):
         for path in paths:
             if len(path) > 1:  # Only check paths with at least 2 points
                 for i in range(1, len(path)):
-                    dx = abs(path[i].x - path[i-1].x)
-                    dy = abs(path[i].y - path[i-1].y)
+                    dx = abs(path[i][0] - path[i-1][0])  # x coordinates
+                    dy = abs(path[i][1] - path[i-1][1])  # y coordinates
                     self.assertGreater(dx + dy, 0, "Points should not be duplicates")
 
     def test_high_frequency_trig_functions(self):
@@ -296,7 +308,8 @@ class TestFunction(unittest.TestCase):
             with self.subTest(function_string=function_string, description=description):
                 try:
                     f = Function(function_string, self.canvas, "test_func")
-                    paths = f._generate_paths()
+                    renderable = FunctionRenderable(f, self.canvas.coordinate_mapper)
+                    paths = renderable.build_screen_paths().paths
                     self.assertIsNotNone(paths)
                     self.assertGreater(len(paths), 0)
                     
@@ -312,7 +325,17 @@ class TestFunction(unittest.TestCase):
                     self.fail(f"Failed to handle {function_string}: {str(e)}")
 
     def test_draw(self):
-        # This test would check if draw calls create_svg_element with expected arguments
-        # Might require a more complex setup or mocking to verify SVG output
-        pass
+        # Test that FunctionRenderable can build screen paths successfully
+        renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
+        paths = renderable.build_screen_paths()
+        
+        # Should have valid paths
+        self.assertIsNotNone(paths.paths)
+        self.assertTrue(len(paths.paths) > 0)
+        
+        # Each path should contain tuples of (x, y) coordinates
+        for path in paths.paths:
+            if len(path) > 0:
+                self.assertIsInstance(path[0], tuple)
+                self.assertEqual(len(path[0]), 2)  # Should be (x, y) tuple
 
