@@ -3,6 +3,7 @@ import copy
 from geometry import Position
 from coordinate_mapper import CoordinateMapper
 from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
+from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
 from .simple_mock import SimpleMock
 
 
@@ -197,14 +198,10 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         
         area = SegmentsBoundedColoredArea(segment1, segment2, self.canvas)
         
-        # Mock the _create_svg_path method to track if it's called
-        area._create_svg_path = SimpleMock()
-        
-        # Draw should return early without creating path due to no overlap
-        area.draw()
-        
-        # Verify _create_svg_path was not called
-        area._create_svg_path.assert_not_called()
+        # Use renderable instead of spying on draw()
+        renderable = SegmentsBoundedAreaRenderable(area, self.coordinate_mapper)
+        closed_area = renderable.build_screen_area()
+        self.assertIsNone(closed_area)
 
     def test_exactly_touching_segments(self):
         """Test case where segments exactly touch at one point."""
@@ -223,14 +220,10 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         
         area = SegmentsBoundedColoredArea(segment1, segment2, self.canvas)
         
-        # Mock the _create_svg_path method to track if it's called
-        area._create_svg_path = SimpleMock()
-        
-        # Draw should return early since overlap_max <= overlap_min (200 <= 200)
-        area.draw()
-        
-        # Verify _create_svg_path was not called
-        area._create_svg_path.assert_not_called()
+        # Use renderable instead of spying on draw()
+        renderable = SegmentsBoundedAreaRenderable(area, self.coordinate_mapper)
+        closed_area = renderable.build_screen_area()
+        self.assertIsNone(closed_area)
 
     def test_vertical_segment_interpolation(self):
         """Test linear interpolation with vertical segment (x2 == x1)."""
@@ -248,22 +241,6 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         )
         
         area = SegmentsBoundedColoredArea(normal_segment, vertical_segment, self.canvas)
-        
-        # Mock the _create_svg_path method to capture the path
-        captured_points = []
-        captured_reverse = []
-        def capture_path(points, reverse_points):
-            captured_points.extend(points)
-            captured_reverse.extend(reverse_points)
-        
-        area._create_svg_path = capture_path
-        
-        # Draw the area
-        area.draw()
-        
-        # Should have created some path (overlap from x=200 to x=200, but overlap_max <= overlap_min handled)
-        # Actually this should not draw anything since the overlap is a single point
-        # Let me adjust the test
         
         # For vertical segment, the get_y_at_x function should handle x2 == x1 case
         # Let's test this directly
@@ -295,14 +272,11 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         
         area = SegmentsBoundedColoredArea(negative_segment1, negative_segment2, self.canvas)
         
-        # Mock the _create_svg_path method to verify it gets called
-        area._create_svg_path = SimpleMock()
-        
-        # Draw should work with negative coordinates
-        area.draw()
-        
-        # Verify _create_svg_path was called (segments do overlap)
-        area._create_svg_path.assert_called_once()
+        renderable = SegmentsBoundedAreaRenderable(area, self.coordinate_mapper)
+        closed_area = renderable.build_screen_area()
+        self.assertIsNotNone(closed_area)
+        self.assertTrue(len(closed_area.forward_points) >= 1)
+        self.assertTrue(len(closed_area.reverse_points) >= 1)
 
     def test_segment_crossing_zero_coordinates(self):
         """Test segments that cross zero on both axes."""
@@ -324,7 +298,8 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         expected_name = "area_between_AB_and_CD"
         self.assertEqual(area.name, expected_name)
         
-        # Test that it can be drawn without errors
-        area._create_svg_path = SimpleMock()
-        area.draw()
-        area._create_svg_path.assert_called_once() 
+        renderable = SegmentsBoundedAreaRenderable(area, self.coordinate_mapper)
+        closed_area = renderable.build_screen_area()
+        self.assertIsNotNone(closed_area)
+        self.assertTrue(len(closed_area.forward_points) >= 1)
+        self.assertTrue(len(closed_area.reverse_points) >= 1)

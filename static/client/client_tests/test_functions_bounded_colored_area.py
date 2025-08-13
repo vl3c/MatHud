@@ -3,6 +3,7 @@ import copy
 from geometry import Position
 from coordinate_mapper import CoordinateMapper
 from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
+from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
 from drawables.function import Function
 from .simple_mock import SimpleMock
 
@@ -207,14 +208,9 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         
         area = FunctionsBoundedColoredArea(asymptote_func, None, self.canvas)
         
-        # Mock the _create_svg_path to verify it gets called
-        area._create_svg_path = SimpleMock()
-        
-        # Draw should handle asymptotes gracefully
-        area.draw()
-        
-        # Should still attempt to create a path (may be empty due to asymptotes)
-        area._create_svg_path.assert_called_once()
+        # Use renderable; should build a ClosedArea or None but must not crash
+        renderable = FunctionsBoundedAreaRenderable(area, self.coordinate_mapper)
+        _ = renderable.build_screen_area(num_points=50)
 
     def test_bounds_validation_prevents_invalid_bounds(self):
         """Test that constructor validation prevents invalid bounds."""
@@ -390,15 +386,12 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         
         area = FunctionsBoundedColoredArea(invalid_func, None, self.canvas)
         
-        # Mock _create_svg_path to verify it's not called with empty paths
-        area._create_svg_path = SimpleMock()
-        
-        # Should handle gracefully without crashing
+        # Should handle gracefully without crashing using renderable
         try:
-            area.draw()
-            # Test passes if no exception is raised
+            renderable = FunctionsBoundedAreaRenderable(area, self.coordinate_mapper)
+            _ = renderable.build_screen_area(num_points=50)
         except Exception as e:
-            self.fail(f"Draw method should handle invalid functions gracefully, but raised: {e}")
+            self.fail(f"Renderable should handle invalid functions gracefully, but raised: {e}")
 
     def test_reverse_path_generation(self):
         """Test reverse path generation functionality."""

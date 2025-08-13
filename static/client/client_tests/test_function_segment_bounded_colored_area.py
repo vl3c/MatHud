@@ -3,6 +3,7 @@ import copy
 from geometry import Position
 from coordinate_mapper import CoordinateMapper
 from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea
+from rendering.function_segment_area_renderable import FunctionSegmentAreaRenderable
 from drawables.function import Function
 from .simple_mock import SimpleMock
 
@@ -289,36 +290,15 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         self.assertEqual(y_val_negative, 9, "Function evaluation with negative x should work")
 
     def test_draw_method_integration(self):
-        """Test the complete draw method integration."""
+        """Integration via renderable: build screen area paths."""
         area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
-        
-        # Mock the _create_svg_path method to capture the paths
-        captured_forward = None
-        captured_reverse = None
-        
-        def capture_svg_path(forward_points, reverse_points):
-            nonlocal captured_forward, captured_reverse
-            captured_forward = forward_points
-            captured_reverse = reverse_points
-        
-        area._create_svg_path = capture_svg_path
-        
-        # Call draw method
-        area.draw()
-        
-        # Verify that paths were generated
-        self.assertIsNotNone(captured_forward, "Forward path should be generated")
-        self.assertIsNotNone(captured_reverse, "Reverse path should be generated")
-        
-        # Verify forward path has reasonable number of points
-        self.assertGreater(len(captured_forward), 0, "Forward path should have points")
-        
-        # Verify reverse path has exactly 2 points (segment endpoints)
-        self.assertEqual(len(captured_reverse), 2, "Reverse path should have 2 segment points")
-        
-        # Verify reverse path uses canvas coordinates
-        expected_reverse = [(400, 300), (100, 200)]  # segment endpoints in canvas coords
-        self.assertEqual(captured_reverse, expected_reverse)
+        renderable = FunctionSegmentAreaRenderable(area, self.coordinate_mapper)
+        closed_area = renderable.build_screen_area(num_points=50)
+        self.assertIsNotNone(closed_area, "ClosedArea should be produced")
+        self.assertGreater(len(closed_area.forward_points), 0)
+        self.assertEqual(len(closed_area.reverse_points), 2)
+        expected_reverse = [(400, 300), (100, 200)]
+        self.assertEqual(closed_area.reverse_points, expected_reverse)
 
     def test_edge_case_single_point_segment(self):
         """Test edge case where segment endpoints are the same."""
