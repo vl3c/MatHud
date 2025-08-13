@@ -248,6 +248,33 @@ class SvgRenderer:
             text_el.style['dominant-baseline'] = 'middle'
             document["math-svg"] <= text_el
 
+    # ----------------------- Triangle -----------------------
+    def register_triangle(self, triangle_cls):
+        self.register(triangle_cls, self._render_triangle)
+
+    def _render_triangle(self, triangle, coordinate_mapper):
+        # Triangles consist of three segments; render each as a line
+        segs = (triangle.segment1, triangle.segment2, triangle.segment3)
+        color = getattr(triangle, 'color', self.style.get('segment_color', default_color))
+        for seg in segs:
+            x1, y1 = coordinate_mapper.math_to_screen(seg.point1.original_position.x, seg.point1.original_position.y)
+            x2, y2 = coordinate_mapper.math_to_screen(seg.point2.original_position.x, seg.point2.original_position.y)
+            line_el = svg.line(x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=color)
+            document["math-svg"] <= line_el
+
+    # ----------------------- Rectangle -----------------------
+    def register_rectangle(self, rectangle_cls):
+        self.register(rectangle_cls, self._render_rectangle)
+
+    def _render_rectangle(self, rectangle, coordinate_mapper):
+        segs = (rectangle.segment1, rectangle.segment2, rectangle.segment3, rectangle.segment4)
+        color = getattr(rectangle, 'color', self.style.get('segment_color', default_color))
+        for seg in segs:
+            x1, y1 = coordinate_mapper.math_to_screen(seg.point1.original_position.x, seg.point1.original_position.y)
+            x2, y2 = coordinate_mapper.math_to_screen(seg.point2.original_position.x, seg.point2.original_position.y)
+            line_el = svg.line(x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=color)
+            document["math-svg"] <= line_el
+
     # ----------------------- Function -----------------------
     def register_function(self, function_cls):
         self.register(function_cls, self._render_function)

@@ -154,6 +154,18 @@ class Canvas:
         except Exception:
             pass
         try:
+            from drawables.triangle import Triangle as _Triangle
+            if self.renderer is not None and hasattr(self.renderer, 'register_triangle'):
+                self.renderer.register_triangle(_Triangle)
+        except Exception:
+            pass
+        try:
+            from drawables.rectangle import Rectangle as _Rectangle
+            if self.renderer is not None and hasattr(self.renderer, 'register_rectangle'):
+                self.renderer.register_rectangle(_Rectangle)
+        except Exception:
+            pass
+        try:
             from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea as _FBCA
             if self.renderer is not None and hasattr(self.renderer, 'register_functions_bounded_colored_area'):
                 self.renderer.register_functions_bounded_colored_area(_FBCA)
