@@ -4,6 +4,7 @@ from utils.math_utils import MathUtils
 from geometry import Position
 from .simple_mock import SimpleMock
 import math  # Add import at the top of the method
+from rendering.function_renderable import FunctionRenderable
 
 
 class TestMathFunctions(unittest.TestCase):
@@ -890,8 +891,8 @@ class TestMathFunctions(unittest.TestCase):
                 right_bound=5
             )
             
-            # Generate paths
-            paths = function._generate_paths()
+            # Generate paths via FunctionRenderable
+            paths = FunctionRenderable(function, coordinate_mapper).build_screen_paths().paths
             
             # Test that we have multiple paths (indicating path breaks at asymptotes)
             self.assertGreater(len(paths), 1, "tan(x) should generate multiple separate paths due to vertical asymptotes")
@@ -900,7 +901,7 @@ class TestMathFunctions(unittest.TestCase):
             for path in paths:
                 if len(path) >= 2:
                     # Get the x-coordinate range of this path
-                    x_coords = [mock_canvas.coordinate_mapper.screen_to_math(p.x, p.y)[0] for p in path]
+                    x_coords = [mock_canvas.coordinate_mapper.screen_to_math(p[0], p[1])[0] for p in path]
                     path_min_x = min(x_coords)
                     path_max_x = max(x_coords)
                     
@@ -920,7 +921,7 @@ class TestMathFunctions(unittest.TestCase):
                 right_bound=2
             )
             
-            paths2 = function2._generate_paths()
+            paths2 = FunctionRenderable(function2, coordinate_mapper).build_screen_paths().paths
             
             # Should have exactly 2 paths (one for x < 0, one for x > 0)
             self.assertGreaterEqual(len(paths2), 2, "1/x should generate at least 2 separate paths due to vertical asymptote at x=0")
@@ -928,7 +929,7 @@ class TestMathFunctions(unittest.TestCase):
             # Verify no path spans across x=0
             for path in paths2:
                 if len(path) >= 2:
-                    x_coords = [mock_canvas.coordinate_mapper.screen_to_math(p.x, p.y)[0] for p in path]
+                    x_coords = [mock_canvas.coordinate_mapper.screen_to_math(p[0], p[1])[0] for p in path]
                     path_min_x = min(x_coords)
                     path_max_x = max(x_coords)
                     
@@ -980,7 +981,7 @@ class TestMathFunctions(unittest.TestCase):
                 right_bound=10
             )
             
-            paths_sin = function_sin._generate_paths()
+            paths_sin = FunctionRenderable(function_sin, coordinate_mapper).build_screen_paths().paths
             
             # sin(x) should generate exactly one continuous path (no asymptotes)
             self.assertEqual(len(paths_sin), 1, "sin(x) should generate exactly one continuous path")
@@ -993,8 +994,8 @@ class TestMathFunctions(unittest.TestCase):
                 # Check continuity within the path
                 max_gap = 0
                 for i in range(1, len(path)):
-                    x1, _ = mock_canvas.coordinate_mapper.screen_to_math(path[i-1].x, path[i-1].y)
-                    x2, _ = mock_canvas.coordinate_mapper.screen_to_math(path[i].x, path[i].y)
+                    x1, _ = mock_canvas.coordinate_mapper.screen_to_math(path[i-1][0], path[i-1][1])
+                    x2, _ = mock_canvas.coordinate_mapper.screen_to_math(path[i][0], path[i][1])
                     gap = abs(x2 - x1)
                     max_gap = max(max_gap, gap)
                 
@@ -1010,7 +1011,7 @@ class TestMathFunctions(unittest.TestCase):
                 right_bound=5
             )
             
-            paths_quad = function_quad._generate_paths()
+            paths_quad = FunctionRenderable(function_quad, coordinate_mapper).build_screen_paths().paths
             
             # x^2 should generate exactly one continuous path
             self.assertEqual(len(paths_quad), 1, "x^2 should generate exactly one continuous path")
@@ -1024,7 +1025,7 @@ class TestMathFunctions(unittest.TestCase):
                 right_bound=20
             )
             
-            paths_moderate = function_moderate._generate_paths()
+            paths_moderate = FunctionRenderable(function_moderate, coordinate_mapper).build_screen_paths().paths
             self.assertGreater(len(paths_moderate), 0, "Moderate complexity function should generate paths")
             self.assertEqual(len(paths_moderate), 1, "Moderate function should be continuous (one path)")
             
@@ -1037,7 +1038,7 @@ class TestMathFunctions(unittest.TestCase):
                 right_bound=50
             )
             
-            paths_complex = function_complex._generate_paths()
+            paths_complex = FunctionRenderable(function_complex, coordinate_mapper).build_screen_paths().paths
             
             # This simplified function should definitely generate paths
             self.assertGreater(len(paths_complex), 0, 
@@ -1054,7 +1055,7 @@ class TestMathFunctions(unittest.TestCase):
                 right_bound=10
             )
             
-            paths_simple = function_simple._generate_paths()
+            paths_simple = FunctionRenderable(function_simple, coordinate_mapper).build_screen_paths().paths
             self.assertEqual(len(paths_simple), 1, "Simple sine function should generate exactly one continuous path")
             self.assertGreater(len(paths_simple[0]), 20, "Simple sine function should have sufficient points")
             
@@ -1068,7 +1069,7 @@ class TestMathFunctions(unittest.TestCase):
                     right_bound=30
                 )
                 
-                paths_original = function_original._generate_paths()
+                paths_original = FunctionRenderable(function_original, coordinate_mapper).build_screen_paths().paths
                 
                 # This might fail, but let's see what happens
                 if len(paths_original) > 0:
@@ -1091,8 +1092,8 @@ class TestMathFunctions(unittest.TestCase):
                     # Check for reasonable continuity in the longest path
                     max_gap = 0
                     for i in range(1, len(longest_path)):
-                        x1, _ = mock_canvas.coordinate_mapper.screen_to_math(longest_path[i-1].x, longest_path[i-1].y)
-                        x2, _ = mock_canvas.coordinate_mapper.screen_to_math(longest_path[i].x, longest_path[i].y)
+                        x1, _ = mock_canvas.coordinate_mapper.screen_to_math(longest_path[i-1][0], longest_path[i-1][1])
+                        x2, _ = mock_canvas.coordinate_mapper.screen_to_math(longest_path[i][0], longest_path[i][1])
                         gap = abs(x2 - x1)
                         max_gap = max(max_gap, gap)
                     

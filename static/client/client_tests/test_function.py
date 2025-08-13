@@ -268,11 +268,9 @@ class TestFunction(unittest.TestCase):
         
         function_copy = copy.deepcopy(self.function)
         
-        # Function copy should still have clean cache state
-        self.assertIsNone(function_copy._cached_paths)
-        self.assertFalse(function_copy._cache_valid)
-        self.assertIsNone(function_copy._last_scale)
-        self.assertIsNone(function_copy._last_bounds)
+        # Function copy should be independent and structurally equal
+        self.assertEqual(function_copy.function_string, self.function.function_string)
+        self.assertEqual(function_copy.name, self.function.name)
 
     def test_performance_limits(self):
         # Test that point generation doesn't exceed limits using FunctionRenderable
