@@ -114,19 +114,8 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
         return left_bound, right_bound
 
     def draw(self):
-        """Draw the colored area between the function and segment on the canvas."""
-        left_bound, right_bound = self._get_bounds()
-        
-        # Sample points for the function
-        num_points = 100
-        dx = (right_bound - left_bound) / (num_points - 1)
-        
-        # Get path points
-        forward_points = self._generate_function_points(left_bound, right_bound, num_points, dx)
-        reverse_points = self._generate_segment_points()
-        
-        # Create SVG path using base class method
-        self._create_svg_path(forward_points, reverse_points)
+        """No-op: rendering handled via renderer/renderables."""
+        return
 
     def _generate_segment_points(self):
         """Generate points for the segment path (in reverse order)."""

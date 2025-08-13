@@ -418,30 +418,8 @@ class FunctionsBoundedColoredArea(ColoredArea):
             return None
 
     def draw(self):
-        """Draw the colored area between the functions on the canvas."""
-        try:
-            left_bound, right_bound = self._get_bounds()
-            
-            # Calculate step size
-            num_points = self.num_sample_points
-            dx = (right_bound - left_bound) / (num_points - 1)
-            
-            # Safety check for dx
-            if dx <= 0:
-                left_bound, right_bound = left_bound - 1, right_bound + 1
-                dx = (right_bound - left_bound) / (num_points - 1)
-            
-            # Generate forward path (along func1)
-            points = self._generate_path(self.func1, left_bound, right_bound, dx, num_points, reverse=False)
-
-            # Generate reverse path (along func2)
-            reverse_points = self._generate_path(self.func2, left_bound, right_bound, dx, num_points, reverse=True)
-            
-            # Only create path if we have valid points
-            if points and reverse_points:
-                self._create_svg_path(points, reverse_points)
-        except Exception:
-            return None
+        """No-op: rendering handled via renderer/renderables."""
+        return
 
     def get_state(self):
         """Serialize functions bounded area state for persistence."""

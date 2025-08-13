@@ -57,61 +57,8 @@ class SegmentsBoundedColoredArea(ColoredArea):
         return 'SegmentsBoundedColoredArea'
 
     def draw(self):
-        """Draw the colored area between the segments on the canvas."""
-        if not self.segment2:
-            # Handle segment-xaxis case as before
-            points = [(self.segment1.point1.x, self.segment1.point1.y),
-                     (self.segment1.point2.x, self.segment1.point2.y)]
-
-            if self.segment1.point1.y > 0 and self.segment1.point2.y > 0:
-                # Both points above x-axis, color below
-                reverse_points = [(self.segment1.point2.x, self.canvas.cartesian2axis.origin.y),
-                                (self.segment1.point1.x, self.canvas.cartesian2axis.origin.y)]
-            else:
-                # Both points below x-axis or crossing x-axis, color above
-                reverse_points = [(self.segment1.point2.x, self.canvas.cartesian2axis.origin.y),
-                                (self.segment1.point1.x, self.canvas.cartesian2axis.origin.y)]
-        else:
-            # Handle segment-segment case with vertical bounds
-            # Get x-ranges of both segments
-            x1_min = min(self.segment1.point1.x, self.segment1.point2.x)
-            x1_max = max(self.segment1.point1.x, self.segment1.point2.x)
-            x2_min = min(self.segment2.point1.x, self.segment2.point2.x)
-            x2_max = max(self.segment2.point1.x, self.segment2.point2.x)
-
-            # Find overlap range
-            overlap_min = max(x1_min, x2_min)
-            overlap_max = min(x1_max, x2_max)
-
-            if overlap_max <= overlap_min:
-                # No overlap, don't draw anything
-                return
-
-            def get_y_at_x(segment, x):
-                # Linear interpolation to find y value at x
-                x1, y1 = segment.point1.x, segment.point1.y
-                x2, y2 = segment.point2.x, segment.point2.y
-                if x2 == x1:
-                    return y1  # Vertical segment
-                t = (x - x1) / (x2 - x1)
-                return y1 + t * (y2 - y1)
-
-            # Create path points for the overlapping region
-            y1_start = get_y_at_x(self.segment1, overlap_min)
-            y1_end = get_y_at_x(self.segment1, overlap_max)
-            y2_start = get_y_at_x(self.segment2, overlap_min)
-            y2_end = get_y_at_x(self.segment2, overlap_max)
-
-            # Forward path along segment1
-            points = [(overlap_min, y1_start),
-                     (overlap_max, y1_end)]
-
-            # Reverse path along segment2
-            reverse_points = [(overlap_max, y2_end),
-                            (overlap_min, y2_start)]
-
-        # Create SVG path using base class method
-        self._create_svg_path(points, reverse_points)
+        """No-op: rendering handled via renderer/renderables."""
+        return
 
     def uses_segment(self, segment):
         """Check if this colored area uses a specific segment for dependency tracking."""

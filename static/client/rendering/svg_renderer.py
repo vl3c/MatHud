@@ -367,19 +367,16 @@ class SvgRenderer:
 
     def _render_functions_bounded_colored_area(self, area, coordinate_mapper):
         try:
-            left_bound, right_bound = area._get_bounds()
-            num_points = area.num_sample_points
-            dx = (right_bound - left_bound) / (num_points - 1)
-            if dx <= 0:
-                left_bound, right_bound = left_bound - 1, right_bound + 1
-                dx = (right_bound - left_bound) / (num_points - 1)
-            points = area._generate_path(area.func1, left_bound, right_bound, dx, num_points, reverse=False)
-            reverse_points = area._generate_path(area.func2, left_bound, right_bound, dx, num_points, reverse=True)
-            if not points or not reverse_points:
+            # Use renderable to build screen-space closed area
+            from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
+            renderable = FunctionsBoundedAreaRenderable(area, coordinate_mapper)
+            closed_area = renderable.build_screen_area()
+            if not closed_area or not closed_area.forward_points or not closed_area.reverse_points:
                 return
-            # Build closed path
-            d = f"M {points[0][0]},{points[0][1]}" + "".join(f" L {x},{y}" for x,y in points[1:])
-            d += "".join(f" L {x},{y}" for x,y in reverse_points)
+            d = f"M {closed_area.forward_points[0][0]},{closed_area.forward_points[0][1]}" + "".join(
+                f" L {x},{y}" for x, y in closed_area.forward_points[1:]
+            )
+            d += "".join(f" L {x},{y}" for x, y in closed_area.reverse_points)
             d += " Z"
             fill_color = getattr(area, 'color', 'lightblue')
             fill_opacity = str(getattr(area, 'opacity', 0.3))
@@ -393,16 +390,15 @@ class SvgRenderer:
 
     def _render_function_segment_bounded_colored_area(self, area, coordinate_mapper):
         try:
-            left_bound, right_bound = area._get_bounds()
-            num_points = 100
-            dx = (right_bound - left_bound) / (num_points - 1)
-            fwd = area._generate_function_points(left_bound, right_bound, num_points, dx)
-            rev = [(area.segment.point2.screen_x, area.segment.point2.screen_y),
-                   (area.segment.point1.screen_x, area.segment.point1.screen_y)]
-            if not fwd or not rev:
+            from rendering.function_segment_area_renderable import FunctionSegmentAreaRenderable
+            renderable = FunctionSegmentAreaRenderable(area, coordinate_mapper)
+            closed_area = renderable.build_screen_area(num_points=100)
+            if not closed_area or not closed_area.forward_points or not closed_area.reverse_points:
                 return
-            d = f"M {fwd[0][0]},{fwd[0][1]}" + "".join(f" L {x},{y}" for x,y in fwd[1:])
-            d += "".join(f" L {x},{y}" for x,y in rev)
+            d = f"M {closed_area.forward_points[0][0]},{closed_area.forward_points[0][1]}" + "".join(
+                f" L {x},{y}" for x, y in closed_area.forward_points[1:]
+            )
+            d += "".join(f" L {x},{y}" for x, y in closed_area.reverse_points)
             d += " Z"
             fill_color = getattr(area, 'color', 'lightblue')
             fill_opacity = str(getattr(area, 'opacity', 0.3))
