@@ -28,13 +28,11 @@ Coordinate Transformations:
     - Visible area determination for rendering optimization
 
 Dependencies:
-    - browser.document: DOM manipulation for SVG rendering
     - geometry: Drawable base class and Position utilities
     - constants: Default styling and configuration values
     - utils.math_utils: Mathematical calculations and number formatting
 """
 
-from browser import document
 from constants import default_color
 from geometry import Drawable, Position
 from utils.math_utils import MathUtils
@@ -126,31 +124,11 @@ class Cartesian2Axis(Drawable):
         return self.height / self.canvas.scale_factor
 
     def draw(self):
-        """Render complete coordinate system including axes, ticks, labels, and grid."""
-        # Draw axes
-        self._draw_axes()
-        # Add spaced ticks on the axes
-        display_tick_spacing = self.current_tick_spacing * self.canvas.scale_factor
-        # Draw ticks on axes
-        self._draw_ticks(display_tick_spacing)
-        # Draw grid
-        self._draw_grid(display_tick_spacing / 2)
+        """No-op: rendering handled via renderer."""
+        return
 
     def _draw_axes(self):
-        # Draw x-axis
-        self.create_svg_element('line', 
-                              x1=str(0), 
-                              y1=str(self.origin.y), 
-                              x2=str(self.width), 
-                              y2=str(self.origin.y), 
-                              stroke=self.color)
-        # Draw y-axis
-        self.create_svg_element('line', 
-                              x1=str(self.origin.x), 
-                              y1=str(0), 
-                              x2=str(self.origin.x), 
-                              y2=str(self.height), 
-                              stroke=self.color)
+        return
 
     def _draw_ticks(self, step):
         for axis in ['x', 'y']:
@@ -176,56 +154,22 @@ class Cartesian2Axis(Drawable):
         return (direction == 1 and position < boundary) or (direction == -1 and position > 0)
     
     def _draw_x_axis_tick(self, tick_mark, tick_size):
-        self.create_svg_element('line', 
-                              x1=str(tick_mark), 
-                              y1=str(self.origin.y - tick_size), 
-                              x2=str(tick_mark), 
-                              y2=str(self.origin.y + tick_size), 
-                              stroke=self.color)
+        return
     
     def _draw_x_axis_label(self, tick_mark):
-        if tick_mark == self.origin.x:
-            # Draw 'O' at origin
-            self._draw_origin_label(tick_mark)
-        else:
-            # Draw number labels for non-origin ticks
-            tick_label_value = (tick_mark - self.origin.x) / self.canvas.scale_factor
-            self._draw_tick_label(tick_mark + 2, 
-                                self.origin.y + self.tick_size + self.tick_label_font_size,
-                                tick_label_value)
+        return
     
     def _draw_y_axis_tick(self, tick_mark, tick_size):
-        self.create_svg_element('line', 
-                              x1=str(self.origin.x - tick_size), 
-                              y1=str(tick_mark), 
-                              x2=str(self.origin.x + tick_size), 
-                              y2=str(tick_mark), 
-                              stroke=self.color)
+        return
     
     def _draw_y_axis_label(self, tick_mark):
-        if tick_mark != self.origin.y:
-            # Draw number labels for non-origin ticks
-            tick_label_value = (self.origin.y - tick_mark) / self.canvas.scale_factor
-            self._draw_tick_label(self.origin.x + self.tick_size, 
-                                tick_mark - self.tick_size,
-                                tick_label_value)
+        return
     
     def _draw_origin_label(self, tick_mark):
-        self.create_svg_element('text', 
-                              x=str(tick_mark + 2), 
-                              y=str(self.origin.y + self.tick_size + self.tick_label_font_size), 
-                              fill=self.tick_label_color, 
-                              text_content='O', 
-                              text_font_size=self.tick_label_font_size)
+        return
     
     def _draw_tick_label(self, x, y, value):
-        tick_label_text = MathUtils.format_number_for_cartesian(value)
-        self.create_svg_element('text', 
-                              x=str(x), 
-                              y=str(y), 
-                              fill=self.tick_label_color, 
-                              text_content=tick_label_text, 
-                              text_font_size=self.tick_label_font_size)
+        return
 
     def _draw_grid(self, step):
         for axis in ['x', 'y']:
@@ -241,19 +185,7 @@ class Cartesian2Axis(Drawable):
             grid_mark += step * direction
     
     def _draw_grid_line(self, axis, grid_mark):
-        if axis == 'y':
-            start_point = Position(0, grid_mark)
-            end_point = Position(self.width, grid_mark)
-        else:  # axis == 'x'
-            start_point = Position(grid_mark, 0)
-            end_point = Position(grid_mark, self.height)
-            
-        self.create_svg_element('line', 
-                              x1=str(start_point.x), 
-                              y1=str(start_point.y), 
-                              x2=str(end_point.x), 
-                              y2=str(end_point.y), 
-                              stroke=self.grid_color)
+        return
 
 
    
