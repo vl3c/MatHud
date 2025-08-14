@@ -121,15 +121,13 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
                (self.segment.point1.x, self.segment.point1.y)]
 
     def _generate_function_points(self, left_bound, right_bound, num_points, dx):
-        """Generate points along the function curve from left to right bound."""
+        """Generate math-space points; renderer does mapping."""
         points = []
         for i in range(num_points):
-            x_math = left_bound + i * dx  # Math coordinate
-            y_math = self._get_function_y_at_x(x_math)  # Math coordinate
+            x_math = left_bound + i * dx
+            y_math = self._get_function_y_at_x(x_math)
             if y_math is not None:
-                # Convert both coordinates to canvas coordinates for SVG path
-                x_canvas, y_canvas = self.canvas.coordinate_mapper.math_to_screen(x_math, y_math)
-                points.append((x_canvas, y_canvas))
+                points.append((x_math, y_math))
         return points
 
     def uses_segment(self, segment):

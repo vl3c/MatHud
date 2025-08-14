@@ -67,8 +67,8 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         # Defaults start at [-10,10] but functions apply tighter bounds [-3,3]
         self.assertEqual((left, right), (-3, 3))
 
-    def test_get_function_y_at_x_with_function_uses_coordinate_mapper(self):
-        """Test that _get_function_y_at_x with Function uses coordinate_mapper."""
+    def test_get_function_y_at_x_with_function_returns_math_value(self):
+        """Model returns math-space value; no screen mapping in model."""
         area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
         
         # Mock coordinate_mapper methods
@@ -77,43 +77,30 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         # Test with Function object
         result = area._get_function_y_at_x(self.func1, 1.0)
         
-        # Verify coordinate_mapper.math_to_screen was called
-        self.coordinate_mapper.math_to_screen.assert_called_once()
-        
-        # Should return the y coordinate from math_to_screen
-        self.assertEqual(result, 200)
+        # Should not call mapper in math-only model
+        self.coordinate_mapper.math_to_screen.assert_not_called()
+        # Should return math y (= x) for func1
+        self.assertEqual(result, 1.0)
 
-    def test_get_function_y_at_x_with_constant_uses_coordinate_mapper(self):
-        """Test that _get_function_y_at_x with constant uses coordinate_mapper."""
+    def test_get_function_y_at_x_with_constant_returns_math_value(self):
+        """Constant returns math-space constant; no mapping in model."""
         area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
-        
-        # Mock coordinate_mapper methods
-        self.coordinate_mapper.math_to_screen = SimpleMock(return_value=(100, 150))
         
         # Test with constant function
         result = area._get_function_y_at_x(5, 1.0)
         
-        # Verify coordinate_mapper.math_to_screen was called with correct arguments
-        self.coordinate_mapper.math_to_screen.assert_called_once_with(1.0, 5.0)
-        
-        # Should return the y coordinate from math_to_screen
-        self.assertEqual(result, 150)
+        # No mapper call expected; returns math constant
+        self.assertEqual(result, 5.0)
 
-    def test_get_function_y_at_x_with_none_uses_coordinate_mapper(self):
-        """Test that _get_function_y_at_x with None (x-axis) uses coordinate_mapper."""
+    def test_get_function_y_at_x_with_none_returns_math_value(self):
+        """None means x-axis (y=0) in math space; no mapping in model."""
         area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
-        
-        # Mock coordinate_mapper methods
-        self.coordinate_mapper.math_to_screen = SimpleMock(return_value=(100, 250))
         
         # Test with None (x-axis)
         result = area._get_function_y_at_x(None, 1.0)
         
-        # Verify coordinate_mapper.math_to_screen was called with y=0 for x-axis
-        self.coordinate_mapper.math_to_screen.assert_called_once_with(1.0, 0)
-        
-        # Should return the y coordinate from math_to_screen
-        self.assertEqual(result, 250)
+        # Should return 0.0 in math space
+        self.assertEqual(result, 0.0)
 
     def test_get_bounds_applies_coordinate_mapper_bounds_in_renderable(self):
         """Viewport clipping is performed in the renderable, not the model _get_bounds."""
@@ -330,14 +317,9 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         
         area = FunctionsBoundedColoredArea(large_value_func, None, self.canvas)
         
-        # Mock canvas properties needed for asymptote handling
-        area.canvas.height = 500
-        area.canvas.cartesian2axis.origin.y = 250
-        area.canvas.scale_factor = 1
-        
-        # Should handle large values without crashing
+        # Should handle large values without crashing (math-only behavior now)
         result = area._get_function_y_at_x_with_asymptote_handling(
-            large_value_func, 100, 1.5, 0.1, 0, 500, 50
+            large_value_func, 1.5, 0.1
         )
         
         # Should return a clipped value, not crash
@@ -391,11 +373,8 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         # Mock canvas properties to avoid any potential issues
         self.canvas.height = 500
         
-        # Generate reverse path with a constant function for predictability
-        reverse_points = area._generate_path(5, -1, 1, 0.5, 5, reverse=True)  # Constant function y=5
+        # Generate reverse path with a constant function for predictability (math-space)
+        reverse_points = area._generate_path(5, -1, 1, 0.5, 5, reverse=True)
         
-        # Should generate points
+        # Should generate math-space points; mapping happens in renderable
         self.assertGreater(len(reverse_points), 0, "Should generate reverse points")
-        
-        # Verify coordinate conversions were called
-        self.assertGreater(call_count[0], 0, "Should call coordinate conversion") 

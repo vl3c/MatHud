@@ -117,38 +117,21 @@ class FunctionsBoundedColoredArea(ColoredArea):
         return 'FunctionsBoundedColoredArea'
 
     def _get_function_y_at_x(self, func, x):
-        """Get y value for a given x, handling different function types."""
+        """Return math-space y for given x; mapping to screen is renderer's job."""
         try:
-            if func is None:  # x-axis
-                # Convert y=0 to canvas coordinates using CoordinateMapper
-                canvas_x, canvas_y = self.canvas.coordinate_mapper.math_to_screen(x, 0)
-                return canvas_y
-                
-            if isinstance(func, (int, float)):  # constant function
-                # Convert constant y value to canvas coordinates using CoordinateMapper
-                canvas_x, canvas_y = self.canvas.coordinate_mapper.math_to_screen(x, float(func))
-                return canvas_y
-                
+            if func is None:
+                return 0.0
+            if isinstance(func, (int, float)):
+                return float(func)
             if self._is_function_or_function_like(func):
-                try:
-                    # Use the actual math x value directly
-                    y = func.function(x)
-                    
-                    # Check if result is valid
-                    if y is None or not isinstance(y, (int, float)) or (isinstance(y, float) and (float('nan') == y or float('inf') == abs(y))):
-                        return None
-                        
-                    # Convert y to canvas coordinates using CoordinateMapper
-                    canvas_x, canvas_y = self.canvas.coordinate_mapper.math_to_screen(x, y)
-                    return canvas_y
-                except (ValueError, ZeroDivisionError, TypeError) as e:
+                y = func.function(x)
+                if y is None or not isinstance(y, (int, float)):
                     return None
-            
-            # If func is not recognized as any known type
+                if isinstance(y, float) and (y != y or abs(y) == float('inf')):
+                    return None
+                return y
             return None
-            
-        except Exception as e:
-            # Catch any unexpected exceptions and return None
+        except (ValueError, ZeroDivisionError, TypeError):
             return None
 
     def _apply_function_bounds(self, bounds, func):
@@ -293,10 +276,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
         points = []
         current_path = []  # FIX: Initialize current_path variable
         
-        # Get canvas bounds for asymptote handling
-        canvas_top = 0
-        canvas_bottom = self.canvas.height if hasattr(self.canvas, 'height') else 800
-        canvas_margin = 50  # Margin for very large values
+        # Math-only path generation now; renderer handles mapping/clipping
         
         # Determine the direction of iteration
         if reverse:
@@ -310,10 +290,8 @@ class FunctionsBoundedColoredArea(ColoredArea):
         for i in range_iterator:
             # Convert x to canvas coordinates
             x_orig = left_bound + i * dx
-            x, _ = self.canvas.coordinate_mapper.math_to_screen(x_orig, 0)
-            
-            # Try to get y value with asymptote handling
-            y = self._get_function_y_at_x_with_asymptote_handling(func, x, x_orig, dx, canvas_top, canvas_bottom, canvas_margin)
+            x = x_orig
+            y = self._get_function_y_at_x(func, x_orig)
             
             if y is not None:
                 current_path.append((x, y))
@@ -331,7 +309,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
             
         return points
 
-    def _get_function_y_at_x_with_asymptote_handling(self, func, x, x_orig, dx, canvas_top, canvas_bottom, canvas_margin):
+    def _get_function_y_at_x_with_asymptote_handling(self, func, x_orig, dx):
         """
         Get y value for a function at x with asymptote handling.
         
@@ -339,27 +317,19 @@ class FunctionsBoundedColoredArea(ColoredArea):
         -----------
         func : Function, None, or number
             The function to evaluate.
-        x : float
-            The x coordinate (canvas).
         x_orig : float
-            The original x coordinate.
+            The original x coordinate in math space.
         dx : float
-            The step size.
-        canvas_top : float
-            The top of the canvas.
-        canvas_bottom : float
-            The bottom of the canvas.
-        canvas_margin : float
-            The margin for asymptote handling.
+            The step size in math space.
             
         Returns:
         --------
         float or None
             The y value or None if invalid.
         """
-        # For non-function types, use the original method
+        # For non-function types, use math-only method
         if not self._is_function_or_function_like(func):
-            return self._get_function_y_at_x(func, x)
+            return self._get_function_y_at_x(func, x_orig)
         
         try:
             # Check if we're near an asymptote first
@@ -377,31 +347,11 @@ class FunctionsBoundedColoredArea(ColoredArea):
             if not isinstance(y, (int, float)):
                 return None
                 
-            # Handle infinities and very large values
+            # Reject NaN or infinite values
             if isinstance(y, float):
-                if float('nan') == y:
+                if y != y or abs(y) == float('inf'):
                     return None
-                if float('inf') == abs(y):
-                    return None
-                    
-                # Clip extremely large values to canvas bounds
-                if abs(y) > 1000:  # Very large value threshold
-                    # Choose a reasonable value based on direction
-                    if y > 0:
-                        y = (canvas_top + canvas_margin - self.canvas.cartesian2axis.origin.y) / (-self.canvas.scale_factor)
-                    else:
-                        y = (canvas_bottom - canvas_margin - self.canvas.cartesian2axis.origin.y) / (-self.canvas.scale_factor)
-                        
-            # Convert y back to canvas coordinates
-            canvas_y = self.canvas.cartesian2axis.origin.y - y * self.canvas.scale_factor
-            
-            # Clip to reasonable canvas bounds
-            if canvas_y < canvas_top - canvas_margin:
-                canvas_y = canvas_top - canvas_margin
-            elif canvas_y > canvas_bottom + canvas_margin:
-                canvas_y = canvas_bottom + canvas_margin
-                
-            return canvas_y
+            return y
             
         except (ValueError, ZeroDivisionError, TypeError, OverflowError) as e:
             return None

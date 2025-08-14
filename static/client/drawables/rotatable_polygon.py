@@ -58,11 +58,7 @@ class RotatablePolygon(Drawable):
         - should_proceed is True if rotation can proceed, False if user should be asked
         - message is None or a message to show to the user"""
         
-        # Check if this shape is part of a larger shape
-        largest_shape, shape_type = self.canvas.find_largest_connected_shape(self)
-        
-        if largest_shape:
-            return False, f"This {self.get_class_name().lower()} is part of a {shape_type.lower()}. Would you like to rotate the entire {shape_type.lower()} instead?"
+        # Math model no longer queries canvas; managers decide group-rotation policies
             
         points_to_rotate = self.get_vertices()
         center_x, center_y = self._get_shape_center(points_to_rotate)
