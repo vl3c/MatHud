@@ -2,12 +2,11 @@
 MatHud Colored Area Base Class
 
 Abstract base class for all colored area visualizations between geometric objects.
-Provides SVG path creation and common area rendering functionality.
+Defines math-only properties and state; rendering is handled by renderer modules.
 
 Key Features:
-    - SVG path generation from boundary points
-    - Color and opacity customization
-    - Forward and reverse path construction for closed areas
+    - Math-space parameters for bounded areas
+    - Color and opacity metadata (consumed by renderer)
     - Base state management for all area types
 
 Area Types Supported:
@@ -17,11 +16,9 @@ Area Types Supported:
 
 Dependencies:
     - drawables.drawable: Base class interface
-    - constants: Default styling values
 """
 
 from drawables.drawable import Drawable
-from constants import default_color
 
 class ColoredArea(Drawable):
     """Abstract base class for all colored area visualizations between geometric objects.
@@ -52,32 +49,7 @@ class ColoredArea(Drawable):
         """
         raise NotImplementedError("Subclasses must implement draw()")
 
-    def _create_svg_path(self, forward_points, reverse_points):
-        """
-        Create an SVG path from the given points.
-        forward_points: List of (x,y) tuples for the forward path
-        reverse_points: List of (x,y) tuples for the reverse path
-        """
-        if not forward_points or not reverse_points:
-            return
-
-        # Create SVG path
-        path_d = f"M {forward_points[0][0]},{forward_points[0][1]}"
-        
-        # Add forward path
-        for x, y in forward_points[1:]:
-            path_d += f" L {x},{y}"
-            
-        # Add reverse path
-        for x, y in reverse_points:
-            path_d += f" L {x},{y}"
-            
-        # Close path
-        path_d += " Z"
-        
-        # Create SVG path element
-        self.create_svg_element('path', d=path_d, stroke="none", 
-                              fill=self.color, fill_opacity=str(self.opacity))
+    # Rendering is handled by the renderer; no SVG element creation here
 
     def get_class_name(self):
         return 'ColoredArea'
