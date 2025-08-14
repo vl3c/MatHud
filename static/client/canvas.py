@@ -31,7 +31,6 @@ Dependencies:
 """
 
 import math
-from browser import document
 from geometry import Point
 from cartesian_system_2axis import Cartesian2Axis
 from coordinate_mapper import CoordinateMapper
@@ -205,9 +204,6 @@ class Canvas:
                 self.renderer.clear()
             except Exception:
                 pass
-        else:
-            svg_container = document["math-svg"]
-            svg_container.clear()
         if self.renderer is not None:
             # Render cartesian via renderer
             try:
