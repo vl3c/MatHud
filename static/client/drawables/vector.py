@@ -55,15 +55,6 @@ class Vector(Drawable):
         name = self.segment.name
         super().__init__(name=name, color=color, canvas=canvas)
         self._initialize()
-
-    @Drawable.canvas.setter
-    def canvas(self, value):
-        self._canvas = value
-        self.segment.canvas = value
-
-    @canvas.getter
-    def canvas(self):
-        return self._canvas
     
     @property
     def origin(self):

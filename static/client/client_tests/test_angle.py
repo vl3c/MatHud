@@ -199,16 +199,17 @@ class TestAngle(unittest.TestCase):
 
     def test_canvas_property(self):
         angle = Angle(self.s_AB, self.s_AC, self.canvas)
+        # Math model no longer propagates canvas changes; verify segments keep their own canvas
         self.assertIs(angle.canvas, self.canvas)
         self.assertIs(angle.segment1.canvas, self.canvas)
         self.assertIs(angle.segment2.canvas, self.canvas)
 
         new_canvas_mock = SimpleMock(name="NewCanvas")
         angle.canvas = new_canvas_mock
+        # Angle canvas updated; segments not auto-updated in math-only model
         self.assertIs(angle.canvas, new_canvas_mock)
-        # Check if segments' canvas reference was updated
-        self.assertIs(angle.segment1.canvas, new_canvas_mock)
-        self.assertIs(angle.segment2.canvas, new_canvas_mock)
+        self.assertIs(angle.segment1.canvas, self.canvas)
+        self.assertIs(angle.segment2.canvas, self.canvas)
 
     def test_get_state_and_from_state(self):
         # Test non-reflex angle state

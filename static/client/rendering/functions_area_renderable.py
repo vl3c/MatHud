@@ -26,10 +26,9 @@ class FunctionsBoundedAreaRenderable:
         return None
 
     def _get_bounds(self):
-        # Start from visible bounds
+        # Start from model math bounds
         try:
-            left = self.mapper.get_visible_left_bound()
-            right = self.mapper.get_visible_right_bound()
+            left, right = self.area._get_bounds()
         except Exception:
             left, right = -10, 10
         # Apply function bounds if present
@@ -42,6 +41,14 @@ class FunctionsBoundedAreaRenderable:
             left = max(left, self.area.left_bound)
         if getattr(self.area, 'right_bound', None) is not None:
             right = min(right, self.area.right_bound)
+        # Finally, intersect with visible bounds for rendering
+        try:
+            vis_left = self.mapper.get_visible_left_bound()
+            vis_right = self.mapper.get_visible_right_bound()
+            left = max(left, vis_left)
+            right = min(right, vis_right)
+        except Exception:
+            pass
         if left >= right:
             c = (left + right) / 2.0
             left, right = c - 0.1, c + 0.1

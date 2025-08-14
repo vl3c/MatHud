@@ -73,18 +73,6 @@ class Rectangle(RotatablePolygon):
         super().__init__(name=name, color=color, canvas=canvas)
         self._initialize()
 
-    @RotatablePolygon.canvas.setter
-    def canvas(self, value):
-        self._canvas = value
-        self.segment1.canvas = value
-        self.segment2.canvas = value
-        self.segment3.canvas = value
-        self.segment4.canvas = value
-
-    @canvas.getter
-    def canvas(self):
-        return self._canvas
-
     def get_class_name(self):
         return 'Rectangle'
 

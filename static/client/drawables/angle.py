@@ -173,15 +173,6 @@ class Angle(Drawable):
         
         # Arc radius comes from renderer (or default constant when not provided)
 
-    @property
-    def canvas(self): 
-        return self._canvas
-
-    @canvas.setter
-    def canvas(self, value):
-        self._canvas = value
-        if hasattr(self.segment1, 'canvas'): self.segment1.canvas = value
-        if hasattr(self.segment2, 'canvas'): self.segment2.canvas = value
 
     def get_class_name(self):
         return 'Angle'

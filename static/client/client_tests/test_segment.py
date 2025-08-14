@@ -57,12 +57,16 @@ class TestSegment(unittest.TestCase):
         # Expected formula depends on MathUtil.get_line_formula implementation
         self.assertIsNotNone(line_formula)  # Assert based on expected output
 
-    def test_any_segment_part_visible_in_canvas_area(self):
-        visible = self.segment._any_segment_part_visible_in_canvas_area()
-        self.assertTrue(visible)
-
-    def test_is_visible(self):
-        self.assertTrue(self.segment.is_visible(), "Segment visibility should now depend only on canvas area checks.")
+    def test_visibility_via_canvas(self):
+        from canvas import Canvas  # not used directly; we mimic Canvas._is_drawable_visible logic
+        # Compute visibility using canvas-level predicate
+        # Endpoint-in-viewport or intersects viewport
+        x1, y1 = self.segment.point1.screen_x, self.segment.point1.screen_y
+        x2, y2 = self.segment.point2.screen_x, self.segment.point2.screen_y
+        in_view = self.canvas.is_point_within_canvas_visible_area(x1, y1) or \
+                  self.canvas.is_point_within_canvas_visible_area(x2, y2) or \
+                  self.canvas.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
+        self.assertTrue(in_view)
 
     def test_get_state(self):
         state = self.segment.get_state()

@@ -151,24 +151,6 @@ class FunctionsBoundedColoredArea(ColoredArea):
             # Catch any unexpected exceptions and return None
             return None
 
-    def _get_initial_bounds(self):
-        """
-        Get initial bounds from the coordinate mapper.
-        
-        Returns:
-        --------
-        list
-            A list [left_bound, right_bound] with the initial bounds.
-        """
-        try:
-            return [
-                self.canvas.coordinate_mapper.get_visible_left_bound(),
-                self.canvas.coordinate_mapper.get_visible_right_bound()
-            ]
-        except Exception as e:
-            # If canvas bounds can't be determined, use reasonable defaults
-            return [-10, 10]  # Default reasonable bounds
-
     def _apply_function_bounds(self, bounds, func):
         """
         Apply bounds from a function if it has defined bounds.
@@ -186,8 +168,14 @@ class FunctionsBoundedColoredArea(ColoredArea):
             The updated bounds.
         """
         if self._is_function_or_function_like(func) and hasattr(func, 'left_bound') and hasattr(func, 'right_bound') and func.left_bound is not None and func.right_bound is not None:
-            bounds[0] = max(bounds[0], func.left_bound)
-            bounds[1] = min(bounds[1], func.right_bound)
+            if bounds[0] is None:
+                bounds[0] = func.left_bound
+            else:
+                bounds[0] = max(bounds[0], func.left_bound)
+            if bounds[1] is None:
+                bounds[1] = func.right_bound
+            else:
+                bounds[1] = min(bounds[1], func.right_bound)
         return bounds
 
     def _apply_user_bounds(self, bounds):
@@ -219,7 +207,8 @@ class FunctionsBoundedColoredArea(ColoredArea):
         tuple
             A tuple (left_bound, right_bound) with the final bounds.
         """
-        bounds = self._get_initial_bounds()
+        # Start from function/user bounds only; renderer will clip to viewport as needed
+        bounds = [None, None]
         
         # Apply function bounds if available
         if self.func1:
@@ -230,11 +219,11 @@ class FunctionsBoundedColoredArea(ColoredArea):
         # Apply user bounds if provided
         bounds = self._apply_user_bounds(bounds)
 
-        # Ensure left_bound < right_bound
-        if bounds[0] >= bounds[1]:
-            # If bounds are inverted or equal, adjust them slightly
-            center = (bounds[0] + bounds[1]) / 2
-            bounds = [center - 0.1, center + 0.1]  # Small range around center
+        # If we have both numeric bounds, ensure left < right
+        if bounds[0] is not None and bounds[1] is not None:
+            if bounds[0] >= bounds[1]:
+                center = (bounds[0] + bounds[1]) / 2
+                bounds = [center - 0.1, center + 0.1]
 
         return bounds[0], bounds[1]
 

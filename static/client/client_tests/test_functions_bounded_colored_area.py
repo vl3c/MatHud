@@ -60,22 +60,12 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
         self.assertEqual(area.get_class_name(), 'FunctionsBoundedColoredArea')
 
-    def test_get_initial_bounds_uses_coordinate_mapper(self):
-        """Test that _get_initial_bounds uses coordinate_mapper methods."""
+    def test_get_bounds_model_default_then_clipped_in_renderer(self):
+        """Model provides math-space defaults; renderer handles viewport clipping."""
         area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
-        
-        # Mock the coordinate_mapper methods
-        self.coordinate_mapper.get_visible_left_bound = SimpleMock(return_value=-10)
-        self.coordinate_mapper.get_visible_right_bound = SimpleMock(return_value=10)
-        
-        bounds = area._get_initial_bounds()
-        
-        # Verify the coordinate_mapper methods were called
-        self.coordinate_mapper.get_visible_left_bound.assert_called_once()
-        self.coordinate_mapper.get_visible_right_bound.assert_called_once()
-        
-        # Verify the returned bounds
-        self.assertEqual(bounds, [-10, 10])
+        left, right = area._get_bounds()
+        # Defaults start at [-10,10] but functions apply tighter bounds [-3,3]
+        self.assertEqual((left, right), (-3, 3))
 
     def test_get_function_y_at_x_with_function_uses_coordinate_mapper(self):
         """Test that _get_function_y_at_x with Function uses coordinate_mapper."""
@@ -125,23 +115,22 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         # Should return the y coordinate from math_to_screen
         self.assertEqual(result, 250)
 
-    def test_get_bounds_applies_coordinate_mapper_bounds(self):
-        """Test that _get_bounds properly uses coordinate_mapper for initial bounds."""
+    def test_get_bounds_applies_coordinate_mapper_bounds_in_renderable(self):
+        """Viewport clipping is performed in the renderable, not the model _get_bounds."""
         area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
         
         # Mock coordinate_mapper bounds
         self.coordinate_mapper.get_visible_left_bound = SimpleMock(return_value=-8)
         self.coordinate_mapper.get_visible_right_bound = SimpleMock(return_value=8)
         
-        left_bound, right_bound = area._get_bounds()
+        renderable = FunctionsBoundedAreaRenderable(area, self.coordinate_mapper)
+        left_bound, right_bound = renderable._get_bounds()
         
-        # Verify coordinate_mapper methods were called
+        # Verify coordinate_mapper methods were called by the renderable
         self.coordinate_mapper.get_visible_left_bound.assert_called_once()
         self.coordinate_mapper.get_visible_right_bound.assert_called_once()
         
-        # Bounds should be intersection of coordinate_mapper bounds and function bounds
-        # func1: [-5, 5], func2: [-3, 3], coordinate_mapper: [-8, 8]
-        # Expected: max(-8, -5, -3) to min(8, 5, 3) = [-3, 3]
+        # Bounds should be intersection of model (-3,3) and visible (-8,8) -> (-3,3)
         self.assertEqual(left_bound, -3)
         self.assertEqual(right_bound, 3)
 
@@ -227,20 +216,14 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         self.assertIn("left_bound must be less than right_bound", str(context.exception))
 
     def test_bounds_calculation_internal_correction(self):
-        """Test internal bounds correction in _get_bounds method."""
-        # Create a valid area object first
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
-        
-        # Mock _get_initial_bounds to return inverted bounds (simulating edge case)
-        def mock_get_initial_bounds():
-            return [5, -5]  # Inverted bounds from internal calculation
-        
-        area._get_initial_bounds = mock_get_initial_bounds
-        
-        # _get_bounds should correct these internally
+        """When function bounds do not overlap, _get_bounds corrects to a small range."""
+        # func1 bounds to the left, func2 bounds to the right -> inverted after merging
+        func_left = SimpleMock(name="fL", function=lambda x: x, left_bound=-5, right_bound=-3)
+        func_right = SimpleMock(name="fR", function=lambda x: x, left_bound=3, right_bound=5)
+        area = FunctionsBoundedColoredArea(func_left, func_right, self.canvas)
         left, right = area._get_bounds()
         self.assertLess(left, right, "Internal bounds correction should work")
-        self.assertAlmostEqual(right - left, 0.2, places=1)  # Small range around center
+        self.assertAlmostEqual(right - left, 0.2, places=1)
 
     def test_function_evaluation_with_nan_and_infinity(self):
         """Test function evaluation with NaN and infinity values."""
@@ -331,9 +314,9 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         area.canvas.coordinate_mapper.get_visible_left_bound = raise_exception
         area.canvas.coordinate_mapper.get_visible_right_bound = raise_exception
         
-        # Should use default bounds when canvas fails
-        bounds = area._get_initial_bounds()
-        self.assertEqual(bounds, [-10, 10])  # Default fallback bounds
+        # _get_bounds should still be stable independent of canvas visibility
+        left, right = area._get_bounds()
+        self.assertEqual((left, right), (-3, 3))
 
     def test_path_generation_with_large_values(self):
         """Test path generation with very large function values."""

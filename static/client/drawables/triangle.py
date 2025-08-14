@@ -71,18 +71,7 @@ class Triangle(RotatablePolygon):
                                    self.segment2.point1, self.segment2.point2, 
                                    self.segment3.point1, self.segment3.point2]}
         vertices = sorted(vertices)  # Convert to sorted list
-        return vertices[0] + vertices[1] + vertices[2]  # Now we're guaranteed three unique points
-
-    @RotatablePolygon.canvas.setter
-    def canvas(self, value):
-        self._canvas = value
-        self.segment1.canvas = value
-        self.segment2.canvas = value
-        self.segment3.canvas = value
-
-    @canvas.getter
-    def canvas(self):
-        return self._canvas
+        return vertices[0] + vertices[1] + vertices[2]  # Now we're guaranteed three unique points 
 
     def get_class_name(self):
         return 'Triangle'

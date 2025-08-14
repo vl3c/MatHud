@@ -23,14 +23,6 @@ class Function(Drawable):
         except Exception as e:
             raise ValueError(f"Failed to parse function string '{function_string}': {str(e)}")
         super().__init__(name=name, color=color, canvas=canvas)
-
-    @Drawable.canvas.setter
-    def canvas(self, value):
-        self._canvas = value
-
-    @canvas.getter
-    def canvas(self):
-        return self._canvas
     
     def get_class_name(self):
         return 'Function'

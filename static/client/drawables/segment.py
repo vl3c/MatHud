@@ -56,16 +56,6 @@ class Segment(Drawable):
         name = self.point1.name + self.point2.name
         super().__init__(name=name, color=color, canvas=canvas)
 
-    @Drawable.canvas.setter
-    def canvas(self, value):
-        self._canvas = value
-        self.point1.canvas = value
-        self.point2.canvas = value
-
-    @canvas.getter
-    def canvas(self):
-        return self._canvas
-
     def get_class_name(self):
         return 'Segment'
 
@@ -74,21 +64,6 @@ class Segment(Drawable):
         p2 = self.point2
         line_formula = MathUtils.get_line_formula(p1.original_position.x, p1.original_position.y, p2.original_position.x, p2.original_position.y)
         return line_formula
-
-    def _any_segment_part_visible_in_canvas_area(self):
-        p1 = self.point1
-        p2 = self.point2
-        # Use screen coordinates explicitly to avoid relying on Point.x/y semantics
-        x1, y1 = p1.screen_x, p1.screen_y
-        x2, y2 = p2.screen_x, p2.screen_y
-        return self.canvas.is_point_within_canvas_visible_area(x1, y1) or \
-            self.canvas.is_point_within_canvas_visible_area(x2, y2) or \
-            self.canvas.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
-
-    def is_visible(self):
-        return self._any_segment_part_visible_in_canvas_area()
-
-    
 
     def get_state(self):
         points_names = sorted([self.point1.name, self.point2.name])
