@@ -44,22 +44,18 @@ class TestRectangle(unittest.TestCase):
 
     def test_initialize(self):
         self.rectangle._initialize()
-        # Test with real coordinate transformations
-        # P1 (0,0) in math space -> (250,250) in screen space
-        self.assertEqual(self.rectangle.segment1.point1.screen_x, 250)
-        self.assertEqual(self.rectangle.segment1.point1.screen_y, 250)
-        # P2 (4,0) in math space -> (254,250) in screen space
-        self.assertEqual(self.rectangle.segment1.point2.screen_x, 254)
-        self.assertEqual(self.rectangle.segment1.point2.screen_y, 250)
-        # P2 (4,0) in math space -> (254,250) in screen space
-        self.assertEqual(self.rectangle.segment2.point1.screen_x, 254)
-        self.assertEqual(self.rectangle.segment2.point1.screen_y, 250)
-        # P3 (4,3) in math space -> (254,247) in screen space
-        self.assertEqual(self.rectangle.segment2.point2.screen_x, 254)
-        self.assertEqual(self.rectangle.segment2.point2.screen_y, 247)
-        # P3 (4,3) in math space -> (254,247) in screen space
-        self.assertEqual(self.rectangle.segment3.point1.screen_x, 254)
-        self.assertEqual(self.rectangle.segment3.point1.screen_y, 247)
+        # Validate via CoordinateMapper
+        m = self.coordinate_mapper
+        s1p1x, s1p1y = m.math_to_screen(self.rectangle.segment1.point1.original_position.x, self.rectangle.segment1.point1.original_position.y)
+        s1p2x, s1p2y = m.math_to_screen(self.rectangle.segment1.point2.original_position.x, self.rectangle.segment1.point2.original_position.y)
+        s2p1x, s2p1y = m.math_to_screen(self.rectangle.segment2.point1.original_position.x, self.rectangle.segment2.point1.original_position.y)
+        s2p2x, s2p2y = m.math_to_screen(self.rectangle.segment2.point2.original_position.x, self.rectangle.segment2.point2.original_position.y)
+        s3p1x, s3p1y = m.math_to_screen(self.rectangle.segment3.point1.original_position.x, self.rectangle.segment3.point1.original_position.y)
+        self.assertEqual((s1p1x, s1p1y), (250, 250))
+        self.assertEqual((s1p2x, s1p2y), (254, 250))
+        self.assertEqual((s2p1x, s2p1y), (254, 250))
+        self.assertEqual((s2p2x, s2p2y), (254, 247))
+        self.assertEqual((s3p1x, s3p1y), (254, 247))
 
     def test_init(self):
         # Test the initial properties of the rectangle
@@ -94,13 +90,12 @@ class TestRectangle(unittest.TestCase):
         # Translate by (2, 1) in mathematical coordinates
         self.rectangle.translate(2, 1)
         
-        # P1 should move from (0,0) to (2,1) in math space -> (252,249) in screen space
-        self.assertEqual(self.rectangle.segment1.point1.screen_x, 252)
-        self.assertEqual(self.rectangle.segment1.point1.screen_y, 249)
-        # P2 should move from (4,0) to (6,1) in math space -> (256,249) in screen space
-        self.assertEqual(self.rectangle.segment1.point2.screen_x, 256)
-        self.assertEqual(self.rectangle.segment1.point2.screen_y, 249)
-        # P3 should move from (4,3) to (6,4) in math space -> (256,246) in screen space
-        self.assertEqual(self.rectangle.segment2.point2.screen_x, 256)
-        self.assertEqual(self.rectangle.segment2.point2.screen_y, 246)
+        # Validate via CoordinateMapper after translation
+        m = self.coordinate_mapper
+        s1p1x, s1p1y = m.math_to_screen(self.rectangle.segment1.point1.original_position.x, self.rectangle.segment1.point1.original_position.y)
+        s1p2x, s1p2y = m.math_to_screen(self.rectangle.segment1.point2.original_position.x, self.rectangle.segment1.point2.original_position.y)
+        s2p2x, s2p2y = m.math_to_screen(self.rectangle.segment2.point2.original_position.x, self.rectangle.segment2.point2.original_position.y)
+        self.assertEqual((s1p1x, s1p1y), (252, 249))
+        self.assertEqual((s1p2x, s1p2y), (256, 249))
+        self.assertEqual((s2p2x, s2p2y), (256, 246))
 

@@ -39,10 +39,12 @@ class TestSegment(unittest.TestCase):
         # Real coordinate transformation: origin at (250, 250)
         # Point 1: (0,0) -> screen (250, 250)
         # Point 2: (3,4) -> screen (253, 246)
-        self.assertEqual(self.segment.point1.screen_x, 250)
-        self.assertEqual(self.segment.point1.screen_y, 250)
-        self.assertEqual(self.segment.point2.screen_x, 253)
-        self.assertEqual(self.segment.point2.screen_y, 246)
+        x1, y1 = self.coordinate_mapper.math_to_screen(self.segment.point1.original_position.x, self.segment.point1.original_position.y)
+        x2, y2 = self.coordinate_mapper.math_to_screen(self.segment.point2.original_position.x, self.segment.point2.original_position.y)
+        self.assertEqual(x1, 250)
+        self.assertEqual(y1, 250)
+        self.assertEqual(x2, 253)
+        self.assertEqual(y2, 246)
 
     def test_init(self):
         self.assertEqual(self.segment.point1, self.p1)
@@ -61,8 +63,8 @@ class TestSegment(unittest.TestCase):
         from canvas import Canvas  # not used directly; we mimic Canvas._is_drawable_visible logic
         # Compute visibility using canvas-level predicate
         # Endpoint-in-viewport or intersects viewport
-        x1, y1 = self.segment.point1.screen_x, self.segment.point1.screen_y
-        x2, y2 = self.segment.point2.screen_x, self.segment.point2.screen_y
+        x1, y1 = self.coordinate_mapper.math_to_screen(self.segment.point1.original_position.x, self.segment.point1.original_position.y)
+        x2, y2 = self.coordinate_mapper.math_to_screen(self.segment.point2.original_position.x, self.segment.point2.original_position.y)
         in_view = self.canvas.is_point_within_canvas_visible_area(x1, y1) or \
                   self.canvas.is_point_within_canvas_visible_area(x2, y2) or \
                   self.canvas.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
@@ -97,10 +99,12 @@ class TestSegment(unittest.TestCase):
         
         # Check that screen coordinates were recalculated
         # New math coords: p1(2, 3) -> screen (252, 247), p2(5, 7) -> screen (255, 243)
-        self.assertEqual(self.segment.point1.screen_x, 252)
-        self.assertEqual(self.segment.point1.screen_y, 247)
-        self.assertEqual(self.segment.point2.screen_x, 255)
-        self.assertEqual(self.segment.point2.screen_y, 243)
+        x1, y1 = self.coordinate_mapper.math_to_screen(self.segment.point1.original_position.x, self.segment.point1.original_position.y)
+        x2, y2 = self.coordinate_mapper.math_to_screen(self.segment.point2.original_position.x, self.segment.point2.original_position.y)
+        self.assertEqual(x1, 252)
+        self.assertEqual(y1, 247)
+        self.assertEqual(x2, 255)
+        self.assertEqual(y2, 243)
 
     def test_draw(self):
         # This test would check if draw calls create_svg_element with expected arguments

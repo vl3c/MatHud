@@ -42,25 +42,20 @@ class TestTriangle(unittest.TestCase):
 
     def test_initialize(self):
         self.triangle._initialize()
-        # Test that the triangle's segments have been initialized correctly with real coordinate transformations
-        # P1 (0,0) in math space -> (250,250) in screen space
-        self.assertEqual(self.triangle.segment1.point1.screen_x, 250)
-        self.assertEqual(self.triangle.segment1.point1.screen_y, 250)
-        # P2 (4,0) in math space -> (254,250) in screen space
-        self.assertEqual(self.triangle.segment1.point2.screen_x, 254)
-        self.assertEqual(self.triangle.segment1.point2.screen_y, 250)
-        # P2 (4,0) in math space -> (254,250) in screen space
-        self.assertEqual(self.triangle.segment2.point1.screen_x, 254)
-        self.assertEqual(self.triangle.segment2.point1.screen_y, 250)
-        # P3 (0,3) in math space -> (250,247) in screen space
-        self.assertEqual(self.triangle.segment2.point2.screen_x, 250)
-        self.assertEqual(self.triangle.segment2.point2.screen_y, 247)
-        # P3 (0,3) in math space -> (250,247) in screen space
-        self.assertEqual(self.triangle.segment3.point1.screen_x, 250)
-        self.assertEqual(self.triangle.segment3.point1.screen_y, 247)
-        # P1 (0,0) in math space -> (250,250) in screen space
-        self.assertEqual(self.triangle.segment3.point2.screen_x, 250)
-        self.assertEqual(self.triangle.segment3.point2.screen_y, 250)
+        # Validate screen-space via CoordinateMapper
+        m = self.coordinate_mapper
+        s1p1x, s1p1y = m.math_to_screen(self.triangle.segment1.point1.original_position.x, self.triangle.segment1.point1.original_position.y)
+        s1p2x, s1p2y = m.math_to_screen(self.triangle.segment1.point2.original_position.x, self.triangle.segment1.point2.original_position.y)
+        s2p1x, s2p1y = m.math_to_screen(self.triangle.segment2.point1.original_position.x, self.triangle.segment2.point1.original_position.y)
+        s2p2x, s2p2y = m.math_to_screen(self.triangle.segment2.point2.original_position.x, self.triangle.segment2.point2.original_position.y)
+        s3p1x, s3p1y = m.math_to_screen(self.triangle.segment3.point1.original_position.x, self.triangle.segment3.point1.original_position.y)
+        s3p2x, s3p2y = m.math_to_screen(self.triangle.segment3.point2.original_position.x, self.triangle.segment3.point2.original_position.y)
+        self.assertEqual((s1p1x, s1p1y), (250, 250))
+        self.assertEqual((s1p2x, s1p2y), (254, 250))
+        self.assertEqual((s2p1x, s2p1y), (254, 250))
+        self.assertEqual((s2p2x, s2p2y), (250, 247))
+        self.assertEqual((s3p1x, s3p1y), (250, 247))
+        self.assertEqual((s3p2x, s3p2y), (250, 250))
 
     def test_init(self):
         # Test the initial properties of the triangle
@@ -109,13 +104,12 @@ class TestTriangle(unittest.TestCase):
         # Translate by (1, 2) in mathematical coordinates
         self.triangle.translate(1, 2)
         
-        # P1 should move from (0,0) to (1,2) in math space -> (251,248) in screen space
-        self.assertEqual(self.triangle.segment1.point1.screen_x, 251)
-        self.assertEqual(self.triangle.segment1.point1.screen_y, 248)
-        # P2 should move from (4,0) to (5,2) in math space -> (255,248) in screen space
-        self.assertEqual(self.triangle.segment1.point2.screen_x, 255)
-        self.assertEqual(self.triangle.segment1.point2.screen_y, 248)
-        # P3 should move from (0,3) to (1,5) in math space -> (251,245) in screen space
-        self.assertEqual(self.triangle.segment2.point2.screen_x, 251)
-        self.assertEqual(self.triangle.segment2.point2.screen_y, 245)
+        # Validate via CoordinateMapper
+        m = self.coordinate_mapper
+        s1p1x, s1p1y = m.math_to_screen(self.triangle.segment1.point1.original_position.x, self.triangle.segment1.point1.original_position.y)
+        s1p2x, s1p2y = m.math_to_screen(self.triangle.segment1.point2.original_position.x, self.triangle.segment1.point2.original_position.y)
+        s2p2x, s2p2y = m.math_to_screen(self.triangle.segment2.point2.original_position.x, self.triangle.segment2.point2.original_position.y)
+        self.assertEqual((s1p1x, s1p1y), (251, 248))
+        self.assertEqual((s1p2x, s1p2y), (255, 248))
+        self.assertEqual((s2p2x, s2p2y), (251, 245))
 

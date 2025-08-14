@@ -178,18 +178,12 @@ class Angle(Drawable):
         return 'Angle'
 
     def _get_drawing_references(self):
-        """Returns screen coordinates of vertex, arm1 point, and arm2 point, or None if any are missing."""
+        """Return math coordinates of vertex and arms; renderer maps to screen."""
         if not (self.vertex_point and self.arm1_point and self.arm2_point):
             return None
-        def _pt_screen_xy(pt):
-            sx = getattr(pt, 'screen_x', None)
-            sy = getattr(pt, 'screen_y', None)
-            if sx is None or sy is None:
-                return (pt.x, pt.y)
-            return (sx, sy)
-        vx, vy = _pt_screen_xy(self.vertex_point)
-        a1x, a1y = _pt_screen_xy(self.arm1_point)
-        a2x, a2y = _pt_screen_xy(self.arm2_point)
+        vx, vy = (self.vertex_point.x, self.vertex_point.y)
+        a1x, a1y = (self.arm1_point.x, self.arm1_point.y)
+        a2x, a2y = (self.arm2_point.x, self.arm2_point.y)
         return (vx, vy, a1x, a1y, a2x, a2y)
 
     def _calculate_arc_parameters(self, vx, vy, p1x, p1y, p2x, p2y, arc_radius=None):

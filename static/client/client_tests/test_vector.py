@@ -35,13 +35,12 @@ class TestVector(unittest.TestCase):
 
     def test_initialize(self):
         self.vector._initialize()
-        # Test that the vector's segment has been initialized correctly
-        # Origin point (0,0) in math space -> (250,250) in screen space
-        self.assertEqual(self.vector.segment.point1.screen_x, 250)
-        self.assertEqual(self.vector.segment.point1.screen_y, 250)
-        # Tip point (3,4) in math space -> (253,246) in screen space
-        self.assertEqual(self.vector.segment.point2.screen_x, 253)
-        self.assertEqual(self.vector.segment.point2.screen_y, 246)
+        # Validate via CoordinateMapper
+        m = self.coordinate_mapper
+        ox, oy = m.math_to_screen(self.vector.segment.point1.original_position.x, self.vector.segment.point1.original_position.y)
+        tx, ty = m.math_to_screen(self.vector.segment.point2.original_position.x, self.vector.segment.point2.original_position.y)
+        self.assertEqual((ox, oy), (250, 250))
+        self.assertEqual((tx, ty), (253, 246))
 
     def test_init(self):
         # Test the initial properties of the vector
@@ -73,11 +72,10 @@ class TestVector(unittest.TestCase):
         # Translate by (2, 3) in mathematical coordinates
         self.vector.translate(2, 3)
         
-        # Origin should move from (0,0) to (2,3) in math space -> (252,247) in screen space
-        self.assertEqual(self.vector.origin.screen_x, 252)
-        self.assertEqual(self.vector.origin.screen_y, 247)
-        
-        # Tip should move from (3,4) to (5,7) in math space -> (255,243) in screen space
-        self.assertEqual(self.vector.tip.screen_x, 255)
-        self.assertEqual(self.vector.tip.screen_y, 243)
+        # Validate via CoordinateMapper after translation
+        m = self.coordinate_mapper
+        ox, oy = m.math_to_screen(self.vector.origin.original_position.x, self.vector.origin.original_position.y)
+        tx, ty = m.math_to_screen(self.vector.tip.original_position.x, self.vector.tip.original_position.y)
+        self.assertEqual((ox, oy), (252, 247))
+        self.assertEqual((tx, ty), (255, 243))
 
