@@ -417,9 +417,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
         except (ValueError, ZeroDivisionError, TypeError, OverflowError) as e:
             return None
 
-    def draw(self):
-        """No-op: rendering handled via renderer/renderables."""
-        return
+    
 
     def get_state(self):
         """Serialize functions bounded area state for persistence."""

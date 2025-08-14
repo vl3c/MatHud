@@ -67,9 +67,7 @@ class Circle(Drawable):
     def get_class_name(self):
         return 'Circle'
 
-    def draw(self):
-        # Rendering handled by renderer; no-op to preserve interface
-        return None
+    
 
     def _initialize(self):
         self.center._initialize()

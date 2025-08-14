@@ -75,9 +75,7 @@ class Drawable:
     def get_name(self):
         return self.name
     
-    def draw(self):
-        raise NotImplementedError("Subclasses must implement draw method")
-
+    
     def reset(self):
         self._initialize()
 

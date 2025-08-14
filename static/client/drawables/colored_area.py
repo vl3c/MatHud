@@ -42,12 +42,7 @@ class ColoredArea(Drawable):
         super().__init__(name=name, color=color, canvas=canvas)
         self.opacity = opacity
 
-    def draw(self):
-        """
-        Draw the colored area. Each subclass must implement its own draw method
-        that calls _create_svg_path with appropriate points.
-        """
-        raise NotImplementedError("Subclasses must implement draw()")
+    
 
     # Rendering is handled by the renderer; no SVG element creation here
 

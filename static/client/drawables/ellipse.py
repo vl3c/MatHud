@@ -74,9 +74,7 @@ class Ellipse(Drawable):
     def get_class_name(self):
         return 'Ellipse'
 
-    def draw(self):
-        # Rendering handled by renderer; no-op to preserve interface
-        return None
+    
 
     def _initialize(self):
         # Remove cached drawn_radius calculation - now calculated dynamically in draw()

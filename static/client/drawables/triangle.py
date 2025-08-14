@@ -87,8 +87,7 @@ class Triangle(RotatablePolygon):
     def get_class_name(self):
         return 'Triangle'
 
-    def draw(self):
-        pass   # Drawing is done by the canvas for the segments
+    
 
     def _initialize(self):
         self.segment1._initialize()

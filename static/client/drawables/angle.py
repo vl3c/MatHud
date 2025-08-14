@@ -281,9 +281,7 @@ class Angle(Drawable):
 
     # Removed SVG element creation helpers; rendering handled by the renderer
 
-    def draw(self):
-        # Rendering handled by renderer; no-op to preserve interface
-        return None
+    
 
     def get_state(self):
         """

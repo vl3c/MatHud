@@ -85,9 +85,7 @@ class Vector(Drawable):
         # Rendering handled by renderer; no-op to preserve interface
         return None
 
-    def draw(self):
-        # Rendering handled by renderer; no-op to preserve interface
-        return None
+    
 
     def get_state(self):
         origin = self.segment.point1.name

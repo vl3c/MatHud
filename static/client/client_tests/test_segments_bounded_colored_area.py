@@ -136,12 +136,8 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         """Test that x-axis positioning correctly uses cartesian origin for simplicity."""
         area = SegmentsBoundedColoredArea(self.segment1, None, self.canvas)
         
-        # Call draw method
-        area.draw()
-        
-        # The draw method should use cartesian2axis.origin.y for x-axis positioning
-        # This is correct since segment points are already in screen coordinates
-        # and we just need the y-coordinate of the x-axis in screen space
+        # The renderer will use cartesian2axis.origin.y for x-axis positioning
+        # since segment points are already in screen coordinates
         expected_x_axis_y = self.canvas.cartesian2axis.origin.y
         self.assertEqual(expected_x_axis_y, 250)  # Based on our setup
 

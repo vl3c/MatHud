@@ -88,9 +88,7 @@ class Segment(Drawable):
     def is_visible(self):
         return self._any_segment_part_visible_in_canvas_area()
 
-    def draw(self):
-        # Rendering handled by renderer; no-op to preserve interface
-        return None
+    
 
     def get_state(self):
         points_names = sorted([self.point1.name, self.point2.name])

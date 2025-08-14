@@ -62,9 +62,7 @@ class Point(Drawable):
     def get_class_name(self):
         return 'Point'
 
-    def draw(self):
-        # Rendering handled by renderer; no-op to preserve interface
-        return None
+    
 
     def __str__(self):
         return f'{self.original_position.x},{self.original_position.y}'

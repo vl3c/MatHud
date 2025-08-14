@@ -113,9 +113,7 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
         right_bound = min(seg_right, func_right)
         return left_bound, right_bound
 
-    def draw(self):
-        """No-op: rendering handled via renderer/renderables."""
-        return
+    
 
     def _generate_segment_points(self):
         """Generate points for the segment path (in reverse order)."""

@@ -56,9 +56,7 @@ class SegmentsBoundedColoredArea(ColoredArea):
         """Return the class name 'SegmentsBoundedColoredArea'."""
         return 'SegmentsBoundedColoredArea'
 
-    def draw(self):
-        """No-op: rendering handled via renderer/renderables."""
-        return
+    
 
     def uses_segment(self, segment):
         """Check if this colored area uses a specific segment for dependency tracking."""

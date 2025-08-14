@@ -108,8 +108,11 @@ class Canvas:
         else:
             self.renderer = SvgRenderer() if SvgRenderer is not None else None
         
-        if self.draw_enabled:
-            self.cartesian2axis.draw()
+        if self.draw_enabled and self.renderer is not None:
+            try:
+                self.renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
+            except Exception:
+                pass
         self._register_renderer_handlers()
 
     def add_drawable(self, drawable):
@@ -213,10 +216,7 @@ class Canvas:
                     self.cartesian2axis._invalidate_cache_on_zoom()
                 self.renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
             except Exception:
-                # Fallback to original method on error
-                self._draw_cartesian(apply_zoom)
-        else:
-            self._draw_cartesian(apply_zoom)
+                pass
         
         # Apply zoom-towards-point displacement if needed
         if apply_zoom and self.zoom_direction != 0:
@@ -238,9 +238,7 @@ class Canvas:
                         rendered = True  # Treat as handled (intentionally skipped)
                 except Exception:
                     rendered = False
-            if not rendered:
-                # Fallback to current draw implementation
-                drawable.draw()
+            # No fallback to drawable.draw(); rendering is exclusively via renderer
 
     def _is_drawable_visible(self, drawable):
         """Best-effort visibility check to avoid rendering off-canvas objects.
