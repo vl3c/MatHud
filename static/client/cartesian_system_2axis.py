@@ -86,9 +86,6 @@ class Cartesian2Axis(Drawable):
     def canvas(self):
         return self._canvas
     
-    def _initialize(self):
-        pass   # Cartesian2Axis is not initialized
-    
     def reset(self):
         """Reset coordinate system to initial state with centered origin."""
         self.current_tick_spacing = self.default_tick_spacing
@@ -131,65 +128,8 @@ class Cartesian2Axis(Drawable):
         """No-op: rendering handled via renderer."""
         return
 
-    def _draw_axes(self):
-        return
-
-    def _draw_ticks(self, step):
-        for axis in ['x', 'y']:
-            for direction in [-1, 1]:
-                self._draw_axis_ticks(axis, step, direction)
-    
-    def _draw_axis_ticks(self, axis, step, direction):
-        tick_mark = self._get_axis_origin(axis)
-        boundary = self._get_axis_boundary(axis)
-        tick_size = self.tick_size
-        
-        while self._should_continue_drawing(tick_mark, boundary, direction):
-            if axis == 'x':
-                self._draw_x_axis_tick(tick_mark, tick_size)
-                self._draw_x_axis_label(tick_mark)
-            else:
-                self._draw_y_axis_tick(tick_mark, tick_size)
-                self._draw_y_axis_label(tick_mark)
-            
-            tick_mark += step * direction
-    
     def _should_continue_drawing(self, position, boundary, direction):
         return (direction == 1 and position < boundary) or (direction == -1 and position > 0)
-    
-    def _draw_x_axis_tick(self, tick_mark, tick_size):
-        return
-    
-    def _draw_x_axis_label(self, tick_mark):
-        return
-    
-    def _draw_y_axis_tick(self, tick_mark, tick_size):
-        return
-    
-    def _draw_y_axis_label(self, tick_mark):
-        return
-    
-    def _draw_origin_label(self, tick_mark):
-        return
-    
-    def _draw_tick_label(self, x, y, value):
-        return
-
-    def _draw_grid(self, step):
-        for axis in ['x', 'y']:
-            for direction in [-1, 1]:
-                self._draw_grid_axis_lines(axis, step, direction)
-    
-    def _draw_grid_axis_lines(self, axis, step, direction):
-        grid_mark = self._get_axis_origin(axis)
-        boundary = self._get_axis_boundary(axis)
-        
-        while self._should_continue_drawing(grid_mark, boundary, direction):
-            self._draw_grid_line(axis, grid_mark)
-            grid_mark += step * direction
-    
-    def _draw_grid_line(self, axis, grid_mark):
-        return
 
     def _calculate_tick_spacing(self):
         ideal_spacing = self._calculate_ideal_tick_spacing()
