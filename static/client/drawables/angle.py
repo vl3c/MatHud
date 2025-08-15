@@ -45,7 +45,7 @@ class Angle(Drawable):
         angle_degrees (float): Display angle (small or reflex based on is_reflex)
          (arc radius is provided by the renderer; a default constant is used when not specified)
     """
-    def __init__(self, segment1, segment2, canvas, color=DEFAULT_ANGLE_COLOR, is_reflex: bool = False, name: str | None = None):
+    def __init__(self, segment1, segment2, color=DEFAULT_ANGLE_COLOR, is_reflex: bool = False, name: str | None = None):
         """Initialize an angle from two intersecting line segments.
         
         Validates segment intersection and extracts angle properties for visualization.
@@ -81,7 +81,7 @@ class Angle(Drawable):
             computed_name = None
         final_name = name if name is not None else computed_name if computed_name is not None else "angle"
         
-        super().__init__(name=final_name, color=color, canvas=canvas) 
+        super().__init__(name=final_name, color=color) 
         
         self.raw_angle_degrees = None # To store the fundamental CCW angle (0-360)
         self.angle_degrees = None     # To store the display angle (small or reflex)
@@ -250,10 +250,6 @@ class Angle(Drawable):
 
         return sweep_flag, large_arc_flag
 
-    # Removed SVG element creation helpers; rendering handled by the renderer
-
-    
-
     def get_state(self):
         """
         Returns a serializable dictionary of the angle's state.
@@ -269,31 +265,12 @@ class Angle(Drawable):
             }
         }
 
-    @classmethod 
-    def from_state(cls, state_data, canvas):
-        """
-        Creates an Angle instance from a state dictionary.
-        """
-        args = state_data["args"]
-        segment1 = canvas.drawable_manager.get_segment_by_name(args["segment1_name"])
-        segment2 = canvas.drawable_manager.get_segment_by_name(args["segment2_name"])
-
-        if not segment1 or not segment2:
-            return None 
-
-        return cls(
-            segment1=segment1, segment2=segment2, canvas=canvas,
-            color=args.get("color", DEFAULT_ANGLE_COLOR),
-            is_reflex=args.get("is_reflex", False)
-        )
-
     def __deepcopy__(self, memo):
         if id(self) in memo: return memo[id(self)]
         
         new_angle = Angle(
             segment1=deepcopy(self.segment1, memo),
             segment2=deepcopy(self.segment2, memo),
-            canvas=self.canvas, 
             color=self.color,
             is_reflex=self.is_reflex
         )

@@ -135,19 +135,19 @@ class AngleManager:
         if existing_angle:
             return existing_angle
 
-        # 4. Instantiate the Angle
+        # 4. Instantiate the Angle (let Angle compute deterministic name if none provided)
         new_angle = None
         try:
-            # Handle color parameter - if None, let Angle constructor use its default
             angle_kwargs = {
                 'segment1': segment1,
                 'segment2': segment2,
-                'canvas': self.canvas,
                 'is_reflex': is_reflex
             }
             if color is not None:
                 angle_kwargs['color'] = color
-            
+            if angle_name is not None:
+                angle_kwargs['name'] = angle_name
+
             new_angle = Angle(**angle_kwargs)
         except ValueError as e:
             print(f"AngleManager: Error creating Angle - {e}")
@@ -463,8 +463,26 @@ class AngleManager:
                 print(f"AngleManager: Skipping invalid angle state data (not a dict): {angle_state}")
                 continue
             
-            # The Angle.from_state method requires the drawable_manager to find segments.
-            new_angle = Angle.from_state(angle_state, self.canvas)
+            # Resolve segments via drawable_manager, then construct Angle without model canvas logic
+            args = angle_state.get('args', {})
+            seg1_name = args.get('segment1_name')
+            seg2_name = args.get('segment2_name')
+            if not seg1_name or not seg2_name:
+                continue
+            segment1 = self.drawable_manager.get_segment_by_name(seg1_name)
+            segment2 = self.drawable_manager.get_segment_by_name(seg2_name)
+            if not segment1 or not segment2:
+                continue
+
+            angle_kwargs = {
+                'segment1': segment1,
+                'segment2': segment2,
+                'is_reflex': args.get('is_reflex', False)
+            }
+            if 'color' in args:
+                angle_kwargs['color'] = args['color']
+
+            new_angle = Angle(**angle_kwargs)
             
             if new_angle:
                 # Check for duplicates by name before adding, though from_state might handle this
