@@ -152,17 +152,10 @@ class Angle(Drawable):
             self.angle_degrees = None
             return
 
-        # Use screen coordinates when available; fall back to x/y for test mocks
-        def _pt_screen_xy(pt):
-            sx = getattr(pt, 'screen_x', None)
-            sy = getattr(pt, 'screen_y', None)
-            if sx is None or sy is None:
-                return (pt.x, pt.y)
-            return (sx, sy)
-
-        vertex_coords = _pt_screen_xy(self.vertex_point)
-        arm1_coords = _pt_screen_xy(self.arm1_point)
-        arm2_coords = _pt_screen_xy(self.arm2_point)
+        # Use math-space coordinates for fundamental angle calculation to match tests and model semantics
+        vertex_coords = (self.vertex_point.x, self.vertex_point.y)
+        arm1_coords = (self.arm1_point.x, self.arm1_point.y)
+        arm2_coords = (self.arm2_point.x, self.arm2_point.y)
 
         # Calculate the fundamental CCW angle from arm1 to arm2 (0-360 degrees)
         self.raw_angle_degrees = math_utils.MathUtils.calculate_angle_degrees(
@@ -206,15 +199,15 @@ class Angle(Drawable):
         
         epsilon = math_utils.MathUtils.EPSILON # Use MathUtils.EPSILON
 
-        # Calculate geometric angles of the arms relative to the positive x-axis
-        angle_v_p1_rad = math.atan2(p1y - vy, p1x - vx) # Radians angle of arm1 vector
-        angle_v_p2_rad = math.atan2(p2y - vy, p2x - vx) # Radians angle of arm2 vector
+        # Calculate angles in a y-up frame to preserve mathematical CCW orientation
+        angle_v_p1_rad = math.atan2(vy - p1y, p1x - vx)
+        angle_v_p2_rad = math.atan2(vy - p2y, p2x - vx)
 
-        # Calculate arc start and end points on screen
+        # Calculate arc start and end points on screen (invert y to map back to screen coords)
         arc_start_x = vx + current_arc_radius * math.cos(angle_v_p1_rad)
-        arc_start_y = vy + current_arc_radius * math.sin(angle_v_p1_rad)
+        arc_start_y = vy - current_arc_radius * math.sin(angle_v_p1_rad)
         arc_end_x = vx + current_arc_radius * math.cos(angle_v_p2_rad)
-        arc_end_y = vy + current_arc_radius * math.sin(angle_v_p2_rad)
+        arc_end_y = vy - current_arc_radius * math.sin(angle_v_p2_rad)
         
         final_sweep_flag, final_large_arc_flag = self._get_arc_flags(
             self.angle_degrees, self.raw_angle_degrees, epsilon
@@ -232,36 +225,31 @@ class Angle(Drawable):
         }
 
     def _get_arc_flags(self, display_angle_degrees, raw_angle_degrees, epsilon):
-        """Determines sweep and large-arc flags for drawing the angle arc."""
-        is_effectively_raw_angle = False
-        diff_abs = abs(display_angle_degrees - raw_angle_degrees)
+        """Determines sweep and large-arc flags for drawing the angle arc.
 
-        if diff_abs < epsilon or abs(diff_abs - 360.0) < epsilon:
-            if abs(display_angle_degrees - 360.0) < epsilon and abs(raw_angle_degrees) < epsilon:
-                is_effectively_raw_angle = False # Displaying 360 from raw 0 is CW path
-            elif abs(display_angle_degrees) < epsilon and abs(raw_angle_degrees - 360.0) < epsilon:
-                is_effectively_raw_angle = True  # Displaying 0 from raw 360 is CCW path (of 0)
-            else:
-                is_effectively_raw_angle = True
-        else:
-            is_effectively_raw_angle = False
-
-        sweep_flag = '1' if is_effectively_raw_angle else '0'
-
-        large_arc_flag = '0'
-        if abs(display_angle_degrees) < epsilon:
-            large_arc_flag = '0'
-        elif abs(display_angle_degrees - 360.0) < epsilon:
+        Note: SVG uses a y-down coordinate system; sweep-flag=1 draws in the positive-angle (clockwise) direction.
+        We compute math-space angles CCW, so when display angle follows the raw CCW direction, we use sweep=0;
+        when display angle goes the opposite direction (to get the small or reflex complement), use sweep=1.
+        """
+        # Large-arc flag: 1 if display angle > 180 (or ~360)
+        if abs(display_angle_degrees - 360.0) < epsilon:
             large_arc_flag = '1'
         elif display_angle_degrees > 180.0 + epsilon:
             large_arc_flag = '1'
+        else:
+            large_arc_flag = '0'
 
-        # Special handling for full circle drawing if start/end points are identical
-        raw_is_zero_or_360 = abs(raw_angle_degrees) < epsilon or abs(raw_angle_degrees - 360.0) < epsilon
-        if abs(display_angle_degrees - 360.0) < epsilon and raw_is_zero_or_360:
-            large_arc_flag = '1'
-            sweep_flag = '1' # Prefer CCW for canonical full circle SVG representation
-        
+        # Determine if display follows raw CCW direction (math-space)
+        same_direction = abs(display_angle_degrees - raw_angle_degrees) < epsilon
+        # Special equivalences at 0/360
+        if abs(display_angle_degrees) < epsilon and abs(raw_angle_degrees - 360.0) < epsilon:
+            same_direction = True
+        if abs(display_angle_degrees - 360.0) < epsilon and abs(raw_angle_degrees) < epsilon:
+            same_direction = False
+
+        # In SVG, sweep=0 gives CCW visually (since y-down)
+        sweep_flag = '0' if same_direction else '1'
+
         return sweep_flag, large_arc_flag
 
     # Removed SVG element creation helpers; rendering handled by the renderer

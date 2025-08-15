@@ -85,6 +85,19 @@ class TestAngle(unittest.TestCase):
         self.assertAlmostEqual(angle.angle_degrees, 90.0, places=5) # Small angle
         self.assertEqual(angle.name, "angle_BAC")
 
+    def test_arc_orientation_matches_renderer_flags(self):
+        # Construct a 90-degree angle at A: AB (to the right), AC (up)
+        angle = Angle(self.s_AB, self.s_AC, self.canvas)
+        # Screen coordinates via mapper
+        vx, vy = self.coordinate_mapper.math_to_screen(angle.vertex_point.x, angle.vertex_point.y)
+        p1x, p1y = self.coordinate_mapper.math_to_screen(angle.arm1_point.x, angle.arm1_point.y)
+        p2x, p2y = self.coordinate_mapper.math_to_screen(angle.arm2_point.x, angle.arm2_point.y)
+        params = angle._calculate_arc_parameters(vx, vy, p1x, p1y, p2x, p2y, arc_radius=15)
+        # 90-degree small (counterclockwise math-space) should produce sweep_flag='0' in SVG (y-down), large_arc_flag='0'
+        self.assertIsNotNone(params)
+        self.assertEqual(params['final_sweep_flag'], '0')
+        self.assertEqual(params['final_large_arc_flag'], '0')
+
     def test_initialization_valid_45_degrees(self):
         angle = Angle(self.s_AB, self.s_AD, self.canvas) # is_reflex=False by default
         self.assertIsNotNone(angle)
