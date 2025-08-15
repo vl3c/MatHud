@@ -45,7 +45,7 @@ class Angle(Drawable):
         angle_degrees (float): Display angle (small or reflex based on is_reflex)
          (arc radius is provided by the renderer; a default constant is used when not specified)
     """
-    def __init__(self, segment1, segment2, canvas, color=DEFAULT_ANGLE_COLOR, is_reflex: bool = False):
+    def __init__(self, segment1, segment2, canvas, color=DEFAULT_ANGLE_COLOR, is_reflex: bool = False, name: str | None = None):
         """Initialize an angle from two intersecting line segments.
         
         Validates segment intersection and extracts angle properties for visualization.
@@ -69,14 +69,19 @@ class Angle(Drawable):
         
         self.vertex_point, self.arm1_point, self.arm2_point = self._extract_defining_points(self.segment1, self.segment2)
 
-        # Name generation might need adjustment later if manager needs to distinguish reflex/non-reflex for same segments
-        name_suffix = "_reflex" if self.is_reflex else ""
-        base_name = canvas.drawable_manager.name_generator.generate_angle_name_from_segments(
-            segment1.name, segment2.name
-        )
-        name = f"{base_name}{name_suffix}"
+        # Name: prefer provided name; otherwise compute deterministically from segment endpoint names
+        computed_name = None
+        try:
+            vertex_name = self.vertex_point.name
+            arm_names = sorted([self.arm1_point.name, self.arm2_point.name])
+            computed_name = f"angle_{arm_names[0]}{vertex_name}{arm_names[1]}"
+            if self.is_reflex:
+                computed_name += "_reflex"
+        except Exception:
+            computed_name = None
+        final_name = name if name is not None else computed_name if computed_name is not None else "angle"
         
-        super().__init__(name=name, color=color, canvas=canvas) 
+        super().__init__(name=final_name, color=color, canvas=canvas) 
         
         self.raw_angle_degrees = None # To store the fundamental CCW angle (0-360)
         self.angle_degrees = None     # To store the display angle (small or reflex)
