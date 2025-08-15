@@ -13,7 +13,8 @@ class FunctionRenderable:
     def __init__(self, function_model, coordinate_mapper, cartesian2axis=None):
         self.func = function_model
         self.mapper = coordinate_mapper
-        self.cartesian2axis = cartesian2axis or getattr(function_model.canvas, 'cartesian2axis', None)
+        # Prefer explicitly provided cartesian2axis; otherwise, do not rely on model.canvas
+        self.cartesian2axis = cartesian2axis
 
         # Simple cache
         self._cached_screen_paths = None
@@ -28,12 +29,20 @@ class FunctionRenderable:
         self._last_bounds = None
 
     def _get_visible_bounds(self):
-        if not self.cartesian2axis:
+        # Use cartesian2axis if available (legacy path), otherwise rely on mapper
+        try:
+            if self.cartesian2axis:
+                return (
+                    self.cartesian2axis.get_visible_left_bound(),
+                    self.cartesian2axis.get_visible_right_bound(),
+                )
+            # Mapper-based bounds
+            left = self.mapper.get_visible_left_bound()
+            right = self.mapper.get_visible_right_bound()
+            return left, right
+        except Exception:
+            # Fallback safe default
             return -10, 10
-        return (
-            self.cartesian2axis.get_visible_left_bound(),
-            self.cartesian2axis.get_visible_right_bound(),
-        )
 
     def _should_regenerate(self):
         current_scale = getattr(self.mapper, 'scale_factor', None)
@@ -139,11 +148,15 @@ class FunctionRenderable:
 
     # --- Equivalent of original Function._generate_paths but producing (x,y) tuples ---
     def _build_screen_paths_equivalent(self):
-        # Visible bounds
+        # Determine base bounds (model-provided or default math window) and intersect with visible
         visible_left, visible_right = self._get_visible_bounds()
-        # Clamp with model bounds if set
-        left_bound = max(visible_left, self.func.left_bound) if getattr(self.func, 'left_bound', None) is not None else visible_left
-        right_bound = min(visible_right, self.func.right_bound) if getattr(self.func, 'right_bound', None) is not None else visible_right
+        base_left = getattr(self.func, 'left_bound', None)
+        base_right = getattr(self.func, 'right_bound', None)
+        if base_left is None or base_right is None:
+            base_left = -10 if base_left is None else base_left
+            base_right = 10 if base_right is None else base_right
+        left_bound = max(visible_left, base_left)
+        right_bound = min(visible_right, base_right)
 
         paths = []
         current_path = []
@@ -166,14 +179,44 @@ class FunctionRenderable:
                     return base_step
                 points_per_period = 400.0 / max(visible_periods, 1e-9)
                 points_per_period = min(200.0, points_per_period)
-                return period / points_per_period if points_per_period > 0 else base_step
+                step_trig = period / points_per_period if points_per_period > 0 else base_step
+                # Enforce a global cap by adjusting to at most 200 points across the range
+                max_points = 200.0
+                cap_step = range_width / max_points
+                return max(cap_step, step_trig)
             if any(pattern in fs for pattern in ['x**2', 'x^2']):
                 return base_step * 2.0
+            # Enforce global cap for non-trig as well
             return base_step
 
         step = calculate_step_size()
+        # Global cap: ensure total samples across range does not exceed 200
+        if step > 0:
+            max_points = 200.0
+            cap_step = (right_bound - left_bound) / max_points
+            step = max(cap_step, step)
 
-        height = getattr(self.cartesian2axis, 'height', 0) or 0
+        # Adaptive step by slope magnitude to densify steep functions
+        try:
+            eps = max(1e-6, (right_bound - left_bound) / 1000.0)
+            cx = (left_bound + right_bound) / 2.0
+            y1 = self.func.function(cx - eps)
+            y2 = self.func.function(cx + eps)
+            if isinstance(y1, (int, float)) and isinstance(y2, (int, float)):
+                slope_abs = abs(y2 - y1) / (2.0 * eps) if eps > 0 else 0.0
+                if slope_abs > 0:
+                    scale = getattr(self.mapper, 'scale_factor', 1.0) or 1.0
+                    target_pixel = 2.0
+                    desired_step = (target_pixel / scale) / slope_abs
+                    # Respect global cap while allowing densification for steep regions
+                    step = min(step, max((right_bound - left_bound) / 200.0, desired_step))
+        except Exception:
+            pass
+
+        # Screen height for bound checks (prefer cartesian2axis.height, fallback to mapper canvas height)
+        height = getattr(self.cartesian2axis, 'height', None)
+        if not height:
+            height = getattr(self.mapper, 'canvas_height', 0) or 0
 
         def eval_scaled_point(x_val):
             try:
