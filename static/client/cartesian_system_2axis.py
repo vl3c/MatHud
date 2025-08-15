@@ -212,18 +212,11 @@ class Cartesian2Axis(Drawable):
 
     def _invalidate_cache_on_zoom(self):
         """Update tick spacing for zoom operations with dynamic spacing calculation."""
-        # Calculate the new display tick spacing based on the current zoom level and scale factor
+        # Recompute ideal spacing in math units based on current scale and viewport
         proposed_tick_spacing = self._calculate_tick_spacing()
-        # Determine whether to zoom in or out based on zoom_direction
-        zoom_in = self.canvas.zoom_direction == -1
-        if zoom_in:
-            # Zooming in: Decrease the tick spacing if it's less than twice the current tick spacing
-            if proposed_tick_spacing < self.current_tick_spacing / 0.5:
-                self.current_tick_spacing = proposed_tick_spacing
-        else:
-            # Zooming out: Increase the tick spacing if it's greater than half the current tick spacing
-            if proposed_tick_spacing > self.current_tick_spacing * 0.5:
-                self.current_tick_spacing = proposed_tick_spacing
+        # Apply directly to keep ticks consistent with zoom (no dependency on zoom_direction)
+        if proposed_tick_spacing and proposed_tick_spacing > 0:
+            self.current_tick_spacing = proposed_tick_spacing
 
     def get_state(self):
         """Serialize coordinate system state for persistence."""

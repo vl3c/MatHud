@@ -183,20 +183,44 @@ class CanvasEventHandler:
             print(f"Error adjusting scale factor: {str(e)}")
     
     def _zoom_in(self):
-        """Apply zoom in adjustments."""
+        """Apply zoom in with cursor anchoring using math/screen mapping."""
         try:
-            self.canvas.scale_factor *= zoom_in_scale_factor
-            self.canvas.zoom_direction = -1
+            self._apply_zoom_with_anchor(zoom_in_scale_factor)
         except Exception as e:
             print(f"Error zooming in: {str(e)}")
     
     def _zoom_out(self):
-        """Apply zoom out adjustments."""
+        """Apply zoom out with cursor anchoring using math/screen mapping."""
         try:
-            self.canvas.scale_factor *= zoom_out_scale_factor
-            self.canvas.zoom_direction = 1
+            self._apply_zoom_with_anchor(zoom_out_scale_factor)
         except Exception as e:
             print(f"Error zooming out: {str(e)}")
+
+    def _apply_zoom_with_anchor(self, zoom_factor):
+        """Zoom keeping the current mouse position fixed on screen."""
+        cm = self.canvas.coordinate_mapper
+        # Use last updated zoom point (screen coords)
+        zp = self.canvas.zoom_point
+        if zp is None:
+            # Fallback: zoom about canvas center
+            from geometry import Position
+            zp = Position(self.canvas.width / 2, self.canvas.height / 2)
+            self.canvas.zoom_point = zp
+
+        # Compute math coords under cursor before scaling
+        pre_mx, pre_my = cm.screen_to_math(zp.x, zp.y)
+
+        # Update scale with clamping
+        new_scale = cm.scale_factor * zoom_factor
+        new_scale = max(0.01, min(100.0, new_scale))
+        cm.scale_factor = new_scale
+
+        # Adjust offset to keep the same math point under cursor
+        cm.offset.x = zp.x - cm.origin.x - pre_mx * cm.scale_factor
+        cm.offset.y = zp.y - cm.origin.y + pre_my * cm.scale_factor
+
+        # Ensure no legacy point displacement runs
+        self.canvas.zoom_direction = 0
 
     def get_decimal_places(self, value):
         """Calculate appropriate decimal places for coordinate display."""
