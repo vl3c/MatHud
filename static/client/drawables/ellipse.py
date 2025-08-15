@@ -63,13 +63,7 @@ class Ellipse(Drawable):
 
     def get_class_name(self):
         return 'Ellipse'
-
     
-
-    def _initialize(self):
-        # No-op: Point no longer requires initialization for screen coords
-        pass
-
     def _calculate_ellipse_algebraic_formula(self):
         x = self.center.x
         y = self.center.y

@@ -63,7 +63,6 @@ class Triangle(RotatablePolygon):
         self.segment3 = segment3
         name = self._set_name()
         super().__init__(name=name, color=color, canvas=canvas)
-        self._initialize()
 
     def _set_name(self):
         # Get unique vertices using a set first, then sort
@@ -75,12 +74,6 @@ class Triangle(RotatablePolygon):
 
     def get_class_name(self):
         return 'Triangle'
-
-    
-
-    def _initialize(self):
-        # No-op: segments compute screen coords via mapper when needed
-        pass
 
     def _segments_form_triangle(self, s1, s2, s3):
         points = [s1.point1, s1.point2, s2.point1, s2.point2, s3.point1, s3.point2]
@@ -124,7 +117,7 @@ class Triangle(RotatablePolygon):
         for point in unique_points:
             point.translate(x_offset, y_offset)
         
-        self._initialize()
+        # No extra init needed
 
     def get_vertices(self):
         """Return the set of unique vertices of the triangle"""

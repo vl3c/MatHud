@@ -144,11 +144,3 @@ class Segment(Drawable):
         # Use frozenset of point hashes to ensure hash is consistent regardless of point1/point2 order
         # and relies on Point.__hash__ which is value-based.
         return hash(frozenset([hash(self.point1), hash(self.point2)]))
-
-    def _initialize(self):
-        """Empty method for backward compatibility.
-        
-        Screen coordinates are now calculated on-demand via Point.x,y properties,
-        so no initialization is needed.
-        """
-        pass 

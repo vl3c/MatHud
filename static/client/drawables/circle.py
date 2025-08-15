@@ -54,15 +54,9 @@ class Circle(Drawable):
         name = f"{self.center.name}({str(self.radius)})"
         super().__init__(name=name, color=color, canvas=canvas)
 
-
-
     def get_class_name(self):
         return 'Circle'
     
-    def _initialize(self):
-        # No-op: Point no longer requires initialization for screen coords
-        pass
-
     def _calculate_circle_algebraic_formula(self):
         x = self.center.x
         y = self.center.y

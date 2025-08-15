@@ -23,13 +23,11 @@ Dependencies:
     - utils.math_utils: Angle and geometric calculations
 """
 
-from constants import default_color, default_point_size
+from constants import default_color
 from copy import deepcopy
 from drawables.drawable import Drawable
 from drawables.point import Point
 from drawables.segment import Segment
-import utils.math_utils as math_utils
-import math
 
 class Vector(Drawable):
     """Represents a directed line segment (vector) with origin, tip, and arrow head visualization.
@@ -54,7 +52,6 @@ class Vector(Drawable):
         self.segment = Segment(origin, tip, canvas=canvas, color=color)
         name = self.segment.name
         super().__init__(name=name, color=color, canvas=canvas)
-        self._initialize()
     
     @property
     def origin(self):
@@ -68,16 +65,6 @@ class Vector(Drawable):
     
     def get_class_name(self):
         return 'Vector'
-
-    def _initialize(self):
-        # No-op: segment computes screen coords via mapper when needed
-        pass
-
-    def _draw_tip_triangle(self):
-        # Rendering handled by renderer; no-op to preserve interface
-        return None
-
-    
 
     def get_state(self):
         origin = self.segment.point1.name
@@ -100,15 +87,11 @@ class Vector(Drawable):
 
     def translate(self, x_offset, y_offset):
         self.segment.translate(x_offset, y_offset)
-        self._initialize()
 
     def rotate(self, angle):
         """Rotate the vector around its origin by the given angle in degrees"""
         # Use segment's rotation method to rotate the line portion
         should_proceed, message = self.segment.rotate(angle)
         if not should_proceed:
-            return False, message
-            
-        # Initialize to update any dependent properties (like the tip triangle)
-        self._initialize()
+            return False, message      
         return True, None 

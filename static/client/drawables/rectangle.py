@@ -71,16 +71,9 @@ class Rectangle(RotatablePolygon):
         self.segment4 = segment4
         name = segment1.point1.name + segment1.point2.name + segment2.point2.name + segment3.point2.name
         super().__init__(name=name, color=color, canvas=canvas)
-        self._initialize()
 
     def get_class_name(self):
         return 'Rectangle'
-
-    
-
-    def _initialize(self):
-        # No-op: segments compute screen coords via mapper when needed
-        pass
 
     def _segments_form_rectangle(self, s1, s2, s3, s4):
         # Check if the end point of one segment is the start point of the next
@@ -123,8 +116,6 @@ class Rectangle(RotatablePolygon):
         
         for point in unique_points:
             point.translate(x_offset, y_offset)
-        
-        self._initialize()
 
     def get_vertices(self):
         """Return the set of unique vertices of the rectangle"""
