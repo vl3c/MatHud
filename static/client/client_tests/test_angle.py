@@ -380,8 +380,6 @@ class TestAngle(unittest.TestCase):
         self.assertAlmostEqual(copied_angle_non_reflex.raw_angle_degrees, 45.0, places=5)
         self.assertAlmostEqual(copied_angle_non_reflex.angle_degrees, 45.0, places=5)
         self.assertEqual(copied_angle_non_reflex.name, "angle_BAD")
-        # Standard deepcopy checks from before
-        self.assertIs(copied_angle_non_reflex.canvas, original_angle_non_reflex.canvas)
         self.assertIsNot(copied_angle_non_reflex.segment1, original_angle_non_reflex.segment1)
         self.assertIsNot(copied_angle_non_reflex.segment2, original_angle_non_reflex.segment2)
         self.assertEqual(copied_angle_non_reflex.segment1.name, original_angle_non_reflex.segment1.name)
@@ -400,7 +398,6 @@ class TestAngle(unittest.TestCase):
         self.assertAlmostEqual(copied_angle_reflex.raw_angle_degrees, 90.0, places=5)
         self.assertAlmostEqual(copied_angle_reflex.angle_degrees, 270.0, places=5)
         self.assertEqual(copied_angle_reflex.name, "angle_BAC_reflex")
-        self.assertIs(copied_angle_reflex.canvas, original_angle_reflex.canvas)
 
     def test_deepcopy_with_memo(self):
         # Non-reflex angle
@@ -414,7 +411,6 @@ class TestAngle(unittest.TestCase):
         copied_angle = deepcopy(original_angle, memo)
 
         self.assertIsNot(original_angle, copied_angle)
-        self.assertIs(copied_angle.canvas, original_angle.canvas)
         self.assertEqual(copied_angle.name, "angle_BAD")
         self.assertFalse(copied_angle.is_reflex)
         self.assertAlmostEqual(copied_angle.raw_angle_degrees, original_angle.raw_angle_degrees)

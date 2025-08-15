@@ -33,7 +33,7 @@ class Drawable:
         color (str): CSS color value for object visualization
         canvas (Canvas): Reference to the parent canvas for coordinate transformations
     """
-    def __init__(self, name="", color=default_color, canvas=None):
+    def __init__(self, name="", color=default_color):
         """Initialize a drawable object with basic properties.
         
         Args:
@@ -43,8 +43,6 @@ class Drawable:
         """
         self.name = name
         self.color = color
-        # Keep canvas reference for components/tests that require it (math models should not use it in logic)
-        self._canvas = canvas
     
     @property
     def name(self):
@@ -62,27 +60,15 @@ class Drawable:
     def color(self, value):
         self._color = value
 
-    @property
-    def canvas(self):
-        # Deprecated: retained for backward compatibility with some tests
-        return self._canvas
-
-    @canvas.setter
-    def canvas(self, value):
-        # Deprecated setter: accept but do not propagate into model logic
-        self._canvas = value
-
     def get_class_name(self):
         raise NotImplementedError("Subclasses must implement class_name method")
     
     def get_name(self):
         return self.name
     
-    
     def reset(self):
         # No-op: legacy initializer removed
         return None
-
     
     def get_state(self):
         raise NotImplementedError("Subclasses must implement get_state method")
