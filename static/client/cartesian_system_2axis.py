@@ -66,6 +66,8 @@ class Cartesian2Axis(Drawable):
         self.height = canvas.height
         self.default_tick_spacing = 100
         self.current_tick_spacing = 100  # Track the previous tick spacing to determine zoom level
+        # Bias factor to make intermediate tick spacing appear sooner (tuneable)
+        self.tick_spacing_bias = 0.5
         self.max_ticks = 10
         self.tick_size = 3
         self.tick_color = color
@@ -198,16 +200,19 @@ class Cartesian2Axis(Drawable):
         return relative_width / self.max_ticks  # Ideal width of a tick spacing
     
     def _find_appropriate_spacing(self, ideal_spacing):
-        # Find the order of magnitude of the ideal_tick_spacing
-        magnitude = 10 ** math.floor(math.log10(ideal_spacing))
-        possible_spacings = [magnitude * i for i in [1, 2.5, 5, 10]]      
-        
-        # Find the closest spacing to ideal_tick_spacing that is larger or equal to it
+        # Bias to densify sooner and coarsen later
+        effective_ideal = ideal_spacing * self.tick_spacing_bias
+        # Find the order of magnitude of the (biased) ideal spacing
+        magnitude = 10 ** math.floor(math.log10(effective_ideal))
+        # Standard nice steps (denser than 2.5): 1, 2, 5, 10
+        possible_spacings = [magnitude * i for i in [1, 2, 5, 10]]
+
+        # Pick the smallest spacing not less than effective_ideal
         for spacing in possible_spacings:
-            if spacing >= ideal_spacing:
+            if spacing >= effective_ideal:
                 return spacing
-                
-        # If none of the spacings fit (very unlikely), fallback to the smallest spacing
+
+        # Fallback
         return possible_spacings[0]
 
     def _invalidate_cache_on_zoom(self):
