@@ -41,7 +41,7 @@ class Segment(Drawable):
         point2 (Point): Second endpoint of the segment
         line_formula (dict): Algebraic line equation coefficients (a, b, c for ax + by + c = 0)
     """
-    def __init__(self, p1, p2, canvas, color=default_color):
+    def __init__(self, p1, p2, color=default_color):
         """Initialize a line segment between two points.
         
         Args:
@@ -54,7 +54,7 @@ class Segment(Drawable):
         self.point2 = p2
         self.line_formula = self._calculate_line_algebraic_formula()
         name = self.point1.name + self.point2.name
-        super().__init__(name=name, color=color, canvas=canvas)
+        super().__init__(name=name, color=color)
 
     def get_class_name(self):
         return 'Segment'
@@ -79,7 +79,7 @@ class Segment(Drawable):
         new_p1 = deepcopy(self.point1, memo)
         new_p2 = deepcopy(self.point2, memo)
         # Create a new Segment instance with the copied points
-        new_segment = Segment(new_p1, new_p2, canvas=self.canvas, color=self.color)
+        new_segment = Segment(new_p1, new_p2, color=self.color)
         memo[id(self)] = new_segment
 
         return new_segment

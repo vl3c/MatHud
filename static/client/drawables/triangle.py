@@ -41,7 +41,7 @@ class Triangle(RotatablePolygon):
         segment2 (Segment): Second side of the triangle  
         segment3 (Segment): Third side of the triangle
     """
-    def __init__(self, segment1, segment2, segment3, canvas, color=default_color):
+    def __init__(self, segment1, segment2, segment3, color=default_color):
         """Initialize a triangle from three connected line segments.
         
         Validates that the segments form a proper triangle before construction.
@@ -62,7 +62,7 @@ class Triangle(RotatablePolygon):
         self.segment2 = segment2
         self.segment3 = segment3
         name = self._set_name()
-        super().__init__(name=name, color=color, canvas=canvas)
+        super().__init__(name=name, color=color)
 
     def _set_name(self):
         # Get unique vertices using a set first, then sort
@@ -106,7 +106,7 @@ class Triangle(RotatablePolygon):
         new_s1 = deepcopy(self.segment1, memo)
         new_s2 = deepcopy(self.segment2, memo)
         new_s3 = deepcopy(self.segment3, memo)
-        new_triangle = Triangle(new_s1, new_s2, new_s3, canvas=self.canvas, color=self.color)
+        new_triangle = Triangle(new_s1, new_s2, new_s3, color=self.color)
         memo[id(self)] = new_triangle
         return new_triangle
 

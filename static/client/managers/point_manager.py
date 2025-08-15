@@ -124,7 +124,7 @@ class PointManager:
         name = self.name_generator.generate_point_name(name)
         
         # Create the new point
-        new_point = Point(x=x, y=y, canvas=self.canvas, name=name)
+        new_point = Point(x=x, y=y, name=name)
         
         # Add to drawables
         self.drawables.add(new_point)

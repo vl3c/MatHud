@@ -885,7 +885,6 @@ class TestMathFunctions(unittest.TestCase):
             # Test function with vertical asymptotes: tan(x) has asymptotes at π/2 + nπ
             function = Function(
                 function_string="tan(x)",
-                canvas=mock_canvas,
                 name="test_tan",
                 left_bound=-5,
                 right_bound=5
@@ -915,7 +914,6 @@ class TestMathFunctions(unittest.TestCase):
             # Test with another function: 1/x has asymptote at x=0
             function2 = Function(
                 function_string="1/x", 
-                canvas=mock_canvas,
                 name="test_reciprocal",
                 left_bound=-2,
                 right_bound=2
@@ -975,7 +973,6 @@ class TestMathFunctions(unittest.TestCase):
             # Test a continuous function: sin(x) should have one continuous path
             function_sin = Function(
                 function_string="sin(x)",
-                canvas=mock_canvas,
                 name="test_sin",
                 left_bound=-10,
                 right_bound=10
@@ -1005,7 +1002,6 @@ class TestMathFunctions(unittest.TestCase):
             # Test a quadratic function: x^2 should also be one continuous path
             function_quad = Function(
                 function_string="x^2",
-                canvas=mock_canvas,
                 name="test_quad",
                 left_bound=-5,
                 right_bound=5
@@ -1019,7 +1015,6 @@ class TestMathFunctions(unittest.TestCase):
             # Test a complex but safer function first
             function_moderate = Function(
                 function_string="sin(x/10) + cos(x/15)",  # Two different frequencies, no asymptotes
-                canvas=mock_canvas,
                 name="test_moderate",
                 left_bound=-20,
                 right_bound=20
@@ -1032,7 +1027,6 @@ class TestMathFunctions(unittest.TestCase):
             # Test the original problematic function but with a simpler version and safer range
             function_complex = Function(
                 function_string="10 * sin(x / 20)",  # Simpler version to test basic functionality
-                canvas=mock_canvas,
                 name="test_complex",
                 left_bound=-50,  # Even safer range
                 right_bound=50
@@ -1049,7 +1043,6 @@ class TestMathFunctions(unittest.TestCase):
             # Test a simpler case to ensure basic functionality
             function_simple = Function(
                 function_string="sin(x/10)",  # Simple sine function
-                canvas=mock_canvas,
                 name="test_simple",
                 left_bound=-10,
                 right_bound=10
@@ -1063,7 +1056,6 @@ class TestMathFunctions(unittest.TestCase):
             try:
                 function_original = Function(
                     function_string="100 * sin(x / 50) + 50 * tan(x / 100)",
-                    canvas=mock_canvas,
                     name="test_original",
                     left_bound=-30,  # Very small, safe range
                     right_bound=30

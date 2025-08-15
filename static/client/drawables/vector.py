@@ -40,7 +40,7 @@ class Vector(Drawable):
         origin (Point): Starting point of the vector (property access to segment.point1)
         tip (Point): Ending point of the vector (property access to segment.point2)
     """
-    def __init__(self, origin, tip, canvas, color=default_color):
+    def __init__(self, origin, tip, color=default_color):
         """Initialize a vector with origin and tip points.
         
         Args:
@@ -49,9 +49,9 @@ class Vector(Drawable):
             canvas (Canvas): Parent canvas for coordinate transformations
             color (str): CSS color value for vector visualization
         """
-        self.segment = Segment(origin, tip, canvas=canvas, color=color)
+        self.segment = Segment(origin, tip, color=color)
         name = self.segment.name
-        super().__init__(name=name, color=color, canvas=canvas)
+        super().__init__(name=name, color=color)
     
     @property
     def origin(self):
@@ -80,7 +80,7 @@ class Vector(Drawable):
         new_origin = deepcopy(self.segment.point1, memo)
         new_tip = deepcopy(self.segment.point2, memo)
         # Create a new Vector instance with the deep-copied points
-        new_vector = Vector(new_origin, new_tip, self.canvas, color=self.color)
+        new_vector = Vector(new_origin, new_tip, color=self.color)
         # Store the newly created vector in the memo dictionary
         memo[id(self)] = new_vector
         return new_vector

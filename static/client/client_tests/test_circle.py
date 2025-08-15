@@ -28,9 +28,9 @@ class TestCircle(unittest.TestCase):
         # Sync canvas state with coordinate mapper
         self.coordinate_mapper.sync_from_canvas(self.canvas)
         
-        self.center = Point(1, 1, self.canvas, name="Center", color="black")
+        self.center = Point(1, 1, name="Center", color="black")
         self.radius = 5
-        self.circle = Circle(self.center, self.radius, self.canvas, color="blue")
+        self.circle = Circle(self.center, self.radius, color="blue")
 
     def test_init(self):
         self.assertEqual(self.circle.center, self.center)

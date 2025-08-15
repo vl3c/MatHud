@@ -161,13 +161,13 @@ class ColoredAreaManager:
                     y = get_y_at_x(drawable1, x2_max)
                     self.drawable_manager.create_point(x2_max, y)
 
-            colored_area = SegmentsBoundedColoredArea(drawable1, drawable2, canvas=self.canvas, color=color, opacity=opacity)
+            colored_area = SegmentsBoundedColoredArea(drawable1, drawable2, color=color, opacity=opacity)
         elif isinstance(drawable2, Segment):
             # Function-segment case (we know drawable1 is not a segment due to the swap above)
-            colored_area = FunctionSegmentBoundedColoredArea(drawable1, drawable2, canvas=self.canvas, color=color, opacity=opacity)
+            colored_area = FunctionSegmentBoundedColoredArea(drawable1, drawable2, color=color, opacity=opacity)
         else:
             # Function-function case
-            colored_area = FunctionsBoundedColoredArea(drawable1, drawable2, canvas=self.canvas, 
+            colored_area = FunctionsBoundedColoredArea(drawable1, drawable2, 
                                                      left_bound=left_bound, right_bound=right_bound,
                                                      color=color, opacity=opacity)
 

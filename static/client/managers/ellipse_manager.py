@@ -137,8 +137,8 @@ class EllipseManager:
         # Create center point with the correct name
         center = self.point_manager.create_point(center_x, center_y, point_names[0], extra_graphics=False)
             
-        # Create the ellipse
-        new_ellipse = Ellipse(center, radius_x, radius_y, self.canvas, rotation_angle=rotation_angle)
+        # Create the ellipse (math-only)
+        new_ellipse = Ellipse(center, radius_x, radius_y, rotation_angle=rotation_angle)
         
         # Add to drawables
         self.drawables.add(new_ellipse)

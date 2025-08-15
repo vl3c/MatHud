@@ -149,8 +149,8 @@ class SegmentManager:
         p1 = self.point_manager.create_point(x1, y1, name=point_names[0], extra_graphics=False)
         p2 = self.point_manager.create_point(x2, y2, name=point_names[1], extra_graphics=False)
             
-        # Create the segment
-        segment = Segment(p1, p2, self.canvas)
+        # Create the segment (math-only; renderer uses canvas as needed)
+        segment = Segment(p1, p2)
         
         # Add to drawables
         self.drawables.add(segment)

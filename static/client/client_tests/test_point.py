@@ -28,7 +28,7 @@ class TestPoint(unittest.TestCase):
         # Sync canvas state with coordinate mapper
         self.coordinate_mapper.sync_from_canvas(self.canvas)
         
-        self.point = Point(1, 2, self.canvas, name="p1", color="red")
+        self.point = Point(1, 2, name="p1", color="red")
 
     def test_initialize(self):
         # Screen-space assertions use CoordinateMapper

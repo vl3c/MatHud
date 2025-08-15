@@ -28,11 +28,11 @@ class TestEllipse(unittest.TestCase):
         # Sync canvas state with coordinate mapper
         self.coordinate_mapper.sync_from_canvas(self.canvas)
         
-        self.center = Point(2, 2, self.canvas, name="Center", color="black")
+        self.center = Point(2, 2, name="Center", color="black")
         self.radius_x = 5
         self.radius_y = 3
         self.rotation_angle = 45
-        self.ellipse = Ellipse(self.center, self.radius_x, self.radius_y, self.canvas, color="red", rotation_angle=self.rotation_angle)
+        self.ellipse = Ellipse(self.center, self.radius_x, self.radius_y, color="red", rotation_angle=self.rotation_angle)
 
     def test_init(self):
         self.assertEqual(self.ellipse.center, self.center)

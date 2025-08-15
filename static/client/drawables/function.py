@@ -4,7 +4,7 @@ from expression_validator import ExpressionValidator
 
 
 class Function(Drawable):
-    def __init__(self, function_string, canvas, name, step=default_point_size, color=default_color, left_bound=None, right_bound=None, vertical_asymptotes=None, horizontal_asymptotes=None, point_discontinuities=None):
+    def __init__(self, function_string, name=None, step=default_point_size, color=default_color, left_bound=None, right_bound=None, vertical_asymptotes=None, horizontal_asymptotes=None, point_discontinuities=None):
         self.step = step
         self.left_bound = left_bound
         self.right_bound = right_bound
@@ -22,7 +22,7 @@ class Function(Drawable):
                 self._calculate_asymptotes_and_discontinuities()
         except Exception as e:
             raise ValueError(f"Failed to parse function string '{function_string}': {str(e)}")
-        super().__init__(name=name, color=color, canvas=canvas)
+        super().__init__(name=name or "f", color=color)
     
     def get_class_name(self):
         return 'Function'
@@ -53,7 +53,6 @@ class Function(Drawable):
             return memo[id(self)]
         new_function = Function(
             function_string=self.function_string,
-            canvas=self.canvas,
             name=self.name,
             step=self.step,
             color=self.color,

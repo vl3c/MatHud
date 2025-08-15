@@ -31,7 +31,7 @@ class SegmentsBoundedColoredArea(ColoredArea):
         segment2 (Segment or None): The second bounding segment (None means x-axis)
     """
 
-    def __init__(self, segment1, segment2=None, canvas=None, color="lightblue", opacity=0.3):
+    def __init__(self, segment1, segment2=None, color="lightblue", opacity=0.3):
         """Initialize a segments bounded colored area.
         
         Args:
@@ -42,7 +42,7 @@ class SegmentsBoundedColoredArea(ColoredArea):
             opacity (float): Opacity value between 0.0 and 1.0
         """
         name = self._generate_name(segment1, segment2)
-        super().__init__(name=name, canvas=canvas, color=color, opacity=opacity)
+        super().__init__(name=name, color=color, opacity=opacity)
         self.segment1 = segment1
         self.segment2 = segment2
 
@@ -84,9 +84,9 @@ class SegmentsBoundedColoredArea(ColoredArea):
             
         # Create new instance using __init__
         new_area = SegmentsBoundedColoredArea(
-            segment1=self.segment1,  # Segments will be properly deep copied by their own __deepcopy__
+            segment1=self.segment1,
             segment2=self.segment2,
-            canvas=self.canvas,  # Canvas reference is not deep copied
+            
             color=self.color,
             opacity=self.opacity
         )

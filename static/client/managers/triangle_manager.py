@@ -151,7 +151,7 @@ class TriangleManager:
                                                extra_graphics=False)
             
         # Create the triangle
-        new_triangle = Triangle(s1, s2, s3, self.canvas)
+        new_triangle = Triangle(s1, s2, s3)
         
         # Add to drawables
         self.drawables.add(new_triangle)

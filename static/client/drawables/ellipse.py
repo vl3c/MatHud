@@ -42,7 +42,7 @@ class Ellipse(Drawable):
         rotation_angle (float): Rotation angle in degrees for ellipse orientation
         ellipse_formula (dict): Algebraic ellipse equation coefficients
     """
-    def __init__(self, center_point, radius_x, radius_y, canvas, rotation_angle=0, color=default_color):
+    def __init__(self, center_point, radius_x, radius_y, rotation_angle=0, color=default_color):
         """Initialize an ellipse with center point, radii, and rotation.
         
         Args:
@@ -59,7 +59,7 @@ class Ellipse(Drawable):
         self.rotation_angle = rotation_angle  # Initialize with provided angle
         self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
         name = f"{self.center.name}({str(self.radius_x)}, {str(self.radius_y)})"
-        super().__init__(name=name, color=color, canvas=canvas)
+        super().__init__(name=name, color=color)
 
     def get_class_name(self):
         return 'Ellipse'
@@ -90,7 +90,7 @@ class Ellipse(Drawable):
         new_center = deepcopy(self.center, memo)
         # Create a new Ellipse instance with the copied center point and other properties
         new_ellipse = Ellipse(new_center, self.radius_x, self.radius_y, 
-                             canvas=self.canvas, color=self.color, 
+                             color=self.color, 
                              rotation_angle=self.rotation_angle)
         memo[id(self)] = new_ellipse
         return new_ellipse

@@ -29,7 +29,7 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
         func (Function, None, or number): The bounding function
         segment (Segment): The bounding line segment
     """
-    def __init__(self, func, segment, canvas=None, color="lightblue", opacity=0.3):
+    def __init__(self, func, segment, color="lightblue", opacity=0.3):
         """Initialize a function segment bounded colored area.
         
         Args:
@@ -40,7 +40,7 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
             opacity (float): Opacity value between 0.0 and 1.0
         """
         name = self._generate_name(func, segment)
-        super().__init__(name=name, canvas=canvas, color=color, opacity=opacity)
+        super().__init__(name=name, color=color, opacity=opacity)
         self.func = func
         self.segment = segment
 
@@ -115,8 +115,6 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
         right_bound = min(seg_right, func_right)
         return left_bound, right_bound
 
-    
-
     def _generate_segment_points(self):
         """Generate points for the segment path (in reverse order)."""
         return [(self.segment.point2.x, self.segment.point2.y),
@@ -151,16 +149,6 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
                 return True
             if (same_point(a1x, a1y, b2x, b2y) and same_point(a2x, a2y, b1x, b1y)):
                 return True
-
-            # Screen space comparison via mapper (both orders)
-            if self.canvas and hasattr(self.canvas, 'coordinate_mapper') and self.canvas.coordinate_mapper:
-                cm = self.canvas.coordinate_mapper
-                s1x, s1y = cm.math_to_screen(a1x, a1y)
-                s2x, s2y = cm.math_to_screen(a2x, a2y)
-                if (same_point(s1x, s1y, b1x, b1y) and same_point(s2x, s2y, b2x, b2y)):
-                    return True
-                if (same_point(s1x, s1y, b2x, b2y) and same_point(s2x, s2y, b1x, b1y)):
-                    return True
         except Exception:
             return False
         return False
@@ -182,8 +170,7 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
         # Create new instance using __init__
         new_area = FunctionSegmentBoundedColoredArea(
             func=self.func,  # Function will be properly deep copied by its own __deepcopy__
-            segment=self.segment,  # Segment will be properly deep copied by its own __deepcopy__
-            canvas=self.canvas,  # Canvas reference is not deep copied
+            segment=self.segment,  # Segment will be properly deep copied by its own __deepcopy__  
             color=self.color,
             opacity=self.opacity
         )

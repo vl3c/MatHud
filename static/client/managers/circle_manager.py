@@ -132,8 +132,8 @@ class CircleManager:
         # Create center point with the correct name
         center = self.point_manager.create_point(center_x, center_y, point_names[0], extra_graphics=False)
             
-        # Create the circle
-        new_circle = Circle(center, radius, self.canvas)
+        # Create the circle (math-only)
+        new_circle = Circle(center, radius)
         
         # Add to drawables
         self.drawables.add(new_circle)

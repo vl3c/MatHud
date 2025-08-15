@@ -30,9 +30,9 @@ class TestSegment(unittest.TestCase):
         self.coordinate_mapper.sync_from_canvas(self.canvas)
         
         # Create test points with proper coordinate transformation
-        self.p1 = Point(0, 0, self.canvas, name="A", color="red")
-        self.p2 = Point(3, 4, self.canvas, name="B", color="red")
-        self.segment = Segment(self.p1, self.p2, self.canvas, color="blue")
+        self.p1 = Point(0, 0, name="A", color="red")
+        self.p2 = Point(3, 4, name="B", color="red")
+        self.segment = Segment(self.p1, self.p2, color="blue")
 
     def test_initialize(self):
         # Real coordinate transformation: origin at (250, 250)

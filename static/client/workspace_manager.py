@@ -641,10 +641,10 @@ class WorkspaceManager:
                 # Create new segments with correct orientations for Rectangle constructor
                 try:
                     # Create segments with proper connectivity: each segment's end connects to next segment's start
-                    seg1 = Segment(p1, p2, self.canvas)  # p1 -> p2
-                    seg2 = Segment(p2, p3, self.canvas)  # p2 -> p3  
-                    seg3 = Segment(p3, p4, self.canvas)  # p3 -> p4
-                    seg4 = Segment(p4, p1, self.canvas)  # p4 -> p1
+                    seg1 = Segment(p1, p2)  # p1 -> p2
+                    seg2 = Segment(p2, p3)  # p2 -> p3  
+                    seg3 = Segment(p3, p4)  # p3 -> p4
+                    seg4 = Segment(p4, p1)  # p4 -> p1
                     
                     # Verify this satisfies Rectangle constructor requirements
                     if (seg1.point2 == seg2.point1 and 

@@ -43,7 +43,8 @@ class Drawable:
         """
         self.name = name
         self.color = color
-        self.canvas = canvas
+        # Keep canvas reference for components/tests that require it (math models should not use it in logic)
+        self._canvas = canvas
     
     @property
     def name(self):
@@ -63,10 +64,12 @@ class Drawable:
 
     @property
     def canvas(self):
+        # Deprecated: retained for backward compatibility with some tests
         return self._canvas
 
     @canvas.setter
     def canvas(self, value):
+        # Deprecated setter: accept but do not propagate into model logic
         self._canvas = value
 
     def get_class_name(self):

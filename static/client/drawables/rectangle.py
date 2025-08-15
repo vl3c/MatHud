@@ -42,7 +42,7 @@ class Rectangle(RotatablePolygon):
         segment3 (Segment): Third side of the rectangle
         segment4 (Segment): Fourth side of the rectangle
     """
-    def __init__(self, segment1, segment2, segment3, segment4, canvas, color=default_color):
+    def __init__(self, segment1, segment2, segment3, segment4, color=default_color):
         """Initialize a rectangle from four connected line segments.
         
         Validates that the segments form a proper rectangle with right angles.
@@ -70,7 +70,7 @@ class Rectangle(RotatablePolygon):
         self.segment3 = segment3
         self.segment4 = segment4
         name = segment1.point1.name + segment1.point2.name + segment2.point2.name + segment3.point2.name
-        super().__init__(name=name, color=color, canvas=canvas)
+        super().__init__(name=name, color=color)
 
     def get_class_name(self):
         return 'Rectangle'
@@ -106,7 +106,7 @@ class Rectangle(RotatablePolygon):
         new_s2 = deepcopy(self.segment2, memo)
         new_s3 = deepcopy(self.segment3, memo)
         new_s4 = deepcopy(self.segment4, memo)
-        new_rectangle = Rectangle(new_s1, new_s2, new_s3, new_s4, canvas=self.canvas, color=self.color)
+        new_rectangle = Rectangle(new_s1, new_s2, new_s3, new_s4, color=self.color)
         memo[id(self)] = new_rectangle
         return new_rectangle
 

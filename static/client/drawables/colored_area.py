@@ -30,7 +30,7 @@ class ColoredArea(Drawable):
         opacity (float): Fill opacity value between 0.0 and 1.0
         color (str): CSS color value for area fill
     """
-    def __init__(self, name, canvas=None, color="lightblue", opacity=0.3):
+    def __init__(self, name, color="lightblue", opacity=0.3):
         """Initialize a colored area with basic properties.
         
         Args:
@@ -39,12 +39,8 @@ class ColoredArea(Drawable):
             color (str): CSS color value for area fill
             opacity (float): Fill opacity between 0.0 and 1.0
         """
-        super().__init__(name=name, color=color, canvas=canvas)
+        super().__init__(name=name, color=color)
         self.opacity = opacity
-
-    
-
-    # Rendering is handled by the renderer; no SVG element creation here
 
     def get_class_name(self):
         return 'ColoredArea'

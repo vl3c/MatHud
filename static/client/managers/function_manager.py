@@ -125,8 +125,8 @@ class FunctionManager:
             # Generate a proper name if needed
             name = self.name_generator.generate_function_name(name)
                 
-            # Create the function
-            new_function = Function(function_string, self.canvas, name=name, left_bound=left_bound, right_bound=right_bound)
+            # Create the function (math-only)
+            new_function = Function(function_string, name=name, left_bound=left_bound, right_bound=right_bound)
             
             # Add to drawables
             self.drawables.add(new_function)

@@ -46,40 +46,38 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
 
     def test_init_with_two_segments(self):
         """Test initialization of SegmentsBoundedColoredArea with two segments."""
-        area = SegmentsBoundedColoredArea(self.segment1, self.segment2, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         self.assertEqual(area.segment1, self.segment1)
         self.assertEqual(area.segment2, self.segment2)
-        self.assertEqual(area.canvas, self.canvas)
         self.assertEqual(area.color, "lightblue")
         self.assertEqual(area.opacity, 0.3)
 
     def test_init_with_segment_and_x_axis(self):
         """Test initialization of SegmentsBoundedColoredArea with segment and x-axis."""
-        area = SegmentsBoundedColoredArea(self.segment1, None, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, None)
         self.assertEqual(area.segment1, self.segment1)
         self.assertIsNone(area.segment2)
-        self.assertEqual(area.canvas, self.canvas)
 
     def test_get_class_name(self):
         """Test class name retrieval."""
-        area = SegmentsBoundedColoredArea(self.segment1, self.segment2, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         self.assertEqual(area.get_class_name(), 'SegmentsBoundedColoredArea')
 
     def test_generate_name_with_two_segments(self):
         """Test name generation with two segments."""
-        area = SegmentsBoundedColoredArea(self.segment1, self.segment2, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         expected_name = "area_between_AB_and_CD"
         self.assertEqual(area.name, expected_name)
 
     def test_generate_name_with_segment_and_x_axis(self):
         """Test name generation with segment and x-axis."""
-        area = SegmentsBoundedColoredArea(self.segment1, None, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, None)
         expected_name = "area_between_AB_and_x_axis"
         self.assertEqual(area.name, expected_name)
 
     def test_uses_segment_with_matching_first_segment(self):
         """Test uses_segment method with matching first segment."""
-        area = SegmentsBoundedColoredArea(self.segment1, self.segment2, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         
         # Create matching segment
         matching_segment = SimpleMock(
@@ -91,7 +89,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
 
     def test_uses_segment_with_matching_second_segment(self):
         """Test uses_segment method with matching second segment."""
-        area = SegmentsBoundedColoredArea(self.segment1, self.segment2, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         
         # Create matching segment
         matching_segment = SimpleMock(
@@ -103,7 +101,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
 
     def test_uses_segment_with_non_matching_segment(self):
         """Test uses_segment method with non-matching segment."""
-        area = SegmentsBoundedColoredArea(self.segment1, self.segment2, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         
         # Create non-matching segment
         different_segment = SimpleMock(
@@ -115,7 +113,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
 
     def test_uses_segment_with_only_first_segment(self):
         """Test uses_segment method when only first segment exists."""
-        area = SegmentsBoundedColoredArea(self.segment1, None, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, None)
         
         # Create matching segment
         matching_segment = SimpleMock(
@@ -134,7 +132,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
 
     def test_x_axis_positioning_uses_cartesian_origin(self):
         """Test that x-axis positioning correctly uses cartesian origin for simplicity."""
-        area = SegmentsBoundedColoredArea(self.segment1, None, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, None)
         
         # The renderer will use cartesian2axis.origin.y for x-axis positioning
         # since segment points are already in screen coordinates
@@ -143,7 +141,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
 
     def test_get_state_with_two_segments(self):
         """Test state serialization with two segments."""
-        area = SegmentsBoundedColoredArea(self.segment1, self.segment2, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         state = area.get_state()
         
         expected_args = {
@@ -155,7 +153,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
 
     def test_get_state_with_segment_and_x_axis(self):
         """Test state serialization with segment and x-axis."""
-        area = SegmentsBoundedColoredArea(self.segment1, None, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, None)
         state = area.get_state()
         
         expected_args = {
@@ -167,7 +165,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
 
     def test_deepcopy(self):
         """Test deep copy functionality."""
-        area = SegmentsBoundedColoredArea(self.segment1, self.segment2, self.canvas)
+        area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         area_copy = copy.deepcopy(area)
         
         self.assertIsNot(area_copy, area)
@@ -175,7 +173,6 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         self.assertEqual(area_copy.segment2, area.segment2)
         self.assertEqual(area_copy.color, area.color)
         self.assertEqual(area_copy.opacity, area.opacity)
-        self.assertEqual(area_copy.canvas, area.canvas)  # Canvas reference should be same 
 
     def test_no_overlap_segments(self):
         """Test case where segments don't overlap - should not draw anything."""
@@ -192,7 +189,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
             point2=SimpleMock(x=400, y=220)
         )
         
-        area = SegmentsBoundedColoredArea(segment1, segment2, self.canvas)
+        area = SegmentsBoundedColoredArea(segment1, segment2)
         
         # Use renderable instead of spying on draw()
         renderable = SegmentsBoundedAreaRenderable(area, self.coordinate_mapper)
@@ -214,7 +211,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
             point2=SimpleMock(x=300, y=220)
         )
         
-        area = SegmentsBoundedColoredArea(segment1, segment2, self.canvas)
+        area = SegmentsBoundedColoredArea(segment1, segment2)
         
         # Use renderable instead of spying on draw()
         renderable = SegmentsBoundedAreaRenderable(area, self.coordinate_mapper)
@@ -236,7 +233,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
             point2=SimpleMock(x=200, y=300)
         )
         
-        area = SegmentsBoundedColoredArea(normal_segment, vertical_segment, self.canvas)
+        area = SegmentsBoundedColoredArea(normal_segment, vertical_segment)
         
         # For vertical segment, the get_y_at_x function should handle x2 == x1 case
         # Let's test this directly
@@ -266,7 +263,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
             point2=SimpleMock(x=-50, y=-20)
         )
         
-        area = SegmentsBoundedColoredArea(negative_segment1, negative_segment2, self.canvas)
+        area = SegmentsBoundedColoredArea(negative_segment1, negative_segment2)
         
         renderable = SegmentsBoundedAreaRenderable(area, self.coordinate_mapper)
         closed_area = renderable.build_screen_area()
@@ -288,7 +285,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
             point2=SimpleMock(x=150, y=-100)
         )
         
-        area = SegmentsBoundedColoredArea(crossing_segment1, crossing_segment2, self.canvas)
+        area = SegmentsBoundedColoredArea(crossing_segment1, crossing_segment2)
         
         # Test name generation
         expected_name = "area_between_AB_and_CD"

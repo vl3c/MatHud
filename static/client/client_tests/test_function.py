@@ -41,7 +41,7 @@ class TestFunction(unittest.TestCase):
         self.right_bound = 9
         self.function_string = "x*2"
         self.name = "DoubleX"
-        self.function = Function(self.function_string, self.canvas, self.name, left_bound=self.left_bound, right_bound=self.right_bound)
+        self.function = Function(self.function_string, self.name, left_bound=self.left_bound, right_bound=self.right_bound)
 
     def test_initialize(self):
         # Test that the function is correctly initialized
@@ -51,7 +51,7 @@ class TestFunction(unittest.TestCase):
 
     def test_init_with_invalid_function_explicit(self):
         with self.assertRaises(ValueError):
-            _ = Function("sin(/0)", self.canvas, "InvalidFunction")
+            _ = Function("sin(/0)", "InvalidFunction")
 
     def test_get_class_name(self):
         self.assertEqual(self.function.get_class_name(), 'Function')
@@ -153,8 +153,8 @@ class TestFunction(unittest.TestCase):
 
     def test_adaptive_step_size(self):
         # Test function with varying slopes using FunctionRenderable
-        steep_function = Function("100*x", self.canvas, "Steep")
-        gradual_function = Function("0.1*x", self.canvas, "Gradual")
+        steep_function = Function("100*x", "Steep")
+        gradual_function = Function("0.1*x", "Gradual")
         
         steep_renderable = FunctionRenderable(steep_function, self.canvas.coordinate_mapper)
         gradual_renderable = FunctionRenderable(gradual_function, self.canvas.coordinate_mapper)
@@ -167,12 +167,13 @@ class TestFunction(unittest.TestCase):
         gradual_total_points = sum(len(path) for path in gradual_paths)
         
         # Steep function should have MORE points for better detail
-        self.assertGreaterEqual(steep_total_points, gradual_total_points, 
+        # Steep function should have at least as many points as the gradual one
+        self.assertGreaterEqual(steep_total_points, gradual_total_points,
                               f"Expected steep function to have at least as many points ({steep_total_points}) as gradual function ({gradual_total_points})")
 
     def test_discontinuity_handling(self):
         # Test function with discontinuity using FunctionRenderable
-        discontinuous_function = Function("1/x", self.canvas, "Discontinuous", step=0.5)  # Smaller step size
+        discontinuous_function = Function("1/x", "Discontinuous", step=0.5)  # Smaller step size
         renderable = FunctionRenderable(discontinuous_function, self.canvas.coordinate_mapper)
         paths = renderable.build_screen_paths().paths
         
@@ -249,7 +250,7 @@ class TestFunction(unittest.TestCase):
     def test_draw_with_empty_points(self):
         # Test drawing behavior when no points are generated using FunctionRenderable
         # Create a function that should generate no valid points
-        empty_function = Function("sin(1/0)", self.canvas, "Empty")  # This should fail evaluation
+        empty_function = Function("sin(1/0)", "Empty")  # This should fail evaluation
         renderable = FunctionRenderable(empty_function, self.canvas.coordinate_mapper)
         
         # Should not raise error when building paths with invalid function
@@ -274,7 +275,7 @@ class TestFunction(unittest.TestCase):
 
     def test_performance_limits(self):
         # Test that point generation doesn't exceed limits using FunctionRenderable
-        complex_function = Function("sin(x*10)", self.canvas, "Complex")
+        complex_function = Function("sin(x*10)", "Complex")
         renderable = FunctionRenderable(complex_function, self.canvas.coordinate_mapper)
         paths = renderable.build_screen_paths().paths
         
@@ -305,7 +306,7 @@ class TestFunction(unittest.TestCase):
         for function_string, description, min_points, max_points in test_cases:
             with self.subTest(function_string=function_string, description=description):
                 try:
-                    f = Function(function_string, self.canvas, "test_func")
+                    f = Function(function_string, "test_func")
                     renderable = FunctionRenderable(f, self.canvas.coordinate_mapper)
                     paths = renderable.build_screen_paths().paths
                     self.assertIsNotNone(paths)

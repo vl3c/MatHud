@@ -37,7 +37,7 @@ class Point(Drawable):
     Attributes:
         x, y (float): Mathematical coordinates (unaffected by zoom/pan)
     """
-    def __init__(self, x, y, canvas, name="", color=default_color):
+    def __init__(self, x, y, name="", color=default_color):
         """Initialize a point with mathematical coordinates and canvas integration.
         
         Args:
@@ -49,7 +49,7 @@ class Point(Drawable):
         """
         self._x = float(x)
         self._y = float(y)
-        super().__init__(name=name, color=color, canvas=canvas)
+        super().__init__(name=name, color=color)
     
     def get_class_name(self):
         return 'Point'
@@ -68,7 +68,7 @@ class Point(Drawable):
             return memo[id(self)]
         # For undo / redo / archive functionality
         # Create a new Point instance with the same coordinates and properties, but do not deep copy the canvas
-        new_point = Point(self.x, self.y, self.canvas, name=self.name, color=self.color)
+        new_point = Point(self.x, self.y, name=self.name, color=self.color)
         memo[id(self)] = new_point
         return new_point
 

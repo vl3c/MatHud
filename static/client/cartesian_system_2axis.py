@@ -75,6 +75,8 @@ class Cartesian2Axis(Drawable):
         self.tick_label_font_size = 8
         self.grid_color = "lightgrey"
         super().__init__(name=self.name, color=color, canvas=canvas)
+        # Ensure canvas is stored for coordinate/bounds access
+        self.canvas = canvas
 
     @Drawable.canvas.setter
     def canvas(self, value):
@@ -189,8 +191,6 @@ class Cartesian2Axis(Drawable):
     def _draw_grid_line(self, axis, grid_mark):
         return
 
-
-   
     def _calculate_tick_spacing(self):
         ideal_spacing = self._calculate_ideal_tick_spacing()
         return self._find_appropriate_spacing(ideal_spacing)

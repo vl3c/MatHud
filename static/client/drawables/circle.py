@@ -39,7 +39,7 @@ class Circle(Drawable):
         radius (float): Radius in mathematical coordinate units
         circle_formula (dict): Algebraic circle equation coefficients
     """
-    def __init__(self, center_point, radius, canvas, color=default_color):
+    def __init__(self, center_point, radius, color=default_color):
         """Initialize a circle with center point and radius.
         
         Args:
@@ -52,7 +52,7 @@ class Circle(Drawable):
         self.radius = radius
         self.circle_formula = self._calculate_circle_algebraic_formula()
         name = f"{self.center.name}({str(self.radius)})"
-        super().__init__(name=name, color=color, canvas=canvas)
+        super().__init__(name=name, color=color)
 
     def get_class_name(self):
         return 'Circle'
@@ -76,7 +76,7 @@ class Circle(Drawable):
         # Deep copy the center point
         new_center = deepcopy(self.center, memo)
         # Create a new Circle instance with the copied center point and other properties
-        new_circle = Circle(new_center, self.radius, canvas=self.canvas, color=self.color)
+        new_circle = Circle(new_center, self.radius, color=self.color)
         memo[id(self)] = new_circle
         return new_circle
 

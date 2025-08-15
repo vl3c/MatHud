@@ -30,17 +30,17 @@ class TestRectangle(unittest.TestCase):
         self.coordinate_mapper.sync_from_canvas(self.canvas)
         
         # Setup points for the rectangle
-        self.p1 = Point(0, 0, self.canvas, name="P1", color="red")
-        self.p2 = Point(4, 0, self.canvas, name="P2", color="green")
-        self.p3 = Point(4, 3, self.canvas, name="P3", color="blue")
-        self.p4 = Point(0, 3, self.canvas, name="P4", color="yellow")
+        self.p1 = Point(0, 0, name="P1", color="red")
+        self.p2 = Point(4, 0, name="P2", color="green")
+        self.p3 = Point(4, 3, name="P3", color="blue")
+        self.p4 = Point(0, 3, name="P4", color="yellow")
         # Setup segments for the rectangle
-        self.segment1 = Segment(self.p1, self.p2, self.canvas, "red")
-        self.segment2 = Segment(self.p2, self.p3, self.canvas, "green")
-        self.segment3 = Segment(self.p3, self.p4, self.canvas, "blue")
-        self.segment4 = Segment(self.p4, self.p1, self.canvas, "yellow")
+        self.segment1 = Segment(self.p1, self.p2, "red")
+        self.segment2 = Segment(self.p2, self.p3, "green")
+        self.segment3 = Segment(self.p3, self.p4, "blue")
+        self.segment4 = Segment(self.p4, self.p1, "yellow")
         # Setup the rectangle
-        self.rectangle = Rectangle(self.segment1, self.segment2, self.segment3, self.segment4, self.canvas, color="orange")
+        self.rectangle = Rectangle(self.segment1, self.segment2, self.segment3, self.segment4, color="orange")
 
     def test_initialize(self):
         # Validate via CoordinateMapper

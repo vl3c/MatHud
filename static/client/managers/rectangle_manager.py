@@ -183,7 +183,7 @@ class RectangleManager:
                                               extra_graphics=False)
         
         # Create the rectangle
-        new_rectangle = Rectangle(s1, s2, s3, s4, self.canvas)
+        new_rectangle = Rectangle(s1, s2, s3, s4)
         
         # Add to drawables
         self.drawables.add(new_rectangle)

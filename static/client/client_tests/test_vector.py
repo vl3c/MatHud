@@ -29,9 +29,9 @@ class TestVector(unittest.TestCase):
         # Sync canvas state with coordinate mapper
         self.coordinate_mapper.sync_from_canvas(self.canvas)
         
-        self.origin = Point(0, 0, self.canvas, name="O", color="black")
-        self.tip = Point(3, 4, self.canvas, name="T", color="black")
-        self.vector = Vector(self.origin, self.tip, self.canvas, color="green")
+        self.origin = Point(0, 0, name="O", color="black")
+        self.tip = Point(3, 4, name="T", color="black")
+        self.vector = Vector(self.origin, self.tip, color="green")
 
     def test_initialize(self):
         # Validate via CoordinateMapper

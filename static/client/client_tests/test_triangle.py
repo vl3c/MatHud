@@ -30,15 +30,15 @@ class TestTriangle(unittest.TestCase):
         self.coordinate_mapper.sync_from_canvas(self.canvas)
         
         # Setup points for the triangle
-        self.p1 = Point(0, 0, self.canvas, name="P1", color="red")
-        self.p2 = Point(4, 0, self.canvas, name="P2", color="green")
-        self.p3 = Point(0, 3, self.canvas, name="P3", color="blue")
+        self.p1 = Point(0, 0, name="P1", color="red")
+        self.p2 = Point(4, 0, name="P2", color="green")
+        self.p3 = Point(0, 3, name="P3", color="blue")
         # Setup segments for the triangle
-        self.segment1 = Segment(self.p1, self.p2, self.canvas, "red")
-        self.segment2 = Segment(self.p2, self.p3, self.canvas, "green")
-        self.segment3 = Segment(self.p3, self.p1, self.canvas, "blue")
+        self.segment1 = Segment(self.p1, self.p2, "red")
+        self.segment2 = Segment(self.p2, self.p3, "green")
+        self.segment3 = Segment(self.p3, self.p1, "blue")
         # Setup the triangle
-        self.triangle = Triangle(self.segment1, self.segment2, self.segment3, self.canvas, color="yellow")
+        self.triangle = Triangle(self.segment1, self.segment2, self.segment3, color="yellow")
 
     def test_initialize(self):
         # Validate screen-space via CoordinateMapper
@@ -69,14 +69,14 @@ class TestTriangle(unittest.TestCase):
 
     def test_segments_do_not_form_triangle(self):
         # Ensure this test reflects an incorrect connection based on the new logic
-        incorrect_segment = Segment(self.p1, Point(2, 2, self.canvas, name="D"), self.canvas, "red")
+        incorrect_segment = Segment(self.p1, Point(2, 2, name="D"), "red")
         self.assertFalse(self.triangle._segments_form_triangle(self.segment1, self.segment2, incorrect_segment))
 
     def test_identical_points_not_forming_triangle(self):
         # Adjust if necessary to ensure the segments do not meet the new criteria for forming a triangle
-        p4 = Point(1, 1, self.canvas, name="D", color="black")
-        segment4 = Segment(self.p2, p4, self.canvas, "orange")
-        segment5 = Segment(p4, self.p3, self.canvas, "purple")
+        p4 = Point(1, 1, name="D", color="black")
+        segment4 = Segment(self.p2, p4, "orange")
+        segment5 = Segment(p4, self.p3, "purple")
         self.assertFalse(self.triangle._segments_form_triangle(self.segment1, segment4, segment5))
 
     def test_get_class_name(self):

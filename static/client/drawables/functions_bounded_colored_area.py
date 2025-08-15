@@ -35,7 +35,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
         num_sample_points (int): Number of points for path generation
     """
     
-    def __init__(self, func1, func2=None, canvas=None, left_bound=None, right_bound=None, 
+    def __init__(self, func1, func2=None, left_bound=None, right_bound=None, 
                  color="lightblue", opacity=0.3, num_sample_points=100):
         """Initialize a functions bounded colored area.
         
@@ -51,7 +51,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
         """
         self._validate_parameters(func1, func2, left_bound, right_bound, num_sample_points)
         name = self._generate_name(func1, func2)
-        super().__init__(name=name, canvas=canvas, color=color, opacity=opacity)
+        super().__init__(name=name, color=color, opacity=opacity)
         self.func1 = func1
         self.func2 = func2
         self.left_bound = left_bound
@@ -377,9 +377,8 @@ class FunctionsBoundedColoredArea(ColoredArea):
             
         # Create new instance using __init__
         new_area = FunctionsBoundedColoredArea(
-            func1=self.func1,  # Functions will be properly deep copied by their own __deepcopy__
+            func1=self.func1,
             func2=self.func2,
-            canvas=self.canvas,  # Canvas reference is not deep copied
             left_bound=self.left_bound,
             right_bound=self.right_bound,
             color=self.color,

@@ -53,51 +53,50 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
 
     def test_init(self):
         """Test initialization of FunctionSegmentBoundedColoredArea."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         self.assertEqual(area.func, self.func)
         self.assertEqual(area.segment, self.segment)
-        self.assertEqual(area.canvas, self.canvas)
         self.assertEqual(area.color, "lightblue")
         self.assertEqual(area.opacity, 0.3)
 
     def test_get_class_name(self):
         """Test class name retrieval."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         self.assertEqual(area.get_class_name(), 'FunctionSegmentBoundedColoredArea')
 
     def test_generate_name(self):
         """Test name generation."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         expected_name = "area_between_f1_and_AB"
         self.assertEqual(area.name, expected_name)
 
     def test_generate_name_with_none_function(self):
         """Test name generation with None function (x-axis)."""
-        area = FunctionSegmentBoundedColoredArea(None, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(None, self.segment)
         expected_name = "area_between_x_axis_and_AB"
         self.assertEqual(area.name, expected_name)
 
     def test_generate_name_with_constant_function(self):
         """Test name generation with constant function."""
-        area = FunctionSegmentBoundedColoredArea(5, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(5, self.segment)
         expected_name = "area_between_y_5_and_AB"
         self.assertEqual(area.name, expected_name)
 
     def test_get_function_y_at_x_with_none(self):
         """Test _get_function_y_at_x with None (x-axis)."""
-        area = FunctionSegmentBoundedColoredArea(None, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(None, self.segment)
         result = area._get_function_y_at_x(100)
         self.assertEqual(result, 0)
 
     def test_get_function_y_at_x_with_constant(self):
         """Test _get_function_y_at_x with constant function."""
-        area = FunctionSegmentBoundedColoredArea(3.5, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(3.5, self.segment)
         result = area._get_function_y_at_x(100)
         self.assertEqual(result, 3.5)
 
     def test_calculate_function_y_value_with_math_coordinates(self):
         """Test that _calculate_function_y_value works with math coordinates."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         
         # Test with math x coordinate (function is y = x^2)
         result = area._calculate_function_y_value(2.0)  # Math x coordinate
@@ -113,7 +112,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
             function=lambda x: 1/0  # This will cause ZeroDivisionError
         )
         
-        area = FunctionSegmentBoundedColoredArea(bad_func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(bad_func, self.segment)
         
         result = area._calculate_function_y_value(2.0)  # Math coordinate
         
@@ -122,7 +121,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
 
     def test_get_segment_bounds(self):
         """Test _get_segment_bounds returns correct min/max in math coordinates."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         
         left_bound, right_bound = area._get_segment_bounds()
         
@@ -132,7 +131,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
 
     def test_get_intersection_bounds(self):
         """Test _get_intersection_bounds calculates proper intersection in math coordinates."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         
         # Test with segment bounds [-150, 150] (math coords) and function bounds [-5, 5]
         left_bound, right_bound = area._get_intersection_bounds(-150, 150)
@@ -143,12 +142,12 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
 
     def test_uses_segment(self):
         """Test uses_segment method correctly identifies segment usage."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         
         # Create matching segment
         matching_segment = SimpleMock(
-            point1=SimpleMock(x=100, y=200),
-            point2=SimpleMock(x=400, y=300)
+            point1=SimpleMock(x=-150, y=50),
+            point2=SimpleMock(x=150, y=-50)
         )
         
         # Create non-matching segment
@@ -162,7 +161,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
 
     def test_get_state(self):
         """Test state serialization."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         state = area.get_state()
         
         expected_args = {
@@ -175,7 +174,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
 
     def test_deepcopy(self):
         """Test deep copy functionality."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         area_copy = copy.deepcopy(area)
         
         self.assertIsNot(area_copy, area)
@@ -183,11 +182,10 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         self.assertEqual(area_copy.segment, area.segment)
         self.assertEqual(area_copy.color, area.color)
         self.assertEqual(area_copy.opacity, area.opacity)
-        self.assertEqual(area_copy.canvas, area.canvas)  # Canvas reference should be same 
 
     def test_coordinate_conversion_accuracy(self):
         """Test that coordinate conversion is accurate between math and canvas coordinates."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         
         # Test specific coordinate conversions
         test_coords = [(-150, 22500), (0, 0), (150, 22500)]  # (x, x^2) pairs
@@ -205,7 +203,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
             right_bound=2
         )
         
-        area = FunctionSegmentBoundedColoredArea(restricted_func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(restricted_func, self.segment)
         
         # Test intersection bounds calculation
         left_bound, right_bound = area._get_intersection_bounds(-150, 150)
@@ -222,7 +220,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
             function=lambda x: 1/0 if x == 0 else 1/x  # Division by zero exception
         )
         
-        area = FunctionSegmentBoundedColoredArea(error_func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(error_func, self.segment)
         
         # Test that ZeroDivisionError is caught and returns None
         result = area._calculate_function_y_value(0)
@@ -245,7 +243,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
             )
         )
         
-        area = FunctionSegmentBoundedColoredArea(self.func, swapped_segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, swapped_segment)
         
         left_bound, right_bound = area._get_segment_bounds()
         
@@ -255,7 +253,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
 
     def test_generate_function_points_coordinate_conversion(self):
         """Test that _generate_function_points properly converts coordinates and generates points."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         
         # Test the method directly - generate 3 points from x=-1 to x=1
         # For y=x^2: x=-1 gives y=1, x=0 gives y=0, x=1 gives y=1
@@ -287,7 +285,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
 
     def test_draw_method_integration(self):
         """Integration via renderable: build screen area paths."""
-        area = FunctionSegmentBoundedColoredArea(self.func, self.segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         renderable = FunctionSegmentAreaRenderable(area, self.coordinate_mapper)
         closed_area = renderable.build_screen_area(num_points=50)
         self.assertIsNotNone(closed_area, "ClosedArea should be produced")
@@ -309,7 +307,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
             )
         )
         
-        area = FunctionSegmentBoundedColoredArea(self.func, single_point_segment, self.canvas)
+        area = FunctionSegmentBoundedColoredArea(self.func, single_point_segment)
         
         # Should still work without errors
         left_bound, right_bound = area._get_segment_bounds()

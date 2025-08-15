@@ -124,7 +124,7 @@ class VectorManager:
         tip = self.point_manager.create_point(tip_x, tip_y, name=point_names[1], extra_graphics=False)
         
         # Create the new vector
-        new_vector = Vector(origin, tip, canvas=self.canvas)
+        new_vector = Vector(origin, tip)
         
         # Add to drawables
         self.drawables.add(new_vector)

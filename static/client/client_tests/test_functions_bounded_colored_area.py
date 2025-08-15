@@ -48,28 +48,27 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
 
     def test_init(self):
         """Test initialization of FunctionsBoundedColoredArea."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
+        area = FunctionsBoundedColoredArea(self.func1, self.func2)
         self.assertEqual(area.func1, self.func1)
         self.assertEqual(area.func2, self.func2)
-        self.assertEqual(area.canvas, self.canvas)
         self.assertEqual(area.color, "lightblue")
         self.assertEqual(area.opacity, 0.3)
 
     def test_get_class_name(self):
         """Test class name retrieval."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
+        area = FunctionsBoundedColoredArea(self.func1, self.func2)
         self.assertEqual(area.get_class_name(), 'FunctionsBoundedColoredArea')
 
     def test_get_bounds_model_default_then_clipped_in_renderer(self):
         """Model provides math-space defaults; renderer handles viewport clipping."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
+        area = FunctionsBoundedColoredArea(self.func1, self.func2)
         left, right = area._get_bounds()
         # Defaults start at [-10,10] but functions apply tighter bounds [-3,3]
         self.assertEqual((left, right), (-3, 3))
 
     def test_get_function_y_at_x_with_function_returns_math_value(self):
         """Model returns math-space value; no screen mapping in model."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
+        area = FunctionsBoundedColoredArea(self.func1, self.func2)
         
         # Mock coordinate_mapper methods
         self.coordinate_mapper.math_to_screen = SimpleMock(return_value=(100, 200))
@@ -84,7 +83,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
 
     def test_get_function_y_at_x_with_constant_returns_math_value(self):
         """Constant returns math-space constant; no mapping in model."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
+        area = FunctionsBoundedColoredArea(self.func1, self.func2)
         
         # Test with constant function
         result = area._get_function_y_at_x(5, 1.0)
@@ -94,7 +93,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
 
     def test_get_function_y_at_x_with_none_returns_math_value(self):
         """None means x-axis (y=0) in math space; no mapping in model."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
+        area = FunctionsBoundedColoredArea(self.func1, self.func2)
         
         # Test with None (x-axis)
         result = area._get_function_y_at_x(None, 1.0)
@@ -104,7 +103,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
 
     def test_get_bounds_applies_coordinate_mapper_bounds_in_renderable(self):
         """Viewport clipping is performed in the renderable, not the model _get_bounds."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
+        area = FunctionsBoundedColoredArea(self.func1, self.func2)
         
         # Mock coordinate_mapper bounds
         self.coordinate_mapper.get_visible_left_bound = SimpleMock(return_value=-8)
@@ -123,7 +122,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
 
     def test_get_state(self):
         """Test state serialization."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas, left_bound=-2, right_bound=2)
+        area = FunctionsBoundedColoredArea(self.func1, self.func2, left_bound=-2, right_bound=2)
         state = area.get_state()
         
         expected_args = {
@@ -139,13 +138,12 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
 
     def test_deepcopy(self):
         """Test deep copy functionality."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
+        area = FunctionsBoundedColoredArea(self.func1, self.func2)
         area_copy = copy.deepcopy(area)
         
         self.assertIsNot(area_copy, area)
         self.assertEqual(area_copy.color, area.color)
         self.assertEqual(area_copy.opacity, area.opacity)
-        self.assertEqual(area_copy.canvas, area.canvas)  # Canvas reference should be same 
 
     def test_asymptote_detection_with_tangent_function(self):
         """Test asymptote detection for tangent function."""
@@ -158,7 +156,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
             right_bound=500
         )
         
-        area = FunctionsBoundedColoredArea(tangent_func, self.func2, self.canvas)
+        area = FunctionsBoundedColoredArea(tangent_func, self.func2)
         
         # Test asymptote detection at known asymptote positions
         asym_x = 100 * (math.pi/2)  # First asymptote
@@ -182,7 +180,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
             right_bound=5
         )
         
-        area = FunctionsBoundedColoredArea(asymptote_func, None, self.canvas)
+        area = FunctionsBoundedColoredArea(asymptote_func, None)
         
         # Use renderable; should build a ClosedArea or None but must not crash
         renderable = FunctionsBoundedAreaRenderable(area, self.coordinate_mapper)
@@ -192,14 +190,12 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         """Test that constructor validation prevents invalid bounds."""
         # Test case 1: Constructor should reject inverted bounds
         with self.assertRaises(ValueError) as context:
-            FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas, 
-                                       left_bound=5, right_bound=-5)
+            FunctionsBoundedColoredArea(self.func1, self.func2, left_bound=5, right_bound=-5)
         self.assertIn("left_bound must be less than right_bound", str(context.exception))
 
         # Test case 2: Constructor should reject equal bounds
         with self.assertRaises(ValueError) as context:
-            FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas,
-                                      left_bound=3, right_bound=3)
+            FunctionsBoundedColoredArea(self.func1, self.func2, left_bound=3, right_bound=3)
         self.assertIn("left_bound must be less than right_bound", str(context.exception))
 
     def test_bounds_calculation_internal_correction(self):
@@ -207,7 +203,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         # func1 bounds to the left, func2 bounds to the right -> inverted after merging
         func_left = SimpleMock(name="fL", function=lambda x: x, left_bound=-5, right_bound=-3)
         func_right = SimpleMock(name="fR", function=lambda x: x, left_bound=3, right_bound=5)
-        area = FunctionsBoundedColoredArea(func_left, func_right, self.canvas)
+        area = FunctionsBoundedColoredArea(func_left, func_right)
         left, right = area._get_bounds()
         self.assertLess(left, right, "Internal bounds correction should work")
         self.assertAlmostEqual(right - left, 0.2, places=1)
@@ -223,7 +219,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
             }.get(x, x)  # Return x for other values, None and string for specific cases
         )
         
-        area = FunctionsBoundedColoredArea(problematic_func, self.func2, self.canvas)
+        area = FunctionsBoundedColoredArea(problematic_func, self.func2)
         
         # Test cases that should return None
         test_cases = [
@@ -241,7 +237,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
 
     def test_coordinate_conversion_integration(self):
         """Test coordinate conversion integration by checking that functions call coordinate mapping."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
+        area = FunctionsBoundedColoredArea(self.func1, self.func2)
         
         # Test constant function evaluation - should work and return a value
         result = area._get_function_y_at_x(5, 2.0)  # Constant function y = 5
@@ -260,48 +256,39 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         """Test comprehensive parameter validation."""
         # Test invalid func1 types
         with self.assertRaises(ValueError):
-            FunctionsBoundedColoredArea("invalid_func", self.func2, self.canvas)
+            FunctionsBoundedColoredArea("invalid_func", self.func2)
         
         with self.assertRaises(ValueError):
-            FunctionsBoundedColoredArea([], self.func2, self.canvas)
+            FunctionsBoundedColoredArea([], self.func2)
         
         # Test invalid func2 types  
         with self.assertRaises(ValueError):
-            FunctionsBoundedColoredArea(self.func1, "invalid_func", self.canvas)
+            FunctionsBoundedColoredArea(self.func1, "invalid_func")
         
         # Test invalid bounds types
         with self.assertRaises(TypeError):
-            FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas, left_bound="invalid")
+            FunctionsBoundedColoredArea(self.func1, self.func2, left_bound="invalid")
         
         with self.assertRaises(TypeError):
-            FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas, right_bound="invalid")
+            FunctionsBoundedColoredArea(self.func1, self.func2, right_bound="invalid")
         
         # Test invalid bounds values
         with self.assertRaises(ValueError):
-            FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas, left_bound=5, right_bound=3)
+            FunctionsBoundedColoredArea(self.func1, self.func2, left_bound=5, right_bound=3)
         
         # Test invalid num_sample_points
         with self.assertRaises(TypeError):
-            FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas, num_sample_points="invalid")
+            FunctionsBoundedColoredArea(self.func1, self.func2, num_sample_points="invalid")
         
         with self.assertRaises(ValueError):
-            FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas, num_sample_points=0)
+            FunctionsBoundedColoredArea(self.func1, self.func2, num_sample_points=0)
         
         with self.assertRaises(ValueError):
-            FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas, num_sample_points=-5)
+            FunctionsBoundedColoredArea(self.func1, self.func2, num_sample_points=-5)
 
     def test_canvas_bounds_fallback(self):
         """Test fallback when canvas bounds cannot be determined."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
-        
-        # Mock coordinate_mapper methods to raise exceptions
-        def raise_exception():
-            raise Exception("Canvas error")
-        
-        area.canvas.coordinate_mapper.get_visible_left_bound = raise_exception
-        area.canvas.coordinate_mapper.get_visible_right_bound = raise_exception
-        
-        # _get_bounds should still be stable independent of canvas visibility
+        area = FunctionsBoundedColoredArea(self.func1, self.func2)
         left, right = area._get_bounds()
         self.assertEqual((left, right), (-3, 3))
 
@@ -315,7 +302,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
             right_bound=2
         )
         
-        area = FunctionsBoundedColoredArea(large_value_func, None, self.canvas)
+        area = FunctionsBoundedColoredArea(large_value_func, None)
         
         # Should handle large values without crashing (math-only behavior now)
         result = area._get_function_y_at_x_with_asymptote_handling(
@@ -328,15 +315,15 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
     def test_function_name_generation_edge_cases(self):
         """Test function name generation with edge cases."""
         # Test with negative constant
-        area1 = FunctionsBoundedColoredArea(-2.5, self.func1, self.canvas)
+        area1 = FunctionsBoundedColoredArea(-2.5, self.func1)
         self.assertEqual(area1.name, "area_between_y_-2.5_and_f1")
         
         # Test with zero constant
-        area2 = FunctionsBoundedColoredArea(0, None, self.canvas) 
+        area2 = FunctionsBoundedColoredArea(0, None) 
         self.assertEqual(area2.name, "area_between_y_0_and_x_axis")
         
         # Test with very large number
-        area3 = FunctionsBoundedColoredArea(1e6, self.func2, self.canvas)
+        area3 = FunctionsBoundedColoredArea(1e6, self.func2)
         self.assertEqual(area3.name, "area_between_y_1000000.0_and_f2")
 
     def test_draw_method_with_no_valid_points(self):
@@ -349,7 +336,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
             right_bound=1
         )
         
-        area = FunctionsBoundedColoredArea(invalid_func, None, self.canvas)
+        area = FunctionsBoundedColoredArea(invalid_func, None)
         
         # Should handle gracefully without crashing using renderable
         try:
@@ -360,7 +347,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
 
     def test_reverse_path_generation(self):
         """Test reverse path generation functionality."""
-        area = FunctionsBoundedColoredArea(self.func1, self.func2, self.canvas)
+        area = FunctionsBoundedColoredArea(self.func1, self.func2)
         
         # Mock coordinate_mapper for predictable results
         call_count = [0]  # Use list to allow modification in nested function
