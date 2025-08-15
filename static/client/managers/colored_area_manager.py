@@ -131,19 +131,19 @@ class ColoredAreaManager:
             if drawable2:  # Segment-segment case
                 # Create points at overlap boundaries
                 def get_y_at_x(segment, x):
-                    # Linear interpolation to find y value at x using original coordinates
-                    x1, y1 = segment.point1.original_position.x, segment.point1.original_position.y
-                    x2, y2 = segment.point2.original_position.x, segment.point2.original_position.y
+                    # Linear interpolation to find y value at x using math coordinates
+                    x1, y1 = segment.point1.x, segment.point1.y
+                    x2, y2 = segment.point2.x, segment.point2.y
                     if x2 == x1:
                         return y1  # Vertical segment
                     t = (x - x1) / (x2 - x1)
                     return y1 + t * (y2 - y1)
 
-                # Get x-ranges of both segments using original coordinates
-                x1_min = min(drawable1.point1.original_position.x, drawable1.point2.original_position.x)
-                x1_max = max(drawable1.point1.original_position.x, drawable1.point2.original_position.x)
-                x2_min = min(drawable2.point1.original_position.x, drawable2.point2.original_position.x)
-                x2_max = max(drawable2.point1.original_position.x, drawable2.point2.original_position.x)
+                # Get x-ranges of both segments using math coordinates
+                x1_min = min(drawable1.point1.x, drawable1.point2.x)
+                x1_max = max(drawable1.point1.x, drawable1.point2.x)
+                x2_min = min(drawable2.point1.x, drawable2.point2.x)
+                x2_max = max(drawable2.point1.x, drawable2.point2.x)
 
                 # Check if segment1 endpoints create points on segment2
                 if x1_min >= x2_min and x1_min <= x2_max:

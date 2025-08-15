@@ -167,10 +167,10 @@ class VectorManager:
                 # Remove the vector's segment if it's not used by other objects
                 if hasattr(vector, 'segment'):
                     segment = vector.segment
-                    p1x = segment.point1.original_position.x
-                    p1y = segment.point1.original_position.y
-                    p2x = segment.point2.original_position.x
-                    p2y = segment.point2.original_position.y
+                    p1x = segment.point1.x
+                    p1y = segment.point1.y
+                    p2x = segment.point2.x
+                    p2y = segment.point2.y
                     self.canvas.drawable_manager.delete_segment(p1x, p1y, p2x, p2y)
                 
                 # Remove the vector

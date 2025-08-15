@@ -104,7 +104,7 @@ class RectangleManager:
         # Iterate over all rectangles
         for rectangle in rectangles:
             segments = [rectangle.segment1, rectangle.segment2, rectangle.segment3, rectangle.segment4]
-            rectangle_corners = [(segment.point1.original_position.x, segment.point1.original_position.y) for segment in segments]
+            rectangle_corners = [(segment.point1.x, segment.point1.y) for segment in segments]
             
             # Ensuring all corners are matched, considering rectangles could be defined in any direction
             if all(corner in rectangle_corners for corner in [corner1, corner2, corner3, corner4]):
@@ -169,17 +169,17 @@ class RectangleManager:
         p4 = self.point_manager.create_point(px, opposite_py, point_names[3], extra_graphics=False)
         
         # Create segments using the points
-        s1 = self.segment_manager.create_segment(p1.original_position.x, p1.original_position.y, 
-                                              p2.original_position.x, p2.original_position.y, 
+        s1 = self.segment_manager.create_segment(p1.x, p1.y, 
+                                              p2.x, p2.y, 
                                               extra_graphics=False)
-        s2 = self.segment_manager.create_segment(p2.original_position.x, p2.original_position.y, 
-                                              p3.original_position.x, p3.original_position.y, 
+        s2 = self.segment_manager.create_segment(p2.x, p2.y, 
+                                              p3.x, p3.y, 
                                               extra_graphics=False)
-        s3 = self.segment_manager.create_segment(p3.original_position.x, p3.original_position.y, 
-                                              p4.original_position.x, p4.original_position.y, 
+        s3 = self.segment_manager.create_segment(p3.x, p3.y, 
+                                              p4.x, p4.y, 
                                               extra_graphics=False)
-        s4 = self.segment_manager.create_segment(p4.original_position.x, p4.original_position.y, 
-                                              p1.original_position.x, p1.original_position.y, 
+        s4 = self.segment_manager.create_segment(p4.x, p4.y, 
+                                              p1.x, p1.y, 
                                               extra_graphics=False)
         
         # Create the rectangle
@@ -225,14 +225,14 @@ class RectangleManager:
         self.drawables.remove(rectangle)
         
         # Delete all 4 segments
-        self.segment_manager.delete_segment(rectangle.segment1.point1.original_position.x, rectangle.segment1.point1.original_position.y, 
-                                          rectangle.segment1.point2.original_position.x, rectangle.segment1.point2.original_position.y)
-        self.segment_manager.delete_segment(rectangle.segment2.point1.original_position.x, rectangle.segment2.point1.original_position.y, 
-                                          rectangle.segment2.point2.original_position.x, rectangle.segment2.point2.original_position.y)
-        self.segment_manager.delete_segment(rectangle.segment3.point1.original_position.x, rectangle.segment3.point1.original_position.y, 
-                                          rectangle.segment3.point2.original_position.x, rectangle.segment3.point2.original_position.y)
-        self.segment_manager.delete_segment(rectangle.segment4.point1.original_position.x, rectangle.segment4.point1.original_position.y, 
-                                          rectangle.segment4.point2.original_position.x, rectangle.segment4.point2.original_position.y)
+        self.segment_manager.delete_segment(rectangle.segment1.point1.x, rectangle.segment1.point1.y, 
+                                          rectangle.segment1.point2.x, rectangle.segment1.point2.y)
+        self.segment_manager.delete_segment(rectangle.segment2.point1.x, rectangle.segment2.point1.y, 
+                                          rectangle.segment2.point2.x, rectangle.segment2.point2.y)
+        self.segment_manager.delete_segment(rectangle.segment3.point1.x, rectangle.segment3.point1.y, 
+                                          rectangle.segment3.point2.x, rectangle.segment3.point2.y)
+        self.segment_manager.delete_segment(rectangle.segment4.point1.x, rectangle.segment4.point1.y, 
+                                          rectangle.segment4.point2.x, rectangle.segment4.point2.y)
         
         # Redraw
         if self.canvas.draw_enabled:

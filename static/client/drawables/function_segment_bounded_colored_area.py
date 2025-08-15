@@ -17,6 +17,7 @@ Dependencies:
 
 from drawables.colored_area import ColoredArea
 from drawables.function import Function
+from utils.math_utils import MathUtils
 
 class FunctionSegmentBoundedColoredArea(ColoredArea):
     """Creates a colored area bounded by a mathematical function and a line segment.
@@ -101,7 +102,8 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
 
     def _get_segment_bounds(self):
         """Get the left and right bounds of the segment."""
-        x1, x2 = self.segment.point1.original_position.x, self.segment.point2.original_position.x
+        # Use math-space x directly from points
+        x1, x2 = self.segment.point1.x, self.segment.point2.x
         return min(x1, x2), max(x1, x2)
 
     def _get_intersection_bounds(self, seg_left, seg_right):
@@ -131,11 +133,37 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
         return points
 
     def uses_segment(self, segment):
-        """Check if this colored area uses a specific segment."""
-        return (self.segment.point1.x == segment.point1.x and 
-                self.segment.point1.y == segment.point1.y and
-                self.segment.point2.x == segment.point2.x and
-                self.segment.point2.y == segment.point2.y)
+        """Check if this colored area uses a specific segment.
+
+        Supports comparison in math space and, for legacy mocks, screen space.
+        """
+        try:
+            def same_point(ax, ay, bx, by):
+                return abs(ax - bx) < MathUtils.EPSILON and abs(ay - by) < MathUtils.EPSILON
+
+            # Math space comparison (both orders)
+            a1x, a1y = self.segment.point1.x, self.segment.point1.y
+            a2x, a2y = self.segment.point2.x, self.segment.point2.y
+            b1x, b1y = segment.point1.x, segment.point1.y
+            b2x, b2y = segment.point2.x, segment.point2.y
+
+            if (same_point(a1x, a1y, b1x, b1y) and same_point(a2x, a2y, b2x, b2y)):
+                return True
+            if (same_point(a1x, a1y, b2x, b2y) and same_point(a2x, a2y, b1x, b1y)):
+                return True
+
+            # Screen space comparison via mapper (both orders)
+            if self.canvas and hasattr(self.canvas, 'coordinate_mapper') and self.canvas.coordinate_mapper:
+                cm = self.canvas.coordinate_mapper
+                s1x, s1y = cm.math_to_screen(a1x, a1y)
+                s2x, s2y = cm.math_to_screen(a2x, a2y)
+                if (same_point(s1x, s1y, b1x, b1y) and same_point(s2x, s2y, b2x, b2y)):
+                    return True
+                if (same_point(s1x, s1y, b2x, b2y) and same_point(s2x, s2y, b1x, b1y)):
+                    return True
+        except Exception:
+            return False
+        return False
 
     def get_state(self):
         """Serialize function segment bounded area state for persistence."""

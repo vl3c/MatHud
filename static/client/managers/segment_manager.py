@@ -117,8 +117,7 @@ class SegmentManager:
         Returns:
             Segment: The segment connecting the two points, or None if not found
         """
-        return self.get_segment_by_coordinates(p1.original_position.x, p1.original_position.y, 
-                                              p2.original_position.x, p2.original_position.y)
+        return self.get_segment_by_coordinates(p1.x, p1.y, p2.x, p2.y)
         
     def create_segment(self, x1, y1, x2, y2, name="", extra_graphics=True):
         """
@@ -239,10 +238,10 @@ class SegmentManager:
         if not segment:
             return False
         
-        x1 = segment.point1.original_position.x
-        y1 = segment.point1.original_position.y
-        x2 = segment.point2.original_position.x
-        y2 = segment.point2.original_position.y
+        x1 = segment.point1.x
+        y1 = segment.point1.y
+        x2 = segment.point2.x
+        y2 = segment.point2.y
         
         result = self.delete_segment(x1, y1, x2, y2, delete_children, delete_parents)
         return result
@@ -284,8 +283,8 @@ class SegmentManager:
                     # If the child no longer has any segment parents, delete it recursively
                     if not has_segment_parent:
                         self.delete_segment(
-                            child.point1.original_position.x, child.point1.original_position.y,
-                            child.point2.original_position.x, child.point2.original_position.y,
+                            child.point1.x, child.point1.y,
+                            child.point2.x, child.point2.y,
                             delete_children=True, delete_parents=False
                         )
                 else:
@@ -299,8 +298,8 @@ class SegmentManager:
             print(f"Handling deletion of {len(parents_to_delete)} parents for segment {segment.name}")
             for parent in list(parents_to_delete):
                 if hasattr(parent, 'point1') and hasattr(parent, 'point2'):
-                    self.delete_segment(parent.point1.original_position.x, parent.point1.original_position.y,
-                                          parent.point2.original_position.x, parent.point2.original_position.y,
+                        self.delete_segment(parent.point1.x, parent.point1.y,
+                                          parent.point2.x, parent.point2.y,
                                           delete_children=True, delete_parents=False)
                 else:
                     print(f"Warning: Parent {parent} of {segment.name} is not a segment, cannot recursively delete.")
@@ -336,14 +335,15 @@ class SegmentManager:
         """
         segments = self.drawables.Segments
         for segment in segments.copy():
-            sp1, sp2 = segment.point1.original_position, segment.point2.original_position
+            sp1x, sp1y = segment.point1.x, segment.point1.y
+            sp2x, sp2y = segment.point2.x, segment.point2.y
             # If the new point is either of the segment's endpoints, we don't need to create new segments
-            if (x, y) == (sp1.x, sp1.y) or (x, y) == (sp2.x, sp2.y):
+            if (x, y) == (sp1x, sp1y) or (x, y) == (sp2x, sp2y):
                 continue
-            if MathUtils.is_point_on_segment(x, y, sp1.x, sp1.y, sp2.x, sp2.y):
+            if MathUtils.is_point_on_segment(x, y, sp1x, sp1y, sp2x, sp2y):
                 # Create new segments
-                segment1 = self.create_segment(x, y, sp1.x, sp1.y, extra_graphics=False)
-                segment2 = self.create_segment(x, y, sp2.x, sp2.y, extra_graphics=False)
+                segment1 = self.create_segment(x, y, sp1x, sp1y, extra_graphics=False)
+                segment2 = self.create_segment(x, y, sp2x, sp2y, extra_graphics=False)
                 
                 # Register the new segments as children of the original segment that was split
                 if segment1:

@@ -44,12 +44,12 @@ class TestTriangle(unittest.TestCase):
         self.triangle._initialize()
         # Validate screen-space via CoordinateMapper
         m = self.coordinate_mapper
-        s1p1x, s1p1y = m.math_to_screen(self.triangle.segment1.point1.original_position.x, self.triangle.segment1.point1.original_position.y)
-        s1p2x, s1p2y = m.math_to_screen(self.triangle.segment1.point2.original_position.x, self.triangle.segment1.point2.original_position.y)
-        s2p1x, s2p1y = m.math_to_screen(self.triangle.segment2.point1.original_position.x, self.triangle.segment2.point1.original_position.y)
-        s2p2x, s2p2y = m.math_to_screen(self.triangle.segment2.point2.original_position.x, self.triangle.segment2.point2.original_position.y)
-        s3p1x, s3p1y = m.math_to_screen(self.triangle.segment3.point1.original_position.x, self.triangle.segment3.point1.original_position.y)
-        s3p2x, s3p2y = m.math_to_screen(self.triangle.segment3.point2.original_position.x, self.triangle.segment3.point2.original_position.y)
+        s1p1x, s1p1y = m.math_to_screen(self.triangle.segment1.point1.x, self.triangle.segment1.point1.y)
+        s1p2x, s1p2y = m.math_to_screen(self.triangle.segment1.point2.x, self.triangle.segment1.point2.y)
+        s2p1x, s2p1y = m.math_to_screen(self.triangle.segment2.point1.x, self.triangle.segment2.point1.y)
+        s2p2x, s2p2y = m.math_to_screen(self.triangle.segment2.point2.x, self.triangle.segment2.point2.y)
+        s3p1x, s3p1y = m.math_to_screen(self.triangle.segment3.point1.x, self.triangle.segment3.point1.y)
+        s3p2x, s3p2y = m.math_to_screen(self.triangle.segment3.point2.x, self.triangle.segment3.point2.y)
         self.assertEqual((s1p1x, s1p1y), (250, 250))
         self.assertEqual((s1p2x, s1p2y), (254, 250))
         self.assertEqual((s2p1x, s2p1y), (254, 250))
@@ -106,9 +106,9 @@ class TestTriangle(unittest.TestCase):
         
         # Validate via CoordinateMapper
         m = self.coordinate_mapper
-        s1p1x, s1p1y = m.math_to_screen(self.triangle.segment1.point1.original_position.x, self.triangle.segment1.point1.original_position.y)
-        s1p2x, s1p2y = m.math_to_screen(self.triangle.segment1.point2.original_position.x, self.triangle.segment1.point2.original_position.y)
-        s2p2x, s2p2y = m.math_to_screen(self.triangle.segment2.point2.original_position.x, self.triangle.segment2.point2.original_position.y)
+        s1p1x, s1p1y = m.math_to_screen(self.triangle.segment1.point1.x, self.triangle.segment1.point1.y)
+        s1p2x, s1p2y = m.math_to_screen(self.triangle.segment1.point2.x, self.triangle.segment1.point2.y)
+        s2p2x, s2p2y = m.math_to_screen(self.triangle.segment2.point2.x, self.triangle.segment2.point2.y)
         self.assertEqual((s1p1x, s1p1y), (251, 248))
         self.assertEqual((s1p2x, s1p2y), (255, 248))
         self.assertEqual((s2p2x, s2p2y), (251, 245))

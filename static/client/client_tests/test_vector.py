@@ -37,8 +37,8 @@ class TestVector(unittest.TestCase):
         self.vector._initialize()
         # Validate via CoordinateMapper
         m = self.coordinate_mapper
-        ox, oy = m.math_to_screen(self.vector.segment.point1.original_position.x, self.vector.segment.point1.original_position.y)
-        tx, ty = m.math_to_screen(self.vector.segment.point2.original_position.x, self.vector.segment.point2.original_position.y)
+        ox, oy = m.math_to_screen(self.vector.origin.x, self.vector.origin.y)
+        tx, ty = m.math_to_screen(self.vector.tip.x, self.vector.tip.y)
         self.assertEqual((ox, oy), (250, 250))
         self.assertEqual((tx, ty), (253, 246))
 
@@ -74,8 +74,8 @@ class TestVector(unittest.TestCase):
         
         # Validate via CoordinateMapper after translation
         m = self.coordinate_mapper
-        ox, oy = m.math_to_screen(self.vector.origin.original_position.x, self.vector.origin.original_position.y)
-        tx, ty = m.math_to_screen(self.vector.tip.original_position.x, self.vector.tip.original_position.y)
+        ox, oy = m.math_to_screen(self.vector.origin.x, self.vector.origin.y)
+        tx, ty = m.math_to_screen(self.vector.tip.x, self.vector.tip.y)
         self.assertEqual((ox, oy), (252, 247))
         self.assertEqual((tx, ty), (255, 243))
 

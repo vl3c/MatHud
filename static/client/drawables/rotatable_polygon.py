@@ -35,18 +35,18 @@ class RotatablePolygon(Drawable):
     
     def _get_shape_center(self, points):
         """Calculate center point of a shape given its vertices"""
-        x_coords = [p.original_position.x for p in points]
-        y_coords = [p.original_position.y for p in points]
+        x_coords = [p.x for p in points]
+        y_coords = [p.y for p in points]
         return (sum(x_coords) / len(x_coords), 
                 sum(y_coords) / len(y_coords))
 
     def _rotate_point_around_center(self, point, center_x, center_y, angle_rad):
         """Rotate a single point around a center by given angle in radians"""
-        dx = point.original_position.x - center_x
-        dy = point.original_position.y - center_y
+        dx = point.x - center_x
+        dy = point.y - center_y
         
-        point.original_position.x = center_x + (dx * math.cos(angle_rad) - dy * math.sin(angle_rad))
-        point.original_position.y = center_y + (dx * math.sin(angle_rad) + dy * math.cos(angle_rad))
+        point.x = center_x + (dx * math.cos(angle_rad) - dy * math.sin(angle_rad))
+        point.y = center_y + (dx * math.sin(angle_rad) + dy * math.cos(angle_rad))
 
     def get_vertices(self):
         """Abstract method to be implemented by subclasses to return their vertices"""

@@ -93,14 +93,14 @@ class SvgRenderer:
         radius_val = self.style.get('point_radius', default_point_size)
         font_size_val = self.style.get('point_label_font_size', point_label_font_size)
 
-        x, y = coordinate_mapper.math_to_screen(point.original_position.x, point.original_position.y)
+        x, y = coordinate_mapper.math_to_screen(point.x, point.y)
 
         # Draw point
         circle_el = svg.circle(cx=str(x), cy=str(y), r=str(radius_val), fill=color)
         document["math-svg"] <= circle_el
 
         # Draw label including math coordinates, matching existing format
-        label_text = point.name + f'({round(point.original_position.x, 3)}, {round(point.original_position.y, 3)})'
+        label_text = point.name + f'({round(point.x, 3)}, {round(point.y, 3)})'
         label_offset = int(radius_val)
         text_el = svg.text(label_text, x=str(x + label_offset), y=str(y - label_offset), fill=color)
         text_el.style['user-select'] = 'none'
@@ -118,10 +118,8 @@ class SvgRenderer:
         # Prefer model color, then style, then default
         color = getattr(segment, 'color', self.style.get('segment_color', default_color))
 
-        x1, y1 = coordinate_mapper.math_to_screen(
-            segment.point1.original_position.x, segment.point1.original_position.y)
-        x2, y2 = coordinate_mapper.math_to_screen(
-            segment.point2.original_position.x, segment.point2.original_position.y)
+        x1, y1 = coordinate_mapper.math_to_screen(segment.point1.x, segment.point1.y)
+        x2, y2 = coordinate_mapper.math_to_screen(segment.point2.x, segment.point2.y)
 
         line_el = svg.line(x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=color)
         document["math-svg"] <= line_el
@@ -132,8 +130,7 @@ class SvgRenderer:
 
     def _render_circle(self, circle, coordinate_mapper):
         color = getattr(circle, 'color', self.style.get('circle_color', default_color))
-        cx, cy = coordinate_mapper.math_to_screen(
-            circle.center.original_position.x, circle.center.original_position.y)
+        cx, cy = coordinate_mapper.math_to_screen(circle.center.x, circle.center.y)
         r_screen = coordinate_mapper.scale_value(circle.radius)
         circle_el = svg.circle(cx=str(cx), cy=str(cy), r=str(r_screen), fill="none", stroke=color)
         if self.style['circle_stroke_width']:
@@ -146,8 +143,7 @@ class SvgRenderer:
 
     def _render_ellipse(self, ellipse, coordinate_mapper):
         color = getattr(ellipse, 'color', self.style.get('ellipse_color', default_color))
-        cx, cy = coordinate_mapper.math_to_screen(
-            ellipse.center.original_position.x, ellipse.center.original_position.y)
+        cx, cy = coordinate_mapper.math_to_screen(ellipse.center.x, ellipse.center.y)
         rx = coordinate_mapper.scale_value(ellipse.radius_x)
         ry = coordinate_mapper.scale_value(ellipse.radius_y)
         # Apply rotation around center if needed
@@ -171,10 +167,8 @@ class SvgRenderer:
         seg = vector.segment
         seg_color = getattr(vector, 'color', getattr(seg, 'color', self.style.get('vector_color', default_color)))
 
-        x1, y1 = coordinate_mapper.math_to_screen(
-            seg.point1.original_position.x, seg.point1.original_position.y)
-        x2, y2 = coordinate_mapper.math_to_screen(
-            seg.point2.original_position.x, seg.point2.original_position.y)
+        x1, y1 = coordinate_mapper.math_to_screen(seg.point1.x, seg.point1.y)
+        x2, y2 = coordinate_mapper.math_to_screen(seg.point2.x, seg.point2.y)
 
         line_el = svg.line(x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=seg_color)
         if self.style['segment_stroke_width']:
@@ -208,9 +202,9 @@ class SvgRenderer:
 
     def _render_angle(self, angle, coordinate_mapper):
         # Compute screen coordinates for vertex and arms
-        vx, vy = coordinate_mapper.math_to_screen(angle.vertex_point.original_position.x, angle.vertex_point.original_position.y)
-        p1x, p1y = coordinate_mapper.math_to_screen(angle.arm1_point.original_position.x, angle.arm1_point.original_position.y)
-        p2x, p2y = coordinate_mapper.math_to_screen(angle.arm2_point.original_position.x, angle.arm2_point.original_position.y)
+        vx, vy = coordinate_mapper.math_to_screen(angle.vertex_point.x, angle.vertex_point.y)
+        p1x, p1y = coordinate_mapper.math_to_screen(angle.arm1_point.x, angle.arm1_point.y)
+        p2x, p2y = coordinate_mapper.math_to_screen(angle.arm2_point.x, angle.arm2_point.y)
 
         # Use model's precise arc parameter computation for correct curvature and flags
         # Provide arc radius from style if set
@@ -257,8 +251,8 @@ class SvgRenderer:
         segs = (triangle.segment1, triangle.segment2, triangle.segment3)
         color = getattr(triangle, 'color', self.style.get('segment_color', default_color))
         for seg in segs:
-            x1, y1 = coordinate_mapper.math_to_screen(seg.point1.original_position.x, seg.point1.original_position.y)
-            x2, y2 = coordinate_mapper.math_to_screen(seg.point2.original_position.x, seg.point2.original_position.y)
+            x1, y1 = coordinate_mapper.math_to_screen(seg.point1.x, seg.point1.y)
+            x2, y2 = coordinate_mapper.math_to_screen(seg.point2.x, seg.point2.y)
             line_el = svg.line(x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=color)
             document["math-svg"] <= line_el
 
@@ -270,8 +264,8 @@ class SvgRenderer:
         segs = (rectangle.segment1, rectangle.segment2, rectangle.segment3, rectangle.segment4)
         color = getattr(rectangle, 'color', self.style.get('segment_color', default_color))
         for seg in segs:
-            x1, y1 = coordinate_mapper.math_to_screen(seg.point1.original_position.x, seg.point1.original_position.y)
-            x2, y2 = coordinate_mapper.math_to_screen(seg.point2.original_position.x, seg.point2.original_position.y)
+            x1, y1 = coordinate_mapper.math_to_screen(seg.point1.x, seg.point1.y)
+            x2, y2 = coordinate_mapper.math_to_screen(seg.point2.x, seg.point2.y)
             line_el = svg.line(x1=str(x1), y1=str(y1), x2=str(x2), y2=str(y2), stroke=color)
             document["math-svg"] <= line_el
 
@@ -440,26 +434,29 @@ class SvgRenderer:
     def _render_segments_bounded_colored_area(self, area, coordinate_mapper):
         try:
             if not area.segment2:
-                p1 = (area.segment1.point1.screen_x, area.segment1.point1.screen_y)
-                p2 = (area.segment1.point2.screen_x, area.segment1.point2.screen_y)
-                origin_y = area.canvas.cartesian2axis.origin.y
-                if area.segment1.point1.original_position.y > 0 and area.segment1.point2.original_position.y > 0:
-                    rev = [(p2[0], origin_y), (p1[0], origin_y)]
-                else:
-                    rev = [(p2[0], origin_y), (p1[0], origin_y)]
+                x1, y1 = coordinate_mapper.math_to_screen(area.segment1.point1.x, area.segment1.point1.y)
+                x2, y2 = coordinate_mapper.math_to_screen(area.segment1.point2.x, area.segment1.point2.y)
+                p1 = (x1, y1)
+                p2 = (x2, y2)
+                origin_y = coordinate_mapper.math_to_screen(0, 0)[1]
+                rev = [(p2[0], origin_y), (p1[0], origin_y)]
                 points = [p1, p2]
             else:
-                x1_min = min(area.segment1.point1.screen_x, area.segment1.point2.screen_x)
-                x1_max = max(area.segment1.point1.screen_x, area.segment1.point2.screen_x)
-                x2_min = min(area.segment2.point1.screen_x, area.segment2.point2.screen_x)
-                x2_max = max(area.segment2.point1.screen_x, area.segment2.point2.screen_x)
+                s1p1x, s1p1y = coordinate_mapper.math_to_screen(area.segment1.point1.x, area.segment1.point1.y)
+                s1p2x, s1p2y = coordinate_mapper.math_to_screen(area.segment1.point2.x, area.segment1.point2.y)
+                s2p1x, s2p1y = coordinate_mapper.math_to_screen(area.segment2.point1.x, area.segment2.point1.y)
+                s2p2x, s2p2y = coordinate_mapper.math_to_screen(area.segment2.point2.x, area.segment2.point2.y)
+                x1_min = min(s1p1x, s1p2x)
+                x1_max = max(s1p1x, s1p2x)
+                x2_min = min(s2p1x, s2p2x)
+                x2_max = max(s2p1x, s2p2x)
                 overlap_min = max(x1_min, x2_min)
                 overlap_max = min(x1_max, x2_max)
                 if overlap_max <= overlap_min:
                     return
                 def get_y_at_x(segment, x):
-                    x1, y1 = segment.point1.screen_x, segment.point1.screen_y
-                    x2, y2 = segment.point2.screen_x, segment.point2.screen_y
+                    x1, y1 = coordinate_mapper.math_to_screen(segment.point1.x, segment.point1.y)
+                    x2, y2 = coordinate_mapper.math_to_screen(segment.point2.x, segment.point2.y)
                     if x2 == x1:
                         return y1
                     t = (x - x1) / (x2 - x1)

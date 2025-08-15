@@ -193,7 +193,7 @@ class PointManager:
         if not point:
             return False
             
-        return self.delete_point(point.original_position.x, point.original_position.y)
+        return self.delete_point(point.x, point.y)
 
     def _delete_point_dependencies(self, x, y):
         """
@@ -251,10 +251,10 @@ class PointManager:
         # Delete segments that contain the point, but not if they're in the preserve list
         for segment in segments_to_delete:
             if segment not in segments_to_preserve:
-                p1x = segment.point1.original_position.x
-                p1y = segment.point1.original_position.y
-                p2x = segment.point2.original_position.x
-                p2y = segment.point2.original_position.y
+                p1x = segment.point1.x
+                p1y = segment.point1.y
+                p2x = segment.point2.x
+                p2y = segment.point2.y
                 # Use the proxy to call delete_segment
                 self.drawable_manager.delete_segment(p1x, p1y, p2x, p2y, 
                                    delete_children=True, delete_parents=False)
@@ -263,10 +263,10 @@ class PointManager:
         vectors = self.drawables.Vectors
         for vector in vectors.copy():
             if MathUtils.segment_has_end_point(vector.segment, x, y):
-                origin_x = vector.segment.point1.original_position.x
-                origin_y = vector.segment.point1.original_position.y
-                tip_x = vector.segment.point2.original_position.x
-                tip_y = vector.segment.point2.original_position.y
+                origin_x = vector.segment.point1.x
+                origin_y = vector.segment.point1.y
+                tip_x = vector.segment.point2.x
+                tip_y = vector.segment.point2.y
                 # Use the proxy to call delete_vector
                 self.drawable_manager.delete_vector(origin_x, origin_y, tip_x, tip_y)
                 

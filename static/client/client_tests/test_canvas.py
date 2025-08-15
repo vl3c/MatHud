@@ -3,6 +3,7 @@ from random import randint
 from canvas import Canvas
 from expression_validator import ExpressionValidator
 from utils.math_utils import MathUtils
+from types import SimpleNamespace
 from geometry import Position
 from .simple_mock import SimpleMock
 from utils.geometry_utils import GeometryUtils
@@ -17,10 +18,10 @@ class TestCanvas(unittest.TestCase):
         self.canvas.cartesian2axis = self.mock_cartesian2axis
         self.mock_point1 = SimpleMock(canvas=None, get_class_name=SimpleMock(return_value='Point'), reset=SimpleMock(return_value=None),
                                       get_state=SimpleMock(return_value='point1_state'),
-                                      original_position=Position(10, 10), x=10, y=10, name='A')
+                                      x=10, y=10, name='A')
         self.mock_point2 = SimpleMock(canvas=None, get_class_name=SimpleMock(return_value='Point'), reset=SimpleMock(return_value=None),
                                       get_state=SimpleMock(return_value='point2_state'),
-                                      original_position=Position(20, 20), x=20, y=20, name='B')
+                                      x=20, y=20, name='B')
         self.mock_segment1 = SimpleMock(canvas=None, get_class_name=SimpleMock(return_value='Segment'), reset=SimpleMock(return_value=None),
                                         get_state=SimpleMock(return_value='segment1_state'), point1=self.mock_point1, point2=self.mock_point2)
         
@@ -128,10 +129,10 @@ class TestCanvas(unittest.TestCase):
         segment = self.canvas.create_segment(0, 0, 10, 10, "AB")
         
         # Store initial state properties
-        initial_point_pos = (point.original_position.x, point.original_position.y)
+        initial_point_pos = (point.x, point.y)
         initial_segment_points = (
-            (segment.point1.original_position.x, segment.point1.original_position.y),
-            (segment.point2.original_position.x, segment.point2.original_position.y)
+            (segment.point1.x, segment.point1.y),
+            (segment.point2.x, segment.point2.y)
         )
         
         # Make some changes
@@ -152,15 +153,15 @@ class TestCanvas(unittest.TestCase):
         self.assertIsNotNone(restored_point)
         self.assertIsNotNone(restored_segment)
         self.assertEqual(
-            (restored_point.original_position.x, restored_point.original_position.y),
+            (restored_point.x, restored_point.y),
             initial_point_pos
         )
         self.assertEqual(
-            (restored_segment.point1.original_position.x, restored_segment.point1.original_position.y),
+            (restored_segment.point1.x, restored_segment.point1.y),
             initial_segment_points[0]
         )
         self.assertEqual(
-            (restored_segment.point2.original_position.x, restored_segment.point2.original_position.y),
+            (restored_segment.point2.x, restored_segment.point2.y),
             initial_segment_points[1]
         )
         
@@ -178,13 +179,11 @@ class TestCanvas(unittest.TestCase):
         pointD = self.canvas.create_point(5, 15, "D") # New point for vector
         pointE = self.canvas.create_point(25, 35, "E") # New point for vector
 
-        segmentAB = self.canvas.create_segment(pointA.original_position.x, pointA.original_position.y, 
-                                              pointB.original_position.x, pointB.original_position.y)
+        segmentAB = self.canvas.create_segment(pointA.x, pointA.y, pointB.x, pointB.y)
         
-        circleC = self.canvas.create_circle(pointC.original_position.x, pointC.original_position.y, 25)
+        circleC = self.canvas.create_circle(pointC.x, pointC.y, 25)
         
-        vectorDE = self.canvas.create_vector(pointD.original_position.x, pointD.original_position.y, # New vector
-                                             pointE.original_position.x, pointE.original_position.y)
+        vectorDE = self.canvas.create_vector(pointD.x, pointD.y, pointE.x, pointE.y)
 
         self.canvas.draw_function("x**3", "f_cubed")
         self.canvas.add_computation("area_calc", 500.75)
@@ -205,8 +204,8 @@ class TestCanvas(unittest.TestCase):
                 p1 = self.canvas.get_point_by_name(p1_name)
                 p2 = self.canvas.get_point_by_name(p2_name)
                 if p1 and p2:
-                    self.canvas.create_segment(p1.original_position.x, p1.original_position.y,
-                                               p2.original_position.x, p2.original_position.y,
+                    self.canvas.create_segment(p1.x, p1.y,
+                                               p2.x, p2.y,
                                                seg_data['name'])
                 else:
                     self.fail(f"Could not find points {p1_name} or {p2_name} for segment {seg_data['name']}")
@@ -217,7 +216,7 @@ class TestCanvas(unittest.TestCase):
                 radius = circ_data['args']['radius']
                 center_point = self.canvas.get_point_by_name(center_name)
                 if center_point:
-                    self.canvas.create_circle(center_point.original_position.x, center_point.original_position.y,
+                    self.canvas.create_circle(center_point.x, center_point.y,
                                               radius, circ_data['name'])
                 else:
                     self.fail(f"Could not find center point {center_name} for circle {circ_data['name']}")
@@ -230,8 +229,8 @@ class TestCanvas(unittest.TestCase):
                 origin_point = self.canvas.get_point_by_name(origin_name)
                 tip_point = self.canvas.get_point_by_name(tip_name)
                 if origin_point and tip_point:
-                    self.canvas.create_vector(origin_point.original_position.x, origin_point.original_position.y,
-                                              tip_point.original_position.x, tip_point.original_position.y,
+                    self.canvas.create_vector(origin_point.x, origin_point.y,
+                                              tip_point.x, tip_point.y,
                                               vec_data['name'])
                 else:
                     self.fail(f"Could not find points {origin_name} or {tip_name} for vector {vec_data['name']}")
@@ -269,7 +268,7 @@ class TestCanvas(unittest.TestCase):
         # Assert specific elements by retrieving them based on known properties or constituent points
         rec_pointA = self.canvas.get_point_by_name("A")
         self.assertIsNotNone(rec_pointA, "Point A should be reconstructed")
-        self.assertEqual(rec_pointA.original_position.x, 10)
+        self.assertEqual(rec_pointA.x, 10)
 
         rec_pointB = self.canvas.get_point_by_name("B") # Get B for segment
         self.assertIsNotNone(rec_pointB, "Point B should be reconstructed")
@@ -282,7 +281,7 @@ class TestCanvas(unittest.TestCase):
         rec_pointC = self.canvas.get_point_by_name("C") # Get C for circle
         self.assertIsNotNone(rec_pointC, "Point C should be reconstructed")
         # Assuming the radius was 25 during creation
-        rec_circleC = self.canvas.get_circle(rec_pointC.original_position.x, rec_pointC.original_position.y, 25)
+        rec_circleC = self.canvas.get_circle(rec_pointC.x, rec_pointC.y, 25)
         self.assertIsNotNone(rec_circleC, "Circle C should be reconstructed")
         self.assertEqual(rec_circleC.center.name, "C") # Changed from center_point to center
         self.assertEqual(rec_circleC.radius, 25)
@@ -291,8 +290,7 @@ class TestCanvas(unittest.TestCase):
         self.assertIsNotNone(rec_pointD, "Point D should be reconstructed")
         rec_pointE = self.canvas.get_point_by_name("E") # Get E for vector
         self.assertIsNotNone(rec_pointE, "Point E should be reconstructed")
-        rec_vectorDE = self.canvas.get_vector(rec_pointD.original_position.x, rec_pointD.original_position.y, 
-                                              rec_pointE.original_position.x, rec_pointE.original_position.y)
+        rec_vectorDE = self.canvas.get_vector(rec_pointD.x, rec_pointD.y, rec_pointE.x, rec_pointE.y)
         self.assertIsNotNone(rec_vectorDE, "Vector DE should be reconstructed")
         self.assertEqual(rec_vectorDE.origin.name, "D")
         self.assertEqual(rec_vectorDE.tip.name, "E")
@@ -389,10 +387,10 @@ class TestCanvas(unittest.TestCase):
         s = self.canvas.create_segment(100, 100, 300, 300)
         self.assertIsNotNone(s)
         self.assertIn(s, self.canvas.get_drawables_by_class_name(s.get_class_name()))
-        self.assertEqual(s.point1.original_position.x, 100)
-        self.assertEqual(s.point1.original_position.y, 100)
-        self.assertEqual(s.point2.original_position.x, 300)
-        self.assertEqual(s.point2.original_position.y, 300)
+        self.assertEqual(s.point1.x, 100)
+        self.assertEqual(s.point1.y, 100)
+        self.assertEqual(s.point2.x, 300)
+        self.assertEqual(s.point2.y, 300)
 
     def test_get_segment_by_coordinates(self):
         s1 = self.canvas.create_segment(10, 10, 20, 20)
@@ -534,10 +532,10 @@ class TestCanvas(unittest.TestCase):
         p2 = vector.segment.point2
         self.assertIsNotNone(vector)
         self.assertIn(vector, self.canvas.get_drawables_by_class_name(vector.get_class_name()))
-        self.assertEqual(p1.original_position.x, 100)
-        self.assertEqual(p1.original_position.y, 100)
-        self.assertEqual(p2.original_position.x, 300)
-        self.assertEqual(p2.original_position.y, 300)
+        self.assertEqual(p1.x, 100)
+        self.assertEqual(p1.y, 100)
+        self.assertEqual(p2.x, 300)
+        self.assertEqual(p2.y, 300)
 
     def test_get_vector(self):
         p1 = self.mock_point1
@@ -1041,10 +1039,10 @@ class TestCanvas(unittest.TestCase):
         
         # Verify segment creation
         self.assertIsNotNone(segment_ab, "Segment AB should be created")
-        self.assertEqual(segment_ab.point1.original_position.x, -122.0)
-        self.assertEqual(segment_ab.point1.original_position.y, -69.0)
-        self.assertEqual(segment_ab.point2.original_position.x, 311.0)
-        self.assertEqual(segment_ab.point2.original_position.y, 154.0)
+        self.assertEqual(segment_ab.point1.x, -122.0)
+        self.assertEqual(segment_ab.point1.y, -69.0)
+        self.assertEqual(segment_ab.point2.x, 311.0)
+        self.assertEqual(segment_ab.point2.y, 154.0)
         
         # Split the segment by adding the point we calculated
         self.canvas.drawable_manager.segment_manager._split_segments_with_point(point_c_x, point_c_y)
@@ -1067,12 +1065,11 @@ class TestCanvas(unittest.TestCase):
         
         # Verify point C is on the line AB (to confirm proper splitting)
         # Using MathUtil to check that C is collinear with A and B
-        from drawables.point import Position
         from utils.math_utils import MathUtils
         
-        a_pos = segment_ab.point1.original_position
-        b_pos = segment_ab.point2.original_position
-        c_pos = Position(point_c_x, point_c_y)
+        a_pos = segment_ab.point1
+        b_pos = segment_ab.point2
+        c_pos = SimpleNamespace(x=point_c_x, y=point_c_y)
         
         is_point_on_segment = MathUtils.is_point_on_segment(
             c_pos.x, c_pos.y, 
@@ -1307,53 +1304,53 @@ class TestCanvas(unittest.TestCase):
         self.canvas.translate_object("A", 5, -5)
         
         # Check new position
-        self.assertEqual(point.original_position.x, 15)
-        self.assertEqual(point.original_position.y, 5)
+        self.assertEqual(point.x, 15)
+        self.assertEqual(point.y, 5)
 
     def test_translate_segment(self):
         # Test translating a segment
         segment = self.canvas.create_segment(0, 0, 10, 10)
-        original_p1_x = segment.point1.original_position.x
-        original_p1_y = segment.point1.original_position.y
-        original_p2_x = segment.point2.original_position.x
-        original_p2_y = segment.point2.original_position.y
+        original_p1_x = segment.point1.x
+        original_p1_y = segment.point1.y
+        original_p2_x = segment.point2.x
+        original_p2_y = segment.point2.y
         
         self.canvas.translate_object(segment.name, 5, 5)
         
         # Check both points were translated
-        self.assertEqual(segment.point1.original_position.x, original_p1_x + 5)
-        self.assertEqual(segment.point1.original_position.y, original_p1_y + 5)
-        self.assertEqual(segment.point2.original_position.x, original_p2_x + 5)
-        self.assertEqual(segment.point2.original_position.y, original_p2_y + 5)
+        self.assertEqual(segment.point1.x, original_p1_x + 5)
+        self.assertEqual(segment.point1.y, original_p1_y + 5)
+        self.assertEqual(segment.point2.x, original_p2_x + 5)
+        self.assertEqual(segment.point2.y, original_p2_y + 5)
 
     def test_translate_vector(self):
         # Test translating a vector
         vector = self.canvas.create_vector(0, 0, 10, 10, "V", True)
         
-        original_p1_x = vector.segment.point1.original_position.x
-        original_p1_y = vector.segment.point1.original_position.y
-        original_p2_x = vector.segment.point2.original_position.x
-        original_p2_y = vector.segment.point2.original_position.y
+        original_p1_x = vector.segment.point1.x
+        original_p1_y = vector.segment.point1.y
+        original_p2_x = vector.segment.point2.x
+        original_p2_y = vector.segment.point2.y
         
         self.canvas.translate_object(vector.name, 5, 5)
         
         # Check both points were translated
-        self.assertEqual(vector.segment.point1.original_position.x, original_p1_x + 5)
-        self.assertEqual(vector.segment.point1.original_position.y, original_p1_y + 5)
-        self.assertEqual(vector.segment.point2.original_position.x, original_p2_x + 5)
-        self.assertEqual(vector.segment.point2.original_position.y, original_p2_y + 5)
+        self.assertEqual(vector.segment.point1.x, original_p1_x + 5)
+        self.assertEqual(vector.segment.point1.y, original_p1_y + 5)
+        self.assertEqual(vector.segment.point2.x, original_p2_x + 5)
+        self.assertEqual(vector.segment.point2.y, original_p2_y + 5)
 
     def test_translate_circle(self):
         # Test translating a circle
         circle = self.canvas.create_circle(100, 100, 50)
-        original_center_x = circle.center.original_position.x
-        original_center_y = circle.center.original_position.y
+        original_center_x = circle.center.x
+        original_center_y = circle.center.y
         
         self.canvas.translate_object(circle.name, -10, 20)
         
         # Check center was translated
-        self.assertEqual(circle.center.original_position.x, original_center_x - 10)
-        self.assertEqual(circle.center.original_position.y, original_center_y + 20)
+        self.assertEqual(circle.center.x, original_center_x - 10)
+        self.assertEqual(circle.center.y, original_center_y + 20)
 
     def test_translate_nonexistent_object(self):
         # Test attempting to translate an object that doesn't exist
@@ -1367,8 +1364,8 @@ class TestCanvas(unittest.TestCase):
         segment = self.canvas.create_segment(0, 0, 10, 10, name="AB")
 
         # Store original distances
-        original_dx = p2.original_position.x - p1.original_position.x
-        original_dy = p2.original_position.y - p1.original_position.y
+        original_dx = p2.x - p1.x
+        original_dy = p2.y - p1.y
         
         # Translate each object
         self.canvas.translate_object("A", 5, 5)
@@ -1376,8 +1373,8 @@ class TestCanvas(unittest.TestCase):
         self.canvas.translate_object(segment.name, 5, 5)
         
         # Check relative distances are maintained
-        new_dx = p2.original_position.x - p1.original_position.x
-        new_dy = p2.original_position.y - p1.original_position.y
+        new_dx = p2.x - p1.x
+        new_dy = p2.y - p1.y
         
         self.assertEqual(original_dx, new_dx)
         self.assertEqual(original_dy, new_dy)
@@ -1385,37 +1382,37 @@ class TestCanvas(unittest.TestCase):
     def test_translate_with_zero_offset(self):
         # Test translating with zero offset doesn't change position
         point = self.canvas.create_point(10, 10, "C")
-        original_x = point.original_position.x
-        original_y = point.original_position.y
+        original_x = point.x
+        original_y = point.y
         
         self.canvas.translate_object("C", 0, 0)
         
-        self.assertEqual(point.original_position.x, original_x)
-        self.assertEqual(point.original_position.y, original_y)
+        self.assertEqual(point.x, original_x)
+        self.assertEqual(point.y, original_y)
 
     def test_translate_undo_redo(self):
         # Test that translation can be undone and redone
         point = self.canvas.create_point(10, 10, "A")
-        original_x = point.original_position.x
-        original_y = point.original_position.y
+        original_x = point.x
+        original_y = point.y
         
         # Perform translation
         self.canvas.translate_object("A", 5, 5)
         point = self.canvas.get_point_by_name("A")  # Get fresh reference
-        translated_x = point.original_position.x
-        translated_y = point.original_position.y
+        translated_x = point.x
+        translated_y = point.y
         
         # Undo translation
         self.canvas.undo()
         point = self.canvas.get_point_by_name("A")  # Get fresh reference
-        self.assertEqual(point.original_position.x, original_x)
-        self.assertEqual(point.original_position.y, original_y)
+        self.assertEqual(point.x, original_x)
+        self.assertEqual(point.y, original_y)
         
         # Redo translation
         self.canvas.redo()
         point = self.canvas.get_point_by_name("A")  # Get fresh reference
-        self.assertEqual(point.original_position.x, translated_x)
-        self.assertEqual(point.original_position.y, translated_y)
+        self.assertEqual(point.x, translated_x)
+        self.assertEqual(point.y, translated_y)
 
     def test_translate_triangle(self):
         # Create a triangle with initial points
@@ -1423,9 +1420,9 @@ class TestCanvas(unittest.TestCase):
         
         # Store original positions of all points
         original_points = [
-            (triangle.segment1.point1.original_position.x, triangle.segment1.point1.original_position.y),
-            (triangle.segment1.point2.original_position.x, triangle.segment1.point2.original_position.y),
-            (triangle.segment2.point2.original_position.x, triangle.segment2.point2.original_position.y)
+            (triangle.segment1.point1.x, triangle.segment1.point1.y),
+            (triangle.segment1.point2.x, triangle.segment1.point2.y),
+            (triangle.segment2.point2.x, triangle.segment2.point2.y)
         ]
         
         # Translate triangle
@@ -1434,9 +1431,9 @@ class TestCanvas(unittest.TestCase):
         
         # Get points after translation
         translated_points = [
-            (triangle.segment1.point1.original_position.x, triangle.segment1.point1.original_position.y),
-            (triangle.segment1.point2.original_position.x, triangle.segment1.point2.original_position.y),
-            (triangle.segment2.point2.original_position.x, triangle.segment2.point2.original_position.y)
+            (triangle.segment1.point1.x, triangle.segment1.point1.y),
+            (triangle.segment1.point2.x, triangle.segment1.point2.y),
+            (triangle.segment2.point2.x, triangle.segment2.point2.y)
         ]
         
         # Verify each point was translated correctly
@@ -1576,25 +1573,25 @@ class TestCanvas(unittest.TestCase):
         segment.rotate(90)  # Rotate 90 degrees around midpoint
         
         # Point 1 should be at (0, 0)
-        self.assertAlmostEqual(segment.point1.original_position.x, 15, places=6)
-        self.assertAlmostEqual(segment.point1.original_position.y, -15, places=6)
+        self.assertAlmostEqual(segment.point1.x, 15, places=6)
+        self.assertAlmostEqual(segment.point1.y, -15, places=6)
 
         # Point 2 should now be approximately at (0, 30)
-        self.assertAlmostEqual(segment.point2.original_position.x, 15, places=6)
-        self.assertAlmostEqual(segment.point2.original_position.y, 15, places=6)
+        self.assertAlmostEqual(segment.point2.x, 15, places=6)
+        self.assertAlmostEqual(segment.point2.y, 15, places=6)
 
     def test_segment_multiple_rotations(self):
         """Test multiple rotations on a segment"""
         segment = self.canvas.create_segment(0, 0, 30, 0, name="AB")
         initial_points = {
-            (round(p.original_position.x, 6), round(p.original_position.y, 6))
+            (round(p.x, 6), round(p.y, 6))
             for p in [segment.point1, segment.point2]
         }
         
         # Full rotation should return to original position
         segment.rotate(360)
         final_points = {
-            (round(p.original_position.x, 6), round(p.original_position.y, 6))
+            (round(p.x, 6), round(p.y, 6))
             for p in [segment.point1, segment.point2]
         }
         self.assertEqual(initial_points, final_points)
@@ -1603,14 +1600,14 @@ class TestCanvas(unittest.TestCase):
         """Test triangle rotation around its center"""
         triangle = self.canvas.create_triangle(0, 0, 30, 0, 15, 30)
         initial_points = {
-            (p.original_position.x, p.original_position.y) 
+            (p.x, p.y) 
             for p in [triangle.segment1.point1, triangle.segment1.point2, triangle.segment2.point2]
         }
         
         triangle.rotate(120)
         
         rotated_points = {
-            (p.original_position.x, p.original_position.y) 
+            (p.x, p.y) 
             for p in [triangle.segment1.point1, triangle.segment1.point2, triangle.segment2.point2]
         }
         self.assertNotEqual(initial_points, rotated_points)
@@ -1619,14 +1616,14 @@ class TestCanvas(unittest.TestCase):
         """Test that a full rotation returns to original position"""
         triangle = self.canvas.create_triangle(0, 0, 30, 0, 15, 30)
         initial_points = {
-            (round(p.original_position.x, 6), round(p.original_position.y, 6))
+            (round(p.x, 6), round(p.y, 6))
             for p in [triangle.segment1.point1, triangle.segment1.point2, triangle.segment2.point2]
         }
         
         triangle.rotate(360)
         
         final_points = {
-            (round(p.original_position.x, 6), round(p.original_position.y, 6))
+            (round(p.x, 6), round(p.y, 6))
             for p in [triangle.segment1.point1, triangle.segment1.point2, triangle.segment2.point2]
         }
         self.assertEqual(initial_points, final_points)
@@ -1635,7 +1632,7 @@ class TestCanvas(unittest.TestCase):
         """Test rectangle rotation around its center"""
         rectangle = self.canvas.create_rectangle(0, 0, 30, 20)
         initial_points = {
-            (p.original_position.x, p.original_position.y) 
+            (p.x, p.y) 
             for p in [rectangle.segment1.point1, rectangle.segment1.point2,
                     rectangle.segment2.point2, rectangle.segment3.point2]
         }
@@ -1643,7 +1640,7 @@ class TestCanvas(unittest.TestCase):
         rectangle.rotate(45)
         
         rotated_points = {
-            (p.original_position.x, p.original_position.y) 
+            (p.x, p.y) 
             for p in [rectangle.segment1.point1, rectangle.segment1.point2,
                     rectangle.segment2.point2, rectangle.segment3.point2]
         }
@@ -1661,29 +1658,29 @@ class TestCanvas(unittest.TestCase):
         
         # Store original positions
         original_points = [
-            (p1.original_position.x, p1.original_position.y),
-            (p2.original_position.x, p2.original_position.y),
-            (p3.original_position.x, p3.original_position.y),
-            (p4.original_position.x, p4.original_position.y)
+            (p1.x, p1.y),
+            (p2.x, p2.y),
+            (p3.x, p3.y),
+            (p4.x, p4.y)
         ]
         
         # Test cumulative rotations
         rectangle.rotate(45)
         # Store new positions after first rotation
         new_points_after_first_rotation = [
-            (p1.original_position.x, p1.original_position.y),
-            (p2.original_position.x, p2.original_position.y),
-            (p3.original_position.x, p3.original_position.y),
-            (p4.original_position.x, p4.original_position.y)
+            (p1.x, p1.y),
+            (p2.x, p2.y),
+            (p3.x, p3.y),
+            (p4.x, p4.y)
         ]
         
         rectangle.rotate(45)
         # Store new positions after second rotation
         new_points_after_second_rotation = [
-            (p1.original_position.x, p1.original_position.y),
-            (p2.original_position.x, p2.original_position.y),
-            (p3.original_position.x, p3.original_position.y),
-            (p4.original_position.x, p4.original_position.y)
+            (p1.x, p1.y),
+            (p2.x, p2.y),
+            (p3.x, p3.y),
+            (p4.x, p4.y)
         ]
         
         # Verify that the points have changed after rotations

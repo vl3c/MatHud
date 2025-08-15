@@ -81,8 +81,8 @@ class EllipseManager:
         """
         ellipses = self.drawables.Ellipses
         for ellipse in ellipses:
-            if (ellipse.center.original_position.x == center_x and 
-                ellipse.center.original_position.y == center_y and 
+            if (ellipse.center.x == center_x and 
+                ellipse.center.y == center_y and 
                 ellipse.radius_x == radius_x and 
                 ellipse.radius_y == radius_y):
                 return ellipse

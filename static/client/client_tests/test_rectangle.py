@@ -46,11 +46,11 @@ class TestRectangle(unittest.TestCase):
         self.rectangle._initialize()
         # Validate via CoordinateMapper
         m = self.coordinate_mapper
-        s1p1x, s1p1y = m.math_to_screen(self.rectangle.segment1.point1.original_position.x, self.rectangle.segment1.point1.original_position.y)
-        s1p2x, s1p2y = m.math_to_screen(self.rectangle.segment1.point2.original_position.x, self.rectangle.segment1.point2.original_position.y)
-        s2p1x, s2p1y = m.math_to_screen(self.rectangle.segment2.point1.original_position.x, self.rectangle.segment2.point1.original_position.y)
-        s2p2x, s2p2y = m.math_to_screen(self.rectangle.segment2.point2.original_position.x, self.rectangle.segment2.point2.original_position.y)
-        s3p1x, s3p1y = m.math_to_screen(self.rectangle.segment3.point1.original_position.x, self.rectangle.segment3.point1.original_position.y)
+        s1p1x, s1p1y = m.math_to_screen(self.rectangle.segment1.point1.x, self.rectangle.segment1.point1.y)
+        s1p2x, s1p2y = m.math_to_screen(self.rectangle.segment1.point2.x, self.rectangle.segment1.point2.y)
+        s2p1x, s2p1y = m.math_to_screen(self.rectangle.segment2.point1.x, self.rectangle.segment2.point1.y)
+        s2p2x, s2p2y = m.math_to_screen(self.rectangle.segment2.point2.x, self.rectangle.segment2.point2.y)
+        s3p1x, s3p1y = m.math_to_screen(self.rectangle.segment3.point1.x, self.rectangle.segment3.point1.y)
         self.assertEqual((s1p1x, s1p1y), (250, 250))
         self.assertEqual((s1p2x, s1p2y), (254, 250))
         self.assertEqual((s2p1x, s2p1y), (254, 250))
@@ -92,9 +92,9 @@ class TestRectangle(unittest.TestCase):
         
         # Validate via CoordinateMapper after translation
         m = self.coordinate_mapper
-        s1p1x, s1p1y = m.math_to_screen(self.rectangle.segment1.point1.original_position.x, self.rectangle.segment1.point1.original_position.y)
-        s1p2x, s1p2y = m.math_to_screen(self.rectangle.segment1.point2.original_position.x, self.rectangle.segment1.point2.original_position.y)
-        s2p2x, s2p2y = m.math_to_screen(self.rectangle.segment2.point2.original_position.x, self.rectangle.segment2.point2.original_position.y)
+        s1p1x, s1p1y = m.math_to_screen(self.rectangle.segment1.point1.x, self.rectangle.segment1.point1.y)
+        s1p2x, s1p2y = m.math_to_screen(self.rectangle.segment1.point2.x, self.rectangle.segment1.point2.y)
+        s2p2x, s2p2y = m.math_to_screen(self.rectangle.segment2.point2.x, self.rectangle.segment2.point2.y)
         self.assertEqual((s1p1x, s1p1y), (252, 249))
         self.assertEqual((s1p2x, s1p2y), (256, 249))
         self.assertEqual((s2p2x, s2p2y), (256, 246))

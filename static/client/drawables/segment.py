@@ -62,7 +62,7 @@ class Segment(Drawable):
     def _calculate_line_algebraic_formula(self):
         p1 = self.point1
         p2 = self.point2
-        line_formula = MathUtils.get_line_formula(p1.original_position.x, p1.original_position.y, p2.original_position.x, p2.original_position.y)
+        line_formula = MathUtils.get_line_formula(p1.x, p1.y, p2.x, p2.y)
         return line_formula
 
     def get_state(self):
@@ -85,24 +85,24 @@ class Segment(Drawable):
         return new_segment
 
     def translate(self, x_offset, y_offset):
-        self.point1.original_position.x += x_offset
-        self.point1.original_position.y += y_offset
-        self.point2.original_position.x += x_offset
-        self.point2.original_position.y += y_offset
+        self.point1.x += x_offset
+        self.point1.y += y_offset
+        self.point2.x += x_offset
+        self.point2.y += y_offset
 
     def _get_midpoint(self):
         """Calculate the midpoint of the segment"""
-        x = (self.point1.original_position.x + self.point2.original_position.x) / 2
-        y = (self.point1.original_position.y + self.point2.original_position.y) / 2
+        x = (self.point1.x + self.point2.x) / 2
+        y = (self.point1.y + self.point2.y) / 2
         return (x, y)
 
     def _rotate_point_around_center(self, point, center_x, center_y, angle_rad):
         """Rotate a single point around a center by given angle in radians"""
-        dx = point.original_position.x - center_x
-        dy = point.original_position.y - center_y
+        dx = point.x - center_x
+        dy = point.y - center_y
         
-        point.original_position.x = center_x + (dx * math.cos(angle_rad) - dy * math.sin(angle_rad))
-        point.original_position.y = center_y + (dx * math.sin(angle_rad) + dy * math.cos(angle_rad))
+        point.x = center_x + (dx * math.cos(angle_rad) - dy * math.sin(angle_rad))
+        point.y = center_y + (dx * math.sin(angle_rad) + dy * math.cos(angle_rad))
 
     def rotate(self, angle):
         """Rotate the segment around its midpoint by the given angle in degrees"""

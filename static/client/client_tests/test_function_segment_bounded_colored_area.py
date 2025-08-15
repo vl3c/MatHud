@@ -40,16 +40,14 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
             right_bound=5
         )
         
-        # Create mock segment
+        # Create mock segment (math coordinates on x/y)
         self.segment = SimpleMock(
             name="AB",
             point1=SimpleMock(
-                x=100, y=200,  # Canvas coordinates
-                original_position=SimpleMock(x=-150, y=50)  # Math coordinates
+                x=-150, y=50
             ),
             point2=SimpleMock(
-                x=400, y=300,  # Canvas coordinates  
-                original_position=SimpleMock(x=150, y=-50)  # Math coordinates
+                x=150, y=-50
             )
         )
 
@@ -128,7 +126,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         
         left_bound, right_bound = area._get_segment_bounds()
         
-        # Should return min and max of segment point original_position.x coordinates
+        # Should return min and max of segment point x coordinates (math)
         self.assertEqual(left_bound, -150)  # min(-150, 150)
         self.assertEqual(right_bound, 150)  # max(-150, 150)
 
@@ -240,12 +238,10 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         swapped_segment = SimpleMock(
             name="BA",  # Reverse order
             point1=SimpleMock(
-                x=400, y=300,  # Canvas coordinates
-                original_position=SimpleMock(x=150, y=-50)  # Math coordinates (larger x first)
+                x=150, y=-50
             ),
             point2=SimpleMock(
-                x=100, y=200,  # Canvas coordinates
-                original_position=SimpleMock(x=-150, y=50)  # Math coordinates (smaller x second)
+                x=-150, y=50
             )
         )
         
@@ -297,7 +293,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         self.assertIsNotNone(closed_area, "ClosedArea should be produced")
         self.assertGreater(len(closed_area.forward_points), 0)
         self.assertEqual(len(closed_area.reverse_points), 2)
-        expected_reverse = [(400, 300), (100, 200)]
+        expected_reverse = [(self.segment.point2.x, self.segment.point2.y), (self.segment.point1.x, self.segment.point1.y)]
         self.assertEqual(closed_area.reverse_points, expected_reverse)
 
     def test_edge_case_single_point_segment(self):
@@ -306,12 +302,10 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         single_point_segment = SimpleMock(
             name="AA",
             point1=SimpleMock(
-                x=250, y=250,  # Same canvas coordinates
-                original_position=SimpleMock(x=0, y=0)  # Same math coordinates
+                x=0, y=0
             ),
             point2=SimpleMock(
-                x=250, y=250,  # Same canvas coordinates
-                original_position=SimpleMock(x=0, y=0)  # Same math coordinates  
+                x=0, y=0
             )
         )
         

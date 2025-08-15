@@ -14,13 +14,11 @@ class TestDrawableDependencyManager(unittest.TestCase):
     
     def _create_mock_point(self, name, x=0, y=0):
         """Factory function to create a point mock with SimpleMock"""
-        original_position = SimpleMock(x=x, y=y)
         return SimpleMock(
             name=name,
-            x=x, 
+            x=x,
             y=y,
             canvas=None,
-            original_position=original_position,
             get_class_name=SimpleMock(return_value='Point'),
             __str__=SimpleMock(return_value=f"Point({name})"),
             __repr__=SimpleMock(return_value=f"Point({name})")
@@ -709,14 +707,14 @@ class TestDrawableDependencyManager(unittest.TestCase):
         try:
             children = self.manager._find_segment_children(parent_segment)
         except AttributeError as e:
-            print(f"Error accessing original_position: {e}")
+            print(f"Error accessing coordinates: {e}")
             print(f"Parent segment: {parent_segment}")
             print(f"Parent segment point1: {parent_segment.point1}")
             print(f"Parent segment point2: {parent_segment.point2}")
             if parent_segment.point1:
-                print(f"Parent segment point1 original_position: {parent_segment.point1.original_position}")
+                print(f"Parent segment point1 coords: ({parent_segment.point1.x}, {parent_segment.point1.y})")
             if parent_segment.point2:
-                print(f"Parent segment point2 original_position: {parent_segment.point2.original_position}")
+                print(f"Parent segment point2 coords: ({parent_segment.point2.x}, {parent_segment.point2.y})")
             raise
         
         # Verify results
@@ -735,9 +733,9 @@ class TestDrawableDependencyManager(unittest.TestCase):
         children = self.manager._find_segment_children(invalid_segment)
         self.assertEqual(len(children), 0, "Should handle invalid segment data")
         
-        # Test with segment missing original_position
+        # Test with segment reasonable points
         bad_point1 = self._create_mock_point("BadPoint1", 0, 0)
         bad_point2 = self._create_mock_point("BadPoint2", 100, 0)
         bad_segment = self._create_mock_segment("BadSegment", bad_point1, bad_point2)
         children = self.manager._find_segment_children(bad_segment)
-        self.assertEqual(len(children), 0, "Should handle segment with missing original_position")
+        self.assertEqual(len(children), 0, "Should handle segment without child segments on it")

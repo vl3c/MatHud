@@ -39,8 +39,8 @@ class TestSegment(unittest.TestCase):
         # Real coordinate transformation: origin at (250, 250)
         # Point 1: (0,0) -> screen (250, 250)
         # Point 2: (3,4) -> screen (253, 246)
-        x1, y1 = self.coordinate_mapper.math_to_screen(self.segment.point1.original_position.x, self.segment.point1.original_position.y)
-        x2, y2 = self.coordinate_mapper.math_to_screen(self.segment.point2.original_position.x, self.segment.point2.original_position.y)
+        x1, y1 = self.coordinate_mapper.math_to_screen(self.segment.point1.x, self.segment.point1.y)
+        x2, y2 = self.coordinate_mapper.math_to_screen(self.segment.point2.x, self.segment.point2.y)
         self.assertEqual(x1, 250)
         self.assertEqual(y1, 250)
         self.assertEqual(x2, 253)
@@ -63,8 +63,8 @@ class TestSegment(unittest.TestCase):
         from canvas import Canvas  # not used directly; we mimic Canvas._is_drawable_visible logic
         # Compute visibility using canvas-level predicate
         # Endpoint-in-viewport or intersects viewport
-        x1, y1 = self.coordinate_mapper.math_to_screen(self.segment.point1.original_position.x, self.segment.point1.original_position.y)
-        x2, y2 = self.coordinate_mapper.math_to_screen(self.segment.point2.original_position.x, self.segment.point2.original_position.y)
+        x1, y1 = self.coordinate_mapper.math_to_screen(self.segment.point1.x, self.segment.point1.y)
+        x2, y2 = self.coordinate_mapper.math_to_screen(self.segment.point2.x, self.segment.point2.y)
         in_view = self.canvas.is_point_within_canvas_visible_area(x1, y1) or \
                   self.canvas.is_point_within_canvas_visible_area(x2, y2) or \
                   self.canvas.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
@@ -84,23 +84,23 @@ class TestSegment(unittest.TestCase):
 
     def test_translate_segment_in_math_space(self):
         # Test translating the segment in mathematical coordinate space
-        original_p1_x = self.segment.point1.original_position.x
-        original_p1_y = self.segment.point1.original_position.y
-        original_p2_x = self.segment.point2.original_position.x
-        original_p2_y = self.segment.point2.original_position.y
+        original_p1_x = self.segment.point1.x
+        original_p1_y = self.segment.point1.y
+        original_p2_x = self.segment.point2.x
+        original_p2_y = self.segment.point2.y
         
         self.segment.translate(2, 3)  # Translate by (2, 3) in math space
         
         # Check that original positions were updated
-        self.assertEqual(self.segment.point1.original_position.x, original_p1_x + 2)  # 0 + 2 = 2
-        self.assertEqual(self.segment.point1.original_position.y, original_p1_y + 3)  # 0 + 3 = 3
-        self.assertEqual(self.segment.point2.original_position.x, original_p2_x + 2)  # 3 + 2 = 5
-        self.assertEqual(self.segment.point2.original_position.y, original_p2_y + 3)  # 4 + 3 = 7
+        self.assertEqual(self.segment.point1.x, original_p1_x + 2)
+        self.assertEqual(self.segment.point1.y, original_p1_y + 3)
+        self.assertEqual(self.segment.point2.x, original_p2_x + 2)
+        self.assertEqual(self.segment.point2.y, original_p2_y + 3)
         
         # Check that screen coordinates were recalculated
         # New math coords: p1(2, 3) -> screen (252, 247), p2(5, 7) -> screen (255, 243)
-        x1, y1 = self.coordinate_mapper.math_to_screen(self.segment.point1.original_position.x, self.segment.point1.original_position.y)
-        x2, y2 = self.coordinate_mapper.math_to_screen(self.segment.point2.original_position.x, self.segment.point2.original_position.y)
+        x1, y1 = self.coordinate_mapper.math_to_screen(self.segment.point1.x, self.segment.point1.y)
+        x2, y2 = self.coordinate_mapper.math_to_screen(self.segment.point2.x, self.segment.point2.y)
         self.assertEqual(x1, 252)
         self.assertEqual(y1, 247)
         self.assertEqual(x2, 255)

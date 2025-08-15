@@ -33,12 +33,12 @@ class TestPoint(unittest.TestCase):
     def test_initialize(self):
         self.point._initialize()
         # Screen-space assertions use CoordinateMapper
-        x, y = self.coordinate_mapper.math_to_screen(self.point.original_position.x, self.point.original_position.y)
+        x, y = self.coordinate_mapper.math_to_screen(self.point.x, self.point.y)
         self.assertEqual((x, y), (251, 248))
 
     def test_init(self):
-        self.assertEqual(self.point.original_position.x, 1)
-        self.assertEqual(self.point.original_position.y, 2)
+        self.assertEqual(self.point.x, 1)
+        self.assertEqual(self.point.y, 2)
         self.assertEqual(self.point.x, 1)
         self.assertEqual(self.point.y, 2)
         self.assertEqual(self.point.name, "p1")
@@ -56,34 +56,35 @@ class TestPoint(unittest.TestCase):
 
     def test_deepcopy(self):
         point_copy = copy.deepcopy(self.point)
-        self.assertEqual(point_copy.original_position.x, self.point.original_position.x)
-        self.assertEqual(point_copy.original_position.y, self.point.original_position.y)
+        self.assertEqual(point_copy.x, self.point.x)
+        self.assertEqual(point_copy.y, self.point.y)
         self.assertEqual(point_copy.name, self.point.name)
         self.assertEqual(point_copy.color, self.point.color)
         self.assertIsNot(point_copy, self.point)
-        self.assertIsNot(point_copy.original_position, self.point.original_position)
+        # Compatibility view removed; comparing direct coords instead
 
     def test_translate(self):
-        initial_x, initial_y = self.coordinate_mapper.math_to_screen(self.point.original_position.x, self.point.original_position.y)
-        self.point._translate(Position(1, 1))
-        x, y = self.coordinate_mapper.math_to_screen(self.point.original_position.x, self.point.original_position.y)
-        self.assertEqual(x, initial_x + 1)  # 251 + 1 = 252
-        self.assertEqual(y, initial_y + 1)  # 248 + 1 = 249
+        initial_x, initial_y = self.coordinate_mapper.math_to_screen(self.point.x, self.point.y)
+        # Translate in math-space so that screen shifts by (+1, +1) with scale 1
+        self.point.translate(1, -1)
+        x, y = self.coordinate_mapper.math_to_screen(self.point.x, self.point.y)
+        self.assertEqual(x, initial_x + 1)
+        self.assertEqual(y, initial_y + 1)
 
     def test_translate_point_in_math_space(self):
         # Test translating the point in mathematical coordinate space
-        original_math_x = self.point.original_position.x
-        original_math_y = self.point.original_position.y
+        original_math_x = self.point.x
+        original_math_y = self.point.y
         
         self.point.translate(2, 3)  # Translate by (2, 3) in math space
         
         # Check that original position was updated
-        self.assertEqual(self.point.original_position.x, original_math_x + 2)  # 1 + 2 = 3
-        self.assertEqual(self.point.original_position.y, original_math_y + 3)  # 2 + 3 = 5
+        self.assertEqual(self.point.x, original_math_x + 2)
+        self.assertEqual(self.point.y, original_math_y + 3)
         
         # Check that screen coordinates were recalculated
         # New math coords (3, 5) -> screen (253, 245)
-        x, y = self.coordinate_mapper.math_to_screen(self.point.original_position.x, self.point.original_position.y)
+        x, y = self.coordinate_mapper.math_to_screen(self.point.x, self.point.y)
         self.assertEqual((x, y), (253, 245))
 
     def test_draw(self):

@@ -140,14 +140,14 @@ class TriangleManager:
         p3 = self.point_manager.create_point(x3, y3, name=point_names[2], extra_graphics=False)
             
         # Create segments using the points
-        s1 = self.segment_manager.create_segment(p1.original_position.x, p1.original_position.y, 
-                                               p2.original_position.x, p2.original_position.y, 
+        s1 = self.segment_manager.create_segment(p1.x, p1.y, 
+                                               p2.x, p2.y, 
                                                extra_graphics=False)
-        s2 = self.segment_manager.create_segment(p2.original_position.x, p2.original_position.y, 
-                                               p3.original_position.x, p3.original_position.y, 
+        s2 = self.segment_manager.create_segment(p2.x, p2.y, 
+                                               p3.x, p3.y, 
                                                extra_graphics=False)
-        s3 = self.segment_manager.create_segment(p3.original_position.x, p3.original_position.y, 
-                                               p1.original_position.x, p1.original_position.y, 
+        s3 = self.segment_manager.create_segment(p3.x, p3.y, 
+                                               p1.x, p1.y, 
                                                extra_graphics=False)
             
         # Create the triangle
@@ -248,12 +248,12 @@ class TriangleManager:
                             continue
                             
                         # Skip if points are collinear (degenerate triangle)
-                        if MathUtils.points_orientation(p1.original_position.x, p1.original_position.y,
-                                                      p2.original_position.x, p2.original_position.y,
-                                                      p3.original_position.x, p3.original_position.y) == 0:
+                        if MathUtils.points_orientation(p1.x, p1.y,
+                                                      p2.x, p2.y,
+                                                      p3.x, p3.y) == 0:
                             continue
                             
-                        self.create_triangle(p1.original_position.x, p1.original_position.y,
-                                           p2.original_position.x, p2.original_position.y,
-                                           p3.original_position.x, p3.original_position.y,
+                        self.create_triangle(p1.x, p1.y,
+                                           p2.x, p2.y,
+                                           p3.x, p3.y,
                                            extra_graphics=False)

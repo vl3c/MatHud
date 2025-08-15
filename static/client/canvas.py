@@ -250,21 +250,15 @@ class Canvas:
         try:
             if class_name == 'Point':
                 # Use screen coordinates if available, else compute
-                if hasattr(drawable, 'screen_x') and hasattr(drawable, 'screen_y'):
-                    x, y = drawable.screen_x, drawable.screen_y
-                else:
-                    x, y = self.coordinate_mapper.math_to_screen(drawable.original_position.x, drawable.original_position.y)
+                # Math-only point; map via CoordinateMapper
+                x, y = self.coordinate_mapper.math_to_screen(drawable.x, drawable.y)
                 return self.is_point_within_canvas_visible_area(x, y)
 
             if class_name == 'Segment':
                 p1 = drawable.point1
                 p2 = drawable.point2
-                x1, y1 = (getattr(p1, 'screen_x', None), getattr(p1, 'screen_y', None))
-                x2, y2 = (getattr(p2, 'screen_x', None), getattr(p2, 'screen_y', None))
-                if x1 is None or y1 is None:
-                    x1, y1 = self.coordinate_mapper.math_to_screen(p1.original_position.x, p1.original_position.y)
-                if x2 is None or y2 is None:
-                    x2, y2 = self.coordinate_mapper.math_to_screen(p2.original_position.x, p2.original_position.y)
+                x1, y1 = self.coordinate_mapper.math_to_screen(p1.x, p1.y)
+                x2, y2 = self.coordinate_mapper.math_to_screen(p2.x, p2.y)
                 return (
                     self.is_point_within_canvas_visible_area(x1, y1) or
                     self.is_point_within_canvas_visible_area(x2, y2) or
@@ -277,12 +271,8 @@ class Canvas:
                     return True
                 p1 = seg.point1
                 p2 = seg.point2
-                x1, y1 = (getattr(p1, 'screen_x', None), getattr(p1, 'screen_y', None))
-                x2, y2 = (getattr(p2, 'screen_x', None), getattr(p2, 'screen_y', None))
-                if x1 is None or y1 is None:
-                    x1, y1 = self.coordinate_mapper.math_to_screen(p1.original_position.x, p1.original_position.y)
-                if x2 is None or y2 is None:
-                    x2, y2 = self.coordinate_mapper.math_to_screen(p2.original_position.x, p2.original_position.y)
+                x1, y1 = self.coordinate_mapper.math_to_screen(p1.x, p1.y)
+                x2, y2 = self.coordinate_mapper.math_to_screen(p2.x, p2.y)
                 return (
                     self.is_point_within_canvas_visible_area(x1, y1) or
                     self.is_point_within_canvas_visible_area(x2, y2) or

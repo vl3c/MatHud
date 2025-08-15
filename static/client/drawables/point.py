@@ -5,15 +5,14 @@ Fundamental geometric building block representing a point in 2D mathematical spa
 Provides coordinate tracking, labeling, and serves as endpoints for other geometric objects.
 
 Key Features:
-    - Original and screen coordinate tracking
+    - Math coordinate tracking
     - Automatic label display with coordinates
     - CoordinateMapper integration for zoom/pan transformations
     - Translation operations for object manipulation
     - Visibility checking based on canvas bounds
 
 Coordinate Systems:
-    - original_position: Mathematical coordinates (unchanged by zoom/pan)
-    - x, y: Screen coordinates (calculated via CoordinateMapper)
+    - x, y: Mathematical coordinates
 
 Dependencies:
     - constants: Point sizing and labeling configuration
@@ -36,7 +35,7 @@ class Point(Drawable):
     Uses Canvas CoordinateMapper for all coordinate transformations.
     
     Attributes:
-        original_position (Position): Mathematical coordinates (unaffected by zoom/pan)
+        x, y (float): Mathematical coordinates (unaffected by zoom/pan)
     """
     def __init__(self, x, y, canvas, name="", color=default_color):
         """Initialize a point with mathematical coordinates and canvas integration.
@@ -48,21 +47,21 @@ class Point(Drawable):
             name (str): Unique identifier for the point
             color (str): CSS color value for point visualization
         """
-        self.original_position = Position(x, y)
+        self._x = float(x)
+        self._y = float(y)
         super().__init__(name=name, color=color, canvas=canvas)
     
-
     def get_class_name(self):
         return 'Point'
 
-    
 
     def __str__(self):
-        return f'{self.original_position.x},{self.original_position.y}'
+        def fmt(v):
+            return str(int(v)) if isinstance(v, float) and v.is_integer() else str(v)
+        return f'{fmt(self.x)},{fmt(self.y)}'
     
     def get_state(self):
-        pos = self.original_position
-        state = {"name": self.name, "args": {"position": {"x": pos.x, "y": pos.y}}}
+        state = {"name": self.name, "args": {"position": {"x": self.x, "y": self.y}}}
         return state
     
     def __deepcopy__(self, memo):
@@ -70,13 +69,13 @@ class Point(Drawable):
             return memo[id(self)]
         # For undo / redo / archive functionality
         # Create a new Point instance with the same coordinates and properties, but do not deep copy the canvas
-        new_point = Point(self.original_position.x, self.original_position.y, self.canvas, name=self.name, color=self.color)
+        new_point = Point(self.x, self.y, self.canvas, name=self.name, color=self.color)
         memo[id(self)] = new_point
         return new_point
 
     def translate(self, x_offset, y_offset):
-        self.original_position.x += x_offset
-        self.original_position.y += y_offset
+        self.x += x_offset
+        self.y += y_offset
 
     def rotate(self, angle):
         pass
@@ -86,8 +85,8 @@ class Point(Drawable):
         if not isinstance(other, Point):
             return NotImplemented
         # Use MathUtils for tolerance comparison
-        x_match = abs(self.original_position.x - other.original_position.x) < MathUtils.EPSILON
-        y_match = abs(self.original_position.y - other.original_position.y) < MathUtils.EPSILON
+        x_match = abs(self.x - other.x) < MathUtils.EPSILON
+        y_match = abs(self.y - other.y) < MathUtils.EPSILON
         return x_match and y_match
 
     def __hash__(self):
@@ -95,33 +94,27 @@ class Point(Drawable):
         # Hash based on coordinates rounded to a few decimal places
         # Adjust precision as needed, should be coarser than EPSILON allows differences
         precision = 6 # e.g., 6 decimal places
-        rounded_x = round(self.original_position.x, precision)
-        rounded_y = round(self.original_position.y, precision)
+        rounded_x = round(self.x, precision)
+        rounded_y = round(self.y, precision)
         return hash((rounded_x, rounded_y))
 
     @property
     def x(self):
         """Math x-coordinate (will be flipped to math in this migration step)."""
-        return self.original_position.x
+        return self._x
+
+    @x.setter
+    def x(self, value):
+        self._x = float(value)
 
     @property  
     def y(self):
         """Math y-coordinate (will be flipped to math in this migration step)."""
-        return self.original_position.y
+        return self._y
 
-    @property
-    def screen_x(self):
-        """Explicit screen x-coordinate (alias for current behavior)."""
-        screen_x, _ = self.canvas.coordinate_mapper.math_to_screen(
-            self.original_position.x, self.original_position.y)
-        return screen_x
-
-    @property
-    def screen_y(self):
-        """Explicit screen y-coordinate (alias for current behavior)."""
-        _, screen_y = self.canvas.coordinate_mapper.math_to_screen(
-            self.original_position.x, self.original_position.y)
-        return screen_y
+    @y.setter
+    def y(self, value):
+        self._y = float(value)
 
     def _initialize(self):
         """Empty method for backward compatibility.
@@ -132,20 +125,7 @@ class Point(Drawable):
         pass
 
     def _translate(self, screen_offset):
-        """Translate point by screen coordinate offset for backward compatibility.
-        
-        Converts screen offset to mathematical offset and applies translation.
-        This maintains compatibility with old code that used screen-space translation.
-        
-        Args:
-            screen_offset (Position): Screen coordinate offset to apply
-        """
-        # Convert screen offset to mathematical offset
-        math_dx = screen_offset.x / self.canvas.coordinate_mapper.scale_factor
-        math_dy = -screen_offset.y / self.canvas.coordinate_mapper.scale_factor  # Y-axis flip
-        
-        # Apply mathematical translation
-        self.translate(math_dx, math_dy)
+        return
 
     def zoom(self):
         """Empty zoom method for backward compatibility.

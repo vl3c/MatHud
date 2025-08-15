@@ -114,10 +114,10 @@ class WorkspaceManager:
             p2 = self.canvas.get_point_by_name(item_state["args"]["p2"])
             if p1 and p2:
                 self.canvas.create_segment(
-                    p1.original_position.x,
-                    p1.original_position.y,
-                    p2.original_position.x,
-                    p2.original_position.y,
+                    p1.x,
+                    p1.y,
+                    p2.x,
+                    p2.y,
                     name=item_state.get("name", "")
                 )
 
@@ -141,10 +141,10 @@ class WorkspaceManager:
                 continue
             
             self.canvas.create_vector(
-                origin_point.original_position.x,
-                origin_point.original_position.y, 
-                tip_point.original_position.x,
-                tip_point.original_position.y,
+                origin_point.x,
+                origin_point.y, 
+                tip_point.x,
+                tip_point.y,
                 name=item_state.get("name", "")
             )
 
@@ -158,12 +158,12 @@ class WorkspaceManager:
             p3 = self.canvas.get_point_by_name(item_state["args"]["p3"])
             if p1 and p2 and p3:
                 self.canvas.create_triangle(
-                    p1.original_position.x,
-                    p1.original_position.y,
-                    p2.original_position.x,
-                    p2.original_position.y,
-                    p3.original_position.x,
-                    p3.original_position.y,
+                    p1.x,
+                    p1.y,
+                    p2.x,
+                    p2.y,
+                    p3.x,
+                    p3.y,
                     name=item_state.get("name", "")
                 )
 
@@ -216,10 +216,10 @@ class WorkspaceManager:
                 if not rect_segments:
                     # Fall back to standard creation if segments not found
                     created_rect = self.canvas.create_rectangle(
-                        p_diag1.original_position.x,
-                        p_diag1.original_position.y,
-                        p_diag2.original_position.x,
-                        p_diag2.original_position.y,
+                        p_diag1.x,
+                        p_diag1.y,
+                        p_diag2.x,
+                        p_diag2.y,
                         name=item_state.get("name", "")
                     )
                 else:
@@ -250,19 +250,19 @@ class WorkspaceManager:
                         except ValueError as e:
                             # If Rectangle constructor still fails, fall back to standard creation
                             created_rect = self.canvas.create_rectangle(
-                                p_diag1.original_position.x,
-                                p_diag1.original_position.y,
-                                p_diag2.original_position.x,
-                                p_diag2.original_position.y,
+                                p_diag1.x,
+                                p_diag1.y,
+                                p_diag2.x,
+                                p_diag2.y,
                                 name=item_state.get("name", "")
                             )
                     else:
                         # Fall back to standard rectangle creation
                         created_rect = self.canvas.create_rectangle(
-                            p_diag1.original_position.x,
-                            p_diag1.original_position.y,
-                            p_diag2.original_position.x,
-                            p_diag2.original_position.y,
+                            p_diag1.x,
+                            p_diag1.y,
+                            p_diag2.x,
+                            p_diag2.y,
                             name=item_state.get("name", "")
                         )
                 
@@ -377,8 +377,8 @@ class WorkspaceManager:
             center_point = self.canvas.get_point_by_name(item_state["args"]["center"])
             if center_point:
                 self.canvas.create_circle(
-                    center_point.original_position.x,
-                    center_point.original_position.y,
+                    center_point.x,
+                    center_point.y,
                     item_state["args"]["radius"],
                     name=item_state.get("name", "")
                 )
@@ -391,8 +391,8 @@ class WorkspaceManager:
             center_point = self.canvas.get_point_by_name(item_state["args"]["center"])
             if center_point:
                 self.canvas.create_ellipse(
-                    center_point.original_position.x,
-                    center_point.original_position.y,
+                    center_point.x,
+                    center_point.y,
                     item_state["args"]["radius_x"],
                     item_state["args"]["radius_y"],
                     rotation_angle=item_state["args"].get("rotation_angle", 0),

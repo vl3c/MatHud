@@ -72,8 +72,8 @@ class Ellipse(Drawable):
         self.center._initialize()
 
     def _calculate_ellipse_algebraic_formula(self):
-        x = self.center.original_position.x
-        y = self.center.original_position.y
+        x = self.center.x
+        y = self.center.y
         return MathUtils.get_ellipse_formula(x, y, self.radius_x, self.radius_y, self.rotation_angle)
         
     def get_state(self):
@@ -103,8 +103,8 @@ class Ellipse(Drawable):
         return new_ellipse
 
     def translate(self, x_offset, y_offset):
-        self.center.original_position.x += x_offset
-        self.center.original_position.y += y_offset
+        self.center.x += x_offset
+        self.center.y += y_offset
         self._initialize()
 
     def rotate(self, angle):

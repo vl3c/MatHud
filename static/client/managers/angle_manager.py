@@ -116,13 +116,13 @@ class AngleManager:
         # 2. Create/Retrieve segments using these points
         # SegmentManager.create_segment takes coordinates, not point objects directly.
         segment1 = self.segment_manager.create_segment(
-            vertex_point_obj.original_position.x, vertex_point_obj.original_position.y,
-            arm1_defining_point_obj.original_position.x, arm1_defining_point_obj.original_position.y,
+            vertex_point_obj.x, vertex_point_obj.y,
+            arm1_defining_point_obj.x, arm1_defining_point_obj.y,
             extra_graphics=False
         )
         segment2 = self.segment_manager.create_segment(
-            vertex_point_obj.original_position.x, vertex_point_obj.original_position.y,
-            arm2_defining_point_obj.original_position.x, arm2_defining_point_obj.original_position.y,
+            vertex_point_obj.x, vertex_point_obj.y,
+            arm2_defining_point_obj.x, arm2_defining_point_obj.y,
             extra_graphics=False
         )
 
@@ -322,17 +322,15 @@ class AngleManager:
             print(f"AngleManager: Warning - Angle '{angle_name}' not found in Angles list for direct removal.")
 
         # 4. Attempt to delete the constituent segments (SegmentManager handles if they are still in use)
-        if segment1 and hasattr(segment1, 'point1') and hasattr(segment1, 'point2') and \
-           hasattr(segment1.point1, 'original_position') and hasattr(segment1.point2, 'original_position'):
+        if segment1 and hasattr(segment1, 'point1') and hasattr(segment1, 'point2'):
             self.segment_manager.delete_segment(
-                segment1.point1.original_position.x, segment1.point1.original_position.y,
-                segment1.point2.original_position.x, segment1.point2.original_position.y
+                segment1.point1.x, segment1.point1.y,
+                segment1.point2.x, segment1.point2.y
             )
-        if segment2 and hasattr(segment2, 'point1') and hasattr(segment2, 'point2') and \
-           hasattr(segment2.point1, 'original_position') and hasattr(segment2.point2, 'original_position'):
+        if segment2 and hasattr(segment2, 'point1') and hasattr(segment2, 'point2'):
             self.segment_manager.delete_segment(
-                segment2.point1.original_position.x, segment2.point1.original_position.y,
-                segment2.point2.original_position.x, segment2.point2.original_position.y
+                segment2.point1.x, segment2.point1.y,
+                segment2.point2.x, segment2.point2.y
             )
             
         # 5. Draw the canvas

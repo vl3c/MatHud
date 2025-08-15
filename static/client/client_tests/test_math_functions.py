@@ -9,9 +9,9 @@ from rendering.function_renderable import FunctionRenderable
 
 class TestMathFunctions(unittest.TestCase):
     def setUp(self):
-        # Mock points for use in some tests
-        self.point1 = SimpleMock(original_position=SimpleMock(x=0, y=0), name='A')
-        self.point2 = SimpleMock(original_position=SimpleMock(x=1, y=1), name='B')
+        # Mock points for use in some tests (math-space coordinates only)
+        self.point1 = SimpleMock(x=0, y=0, name='A')
+        self.point2 = SimpleMock(x=1, y=1, name='B')
         # Mock segment using mocked points
         self.segment = SimpleMock(point1=self.point1, point2=self.point2)
     
@@ -1108,16 +1108,16 @@ class TestMathFunctions(unittest.TestCase):
 
     def test_find_diagonal_points_standard_order(self):
         points = [
-            SimpleMock(name="A", original_position=SimpleMock(x=0, y=1)),
-            SimpleMock(name="B", original_position=SimpleMock(x=1, y=1)),
-            SimpleMock(name="C", original_position=SimpleMock(x=1, y=0)),
-            SimpleMock(name="D", original_position=SimpleMock(x=0, y=0))
+            SimpleMock(name="A", x=0, y=1),
+            SimpleMock(name="B", x=1, y=1),
+            SimpleMock(name="C", x=1, y=0),
+            SimpleMock(name="D", x=0, y=0)
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect1")
         self.assertIsNotNone(p_diag1, "p_diag1 should not be None")
         self.assertIsNotNone(p_diag2, "p_diag2 should not be None")
-        self.assertNotEqual(p_diag1.original_position.x, p_diag2.original_position.x)
-        self.assertNotEqual(p_diag1.original_position.y, p_diag2.original_position.y)
+        self.assertNotEqual(p_diag1.x, p_diag2.x)
+        self.assertNotEqual(p_diag1.y, p_diag2.y)
         
         actual_pair = tuple(sorted((p_diag1.name, p_diag2.name)))
         expected_pairs = [("A", "C"), ("B", "D")]
@@ -1128,16 +1128,16 @@ class TestMathFunctions(unittest.TestCase):
 
     def test_find_diagonal_points_shuffled_order(self):
         points = [
-            SimpleMock(name="D", original_position=SimpleMock(x=0, y=0)),
-            SimpleMock(name="B", original_position=SimpleMock(x=1, y=1)),
-            SimpleMock(name="A", original_position=SimpleMock(x=0, y=1)),
-            SimpleMock(name="C", original_position=SimpleMock(x=1, y=0))
+            SimpleMock(name="D", x=0, y=0),
+            SimpleMock(name="B", x=1, y=1),
+            SimpleMock(name="A", x=0, y=1),
+            SimpleMock(name="C", x=1, y=0)
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect2")
         self.assertIsNotNone(p_diag1, "p_diag1 should not be None")
         self.assertIsNotNone(p_diag2, "p_diag2 should not be None")
-        self.assertNotEqual(p_diag1.original_position.x, p_diag2.original_position.x)
-        self.assertNotEqual(p_diag1.original_position.y, p_diag2.original_position.y)
+        self.assertNotEqual(p_diag1.x, p_diag2.x)
+        self.assertNotEqual(p_diag1.y, p_diag2.y)
 
         actual_pair = tuple(sorted((p_diag1.name, p_diag2.name)))
         expected_pairs = [("A", "C"), ("B", "D")] # Same expected pairs
@@ -1146,10 +1146,10 @@ class TestMathFunctions(unittest.TestCase):
 
     def test_find_diagonal_points_collinear_fail_case(self):
         points = [
-            SimpleMock(name="A", original_position=SimpleMock(x=0, y=0)),
-            SimpleMock(name="B", original_position=SimpleMock(x=1, y=0)),
-            SimpleMock(name="C", original_position=SimpleMock(x=2, y=0)),
-            SimpleMock(name="D", original_position=SimpleMock(x=3, y=0))
+            SimpleMock(name="A", x=0, y=0),
+            SimpleMock(name="B", x=1, y=0),
+            SimpleMock(name="C", x=2, y=0),
+            SimpleMock(name="D", x=3, y=0)
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect3_Collinear")
         self.assertIsNone(p_diag1)
@@ -1157,10 +1157,10 @@ class TestMathFunctions(unittest.TestCase):
 
     def test_find_diagonal_points_L_shape_fail_case(self):
         points = [
-            SimpleMock(name="A", original_position=SimpleMock(x=0, y=1)),
-            SimpleMock(name="B", original_position=SimpleMock(x=1, y=1)),
-            SimpleMock(name="C", original_position=SimpleMock(x=1, y=0)),
-            SimpleMock(name="D", original_position=SimpleMock(x=2, y=0))
+            SimpleMock(name="A", x=0, y=1),
+            SimpleMock(name="B", x=1, y=1),
+            SimpleMock(name="C", x=1, y=0),
+            SimpleMock(name="D", x=2, y=0)
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect4_L-shape")
         self.assertIsNotNone(p_diag1)
@@ -1170,8 +1170,8 @@ class TestMathFunctions(unittest.TestCase):
 
     def test_find_diagonal_points_less_than_4_points(self):
         points = [
-            SimpleMock(name="A", original_position=SimpleMock(x=0, y=0)), 
-            SimpleMock(name="B", original_position=SimpleMock(x=1, y=1))
+            SimpleMock(name="A", x=0, y=0), 
+            SimpleMock(name="B", x=1, y=1)
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect5_TooFew")
         self.assertIsNone(p_diag1)
@@ -1179,10 +1179,10 @@ class TestMathFunctions(unittest.TestCase):
 
     def test_find_diagonal_points_degenerate_rectangle_one_point_repeated(self):
         points = [
-            SimpleMock(name="A1", original_position=SimpleMock(x=0, y=1)),
-            SimpleMock(name="B", original_position=SimpleMock(x=1, y=1)),
-            SimpleMock(name="C", original_position=SimpleMock(x=1, y=0)),
-            SimpleMock(name="A2", original_position=SimpleMock(x=0, y=1))
+            SimpleMock(name="A1", x=0, y=1),
+            SimpleMock(name="B", x=1, y=1),
+            SimpleMock(name="C", x=1, y=0),
+            SimpleMock(name="A2", x=0, y=1)
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect6_Degenerate")
         self.assertIsNotNone(p_diag1)
@@ -1192,15 +1192,15 @@ class TestMathFunctions(unittest.TestCase):
 
     def test_find_diagonal_points_another_order(self):
         points = [
-            SimpleMock(name="A", original_position=SimpleMock(x=0, y=0)),
-            SimpleMock(name="C", original_position=SimpleMock(x=1, y=1)),
-            SimpleMock(name="B", original_position=SimpleMock(x=0, y=1)),
-            SimpleMock(name="D", original_position=SimpleMock(x=1, y=0))
+            SimpleMock(name="A", x=0, y=0),
+            SimpleMock(name="C", x=1, y=1),
+            SimpleMock(name="B", x=0, y=1),
+            SimpleMock(name="D", x=1, y=0)
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect7")
         self.assertIsNotNone(p_diag1)
         self.assertIsNotNone(p_diag2)
-        self.assertNotEqual(p_diag1.original_position.x, p_diag2.original_position.x)
-        self.assertNotEqual(p_diag1.original_position.y, p_diag2.original_position.y)
+        self.assertNotEqual(p_diag1.x, p_diag2.x)
+        self.assertNotEqual(p_diag1.y, p_diag2.y)
         self.assertEqual(p_diag1.name, "A")
         self.assertEqual(p_diag2.name, "C")

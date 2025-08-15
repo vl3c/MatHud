@@ -79,8 +79,8 @@ class CircleManager:
         """
         circles = self.drawables.Circles
         for circle in circles:
-            if (circle.center.original_position.x == center_x and 
-                circle.center.original_position.y == center_y and 
+            if (circle.center.x == center_x and 
+                circle.center.y == center_y and 
                 circle.radius == radius):
                 return circle
         return None

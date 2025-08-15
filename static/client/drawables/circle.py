@@ -64,8 +64,8 @@ class Circle(Drawable):
         self.center._initialize()
 
     def _calculate_circle_algebraic_formula(self):
-        x = self.center.original_position.x
-        y = self.center.original_position.y
+        x = self.center.x
+        y = self.center.y
         r = self.radius
         circle_formula = MathUtils.get_circle_formula(x, y, r)
         return circle_formula
@@ -87,8 +87,8 @@ class Circle(Drawable):
         return new_circle
 
     def translate(self, x_offset, y_offset):
-        self.center.original_position.x += x_offset
-        self.center.original_position.y += y_offset
+        self.center.x += x_offset
+        self.center.y += y_offset
         self._initialize()
 
     def rotate(self, angle):

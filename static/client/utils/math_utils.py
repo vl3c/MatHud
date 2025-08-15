@@ -88,7 +88,7 @@ class MathUtils:
         precision issues in coordinate matching.
         
         Args:
-            point: Point object with original_position attribute
+            point: Point object with x and y attributes
             x (float): Target x-coordinate to match
             y (float): Target y-coordinate to match
             
@@ -96,8 +96,8 @@ class MathUtils:
             bool: True if point coordinates match within tolerance, False otherwise
         """
         # Check if differences are within epsilon
-        x_match = abs(point.original_position.x - x) < MathUtils.EPSILON
-        y_match = abs(point.original_position.y - y) < MathUtils.EPSILON
+        x_match = abs(point.x - x) < MathUtils.EPSILON
+        y_match = abs(point.y - y) < MathUtils.EPSILON
         return x_match and y_match
 
     @staticmethod
@@ -1396,7 +1396,7 @@ class MathUtils:
         # Extract the coordinates from the vertices
         triangle_points = set()
         for vertex in vertices:
-            triangle_points.add((vertex.original_position.x, vertex.original_position.y))
+            triangle_points.add((vertex.x, vertex.y))
         
         # Create a set of the target coordinates
         target_points = {(x1, y1), (x2, y2), (x3, y3)}
@@ -1428,8 +1428,8 @@ class MathUtils:
                 p2 = points[j]
                 
                 # Check if points differ in both x and y coordinates (potential diagonal)
-                dx = abs(p1.original_position.x - p2.original_position.x)
-                dy = abs(p1.original_position.y - p2.original_position.y)
+                dx = abs(p1.x - p2.x)
+                dy = abs(p1.y - p2.y)
                 
                 if dx > MathUtils.EPSILON and dy > MathUtils.EPSILON:
                     distance = math.sqrt(dx**2 + dy**2)

@@ -461,13 +461,12 @@ class DrawableDependencyManager:
         if not segment or not hasattr(segment, 'point1') or not hasattr(segment, 'point2'):
             return []
             
-        # Safety check for points and their original_position
-        if not segment.point1 or not segment.point2 or \
-           not hasattr(segment.point1, 'original_position') or \
-           not hasattr(segment.point2, 'original_position'):
+        # Safety check for points
+        if not segment.point1 or not segment.point2:
             return []
             
-        sp1, sp2 = segment.point1.original_position, segment.point2.original_position
+        sp1x, sp1y = segment.point1.x, segment.point1.y
+        sp2x, sp2y = segment.point2.x, segment.point2.y
         children = []
         
         # Access segments via the proxy
@@ -478,15 +477,14 @@ class DrawableDependencyManager:
                     continue
                 if not hasattr(s, 'point1') or not hasattr(s, 'point2'): # Safety check
                     continue 
-                if not s.point1 or not s.point2 or \
-                   not hasattr(s.point1, 'original_position') or \
-                   not hasattr(s.point2, 'original_position'):
+                if not s.point1 or not s.point2:
                     continue
-                    
-                p1, p2 = s.point1.original_position, s.point2.original_position
+                
+                p1x, p1y = s.point1.x, s.point1.y
+                p2x, p2y = s.point2.x, s.point2.y
                 # Check if s is geometrically within segment
-                if MathUtils.is_point_on_segment(p1.x, p1.y, sp1.x, sp1.y, sp2.x, sp2.y) and \
-                   MathUtils.is_point_on_segment(p2.x, p2.y, sp1.x, sp1.y, sp2.x, sp2.y):
+                if MathUtils.is_point_on_segment(p1x, p1y, sp1x, sp1y, sp2x, sp2y) and \
+                   MathUtils.is_point_on_segment(p2x, p2y, sp1x, sp1y, sp2x, sp2y):
                     children.append(s)
         return children
 
