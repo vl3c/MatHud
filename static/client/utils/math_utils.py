@@ -586,9 +586,20 @@ class MathUtils:
         Returns:
             String representation of the ellipse formula
         """
+        def fmt_num(n):
+            try:
+                n_float = float(n)
+                if n_float.is_integer():
+                    return str(int(n_float))
+                return str(n_float).rstrip('0').rstrip('.')
+            except Exception:
+                return str(n)
+
+        fx, fy, frx, fry = fmt_num(x), fmt_num(y), fmt_num(rx), fmt_num(ry)
+
         if rotation_angle == 0:
             # Standard ellipse formula without rotation
-            return f"((x - {x})**2)/{rx}**2 + ((y - {y})**2)/{ry}**2 = 1"
+            return f"((x - {fx})**2)/{frx}**2 + ((y - {fy})**2)/{fry}**2 = 1"
         else:
             # Convert angle to radians
             angle_rad = math.radians(rotation_angle)
@@ -608,7 +619,7 @@ class MathUtils:
             # Handle special cases for coefficient signs in the formula
             b_term = f"+ {B}" if B >= 0 else f"- {abs(B)}"
             
-            return f"{A}*(x - {x})**2 {b_term}*(x - {x})*(y - {y}) + {C}*(y - {y})**2 = 1"
+            return f"{A}*(x - {fx})**2 {b_term}*(x - {fy})*(y - {fy}) + {C}*(y - {fy})**2 = 1"
 
     @staticmethod
     def try_convert_to_number(value):
