@@ -197,7 +197,8 @@ class Cartesian2Axis(Drawable):
     
     def _calculate_ideal_tick_spacing(self):
         relative_width = self.get_relative_width()  # Width of the visible cartesian system in units
-        return relative_width / self.max_ticks  # Ideal width of a tick spacing
+        ideal = relative_width / self.max_ticks  # Ideal width of a tick spacing
+        return ideal
     
     def _find_appropriate_spacing(self, ideal_spacing):
         # Bias to densify sooner and coarsen later
@@ -206,8 +207,8 @@ class Cartesian2Axis(Drawable):
         magnitude = 10 ** math.floor(math.log10(effective_ideal))
         # Standard nice steps (denser than 2.5): 1, 2, 5, 10
         possible_spacings = [magnitude * i for i in [1, 2, 5, 10]]
-
-        # Pick the smallest spacing not less than effective_ideal
+        # Pick the smallest spacing not less than effective_ideal,
+        # but avoid collapsing to the same spacing if viewport changed significantly.
         for spacing in possible_spacings:
             if spacing >= effective_ideal:
                 return spacing

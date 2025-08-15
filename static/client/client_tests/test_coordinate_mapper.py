@@ -142,15 +142,14 @@ class TestCoordinateMapper(unittest.TestCase):
         self.assertEqual(self.mapper.zoom_direction, -1)  # zoom in
     
     def test_zoom_bounds(self):
-        """Test zoom scale factor bounds enforcement."""
-        # Zoom way out
-        self.mapper.apply_zoom(0.001)  # Very small factor
-        self.assertGreaterEqual(self.mapper.scale_factor, 0.01)  # Should be clamped
-        
-        # Zoom way in
-        self.mapper.scale_factor = 1.0  # Reset
-        self.mapper.apply_zoom(200.0)  # Very large factor
-        self.assertLessEqual(self.mapper.scale_factor, 100.0)  # Should be clamped
+        """Test zoom scale factor lower bound; no arbitrary upper bound now."""
+        # Zoom way out: should clamp to minimal positive value (0.01)
+        self.mapper.apply_zoom(0.001)
+        self.assertGreaterEqual(self.mapper.scale_factor, 0.01)
+        # Zoom way in: no upper cap enforced (only lower bound exists)
+        self.mapper.scale_factor = 1.0
+        self.mapper.apply_zoom(200.0)
+        self.assertEqual(self.mapper.scale_factor, 200.0)
     
     def test_apply_zoom_step(self):
         """Test standardized zoom step operations."""

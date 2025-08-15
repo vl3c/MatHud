@@ -210,10 +210,9 @@ class CanvasEventHandler:
         # Compute math coords under cursor before scaling
         pre_mx, pre_my = cm.screen_to_math(zp.x, zp.y)
 
-        # Update scale with clamping
+        # Update scale with lower-bound only to avoid zero; no arbitrary upper cap
         new_scale = cm.scale_factor * zoom_factor
-        new_scale = max(0.01, min(100.0, new_scale))
-        cm.scale_factor = new_scale
+        cm.scale_factor = max(1e-9, new_scale)
 
         # Adjust offset to keep the same math point under cursor
         cm.offset.x = zp.x - cm.origin.x - pre_mx * cm.scale_factor

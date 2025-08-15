@@ -95,6 +95,7 @@ class TestCartesian2Axis(unittest.TestCase):
         self.cartesian_system.width = 1000
         self.cartesian_system.max_ticks = 10
         self.cartesian_system.canvas.scale_factor = 2
+        self.cartesian_system.tick_spacing_bias = 1.0
         self.cartesian_system.current_tick_spacing = 100
         self.cartesian_system.canvas.zoom_direction = -1  # Zoom in
         
@@ -118,11 +119,10 @@ class TestCartesian2Axis(unittest.TestCase):
         self.cartesian_system._invalidate_cache_on_zoom()
         
         # Now, the relative width is 2000, so the ideal tick spacing is 200.
-        # The order of magnitude of the ideal tick spacing is 100.
-        # The possible spacings are [100, 250, 500, 1000].
-        # The closest spacing to the ideal tick spacing that is larger or equal to it is 250.
-        # Therefore, the current tick spacing should be updated to 250.
-        self.assertEqual(self.cartesian_system.current_tick_spacing, 250)
+        # With steps [1,2,5,10] the possible spacings are [100, 200, 500, 1000].
+        # The closest spacing >= 200 is 200.
+        # Therefore, the current tick spacing should be updated to 200.
+        self.assertEqual(self.cartesian_system.current_tick_spacing, 200)
 
     def test_dynamic_origin_calculation(self):
         # Test that origin is calculated dynamically from CoordinateMapper
@@ -192,21 +192,81 @@ class TestCartesian2Axis(unittest.TestCase):
     
     def test_find_appropriate_spacing(self):
         # Test the spacing selection logic
+        self.cartesian_system.tick_spacing_bias = 1.0
         # When ideal spacing is exactly a standard spacing value
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(10), 10)
-        self.assertEqual(self.cartesian_system._find_appropriate_spacing(25), 25)
+        self.assertEqual(self.cartesian_system._find_appropriate_spacing(25), 50)
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(50), 50)
         
         # When ideal spacing falls between standard values
-        self.assertEqual(self.cartesian_system._find_appropriate_spacing(15), 25)
+        self.assertEqual(self.cartesian_system._find_appropriate_spacing(15), 20)
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(30), 50)
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(6), 10)
         
         # When ideal spacing is very small
-        self.assertEqual(self.cartesian_system._find_appropriate_spacing(0.15), 0.25)
+        self.assertEqual(self.cartesian_system._find_appropriate_spacing(0.15), 0.2)
         
         # When ideal spacing is very large
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(750), 1000)
+
+    def test_zoom_in_allows_fractional_tick_spacing(self):
+        # Simulate high zoom-in so relative width is very small
+        self.canvas.scale_factor = 200
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        # Bias encourages splitting sooner
+        self.cartesian_system.tick_spacing_bias = 0.5
+        # Recompute spacing via invalidate
+        self.cartesian_system._invalidate_cache_on_zoom()
+        spacing = self.cartesian_system.current_tick_spacing
+        # With width 800, scale 200 -> visible width 4.0; ideal = 4/10 = 0.4
+        # magnitude = 10**-1 = 0.1; candidates [0.1, 0.2, 0.5, 1.0]
+        # bias 0.5 -> effective_ideal 0.2; choose 0.2
+        self.assertLess(spacing, 1.0)
+        self.assertAlmostEqual(spacing, 0.2, places=6)
+
+    def test_zoom_out_allows_large_tick_spacing(self):
+        # Simulate extreme zoom-out so relative width is very large
+        self.canvas.scale_factor = 0.01
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        self.cartesian_system.tick_spacing_bias = 1.0
+        # Recompute spacing via invalidate
+        self.cartesian_system._invalidate_cache_on_zoom()
+        spacing = self.cartesian_system.current_tick_spacing
+        # With width 800, scale 0.01 -> visible width 80000; ideal = 80000/10 = 8000
+        # magnitude = 1000; candidates [1000, 2000, 5000, 10000] -> pick 10000
+        self.assertGreater(spacing, 10000 - 1e-6)
+
+    def test_zoom_in_does_not_get_stuck_at_one(self):
+        # Start around spacing ~1 and verify further zoom-in drops below 1
+        # Configure such that visible_width yields ideal a bit under 2
+        self.canvas.scale_factor = 40
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        self.cartesian_system.tick_spacing_bias = 0.25  # force earlier split
+        # First invalidate to get close to 1
+        self.cartesian_system._invalidate_cache_on_zoom()
+        spacing1 = self.cartesian_system.current_tick_spacing
+        # Increase scale significantly to shrink visible width further
+        self.canvas.scale_factor = 400
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        self.cartesian_system._invalidate_cache_on_zoom()
+        spacing2 = self.cartesian_system.current_tick_spacing
+        self.assertLessEqual(spacing1, 1.0)
+        self.assertLess(spacing2, 1.0)
+
+    def test_zoom_out_does_not_get_stuck_at_10000(self):
+        # Start at spacing ~10000 and verify further zoom-out increases it beyond 10000
+        self.canvas.scale_factor = 0.01  # very large visible width -> ideal ~8000 -> 10000 chosen
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        self.cartesian_system.tick_spacing_bias = 1.0
+        self.cartesian_system._invalidate_cache_on_zoom()
+        spacing1 = self.cartesian_system.current_tick_spacing
+        # Zoom out further (smaller scale)
+        self.canvas.scale_factor = 0.002
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        self.cartesian_system._invalidate_cache_on_zoom()
+        spacing2 = self.cartesian_system.current_tick_spacing
+        self.assertGreaterEqual(spacing1, 10000 - 1e-6)
+        self.assertGreater(spacing2, spacing1)
     
     def test_relative_dimensions(self):
         # Test the relative width and height calculations

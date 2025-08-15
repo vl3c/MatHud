@@ -155,9 +155,8 @@ class CoordinateMapper:
             self.zoom_direction = -1 if zoom_factor > 1 else 1
         
         self.scale_factor *= zoom_factor
-        
-        # Ensure scale factor stays within reasonable bounds
-        self.scale_factor = max(0.01, min(100.0, self.scale_factor))
+        # Ensure scale factor stays above a minimal positive value; no arbitrary upper cap
+        self.scale_factor = max(0.01, self.scale_factor)
     
     def apply_zoom_step(self, direction, zoom_center_screen=None):
         """Apply a standard zoom step in the specified direction.
