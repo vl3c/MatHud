@@ -27,7 +27,7 @@ class TestCartesian2Axis(unittest.TestCase):
         # Sync canvas state with coordinate mapper
         self.coordinate_mapper.sync_from_canvas(self.canvas)
         
-        self.cartesian_system = Cartesian2Axis(canvas=self.canvas)
+        self.cartesian_system = Cartesian2Axis(coordinate_mapper=self.coordinate_mapper)
         self.canvas.cartesian2axis = self.cartesian_system
 
     def test_init(self):
@@ -79,7 +79,7 @@ class TestCartesian2Axis(unittest.TestCase):
         # Set up a Cartesian2Axis object with a specific width, max_ticks, and canvas scale factor
         self.cartesian_system.width = 1000
         self.cartesian_system.max_ticks = 10
-        self.cartesian_system.canvas.scale_factor = 2  # Add this line
+        self.coordinate_mapper.scale_factor = 2  # Add this line
         # Calculate the tick spacing
         tick_spacing = self.cartesian_system._calculate_tick_spacing()
         # The relative width is self.width / self.canvas.scale_factor: 1000 / 2 = 500.
@@ -94,10 +94,10 @@ class TestCartesian2Axis(unittest.TestCase):
         # Set up a Cartesian2Axis object with specific properties
         self.cartesian_system.width = 1000
         self.cartesian_system.max_ticks = 10
-        self.cartesian_system.canvas.scale_factor = 2
+        self.canvas.scale_factor = 2
         self.cartesian_system.tick_spacing_bias = 1.0
         self.cartesian_system.current_tick_spacing = 100
-        self.cartesian_system.canvas.zoom_direction = -1  # Zoom in
+        self.canvas.zoom_direction = -1  # Zoom in
         
         # Update coordinate mapper to reflect new scale
         self.coordinate_mapper.sync_from_canvas(self.canvas)
@@ -111,8 +111,8 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertEqual(self.cartesian_system.current_tick_spacing, 50)
         
         # Change the zoom direction to zoom out
-        self.cartesian_system.canvas.zoom_direction = 1
-        self.cartesian_system.canvas.scale_factor = 0.5  # Decrease scale factor to simulate zooming out
+        self.canvas.zoom_direction = 1
+        self.canvas.scale_factor = 0.5  # Decrease scale factor to simulate zooming out
         self.coordinate_mapper.sync_from_canvas(self.canvas)
         
         # Call the cache invalidation method again
@@ -177,7 +177,7 @@ class TestCartesian2Axis(unittest.TestCase):
         # Test the refactored tick spacing calculation
         self.cartesian_system.width = 1000
         self.cartesian_system.max_ticks = 10
-        self.cartesian_system.canvas.scale_factor = 2
+        self.coordinate_mapper.scale_factor = 2
         
         ideal_spacing = self.cartesian_system._calculate_ideal_tick_spacing()
         self.assertEqual(ideal_spacing, 50)  # 1000/2/10 = 50
@@ -185,7 +185,7 @@ class TestCartesian2Axis(unittest.TestCase):
         # Test with different values
         self.cartesian_system.width = 800
         self.cartesian_system.max_ticks = 8
-        self.cartesian_system.canvas.scale_factor = 1
+        self.coordinate_mapper.scale_factor = 1
         
         ideal_spacing = self.cartesian_system._calculate_ideal_tick_spacing()
         self.assertEqual(ideal_spacing, 100)  # 800/1/8 = 100
@@ -272,12 +272,12 @@ class TestCartesian2Axis(unittest.TestCase):
         # Test the relative width and height calculations
         self.cartesian_system.width = 800
         self.cartesian_system.height = 600
-        self.cartesian_system.canvas.scale_factor = 2
+        self.coordinate_mapper.scale_factor = 2
         
         self.assertEqual(self.cartesian_system.get_relative_width(), 400)
         self.assertEqual(self.cartesian_system.get_relative_height(), 300)
         
         # Test with different scale factor
-        self.cartesian_system.canvas.scale_factor = 0.5
+        self.coordinate_mapper.scale_factor = 0.5
         self.assertEqual(self.cartesian_system.get_relative_width(), 1600)
         self.assertEqual(self.cartesian_system.get_relative_height(), 1200)

@@ -59,11 +59,12 @@ class Cartesian2Axis(Drawable):
         grid_color (str): Color for grid lines
     """
     
-    def __init__(self, canvas, color=default_color):
-        """Initialize Cartesian coordinate system with canvas and color."""
+    def __init__(self, coordinate_mapper, color=default_color):
+        """Initialize Cartesian coordinate system with a CoordinateMapper and color."""
         self.name = "cartesian-2axis-system"
-        self.width = canvas.width
-        self.height = canvas.height
+        self.mapper = coordinate_mapper
+        self.width = coordinate_mapper.canvas_width
+        self.height = coordinate_mapper.canvas_height
         self.default_tick_spacing = 100
         self.current_tick_spacing = 100  # Track the previous tick spacing to determine zoom level
         # Bias factor to make intermediate tick spacing appear sooner (tuneable)
@@ -74,17 +75,9 @@ class Cartesian2Axis(Drawable):
         self.tick_label_color = "grey"
         self.tick_label_font_size = 8
         self.grid_color = "lightgrey"
-        super().__init__(name=self.name, color=color, canvas=canvas)
-        # Ensure canvas is stored for coordinate/bounds access
-        self.canvas = canvas
+        super().__init__(name=self.name, color=color)
 
-    @Drawable.canvas.setter
-    def canvas(self, value):
-        self._canvas = value
-
-    @canvas.getter
-    def canvas(self):
-        return self._canvas
+    # Canvas removed; mapper is the single source of truth
     
     def reset(self):
         """Reset coordinate system to initial state with centered origin."""
@@ -97,32 +90,32 @@ class Cartesian2Axis(Drawable):
     @property
     def origin(self):
         """Get the screen coordinates of the mathematical origin (0,0) using CoordinateMapper."""
-        origin_x, origin_y = self.canvas.coordinate_mapper.math_to_screen(0, 0)
+        origin_x, origin_y = self.mapper.math_to_screen(0, 0)
         return Position(origin_x, origin_y)
     
     def get_visible_left_bound(self):
         """Calculate visible left boundary in mathematical coordinates."""
-        return self.canvas.coordinate_mapper.get_visible_left_bound()
+        return self.mapper.get_visible_left_bound()
 
     def get_visible_right_bound(self):
         """Calculate visible right boundary in mathematical coordinates."""
-        return self.canvas.coordinate_mapper.get_visible_right_bound()
+        return self.mapper.get_visible_right_bound()
 
     def get_visible_top_bound(self):
         """Calculate visible top boundary in mathematical coordinates."""
-        return self.canvas.coordinate_mapper.get_visible_top_bound()
+        return self.mapper.get_visible_top_bound()
 
     def get_visible_bottom_bound(self):
         """Calculate visible bottom boundary in mathematical coordinates."""
-        return self.canvas.coordinate_mapper.get_visible_bottom_bound()
+        return self.mapper.get_visible_bottom_bound()
 
     def get_relative_width(self):
         """Get canvas width adjusted for current scale factor."""
-        return self.width / self.canvas.scale_factor
+        return self.width / self.mapper.scale_factor
     
     def get_relative_height(self):
         """Get canvas height adjusted for current scale factor."""
-        return self.height / self.canvas.scale_factor
+        return self.height / self.mapper.scale_factor
 
     def draw(self):
         """No-op: rendering handled via renderer."""

@@ -94,7 +94,7 @@ class Canvas:
         self.draw_enabled = draw_enabled
         
         # Initialize coordinate system and managers
-        self.cartesian2axis = Cartesian2Axis(self)
+        self.cartesian2axis = Cartesian2Axis(self.coordinate_mapper)
         
         # Add managers
         self.undo_redo_manager = UndoRedoManager(self)
