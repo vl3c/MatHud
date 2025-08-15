@@ -313,8 +313,7 @@ class TestAngle(unittest.TestCase):
             self.assertFalse(result)
             self.assertIsNone(angle.angle_degrees)
         else:
-            angle._initialize()
-            # If _initialize leads to an invalid state, angle_degrees should be None
+            # _initialize removed; ensure invalid state reflected directly
             self.assertIsNone(angle.angle_degrees)
 
         self.C.x = original_C_x
@@ -333,8 +332,7 @@ class TestAngle(unittest.TestCase):
             self.assertFalse(result) 
             self.assertIsNone(angle.angle_degrees)
         else:
-            angle._initialize()
-            # If _initialize leads to an invalid state, angle_degrees should be None
+            # _initialize removed; ensure invalid state reflected directly
             self.assertIsNone(angle.angle_degrees)
 
         self.B.x = original_B_x

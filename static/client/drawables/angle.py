@@ -170,14 +170,7 @@ class Angle(Drawable):
     def get_class_name(self):
         return 'Angle'
 
-    def _get_drawing_references(self):
-        """Return math coordinates of vertex and arms; renderer maps to screen."""
-        if not (self.vertex_point and self.arm1_point and self.arm2_point):
-            return None
-        vx, vy = (self.vertex_point.x, self.vertex_point.y)
-        a1x, a1y = (self.arm1_point.x, self.arm1_point.y)
-        a2x, a2y = (self.arm2_point.x, self.arm2_point.y)
-        return (vx, vy, a1x, a1y, a2x, a2y)
+    # Removed unused _get_drawing_references (renderer derives directly via mapper)
 
     def _calculate_arc_parameters(self, vx, vy, p1x, p1y, p2x, p2y, arc_radius=None):
         """
@@ -317,7 +310,7 @@ class Angle(Drawable):
         # Re-extract defining points as segments might have changed their internal point references
         self.vertex_point, self.arm1_point, self.arm2_point = self._extract_defining_points(self.segment1, self.segment2)
         
-        self._initialize() # This recalculates angle_degrees and ensures drawn_arc_radius is set
+        self._initialize()
         return True 
 
     def reset(self):

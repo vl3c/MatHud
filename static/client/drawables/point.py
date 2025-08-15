@@ -54,7 +54,6 @@ class Point(Drawable):
     def get_class_name(self):
         return 'Point'
 
-
     def __str__(self):
         def fmt(v):
             return str(int(v)) if isinstance(v, float) and v.is_integer() else str(v)
@@ -115,17 +114,6 @@ class Point(Drawable):
     @y.setter
     def y(self, value):
         self._y = float(value)
-
-    def _initialize(self):
-        """Empty method for backward compatibility.
-        
-        Screen coordinates are now calculated on-demand via x,y properties,
-        so no initialization is needed.
-        """
-        pass
-
-    def _translate(self, screen_offset):
-        return
 
     def zoom(self):
         """Empty zoom method for backward compatibility.

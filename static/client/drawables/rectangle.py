@@ -79,10 +79,8 @@ class Rectangle(RotatablePolygon):
     
 
     def _initialize(self):
-        self.segment1._initialize()
-        self.segment2._initialize()
-        self.segment3._initialize()
-        self.segment4._initialize()
+        # No-op: segments compute screen coords via mapper when needed
+        pass
 
     def _segments_form_rectangle(self, s1, s2, s3, s4):
         # Check if the end point of one segment is the start point of the next

@@ -67,5 +67,5 @@ class RotatablePolygon(Drawable):
         for point in points_to_rotate:
             self._rotate_point_around_center(point, center_x, center_y, angle_rad)
             
-        self._initialize()
+        # No extra initialization needed in math-only model
         return True, None 

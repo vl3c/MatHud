@@ -60,7 +60,6 @@ class Ellipse(Drawable):
         self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
         name = f"{self.center.name}({str(self.radius_x)}, {str(self.radius_y)})"
         super().__init__(name=name, color=color, canvas=canvas)
-        self._initialize()
 
     def get_class_name(self):
         return 'Ellipse'
@@ -68,8 +67,8 @@ class Ellipse(Drawable):
     
 
     def _initialize(self):
-        # Remove cached drawn_radius calculation - now calculated dynamically in draw()
-        self.center._initialize()
+        # No-op: Point no longer requires initialization for screen coords
+        pass
 
     def _calculate_ellipse_algebraic_formula(self):
         x = self.center.x
@@ -105,7 +104,6 @@ class Ellipse(Drawable):
     def translate(self, x_offset, y_offset):
         self.center.x += x_offset
         self.center.y += y_offset
-        self._initialize()
 
     def rotate(self, angle):
         """Rotate the ellipse around its center by the given angle in degrees"""
@@ -114,7 +112,6 @@ class Ellipse(Drawable):
         
         # Update ellipse formula if needed
         self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
-        self._initialize()
         
         # Return tuple (should_proceed, message) to match interface
         return True, None 

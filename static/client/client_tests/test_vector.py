@@ -34,7 +34,6 @@ class TestVector(unittest.TestCase):
         self.vector = Vector(self.origin, self.tip, self.canvas, color="green")
 
     def test_initialize(self):
-        self.vector._initialize()
         # Validate via CoordinateMapper
         m = self.coordinate_mapper
         ox, oy = m.math_to_screen(self.vector.origin.x, self.vector.origin.y)

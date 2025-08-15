@@ -31,7 +31,6 @@ class TestPoint(unittest.TestCase):
         self.point = Point(1, 2, self.canvas, name="p1", color="red")
 
     def test_initialize(self):
-        self.point._initialize()
         # Screen-space assertions use CoordinateMapper
         x, y = self.coordinate_mapper.math_to_screen(self.point.x, self.point.y)
         self.assertEqual((x, y), (251, 248))

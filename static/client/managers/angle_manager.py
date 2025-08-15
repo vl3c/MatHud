@@ -397,7 +397,7 @@ class AngleManager:
                         # Before re-initializing, remove old SVG elements
                         if hasattr(angle, 'remove_svg_elements') and callable(angle.remove_svg_elements):
                             angle.remove_svg_elements()
-                        angle._initialize() # Re-evaluates geometry, angle value, points
+                        angle._initialize()
                         needs_redraw = True
                     except ValueError as e:
                         # If _initialize fails (e.g., angle becomes invalid), remove the angle

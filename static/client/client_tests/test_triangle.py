@@ -41,7 +41,6 @@ class TestTriangle(unittest.TestCase):
         self.triangle = Triangle(self.segment1, self.segment2, self.segment3, self.canvas, color="yellow")
 
     def test_initialize(self):
-        self.triangle._initialize()
         # Validate screen-space via CoordinateMapper
         m = self.coordinate_mapper
         s1p1x, s1p1y = m.math_to_screen(self.triangle.segment1.point1.x, self.triangle.segment1.point1.y)

@@ -79,9 +79,8 @@ class Triangle(RotatablePolygon):
     
 
     def _initialize(self):
-        self.segment1._initialize()
-        self.segment2._initialize()
-        self.segment3._initialize()
+        # No-op: segments compute screen coords via mapper when needed
+        pass
 
     def _segments_form_triangle(self, s1, s2, s3):
         points = [s1.point1, s1.point2, s2.point1, s2.point2, s3.point1, s3.point2]

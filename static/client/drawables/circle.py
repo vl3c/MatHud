@@ -53,7 +53,6 @@ class Circle(Drawable):
         self.circle_formula = self._calculate_circle_algebraic_formula()
         name = f"{self.center.name}({str(self.radius)})"
         super().__init__(name=name, color=color, canvas=canvas)
-        self._initialize()
 
 
 
@@ -61,7 +60,8 @@ class Circle(Drawable):
         return 'Circle'
     
     def _initialize(self):
-        self.center._initialize()
+        # No-op: Point no longer requires initialization for screen coords
+        pass
 
     def _calculate_circle_algebraic_formula(self):
         x = self.center.x
@@ -89,7 +89,6 @@ class Circle(Drawable):
     def translate(self, x_offset, y_offset):
         self.center.x += x_offset
         self.center.y += y_offset
-        self._initialize()
 
     def rotate(self, angle):
         pass 

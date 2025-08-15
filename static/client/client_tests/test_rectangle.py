@@ -43,7 +43,6 @@ class TestRectangle(unittest.TestCase):
         self.rectangle = Rectangle(self.segment1, self.segment2, self.segment3, self.segment4, self.canvas, color="orange")
 
     def test_initialize(self):
-        self.rectangle._initialize()
         # Validate via CoordinateMapper
         m = self.coordinate_mapper
         s1p1x, s1p1y = m.math_to_screen(self.rectangle.segment1.point1.x, self.rectangle.segment1.point1.y)

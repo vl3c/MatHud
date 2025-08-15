@@ -77,7 +77,8 @@ class Drawable:
     
     
     def reset(self):
-        self._initialize()
+        # No-op: legacy initializer removed
+        return None
 
     
     def get_state(self):

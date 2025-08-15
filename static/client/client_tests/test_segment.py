@@ -35,7 +35,6 @@ class TestSegment(unittest.TestCase):
         self.segment = Segment(self.p1, self.p2, self.canvas, color="blue")
 
     def test_initialize(self):
-        self.segment._initialize()
         # Real coordinate transformation: origin at (250, 250)
         # Point 1: (0,0) -> screen (250, 250)
         # Point 2: (3,4) -> screen (253, 246)

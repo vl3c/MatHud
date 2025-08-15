@@ -70,7 +70,8 @@ class Vector(Drawable):
         return 'Vector'
 
     def _initialize(self):
-        self.segment._initialize()
+        # No-op: segment computes screen coords via mapper when needed
+        pass
 
     def _draw_tip_triangle(self):
         # Rendering handled by renderer; no-op to preserve interface
