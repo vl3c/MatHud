@@ -276,7 +276,8 @@ class SvgRenderer:
     def _render_function(self, func, coordinate_mapper):
         # Build screen-space paths using validated generator to match original behavior
         try:
-            renderable = FunctionRenderable(func, coordinate_mapper, getattr(func.canvas, 'cartesian2axis', None))
+            # Math models are canvas-free; do not read func.canvas
+            renderable = FunctionRenderable(func, coordinate_mapper, None)
             screen_poly = renderable.build_screen_paths()
             screen_paths = screen_poly.paths if screen_poly else []
             if not screen_paths:
@@ -394,10 +395,12 @@ class SvgRenderer:
             closed_area = renderable.build_screen_area()
             if not closed_area or not closed_area.forward_points or not closed_area.reverse_points:
                 return
+            # Forward points are screen-space; reverse points are math-space (segment endpoints)
             d = f"M {closed_area.forward_points[0][0]},{closed_area.forward_points[0][1]}" + "".join(
                 f" L {x},{y}" for x, y in closed_area.forward_points[1:]
             )
-            d += "".join(f" L {x},{y}" for x, y in closed_area.reverse_points)
+            rev_pts_screen = [coordinate_mapper.math_to_screen(x, y) for (x, y) in closed_area.reverse_points]
+            d += "".join(f" L {x},{y}" for x, y in rev_pts_screen)
             d += " Z"
             fill_color = getattr(area, 'color', 'lightblue')
             fill_opacity = str(getattr(area, 'opacity', 0.3))

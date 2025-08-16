@@ -13,10 +13,10 @@ class SegmentsBoundedAreaRenderable:
         self.mapper = coordinate_mapper
 
     def _screen_xy(self, point):
-        # Fallback to .x/.y if .screen_x/.screen_y are not present
-        sx = getattr(point, 'screen_x', getattr(point, 'x', None))
-        sy = getattr(point, 'screen_y', getattr(point, 'y', None))
-        return sx, sy
+        # Convert math coordinates to screen using the mapper exclusively
+        if point is None or not hasattr(point, 'x') or not hasattr(point, 'y'):
+            return None, None
+        return self.mapper.math_to_screen(point.x, point.y)
 
     def _get_y_at_x_screen(self, segment, x):
         x1, y1 = self._screen_xy(segment.point1)
@@ -34,8 +34,10 @@ class SegmentsBoundedAreaRenderable:
             p2 = self._screen_xy(self.area.segment1.point2)
             if None in p1 or None in p2:
                 return None
-            origin_y = self.area.canvas.cartesian2axis.origin.y
-            reverse_points = [(p2[0], origin_y), (p1[0], origin_y)]
+            # Use mapper to compute x-axis (y=0) at the same screen x positions
+            xaxis_screen_at_p2 = self.mapper.math_to_screen(self.mapper.screen_to_math(p2[0], p2[1])[0], 0)[1]
+            xaxis_screen_at_p1 = self.mapper.math_to_screen(self.mapper.screen_to_math(p1[0], p1[1])[0], 0)[1]
+            reverse_points = [(p2[0], xaxis_screen_at_p2), (p1[0], xaxis_screen_at_p1)]
             return ClosedArea([p1, p2], reverse_points, is_screen=True)
 
         x11, _ = self._screen_xy(self.area.segment1.point1)
