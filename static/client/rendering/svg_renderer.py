@@ -396,12 +396,15 @@ class SvgRenderer:
             closed_area = renderable.build_screen_area()
             if not closed_area or not closed_area.forward_points or not closed_area.reverse_points:
                 return
-            # Forward points are screen-space; reverse points are math-space (segment endpoints)
+            # Forward and reverse points from this renderable are already in screen space
             d = f"M {closed_area.forward_points[0][0]},{closed_area.forward_points[0][1]}" + "".join(
                 f" L {x},{y}" for x, y in closed_area.forward_points[1:]
             )
-            rev_pts_screen = [coordinate_mapper.math_to_screen(x, y) for (x, y) in closed_area.reverse_points]
-            d += "".join(f" L {x},{y}" for x, y in rev_pts_screen)
+            rev_pts = closed_area.reverse_points
+            # Defensive: only convert if the area is not flagged as screen-space
+            if not getattr(closed_area, 'is_screen', False):
+                rev_pts = [coordinate_mapper.math_to_screen(x, y) for (x, y) in closed_area.reverse_points]
+            d += "".join(f" L {x},{y}" for x, y in rev_pts)
             d += " Z"
             fill_color = getattr(area, 'color', 'lightblue')
             fill_opacity = str(getattr(area, 'opacity', 0.3))
