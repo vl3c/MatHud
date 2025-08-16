@@ -20,7 +20,7 @@ Dependencies:
     - CoordinateMapper: View-layer service (used by renderer)
 """
 
-from constants import default_color, default_point_size, point_label_font_size
+from constants import default_color
 from drawables.drawable import Drawable
 from drawables.position import Position
 from utils.math_utils import MathUtils

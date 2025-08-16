@@ -9,7 +9,7 @@ will be added incrementally (Point first), ensuring non-breaking integration.
 """
 
 from browser import document, svg
-from constants import default_color, default_point_size, point_label_font_size, DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR
+from constants import default_color, default_point_size, point_label_font_size, DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR, DEFAULT_ANGLE_ARC_SCREEN_RADIUS
 from utils.math_utils import MathUtils
 from rendering.function_renderable import FunctionRenderable
 
@@ -44,8 +44,9 @@ class SvgRenderer:
             'vector_tip_size': default_point_size * 4,
 
             'angle_color': default_color,
-            'angle_arc_radius': None,  # if None, use model radius
+            'angle_arc_radius': DEFAULT_ANGLE_ARC_SCREEN_RADIUS,
             'angle_label_font_size': point_label_font_size,
+            'angle_text_arc_radius_factor': DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR,
 
             'function_color': default_color,
             'function_stroke_width': 1,
@@ -232,7 +233,7 @@ class SvgRenderer:
             if arc_params["final_sweep_flag"] == '0':  # CW
                 effective_text_mid_arc_delta_rad = -effective_text_mid_arc_delta_rad
             text_angle_rad = arc_params["angle_v_p1_rad"] + effective_text_mid_arc_delta_rad
-            text_r = arc_params["arc_radius_on_screen"] * DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR
+            text_r = arc_params["arc_radius_on_screen"] * self.style.get('angle_text_arc_radius_factor', DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR)
             tx = vx + text_r * _math.cos(text_angle_rad)
             ty = vy + text_r * _math.sin(text_angle_rad)
             text = f"{angle.angle_degrees:.1f}°"
