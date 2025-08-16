@@ -365,3 +365,59 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         
         # Should generate math-space points; mapping happens in renderable
         self.assertGreater(len(reverse_points), 0, "Should generate reverse points")
+
+    def test_screen_points_align_with_function_values(self):
+        """Forward and reverse screen paths must map to the actual function values (not just x-bounds)."""
+        # f1: y = x, f2: y = x^2, intersection bounds [-3, 3] from setUp
+        area = FunctionsBoundedColoredArea(self.func1, self.func2)
+        renderable = FunctionsBoundedAreaRenderable(area, self.coordinate_mapper)
+        closed_area = renderable.build_screen_area(num_points=41)
+        self.assertIsNotNone(closed_area, "Closed area should be produced")
+        self.assertGreater(len(closed_area.forward_points), 0, "Forward path should not be empty")
+        self.assertGreater(len(closed_area.reverse_points), 0, "Reverse path should not be empty")
+
+        def assert_point_matches_function(screen_pt, func):
+            sx, sy = screen_pt
+            # Recover math x from screen x
+            x_math, _ = self.coordinate_mapper.screen_to_math(sx, sy)
+            # Evaluate function in math space
+            if func is None:
+                y_math = 0.0
+            elif isinstance(func, (int, float)):
+                y_math = float(func)
+            else:
+                y_math = func.function(x_math)
+            ex, ey = self.coordinate_mapper.math_to_screen(x_math, y_math)
+            self.assertAlmostEqual(sx, ex, places=3)
+            self.assertAlmostEqual(sy, ey, places=3)
+
+        # Forward points should align to f1
+        for pt in closed_area.forward_points:
+            assert_point_matches_function(pt, self.func1)
+
+        # Reverse points should align to f2 (in reverse order, but individual points must align)
+        for pt in closed_area.reverse_points:
+            assert_point_matches_function(pt, self.func2)
+
+    def test_screen_points_align_with_constants_and_x_axis(self):
+        """When using constants or x-axis, the area edges must still align in screen space."""
+        # func1 constant, func2 = None (x-axis)
+        area = FunctionsBoundedColoredArea(5.0, None, left_bound=-2, right_bound=2)
+        renderable = FunctionsBoundedAreaRenderable(area, self.coordinate_mapper)
+        closed_area = renderable.build_screen_area(num_points=21)
+        self.assertIsNotNone(closed_area)
+
+        # Forward should be y = 5, reverse should be y = 0
+        for pt in closed_area.forward_points:
+            sx, sy = pt
+            x_math, _ = self.coordinate_mapper.screen_to_math(sx, sy)
+            ex, ey = self.coordinate_mapper.math_to_screen(x_math, 5.0)
+            self.assertAlmostEqual(sx, ex, places=3)
+            self.assertAlmostEqual(sy, ey, places=3)
+
+        for pt in closed_area.reverse_points:
+            sx, sy = pt
+            x_math, _ = self.coordinate_mapper.screen_to_math(sx, sy)
+            ex, ey = self.coordinate_mapper.math_to_screen(x_math, 0.0)
+            self.assertAlmostEqual(sx, ex, places=3)
+            self.assertAlmostEqual(sy, ey, places=3)
