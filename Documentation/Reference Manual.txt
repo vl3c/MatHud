@@ -15,6 +15,50 @@ This document contains comprehensive documentation extracted from all files in t
 ## Table of Contents
 
 ### Core Application Files
+#### Renderer (`rendering/svg_renderer.py`)
+
+```
+SVG renderer for MatHud using Brython's browser.svg.
+
+Registry-based dispatch: the renderer maintains a mapping from model classes
+to handler methods. This keeps models strictly math-space and renderer-agnostic.
+
+Initially only provides clear() and a minimal registry without handlers. Shapes
+will be added incrementally (Point first), ensuring non-breaking integration.
+```
+
+Key points:
+- Centralizes style and drawing (points, segments, circles, ellipses, vectors, angles, functions, colored areas, cartesian grid)
+- Uses `CoordinateMapper` for all math-to-screen conversions
+- Handlers registered per model class; models remain canvas-free
+
+#### Renderables
+
+`rendering/function_renderable.py`
+```
+Function renderable: computes function polylines in math or screen space.
+
+This class extracts the sampling, discontinuity handling, and asymptote logic
+from the math model (`drawables.function.Function`) so that the model remains
+math-only and the renderer consumes a clean representation.
+```
+
+`rendering/functions_area_renderable.py`
+```
+Renderable for FunctionsBoundedColoredArea producing a screen-space ClosedArea.
+```
+
+`rendering/function_segment_area_renderable.py`
+```
+Renderable for FunctionSegmentBoundedColoredArea producing a screen-space ClosedArea.
+```
+
+`rendering/segments_area_renderable.py`
+```
+Renderable for SegmentsBoundedColoredArea producing a screen-space ClosedArea.
+
+This keeps math models pure and provides renderer-agnostic geometry.
+```
 1. Flask entry point (`app.py`)
 2. Brython entry point (`main.py`)
 3. Canvas System (`canvas.py`)
@@ -44,6 +88,8 @@ This document contains comprehensive documentation extracted from all files in t
 14. Segments Bounded Colored Area (`drawables/segments_bounded_colored_area.py`)
 15. Function Segment Bounded Colored Area (`drawables/function_segment_bounded_colored_area.py`)
 16. Rotatable Polygon (`drawables/rotatable_polygon.py`)
+
+Note: All drawables are math-only. They do not hold screen-space coordinates and do not reference `Canvas`. Rendering is performed by the renderer using `CoordinateMapper`.
 
 ### Management Classes
 1. Drawable Manager (`managers/drawable_manager.py`)
@@ -197,7 +243,8 @@ Architecture:
     - Cartesian2Axis: Coordinate system visualization
 
 Dependencies:
-    - browser.document: DOM manipulation for SVG rendering
+    - CoordinateMapper: centralized math-to-screen conversion
+    - SvgRenderer: registry-based rendering of math models into SVG
     - geometry: Geometric object definitions (Point, Position, etc.)
     - cartesian_system_2axis: Coordinate grid system
     - utils.*: Mathematical, styling, and geometry utilities
@@ -831,7 +878,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(name="", color=default_color, canvas=None)`: Initialize a drawable object with basic properties
+- `__init__(name="", color=default_color)`: Initialize a drawable object with basic properties
 - `get_class_name()`: Abstract method to return the class name (implemented by subclasses)
 - `get_name()`: Return the object's name
 - `draw()`: Abstract method for rendering (implemented by subclasses)
@@ -918,7 +965,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(x, y, canvas, name="", color=default_color)`: Initialize a point with mathematical coordinates and canvas integration
+- `__init__(x, y, name="", color=default_color)`: Initialize a point with mathematical coordinates
 - `get_class_name()`: Return the class name 'Point'
 - `draw()`: Render the point to the SVG canvas with label
 - `zoom()`: Update point for zoom operations
@@ -973,7 +1020,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(p1, p2, canvas, color=default_color)`: Initialize a line segment between two points
+- `__init__(p1, p2, color=default_color)`: Initialize a line segment between two points
 - `get_class_name()`: Return the class name 'Segment'
 - `draw()`: Render the segment as SVG line between endpoints
 - `zoom()`: Update segment for zoom operations (handled by endpoints)
@@ -1028,15 +1075,13 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(origin, tip, canvas, color=default_color)`: Initialize a vector with origin and tip points
+- `__init__(origin, tip, color=default_color)`: Initialize a vector with origin and tip points
 - `get_class_name()`: Return the class name 'Vector'
-- `draw()`: Render the vector with arrow head
-- `zoom()`: Update vector for zoom operations (handled by endpoints)
-- `pan()`: Update vector for pan operations (handled by endpoints)
-- `translate(x_offset, y_offset)`: Move vector by translating origin and tip
-- `rotate(angle)`: Rotate the vector around its origin by the given angle in degrees
-- `get_state()`: Serialize vector state for persistence
-- `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
+- `draw()`: Render the vector (line + arrow tip)
+- `translate(x_offset, y_offset)`: Translate origin and tip
+- `rotate(angle)`: Rotate vector around origin
+- `get_state()`: Serialize vector state
+- `__deepcopy__(memo)`: Deep copy
 
 #### Triangle (`drawables/triangle.py`)
 
@@ -1081,7 +1126,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(segment1, segment2, segment3, canvas, color=default_color)`: Initialize a triangle from three connected line segments
+- `__init__(segment1, segment2, segment3, color=default_color)`: Initialize a triangle from three connected line segments
 - `get_class_name()`: Return the class name 'Triangle'
 - `draw()`: Render the triangle (drawing is done by the canvas for the segments)
 - `zoom()`: Update triangle for zoom operations (handled by segment points)
@@ -1135,7 +1180,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(segment1, segment2, segment3, segment4, canvas, color=default_color)`: Initialize a rectangle from four connected line segments
+- `__init__(segment1, segment2, segment3, segment4, color=default_color)`: Initialize a rectangle from four connected line segments
 - `get_class_name()`: Return the class name 'Rectangle'
 - `draw()`: Render the rectangle (drawing is done by the canvas for the segments)
 - `zoom()`: Update rectangle for zoom operations (handled by segment points)
@@ -1186,7 +1231,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(center_point, radius, canvas, color=default_color)`: Initialize a circle with center point and radius
+- `__init__(center_point, radius, color=default_color)`: Initialize a circle with center point and radius
 - `get_class_name()`: Return the class name 'Circle'
 - `draw()`: Render the circle to the SVG canvas
 - `zoom()`: Update circle radius for zoom operations
@@ -1242,7 +1287,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(center_point, radius_x, radius_y, canvas, rotation_angle=0, color=default_color)`: Initialize an ellipse with center point, radii, and rotation
+- `__init__(center_point, radius_x, radius_y, rotation_angle=0, color=default_color)`: Initialize an ellipse with center point, radii, and rotation
 - `get_class_name()`: Return the class name 'Ellipse'
 - `draw()`: Render the ellipse to the SVG canvas with rotation transformation
 - `zoom()`: Update ellipse radii for zoom operations
@@ -1300,7 +1345,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(segment1, segment2, canvas, color=DEFAULT_ANGLE_COLOR, is_reflex=False)`: Initialize an angle from two intersecting line segments
+- `__init__(segment1, segment2, color=DEFAULT_ANGLE_COLOR, is_reflex=False)`: Initialize an angle from two intersecting line segments
 - `get_class_name()`: Return the class name 'Angle'
 - `draw()`: Render the angle arc and label to the SVG canvas
 - `zoom()`: Update angle for zoom operations (arc radius is fixed on screen)
@@ -1367,7 +1412,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(function_string, canvas, name, step=default_point_size, color=default_color, left_bound=None, right_bound=None, vertical_asymptotes=None, horizontal_asymptotes=None, point_discontinuities=None)`: Initialize function with expression and domain
+- `__init__(function_string, name, step=default_point_size, color=default_color, left_bound=None, right_bound=None, vertical_asymptotes=None, horizontal_asymptotes=None, point_discontinuities=None)`: Initialize function with expression and domain
 - `get_class_name()`: Return the class name 'Function'
 - `draw()`: Render the function curve to the SVG canvas with path optimization
 - `zoom()`: Update function plotting for zoom operations (handled by path regeneration)
@@ -1417,7 +1462,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(name, canvas=None, color="lightblue", opacity=0.3)`: Initialize a colored area with basic properties
+- `__init__(name, color="lightblue", opacity=0.3)`: Initialize a colored area with basic properties
 - `get_class_name()`: Return the class name 'ColoredArea'
 - `draw()`: Abstract method for rendering (implemented by subclasses)
 - `zoom()`: Update area for zoom operations (handled by boundary objects)
@@ -1463,7 +1508,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(func1, func2=None, canvas=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3, num_sample_points=100)`: Initialize functions bounded colored area
+- `__init__(func1, func2=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3, num_sample_points=100)`: Initialize functions bounded colored area
 - `get_class_name()`: Return the class name 'FunctionsBoundedColoredArea'
 - `draw()`: Draw the colored area between the functions on the canvas
 - `get_state()`: Serialize functions bounded area state for persistence
@@ -1506,7 +1551,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(segment1, segment2=None, canvas=None, color="lightblue", opacity=0.3)`: Initialize segments bounded colored area
+- `__init__(segment1, segment2=None, color="lightblue", opacity=0.3)`: Initialize segments bounded colored area
 - `get_class_name()`: Return the class name 'SegmentsBoundedColoredArea'
 - `draw()`: Render the colored area with segment boundary interpolation
 - `get_state()`: Serialize segments bounded area state for persistence
@@ -1547,7 +1592,7 @@ Attributes:
 ```
 
 **Key Methods:**
-- `__init__(func, segment, canvas=None, color="lightblue", opacity=0.3)`: Initialize a function segment bounded colored area
+- `__init__(func, segment, color="lightblue", opacity=0.3)`: Initialize a function segment bounded colored area
 - `get_class_name()`: Return the class name 'FunctionSegmentBoundedColoredArea'
 - `draw()`: Draw the colored area between the function and segment on the canvas
 - `get_state()`: Serialize function segment bounded area state for persistence
@@ -1795,13 +1840,8 @@ Access Patterns:
     - Bulk Operations: get_all(), get_colored_areas(), get_non_colored_areas()
 ```
 
-**Class Documentation:**
-```
-A container for storing and accessing drawable objects by their class names.
-
-This class extracts the drawable storage functionality from Canvas,
-providing a cleaner separation of concerns.
-```
+**Canvas Reference Removal:**
+All drawable classes do not contain a `canvas` attribute, nor accept `canvas` in constructors or deepcopy. Methods such as `_initialize`, `_translate`, model-level `zoom`/`pan`, and `from_state` (where applicable) are not part of the math-only model API. Models expose only math-space state and `get_state()`.
 
 **Key Methods:**
 - `__init__()`: Initialize an empty drawables container
@@ -2496,6 +2536,10 @@ This class is responsible for:
 - `delete_colored_areas_for_segment(segment)`: Deletes all colored areas associated with a segment
 - `get_colored_areas_for_drawable(drawable)`: Gets all colored areas associated with a drawable (function or segment)
 - `update_colored_area_style(name, color=None, opacity=None)`: Updates the color and/or opacity of a colored area
+- `create_drawables_from_new_connections()`: Create drawables from new connections
+- `create_angle(vx, vy, p1x, p1y, p2x, p2y, label=None, color=None, angle_name=None)`: Create an angle by points
+- `delete_angle(name)`: Delete an angle by name
+- `update_angle_properties(name, new_label=None, new_color=None)`: Update angle properties
 
 #### Angle Manager (`managers/angle_manager.py`)
 

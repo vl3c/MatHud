@@ -35,13 +35,12 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Angles: create from three points (vertex and two defining points), calculate measure, and display arcs.
 
 ## Drawing and Visualization
-- Interactive SVG Canvas: real-time drawing and manipulation
-- Coordinate System: automatic scaling and axis management
-- Shape Transformations: translate, rotate, and scale geometric objects
-- Function Plotting: adaptive resolution based on zoom level
-- Visual Feedback: color-coded shapes and labels
-- Undo/Redo: track and reverse drawing operations
-- Workspace Management: save and load canvas states with metadata
+- Renderer-driven SVG: a dedicated `SvgRenderer` converts math-space models to screen-space SVG elements
+- Coordinate mapping centralized in `CoordinateMapper` (math_to_screen, screen_to_math, zoom, pan, visible bounds)
+- Function plotting via `FunctionRenderable` with sampling, discontinuity and asymptote handling; capped and adaptive density
+- Colored areas via dedicated renderables (paired sampling for function areas; robust reverse path handling)
+- Angle arcs correct in SVG y-down space; styling centralized in renderer
+- Undo/Redo and Workspace Management unchanged; state serialization via `get_state()` on models
 
 ## Multi-Step Calculations
 - Expressions: evaluate mathematical expressions and functions
@@ -171,6 +170,13 @@ static/client/
 │   ├── segments_bounded_colored_area.py         # Segment-bounded areas
 │   ├── rotatable_polygon.py           # Rotatable polygon base class
 │   └── position.py                    # Position utility class
+├── rendering/                         # Renderer and renderables (screen conversion only)
+│   ├── svg_renderer.py                # Central SVG renderer (registry-based)
+│   ├── primitives.py                  # Renderable primitives (ClosedArea, ScreenPolyline)
+│   ├── function_renderable.py         # Function sampling and path generation
+│   ├── functions_area_renderable.py   # Area between two functions (paired sampling)
+│   ├── function_segment_area_renderable.py # Area between a function and a segment
+│   └── segments_area_renderable.py    # Area between one or two segments
 ├── managers/                          # Specialized object managers
 │   ├── drawable_manager.py            # Central drawable orchestrator
 │   ├── drawable_manager_proxy.py      # Initialization dependency management
@@ -348,31 +354,18 @@ server_tests/
 - Undo/redo capabilities are coordinated by `ResultProcessor` potentially interacting with `UndoRedoManager` and `Canvas.archive()`.
 
 ## Canvas System
-- Uses SVG for rendering mathematical objects and functions, manipulated via Brython.
-- The client-side `Canvas` class (in `static/client/canvas.py`) is the core for drawing.
-- It instantiates and uses `DrawableManager` (from `static/client/managers/drawable_manager.py`) to manage all visual elements.
-- `DrawableManager` coordinates specialized managers (e.g., `PointManager`, `SegmentManager`) for creating, updating, and deleting specific geometric shapes and functions.
-- Supports zooming, panning, and coordinate system transformations (handled by `Canvas` and `cartesian_system_2axis.py`).
-- Object state for undo/redo is managed by `UndoRedoManager` in conjunction with `DrawableManager` and `Canvas` (e.g., `Canvas.archive()` for saving states).
-- Handles real-time updates and user interactions via `CanvasEventHandler` which dispatches to `AIInterface` or `Canvas` methods.
-- Provides canvas state serialization (`Canvas.get_canvas_state()`) for workspace saving and for sending to the backend for vision processing.
+- SVG rendering is performed by `SvgRenderer` based on math-only models and `CoordinateMapper`
+- The client-side `Canvas` orchestrates managers, the mapper, and the renderer; models remain immutable with respect to zoom/pan
+- `DrawableManager` and specialized managers create models with canvas-free constructors; managers pass models to the renderer
+- Zooming/panning centralized in `CoordinateMapper`; `Cartesian2Axis` constructed with the mapper and provides grid/ticks
+- Undo/Redo unchanged; `CanvasEventHandler` handles input and delegates to managers and renderer
+- Canvas state serialization (`Canvas.get_canvas_state()`) remains the source for persistence and vision
 
 ## Geometric Shape Management (Client-Side Brython)
-- Handled on the client-side (Brython) by a suite of specialized manager classes within `static/client/managers/`, coordinated by `DrawableManager`.
-- **Drawable Objects**: Actual drawable classes are defined in `static/client/drawables/` including:
-  - `Point`, `Segment`, `Vector`, `Triangle`, `Rectangle`, `Circle`, `Ellipse`, `Angle`, `Function`, `ColoredArea`
-  - Additional specialized classes like `FunctionsBoundedColoredArea`, `FunctionSegmentBoundedColoredArea`, `SegmentsBoundedColoredArea`
-- **Points**: Managed by `PointManager`. Create, delete, translate points with coordinates and labels.
-- **Segments**: Managed by `SegmentManager`. Create line segments between points, calculate length and midpoint.
-- **Vectors**: Managed by `VectorManager`. Create vectors with origin and tip, support for vector operations.
-- **Triangles**: Managed by `TriangleManager`. Create from three points, calculate area, centroid, and angles.
-- **Rectangles**: Managed by `RectangleManager`. Create from diagonal points, validate right angles, calculate area.
-- **Circles**: Managed by `CircleManager`. Create with center and radius, calculate area and circumference.
-- **Ellipses**: Managed by `EllipseManager`. Create with center and radii, support rotation and transformation.
-- **Angles**: Managed by `AngleManager`. Create from three points (vertex and two other points defining the rays), calculate measure in degrees or radians, and visually represent with an arc.
-- **Functions**: Plotted functions are managed by `FunctionManager`.
-- **Colored Areas**: Managed by `ColoredAreaManager`.
-- Dependencies between shapes (e.g., a segment depends on its points) are tracked by `DrawableDependencyManager`.
+- Managed by specialized managers coordinated by `DrawableManager`; constructors are canvas-free
+- **Drawable Objects** (math-only): `Point`, `Segment`, `Vector`, `Triangle`, `Rectangle`, `Circle`, `Ellipse`, `Angle`, `Function`, `ColoredArea`, plus `FunctionsBoundedColoredArea`, `FunctionSegmentBoundedColoredArea`, `SegmentsBoundedColoredArea`
+- Managers pass models to the renderer; models expose only math-space state and `get_state()`
+- Dependencies tracked by `DrawableDependencyManager`; name generation handled in managers
 
 ## Error Handling and Logging
 - **Client-Side (Brython)**: Extensive error handling with try-catch blocks throughout the codebase, particularly in:
