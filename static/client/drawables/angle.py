@@ -53,7 +53,6 @@ class Angle(Drawable):
         Args:
             segment1 (Segment): First segment forming the angle
             segment2 (Segment): Second segment forming the angle
-            canvas (Canvas): Parent canvas for coordinate transformations
             color (str): CSS color value for angle visualization
             is_reflex (bool): False for inner/standard angle, True for outer/reflex angle
             

@@ -8,13 +8,12 @@ Key Features:
     - Center point and dual radius definition (rx, ry)
     - Rotation angle support for arbitrary ellipse orientation
     - Automatic ellipse equation calculation
-    - Scale factor adaptation for zoom operations
-    - SVG rotation transformation for rendering
+    - Pure math model; renderer applies screen scaling and rotation transforms
 
 Mathematical Properties:
     - ellipse_formula: Algebraic equation coefficients
     - Center point tracking through Point object
-    - Dual radius scaling for viewport transformations
+    - Renderer-agnostic; no viewport scaling stored in model
     - Rotation angle preservation and application
 
 Dependencies:
@@ -49,7 +48,6 @@ class Ellipse(Drawable):
             center_point (Point): Center point of the ellipse
             radius_x (float): Horizontal radius in mathematical coordinate units
             radius_y (float): Vertical radius in mathematical coordinate units
-            canvas (Canvas): Parent canvas for coordinate transformations
             rotation_angle (float): Rotation angle in degrees (default: 0)
             color (str): CSS color value for ellipse visualization
         """

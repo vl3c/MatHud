@@ -7,7 +7,7 @@ Provides line equation calculation, visibility detection, and rotation capabilit
 Key Features:
     - Two-endpoint line segment representation
     - Automatic line equation calculation (ax + by + c = 0)
-    - Visibility detection based on canvas viewport intersection
+    - Designed to be renderer-agnostic (no viewport logic here)
     - Translation and rotation transformations
     - Midpoint-based rotation around segment center
 
@@ -47,7 +47,6 @@ class Segment(Drawable):
         Args:
             p1 (Point): First endpoint of the segment
             p2 (Point): Second endpoint of the segment
-            canvas (Canvas): Parent canvas for coordinate transformations
             color (str): CSS color value for segment visualization
         """
         self.point1 = p1

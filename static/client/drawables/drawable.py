@@ -1,12 +1,12 @@
 """
 MatHud Base Drawable Class
 
-Abstract base class for all mathematical objects that can be visualized on the canvas.
+Abstract base class for all mathematical objects in math space.
 Defines the core interface for geometric objects including state management and transformations.
 
 Key Features:
     - Color and naming system
-    - Canvas integration for coordinate transformations (legacy; to be removed)
+    - Canvas-agnostic: no view or rendering dependencies
     - State serialization for persistence
     - Abstract interface for drawing and transformations
 
@@ -23,23 +23,22 @@ from constants import default_color
 
 
 class Drawable:
-    """Abstract base class for all mathematical objects that can be visualized on the canvas.
+    """Abstract base class for math-space geometric objects.
     
     Provides the fundamental interface and common functionality for geometric objects,
-    including SVG rendering capabilities, state management, and coordinate system integration.
+    including state serialization and transformation hooks. Rendering is handled by
+    pluggable renderers and is not part of this class.
     
     Attributes:
-        name (str): Unique identifier for the object within the canvas
-        color (str): CSS color value for object visualization
-        canvas (Canvas): Reference to the parent canvas for coordinate transformations
+        name (str): Identifier for the object
+        color (str): Color metadata (used by renderers)
     """
     def __init__(self, name="", color=default_color):
         """Initialize a drawable object with basic properties.
         
         Args:
-            name (str): Unique identifier for the object
-            color (str): CSS color value for rendering
-            canvas (Canvas): Parent canvas for coordinate system integration
+            name (str): Identifier for the object
+            color (str): Color metadata for renderers
         """
         self.name = name
         self.color = color

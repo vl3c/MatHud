@@ -46,7 +46,6 @@ class Vector(Drawable):
         Args:
             origin (Point): Starting point of the vector
             tip (Point): Ending point of the vector (where arrow head is drawn)
-            canvas (Canvas): Parent canvas for coordinate transformations
             color (str): CSS color value for vector visualization
         """
         self.segment = Segment(origin, tip, color=color)

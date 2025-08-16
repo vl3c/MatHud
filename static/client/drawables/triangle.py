@@ -50,7 +50,6 @@ class Triangle(RotatablePolygon):
             segment1 (Segment): First side of the triangle
             segment2 (Segment): Second side of the triangle
             segment3 (Segment): Third side of the triangle
-            canvas (Canvas): Parent canvas for coordinate transformations
             color (str): CSS color value for triangle visualization
             
         Raises:

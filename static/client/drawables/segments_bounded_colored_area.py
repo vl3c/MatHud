@@ -37,7 +37,6 @@ class SegmentsBoundedColoredArea(ColoredArea):
         Args:
             segment1 (Segment): The first bounding segment
             segment2 (Segment or None): The second bounding segment (None means x-axis)
-            canvas (Canvas): Parent canvas for coordinate system access
             color (str): CSS color value for area fill
             opacity (float): Opacity value between 0.0 and 1.0
         """

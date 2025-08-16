@@ -7,9 +7,7 @@ Provides coordinate tracking, labeling, and serves as endpoints for other geomet
 Key Features:
     - Math coordinate tracking
     - Automatic label display with coordinates
-    - CoordinateMapper integration for zoom/pan transformations
     - Translation operations for object manipulation
-    - Visibility checking based on canvas bounds
 
 Coordinate Systems:
     - x, y: Mathematical coordinates
@@ -19,7 +17,7 @@ Dependencies:
     - drawables.drawable: Base class interface
     - drawables.position: Coordinate container
     - utils.math_utils: Mathematical operations
-    - CoordinateMapper: Coordinate transformation service (via canvas)
+    - CoordinateMapper: View-layer service (used by renderer)
 """
 
 from constants import default_color, default_point_size, point_label_font_size
@@ -31,19 +29,18 @@ class Point(Drawable):
     """Represents a point in 2D mathematical space with coordinate tracking and labeling.
     
     Fundamental building block for all geometric constructions, maintaining mathematical
-    coordinates and calculating screen coordinates dynamically via CoordinateMapper.
-    Uses Canvas CoordinateMapper for all coordinate transformations.
+    coordinates. Rendering and coordinate transformations are handled by the renderer
+    via a CoordinateMapper.
     
     Attributes:
         x, y (float): Mathematical coordinates (unaffected by zoom/pan)
     """
     def __init__(self, x, y, name="", color=default_color):
-        """Initialize a point with mathematical coordinates and canvas integration.
+        """Initialize a point with mathematical coordinates.
         
         Args:
             x (float): Mathematical x-coordinate in the coordinate system
             y (float): Mathematical y-coordinate in the coordinate system
-            canvas (Canvas): Parent canvas for coordinate transformations
             name (str): Unique identifier for the point
             color (str): CSS color value for point visualization
         """
@@ -67,7 +64,7 @@ class Point(Drawable):
         if id(self) in memo:
             return memo[id(self)]
         # For undo / redo / archive functionality
-        # Create a new Point instance with the same coordinates and properties, but do not deep copy the canvas
+        # Create a new Point instance with the same coordinates and properties
         new_point = Point(self.x, self.y, name=self.name, color=self.color)
         memo[id(self)] = new_point
         return new_point

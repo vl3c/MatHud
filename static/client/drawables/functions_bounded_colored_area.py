@@ -8,7 +8,7 @@ Key Features:
     - Two-function or function-to-axis area visualization
     - Support for function objects, constants, and x-axis boundaries
     - Asymptote and discontinuity aware path generation
-    - Boundary detection and coordinate transformation
+    - Boundary detection (math-space only)
 
 Dependencies:
     - drawables.colored_area: Base class for area visualization
@@ -42,7 +42,6 @@ class FunctionsBoundedColoredArea(ColoredArea):
         Args:
             func1 (Function, None, or number): The first bounding function
             func2 (Function, None, or number): The second bounding function
-            canvas (Canvas): Parent canvas for coordinate system access
             left_bound (float): Left boundary of the area
             right_bound (float): Right boundary of the area
             color (str): CSS color value for area fill

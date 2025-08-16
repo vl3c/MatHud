@@ -52,7 +52,6 @@ class Rectangle(RotatablePolygon):
             segment2 (Segment): Second side of the rectangle
             segment3 (Segment): Third side of the rectangle
             segment4 (Segment): Fourth side of the rectangle
-            canvas (Canvas): Parent canvas for coordinate transformations
             color (str): CSS color value for rectangle visualization
             
         Raises:

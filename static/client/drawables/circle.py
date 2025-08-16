@@ -7,13 +7,13 @@ Provides algebraic equation calculation and scale-aware rendering.
 Key Features:
     - Center point and radius definition
     - Automatic circle equation calculation ((x-h)² + (y-k)² = r²)
-    - Scale factor adaptation for zoom operations
+    - Pure math model; screen scaling handled by renderer
     - Mathematical formula generation for geometric operations
 
 Mathematical Properties:
     - circle_formula: Algebraic equation coefficients
     - Center point tracking through Point object
-    - Radius scaling for viewport transformations
+    - Renderer-agnostic; no viewport scaling stored in model
 
 Dependencies:
     - constants: Default styling values
@@ -45,7 +45,6 @@ class Circle(Drawable):
         Args:
             center_point (Point): Center point of the circle
             radius (float): Radius in mathematical coordinate units
-            canvas (Canvas): Parent canvas for coordinate transformations
             color (str): CSS color value for circle visualization
         """
         self.center = center_point

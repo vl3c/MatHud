@@ -35,7 +35,6 @@ class ColoredArea(Drawable):
         
         Args:
             name (str): Unique identifier for the colored area
-            canvas (Canvas): Parent canvas for rendering
             color (str): CSS color value for area fill
             opacity (float): Fill opacity between 0.0 and 1.0
         """
