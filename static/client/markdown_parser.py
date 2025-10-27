@@ -665,6 +665,24 @@ class MarkdownParser:
                 replacement = f'<div class="math-block">$${content}$$</div>'
                 text = text[:start] + replacement + text[end:]
             
+            # Process display math expressions (\[...\]) and preserve multiline content
+            bracket_matches = []
+            pos = 0
+            while True:
+                start = text.find('\\[', pos)
+                if start == -1:
+                    break
+                end = text.find('\\]', start + 2)
+                if end == -1:
+                    break
+                bracket_matches.append((start, end + 2, text[start + 2:end]))
+                pos = end + 2
+
+            for start, end, content in reversed(bracket_matches):
+                cleaned = content.replace('<br>', '\n').strip()
+                replacement = f'<div class="math-block">$${cleaned}$$</div>'
+                text = text[:start] + replacement + text[end:]
+
             # Process inline math expressions (\(...\))
             inline_matches = []
             pos = 0
