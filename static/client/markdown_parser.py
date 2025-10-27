@@ -71,20 +71,11 @@ class MarkdownParser:
                 
                 # Process other markdown elements
                 processed_line = line
-                
-                # Headers (H1-H6)
-                if processed_line.startswith('###### '):
-                    processed_line = f'<h6>{processed_line[7:]}</h6>'
-                elif processed_line.startswith('##### '):
-                    processed_line = f'<h5>{processed_line[6:]}</h5>'
-                elif processed_line.startswith('#### '):
-                    processed_line = f'<h4>{processed_line[5:]}</h4>'
-                elif processed_line.startswith('### '):
-                    processed_line = f'<h3>{processed_line[4:]}</h3>'
-                elif processed_line.startswith('## '):
-                    processed_line = f'<h2>{processed_line[3:]}</h2>'
-                elif processed_line.startswith('# '):
-                    processed_line = f'<h1>{processed_line[2:]}</h1>'
+
+                heading_match = self._parse_heading(processed_line)
+                if heading_match:
+                    level, heading_content = heading_match
+                    processed_line = f'<h{level}>{heading_content}</h{level}>'
                 # Lists - handle ordered and unordered with indentation
                 elif self._is_list_item(processed_line):
                     processed_line = self._process_list_item(processed_line)
@@ -113,6 +104,24 @@ class MarkdownParser:
             print(f"Error in simple markdown parsing: {e}")
             # Ultimate fallback
             return text.replace('\n', '<br>')
+
+    def _parse_heading(self, line):
+        """Parse markdown heading and return (level, content) if matched."""
+        if not line:
+            return None
+
+        match = re.match(r"^(#{1,6})(?:\s+|\b)(.*)$", line)
+        if not match:
+            return None
+
+        hashes, content = match.groups()
+        level = len(hashes)
+
+        content = content.lstrip()
+        if not content:
+            return (level, "")
+
+        return (level, content)
     
     def _process_tables(self, text):
         """Process markdown tables using proper GFM table parsing algorithm."""
