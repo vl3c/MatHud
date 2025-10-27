@@ -30,7 +30,7 @@ Dependencies:
 
 import json
 import traceback
-from browser import document, html, ajax, window
+from browser import document, html, ajax, window, console
 from function_registry import FunctionRegistry
 from process_function_calls import ProcessFunctionCalls
 from workspace_manager import WorkspaceManager
@@ -66,6 +66,10 @@ class AIInterface:
         self.available_functions = FunctionRegistry.get_available_functions(canvas, self.workspace_manager, self)
         self.undoable_functions = FunctionRegistry.get_undoable_functions()
         self.markdown_parser = MarkdownParser()
+        # Streaming state
+        self._stream_buffer = ""
+        self._stream_content_element = None
+        self._stream_message_container = None
 
     def run_tests(self):
         """Run unit tests for the AIInterface class and return results to the AI as the function result."""
@@ -173,6 +177,139 @@ class AIInterface:
             # Scroll the chat history to the bottom
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
 
+    def _ensure_stream_message_element(self):
+        """Create the streaming AI message element if it does not exist yet."""
+        if self._stream_content_element is None:
+            try:
+                container = html.DIV(Class="chat-message normal")
+                label = html.SPAN("AI: ", Class="chat-sender ai")
+                content = html.DIV(Class="chat-content")
+                content.text = ""
+                container <= label
+                container <= content
+                document["chat-history"] <= container
+                self._stream_message_container = container
+                self._stream_content_element = content
+            except Exception as e:
+                print(f"Error creating streaming element: {e}")
+
+    def _on_stream_token(self, text):
+        """Handle a streamed token: append to buffer and update the UI element."""
+        try:
+            self._stream_buffer += text
+            self._ensure_stream_message_element()
+            self._stream_content_element.text = self._stream_buffer
+            document["chat-history"].scrollTop = document["chat-history"].scrollHeight
+        except Exception as e:
+            print(f"Error handling stream token: {e}")
+
+    def _finalize_stream_message(self, final_message=None):
+        """Convert the streamed plain text to parsed markdown and render math."""
+        try:
+            text_to_render = final_message if final_message is not None else self._stream_buffer
+            if not text_to_render:
+                return
+
+            final_element = self._create_message_element("AI", text_to_render)
+
+            history = document["chat-history"]
+            if self._stream_message_container is not None:
+                try:
+                    history.replaceChild(final_element, self._stream_message_container)
+                except Exception:
+                    history <= final_element
+            else:
+                history <= final_element
+
+            self._render_math()
+            history.scrollTop = history.scrollHeight
+        except Exception as e:
+            print(f"Error finalizing stream message: {e}")
+        finally:
+            self._stream_buffer = ""
+            self._stream_content_element = None
+            self._stream_message_container = None
+
+    def _on_stream_final(self, event_obj):
+        """Handle the final event from the streaming response."""
+        try:
+            event = self._normalize_stream_event(event_obj)
+
+            finish_reason = event.get('finish_reason', 'stop')
+            ai_tool_calls = event.get('ai_tool_calls', [])
+            ai_message = event.get('ai_message', '')
+
+            if finish_reason in ("stop", "error"):
+                if not self._stream_buffer and ai_message:
+                    self._stream_buffer = ai_message
+                self._finalize_stream_message(ai_message or None)
+                self._enable_send_controls()
+                return
+
+            try:
+                call_results = ProcessFunctionCalls.get_results(ai_tool_calls, self.available_functions, self.undoable_functions, self.canvas)
+                self._store_results_in_canvas_state(call_results)
+                self._send_prompt_to_ai(None, json.dumps(call_results))
+            except Exception as e:
+                print(f"Error processing streamed tool calls: {e}")
+                self._enable_send_controls()
+        except Exception as e:
+            print(f"Error handling stream final: {e}")
+            self._enable_send_controls()
+
+    def _on_stream_error(self, err):
+        """Handle streaming errors and re-enable controls."""
+        error_message = self._format_stream_error(err)
+        print(f"Streaming error: {error_message}")
+        try:
+            console.error("Streaming error", err)
+        except Exception:
+            pass
+        self._enable_send_controls()
+
+    def _format_stream_error(self, err):
+        """Convert a streaming error object into a readable string."""
+        try:
+            if err is None:
+                return "Unknown error"
+            if isinstance(err, str):
+                return err
+            # Brython-wrapped JS Error objects expose message and stack
+            message = getattr(err, "message", None)
+            stack = getattr(err, "stack", None)
+            if message:
+                if stack and message not in stack:
+                    return f"{message} | stack: {stack}"
+                return message
+            # Fall back to toString() if available
+            to_string = getattr(err, "toString", None)
+            if callable(to_string):
+                return to_string()
+            return str(err)
+        except Exception as format_exc:
+            return f"Error while formatting streaming error: {format_exc}"
+
+    def _normalize_stream_event(self, event_obj):
+        """Convert JS objects or dicts into plain Python dicts."""
+        try:
+            if event_obj is None:
+                return {}
+            if isinstance(event_obj, dict):
+                return event_obj
+            try:
+                return json.loads(window.JSON.stringify(event_obj))
+            except Exception:
+                pass
+            result = {}
+            for key in ["type", "text", "ai_message", "ai_tool_calls", "finish_reason"]:
+                try:
+                    result[key] = getattr(event_obj, key)
+                except Exception:
+                    pass
+            return result
+        except Exception:
+            return {}
+
     def _print_user_message_in_chat(self, user_message):
         """Print a user message to the chat history, clear input field, and scroll to bottom."""
         # Add the user's message to the chat history with markdown support
@@ -195,8 +332,8 @@ class AIInterface:
         """Disable only the send functionality while processing."""
         try:
             self.is_processing = True
-            if "chat-button" in document:
-                document["chat-button"].disabled = True
+            if "send-button" in document:
+                document["send-button"].disabled = True
         except Exception as e:
             print(f"Error disabling send controls: {e}")
 
@@ -204,8 +341,8 @@ class AIInterface:
         """Enable send functionality after processing."""
         try:
             self.is_processing = False
-            if "chat-button" in document:
-                document["chat-button"].disabled = False
+            if "send-button" in document:
+                document["send-button"].disabled = False
         except Exception as e:
             print(f"Error enabling send controls: {e}")
 
@@ -292,16 +429,54 @@ class AIInterface:
         req.set_header('content-type', 'application/json')
         req.send(json.dumps(payload))
 
+    def _start_streaming_request(self, payload):
+        """Start a streaming request using a JS helper for Fetch streaming."""
+        try:
+            payload_json = json.dumps(payload)
+            payload_js = window.JSON.parse(payload_json)
+            self._stream_buffer = ""
+            self._stream_content_element = None
+            self._stream_message_container = None
+            window.sendMessageStream(
+                payload_js,
+                self._on_stream_token,
+                self._on_stream_final,
+                self._on_stream_error
+            )
+        except Exception as e:
+            print(f"Falling back to non-streaming request due to error: {e}")
+            self._make_request(payload)
+
     def _send_request(self, prompt):
         try:
             # Try to send request with SVG state
             payload = self._create_request_payload(prompt, include_svg=True)
-            self._make_request(payload)
+            self._start_streaming_request(payload)
         except Exception as e:
             print(f"Error preparing request with SVG: {str(e)}")
             # Fall back to sending request without SVG state
             payload = self._create_request_payload(prompt, include_svg=False)
-            self._make_request(payload)
+            self._start_streaming_request(payload)
+
+    def _send_prompt_to_ai_stream(self, user_message=None, tool_call_results=None):
+        canvas_state = self.canvas.get_canvas_state()
+        use_vision = document["vision-toggle"].checked and user_message is not None and tool_call_results is None
+        prompt_json = {
+            "canvas_state": canvas_state,
+            "user_message": user_message,
+            "tool_call_results": tool_call_results,
+            "use_vision": use_vision,
+            "ai_model": document["ai-model-selector"].value
+        }
+        prompt = json.dumps(prompt_json)
+        print(f'Prompt for AI (stream): {prompt}')
+        try:
+            payload = self._create_request_payload(prompt, include_svg=True)
+            self._start_streaming_request(payload)
+        except Exception as e:
+            print(f"Error preparing streaming request: {str(e)}")
+            payload = self._create_request_payload(prompt, include_svg=False)
+            self._start_streaming_request(payload)
 
     def _send_prompt_to_ai(self, user_message=None, tool_call_results=None):
         canvas_state = self.canvas.get_canvas_state()

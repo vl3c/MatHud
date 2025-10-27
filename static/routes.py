@@ -15,6 +15,7 @@ import hmac
 import time
 import math
 from flask import request, render_template, json, session, redirect, url_for, flash
+from flask import Response, stream_with_context
 from static.tool_call_processor import ToolCallProcessor
 from static.app_manager import AppManager
 
@@ -175,6 +176,90 @@ def register_routes(app):
                 status='error',
                 code=500
             )
+
+    @app.route('/send_message_stream', methods=['POST'])
+    @require_auth
+    def send_message_stream():
+        """Stream AI response tokens for the provided message payload.
+        
+        Returns a newline-delimited JSON stream with events of shape:
+        {"type":"token","text":"..."}\n for incremental tokens and
+        {"type":"final","ai_message":str,"ai_tool_calls":list,"finish_reason":str}\n at the end.
+        """
+        message = request.json.get('message')
+        if not message:
+            return AppManager.make_response(
+                message='Message is required',
+                status='error',
+                code=400
+            )
+
+        try:
+            message_json = json.loads(message)
+        except (json.JSONDecodeError, TypeError):
+            return AppManager.make_response(
+                message='Invalid message format',
+                status='error',
+                code=400
+            )
+
+        svg_state = request.json.get('svg_state')
+        use_vision = message_json.get('use_vision', False)
+        ai_model = message_json.get('ai_model')
+
+        if ai_model:
+            app.ai_api.set_model(ai_model)
+
+        app.log_manager.log_user_message(message)
+
+        if use_vision and (not hasattr(app, 'webdriver_manager') or app.webdriver_manager is None):
+            try:
+                init_webdriver_route()
+            except Exception as e:
+                # Continue without vision if init fails
+                pass
+
+        if use_vision and hasattr(app, 'webdriver_manager') and app.webdriver_manager:
+            try:
+                app.webdriver_manager.capture_svg_state(svg_state)
+            except Exception:
+                pass
+
+        @stream_with_context
+        def generate():
+            try:
+                for event in app.ai_api.create_chat_completion_stream(message):
+                    # Log on final event for observability
+                    if isinstance(event, dict) and event.get('type') == 'final':
+                        try:
+                            app.log_manager.log_ai_response(event.get('ai_message', ''))
+                            app.log_manager.log_ai_tool_calls(event.get('ai_tool_calls', []))
+                        except Exception:
+                            pass
+                    yield json.dumps(event) + "\n"
+                # No further action here; final event contains summary
+            except Exception as e:
+                try:
+                    error_payload = {
+                        "type": "final",
+                        "ai_message": f"I encountered an error processing your request: {str(e)}",
+                        "ai_tool_calls": [],
+                        "finish_reason": "error"
+                    }
+                    yield json.dumps(error_payload) + "\n"
+                except Exception:
+                    yield json.dumps({
+                        "type": "final",
+                        "ai_message": "I encountered an error processing your request.",
+                        "ai_tool_calls": [],
+                        "finish_reason": "error"
+                    }) + "\n"
+
+        response = Response(generate(), mimetype='application/x-ndjson')
+        # Headers to reduce buffering in some proxies
+        response.headers['Cache-Control'] = 'no-cache'
+        response.headers['X-Accel-Buffering'] = 'no'
+        return response
 
     @app.route('/load_workspace', methods=['GET'])
     @require_auth

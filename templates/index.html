@@ -119,6 +119,66 @@ Dependencies:
     }
     </script>
     
+    <!-- Streaming helper using Fetch and NDJSON -->
+    <script>
+    // Expose a helper for Brython to stream responses
+    window.sendMessageStream = async function(payload, onToken, onFinal, onError) {
+        try {
+            const resp = await fetch('/send_message_stream', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!resp.ok || !resp.body) {
+                onError('Network error');
+                return;
+            }
+
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+
+                let newlineIndex;
+                while ((newlineIndex = buffer.indexOf('\n')) >= 0) {
+                    const line = buffer.slice(0, newlineIndex).trim();
+                    buffer = buffer.slice(newlineIndex + 1);
+                    if (!line) continue;
+                    try {
+                        const evt = JSON.parse(line);
+                        if (evt.type === 'token' && typeof onToken === 'function') {
+                            onToken(evt.text || '');
+                        } else if (evt.type === 'final' && typeof onFinal === 'function') {
+                            onFinal(evt);
+                        }
+                    } catch (e) {
+                        // Ignore malformed lines
+                    }
+                }
+            }
+            // Flush any remaining buffered text as token if not empty
+            if (buffer.trim()) {
+                try {
+                    const evt = JSON.parse(buffer.trim());
+                    if (evt.type === 'token' && typeof onToken === 'function') {
+                        onToken(evt.text || '');
+                    } else if (evt.type === 'final' && typeof onFinal === 'function') {
+                        onFinal(evt);
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }
+        } catch (err) {
+            if (typeof onError === 'function') onError(err);
+        }
+    }
+    </script>
+
     <!-- Main Brython application entry point -->
     <script type="text/python" src="{{ url_for('static', filename='client/main.py') }}"></script>
     

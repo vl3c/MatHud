@@ -340,3 +340,187 @@ class OpenAIChatCompletionsAPI:
         self._clean_conversation_history()
         
         return choice
+
+    def create_chat_completion_stream(self, full_prompt):
+        """Stream chat completion tokens with OpenAI API.
+        
+        Yields dictionaries for incremental updates and a final summary dict.
+        Each yielded dict has a required key 'type' with values:
+          - 'token': incremental text content with key 'text'
+          - 'final': completion summary with keys 'ai_message', 'ai_tool_calls', 'finish_reason'
+        """
+        # Prepare message content with optional canvas image
+        message_content = self._prepare_message_content(full_prompt)
+
+        # Append the new user message
+        user_message = {"role": "user", "content": message_content}
+        self.messages.append(user_message)
+
+        accumulated_text = ""
+        # Accumulate tool calls from streaming deltas using index-based assembly
+        tool_calls_accumulator = {}
+        finish_reason = None
+
+        try:
+            stream = self.client.chat.completions.create(
+                model=self.model.id,
+                messages=self.messages,
+                tools=self.tools,
+                stream=True,
+            )
+
+            for chunk in stream:
+                try:
+                    choice = chunk.choices[0]
+                except Exception:
+                    continue
+
+                delta = getattr(choice, 'delta', None)
+                if delta is None:
+                    # Some SDKs expose 'delta' as a dict on choice
+                    delta = getattr(choice, 'message', None)
+
+                # Stream content tokens
+                if delta is not None:
+                    content_piece = getattr(delta, 'content', None)
+                    if content_piece:
+                        accumulated_text += content_piece
+                        yield {"type": "token", "text": content_piece}
+
+                    # Collect tool call deltas if any
+                    tool_calls_delta = getattr(delta, 'tool_calls', None)
+                    if tool_calls_delta:
+                        # Assemble tool calls using index to reconstruct function name and arguments
+                        for tc in tool_calls_delta:
+                            try:
+                                index = getattr(tc, 'index', None)
+                                if index is None and isinstance(tc, dict):
+                                    index = tc.get('index')
+                                if index is None:
+                                    # Fallback: append without index into 0
+                                    index = 0
+                                if index not in tool_calls_accumulator:
+                                    tool_calls_accumulator[index] = {
+                                        'id': getattr(tc, 'id', None) if not isinstance(tc, dict) else tc.get('id'),
+                                        'function': {
+                                            'name': '',
+                                            'arguments': ''
+                                        }
+                                    }
+                                # Update id if present
+                                current = tool_calls_accumulator[index]
+                                tc_id = getattr(tc, 'id', None) if not isinstance(tc, dict) else tc.get('id')
+                                if tc_id:
+                                    current['id'] = tc_id
+                                # Handle function deltas
+                                func = getattr(tc, 'function', None)
+                                if func is None and isinstance(tc, dict):
+                                    func = tc.get('function')
+                                if func is not None:
+                                    # Name
+                                    name_part = getattr(func, 'name', None) if not isinstance(func, dict) else func.get('name')
+                                    if name_part:
+                                        current['function']['name'] = name_part
+                                    # Arguments (concatenate JSON string fragments)
+                                    args_part = getattr(func, 'arguments', None) if not isinstance(func, dict) else func.get('arguments')
+                                    if args_part:
+                                        current['function']['arguments'] += args_part
+                            except Exception:
+                                pass
+
+                # Check for finish
+                if getattr(choice, 'finish_reason', None) is not None:
+                    finish_reason = choice.finish_reason
+                    break
+
+        except Exception as e:
+            # On error, yield a final error event
+            error_msg = f"I encountered an error processing your request. Please try again."
+            yield {"type": "token", "text": "\n"}
+            yield {"type": "final", "ai_message": error_msg, "ai_tool_calls": [], "finish_reason": "error"}
+            return
+
+        # Create and append the assistant message
+        from types import SimpleNamespace
+        # Build tool calls list from accumulator (order by index)
+        tool_calls_list = []
+        try:
+            for index in sorted(tool_calls_accumulator.keys()):
+                tool_calls_list.append(tool_calls_accumulator[index])
+        except Exception:
+            pass
+
+        normalized_tool_calls = []
+        try:
+            for tc in tool_calls_list:
+                func = tc.get('function', {}) if isinstance(tc, dict) else {}
+                normalized_tool_calls.append({
+                    "id": tc.get('id') if isinstance(tc, dict) else getattr(tc, 'id', None),
+                    "function": {
+                        "name": func.get('name') if isinstance(func, dict) else getattr(func, 'name', None),
+                        "arguments": func.get('arguments') if isinstance(func, dict) else getattr(func, 'arguments', None)
+                    }
+                })
+        except Exception:
+            normalized_tool_calls = []
+
+        assistant_message_like = SimpleNamespace(
+            content=accumulated_text,
+            tool_calls=[
+                SimpleNamespace(
+                    id=tc.get("id"),
+                    function=SimpleNamespace(
+                        name=tc.get("function", {}).get("name"),
+                        arguments=tc.get("function", {}).get("arguments")
+                    )
+                )
+                for tc in normalized_tool_calls
+            ]
+        )
+        assistant_message = self._create_assistant_message(assistant_message_like)
+        self.messages.append(assistant_message)
+
+        # Append placeholder tool messages to maintain history continuity
+        try:
+            from types import SimpleNamespace as _SN
+            self._append_tool_messages([
+                _SN(
+                    id=tc.get("id"),
+                    function=_SN(
+                        name=tc.get("function", {}).get("name"),
+                        arguments=tc.get("function", {}).get("arguments")
+                    )
+                )
+                for tc in normalized_tool_calls
+            ])
+        except Exception:
+            pass
+
+        # Clean conversation history to control token usage
+        self._clean_conversation_history()
+
+        # Prepare final payload
+        ai_tool_calls_json_ready = []
+        try:
+            import json as _json
+            for tc in normalized_tool_calls or []:
+                func = tc.get('function', {}) if isinstance(tc, dict) else {}
+                func_name = func.get('name') or ''
+                func_args_raw = func.get('arguments') or ''
+                try:
+                    func_args = _json.loads(func_args_raw) if func_args_raw else {}
+                except Exception:
+                    func_args = {}
+                ai_tool_calls_json_ready.append({
+                    "function_name": func_name,
+                    "arguments": func_args
+                })
+        except Exception:
+            pass
+
+        yield {
+            "type": "final",
+            "ai_message": accumulated_text,
+            "ai_tool_calls": ai_tool_calls_json_ready,
+            "finish_reason": finish_reason or "stop",
+        }
