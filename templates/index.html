@@ -79,11 +79,13 @@ Dependencies:
                     <div class="ai-model-selector">
                         <label for="ai-model-selector">Model:</label>
                         <select id="ai-model-selector">
+                            <option value="gpt-5-chat-latest">GPT-5 Chat Latest</option>
                             <option value="gpt-4.1">GPT-4.1</option>
                             <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
                             <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
                             <option value="gpt-4o">GPT-4o</option>
                             <option value="gpt-4o-mini">GPT-4o Mini</option>
+                            <option value="gpt-5-nano">GPT-5 Nano</option>
                             <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
                         </select>
                     </div>
@@ -197,11 +199,13 @@ Dependencies:
          * Vision features are only available for GPT-4 family models with vision support.
          */
         function updateVisionToggle() {
-            if (aiModelSelector.value === "gpt-4.1" || 
+            if (aiModelSelector.value === "gpt-5-chat-latest" ||
+                aiModelSelector.value === "gpt-4.1" || 
                 aiModelSelector.value === "gpt-4.1-mini" || 
                 aiModelSelector.value === "gpt-4.1-nano" || 
                 aiModelSelector.value === "gpt-4o" || 
-                aiModelSelector.value === "gpt-4o-mini") {
+                aiModelSelector.value === "gpt-4o-mini" ||
+                aiModelSelector.value === "gpt-5-nano") {
                 visionToggle.disabled = false;
                 visionToggle.style.opacity = "1";
                 visionLabel.style.color = "";

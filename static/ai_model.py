@@ -37,12 +37,18 @@ class AIModel:
         "gpt-4o-mini": {
             "has_vision": True,
         },
+        "gpt-5-chat-latest": {
+            "has_vision": True,
+        },
+        "gpt-5-nano": {
+            "has_vision": True,
+        },
         "gpt-3.5-turbo": {
             "has_vision": False,
         }
     }
 
-    DEFAULT_MODEL = "gpt-4.1"
+    DEFAULT_MODEL = "gpt-5-chat-latest"
 
     def __init__(self, identifier, has_vision):
         """Initialize AIModel instance.
