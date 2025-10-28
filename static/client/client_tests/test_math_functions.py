@@ -352,6 +352,11 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.evaluate("1 + 2i + 1j")
         self.assertEqual(result, "1 + 3i")
 
+    def test_evaluate_factorial_expression(self):
+        result = MathUtils.evaluate("10!/(3!*(10-3)!)")
+        expected = math.factorial(10) // (math.factorial(3) * math.factorial(7))
+        self.assertAlmostEqual(float(result), expected)
+
     def test_evaluate_det(self):
         matrix = [[-1, 2], [3, 1]]
         result = MathUtils.det(matrix)

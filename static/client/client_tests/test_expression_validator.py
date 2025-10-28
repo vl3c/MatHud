@@ -89,6 +89,9 @@ class TestExpressionValidator(unittest.TestCase):
             "log10(100)": 2.0,
             "log2(16)": 4.0,
             "factorial(5)": 120.0,
+            "(2+3)!": 120.0,
+            "10!/(3!*(10-3)!)": 120.0,
+            "(3!)!": math.factorial(math.factorial(3)),
             "asin(1)": math.pi / 2,
             "acos(0)": math.pi / 2,
             "atan(1)": math.pi / 4,
@@ -104,7 +107,10 @@ class TestExpressionValidator(unittest.TestCase):
         }
         for expr, expected in expressions.items():
             with self.subTest(expr=expr):
-                result = ExpressionValidator.evaluate_expression(expr, x=x)
+                evaluation_expr = expr
+                if '!' in expr:
+                    evaluation_expr = ExpressionValidator.fix_math_expression(expr, python_compatible=True)
+                result = ExpressionValidator.evaluate_expression(evaluation_expr, x=x)
                 if isinstance(expected, float):
                     self.assertAlmostEqual(result, expected)
                 else:
@@ -205,4 +211,19 @@ class TestExpressionValidator(unittest.TestCase):
                         result = func(value)
                         print(f"Expected: {expected_result}, Result: {result}")
                         self.assertAlmostEqual(result, expected_result, msg=f"Failed on expr: {expr} with x={value}")
+
+    def test_fix_math_expression_factorials(self):
+        cases = [
+            ("10!/(3!*(10-3)!)", "factorial(10)/(factorial(3)*factorial((10-3)))"),
+            ("(3!)!", "factorial((factorial(3)))"),
+            ("((2+3)!)!", "factorial((factorial((2+3))))"),
+            ("sin(x!) + (cos(y)!)", "sin(factorial(x))+(factorial(cos(y)))"),
+            ("((1+2)*(3+4))!", "factorial(((1+2)*(3+4)))")
+        ]
+
+        for expression, expected in cases:
+            for python_compatible in (True, False):
+                fixed_expression = ExpressionValidator.fix_math_expression(expression, python_compatible=python_compatible)
+                self.assertNotIn('!', fixed_expression)
+                self.assertEqual(fixed_expression.replace(' ', ''), expected)
 

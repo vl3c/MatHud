@@ -368,9 +368,68 @@ class ExpressionValidator(ast.NodeVisitor):
         if python_compatible:
             expression = re.sub(r'\|(.*?)\|', r'abs(\1)', expression)
 
-        # Handle factorials
-        expression = re.sub(r'([0-9a-zA-Z_]+|\(.*?\))\!', 
-                            lambda match: f'factorial({match.group(1)})', expression)
+        # Handle factorials with balanced operand extraction
+        expression = ExpressionValidator._replace_factorials(expression)
+        return expression
+
+    @staticmethod
+    def _replace_factorials(expression):
+        """Replace factorial shorthand (n!) with factorial() calls using balanced parsing."""
+        if '!' not in expression:
+            return expression
+
+        def is_token_char(char):
+            return char.isalnum() or char in ['_', '.']
+
+        matching_pairs = {')': '(', ']': '[', '}': '{'}
+
+        index = expression.find('!')
+        while index != -1:
+            left = index - 1
+            while left >= 0 and expression[left].isspace():
+                left -= 1
+
+            if left < 0:
+                break
+
+            start = left
+
+            if expression[left] in matching_pairs:
+                closing = expression[left]
+                opening = matching_pairs[closing]
+                depth = 1
+                cursor = left - 1
+                while cursor >= 0 and depth > 0:
+                    char = expression[cursor]
+                    if char == closing:
+                        depth += 1
+                    elif char == opening:
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    cursor -= 1
+                if depth != 0:
+                    break
+                start = cursor
+                func_cursor = start - 1
+                while func_cursor >= 0 and expression[func_cursor].isspace():
+                    func_cursor -= 1
+                while func_cursor >= 0 and is_token_char(expression[func_cursor]):
+                    func_cursor -= 1
+                start = func_cursor + 1
+            else:
+                while start >= 0 and is_token_char(expression[start]):
+                    start -= 1
+                start += 1
+
+            operand = expression[start:index].strip()
+            if not operand:
+                break
+
+            replacement = f"factorial({operand})"
+            expression = expression[:start] + replacement + expression[index + 1:]
+            index = expression.find('!', start + len(replacement))
+
         return expression
 
     @staticmethod
