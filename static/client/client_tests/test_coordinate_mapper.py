@@ -247,6 +247,33 @@ class TestCoordinateMapper(unittest.TestCase):
         self.assertAlmostEqual(width, 400, places=1)
         self.assertAlmostEqual(height, 300, places=1)
     
+    def test_set_visible_bounds_horizontal_limited(self):
+        """Requested bounds should be visible when width is limiting axis."""
+        self.mapper.set_visible_bounds(-20, 20, 5, -5)
+
+        self.assertAlmostEqual(self.mapper.get_visible_left_bound(), -20, places=6)
+        self.assertAlmostEqual(self.mapper.get_visible_right_bound(), 20, places=6)
+        self.assertGreaterEqual(self.mapper.get_visible_top_bound(), 5)
+        self.assertLessEqual(self.mapper.get_visible_bottom_bound(), -5)
+
+    def test_set_visible_bounds_vertical_limited(self):
+        """Requested bounds should be visible when height is limiting axis."""
+        self.mapper.set_visible_bounds(-5, 5, 12, -12)
+
+        self.assertLessEqual(self.mapper.get_visible_left_bound(), -5)
+        self.assertGreaterEqual(self.mapper.get_visible_right_bound(), 5)
+        self.assertAlmostEqual(self.mapper.get_visible_top_bound(), 12, places=6)
+        self.assertAlmostEqual(self.mapper.get_visible_bottom_bound(), -12, places=6)
+
+    def test_set_visible_bounds_invalid(self):
+        """Invalid bounds should raise a ValueError."""
+        with self.assertRaises(ValueError):
+            self.mapper.set_visible_bounds(5, 5, 1, -1)
+        with self.assertRaises(ValueError):
+            self.mapper.set_visible_bounds(-1, 1, -2, 4)
+        with self.assertRaises(ValueError):
+            self.mapper.set_visible_bounds("a", 1, 2, -2)
+
     def test_is_point_visible(self):
         """Test screen point visibility checking."""
         # Points within canvas should be visible

@@ -543,6 +543,14 @@ class Canvas:
         """Add a computation to the history if it doesn't already exist."""
         self.computations = ComputationUtils.add_computation(self.computations, expression, result)
 
+    def zoom_to_bounds(self, left_bound, right_bound, top_bound, bottom_bound):
+        """Fit the viewport to the supplied math bounds and refresh the grid."""
+        self.coordinate_mapper.set_visible_bounds(left_bound, right_bound, top_bound, bottom_bound)
+        if hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
+            self.cartesian2axis._invalidate_cache_on_zoom()
+        self.draw(apply_zoom=True)
+        return True
+
     def find_largest_connected_shape(self, shape):
         """Find the largest shape that shares segments with the given shape.
         Returns a tuple (largest_parent_shape, shape_type) where shape_type is the class name

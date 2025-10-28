@@ -42,6 +42,7 @@ Zoom in on the canvas.
 Zoom out by a factor of 2.
 Pan the view to the right by 100 units.
 Reset the view to the default state.
+Fit the view to show math bounds left -20, right 30, top 15, bottom -10.
 Show the Cartesian coordinate system.
 Hide the grid lines.
 Clear the entire canvas.

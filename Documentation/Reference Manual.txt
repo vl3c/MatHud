@@ -289,6 +289,7 @@ Attributes:
 - `create_circle(center_x, center_y, radius, name="", extra_graphics=True)`: Create a circle with specified center and radius
 - `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", extra_graphics=True)`: Create an ellipse with specified parameters
 - `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a mathematical function on the canvas
+- `zoom_to_bounds(left_bound, right_bound, top_bound, bottom_bound)`: Fit the viewport so the specified math-space rectangle is entirely visible while preserving aspect ratio
 - `create_colored_area(drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3)`: Create a colored area between two objects
 - `translate_object(name, x_offset, y_offset)`: Translates a drawable object by the specified offset
 - `rotate_object(name, angle)`: Rotates a drawable object by the specified angle
@@ -3429,7 +3430,7 @@ Comprehensive set of 40+ AI function definitions for mathematical operations and
 Provides OpenAI tool calling schema for geometric shapes, calculations, transformations, and workspace management.
 
 Categories:
-    - Canvas Operations: reset, clear, undo, redo, run_tests
+    - Canvas Operations: reset, clear, undo, redo, run_tests, zoom_to_bounds
     - Geometric Shapes: points, segments, vectors, triangles, rectangles, circles, ellipses, angles
     - Mathematical Functions: plotting, colored areas, bounded regions
     - Calculations: expressions, trigonometry, algebra, calculus
@@ -3444,6 +3445,7 @@ Dependencies:
 **Key Components:**
 - `FUNCTIONS`: Complete list of OpenAI function definitions with JSON schema
 - Function categories: Canvas operations, geometric shapes, mathematical functions, calculations, transformations, workspace management
+- `zoom_to_bounds`: Canvas zoom box tool that fits the viewport to explicit math bounds
 - Parameter validation: Strict JSON schema enforcement for all function arguments
 - Type safety: Required parameters and type checking for robust AI integration
 

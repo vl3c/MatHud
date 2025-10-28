@@ -47,6 +47,7 @@ class FunctionRegistry:
             # ===== CANVAS OPERATIONS =====
             "reset_canvas": canvas.reset,
             "clear_canvas": canvas.clear,
+            "zoom_to_bounds": canvas.zoom_to_bounds,
             
             # ===== POINT OPERATIONS =====
             "create_point": canvas.create_point,
@@ -136,6 +137,7 @@ class FunctionRegistry:
             # Canvas operations that modify state
             "clear_canvas",
             "reset_canvas",
+            "zoom_to_bounds",
             
             # Point operations
             "create_point",

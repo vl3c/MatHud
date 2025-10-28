@@ -36,7 +36,7 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 
 ## Drawing and Visualization
 - Renderer-driven SVG: a dedicated `SvgRenderer` converts math-space models to screen-space SVG elements
-- Coordinate mapping centralized in `CoordinateMapper` (math_to_screen, screen_to_math, zoom, pan, visible bounds)
+- Coordinate mapping centralized in `CoordinateMapper` (math_to_screen, screen_to_math, zoom, pan, visible bounds, zoom-box fitting via `set_visible_bounds`)
 - Function plotting via `FunctionRenderable` with sampling, discontinuity and asymptote handling; capped and adaptive density
 - Colored areas via dedicated renderables (paired sampling for function areas; robust reverse path handling)
 - Angle arcs correct in SVG y-down space; styling centralized in renderer
@@ -357,7 +357,7 @@ server_tests/
 - SVG rendering is performed by `SvgRenderer` based on math-only models and `CoordinateMapper`
 - The client-side `Canvas` orchestrates managers, the mapper, and the renderer; models remain immutable with respect to zoom/pan
 - `DrawableManager` and specialized managers create models with canvas-free constructors; managers pass models to the renderer
-- Zooming/panning centralized in `CoordinateMapper`; `Cartesian2Axis` constructed with the mapper and provides grid/ticks
+- Zooming/panning centralized in `CoordinateMapper`; `Canvas.zoom_to_bounds` delegates to the mapper's `set_visible_bounds` helper before refreshing `Cartesian2Axis`
 - Undo/Redo unchanged; `CanvasEventHandler` handles input and delegates to managers and renderer
 - Canvas state serialization (`Canvas.get_canvas_state()`) remains the source for persistence and vision
 

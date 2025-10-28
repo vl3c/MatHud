@@ -194,6 +194,44 @@ class CoordinateMapper:
         self.zoom_point = Position(0, 0)
         self.zoom_direction = 0
     
+    def set_visible_bounds(self, left_bound, right_bound, top_bound, bottom_bound):
+        """Fit the viewport to the requested math bounds while preserving aspect ratio.
+
+        The new scale factor is chosen so that the limiting axis (horizontal or vertical)
+        exactly matches the requested span, guaranteeing the entire rectangle remains
+        visible. Offsets are recalculated so the bounds are centered in view and any
+        lingering zoom-towards state is cleared.
+        """
+        try:
+            left = float(left_bound)
+            right = float(right_bound)
+            top = float(top_bound)
+            bottom = float(bottom_bound)
+        except (TypeError, ValueError):
+            raise ValueError("Bounds must be numeric values")
+
+        if not (left < right and bottom < top):
+            raise ValueError("Bounds must satisfy left < right and bottom < top")
+
+        width = right - left
+        height = top - bottom
+
+        if width <= 0 or height <= 0:
+            raise ValueError("Bounds must define a positive area")
+
+        scale_x = self.canvas_width / width
+        scale_y = self.canvas_height / height
+        new_scale = min(scale_x, scale_y)
+        self.scale_factor = max(new_scale, 1e-9)
+
+        center_x = (left + right) / 2.0
+        center_y = (top + bottom) / 2.0
+
+        self.offset.x = -center_x * self.scale_factor
+        self.offset.y = center_y * self.scale_factor
+        self.zoom_point = Position(0, 0)
+        self.zoom_direction = 0
+
     def get_visible_bounds(self):
         """Get mathematical bounds of the currently visible area.
         

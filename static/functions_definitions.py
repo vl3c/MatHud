@@ -49,6 +49,37 @@ FUNCTIONS = [
             {
                 "type": "function",
                 "function": {
+                    "name": "zoom_to_bounds",
+                    "description": "Fits the viewport to the specified math-space bounds",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "left_bound": {
+                                "type": "number",
+                                "description": "Left math bound to include in view"
+                            },
+                            "right_bound": {
+                                "type": "number",
+                                "description": "Right math bound to include in view"
+                            },
+                            "top_bound": {
+                                "type": "number",
+                                "description": "Top math bound to include in view"
+                            },
+                            "bottom_bound": {
+                                "type": "number",
+                                "description": "Bottom math bound to include in view"
+                            }
+                        },
+                        "required": ["left_bound", "right_bound", "top_bound", "bottom_bound"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "undo",
                     "description": "Undoes the last action on the canvas",
                     "strict": True,
