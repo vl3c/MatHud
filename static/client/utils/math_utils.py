@@ -54,6 +54,19 @@ class MathUtils:
     EPSILON = 1e-9
 
     @staticmethod
+    def _ensure_non_negative_integer(value, name):
+        """Validate that a value is a non-negative integer and return it as int."""
+        if isinstance(value, bool):
+            raise TypeError(f"{name} must be a non-negative integer")
+        if isinstance(value, float) and value.is_integer():
+            value = int(value)
+        if not isinstance(value, int):
+            raise TypeError(f"{name} must be a non-negative integer")
+        if value < 0:
+            raise ValueError(f"{name} must be a non-negative integer")
+        return value
+
+    @staticmethod
     def format_number_for_cartesian(n, max_digits=6):
         """
         Formats the number to a string with a maximum number of significant digits or in scientific notation.
@@ -679,6 +692,8 @@ class MathUtils:
             python_expression = ExpressionValidator.fix_math_expression(expression, python_compatible=True)
             ExpressionValidator.validate_expression_tree(python_expression)
             
+            js_expression = js_expression.replace("arrangements(", "permutations(")
+
             if not variables:
                 result = window.math.format(window.math.evaluate(js_expression))
             else:
@@ -1182,6 +1197,35 @@ class MathUtils:
     @staticmethod
     def lcm(*values):
         return math.lcm(*values)
+
+    @staticmethod
+    def permutations(n, k=None):
+        """Calculate permutations of n items optionally taken k at a time."""
+        n = MathUtils._ensure_non_negative_integer(n, "n")
+        if k is None:
+            return math.factorial(n)
+        k = MathUtils._ensure_non_negative_integer(k, "k")
+        if k > n:
+            raise ValueError("k must be less than or equal to n for permutations")
+        if hasattr(math, "perm"):
+            return math.perm(n, k)
+        return math.factorial(n) // math.factorial(n - k)
+
+    @staticmethod
+    def arrangements(n, k):
+        """Calculate arrangements (nPk) of n items taken k at a time."""
+        return MathUtils.permutations(n, k)
+
+    @staticmethod
+    def combinations(n, k):
+        """Calculate combinations (nCk) of n items taken k at a time."""
+        n = MathUtils._ensure_non_negative_integer(n, "n")
+        k = MathUtils._ensure_non_negative_integer(k, "k")
+        if k > n:
+            raise ValueError("k must be less than or equal to n for combinations")
+        if hasattr(math, "comb"):
+            return math.comb(n, k)
+        return math.factorial(n) // (math.factorial(k) * math.factorial(n - k))
 
     @staticmethod
     def mean(values):

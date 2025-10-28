@@ -36,6 +36,10 @@ Find the solutions for 2a + b = 7 and a - b = 2.
 Simplify the expression (x^2 + 2x + 1)/(x+1).
 Expand (a+b)^3.
 Factorize x^2 - y^2.
+How many arrangements are there for 6 items taken 3 at a time?
+Calculate the number of combinations when choosing 4 items from 7.
+Evaluate 2*combinations(8, 3) + permutations(4, 2) - arrangements(5, 2).
+Compute (combinations(10, 4) / combinations(6, 2)) * permutations(3).
 
 # Canvas and View Manipulation
 Zoom in on the canvas.

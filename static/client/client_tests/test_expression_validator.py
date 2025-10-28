@@ -23,6 +23,10 @@ class TestExpressionValidator(unittest.TestCase):
             "floor(x) - trunc(x)",
             "max(x, y) * min(x, y)",
             "sum([1, 2, 3, x])",
+            "arrangements(6, 3)",
+            "permutations(5, 2)",
+            "permutations(5)",
+            "combinations(6, 3)",
             "limit(sin(x)/x, x, 0)",
             "derive(x**2, x)",
             "integrate(x**2, x)",
@@ -103,6 +107,10 @@ class TestExpressionValidator(unittest.TestCase):
             "pow(2, 3)": 8,
             "bin(10)": '0b1010',
             "det([[1, 2], [3, 4]])": -2.0,
+            "arrangements(6, 3)": math.perm(6, 3),
+            "permutations(5, 2)": math.perm(5, 2),
+            "permutations(5)": math.factorial(5),
+            "combinations(6, 3)": math.comb(6, 3),
             "x": x
         }
         for expr, expected in expressions.items():

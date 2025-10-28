@@ -31,6 +31,28 @@ class TestProcessFunctionCalls(unittest.TestCase):
         result = ProcessFunctionCalls.evaluate_expression(expression, variables=variables, canvas=self.canvas)
         self.assertEqual(result, 328)  # Expected result for "x - 4 + y * 5" with x = 7 and y = 65
 
+    def test_evaluate_expression_combinatorics(self):
+        result = ProcessFunctionCalls.evaluate_expression("arrangements(6, 3)", canvas=self.canvas)
+        self.assertEqual(result, 120)
+
+        result = ProcessFunctionCalls.evaluate_expression("permutations(5, 2)", canvas=self.canvas)
+        self.assertEqual(result, 20)
+
+        result = ProcessFunctionCalls.evaluate_expression("permutations(5)", canvas=self.canvas)
+        self.assertEqual(result, 120)
+
+        result = ProcessFunctionCalls.evaluate_expression("combinations(6, 3)", canvas=self.canvas)
+        self.assertEqual(result, 20)
+
+    def test_evaluate_expression_complex_combinatorics(self):
+        expression = "2*combinations(8, 3) + permutations(4, 2) - arrangements(5, 2)"
+        result = ProcessFunctionCalls.evaluate_expression(expression, canvas=self.canvas)
+        self.assertEqual(result, 104)
+
+        expression = "(combinations(10, 4) / combinations(6, 2)) * permutations(3)"
+        result = ProcessFunctionCalls.evaluate_expression(expression, canvas=self.canvas)
+        self.assertEqual(result, 84)
+
     def test_evaluate_function_expression(self):
         expression = "Quadratic(5)"
         result = ProcessFunctionCalls.evaluate_expression(expression, variables=None, canvas=self.canvas)

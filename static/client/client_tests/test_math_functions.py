@@ -382,6 +382,34 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.mean([1, 2, 3, 4, 5])
         self.assertEqual(result, 3)
 
+    def test_combinatorics_values(self):
+        self.assertEqual(MathUtils.permutations(5), math.factorial(5))
+        self.assertEqual(MathUtils.permutations(6, 3), math.perm(6, 3))
+        self.assertEqual(MathUtils.arrangements(6, 3), math.perm(6, 3))
+        self.assertEqual(MathUtils.combinations(6, 3), math.comb(6, 3))
+
+    def test_combinatorics_invalid_inputs(self):
+        with self.assertRaises(ValueError):
+            MathUtils.permutations(4, 5)
+        with self.assertRaises(ValueError):
+            MathUtils.combinations(4, 5)
+        with self.assertRaises(ValueError):
+            MathUtils.combinations(4, -1)
+        with self.assertRaises(TypeError):
+            MathUtils.permutations(4.5, 2)
+        with self.assertRaises(TypeError):
+            MathUtils.arrangements(True, 2)
+
+    def test_evaluate_combinatorics_functions(self):
+        result = MathUtils.evaluate("arrangements(6, 3)")
+        self.assertEqual(int(result), math.perm(6, 3))
+        result = MathUtils.evaluate("permutations(5, 2)")
+        self.assertEqual(int(result), math.perm(5, 2))
+        result = MathUtils.evaluate("permutations(5)")
+        self.assertEqual(int(result), math.factorial(5))
+        result = MathUtils.evaluate("combinations(7, 4)")
+        self.assertEqual(int(result), math.comb(7, 4))
+
     def test_median(self):
         result = MathUtils.median([1, 2, 3, 4, 5])
         self.assertEqual(result, 3)

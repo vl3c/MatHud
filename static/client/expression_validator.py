@@ -115,6 +115,9 @@ class ExpressionValidator(ast.NodeVisitor):
         'pow',
         'det',
         'bin',
+        'arrangements',
+        'permutations',
+        'combinations',
         'round',
         'ceil',
         'floor',
@@ -301,6 +304,9 @@ class ExpressionValidator(ast.NodeVisitor):
             'pow': MathUtils.pow, # Power function
             'bin': bin, # Binary representation of an integer
             'det': MathUtils.det, # Determinant of a matrix
+            'arrangements': MathUtils.arrangements, # Arrangements aka permutations nPk
+            'permutations': MathUtils.permutations, # Permutations
+            'combinations': MathUtils.combinations, # Combinations
             'limit': MathUtils.limit, # Limit of a function
             'derive': MathUtils.derivative, # Derivative of a function
             'integrate': MathUtils.integral, # Indefinite integral of a function

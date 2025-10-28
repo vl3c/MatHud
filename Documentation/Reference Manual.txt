@@ -705,7 +705,7 @@ Mathematical Support:
     - Trigonometric functions (sin, cos, tan, asin, acos, atan)
     - Hyperbolic functions (sinh, cosh, tanh)
     - Logarithmic functions (log, log10, log2, ln)
-    - Advanced functions (sqrt, exp, abs, factorial)
+    - Advanced functions (sqrt, exp, abs, factorial, arrangements, permutations, combinations)
     - Statistical functions (mean, median, mode, variance, stdev)
     - Mathematical constants (pi, e)
     - Calculus operations (derivative, integral, limit)
