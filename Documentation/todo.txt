@@ -1,33 +1,33 @@
 # Bug Fixes
--
 
 # Basic Mathematical Tools
-- implement full matrix operations (addition, multiplication, inverse, row operations)
-- add base-n calculations and conversions (binary, octal, hexadecimal)
-- add number theory functions (prime factorization, modular arithmetic)
-- add truth tables and boolean algebra
-- add table view for function values
+- implement full matrix operations (addition, multiplication, inverse, determinants, row operations)
+- add complex number utilities plus base-n calculations and conversions (binary, octal, hexadecimal)
+- expand number theory functions (prime factorization, gcd, lcm, modular arithmetic)
+- add truth tables and boolean algebra workflows for logic and circuit analysis
+- add table view for function values and lightweight tabular data exploration
 
 # Advanced Mathematical Tools
 - add sequence and series calculations (summation, products, convergence tests)
-- add differential equations solver and visualization
-- add numerical methods (Newton's method, numerical integration, etc.)
-- add eigenvalues and eigenvector calculations
+- add differential equations solver with visualization of direction fields and solution families
+- add numerical methods (Newton's method, Simpson's rule, trapezoidal rule, numerical ODE solvers)
+- add eigenvalue and eigenvector calculations for advanced linear algebra
 
 # Statistics and Analysis
-- add probability distributions and statistical hypothesis testing
-- add regression analysis with multiple models (linear, polynomial, exponential, etc.)
-- add financial mathematics (interest rates, amortization, bond calculations)
+- add probability distribution tools and statistical hypothesis testing workflows
+- add regression analysis with multiple models (linear, polynomial, exponential, logarithmic)
+- add financial mathematics (compound interest, annuities, amortization, bond valuation)
 
 # 2D Graphing Enhancements
-- add region coloring (for areas between curves, inside shapes, bounded regions)
+- add region coloring for complex bounded areas and inequality-defined zones
 - add piecewise function support and graphing
 - add implicit function plotting
 - add conic section specialized tools
-- add inequality graphing and systems of inequalities
+- add inequality graphing and systems of inequalities with shading controls
 - add vector field visualization
+- add polar graph support for functions in polar coordinates
 - add animation capabilities for transformations and function changes
-- add split screen mode to compare different graphs/calculations
+- add split screen and tabbed workspace modes to compare different graphs/calculations
 
 # Future 3D Features
 - add 3D graphing capabilities and 3D shape visualization
