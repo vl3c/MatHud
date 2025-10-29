@@ -11,10 +11,13 @@ Dependencies:
     - json: Message parsing and validation
 """
 
+from __future__ import annotations
+
+import json
 import logging
 import os
 from datetime import datetime
-import json
+from typing import Any, Dict, Sequence
 
 
 class LogManager:
@@ -24,7 +27,7 @@ class LogManager:
     Logs user messages, AI responses, tool calls, and system events.
     """
 
-    def __init__(self, logs_dir='./logs/'):
+    def __init__(self, logs_dir: str = './logs/') -> None:
         """Initialize LogManager with specified logs directory.
         
         Args:
@@ -33,7 +36,7 @@ class LogManager:
         self.logs_dir = logs_dir
         self._setup_logging()
     
-    def _get_log_file_name(self):
+    def _get_log_file_name(self) -> str:
         """Get the log file name based on current date.
         
         Returns:
@@ -41,7 +44,7 @@ class LogManager:
         """
         return datetime.now().strftime('mathud_session_%y_%m_%d.log')
     
-    def _setup_logging(self):
+    def _setup_logging(self) -> None:
         """Initialize logging configuration.
         
         Creates logs directory if needed and configures daily log file rotation.
@@ -56,7 +59,7 @@ class LogManager:
         )
         self.log_new_session()
     
-    def log_new_session(self):
+    def log_new_session(self) -> None:
         """Log a new session delimiter.
         
         Creates a visual separator in the log file for new application sessions.
@@ -64,7 +67,7 @@ class LogManager:
         session_delimiter = f"\n\n###### SESSION {datetime.now().strftime('%H:%M:%S')} ######\n"
         logging.info(session_delimiter)
     
-    def log_user_message(self, user_message):
+    def log_user_message(self, user_message: str) -> None:
         """Log user message and its components.
         
         Parses and logs SVG state, canvas state, previous results, and user text.
@@ -74,24 +77,30 @@ class LogManager:
         """
         try:
             user_message_json = json.loads(user_message)
+            if not isinstance(user_message_json, dict):
+                logging.error("User message JSON is not an object.")
+                return
         except json.JSONDecodeError:
             logging.error("Failed to decode user message JSON.")
             return
         
-        if "svg_state" in user_message_json:
-            svg_state = user_message_json["svg_state"]
-            logging.info(f'### SVG state dimensions: {svg_state["dimensions"]}')
-        if "canvas_state" in user_message_json:
-            canvas_state = user_message_json["canvas_state"]
+        svg_state = user_message_json.get("svg_state")
+        if isinstance(svg_state, dict):
+            logging.info(f'### SVG state dimensions: {svg_state.get("dimensions")}')
+
+        canvas_state = user_message_json.get("canvas_state")
+        if canvas_state is not None:
             logging.info(f'### Canvas state: {canvas_state}')
-        if "previous_results" in user_message_json:
-            previous_results = user_message_json["previous_results"]
+
+        previous_results = user_message_json.get("previous_results")
+        if previous_results is not None:
             logging.info(f'### Previously calculated results: {previous_results}')
-        if "user_message" in user_message_json:
-            user_message = user_message_json["user_message"]
-            logging.info(f'### User message: {user_message}')
+
+        user_message_text = user_message_json.get("user_message")
+        if user_message_text is not None:
+            logging.info(f'### User message: {user_message_text}')
     
-    def log_ai_response(self, ai_message):
+    def log_ai_response(self, ai_message: str) -> None:
         """Log AI response message.
         
         Args:
@@ -99,10 +108,11 @@ class LogManager:
         """
         logging.info(f'### AI response: {ai_message}')
     
-    def log_ai_tool_calls(self, ai_tool_calls):
+    def log_ai_tool_calls(self, ai_tool_calls: Sequence[Dict[str, Any]] | None) -> None:
         """Log AI tool calls.
         
         Args:
             ai_tool_calls: List of AI-requested function calls
         """
-        logging.info(f'### AI tool calls: {ai_tool_calls}') 
+        if ai_tool_calls is not None:
+            logging.info(f'### AI tool calls: {list(ai_tool_calls)}')

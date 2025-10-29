@@ -12,15 +12,33 @@ Dependencies:
     - static.routes: Route definitions and registration
 """
 
+from __future__ import annotations
+
 import os
 import secrets
-from flask import Flask, jsonify
-from flask_session import Session
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+
 from cachelib.file import FileSystemCache
 from dotenv import load_dotenv
+from flask import Flask, Response, jsonify
+from flask_session import Session as FlaskSession
+
+from static.log_manager import LogManager
 from static.openai_api import OpenAIChatCompletionsAPI
 from static.workspace_manager import WorkspaceManager
-from static.log_manager import LogManager
+
+
+if TYPE_CHECKING:
+    from static.webdriver_manager import WebDriverManager
+
+
+class MatHudFlask(Flask):
+    """Flask subclass with MatHud service attributes."""
+
+    log_manager: LogManager
+    ai_api: OpenAIChatCompletionsAPI
+    webdriver_manager: Optional["WebDriverManager"]
+    workspace_manager: WorkspaceManager
 
 
 class AppManager:
@@ -44,7 +62,7 @@ class AppManager:
     """
     
     @staticmethod
-    def is_deployed():
+    def is_deployed() -> bool:
         """Check if the application is running in a deployed environment.
         
         Returns:
@@ -53,7 +71,7 @@ class AppManager:
         return os.environ.get('PORT') is not None
     
     @staticmethod
-    def requires_auth():
+    def requires_auth() -> bool:
         """Check if authentication is required.
         
         Returns:
@@ -65,7 +83,7 @@ class AppManager:
         return AppManager.is_deployed() or os.getenv('REQUIRE_AUTH', '').lower() in ('true', '1', 'yes')
     
     @staticmethod
-    def get_auth_pin():
+    def get_auth_pin() -> Optional[str]:
         """Get the authentication PIN from environment variables.
         
         Returns:
@@ -76,7 +94,12 @@ class AppManager:
         return os.getenv("AUTH_PIN")
     
     @staticmethod
-    def make_response(data=None, message=None, status='success', code=200):
+    def make_response(
+        data: Any | None = None,
+        message: Optional[str] = None,
+        status: str = 'success',
+        code: int = 200,
+    ) -> Tuple[Response, int]:
         """Create a consistent JSON response format.
         
         Args:
@@ -88,7 +111,7 @@ class AppManager:
         Returns:
             tuple: (Flask JSON response, HTTP status code)
         """
-        response = {
+        response: Dict[str, Any | None] = {
             'status': status,
             'message': message,
             'data': data
@@ -96,7 +119,7 @@ class AppManager:
         return jsonify(response), code
     
     @staticmethod
-    def create_app():
+    def create_app() -> MatHudFlask:
         """Create and configure the Flask application.
         
         Initializes all core managers (logging, AI API, workspace management)
@@ -107,7 +130,7 @@ class AppManager:
         Returns:
             Flask: Configured Flask application instance
         """
-        app = Flask(__name__, template_folder='../templates', static_folder='../static')
+        app = MatHudFlask(__name__, template_folder='../templates', static_folder='../static')
         
         # Load environment variables
         load_dotenv()
@@ -132,7 +155,7 @@ class AppManager:
             app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
         
         # Initialize Flask-Session
-        Session(app)
+        FlaskSession(app)
         
         # Initialize managers
         app.log_manager = LogManager()

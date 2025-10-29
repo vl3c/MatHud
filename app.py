@@ -1,30 +1,24 @@
-"""
-MatHud Flask Application Entry Point
+"""MatHud Flask Application entry point."""
 
-Main application launcher that initializes the Flask server, manages graceful shutdown,
-and coordinates the WebDriver for vision system functionality.
+from __future__ import annotations
 
-Dependencies:
-    - static.app_manager: Application configuration and initialization
-    - Flask: Web framework (initialized via AppManager)
-    - Selenium WebDriver: Vision system image capture (lazy-loaded)
-    - Threading: Concurrent server execution
-"""
-
-import time
+import os
 import signal
 import sys
-from static.app_manager import AppManager
+import time
+from types import FrameType
+
+from static.app_manager import AppManager, MatHudFlask
 
 
-def signal_handler(sig, frame):
+def signal_handler(sig: int, frame: FrameType | None) -> None:
     """Handle graceful shutdown on interrupt signal.
     
     Cleans up WebDriver resources and exits the application properly.
     """
     print('\nShutting down gracefully...')
     # Clean up WebDriverManager
-    if hasattr(app, 'webdriver_manager') and app.webdriver_manager:
+    if app.webdriver_manager is not None:
         try:
             app.webdriver_manager.cleanup()
         except Exception as e:
@@ -34,7 +28,7 @@ def signal_handler(sig, frame):
 
 
 # Create the app at module level for VS Code debugger
-app = AppManager.create_app()
+app: MatHudFlask = AppManager.create_app()
 
 # Register signal handler at module level for both run modes
 signal.signal(signal.SIGINT, signal_handler)
@@ -47,7 +41,6 @@ if __name__ == '__main__':
     """
     try:
         # Get port from environment variable (for deployment platforms like Render)
-        import os
         port = int(os.environ.get('PORT', 5000))
         
         # Check if we're running in a deployment environment
@@ -80,10 +73,10 @@ if __name__ == '__main__':
             time.sleep(3)
             
             # Initialize WebDriver (only in local development)
-            if not app.webdriver_manager:
+            if app.webdriver_manager is None:
                 import requests
                 try:
-                    response = requests.get(f'http://{host}:{port}/init_webdriver')
+                    requests.get(f'http://{host}:{port}/init_webdriver')
                     print("WebDriver initialized successfully")
                 except Exception as e:
                     print(f"Failed to initialize WebDriver: {str(e)}")

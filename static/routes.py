@@ -10,21 +10,31 @@ Dependencies:
     - static.app_manager: Consistent API response formatting and deployment detection
 """
 
+from __future__ import annotations
+
 import functools
 import hmac
-import time
+import json
 import math
-from flask import request, render_template, json, session, redirect, url_for, flash
-from flask import Response, stream_with_context
+import time
+from collections.abc import Callable, Iterator
+from typing import Any, Dict, List, Optional, TypeVar, cast
+
+from flask import Response, flash, redirect, render_template, request, session, stream_with_context, url_for
+from flask.typing import ResponseReturnValue
+
+from static.app_manager import AppManager, MatHudFlask
 from static.tool_call_processor import ToolCallProcessor
-from static.app_manager import AppManager
+
+F = TypeVar("F", bound=Callable[..., ResponseReturnValue])
 
 # Global dictionary to track login attempts by IP address
 # Format: {ip_address: last_attempt_timestamp}
-login_attempts = {}
+login_attempts: Dict[str, float] = {}
+ToolCallList = List[Dict[str, Any]]
 
 
-def require_auth(f):
+def require_auth(f: F) -> F:
     """Decorator to require authentication for routes when deployed.
     
     Only enforces authentication when running in deployed environments.
@@ -37,16 +47,17 @@ def require_auth(f):
         Wrapped function that checks authentication before proceeding
     """
     @functools.wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated_function(*args: Any, **kwargs: Any) -> ResponseReturnValue:
         # Require authentication when deployed or explicitly enabled
         if AppManager.requires_auth():
             if not session.get('authenticated'):
                 return redirect(url_for('login'))
         return f(*args, **kwargs)
-    return decorated_function
+
+    return cast(F, decorated_function)
 
 
-def register_routes(app):
+def register_routes(app: MatHudFlask) -> None:
     """Register all routes with the Flask application.
     
     Configures all application endpoints including main page, AI communication,
@@ -57,7 +68,7 @@ def register_routes(app):
     """
     
     @app.route('/login', methods=['GET', 'POST'])
-    def login():
+    def login() -> ResponseReturnValue:
         """Handle user authentication with access code."""
         if not AppManager.requires_auth():
             return redirect(url_for('get_index'))
@@ -115,7 +126,7 @@ def register_routes(app):
         return render_template('login.html')
     
     @app.route('/logout')
-    def logout():
+    def logout() -> ResponseReturnValue:
         """Handle user logout and session cleanup."""
         session.pop('authenticated', None)
         if AppManager.requires_auth():
@@ -123,7 +134,7 @@ def register_routes(app):
         return redirect(url_for('get_index'))
     
     @app.route('/auth_status')
-    def auth_status():
+    def auth_status() -> ResponseReturnValue:
         """Return authentication status information."""
         return AppManager.make_response(data={
             'auth_required': AppManager.requires_auth(),
@@ -132,12 +143,12 @@ def register_routes(app):
     
     @app.route('/')
     @require_auth
-    def get_index():
+    def get_index() -> ResponseReturnValue:
         return render_template('index.html')
 
     @app.route('/init_webdriver')
     @require_auth
-    def init_webdriver_route():
+    def init_webdriver_route() -> ResponseReturnValue:
         """Route to initialize WebDriver after Flask has started"""
         if not app.webdriver_manager:
             try:
@@ -154,12 +165,26 @@ def register_routes(app):
 
     @app.route('/save_workspace', methods=['POST'])
     @require_auth
-    def save_workspace_route():
+    def save_workspace_route() -> ResponseReturnValue:
         """Save the current workspace state."""
         try:
-            data = request.get_json()
+            data = request.get_json(silent=True)
+            if not isinstance(data, dict):
+                return AppManager.make_response(
+                    message='Invalid request body',
+                    status='error',
+                    code=400
+                )
+
             state = data.get('state')
             name = data.get('name')
+
+            if name is not None and not isinstance(name, str):
+                return AppManager.make_response(
+                    message='Workspace name must be a string',
+                    status='error',
+                    code=400
+                )
             
             success = app.workspace_manager.save_workspace(state, name)
             if success:
@@ -179,81 +204,97 @@ def register_routes(app):
 
     @app.route('/send_message_stream', methods=['POST'])
     @require_auth
-    def send_message_stream():
+    def send_message_stream() -> ResponseReturnValue:
         """Stream AI response tokens for the provided message payload.
         
         Returns a newline-delimited JSON stream with events of shape:
         {"type":"token","text":"..."}\n for incremental tokens and
         {"type":"final","ai_message":str,"ai_tool_calls":list,"finish_reason":str}\n at the end.
         """
-        message = request.json.get('message')
-        if not message:
+        request_payload = request.get_json(silent=True)
+        if not isinstance(request_payload, dict):
+            return AppManager.make_response(
+                message='Invalid request body',
+                status='error',
+                code=400,
+            )
+
+        message = request_payload.get('message')
+        if not isinstance(message, str) or not message:
             return AppManager.make_response(
                 message='Message is required',
                 status='error',
-                code=400
+                code=400,
             )
 
         try:
-            message_json = json.loads(message)
+            message_json_raw = json.loads(message)
         except (json.JSONDecodeError, TypeError):
             return AppManager.make_response(
                 message='Invalid message format',
                 status='error',
-                code=400
+                code=400,
             )
 
-        svg_state = request.json.get('svg_state')
-        use_vision = message_json.get('use_vision', False)
-        ai_model = message_json.get('ai_model')
+        if not isinstance(message_json_raw, dict):
+            return AppManager.make_response(
+                message='Invalid message format',
+                status='error',
+                code=400,
+            )
+
+        svg_state = request_payload.get('svg_state')
+        use_vision = bool(message_json_raw.get('use_vision', False))
+        ai_model_raw = message_json_raw.get('ai_model')
+        ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
 
         if ai_model:
             app.ai_api.set_model(ai_model)
 
         app.log_manager.log_user_message(message)
 
-        if use_vision and (not hasattr(app, 'webdriver_manager') or app.webdriver_manager is None):
+        if use_vision and app.webdriver_manager is None:
             try:
                 init_webdriver_route()
-            except Exception as e:
-                # Continue without vision if init fails
+            except Exception:
                 pass
 
-        if use_vision and hasattr(app, 'webdriver_manager') and app.webdriver_manager:
+        if use_vision and app.webdriver_manager is not None:
             try:
                 app.webdriver_manager.capture_svg_state(svg_state)
             except Exception:
                 pass
 
         @stream_with_context
-        def generate():
+        def generate() -> Iterator[str]:
             try:
                 for event in app.ai_api.create_chat_completion_stream(message):
-                    # Log on final event for observability
                     if isinstance(event, dict) and event.get('type') == 'final':
                         try:
-                            app.log_manager.log_ai_response(event.get('ai_message', ''))
-                            app.log_manager.log_ai_tool_calls(event.get('ai_tool_calls', []))
+                            app.log_manager.log_ai_response(str(event.get('ai_message', '')))
+                            tool_calls = event.get('ai_tool_calls')
+                            if isinstance(tool_calls, list):
+                                app.log_manager.log_ai_tool_calls(tool_calls)
                         except Exception:
                             pass
                     yield json.dumps(event) + "\n"
-                # No further action here; final event contains summary
-            except Exception as e:
+            except Exception as exc:
+                error_payload = {
+                    "type": "final",
+                    "ai_message": f"I encountered an error processing your request: {exc}",
+                    "ai_tool_calls": [],
+                    "finish_reason": "error",
+                }
                 try:
-                    error_payload = {
-                        "type": "final",
-                        "ai_message": f"I encountered an error processing your request: {str(e)}",
-                        "ai_tool_calls": [],
-                        "finish_reason": "error"
-                    }
                     yield json.dumps(error_payload) + "\n"
                 except Exception:
-                    yield json.dumps({
+                    fallback_payload = {
                         "type": "final",
                         "ai_message": "I encountered an error processing your request.",
                         "ai_tool_calls": [],
-                        "finish_reason": "error"
-                    }) + "\n"
+                        "finish_reason": "error",
+                    }
+                    yield json.dumps(fallback_payload) + "\n"
 
         response = Response(generate(), mimetype='application/x-ndjson')
         # Headers to reduce buffering in some proxies
@@ -263,7 +304,7 @@ def register_routes(app):
 
     @app.route('/load_workspace', methods=['GET'])
     @require_auth
-    def load_workspace_route():
+    def load_workspace_route() -> ResponseReturnValue:
         """Load a workspace state."""
         try:
             name = request.args.get('name')
@@ -285,7 +326,7 @@ def register_routes(app):
 
     @app.route('/list_workspaces', methods=['GET'])
     @require_auth
-    def list_workspaces_route():
+    def list_workspaces_route() -> ResponseReturnValue:
         """List all saved workspaces."""
         try:
             workspaces = app.workspace_manager.list_workspaces()
@@ -299,7 +340,7 @@ def register_routes(app):
 
     @app.route('/delete_workspace', methods=['GET'])
     @require_auth
-    def delete_workspace_route():
+    def delete_workspace_route() -> ResponseReturnValue:
         """Delete a workspace."""
         try:
             name = request.args.get('name')
@@ -328,7 +369,7 @@ def register_routes(app):
 
     @app.route('/new_conversation', methods=['POST'])
     @require_auth
-    def new_conversation_route():
+    def new_conversation_route() -> ResponseReturnValue:
         """Reset the AI conversation history for a new session."""
         try:
             app.ai_api.reset_conversation()
@@ -341,7 +382,7 @@ def register_routes(app):
                 code=500
             )
 
-    def _process_ai_response(app, choice):
+    def _process_ai_response(app: MatHudFlask, choice: Any) -> tuple[str, ToolCallList]:
         """Process the AI response choice and log the results.
         
         Args:
@@ -351,68 +392,86 @@ def register_routes(app):
         Returns:
             tuple: (ai_message, ai_tool_calls) - The processed message and tool calls
         """
-        ai_message = choice.message.content if choice.message.content is not None else ""
+        message_obj = getattr(choice, "message", None)
+        message_content = getattr(message_obj, "content", "")
+        ai_message = message_content if isinstance(message_content, str) else ""
         app.log_manager.log_ai_response(ai_message)
 
-        ai_tool_calls = choice.message.tool_calls if choice.message.tool_calls is not None else []
-        ai_tool_calls = ToolCallProcessor.jsonify_tool_calls(ai_tool_calls)
-        app.log_manager.log_ai_tool_calls(ai_tool_calls)
-        
-        return ai_message, ai_tool_calls
+        raw_tool_calls = getattr(message_obj, "tool_calls", None)
+        tool_calls: ToolCallList = []
+        if raw_tool_calls:
+            tool_calls = cast(ToolCallList, ToolCallProcessor.jsonify_tool_calls(raw_tool_calls))
+            app.log_manager.log_ai_tool_calls(tool_calls)
+        else:
+            app.log_manager.log_ai_tool_calls([])
+
+        return ai_message, tool_calls
 
     @app.route('/send_message', methods=['POST'])
     @require_auth
-    def send_message():
-        message = request.json.get('message')
-        if not message:
+    def send_message() -> ResponseReturnValue:
+        request_payload = request.get_json(silent=True)
+        if not isinstance(request_payload, dict):
+            return AppManager.make_response(
+                message='Invalid request body',
+                status='error',
+                code=400,
+            )
+
+        message = request_payload.get('message')
+        if not isinstance(message, str) or not message:
             return AppManager.make_response(
                 message='Message is required',
                 status='error',
-                code=400
+                code=400,
             )
 
         try:
-            message_json = json.loads(message)
+            message_json_raw = json.loads(message)
         except (json.JSONDecodeError, TypeError):
             return AppManager.make_response(
                 message='Invalid message format',
                 status='error',
-                code=400
+                code=400,
             )
 
-        svg_state = request.json.get('svg_state')  # Get SVG state from request
-        use_vision = message_json.get('use_vision', False)  # Get vision state from message
-        ai_model = message_json.get('ai_model')  # Get AI model from message
-        
+        if not isinstance(message_json_raw, dict):
+            return AppManager.make_response(
+                message='Invalid message format',
+                status='error',
+                code=400,
+            )
+
+        svg_state = request_payload.get('svg_state')
+        use_vision = bool(message_json_raw.get('use_vision', False))
+        ai_model_raw = message_json_raw.get('ai_model')
+        ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
+
         if ai_model:
             app.ai_api.set_model(ai_model)
 
         app.log_manager.log_user_message(message)
 
-        # Check if WebDriver needs to be initialized
-        if use_vision and (not hasattr(app, 'webdriver_manager') or app.webdriver_manager is None):
+        if use_vision and app.webdriver_manager is None:
             print("WebDriver not found, attempting to initialize...")
             init_webdriver_route()
 
-        # Capture canvas image before sending to AI
-        if use_vision and hasattr(app, 'webdriver_manager') and app.webdriver_manager:
+        if use_vision and app.webdriver_manager is not None:
             app.webdriver_manager.capture_svg_state(svg_state)
 
         try:
-            # Proceed with creating chat completion
             choice = app.ai_api.create_chat_completion(message)
-            
-            # Process and log the AI response
             ai_message, ai_tool_calls = _process_ai_response(app, choice)
+            finish_reason = getattr(choice, 'finish_reason', None)
 
             return AppManager.make_response(data={
                 "ai_message": ai_message,
                 "ai_tool_calls": ai_tool_calls,
-                "finish_reason": choice.finish_reason
+                "finish_reason": finish_reason,
             })
-        except Exception as e:
+        except Exception as exc:
             return AppManager.make_response(
-                message=str(e),
+                message=str(exc),
                 status='error',
-                code=500
-            ) 
+                code=500,
+            )

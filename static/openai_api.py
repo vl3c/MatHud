@@ -14,13 +14,24 @@ Dependencies:
     - static.ai_model: Model configuration and capabilities
 """
 
+from __future__ import annotations
+
+import base64
 import json
 import os
+from collections.abc import Iterator, Sequence
+from types import SimpleNamespace
+from typing import Any, Dict, List, Optional, Union
+
 from dotenv import load_dotenv
 from openai import OpenAI
-from static.functions_definitions import FUNCTIONS
-import base64
+
 from static.ai_model import AIModel
+from static.functions_definitions import FUNCTIONS
+
+MessageContent = Union[str, List[Dict[str, Any]]]
+MessageDict = Dict[str, Any]
+StreamEvent = Dict[str, Any]
 
 
 class OpenAIChatCompletionsAPI:
@@ -33,7 +44,7 @@ class OpenAIChatCompletionsAPI:
     DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. DO NOT try to perform calculations by yourself, use the tools provided instead. Always analyze the canvas state before proceeding. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
 
     @staticmethod
-    def _initialize_api_key():
+    def _initialize_api_key() -> str:
         """Initialize the OpenAI API key from environment or .env file.
         
         Checks environment variables first, then loads from .env file if needed.
@@ -46,19 +57,26 @@ class OpenAIChatCompletionsAPI:
         """
         # First check if OPENAI_API_KEY is already set in environment
         api_key = os.getenv("OPENAI_API_KEY")
+        if api_key:
+            return api_key
 
-        # If not found, try to load from .env file
+        dotenv_path = ".env"
+        if os.path.exists(dotenv_path):
+            load_dotenv(dotenv_path)
+            api_key = os.getenv("OPENAI_API_KEY")
+
         if not api_key:
-            dotenv_path = ".env"
-            if os.path.exists(dotenv_path):
-                load_dotenv(dotenv_path)
-                api_key = os.getenv("OPENAI_API_KEY")
-            else:
-                raise ValueError("OPENAI_API_KEY not found in environment or .env file")
-                
+            raise ValueError("OPENAI_API_KEY not found in environment or .env file")
+
         return api_key
 
-    def __init__(self, model=None, temperature=0.2, tools=FUNCTIONS, max_tokens=32000):
+    def __init__(
+        self,
+        model: Optional[AIModel] = None,
+        temperature: float = 0.2,
+        tools: Optional[Sequence[Dict[str, Any]]] = None,
+        max_tokens: int = 32000,
+    ) -> None:
         """Initialize OpenAI API client and conversation state.
         
         Args:
@@ -67,14 +85,16 @@ class OpenAIChatCompletionsAPI:
             tools: Available function definitions for tool calling
             max_tokens: Maximum response length (default: 32000)
         """
-        self.client = OpenAI(api_key=self._initialize_api_key())  # Initialize and use the api_key
-        self.model = model if model else AIModel.get_default_model()
+        self.client = OpenAI(api_key=self._initialize_api_key())
+        self.model: AIModel = model if model is not None else AIModel.get_default_model()
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.tools = tools
-        self.messages = [{"role": "developer", "content": OpenAIChatCompletionsAPI.DEV_MSG}]
+        self.tools: Sequence[Dict[str, Any]] = list(tools) if tools is not None else list(FUNCTIONS)
+        self.messages: List[MessageDict] = [
+            {"role": "developer", "content": OpenAIChatCompletionsAPI.DEV_MSG}
+        ]
 
-    def get_model(self):
+    def get_model(self) -> AIModel:
         """Get the current AI model instance.
         
         Returns:
@@ -82,11 +102,11 @@ class OpenAIChatCompletionsAPI:
         """
         return self.model
 
-    def reset_conversation(self):
+    def reset_conversation(self) -> None:
         """Reset the conversation history to start a new session."""
         self.messages = [{"role": "developer", "content": OpenAIChatCompletionsAPI.DEV_MSG}]
     
-    def set_model(self, identifier):
+    def set_model(self, identifier: str) -> None:
         """Set the AI model by identifier string.
         
         Args:
@@ -97,7 +117,7 @@ class OpenAIChatCompletionsAPI:
             self.model = AIModel.from_identifier(identifier)
             print(f"API model updated to: {identifier}")
 
-    def _remove_canvas_state_from_user_messages(self):
+    def _remove_canvas_state_from_user_messages(self) -> None:
         """Remove canvas state from the last user message in the conversation history.
         
         Cleans up canvas state data to reduce token usage in subsequent requests
@@ -105,19 +125,19 @@ class OpenAIChatCompletionsAPI:
         """
         # Find the last user message
         for message in reversed(self.messages):
-            if message["role"] == "user" and "content" in message:
+            if message.get("role") == "user" and "content" in message:
                 content = message["content"]
                 
                 # Handle list content (vision messages)
                 if isinstance(content, list):
                     for part in content:
-                        if part.get("type") == "text":
+                        if isinstance(part, dict) and part.get("type") == "text":
                             text_content = part.get("text", "")
-                            if not "canvas_state" in text_content:
+                            if "canvas_state" not in text_content:
                                 continue
                             try:
                                 text_json = json.loads(text_content)
-                                if "canvas_state" in text_json:
+                                if isinstance(text_json, dict) and "canvas_state" in text_json:
                                     del text_json["canvas_state"]
                                     part["text"] = json.dumps(text_json)
                             except json.JSONDecodeError:
@@ -128,13 +148,13 @@ class OpenAIChatCompletionsAPI:
                 if isinstance(content, str) and "canvas_state" in content:
                     try:
                         message_content_json = json.loads(content)
-                        if "canvas_state" in message_content_json:
+                        if isinstance(message_content_json, dict) and "canvas_state" in message_content_json:
                             del message_content_json["canvas_state"]
                             message["content"] = json.dumps(message_content_json)
                     except json.JSONDecodeError:
                         pass
 
-    def _remove_images_from_user_messages(self):
+    def _remove_images_from_user_messages(self) -> None:
         """Remove image content from the last user message in the conversation history.
         
         Extracts text content from vision messages to reduce token usage
@@ -142,16 +162,17 @@ class OpenAIChatCompletionsAPI:
         """
         # Find the last user message
         for message in reversed(self.messages):
-            if message["role"] == "user" and "content" in message:
+            if message.get("role") == "user" and "content" in message:
                 content = message["content"]
                 if not isinstance(content, list):
                     continue
                 # Keep only the text part
-                text_parts = [part for part in content if part.get("type") == "text"]
+                text_parts = [part for part in content if isinstance(part, dict) and part.get("type") == "text"]
                 if text_parts:
-                    message["content"] = text_parts[0]["text"]
+                    text_part = text_parts[0]
+                    message["content"] = text_part.get("text", "")
 
-    def _clean_conversation_history(self):
+    def _clean_conversation_history(self) -> None:
         """Clean up the conversation history by removing canvas states and images from the last user message.
         
         Optimizes conversation history for token efficiency by removing
@@ -161,7 +182,10 @@ class OpenAIChatCompletionsAPI:
         self._remove_canvas_state_from_user_messages()
         self._remove_images_from_user_messages()
 
-    def _create_enhanced_prompt_with_image(self, user_message):
+    def _create_enhanced_prompt_with_image(
+        self,
+        user_message: str,
+    ) -> Optional[List[Dict[str, Any]]]:
         """Create an enhanced prompt that includes both text and base64 encoded image.
         
         Args:
@@ -173,7 +197,7 @@ class OpenAIChatCompletionsAPI:
         try:
             with open("canvas_snapshots/canvas.png", "rb") as image_file:
                 image_data = base64.b64encode(image_file.read()).decode('utf-8')
-                ret_val = [
+                ret_val: List[Dict[str, Any]] = [
                     {
                         "type": "text", 
                         "text": user_message
@@ -190,7 +214,7 @@ class OpenAIChatCompletionsAPI:
             print(f"Failed to load canvas image: {e}")
             return None
 
-    def _prepare_message_content(self, full_prompt):
+    def _prepare_message_content(self, full_prompt: str) -> MessageContent:
         """Prepare message content with optional canvas image for vision-enabled messages.
         
         Checks vision toggle and model capabilities to determine whether to include
@@ -203,9 +227,16 @@ class OpenAIChatCompletionsAPI:
             The prepared message content with or without image (str or list)
         """
         # Parse the prompt which is a JSON string
-        prompt_json = json.loads(full_prompt)
-        user_message = prompt_json.get("user_message", "")
-        use_vision = prompt_json.get("use_vision", True)  # Get vision toggle state
+        try:
+            prompt_json = json.loads(full_prompt)
+        except json.JSONDecodeError:
+            return full_prompt
+
+        if not isinstance(prompt_json, dict):
+            return full_prompt
+
+        user_message = str(prompt_json.get("user_message", ""))
+        use_vision = bool(prompt_json.get("use_vision", True))
 
         if not use_vision:
             return full_prompt
@@ -213,7 +244,7 @@ class OpenAIChatCompletionsAPI:
         enhanced_prompt = self._create_enhanced_prompt_with_image(user_message)
         return enhanced_prompt if enhanced_prompt else full_prompt
 
-    def _create_assistant_message(self, response_message):
+    def _create_assistant_message(self, response_message: Any) -> MessageDict:
         """Create an assistant message from the API response message.
         
         Args:
@@ -222,27 +253,32 @@ class OpenAIChatCompletionsAPI:
         Returns:
             dict: The formatted assistant message
         """
-        assistant_message = {
+        content = getattr(response_message, "content", "")
+        assistant_message: MessageDict = {
             "role": "assistant", 
-            "content": response_message.content,
+            "content": content,
         }
 
-        if response_message.tool_calls:
+        tool_calls = getattr(response_message, "tool_calls", None)
+        if tool_calls:
             assistant_message["tool_calls"] = [
                 {
-                    "id": tool_call.id,
+                    "id": getattr(tool_call, "id", None),
                     "type": "function",
                     "function": {
-                        "name": tool_call.function.name,
-                        "arguments": tool_call.function.arguments
+                        "name": getattr(getattr(tool_call, "function", None), "name", None),
+                        "arguments": getattr(getattr(tool_call, "function", None), "arguments", None)
                     }
                 }
-                for tool_call in response_message.tool_calls
+                for tool_call in tool_calls
             ]
         
         return assistant_message
 
-    def _create_error_response(self, error_message="I encountered an error processing your request. Please try again."):
+    def _create_error_response(
+        self,
+        error_message: str = "I encountered an error processing your request. Please try again.",
+    ) -> SimpleNamespace:
         """Create an error response that matches OpenAI's response structure.
         
         Args:
@@ -251,7 +287,6 @@ class OpenAIChatCompletionsAPI:
         Returns:
             SimpleNamespace: A response choice object matching OpenAI's structure
         """
-        from types import SimpleNamespace
         return SimpleNamespace(
             message=SimpleNamespace(
                 content=error_message,
@@ -260,7 +295,7 @@ class OpenAIChatCompletionsAPI:
             finish_reason="error"
         )
 
-    def _create_tool_message(self, tool_call_id, content):
+    def _create_tool_message(self, tool_call_id: Optional[str], content: str) -> MessageDict:
         """Create a tool message in response to a tool call.
         
         Args:
@@ -276,7 +311,7 @@ class OpenAIChatCompletionsAPI:
             "content": content
         }
 
-    def _append_tool_messages(self, tool_calls):
+    def _append_tool_messages(self, tool_calls: Sequence[Any] | None) -> None:
         """Create and append tool messages for each tool call.
         
         Creates placeholder tool messages for conversation history tracking.
@@ -290,12 +325,12 @@ class OpenAIChatCompletionsAPI:
                 # Here you would typically execute the tool and get its result
                 # For now, we'll just create a placeholder response
                 tool_message = self._create_tool_message(
-                    tool_call.id,
-                    f"Tool {tool_call.function.name} executed with args: {tool_call.function.arguments}"
+                    getattr(tool_call, "id", None),
+                    f"Tool {getattr(getattr(tool_call, 'function', None), 'name', '<unknown>')} executed with args: {getattr(getattr(tool_call, 'function', None), 'arguments', '')}"
                 )
                 self.messages.append(tool_message)
 
-    def create_chat_completion(self, full_prompt):
+    def create_chat_completion(self, full_prompt: str) -> Any:
         """Create chat completion with OpenAI API.
         
         Main entry point for AI communication. Handles message preparation,
@@ -311,7 +346,7 @@ class OpenAIChatCompletionsAPI:
         message_content = self._prepare_message_content(full_prompt)
 
         # Append the new user message
-        message = {"role": "user", "content": message_content}
+        message: MessageDict = {"role": "user", "content": message_content}
         self.messages.append(message)
 
         # Make the API call
@@ -334,32 +369,29 @@ class OpenAIChatCompletionsAPI:
         self.messages.append(assistant_message)
         
         # Append tool messages if there are tool calls
-        self._append_tool_messages(choice.message.tool_calls)
+        self._append_tool_messages(getattr(choice.message, "tool_calls", None))
         
         # Clean up the messages
         self._clean_conversation_history()
         
         return choice
 
-    def create_chat_completion_stream(self, full_prompt):
+    def create_chat_completion_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
         """Stream chat completion tokens with OpenAI API.
-        
+
         Yields dictionaries for incremental updates and a final summary dict.
         Each yielded dict has a required key 'type' with values:
           - 'token': incremental text content with key 'text'
           - 'final': completion summary with keys 'ai_message', 'ai_tool_calls', 'finish_reason'
         """
-        # Prepare message content with optional canvas image
         message_content = self._prepare_message_content(full_prompt)
 
-        # Append the new user message
-        user_message = {"role": "user", "content": message_content}
+        user_message: MessageDict = {"role": "user", "content": message_content}
         self.messages.append(user_message)
 
         accumulated_text = ""
-        # Accumulate tool calls from streaming deltas using index-based assembly
-        tool_calls_accumulator = {}
-        finish_reason = None
+        tool_calls_accumulator: Dict[int, Dict[str, Any]] = {}
+        finish_reason: Optional[str] = None
 
         try:
             stream = self.client.chat.completions.create(
@@ -375,94 +407,85 @@ class OpenAIChatCompletionsAPI:
                 except Exception:
                     continue
 
-                delta = getattr(choice, 'delta', None)
+                delta = getattr(choice, "delta", None)
                 if delta is None:
-                    # Some SDKs expose 'delta' as a dict on choice
-                    delta = getattr(choice, 'message', None)
+                    delta = getattr(choice, "message", None)
 
-                # Stream content tokens
                 if delta is not None:
-                    content_piece = getattr(delta, 'content', None)
-                    if content_piece:
+                    content_piece = getattr(delta, "content", None)
+                    if isinstance(content_piece, str) and content_piece:
                         accumulated_text += content_piece
                         yield {"type": "token", "text": content_piece}
 
-                    # Collect tool call deltas if any
-                    tool_calls_delta = getattr(delta, 'tool_calls', None)
+                    tool_calls_delta = getattr(delta, "tool_calls", None)
                     if tool_calls_delta:
-                        # Assemble tool calls using index to reconstruct function name and arguments
                         for tc in tool_calls_delta:
                             try:
-                                index = getattr(tc, 'index', None)
-                                if index is None and isinstance(tc, dict):
-                                    index = tc.get('index')
+                                index = getattr(tc, "index", None)
+                                if isinstance(tc, dict):
+                                    index = tc.get("index", index)
                                 if index is None:
-                                    # Fallback: append without index into 0
                                     index = 0
-                                if index not in tool_calls_accumulator:
-                                    tool_calls_accumulator[index] = {
-                                        'id': getattr(tc, 'id', None) if not isinstance(tc, dict) else tc.get('id'),
-                                        'function': {
-                                            'name': '',
-                                            'arguments': ''
-                                        }
-                                    }
-                                # Update id if present
-                                current = tool_calls_accumulator[index]
-                                tc_id = getattr(tc, 'id', None) if not isinstance(tc, dict) else tc.get('id')
-                                if tc_id:
-                                    current['id'] = tc_id
-                                # Handle function deltas
-                                func = getattr(tc, 'function', None)
-                                if func is None and isinstance(tc, dict):
-                                    func = tc.get('function')
+                                entry = tool_calls_accumulator.setdefault(
+                                    index,
+                                    {
+                                        "id": None,
+                                        "function": {"name": "", "arguments": ""},
+                                    },
+                                )
+                                tc_id = getattr(tc, "id", None)
+                                if isinstance(tc, dict):
+                                    tc_id = tc.get("id", tc_id)
+                                if tc_id is not None:
+                                    entry["id"] = tc_id
+                                func = getattr(tc, "function", None)
+                                if isinstance(tc, dict):
+                                    func = tc.get("function", func)
                                 if func is not None:
-                                    # Name
-                                    name_part = getattr(func, 'name', None) if not isinstance(func, dict) else func.get('name')
-                                    if name_part:
-                                        current['function']['name'] = name_part
-                                    # Arguments (concatenate JSON string fragments)
-                                    args_part = getattr(func, 'arguments', None) if not isinstance(func, dict) else func.get('arguments')
-                                    if args_part:
-                                        current['function']['arguments'] += args_part
+                                    name_part = getattr(func, "name", None)
+                                    if isinstance(func, dict):
+                                        name_part = func.get("name", name_part)
+                                    if isinstance(name_part, str) and name_part:
+                                        entry["function"]["name"] = name_part
+                                    args_part = getattr(func, "arguments", None)
+                                    if isinstance(func, dict):
+                                        args_part = func.get("arguments", args_part)
+                                    if isinstance(args_part, str) and args_part:
+                                        entry["function"]["arguments"] += args_part
                             except Exception:
-                                pass
+                                continue
 
-                # Check for finish
-                if getattr(choice, 'finish_reason', None) is not None:
-                    finish_reason = choice.finish_reason
+                if getattr(choice, "finish_reason", None) is not None:
+                    finish_reason = getattr(choice, "finish_reason", None)
                     break
 
-        except Exception as e:
-            # On error, yield a final error event
-            error_msg = f"I encountered an error processing your request. Please try again."
+        except Exception:
             yield {"type": "token", "text": "\n"}
-            yield {"type": "final", "ai_message": error_msg, "ai_tool_calls": [], "finish_reason": "error"}
+            yield {
+                "type": "final",
+                "ai_message": "I encountered an error processing your request. Please try again.",
+                "ai_tool_calls": [],
+                "finish_reason": "error",
+            }
             return
 
-        # Create and append the assistant message
-        from types import SimpleNamespace
-        # Build tool calls list from accumulator (order by index)
-        tool_calls_list = []
-        try:
-            for index in sorted(tool_calls_accumulator.keys()):
-                tool_calls_list.append(tool_calls_accumulator[index])
-        except Exception:
-            pass
+        tool_calls_list: List[Dict[str, Any]] = [
+            tool_calls_accumulator[index]
+            for index in sorted(tool_calls_accumulator)
+        ]
 
-        normalized_tool_calls = []
-        try:
-            for tc in tool_calls_list:
-                func = tc.get('function', {}) if isinstance(tc, dict) else {}
-                normalized_tool_calls.append({
-                    "id": tc.get('id') if isinstance(tc, dict) else getattr(tc, 'id', None),
+        normalized_tool_calls: List[Dict[str, Any]] = []
+        for tc in tool_calls_list:
+            func = tc.get("function", {}) if isinstance(tc, dict) else {}
+            normalized_tool_calls.append(
+                {
+                    "id": tc.get("id") if isinstance(tc, dict) else None,
                     "function": {
-                        "name": func.get('name') if isinstance(func, dict) else getattr(func, 'name', None),
-                        "arguments": func.get('arguments') if isinstance(func, dict) else getattr(func, 'arguments', None)
-                    }
-                })
-        except Exception:
-            normalized_tool_calls = []
+                        "name": func.get("name") if isinstance(func, dict) else None,
+                        "arguments": func.get("arguments") if isinstance(func, dict) else None,
+                    },
+                }
+            )
 
         assistant_message_like = SimpleNamespace(
             content=accumulated_text,
@@ -471,50 +494,48 @@ class OpenAIChatCompletionsAPI:
                     id=tc.get("id"),
                     function=SimpleNamespace(
                         name=tc.get("function", {}).get("name"),
-                        arguments=tc.get("function", {}).get("arguments")
-                    )
+                        arguments=tc.get("function", {}).get("arguments"),
+                    ),
                 )
                 for tc in normalized_tool_calls
-            ]
+            ],
         )
         assistant_message = self._create_assistant_message(assistant_message_like)
         self.messages.append(assistant_message)
 
-        # Append placeholder tool messages to maintain history continuity
-        try:
-            from types import SimpleNamespace as _SN
-            self._append_tool_messages([
-                _SN(
+        self._append_tool_messages(
+            [
+                SimpleNamespace(
                     id=tc.get("id"),
-                    function=_SN(
+                    function=SimpleNamespace(
                         name=tc.get("function", {}).get("name"),
-                        arguments=tc.get("function", {}).get("arguments")
-                    )
+                        arguments=tc.get("function", {}).get("arguments"),
+                    ),
                 )
                 for tc in normalized_tool_calls
-            ])
-        except Exception:
-            pass
+            ]
+        )
 
-        # Clean conversation history to control token usage
         self._clean_conversation_history()
 
-        # Prepare final payload
-        ai_tool_calls_json_ready = []
+        ai_tool_calls_json_ready: List[Dict[str, Any]] = []
         try:
             import json as _json
-            for tc in normalized_tool_calls or []:
-                func = tc.get('function', {}) if isinstance(tc, dict) else {}
-                func_name = func.get('name') or ''
-                func_args_raw = func.get('arguments') or ''
+
+            for tc in normalized_tool_calls:
+                func = tc.get("function", {}) if isinstance(tc, dict) else {}
+                func_name = func.get("name") if isinstance(func, dict) else None
+                func_args_raw = func.get("arguments") if isinstance(func, dict) else None
                 try:
                     func_args = _json.loads(func_args_raw) if func_args_raw else {}
                 except Exception:
                     func_args = {}
-                ai_tool_calls_json_ready.append({
-                    "function_name": func_name,
-                    "arguments": func_args
-                })
+                ai_tool_calls_json_ready.append(
+                    {
+                        "function_name": func_name or "",
+                        "arguments": func_args,
+                    }
+                )
         except Exception:
             pass
 

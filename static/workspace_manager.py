@@ -11,12 +11,18 @@ Dependencies:
     - datetime: Timestamp generation for metadata
 """
 
-import os
+from __future__ import annotations
+
 import json
+import os
 import re
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 WORKSPACES_DIR = "workspaces"
+
+WorkspaceState = Any
+
 
 class WorkspaceManager:
     """Server-side workspace file operations manager.
@@ -25,7 +31,7 @@ class WorkspaceManager:
     security validation and JSON-based state storage with metadata.
     """
     
-    def __init__(self, workspaces_dir=WORKSPACES_DIR):
+    def __init__(self, workspaces_dir: str = WORKSPACES_DIR):
         """Initialize the workspace manager.
         
         Args:
@@ -34,7 +40,7 @@ class WorkspaceManager:
         self.workspaces_dir = os.path.abspath(workspaces_dir)
         self.ensure_workspaces_dir()
 
-    def _is_safe_workspace_name(self, name):
+    def _is_safe_workspace_name(self, name: Optional[str]) -> bool:
         """Check if a workspace name is safe to use.
         
         Args:
@@ -51,7 +57,7 @@ class WorkspaceManager:
             
         return True
 
-    def _is_path_in_workspace_dir(self, path):
+    def _is_path_in_workspace_dir(self, path: str) -> bool:
         """Check if a path is within the workspaces directory.
         
         Args:
@@ -69,7 +75,7 @@ class WorkspaceManager:
         except ValueError:
             return False
 
-    def ensure_workspaces_dir(self, test_dir=None):
+    def ensure_workspaces_dir(self, test_dir: Optional[str] = None) -> str:
         """Ensure the workspaces directory exists.
         
         Args:
@@ -88,7 +94,7 @@ class WorkspaceManager:
             os.makedirs(target_dir)
         return target_dir
 
-    def get_workspace_path(self, name=None, test_dir=None):
+    def get_workspace_path(self, name: Optional[str] = None, test_dir: Optional[str] = None) -> str:
         """Get the path for a workspace file.
         
         Args:
@@ -111,7 +117,12 @@ class WorkspaceManager:
             
         return file_path
 
-    def save_workspace(self, state, name=None, test_dir=None):
+    def save_workspace(
+        self,
+        state: WorkspaceState,
+        name: Optional[str] = None,
+        test_dir: Optional[str] = None,
+    ) -> bool:
         """Save a workspace state to a file.
         
         Args:
@@ -127,7 +138,7 @@ class WorkspaceManager:
                 return False
                 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            workspace_data = {
+            workspace_data: Dict[str, Any] = {
                 "metadata": {
                     "name": name or f"current_workspace_{timestamp}",
                     "last_modified": datetime.now().isoformat(),
@@ -144,7 +155,7 @@ class WorkspaceManager:
             print(f"Error saving workspace: {str(e)}")
             return False
 
-    def _get_most_recent_current_workspace(self, test_dir=None):
+    def _get_most_recent_current_workspace(self, test_dir: Optional[str] = None) -> str:
         """Get the path of the most recent current workspace.
         
         Args:
@@ -157,7 +168,7 @@ class WorkspaceManager:
             FileNotFoundError: If no current workspace exists
         """
         target_dir = self.ensure_workspaces_dir(test_dir)
-        current_workspaces = []
+        current_workspaces: List[str] = []
         
         for filename in os.listdir(target_dir):
             if filename.startswith('current_workspace_') and filename.endswith('.json'):
@@ -170,7 +181,7 @@ class WorkspaceManager:
         current_workspaces.sort(key=lambda x: os.path.getmtime(x), reverse=True)
         return current_workspaces[0]
 
-    def load_workspace(self, name=None, test_dir=None):
+    def load_workspace(self, name: Optional[str] = None, test_dir: Optional[str] = None) -> WorkspaceState:
         """Load a workspace state from a file.
         
         Args:
@@ -190,7 +201,7 @@ class WorkspaceManager:
                 raise FileNotFoundError(f"No workspace found at {file_path}")
             
             with open(file_path, 'r') as f:
-                workspace_data = json.load(f)
+                workspace_data: Dict[str, Any] = json.load(f)
             
             return workspace_data["state"]
         except FileNotFoundError:
@@ -198,7 +209,7 @@ class WorkspaceManager:
         except Exception as e:
             raise ValueError(f"Error loading workspace: {str(e)}")
 
-    def list_workspaces(self, test_dir=None):
+    def list_workspaces(self, test_dir: Optional[str] = None) -> List[str]:
         """List all saved workspaces.
         
         Args:
@@ -208,7 +219,7 @@ class WorkspaceManager:
             A list of workspace names (without .json extension)
         """
         target_dir = self.ensure_workspaces_dir(test_dir)
-        workspaces = []
+        workspaces: List[str] = []
         
         for filename in os.listdir(target_dir):
             if filename.endswith(".json"):
@@ -219,9 +230,10 @@ class WorkspaceManager:
                 file_path = os.path.join(target_dir, filename)
                 try:
                     with open(file_path, 'r') as f:
-                        data = json.load(f)
+                        data: Any = json.load(f)
                     if isinstance(data, dict) and "state" in data and "metadata" in data:
-                        if data.get("metadata", {}).get("name") == name_without_extension:
+                        metadata = data.get("metadata", {})
+                        if isinstance(metadata, dict) and metadata.get("name") == name_without_extension:
                             workspaces.append(name_without_extension)
                 except json.JSONDecodeError:
                     pass
@@ -230,7 +242,7 @@ class WorkspaceManager:
                     pass
         return workspaces
 
-    def delete_workspace(self, name, test_dir=None):
+    def delete_workspace(self, name: str, test_dir: Optional[str] = None) -> bool:
         """Delete a workspace file.
         
         Args:
