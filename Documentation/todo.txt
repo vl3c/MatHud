@@ -31,4 +31,4 @@
 
 # Future 3D Features
 - add 3D graphing capabilities and 3D shape visualization
-- add parametric equation plotting in 3D
+- add parametric equation plotting in 3D 
