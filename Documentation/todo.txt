@@ -32,3 +32,8 @@
 # Future 3D Features
 - add 3D graphing capabilities and 3D shape visualization
 - add parametric equation plotting in 3D 
+
+# Static Typing Rollout
+- annotate `static/functions_definitions.py` and supporting utilities (math utils, expression validator)
+- add type stubs or protocols for Brython `browser` module usage in client code
+- expand server coverage to `static/openai_api.py`, `static/log_manager.py`, and `static/routes.py` after defining shared response types

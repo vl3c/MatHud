@@ -12,6 +12,15 @@ This documentation serves as a **complete reference manual** for:
 
 This document contains comprehensive documentation extracted from all files in the MatHud project, including file headers and method documentation.
 
+## Static Typing Guidelines
+
+- Type checking uses `mypy` with configuration in `mypy.ini`; install dependencies via `pip install -r requirements.txt`.
+- Run targeted checks with `python -m mypy`; the current config scopes analysis to `app.py`, `static/app_manager.py`, and `static/workspace_manager.py` while skipping deep import traversal.
+- New modules should enable postponed evaluation by adding `from __future__ import annotations` directly beneath the module docstring.
+- Prefer precise return types and explicit `-> None` annotations; replace dynamic dicts with `TypedDict`, `Protocol`, or dataclasses where practical.
+- When Brython-only modules require stubs, place them in `static/client/typing/` (create if missing) and register via `mypy_path` before widening the rollout.
+- Attach MatHud-specific attributes to subclasses such as `MatHudFlask` rather than mutating `Flask` directly, keeping mypy aware of injected services.
+
 ## Table of Contents
 
 ### Core Application Files

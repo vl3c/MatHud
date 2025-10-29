@@ -6,3 +6,5 @@ python-dotenv
 selenium
 geckodriver-autoinstaller
 requests
+types-requests
+mypy==1.11.2
