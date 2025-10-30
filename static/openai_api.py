@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from static.ai_model import AIModel
-from static.functions_definitions import FUNCTIONS
+from static.functions_definitions import FUNCTIONS, FunctionDefinition
 
 MessageContent = Union[str, List[Dict[str, Any]]]
 MessageDict = Dict[str, Any]
@@ -74,7 +74,7 @@ class OpenAIChatCompletionsAPI:
         self,
         model: Optional[AIModel] = None,
         temperature: float = 0.2,
-        tools: Optional[Sequence[Dict[str, Any]]] = None,
+        tools: Optional[Sequence[FunctionDefinition]] = None,
         max_tokens: int = 32000,
     ) -> None:
         """Initialize OpenAI API client and conversation state.
@@ -89,7 +89,9 @@ class OpenAIChatCompletionsAPI:
         self.model: AIModel = model if model is not None else AIModel.get_default_model()
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.tools: Sequence[Dict[str, Any]] = list(tools) if tools is not None else list(FUNCTIONS)
+        self.tools: Sequence[FunctionDefinition] = (
+            list(tools) if tools is not None else list(FUNCTIONS)
+        )
         self.messages: List[MessageDict] = [
             {"role": "developer", "content": OpenAIChatCompletionsAPI.DEV_MSG}
         ]

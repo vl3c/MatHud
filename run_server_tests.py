@@ -84,9 +84,9 @@ def run_tests():
     # Set test environment - disable authentication by default for testing
     if not with_auth:
         os.environ['REQUIRE_AUTH'] = 'false'
-        print("🔧 Test mode: Authentication disabled for testing")
+        print("Test mode: authentication disabled for testing")
     else:
-        print("🔐 Test mode: Authentication enabled (--with-auth)")
+        print("Test mode: authentication enabled (--with-auth)")
     
     # Determine the Python interpreter based on the OS
     is_windows = platform.system() == "Windows"

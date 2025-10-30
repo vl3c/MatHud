@@ -17,7 +17,33 @@ Dependencies:
     - JSON Schema: Parameter validation and type checking for all function arguments
 """
 
-FUNCTIONS = [
+from __future__ import annotations
+
+from typing import Dict, List, Literal, TypedDict, Union
+
+
+JsonValue = Union[str, int, float, bool, None, Dict[str, "JsonValue"], List["JsonValue"]]
+JsonObject = Dict[str, JsonValue]
+
+
+class FunctionSchema(TypedDict, total=False):
+    """JSON schema for an AI-exposed function."""
+
+    name: str
+    description: str
+    strict: bool
+    parameters: JsonObject
+    returns: JsonObject
+
+
+class FunctionDefinition(TypedDict):
+    """Top-level tool definition structure used by the OpenAI API."""
+
+    type: Literal["function"]
+    function: FunctionSchema
+
+
+FUNCTIONS: List[FunctionDefinition] = [
             {
                 "type": "function",
                 "function": {

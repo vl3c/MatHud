@@ -17,7 +17,13 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, List, Sequence, Union
+
+from static.tool_call_processor import ProcessedToolCall
+
+
+JsonValue = Union[str, int, float, bool, None, Dict[str, "JsonValue"], List["JsonValue"]]
+JsonObject = Dict[str, JsonValue]
 
 
 class LogManager:
@@ -34,6 +40,7 @@ class LogManager:
             logs_dir: Directory path for log files (default: './logs/')
         """
         self.logs_dir = logs_dir
+        self._logger: logging.Logger = logging.getLogger("mathud")
         self._setup_logging()
     
     def _get_log_file_name(self) -> str:
@@ -52,11 +59,22 @@ class LogManager:
         if not os.path.exists(self.logs_dir):
             os.makedirs(self.logs_dir)
         
-        logging.basicConfig(
-            filename=os.path.join(self.logs_dir, self._get_log_file_name()),
-            level=logging.INFO,
-            format='%(asctime)s %(message)s'
-        )
+        log_file_path = os.path.join(self.logs_dir, self._get_log_file_name())
+
+        root_logger = logging.getLogger()
+        if not root_logger.handlers:
+            logging.basicConfig(
+                filename=log_file_path,
+                level=logging.INFO,
+                format='%(asctime)s %(message)s'
+            )
+
+        self._logger.setLevel(logging.INFO)
+        self._logger.propagate = False
+        if not self._logger.handlers:
+            handler = logging.FileHandler(log_file_path, encoding='utf-8')
+            handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+            self._logger.addHandler(handler)
         self.log_new_session()
     
     def log_new_session(self) -> None:
@@ -65,7 +83,7 @@ class LogManager:
         Creates a visual separator in the log file for new application sessions.
         """
         session_delimiter = f"\n\n###### SESSION {datetime.now().strftime('%H:%M:%S')} ######\n"
-        logging.info(session_delimiter)
+        self._logger.info(session_delimiter)
     
     def log_user_message(self, user_message: str) -> None:
         """Log user message and its components.
@@ -76,29 +94,30 @@ class LogManager:
             user_message: JSON string containing user interaction data
         """
         try:
-            user_message_json = json.loads(user_message)
-            if not isinstance(user_message_json, dict):
-                logging.error("User message JSON is not an object.")
-                return
+            user_message_json_raw: JsonValue = json.loads(user_message)
         except json.JSONDecodeError:
-            logging.error("Failed to decode user message JSON.")
+            self._logger.error("Failed to decode user message JSON.")
             return
+        if not isinstance(user_message_json_raw, dict):
+            self._logger.error("User message JSON is not an object.")
+            return
+        user_message_json: JsonObject = user_message_json_raw
         
         svg_state = user_message_json.get("svg_state")
         if isinstance(svg_state, dict):
-            logging.info(f'### SVG state dimensions: {svg_state.get("dimensions")}')
+            self._logger.info(f'### SVG state dimensions: {svg_state.get("dimensions")}')
 
         canvas_state = user_message_json.get("canvas_state")
         if canvas_state is not None:
-            logging.info(f'### Canvas state: {canvas_state}')
+            self._logger.info(f'### Canvas state: {canvas_state}')
 
         previous_results = user_message_json.get("previous_results")
         if previous_results is not None:
-            logging.info(f'### Previously calculated results: {previous_results}')
+            self._logger.info(f'### Previously calculated results: {previous_results}')
 
         user_message_text = user_message_json.get("user_message")
         if user_message_text is not None:
-            logging.info(f'### User message: {user_message_text}')
+            self._logger.info(f'### User message: {user_message_text}')
     
     def log_ai_response(self, ai_message: str) -> None:
         """Log AI response message.
@@ -106,13 +125,13 @@ class LogManager:
         Args:
             ai_message: AI-generated response text
         """
-        logging.info(f'### AI response: {ai_message}')
+        self._logger.info(f'### AI response: {ai_message}')
     
-    def log_ai_tool_calls(self, ai_tool_calls: Sequence[Dict[str, Any]] | None) -> None:
+    def log_ai_tool_calls(self, ai_tool_calls: Sequence[ProcessedToolCall] | Sequence[Dict[str, Any]] | None) -> None:
         """Log AI tool calls.
         
         Args:
-            ai_tool_calls: List of AI-requested function calls
+            ai_tool_calls: List of AI-requested function calls (ProcessedToolCall or dict)
         """
         if ai_tool_calls is not None:
-            logging.info(f'### AI tool calls: {list(ai_tool_calls)}')
+            self._logger.info(f'### AI tool calls: {list(ai_tool_calls)}')

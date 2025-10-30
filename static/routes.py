@@ -18,20 +18,24 @@ import json
 import math
 import time
 from collections.abc import Callable, Iterator
-from typing import Any, Dict, List, Optional, TypeVar, cast
+from typing import Any, Dict, List, TypeVar, Union, cast
 
 from flask import Response, flash, redirect, render_template, request, session, stream_with_context, url_for
 from flask.typing import ResponseReturnValue
 
 from static.app_manager import AppManager, MatHudFlask
-from static.tool_call_processor import ToolCallProcessor
+from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
 
 F = TypeVar("F", bound=Callable[..., ResponseReturnValue])
 
 # Global dictionary to track login attempts by IP address
 # Format: {ip_address: last_attempt_timestamp}
+JsonValue = Union[str, int, float, bool, None, Dict[str, "JsonValue"], List["JsonValue"]]
+JsonObject = Dict[str, JsonValue]
+StreamEventDict = Dict[str, JsonValue]
+
 login_attempts: Dict[str, float] = {}
-ToolCallList = List[Dict[str, Any]]
+ToolCallList = List[ProcessedToolCall]
 
 
 def require_auth(f: F) -> F:
@@ -211,13 +215,14 @@ def register_routes(app: MatHudFlask) -> None:
         {"type":"token","text":"..."}\n for incremental tokens and
         {"type":"final","ai_message":str,"ai_tool_calls":list,"finish_reason":str}\n at the end.
         """
-        request_payload = request.get_json(silent=True)
-        if not isinstance(request_payload, dict):
+        request_payload_raw: JsonValue = request.get_json(silent=True)
+        if not isinstance(request_payload_raw, dict):
             return AppManager.make_response(
                 message='Invalid request body',
                 status='error',
                 code=400,
             )
+        request_payload: JsonObject = request_payload_raw
 
         message = request_payload.get('message')
         if not isinstance(message, str) or not message:
@@ -228,7 +233,7 @@ def register_routes(app: MatHudFlask) -> None:
             )
 
         try:
-            message_json_raw = json.loads(message)
+            message_json_value: JsonValue = json.loads(message)
         except (json.JSONDecodeError, TypeError):
             return AppManager.make_response(
                 message='Invalid message format',
@@ -236,16 +241,17 @@ def register_routes(app: MatHudFlask) -> None:
                 code=400,
             )
 
-        if not isinstance(message_json_raw, dict):
+        if not isinstance(message_json_value, dict):
             return AppManager.make_response(
                 message='Invalid message format',
                 status='error',
                 code=400,
             )
+        message_json: JsonObject = message_json_value
 
         svg_state = request_payload.get('svg_state')
-        use_vision = bool(message_json_raw.get('use_vision', False))
-        ai_model_raw = message_json_raw.get('ai_model')
+        use_vision = bool(message_json.get('use_vision', False))
+        ai_model_raw = message_json.get('ai_model')
         ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
 
         if ai_model:
@@ -269,17 +275,27 @@ def register_routes(app: MatHudFlask) -> None:
         def generate() -> Iterator[str]:
             try:
                 for event in app.ai_api.create_chat_completion_stream(message):
-                    if isinstance(event, dict) and event.get('type') == 'final':
-                        try:
-                            app.log_manager.log_ai_response(str(event.get('ai_message', '')))
-                            tool_calls = event.get('ai_tool_calls')
-                            if isinstance(tool_calls, list):
-                                app.log_manager.log_ai_tool_calls(tool_calls)
-                        except Exception:
-                            pass
-                    yield json.dumps(event) + "\n"
+                    if isinstance(event, dict):
+                        event_dict = cast(StreamEventDict, event)
+                        if event_dict.get('type') == 'final':
+                            try:
+                                app.log_manager.log_ai_response(str(event_dict.get('ai_message', '')))
+                                tool_calls = event_dict.get('ai_tool_calls')
+                                if isinstance(tool_calls, list):
+                                    dict_tool_calls: List[Dict[str, Any]] = [
+                                        cast(Dict[str, Any], call)
+                                        for call in tool_calls
+                                        if isinstance(call, dict)
+                                    ]
+                                    if dict_tool_calls:
+                                        app.log_manager.log_ai_tool_calls(dict_tool_calls)
+                            except Exception:
+                                pass
+                        yield json.dumps(event_dict) + "\n"
+                    else:
+                        yield json.dumps(event) + "\n"
             except Exception as exc:
-                error_payload = {
+                error_payload: StreamEventDict = {
                     "type": "final",
                     "ai_message": f"I encountered an error processing your request: {exc}",
                     "ai_tool_calls": [],
@@ -288,7 +304,7 @@ def register_routes(app: MatHudFlask) -> None:
                 try:
                     yield json.dumps(error_payload) + "\n"
                 except Exception:
-                    fallback_payload = {
+                    fallback_payload: StreamEventDict = {
                         "type": "final",
                         "ai_message": "I encountered an error processing your request.",
                         "ai_tool_calls": [],
@@ -330,7 +346,7 @@ def register_routes(app: MatHudFlask) -> None:
         """List all saved workspaces."""
         try:
             workspaces = app.workspace_manager.list_workspaces()
-            return AppManager.make_response(data=workspaces)
+            return AppManager.make_response(data=cast(JsonValue, workspaces))
         except Exception as e:
             return AppManager.make_response(
                 message=str(e),
@@ -400,7 +416,7 @@ def register_routes(app: MatHudFlask) -> None:
         raw_tool_calls = getattr(message_obj, "tool_calls", None)
         tool_calls: ToolCallList = []
         if raw_tool_calls:
-            tool_calls = cast(ToolCallList, ToolCallProcessor.jsonify_tool_calls(raw_tool_calls))
+            tool_calls = ToolCallProcessor.jsonify_tool_calls(raw_tool_calls)
             app.log_manager.log_ai_tool_calls(tool_calls)
         else:
             app.log_manager.log_ai_tool_calls([])
@@ -464,11 +480,11 @@ def register_routes(app: MatHudFlask) -> None:
             ai_message, ai_tool_calls = _process_ai_response(app, choice)
             finish_reason = getattr(choice, 'finish_reason', None)
 
-            return AppManager.make_response(data={
+            return AppManager.make_response(data=cast(JsonObject, {
                 "ai_message": ai_message,
-                "ai_tool_calls": ai_tool_calls,
+                "ai_tool_calls": cast(JsonValue, ai_tool_calls),
                 "finish_reason": finish_reason,
-            })
+            }))
         except Exception as exc:
             return AppManager.make_response(
                 message=str(exc),

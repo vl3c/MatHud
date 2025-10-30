@@ -17,11 +17,24 @@ import json
 import os
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional, TypedDict, Union, cast
 
 WORKSPACES_DIR = "workspaces"
 
-WorkspaceState = Any
+JsonPrimitive = Union[str, int, float, bool, None]
+JsonValue = Union[JsonPrimitive, Dict[str, "JsonValue"], List["JsonValue"]]
+JsonObject = Dict[str, JsonValue]
+WorkspaceState = JsonValue
+
+
+class WorkspaceMetadata(TypedDict):
+    name: str
+    last_modified: str
+
+
+class WorkspaceRecord(TypedDict):
+    metadata: WorkspaceMetadata
+    state: WorkspaceState
 
 
 class WorkspaceManager:
@@ -68,12 +81,12 @@ class WorkspaceManager:
         """
         abs_path = os.path.abspath(path)
         abs_workspace_dir = os.path.abspath(self.workspaces_dir)
-        
+
         try:
-            os.path.commonpath([abs_path, abs_workspace_dir])
-            return abs_path.startswith(abs_workspace_dir)
+            common_prefix = os.path.commonpath([abs_path, abs_workspace_dir])
         except ValueError:
             return False
+        return common_prefix == abs_workspace_dir
 
     def ensure_workspaces_dir(self, test_dir: Optional[str] = None) -> str:
         """Ensure the workspaces directory exists.
@@ -86,7 +99,7 @@ class WorkspaceManager:
             
         target_dir = self.workspaces_dir if test_dir is None else os.path.join(self.workspaces_dir, test_dir)
         target_dir = os.path.abspath(target_dir)
-        
+
         if not self._is_path_in_workspace_dir(target_dir):
             raise ValueError("Target directory must be within workspace directory")
             
@@ -138,16 +151,16 @@ class WorkspaceManager:
                 return False
                 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            workspace_data: Dict[str, Any] = {
+            workspace_data: WorkspaceRecord = {
                 "metadata": {
                     "name": name or f"current_workspace_{timestamp}",
                     "last_modified": datetime.now().isoformat(),
                 },
-                "state": state
+                "state": state,
             }
             
             file_path = self.get_workspace_path(name, test_dir)
-            with open(file_path, 'w') as f:
+            with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(workspace_data, f, indent=2)
             
             return True
@@ -200,9 +213,13 @@ class WorkspaceManager:
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"No workspace found at {file_path}")
             
-            with open(file_path, 'r') as f:
-                workspace_data: Dict[str, Any] = json.load(f)
-            
+            with open(file_path, 'r', encoding='utf-8') as f:
+                workspace_data_raw: JsonValue = json.load(f)
+
+            if not isinstance(workspace_data_raw, dict):
+                raise ValueError("Workspace file is not a JSON object")
+
+            workspace_data = cast(WorkspaceRecord, workspace_data_raw)
             return workspace_data["state"]
         except FileNotFoundError:
             raise
@@ -220,7 +237,7 @@ class WorkspaceManager:
         """
         target_dir = self.ensure_workspaces_dir(test_dir)
         workspaces: List[str] = []
-        
+
         for filename in os.listdir(target_dir):
             if filename.endswith(".json"):
                 name_without_extension = filename[:-5]
@@ -229,11 +246,17 @@ class WorkspaceManager:
 
                 file_path = os.path.join(target_dir, filename)
                 try:
-                    with open(file_path, 'r') as f:
-                        data: Any = json.load(f)
-                    if isinstance(data, dict) and "state" in data and "metadata" in data:
-                        metadata = data.get("metadata", {})
-                        if isinstance(metadata, dict) and metadata.get("name") == name_without_extension:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        data_raw: JsonValue = json.load(f)
+                    if isinstance(data_raw, dict):
+                        metadata_candidate = data_raw.get("metadata")
+                        has_state_key = "state" in data_raw
+                        if (
+                            isinstance(metadata_candidate, dict)
+                            and "name" in metadata_candidate
+                            and has_state_key
+                            and metadata_candidate.get("name") == name_without_extension
+                        ):
                             workspaces.append(name_without_extension)
                 except json.JSONDecodeError:
                     pass

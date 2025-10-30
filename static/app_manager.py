@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import os
 import secrets
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple, TypedDict, Union
 
 from cachelib.file import FileSystemCache
 from dotenv import load_dotenv
@@ -30,6 +30,17 @@ from static.workspace_manager import WorkspaceManager
 
 if TYPE_CHECKING:
     from static.webdriver_manager import WebDriverManager
+
+
+JsonValue = Union[str, int, float, bool, None, Dict[str, "JsonValue"], list["JsonValue"]]
+
+
+class ApiResponseDict(TypedDict, total=False):
+    """Standard API response structure."""
+
+    status: str
+    message: Optional[str]
+    data: JsonValue
 
 
 class MatHudFlask(Flask):
@@ -95,7 +106,7 @@ class AppManager:
     
     @staticmethod
     def make_response(
-        data: Any | None = None,
+        data: JsonValue | None = None,
         message: Optional[str] = None,
         status: str = 'success',
         code: int = 200,
@@ -111,10 +122,10 @@ class AppManager:
         Returns:
             tuple: (Flask JSON response, HTTP status code)
         """
-        response: Dict[str, Any | None] = {
+        response: ApiResponseDict = {
             'status': status,
             'message': message,
-            'data': data
+            'data': data,
         }
         return jsonify(response), code
     
