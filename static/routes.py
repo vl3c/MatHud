@@ -25,6 +25,7 @@ from flask.typing import ResponseReturnValue
 
 from static.app_manager import AppManager, MatHudFlask
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
+from static.webdriver_manager import SvgState
 
 F = TypeVar("F", bound=Callable[..., ResponseReturnValue])
 
@@ -267,7 +268,8 @@ def register_routes(app: MatHudFlask) -> None:
 
         if use_vision and app.webdriver_manager is not None:
             try:
-                app.webdriver_manager.capture_svg_state(svg_state)
+                if svg_state is not None and isinstance(svg_state, dict):
+                    app.webdriver_manager.capture_svg_state(cast(SvgState, svg_state))
             except Exception:
                 pass
 
@@ -473,7 +475,8 @@ def register_routes(app: MatHudFlask) -> None:
             init_webdriver_route()
 
         if use_vision and app.webdriver_manager is not None:
-            app.webdriver_manager.capture_svg_state(svg_state)
+            if svg_state is not None and isinstance(svg_state, dict):
+                app.webdriver_manager.capture_svg_state(cast(SvgState, svg_state))
 
         try:
             choice = app.ai_api.create_chat_completion(message)

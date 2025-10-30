@@ -8,6 +8,29 @@ Dependencies:
     - None (pure configuration module)
 """
 
+from __future__ import annotations
+
+from typing import Dict, Literal, TypedDict
+
+
+class ModelConfig(TypedDict, total=False):
+    """Configuration for an AI model."""
+
+    has_vision: bool
+
+
+ModelConfigDict = Dict[str, ModelConfig]
+ModelIdentifier = Literal[
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-5-chat-latest",
+    "gpt-5-nano",
+    "gpt-3.5-turbo",
+]
+
 
 class AIModel:
     """AI model configuration and capability management.
@@ -50,18 +73,18 @@ class AIModel:
 
     DEFAULT_MODEL = "gpt-5-chat-latest"
 
-    def __init__(self, identifier, has_vision):
+    def __init__(self, identifier: str, has_vision: bool) -> None:
         """Initialize AIModel instance.
         
         Args:
             identifier: Model identifier string (e.g., 'gpt-4.1')
             has_vision: Boolean indicating vision capability support
         """
-        self.id = identifier
-        self.has_vision = has_vision
+        self.id: str = identifier
+        self.has_vision: bool = has_vision
     
     @staticmethod
-    def from_identifier(identifier):
+    def from_identifier(identifier: str) -> AIModel:
         """Create AIModel instance from identifier string.
         
         Args:
@@ -74,7 +97,7 @@ class AIModel:
         return AIModel(identifier=identifier, has_vision=config["has_vision"])
 
     @staticmethod
-    def get_default_model():
+    def get_default_model() -> AIModel:
         """Get the default AI model instance.
         
         Returns:
@@ -82,10 +105,10 @@ class AIModel:
         """
         return AIModel.from_identifier(AIModel.DEFAULT_MODEL)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """String representation of the model.
         
         Returns:
             str: Model identifier
         """
-        return self.id 
+        return self.id
