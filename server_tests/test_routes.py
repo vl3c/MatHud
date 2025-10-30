@@ -1,24 +1,28 @@
-import unittest
+from __future__ import annotations
+
 import json
 import os
-from unittest.mock import patch, Mock
-from static.app_manager import AppManager
+import unittest
+from typing import Optional
+from unittest.mock import Mock, patch
+
+from static.app_manager import AppManager, MatHudFlask
 
 
 class TestRoutes(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test client before each test."""
         # Set test environment variables to disable authentication
-        self.original_require_auth = os.environ.get('REQUIRE_AUTH')
+        self.original_require_auth: Optional[str] = os.environ.get('REQUIRE_AUTH')
         os.environ['REQUIRE_AUTH'] = 'false'
         
-        self.app = AppManager.create_app()
+        self.app: MatHudFlask = AppManager.create_app()
         self.client = self.app.test_client()
         self.app.config['TESTING'] = True
         # Ensure webdriver_manager is None at start
         self.app.webdriver_manager = None
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up after each test."""
         # Clean up webdriver if it exists
         if hasattr(self.app, 'webdriver_manager') and self.app.webdriver_manager:
@@ -31,7 +35,7 @@ class TestRoutes(unittest.TestCase):
             os.environ.pop('REQUIRE_AUTH', None)
 
     @patch('static.webdriver_manager.WebDriverManager')
-    def test_init_webdriver_route(self, mock_webdriver_class):
+    def test_init_webdriver_route(self, mock_webdriver_class: Mock) -> None:
         """Test the webdriver initialization route."""
         # Create a mock instance
         mock_instance = Mock()
@@ -46,13 +50,13 @@ class TestRoutes(unittest.TestCase):
         mock_webdriver_class.assert_called_once()
         self.assertEqual(self.app.webdriver_manager, mock_instance)
 
-    def test_index_route(self):
+    def test_index_route(self) -> None:
         """Test the index route returns HTML."""
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
         self.assertIn('text/html', response.content_type)
 
-    def test_workspace_operations(self):
+    def test_workspace_operations(self) -> None:
         """Test workspace CRUD operations."""
         # Test creating a workspace
         test_state = {'test': 'data'}
@@ -88,7 +92,7 @@ class TestRoutes(unittest.TestCase):
         self.assertNotIn('test_workspace', data['data'])
 
     @patch('static.openai_api.OpenAIChatCompletionsAPI.create_chat_completion')
-    def test_send_message(self, mock_chat):
+    def test_send_message(self, mock_chat: Mock) -> None:
         """Test the send_message route."""
         # Configure mock response
         class MockMessage:
@@ -115,7 +119,7 @@ class TestRoutes(unittest.TestCase):
         self.assertIn('ai_message', data['data'])
         self.assertIn('ai_tool_calls', data['data'])
 
-    def test_new_conversation_route(self):
+    def test_new_conversation_route(self) -> None:
         """Test the new_conversation route resets the AI conversation history."""
         # First, send a message to create some conversation history
         with patch.object(self.app.ai_api.client.chat.completions, 'create') as mock_create:
@@ -157,7 +161,7 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(len(self.app.ai_api.messages), 1)
         self.assertEqual(self.app.ai_api.messages[0]["role"], "developer")
 
-    def test_error_handling(self):
+    def test_error_handling(self) -> None:
         """Test error handling in routes."""
         # Test invalid workspace name
         response = self.client.get('/load_workspace?name=nonexistent')

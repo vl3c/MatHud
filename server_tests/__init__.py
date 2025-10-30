@@ -1,15 +1,17 @@
 # This file makes the Tests directory a Python package
 
+from __future__ import annotations
+
 import os
 import sys
 
 # Add the project root to Python path
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
 # Add the site-packages directory to Python path
-SITE_PACKAGES_PATH = os.path.join(
+SITE_PACKAGES_PATH: str = os.path.join(
     PROJECT_ROOT,
     'static', 'client'
 )

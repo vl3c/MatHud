@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import os
 import sys
 
 # Add the site-packages directory to Python path
-SITE_PACKAGES_PATH = os.path.join(
+SITE_PACKAGES_PATH: str = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),  # Go up one level from Tests
     'static', 'client'
 )

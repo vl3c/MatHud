@@ -19,12 +19,15 @@ Usage:
     python run_server_tests.py --with-auth - Run tests with authentication enabled
 """
 
+from __future__ import annotations
+
 import os
-import sys
 import subprocess
+import sys
 import platform
 
-def run_tests():
+
+def run_tests() -> int:
     """Run the server tests with pytest.
     
     Processes command line arguments and executes pytest with appropriate
@@ -35,9 +38,9 @@ def run_tests():
         int: pytest exit code (0 for success, non-zero for failure)
     """
     # Default test path and arguments
-    test_path = "server_tests"
-    extra_args = []
-    with_auth = False
+    test_path: str = "server_tests"
+    extra_args: list[str] = []
+    with_auth: bool = False
     
     # Process command line arguments
     i = 1
@@ -89,15 +92,15 @@ def run_tests():
         print("Test mode: authentication enabled (--with-auth)")
     
     # Determine the Python interpreter based on the OS
-    is_windows = platform.system() == "Windows"
+    is_windows: bool = platform.system() == "Windows"
     
     if is_windows:
-        python_cmd = "venv\\Scripts\\python"
+        python_cmd: str = "venv\\Scripts\\python"
     else:
         python_cmd = "./venv/bin/python"
     
     # Build the command
-    cmd = [python_cmd, "-m", "pytest", test_path, "-v"] + extra_args
+    cmd: list[str] = [python_cmd, "-m", "pytest", test_path, "-v"] + extra_args
     
     print(f"Running tests: {' '.join(cmd)}")
     
@@ -107,7 +110,7 @@ def run_tests():
     # Return the exit code
     return result.returncode
 
-def show_help():
+def show_help() -> None:
     """Show help information about this script and pytest options.
     
     Displays usage information for both this wrapper script and
