@@ -16,12 +16,16 @@ A comprehensive markdown parser that supports:
 - Mathematical expressions (LaTeX: \(...\) for inline, $$...$$ for block)
 """
 
+from __future__ import annotations
+
 import re
+from typing import Optional, Tuple
+
 
 class MarkdownParser:
     """Custom markdown parser optimized for chat interface display."""
     
-    def parse(self, text):
+    def parse(self, text: str) -> str:
         """Parse markdown text to HTML."""
         try:
             # Skip Brython's apply_markdown as it's not working properly
@@ -34,7 +38,7 @@ class MarkdownParser:
             # Ultimate fallback
             return text.replace('\n', '<br>')
 
-    def _simple_markdown_parse(self, text):
+    def _simple_markdown_parse(self, text: str) -> str:
         """Simple markdown parser for basic formatting using string operations."""
         try:
             # First handle tables
@@ -42,9 +46,9 @@ class MarkdownParser:
             
             # Split text into lines for processing
             lines = text.split('\n')
-            html_lines = []
+            html_lines: list[str] = []
             in_code_block = False
-            code_block_content = []
+            code_block_content: list[str] = []
             
             for line in lines:
                 # Skip table processing if already processed
@@ -105,7 +109,7 @@ class MarkdownParser:
             # Ultimate fallback
             return text.replace('\n', '<br>')
 
-    def _parse_heading(self, line):
+    def _parse_heading(self, line: str) -> Optional[Tuple[int, str]]:
         """Parse markdown heading and return (level, content) if matched."""
         if not line:
             return None
@@ -123,7 +127,7 @@ class MarkdownParser:
 
         return (level, content)
     
-    def _process_tables(self, text):
+    def _process_tables(self, text: str) -> str:
         """Process markdown tables using proper GFM table parsing algorithm."""
         lines = text.split('\n')
         result_lines = []
@@ -162,7 +166,7 @@ class MarkdownParser:
         
         return '\n'.join(result_lines)
     
-    def _build_table_html(self, table_lines):
+    def _build_table_html(self, table_lines: list[str]) -> str:
         """Build HTML table from table lines."""
         if len(table_lines) < 2:
             return '\n'.join(table_lines)
@@ -204,7 +208,7 @@ class MarkdownParser:
         html += '</table>'
         return html
     
-    def _is_delimiter_row(self, line):
+    def _is_delimiter_row(self, line: str) -> bool:
         """Check if a line is a valid table delimiter row."""
         # Delimiter row must start with | (after whitespace)
         line = line.strip()
@@ -235,7 +239,7 @@ class MarkdownParser:
         # Must have at least one valid delimiter cell
         return valid_cell_count > 0
     
-    def _parse_table_row(self, line):
+    def _parse_table_row(self, line: str) -> list[str]:
         """Parse a table row and return cell contents."""
         # Remove leading/trailing whitespace
         line = line.strip()
@@ -261,7 +265,7 @@ class MarkdownParser:
         
         return processed_cells
     
-    def _parse_alignments(self, delimiter_line):
+    def _parse_alignments(self, delimiter_line: str) -> list[str]:
         """Parse column alignments from delimiter row."""
         # Remove leading/trailing whitespace and optional pipes
         line = delimiter_line.strip()
@@ -293,7 +297,7 @@ class MarkdownParser:
         
         return alignments
     
-    def _is_list_item(self, line):
+    def _is_list_item(self, line: str) -> bool:
         """Check if a line is a list item (ordered, unordered, or checkbox)."""
         stripped = line.strip()
         
@@ -323,7 +327,7 @@ class MarkdownParser:
                 pass
         return False
     
-    def _process_list_item(self, line):
+    def _process_list_item(self, line: str) -> str:
         """Process a list item and determine its type and indentation."""
         # Count leading spaces for indentation level
         leading_spaces = len(line) - len(line.lstrip())
@@ -365,7 +369,7 @@ class MarkdownParser:
         # Add data attributes to track list type and indent level
         return f'<li data-list-type="{list_type}" data-indent="{indent_level}">{content}</li>'
     
-    def _join_lines_with_smart_breaks(self, lines):
+    def _join_lines_with_smart_breaks(self, lines: list[str]) -> str:
         """Join lines with smart line break handling."""
         try:
             result_lines = []
@@ -396,7 +400,7 @@ class MarkdownParser:
             print(f"Error joining lines: {e}")
             return '<br>'.join(lines)
 
-    def _wrap_list_items_improved(self, html):
+    def _wrap_list_items_improved(self, html: str) -> str:
         """Wrap list items with proper <ul>/<ol> tags and handle REAL nesting."""
         try:
             lines = html.split('<br>')
@@ -417,6 +421,10 @@ class MarkdownParser:
                         if '<li data-list-type=' in current_line and '</li>' in current_line:
                             list_type = self._extract_data_attr(current_line, 'data-list-type')
                             indent_level = int(self._extract_data_attr(current_line, 'data-indent') or '0')
+                            
+                            # Ensure list_type is not None
+                            if list_type is None:
+                                list_type = 'ul'  # Default to unordered list
                             
                             # Clean the line (remove data attributes)
                             clean_line = current_line.replace(f' data-list-type="{list_type}"', '')
@@ -444,7 +452,7 @@ class MarkdownParser:
             print(f"Error in improved list wrapping: {e}")
             return html
     
-    def _extract_data_attr(self, line, attr_name):
+    def _extract_data_attr(self, line: str, attr_name: str) -> Optional[str]:
         """Extract data attribute value from HTML line."""
         try:
             start = line.find(f'{attr_name}="') + len(f'{attr_name}="')
@@ -453,14 +461,14 @@ class MarkdownParser:
         except:
             return None
     
-    def _build_nested_list_html(self, list_items):
+    def _build_nested_list_html(self, list_items: list[Tuple[str, str, int]]) -> str:
         """Build properly nested HTML from list items."""
         try:
             if not list_items:
                 return ''
             
-            result = []
-            stack = []  # Stack of (list_type, indent_level)
+            result: list[str] = []
+            stack: list[Tuple[str, int]] = []  # Stack of (list_type, indent_level)
             
             for item_html, list_type, indent_level in list_items:
                 # Close lists that are deeper than current level
@@ -494,7 +502,7 @@ class MarkdownParser:
             print(f"Error building nested list HTML: {e}")
             return ''
     
-    def _process_inline_markdown(self, text):
+    def _process_inline_markdown(self, text: str) -> str:
         """Process inline markdown elements like bold, italic, code."""
         try:
             # Bold text (**text** and __text__)
@@ -652,7 +660,7 @@ class MarkdownParser:
             print(f"Error processing inline markdown: {e}")
             return text
     
-    def _process_math_expressions(self, text):
+    def _process_math_expressions(self, text: str) -> str:
         """Process LaTeX mathematical expressions."""
         try:
             # Process block math expressions ($$...$$) first

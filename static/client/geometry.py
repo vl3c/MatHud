@@ -16,6 +16,8 @@ Dependencies:
     - drawables.*: Individual geometric class implementations
 """
 
+from __future__ import annotations
+
 # Import all drawable classes from their individual files
 from drawables.circle import Circle
 from drawables.drawable import Drawable
@@ -29,4 +31,4 @@ from drawables.point import Point
 from drawables.position import Position
 
 # Re-export all classes for convenient importing
-__all__ = ['Drawable', 'Point', 'Position', 'Segment', 'Vector', 'Triangle', 'Rectangle', 'Circle', 'Ellipse', 'Function']
+__all__: list[str] = ['Drawable', 'Point', 'Position', 'Segment', 'Vector', 'Triangle', 'Rectangle', 'Circle', 'Ellipse', 'Function']

@@ -33,9 +33,9 @@ Mathematical Support:
 
 Expression Processing:
     - Automatic syntax correction and normalization
-    - Mathematical notation conversion (√, °, π, !)
-    - Implicit multiplication insertion (2x → 2*x)
-    - Power operator conversion (^ ↔ **)
+    - Mathematical notation conversion (sqrt, degrees, pi, factorial)
+    - Implicit multiplication insertion (2x -> 2*x)
+    - Power operator conversion (^ <-> **)
     - Function name standardization
 
 Dependencies:
@@ -46,10 +46,13 @@ Dependencies:
     - utils.math_utils: Advanced mathematical operations
 """
 
+from __future__ import annotations
+
 import ast
 import math
 import random
 import re
+from typing import Any, Callable, Dict, Set, Type, cast
 
 
 # The ExpressionValidator class is used to validate and evaluate mathematical expressions
@@ -79,11 +82,12 @@ class ExpressionValidator(ast.NodeVisitor):
         ALLOWED_NODES (set): Whitelist of permitted AST node types
         ALLOWED_FUNCTIONS (set): Whitelist of permitted mathematical functions
     """
-    ALLOWED_NODES = {
+    ALLOWED_NODES: Set[Type[ast.AST]] = {
         ast.Add,
         ast.Sub,
         ast.Mult,
         ast.Div,
+        ast.Pow,  # Exponentiation operator (**)
         ast.USub,
         ast.UAdd,
         ast.Constant,
@@ -91,9 +95,10 @@ class ExpressionValidator(ast.NodeVisitor):
         ast.BinOp,
         ast.UnaryOp,
         ast.Expression,
-        ast.Call
+        ast.Call,
+        ast.List,  # List literals (e.g., [1, 2, 3])
     }
-    ALLOWED_FUNCTIONS = {
+    ALLOWED_FUNCTIONS: Set[str] = {
         'sin',
         'cos',
         'tan', 
@@ -143,7 +148,7 @@ class ExpressionValidator(ast.NodeVisitor):
         'randint'
     }
 
-    def _is_allowed_node_type(self, node):
+    def _is_allowed_node_type(self, node: ast.AST) -> bool:
         """
         Check if the AST node type is in the allowed nodes whitelist.
         
@@ -153,9 +158,9 @@ class ExpressionValidator(ast.NodeVisitor):
         Returns:
             bool: True if node type is allowed, False otherwise
         """
-        return isinstance(node, self.ALLOWED_NODES)
+        return any(isinstance(node, node_type) for node_type in self.ALLOWED_NODES)
 
-    def visit(self, node):
+    def visit(self, node: ast.AST) -> Any:
         """
         Visit an AST node and validate it against security constraints.
         
@@ -172,7 +177,32 @@ class ExpressionValidator(ast.NodeVisitor):
             raise ValueError(f"Disallowed node type: {type(node).__name__}")
         return super().visit(node)
 
-    def visit_Call(self, node):
+    def visit_Name(self, node: ast.Name) -> None:
+        """
+        Visit name nodes and ensure they're only used for loading (reading) values.
+        
+        Args:
+            node: AST Name node representing a variable or function name
+            
+        Raises:
+            ValueError: If name is used for assignment or deletion
+        """
+        # Only allow Load context (reading), not Store or Del
+        if not isinstance(node.ctx, ast.Load):
+            raise ValueError(f"Name '{node.id}' cannot be used for assignment or deletion")
+    
+    def visit_List(self, node: ast.List) -> None:
+        """
+        Visit list literal nodes and validate their elements.
+        
+        Args:
+            node: AST List node representing a list literal
+        """
+        # Visit all elements in the list
+        for elt in node.elts:
+            self.visit(elt)
+    
+    def visit_Call(self, node: ast.Call) -> None:
         """
         Visit function call nodes and validate against allowed functions.
         
@@ -191,38 +221,38 @@ class ExpressionValidator(ast.NodeVisitor):
         else:
             raise ValueError(f"Disallowed function: {ast.dump(node)}")
 
-    def visit_Import(self, node):
+    def visit_Import(self, node: ast.Import) -> None:
         raise ValueError("Import statements are not allowed")
     
-    def visit_ImportFrom(self, node):
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         raise ValueError("Import statements are not allowed")
 
-    def visit_Lambda(self, node):
+    def visit_Lambda(self, node: ast.Lambda) -> None:
         raise ValueError("Lambda expressions are not allowed")
     
-    def visit_Attribute(self, node):
+    def visit_Attribute(self, node: ast.Attribute) -> None:
         raise ValueError("Attribute access is not allowed")
 
-    def visit_Subscript(self, node):
+    def visit_Subscript(self, node: ast.Subscript) -> None:
         raise ValueError("Subscripting is not allowed")
 
-    def visit_Assign(self, node):
+    def visit_Assign(self, node: ast.Assign) -> None:
         raise ValueError("Assignment is not allowed")
 
-    def visit_AugAssign(self, node):
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
         raise ValueError("Augmented assignment is not allowed")
 
-    def visit_Exec(self, node):
-        raise ValueError("Exec statements are not allowed")
+    # Note: ast.Exec was removed in Python 3.8+, so we skip defining visit_Exec
+    # Exec statements would still be caught by the general visit method checking allowed nodes
 
-    def visit_Global(self, node):
+    def visit_Global(self, node: ast.Global) -> None:
         raise ValueError("Global statements are not allowed")
 
-    def visit_Nonlocal(self, node):
+    def visit_Nonlocal(self, node: ast.Nonlocal) -> None:
         raise ValueError("Nonlocal statements are not allowed")
     
     @staticmethod
-    def validate_expression_tree(expression):
+    def validate_expression_tree(expression: str) -> None:
         """
         Validate a mathematical expression using AST parsing.
         
@@ -247,19 +277,19 @@ class ExpressionValidator(ast.NodeVisitor):
             ExpressionValidator._handle_validation_error(expression, e)
 
     @staticmethod
-    def _handle_syntax_error(expression, error):
+    def _handle_syntax_error(expression: str, error: SyntaxError) -> None:
         """Handle syntax errors during expression validation"""
         print(f"Syntax error in expression: {expression}")
         raise ValueError(f"Syntax error in expression '{expression}': {str(error)}") from error
 
     @staticmethod
-    def _handle_validation_error(expression, error):
+    def _handle_validation_error(expression: str, error: Exception) -> None:
         """Handle general validation errors during expression validation"""
         print(f"Invalid expression: {expression}")
         raise ValueError(f"Error validating expression '{expression}': {str(error)}") from error
 
     @staticmethod
-    def evaluate_expression(expression, x=0):
+    def evaluate_expression(expression: str, x: float = 0) -> float:
         """
         Safely evaluate a mathematical expression with controlled variable scope.
         
@@ -275,10 +305,10 @@ class ExpressionValidator(ast.NodeVisitor):
         tree = ast.parse(expression, mode='eval')
         # Evaluate the expression using the abstract syntax tree and the variables dictionary
         result = eval(compile(tree, '<string>', mode='eval'), variables_and_functions)
-        return result
+        return cast(float, result)
 
     @staticmethod
-    def _get_variables_and_functions(x):
+    def _get_variables_and_functions(x: float) -> Dict[str, Any]:
         """Create a dictionary with variables and functions for expression evaluation"""
         from utils.math_utils import MathUtils
         return {
@@ -333,7 +363,7 @@ class ExpressionValidator(ast.NodeVisitor):
         }
 
     @staticmethod
-    def fix_math_expression(expression, python_compatible=False):
+    def fix_math_expression(expression: str, python_compatible: bool = False) -> str:
         """
         Automatically correct and normalize mathematical expression syntax.
         
@@ -355,7 +385,7 @@ class ExpressionValidator(ast.NodeVisitor):
         return expression
 
     @staticmethod
-    def _convert_degrees(expression):
+    def _convert_degrees(expression: str) -> str:
         """Convert degree symbols and text to radians"""
         expression = expression.replace('°', ' deg')
         expression = expression.replace('degrees', ' deg')
@@ -364,7 +394,7 @@ class ExpressionValidator(ast.NodeVisitor):
         return expression
 
     @staticmethod
-    def _handle_special_symbols(expression, python_compatible):
+    def _handle_special_symbols(expression: str, python_compatible: bool) -> str:
         """Handle square roots, absolute values, and factorials"""
         # Handle square roots
         expression = re.sub(r'√\((.*?)\)', r'sqrt(\1)', expression)
@@ -379,12 +409,12 @@ class ExpressionValidator(ast.NodeVisitor):
         return expression
 
     @staticmethod
-    def _replace_factorials(expression):
+    def _replace_factorials(expression: str) -> str:
         """Replace factorial shorthand (n!) with factorial() calls using balanced parsing."""
         if '!' not in expression:
             return expression
 
-        def is_token_char(char):
+        def is_token_char(char: str) -> bool:
             return char.isalnum() or char in ['_', '.']
 
         matching_pairs = {')': '(', ']': '[', '}': '{'}
@@ -439,7 +469,7 @@ class ExpressionValidator(ast.NodeVisitor):
         return expression
 
     @staticmethod
-    def _replace_function_names(expression):
+    def _replace_function_names(expression: str) -> str:
         """Replace common mathematical function names with their Python equivalents"""
         replacements = ExpressionValidator._get_function_replacements()
         for old, new in replacements.items():
@@ -447,7 +477,7 @@ class ExpressionValidator(ast.NodeVisitor):
         return expression
 
     @staticmethod
-    def _get_function_replacements():
+    def _get_function_replacements() -> Dict[str, str]:
         """Get a dictionary of function name replacements"""
         return {
             'π': 'pi',  # Using the variable from the dictionary
@@ -481,7 +511,7 @@ class ExpressionValidator(ast.NodeVisitor):
         }
 
     @staticmethod
-    def _handle_power_and_imaginary(expression, python_compatible):
+    def _handle_power_and_imaginary(expression: str, python_compatible: bool) -> str:
         """Handle power operators and imaginary numbers based on compatibility mode"""
         # Replace the power symbol with '**' if specified
         if python_compatible:
@@ -500,7 +530,7 @@ class ExpressionValidator(ast.NodeVisitor):
         return expression
 
     @staticmethod
-    def _insert_multiplication_operators(expression, python_compatible):
+    def _insert_multiplication_operators(expression: str, python_compatible: bool) -> str:
         """Insert multiplication operators where implicit multiplication is used"""
         imaginary_unit = 'j' if python_compatible else 'i'
         
@@ -517,20 +547,20 @@ class ExpressionValidator(ast.NodeVisitor):
         return expression
 
     @staticmethod
-    def _parse_with_mathjs(function_string):
+    def _parse_with_mathjs(function_string: str) -> Callable[[float], Any]:
         """Parse a function string using mathjs (slower but more powerful)"""
         from utils.math_utils import MathUtils
         return lambda x: MathUtils.evaluate(function_string, {'x': x})
 
     @staticmethod
-    def _parse_with_python(function_string):
+    def _parse_with_python(function_string: str) -> Callable[[float], float]:
         """Parse a function string using Python's built-in evaluation (faster)"""
         function_string = ExpressionValidator.fix_math_expression(function_string, python_compatible=True)
         ExpressionValidator.validate_expression_tree(function_string)
         return lambda x: ExpressionValidator.evaluate_expression(function_string, x)
 
     @staticmethod
-    def parse_function_string(function_string, use_mathjs=False):
+    def parse_function_string(function_string: str, use_mathjs: bool = False) -> Callable[[float], Any]:
         """
         Parse a function string into a callable function object.
         
