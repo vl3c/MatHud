@@ -22,9 +22,14 @@ Dependencies:
     - utils.math_utils: Ellipse equation calculations
 """
 
-from constants import default_color
+from __future__ import annotations
+
 from copy import deepcopy
+from typing import Any, Dict, Optional, Tuple, cast
+
+from constants import default_color
 from drawables.drawable import Drawable
+from drawables.point import Point
 from utils.math_utils import MathUtils
 
 class Ellipse(Drawable):
@@ -41,7 +46,7 @@ class Ellipse(Drawable):
         rotation_angle (float): Rotation angle in degrees for ellipse orientation
         ellipse_formula (dict): Algebraic ellipse equation coefficients
     """
-    def __init__(self, center_point, radius_x, radius_y, rotation_angle=0, color=default_color):
+    def __init__(self, center_point: Point, radius_x: float, radius_y: float, rotation_angle: float = 0, color: str = default_color) -> None:
         """Initialize an ellipse with center point, radii, and rotation.
         
         Args:
@@ -51,25 +56,26 @@ class Ellipse(Drawable):
             rotation_angle (float): Rotation angle in degrees (default: 0)
             color (str): CSS color value for ellipse visualization
         """
-        self.center = center_point
-        self.radius_x = radius_x
-        self.radius_y = radius_y
-        self.rotation_angle = rotation_angle  # Initialize with provided angle
-        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
-        name = f"{self.center.name}({str(self.radius_x)}, {str(self.radius_y)})"
+        self.center: Point = center_point
+        self.radius_x: float = radius_x
+        self.radius_y: float = radius_y
+        self.rotation_angle: float = rotation_angle  # Initialize with provided angle
+        self.ellipse_formula: Dict[str, float] = self._calculate_ellipse_algebraic_formula()
+        name: str = f"{self.center.name}({str(self.radius_x)}, {str(self.radius_y)})"
         super().__init__(name=name, color=color)
 
-    def get_class_name(self):
+    def get_class_name(self) -> str:
         return 'Ellipse'
     
-    def _calculate_ellipse_algebraic_formula(self):
-        x = self.center.x
-        y = self.center.y
-        return MathUtils.get_ellipse_formula(x, y, self.radius_x, self.radius_y, self.rotation_angle)
+    def _calculate_ellipse_algebraic_formula(self) -> Dict[str, float]:
+        x: float = self.center.x
+        y: float = self.center.y
+        result: Any = MathUtils.get_ellipse_formula(x, y, self.radius_x, self.radius_y, self.rotation_angle)
+        return cast(Dict[str, float], result)
         
-    def get_state(self):
+    def get_state(self) -> Dict[str, Any]:
         """Return the state of the ellipse including rotation"""
-        state = {
+        state: Dict[str, Any] = {
             "name": self.name, 
             "args": {
                 "center": self.center.name, 
@@ -81,23 +87,23 @@ class Ellipse(Drawable):
         }
         return state
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
         if id(self) in memo:
-            return memo[id(self)]
+            return cast(Ellipse, memo[id(self)])
         # Deep copy the center point
-        new_center = deepcopy(self.center, memo)
+        new_center: Point = deepcopy(self.center, memo)
         # Create a new Ellipse instance with the copied center point and other properties
-        new_ellipse = Ellipse(new_center, self.radius_x, self.radius_y, 
+        new_ellipse: Ellipse = Ellipse(new_center, self.radius_x, self.radius_y, 
                              color=self.color, 
                              rotation_angle=self.rotation_angle)
         memo[id(self)] = new_ellipse
         return new_ellipse
 
-    def translate(self, x_offset, y_offset):
+    def translate(self, x_offset: float, y_offset: float) -> None:
         self.center.x += x_offset
         self.center.y += y_offset
 
-    def rotate(self, angle):
+    def rotate(self, angle: float) -> Tuple[bool, Optional[str]]:
         """Rotate the ellipse around its center by the given angle in degrees"""
         # Update rotation angle (keep it between 0 and 360 degrees)
         self.rotation_angle = (self.rotation_angle + angle) % 360

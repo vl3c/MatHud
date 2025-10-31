@@ -18,6 +18,10 @@ Dependencies:
     - drawables.drawable: Base class interface
 """
 
+from __future__ import annotations
+
+from typing import Any, Dict
+
 from drawables.drawable import Drawable
 
 class ColoredArea(Drawable):
@@ -30,7 +34,7 @@ class ColoredArea(Drawable):
         opacity (float): Fill opacity value between 0.0 and 1.0
         color (str): CSS color value for area fill
     """
-    def __init__(self, name, color="lightblue", opacity=0.3):
+    def __init__(self, name: str, color: str = "lightblue", opacity: float = 0.3) -> None:
         """Initialize a colored area with basic properties.
         
         Args:
@@ -39,12 +43,12 @@ class ColoredArea(Drawable):
             opacity (float): Fill opacity between 0.0 and 1.0
         """
         super().__init__(name=name, color=color)
-        self.opacity = opacity
+        self.opacity: float = opacity
 
-    def get_class_name(self):
+    def get_class_name(self) -> str:
         return 'ColoredArea'
 
-    def get_state(self):
+    def get_state(self) -> Dict[str, Any]:
         """Base state that all colored areas share"""
         return {
             "name": self.name,
@@ -54,7 +58,7 @@ class ColoredArea(Drawable):
             }
         }
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
         """
         Base deepcopy implementation. Subclasses should override this and call
         their own constructor with the appropriate arguments.

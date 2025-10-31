@@ -13,6 +13,11 @@ Dependencies:
     - None (pure data container)
 """
 
+from __future__ import annotations
+
+from typing import Dict, Any
+
+
 class Position:
     """Represents a 2D coordinate position in the mathematical coordinate system.
     
@@ -23,19 +28,19 @@ class Position:
         x (float): X-coordinate in the mathematical coordinate system
         y (float): Y-coordinate in the mathematical coordinate system
     """
-    def __init__(self, x, y):
+    def __init__(self, x: float, y: float) -> None:
         """Initialize a position with x and y coordinates.
         
         Args:
             x (float): X-coordinate in the mathematical coordinate system
             y (float): Y-coordinate in the mathematical coordinate system
         """
-        self.x = x
-        self.y = y
+        self.x: float = x
+        self.y: float = y
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'Position: {self.x}, {self.y}'
     
-    def get_state(self):
-        state = {"Position": {"x": self.x, "y": self.y}}
+    def get_state(self) -> Dict[str, Dict[str, float]]:
+        state: Dict[str, Dict[str, float]] = {"Position": {"x": self.x, "y": self.y}}
         return state 

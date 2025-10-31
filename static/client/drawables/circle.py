@@ -21,9 +21,14 @@ Dependencies:
     - utils.math_utils: Circle equation calculations
 """
 
-from constants import default_color
+from __future__ import annotations
+
 from copy import deepcopy
+from typing import Any, Dict, cast
+
+from constants import default_color
 from drawables.drawable import Drawable
+from drawables.point import Point
 from utils.math_utils import MathUtils
 
 
@@ -39,7 +44,7 @@ class Circle(Drawable):
         radius (float): Radius in mathematical coordinate units
         circle_formula (dict): Algebraic circle equation coefficients
     """
-    def __init__(self, center_point, radius, color=default_color):
+    def __init__(self, center_point: Point, radius: float, color: str = default_color) -> None:
         """Initialize a circle with center point and radius.
         
         Args:
@@ -47,41 +52,41 @@ class Circle(Drawable):
             radius (float): Radius in mathematical coordinate units
             color (str): CSS color value for circle visualization
         """
-        self.center = center_point
-        self.radius = radius
-        self.circle_formula = self._calculate_circle_algebraic_formula()
-        name = f"{self.center.name}({str(self.radius)})"
+        self.center: Point = center_point
+        self.radius: float = radius
+        self.circle_formula: Dict[str, float] = self._calculate_circle_algebraic_formula()
+        name: str = f"{self.center.name}({str(self.radius)})"
         super().__init__(name=name, color=color)
 
-    def get_class_name(self):
+    def get_class_name(self) -> str:
         return 'Circle'
     
-    def _calculate_circle_algebraic_formula(self):
-        x = self.center.x
-        y = self.center.y
-        r = self.radius
-        circle_formula = MathUtils.get_circle_formula(x, y, r)
+    def _calculate_circle_algebraic_formula(self) -> Dict[str, float]:
+        x: float = self.center.x
+        y: float = self.center.y
+        r: float = self.radius
+        circle_formula: Dict[str, float] = MathUtils.get_circle_formula(x, y, r)
         return circle_formula
         
-    def get_state(self):
-        radius = self.radius
-        center = self.center.name
-        state = {"name": self.name, "args": {"center": center, "radius": radius, "circle_formula": self.circle_formula}}
+    def get_state(self) -> Dict[str, Any]:
+        radius: float = self.radius
+        center: str = self.center.name
+        state: Dict[str, Any] = {"name": self.name, "args": {"center": center, "radius": radius, "circle_formula": self.circle_formula}}
         return state
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
         if id(self) in memo:
-            return memo[id(self)]
+            return cast(Circle, memo[id(self)])
         # Deep copy the center point
-        new_center = deepcopy(self.center, memo)
+        new_center: Point = deepcopy(self.center, memo)
         # Create a new Circle instance with the copied center point and other properties
-        new_circle = Circle(new_center, self.radius, color=self.color)
+        new_circle: Circle = Circle(new_center, self.radius, color=self.color)
         memo[id(self)] = new_circle
         return new_circle
 
-    def translate(self, x_offset, y_offset):
+    def translate(self, x_offset: float, y_offset: float) -> None:
         self.center.x += x_offset
         self.center.y += y_offset
 
-    def rotate(self, angle):
+    def rotate(self, angle: float) -> None:
         pass 

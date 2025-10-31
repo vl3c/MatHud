@@ -23,8 +23,12 @@ Dependencies:
     - utils.math_utils: Angle and geometric calculations
 """
 
-from constants import default_color
+from __future__ import annotations
+
 from copy import deepcopy
+from typing import Any, Dict, Optional, Tuple, cast
+
+from constants import default_color
 from drawables.drawable import Drawable
 from drawables.point import Point
 from drawables.segment import Segment
@@ -40,7 +44,7 @@ class Vector(Drawable):
         origin (Point): Starting point of the vector (property access to segment.point1)
         tip (Point): Ending point of the vector (property access to segment.point2)
     """
-    def __init__(self, origin, tip, color=default_color):
+    def __init__(self, origin: Point, tip: Point, color: str = default_color) -> None:
         """Initialize a vector with origin and tip points.
         
         Args:
@@ -48,48 +52,50 @@ class Vector(Drawable):
             tip (Point): Ending point of the vector (where arrow head is drawn)
             color (str): CSS color value for vector visualization
         """
-        self.segment = Segment(origin, tip, color=color)
-        name = self.segment.name
+        self.segment: Segment = Segment(origin, tip, color=color)
+        name: str = self.segment.name
         super().__init__(name=name, color=color)
     
     @property
-    def origin(self):
+    def origin(self) -> Point:
         """Get the origin point of the vector."""
         return self.segment.point1
         
     @property
-    def tip(self):
+    def tip(self) -> Point:
         """Get the tip point of the vector."""
         return self.segment.point2
     
-    def get_class_name(self):
+    def get_class_name(self) -> str:
         return 'Vector'
 
-    def get_state(self):
-        origin = self.segment.point1.name
-        tip = self.segment.point2.name
-        state = {"name": self.name, "args": {"origin": origin, "tip": tip, "line_formula": self.segment.line_formula}}
+    def get_state(self) -> Dict[str, Any]:
+        origin: str = self.segment.point1.name
+        tip: str = self.segment.point2.name
+        state: Dict[str, Any] = {"name": self.name, "args": {"origin": origin, "tip": tip, "line_formula": self.segment.line_formula}}
         return state
     
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
         # Check if the vector has already been deep copied
         if id(self) in memo:
-            return memo[id(self)]
+            return cast(Vector, memo[id(self)])
         # Deepcopy the origin and tip points that define the vector
-        new_origin = deepcopy(self.segment.point1, memo)
-        new_tip = deepcopy(self.segment.point2, memo)
+        new_origin: Point = deepcopy(self.segment.point1, memo)
+        new_tip: Point = deepcopy(self.segment.point2, memo)
         # Create a new Vector instance with the deep-copied points
-        new_vector = Vector(new_origin, new_tip, color=self.color)
+        new_vector: Vector = Vector(new_origin, new_tip, color=self.color)
         # Store the newly created vector in the memo dictionary
         memo[id(self)] = new_vector
         return new_vector
 
-    def translate(self, x_offset, y_offset):
+    def translate(self, x_offset: float, y_offset: float) -> None:
         self.segment.translate(x_offset, y_offset)
 
-    def rotate(self, angle):
+    def rotate(self, angle: float) -> Tuple[bool, Optional[str]]:
         """Rotate the vector around its origin by the given angle in degrees"""
         # Use segment's rotation method to rotate the line portion
+        should_proceed: bool
+        message: Optional[str]
         should_proceed, message = self.segment.rotate(angle)
         if not should_proceed:
             return False, message      

@@ -19,6 +19,10 @@ Dependencies:
     - constants: Default styling values
 """
 
+from __future__ import annotations
+
+from typing import Any, Dict
+
 from constants import default_color
 
 
@@ -33,44 +37,44 @@ class Drawable:
         name (str): Identifier for the object
         color (str): Color metadata (used by renderers)
     """
-    def __init__(self, name="", color=default_color):
+    def __init__(self, name: str = "", color: str = default_color) -> None:
         """Initialize a drawable object with basic properties.
         
         Args:
             name (str): Identifier for the object
             color (str): Color metadata for renderers
         """
-        self.name = name
-        self.color = color
+        self._name: str = name
+        self._color: str = color
     
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     @name.setter
-    def name(self, value):
+    def name(self, value: str) -> None:
         self._name = value
 
     @property
-    def color(self):
+    def color(self) -> str:
         return self._color
 
     @color.setter
-    def color(self, value):
+    def color(self, value: str) -> None:
         self._color = value
 
-    def get_class_name(self):
+    def get_class_name(self) -> str:
         raise NotImplementedError("Subclasses must implement class_name method")
     
-    def get_name(self):
+    def get_name(self) -> str:
         return self.name
     
-    def reset(self):
+    def reset(self) -> None:
         # No-op: legacy initializer removed
         return None
     
-    def get_state(self):
+    def get_state(self) -> Dict[str, Any]:
         raise NotImplementedError("Subclasses must implement get_state method")
     
-    def rotate(self, angle):
+    def rotate(self, angle: float) -> None:
         raise NotImplementedError("Subclasses must implement rotate method")

@@ -1,13 +1,18 @@
+from __future__ import annotations
+
+from copy import deepcopy
+from typing import Any, Dict, List, Optional, cast
+
 from constants import default_color, default_point_size
 from drawables.drawable import Drawable
 from expression_validator import ExpressionValidator
 
 
 class Function(Drawable):
-    def __init__(self, function_string, name=None, step=default_point_size, color=default_color, left_bound=None, right_bound=None, vertical_asymptotes=None, horizontal_asymptotes=None, point_discontinuities=None):
-        self.step = step
-        self.left_bound = left_bound
-        self.right_bound = right_bound
+    def __init__(self, function_string: str, name: Optional[str] = None, step: float = default_point_size, color: str = default_color, left_bound: Optional[float] = None, right_bound: Optional[float] = None, vertical_asymptotes: Optional[List[float]] = None, horizontal_asymptotes: Optional[List[float]] = None, point_discontinuities: Optional[List[float]] = None) -> None:
+        self.step: float = step
+        self.left_bound: Optional[float] = left_bound
+        self.right_bound: Optional[float] = right_bound
         try:
             self.function_string = ExpressionValidator.fix_math_expression(function_string)
             self.function = ExpressionValidator.parse_function_string(function_string)
@@ -24,12 +29,12 @@ class Function(Drawable):
             raise ValueError(f"Failed to parse function string '{function_string}': {str(e)}")
         super().__init__(name=name or "f", color=color)
     
-    def get_class_name(self):
+    def get_class_name(self) -> str:
         return 'Function'
 
-    def get_state(self):
-        function_string = self.function_string
-        state = {
+    def get_state(self) -> Dict[str, Any]:
+        function_string: str = self.function_string
+        state: Dict[str, Any] = {
             "name": self.name, 
             "args": {
                 "function_string": function_string,
@@ -48,24 +53,24 @@ class Function(Drawable):
             
         return state
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
         if id(self) in memo:
-            return memo[id(self)]
-        new_function = Function(
+            return cast(Function, memo[id(self)])
+        new_function: Function = Function(
             function_string=self.function_string,
             name=self.name,
             step=self.step,
             color=self.color,
             left_bound=self.left_bound,
             right_bound=self.right_bound,
-            vertical_asymptotes=self.vertical_asymptotes.copy() if hasattr(self, 'vertical_asymptotes') else None,
-            horizontal_asymptotes=self.horizontal_asymptotes.copy() if hasattr(self, 'horizontal_asymptotes') else None,
-            point_discontinuities=self.point_discontinuities.copy() if hasattr(self, 'point_discontinuities') else None
+            vertical_asymptotes=self.vertical_asymptotes.copy() if hasattr(self, 'vertical_asymptotes') and self.vertical_asymptotes is not None else None,
+            horizontal_asymptotes=self.horizontal_asymptotes.copy() if hasattr(self, 'horizontal_asymptotes') and self.horizontal_asymptotes is not None else None,
+            point_discontinuities=self.point_discontinuities.copy() if hasattr(self, 'point_discontinuities') and self.point_discontinuities is not None else None
         )
         memo[id(self)] = new_function
         return new_function
 
-    def translate(self, x_offset, y_offset):
+    def translate(self, x_offset: float, y_offset: float) -> None:
         if x_offset == 0 and y_offset == 0:
             return
 
@@ -80,21 +85,21 @@ class Function(Drawable):
             if x_offset != 0:
                 import re
                 # Use all allowed functions from ExpressionValidator
-                protected_funcs = sorted(ExpressionValidator.ALLOWED_FUNCTIONS, key=len, reverse=True)
+                protected_funcs: list[str] = sorted(ExpressionValidator.ALLOWED_FUNCTIONS, key=len, reverse=True)
                 
                 # Create a regex pattern that matches standalone x while protecting function names
-                func_pattern = '|'.join(map(re.escape, protected_funcs))
+                func_pattern: str = '|'.join(map(re.escape, protected_funcs))
                 # Use word boundaries to match standalone 'x'
-                pattern = rf'\b(x)\b|({func_pattern})'
+                pattern: str = rf'\b(x)\b|({func_pattern})'
                 
-                def replace_match(match):
+                def replace_match(match: Any) -> str:
                     if match.group(1):  # If it's a standalone 'x'
                         return f'(x - {x_offset})'
                     elif match.group(2):  # If it's a function name
-                        return match.group(2)  # Return the function name unchanged
-                    return match.group(0)
+                        return cast(str, match.group(2))  # Return the function name unchanged
+                    return cast(str, match.group(0))
                     
-                new_function_string = re.sub(pattern, replace_match, self.function_string)
+                new_function_string: str = re.sub(pattern, replace_match, self.function_string)
             else:
                 new_function_string = self.function_string
 
@@ -114,10 +119,10 @@ class Function(Drawable):
             if self.right_bound is not None:
                 self.right_bound -= x_offset
 
-    def rotate(self, angle):
+    def rotate(self, angle: float) -> None:
         pass 
 
-    def _calculate_asymptotes_and_discontinuities(self):
+    def _calculate_asymptotes_and_discontinuities(self) -> None:
         """Calculate vertical and horizontal asymptotes and point discontinuities of the function"""
         from utils.math_utils import MathUtils
         
@@ -128,15 +133,15 @@ class Function(Drawable):
             self.right_bound
         )
 
-    def has_point_discontinuity_between_x(self, x1, x2):
+    def has_point_discontinuity_between_x(self, x1: float, x2: float) -> bool:
         """Check if there is a point discontinuity between x1 and x2"""
         return (hasattr(self, 'point_discontinuities') and any(x1 < x < x2 for x in self.point_discontinuities))
     
-    def has_vertical_asymptote_between_x(self, x1, x2):
+    def has_vertical_asymptote_between_x(self, x1: float, x2: float) -> bool:
         """Check if there is a vertical asymptote between x1 and x2"""
         return (hasattr(self, 'vertical_asymptotes') and any(x1 <= x < x2 for x in self.vertical_asymptotes))
 
-    def get_vertical_asymptote_between_x(self, x1, x2):
+    def get_vertical_asymptote_between_x(self, x1: float, x2: float) -> Optional[float]:
         """Get the x value of a vertical asymptote between x1 and x2, if any exists"""
         if hasattr(self, 'vertical_asymptotes'):
             for x in self.vertical_asymptotes:
