@@ -365,25 +365,25 @@ class Canvas:
 
     def undo(self) -> bool:
         """Restores the last archived state from the undo stack"""
-        return self.undo_redo_manager.undo()
+        return bool(self.undo_redo_manager.undo())
 
     def redo(self) -> bool:
         """Restores the last undone state from the redo stack"""
-        return self.undo_redo_manager.redo()
+        return bool(self.undo_redo_manager.redo())
 
     def get_drawables(self) -> List["Drawable"]:
         """Get all drawables as a flat list"""
-        return self.drawable_manager.get_drawables()
+        return cast(List["Drawable"], self.drawable_manager.get_drawables())
 
     def get_drawables_state(self) -> Dict[str, Any]:
-        return self.drawable_manager.drawables.get_state()
+        return cast(Dict[str, Any], self.drawable_manager.drawables.get_state())
 
     def get_drawables_by_class_name(self, class_name: str) -> List["Drawable"]:
         """Get drawables of a specific class name"""
-        return self.drawable_manager.drawables.get_by_class_name(class_name)
+        return cast(List["Drawable"], self.drawable_manager.drawables.get_by_class_name(class_name))
 
     def get_cartesian2axis_state(self) -> Dict[str, Any]:
-        return self.cartesian2axis.get_state()
+        return cast(Dict[str, Any], self.cartesian2axis.get_state())
 
     def get_canvas_state(self) -> Dict[str, Any]:
         state = self.get_drawables_state()
@@ -408,11 +408,11 @@ class Canvas:
 
     def delete_point(self, x: float, y: float) -> bool:
         """Delete a point at the specified coordinates"""
-        return self.drawable_manager.delete_point(x, y)
+        return bool(self.drawable_manager.delete_point(x, y))
 
     def delete_point_by_name(self, name: str) -> bool:
         """Delete a point by its name"""
-        return self.drawable_manager.delete_point_by_name(name)
+        return bool(self.drawable_manager.delete_point_by_name(name))
 
     def is_point_within_canvas_visible_area(self, x: float, y: float) -> bool:
         """Check if a point is within the visible area of the canvas"""
@@ -436,11 +436,11 @@ class Canvas:
 
     def delete_segment(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> bool:
         """Delete a segment by its endpoint coordinates"""
-        return self.drawable_manager.delete_segment(x1, y1, x2, y2, delete_children, delete_parents)
+        return bool(self.drawable_manager.delete_segment(x1, y1, x2, y2, delete_children, delete_parents))
 
     def delete_segment_by_name(self, name: str, delete_children: bool = True, delete_parents: bool = False) -> bool:
         """Delete a segment by its name"""
-        return self.drawable_manager.delete_segment_by_name(name, delete_children, delete_parents)
+        return bool(self.drawable_manager.delete_segment_by_name(name, delete_children, delete_parents))
 
     def any_segment_part_visible_in_canvas_area(self, x1: float, y1: float, x2: float, y2: float) -> bool:
         """Check if any part of a segment is visible in the canvas area"""
@@ -448,7 +448,9 @@ class Canvas:
         intersect_right = MathUtils.segments_intersect(x1, y1, x2, y2, self.width, 0, self.width, self.height)
         intersect_bottom = MathUtils.segments_intersect(x1, y1, x2, y2, self.width, self.height, 0, self.height)
         intersect_left = MathUtils.segments_intersect(x1, y1, x2, y2, 0, self.height, 0, 0)
-        return intersect_top or intersect_right or intersect_bottom or intersect_left
+        point1_visible: bool = self.is_point_within_canvas_visible_area(x1, y1)
+        point2_visible: bool = self.is_point_within_canvas_visible_area(x2, y2)
+        return bool(intersect_top or intersect_right or intersect_bottom or intersect_left or point1_visible or point2_visible)
 
     def get_vector(self, x1: float, y1: float, x2: float, y2: float) -> Optional["Drawable"]:
         """Get a vector by its origin and tip coordinates"""
@@ -460,7 +462,7 @@ class Canvas:
 
     def delete_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float) -> bool:
         """Delete a vector by its origin and tip coordinates"""
-        return self.drawable_manager.delete_vector(origin_x, origin_y, tip_x, tip_y)
+        return bool(self.drawable_manager.delete_vector(origin_x, origin_y, tip_x, tip_y))
 
     def get_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> Optional["Drawable"]:
         """Get a triangle by its vertex coordinates"""
@@ -472,7 +474,7 @@ class Canvas:
 
     def delete_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> bool:
         """Delete a triangle by its vertex coordinates"""
-        return self.drawable_manager.delete_triangle(x1, y1, x2, y2, x3, y3)
+        return bool(self.drawable_manager.delete_triangle(x1, y1, x2, y2, x3, y3))
 
     def get_rectangle_by_diagonal_points(self, px: float, py: float, opposite_px: float, opposite_py: float) -> Optional["Drawable"]:
         """Get a rectangle by its diagonal points"""
@@ -488,7 +490,7 @@ class Canvas:
 
     def delete_rectangle(self, name: str) -> bool:
         """Delete a rectangle by its name"""
-        return self.drawable_manager.delete_rectangle(name)
+        return bool(self.drawable_manager.delete_rectangle(name))
 
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional["Drawable"]:
         """Get a circle by its center coordinates and radius"""
@@ -504,7 +506,7 @@ class Canvas:
 
     def delete_circle(self, name: str) -> bool:
         """Delete a circle by its name"""
-        return self.drawable_manager.delete_circle(name)
+        return bool(self.drawable_manager.delete_circle(name))
 
     def get_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float) -> Optional["Drawable"]:
         """Get an ellipse by its center coordinates and radii"""
@@ -520,7 +522,7 @@ class Canvas:
 
     def delete_ellipse(self, name: str) -> bool:
         """Delete an ellipse by its name"""
-        return self.drawable_manager.delete_ellipse(name)
+        return bool(self.drawable_manager.delete_ellipse(name))
 
     def get_function(self, name: str) -> Optional["Drawable"]:
         """Get a function by its name"""
@@ -532,19 +534,19 @@ class Canvas:
 
     def delete_function(self, name: str) -> bool:
         """Delete a function by its name"""
-        return self.drawable_manager.delete_function(name)
+        return bool(self.drawable_manager.delete_function(name))
 
     def translate_object(self, name: str, x_offset: float, y_offset: float) -> bool:
         """Translates a drawable object by the specified offset"""
-        return self.transformations_manager.translate_object(name, x_offset, y_offset)
+        return bool(self.transformations_manager.translate_object(name, x_offset, y_offset))
         
     def rotate_object(self, name: str, angle: float) -> bool:
         """Rotates a drawable object by the specified angle"""
-        return self.transformations_manager.rotate_object(name, angle)
+        return bool(self.transformations_manager.rotate_object(name, angle))
 
     def has_computation(self, expression: str) -> bool:
         """Check if a computation with the given expression already exists."""
-        return ComputationUtils.has_computation(self.computations, expression)
+        return bool(ComputationUtils.has_computation(self.computations, expression))
 
     def add_computation(self, expression: str, result: Any) -> None:
         """Add a computation to the history if it doesn't already exist."""
@@ -637,35 +639,35 @@ class Canvas:
         
     def delete_colored_area(self, name: str) -> bool:
         """Deletes a colored area with the given name"""
-        return self.drawable_manager.delete_colored_area(name)
+        return bool(self.drawable_manager.delete_colored_area(name))
         
     def delete_colored_areas_for_function(self, func: "Drawable") -> None:
         """Deletes all colored areas associated with a function"""
-        return self.drawable_manager.delete_colored_areas_for_function(func)
+        self.drawable_manager.delete_colored_areas_for_function(func)
         
     def delete_colored_areas_for_segment(self, segment: "Drawable") -> None:
         """Deletes all colored areas associated with a segment"""
-        return self.drawable_manager.delete_colored_areas_for_segment(segment)
+        self.drawable_manager.delete_colored_areas_for_segment(segment)
         
     def get_colored_areas_for_drawable(self, drawable: "Drawable") -> List["Drawable"]:
         """Gets all colored areas associated with a drawable (function or segment)"""
-        return self.drawable_manager.get_colored_areas_for_drawable(drawable)
+        return cast(List["Drawable"], self.drawable_manager.get_colored_areas_for_drawable(drawable))
         
     def update_colored_area_style(self, name: str, color: Optional[str] = None, opacity: Optional[float] = None) -> bool:
         """Updates the color and/or opacity of a colored area"""
-        return self.drawable_manager.update_colored_area_style(name, color, opacity)
+        return bool(self.drawable_manager.update_colored_area_style(name, color, opacity))
 
     def _validate_color_and_opacity(self, color: Optional[str], opacity: Optional[float]) -> bool:
         """Validates both color and opacity values"""
-        return StyleUtils.validate_color_and_opacity(color, opacity)
+        return bool(StyleUtils.validate_color_and_opacity(color, opacity))
 
     def _is_valid_css_color(self, color: str) -> bool:
         """Validates if a string is a valid CSS color."""
-        return StyleUtils.is_valid_css_color(color)
+        return bool(StyleUtils.is_valid_css_color(color))
 
     def _validate_opacity(self, opacity: float) -> bool:
         """Validates if an opacity value is between 0 and 1"""
-        return StyleUtils.validate_opacity(opacity)
+        return bool(StyleUtils.validate_opacity(opacity))
 
     @property
     def name_generator(self) -> Any:  # NameGenerator
@@ -689,15 +691,15 @@ class Canvas:
     def delete_angle(self, name: str) -> bool:
         """Remove an angle by its name via AngleManager."""
         if self.drawable_manager.angle_manager:
-            return self.drawable_manager.angle_manager.delete_angle(name)
+            return bool(self.drawable_manager.angle_manager.delete_angle(name))
         return False
 
     def update_angle_properties(self, name: str, new_color: Optional[str] = None) -> bool:
         """Update properties of an angle via AngleManager."""
         if self.drawable_manager.angle_manager:
-            return self.drawable_manager.angle_manager.update_angle_properties(
+            return bool(self.drawable_manager.angle_manager.update_angle_properties(
                 name, new_color=new_color
-            )
+            ))
         return False
 
     # Property delegations to CoordinateMapper for backward compatibility
@@ -714,7 +716,7 @@ class Canvas:
     @property
     def scale_factor(self) -> float:
         """Current zoom level - delegates to coordinate_mapper.scale_factor"""
-        return self.coordinate_mapper.scale_factor
+        return float(self.coordinate_mapper.scale_factor)
     
     @scale_factor.setter
     def scale_factor(self, value: float) -> None:
@@ -744,7 +746,7 @@ class Canvas:
     @property
     def zoom_direction(self) -> int:
         """Current zoom direction - delegates to coordinate_mapper.zoom_direction"""
-        return self.coordinate_mapper.zoom_direction
+        return int(self.coordinate_mapper.zoom_direction)
     
     @zoom_direction.setter
     def zoom_direction(self, value: int) -> None:
@@ -754,7 +756,7 @@ class Canvas:
     @property
     def zoom_step(self) -> float:
         """Zoom step size - delegates to coordinate_mapper.zoom_step"""
-        return self.coordinate_mapper.zoom_step
+        return float(self.coordinate_mapper.zoom_step)
     
     @zoom_step.setter
     def zoom_step(self, value: float) -> None:
