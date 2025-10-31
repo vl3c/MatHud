@@ -41,7 +41,13 @@ Error Recovery:
     - Logging: Comprehensive warning system for debugging state issues
 """
 
+from __future__ import annotations
+
 import copy
+from typing import TYPE_CHECKING, Any, Dict, List
+
+if TYPE_CHECKING:
+    from canvas import Canvas
 
 class UndoRedoManager:
     """
@@ -53,18 +59,18 @@ class UndoRedoManager:
     - Handling redo operations (restore undone state)
     """
     
-    def __init__(self, canvas):
+    def __init__(self, canvas: "Canvas") -> None:
         """
         Initialize the UndoRedoManager.
         
         Args:
             canvas: The Canvas object this manager is responsible for
         """
-        self.canvas = canvas
-        self.undo_stack = []
-        self.redo_stack = []
+        self.canvas: "Canvas" = canvas
+        self.undo_stack: List[Dict[str, Any]] = []
+        self.redo_stack: List[Dict[str, Any]] = []
     
-    def archive(self):
+    def archive(self) -> None:
         """
         Archives the current state of the canvas for undo operations.
         
@@ -79,7 +85,7 @@ class UndoRedoManager:
         # Clear the redo stack when a new state is archived
         self.redo_stack = []
         
-    def undo(self):
+    def undo(self) -> bool:
         """
         Restores the last archived state from the undo stack.
         
@@ -112,7 +118,7 @@ class UndoRedoManager:
         
         return True
     
-    def redo(self):
+    def redo(self) -> bool:
         """
         Restores the last undone state from the redo stack.
         
@@ -145,7 +151,7 @@ class UndoRedoManager:
         
         return True
     
-    def can_undo(self):
+    def can_undo(self) -> bool:
         """
         Checks if there are any states that can be undone.
         
@@ -154,7 +160,7 @@ class UndoRedoManager:
         """
         return len(self.undo_stack) > 0
     
-    def can_redo(self):
+    def can_redo(self) -> bool:
         """
         Checks if there are any states that can be redone.
         
@@ -163,7 +169,7 @@ class UndoRedoManager:
         """
         return len(self.redo_stack) > 0
     
-    def _fix_drawable_canvas_references(self):
+    def _fix_drawable_canvas_references(self) -> None:
         """
         Ensures all drawables have a reference to the canvas.
         
@@ -175,7 +181,7 @@ class UndoRedoManager:
                 # This assumes all objects stored in _drawables are expected to have a 'canvas' attribute.
                 drawable.canvas = self.canvas
 
-    def _rebuild_dependency_graph(self):
+    def _rebuild_dependency_graph(self) -> None:
         """
         Rebuilds the dependency relationships between drawables.
         
@@ -209,7 +215,7 @@ class UndoRedoManager:
             print("UndoRedoManager: Warning - Canvas instance does not have a 'dependency_manager' " + \
                   "attribute or it is None. Skipping dependency graph rebuild for undo/redo operation.")
 
-    def clear(self):
+    def clear(self) -> None:
         """
         Clears all undo and redo history.
         """

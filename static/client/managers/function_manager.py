@@ -41,13 +41,31 @@ State Management:
     - Expression Persistence: Preserves function expressions across operations
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Optional
+
 from drawables.function import Function
 from expression_validator import ExpressionValidator
+
+if TYPE_CHECKING:
+    from canvas import Canvas
+    from managers.drawables_container import DrawablesContainer
+    from managers.drawable_dependency_manager import DrawableDependencyManager
+    from managers.drawable_manager_proxy import DrawableManagerProxy
+    from name_generator.drawable import DrawableNameGenerator
 
 class FunctionManager:
     """Manages function drawables for a Canvas with mathematical expression support."""
     
-    def __init__(self, canvas, drawables_container, name_generator, dependency_manager, drawable_manager_proxy):
+    def __init__(
+        self,
+        canvas: "Canvas",
+        drawables_container: "DrawablesContainer",
+        name_generator: "DrawableNameGenerator",
+        dependency_manager: "DrawableDependencyManager",
+        drawable_manager_proxy: "DrawableManagerProxy",
+    ) -> None:
         """
         Initialize the FunctionManager.
         
@@ -58,13 +76,13 @@ class FunctionManager:
             dependency_manager: Manager for drawable dependencies
             drawable_manager_proxy: Proxy to the main DrawableManager
         """
-        self.canvas = canvas
-        self.drawables = drawables_container
-        self.name_generator = name_generator
-        self.dependency_manager = dependency_manager
-        self.drawable_manager = drawable_manager_proxy
+        self.canvas: "Canvas" = canvas
+        self.drawables: "DrawablesContainer" = drawables_container
+        self.name_generator: "DrawableNameGenerator" = name_generator
+        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
         
-    def get_function(self, name):
+    def get_function(self, name: str) -> Optional[Function]:
         """
         Get a function by its name.
         
@@ -82,7 +100,7 @@ class FunctionManager:
                 return function
         return None
         
-    def draw_function(self, function_string, name, left_bound=None, right_bound=None):
+    def draw_function(self, function_string: str, name: str, left_bound: Optional[float] = None, right_bound: Optional[float] = None) -> Function:
         """
         Draw a function on the canvas.
         
@@ -137,7 +155,7 @@ class FunctionManager:
                 
             return new_function
         
-    def delete_function(self, name):
+    def delete_function(self, name: str) -> bool:
         """
         Delete a function by its name.
         

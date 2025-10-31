@@ -32,8 +32,20 @@ Dependencies:
     - utils.math_utils: Mathematical utilities (though MathUtils import is unused)
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, List, Optional
+
 from drawables.ellipse import Ellipse
 from utils.math_utils import MathUtils
+
+if TYPE_CHECKING:
+    from canvas import Canvas
+    from managers.drawables_container import DrawablesContainer
+    from managers.drawable_dependency_manager import DrawableDependencyManager
+    from managers.drawable_manager_proxy import DrawableManagerProxy
+    from managers.point_manager import PointManager
+    from name_generator.drawable import DrawableNameGenerator
 
 class EllipseManager:
     """
@@ -45,7 +57,15 @@ class EllipseManager:
     - Deleting ellipse objects with proper cleanup and redrawing
     """
     
-    def __init__(self, canvas, drawables_container, name_generator, dependency_manager, point_manager, drawable_manager_proxy):
+    def __init__(
+        self,
+        canvas: "Canvas",
+        drawables_container: "DrawablesContainer",
+        name_generator: "DrawableNameGenerator",
+        dependency_manager: "DrawableDependencyManager",
+        point_manager: "PointManager",
+        drawable_manager_proxy: "DrawableManagerProxy",
+    ) -> None:
         """
         Initialize the EllipseManager.
         
@@ -57,14 +77,14 @@ class EllipseManager:
             point_manager: Manager for point drawables
             drawable_manager_proxy: Proxy to the main DrawableManager
         """
-        self.canvas = canvas
-        self.drawables = drawables_container
-        self.name_generator = name_generator
-        self.dependency_manager = dependency_manager
-        self.point_manager = point_manager
-        self.drawable_manager = drawable_manager_proxy
+        self.canvas: "Canvas" = canvas
+        self.drawables: "DrawablesContainer" = drawables_container
+        self.name_generator: "DrawableNameGenerator" = name_generator
+        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        self.point_manager: "PointManager" = point_manager
+        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
         
-    def get_ellipse(self, center_x, center_y, radius_x, radius_y):
+    def get_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float) -> Optional[Ellipse]:
         """
         Get an ellipse by its center coordinates and radii.
         
@@ -88,7 +108,7 @@ class EllipseManager:
                 return ellipse
         return None
         
-    def get_ellipse_by_name(self, name):
+    def get_ellipse_by_name(self, name: str) -> Optional[Ellipse]:
         """
         Get an ellipse by its name.
         
@@ -104,7 +124,7 @@ class EllipseManager:
                 return ellipse
         return None
         
-    def create_ellipse(self, center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", extra_graphics=True):
+    def create_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float, rotation_angle: float = 0, name: str = "", extra_graphics: bool = True) -> Ellipse:
         """
         Create an ellipse with the specified center, radii, and rotation angle.
         
@@ -132,7 +152,7 @@ class EllipseManager:
             return existing_ellipse
             
         # Extract point name from ellipse name
-        point_names = self.name_generator.split_point_names(name, 1)
+        point_names: List[str] = self.name_generator.split_point_names(name, 1)
         
         # Create center point with the correct name
         center = self.point_manager.create_point(center_x, center_y, point_names[0], extra_graphics=False)
@@ -156,7 +176,7 @@ class EllipseManager:
             
         return new_ellipse
         
-    def delete_ellipse(self, name):
+    def delete_ellipse(self, name: str) -> bool:
         """
         Delete an ellipse by its name.
         

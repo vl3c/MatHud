@@ -30,7 +30,11 @@ Dependencies:
     - managers.*: Specialized management components
 """
 
+from __future__ import annotations
+
 import math
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+
 from geometry import Point
 from cartesian_system_2axis import Cartesian2Axis
 from coordinate_mapper import CoordinateMapper
@@ -46,6 +50,9 @@ try:
 except Exception:
     # Allow running tests outside browser context without failing imports
     SvgRenderer = None
+
+if TYPE_CHECKING:
+    from drawables.drawable import Drawable
 
 
 class Canvas:
@@ -72,7 +79,7 @@ class Canvas:
         zoom_direction (int): Current zoom direction (-1=in, 1=out, 0=none)
         zoom_step (float): Zoom increment per step
     """
-    def __init__(self, width, height, draw_enabled=True, renderer=None):
+    def __init__(self, width: float, height: float, draw_enabled: bool = True, renderer: Optional[Any] = None) -> None:
         """Initialize the mathematical canvas with specified dimensions.
         
         Sets up the coordinate system, managers, and initial state for mathematical visualization.
@@ -82,30 +89,30 @@ class Canvas:
             height (float): Canvas viewport height in pixels
             draw_enabled (bool): Whether to enable immediate drawing operations
         """
-        self.computations = []  # Store computation history
-        self.width = width
-        self.height = height
+        self.computations: List[Dict[str, Any]] = []  # Store computation history
+        self.width: float = width
+        self.height: float = height
         
         # Initialize CoordinateMapper for coordinate transformation management
-        self.coordinate_mapper = CoordinateMapper(width, height)
+        self.coordinate_mapper: CoordinateMapper = CoordinateMapper(width, height)
         
         # Legacy properties for backward compatibility - delegate to coordinate_mapper
-        self.dragging = False
-        self.draw_enabled = draw_enabled
+        self.dragging: bool = False
+        self.draw_enabled: bool = draw_enabled
         
         # Initialize coordinate system and managers
-        self.cartesian2axis = Cartesian2Axis(self.coordinate_mapper)
+        self.cartesian2axis: Cartesian2Axis = Cartesian2Axis(self.coordinate_mapper)
         
         # Add managers
-        self.undo_redo_manager = UndoRedoManager(self)
-        self.drawable_manager = DrawableManager(self)
-        self.transformations_manager = TransformationsManager(self)
+        self.undo_redo_manager: UndoRedoManager = UndoRedoManager(self)
+        self.drawable_manager: DrawableManager = DrawableManager(self)
+        self.transformations_manager: TransformationsManager = TransformationsManager(self)
 
         # Initialize renderer lazily to avoid hard dependency in non-browser tests
         if renderer is not None:
-            self.renderer = renderer
+            self.renderer: Optional[Any] = renderer  # SvgRenderer
         else:
-            self.renderer = SvgRenderer() if SvgRenderer is not None else None
+            self.renderer = cast(Optional[Any], SvgRenderer() if SvgRenderer is not None else None)
         
         if self.draw_enabled and self.renderer is not None:
             try:
@@ -114,11 +121,11 @@ class Canvas:
                 pass
         self._register_renderer_handlers()
 
-    def add_drawable(self, drawable):
+    def add_drawable(self, drawable: "Drawable") -> None:
         drawable.canvas = self  # Set the drawable's canvas reference
         self.drawable_manager.drawables.add(drawable)
 
-    def _register_renderer_handlers(self):
+    def _register_renderer_handlers(self) -> None:
         """Register renderer handlers for all drawable types. Kept isolated to avoid tight import coupling."""
         if self.renderer is None:
             return
@@ -195,7 +202,7 @@ class Canvas:
         except Exception:
             pass
 
-    def draw(self, apply_zoom=False):
+    def draw(self, apply_zoom: bool = False) -> None:
         if not self.draw_enabled:
             return
         # If a renderer exists, prefer it to clear and draw
@@ -234,7 +241,7 @@ class Canvas:
                     rendered = False
             # No fallback to drawable.draw(); rendering is exclusively via renderer
 
-    def _is_drawable_visible(self, drawable):
+    def _is_drawable_visible(self, drawable: "Drawable") -> bool:
         """Best-effort visibility check to avoid rendering off-canvas objects.
 
         Mirrors prior behavior for segments and points; other types default to visible
@@ -284,7 +291,7 @@ class Canvas:
     
     # Removed legacy zoom displacement; zoom handled via CoordinateMapper
     
-    def _apply_cartesian_zoom_displacement(self, zoom_point, zoom_direction, zoom_step):
+    def _apply_cartesian_zoom_displacement(self, zoom_point: Point, zoom_direction: int, zoom_step: float) -> None:
         """Apply zoom displacement to the cartesian coordinate system origin.
         
         This ensures the coordinate grid participates in the zoom-towards-point effect
@@ -317,17 +324,17 @@ class Canvas:
     
     # _apply_point_zoom_displacement removed (legacy)
 
-    def _draw_cartesian(self, apply_zoom=False):
+    def _draw_cartesian(self, apply_zoom: bool = False) -> None:
         # Handle cartesian system cache invalidation if needed
         if apply_zoom and hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
             self.cartesian2axis._invalidate_cache_on_zoom()
         self.cartesian2axis.draw()
 
-    def _fix_drawable_canvas_references(self):
+    def _fix_drawable_canvas_references(self) -> None:
         for drawable in self.drawable_manager.get_drawables():
             drawable.canvas = self
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear all drawables"""
         self.archive()
         self.drawable_manager.drawables.clear()
@@ -338,7 +345,7 @@ class Canvas:
         
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the canvas to its initial state"""
         # Reset coordinate transformations using CoordinateMapper
         self.coordinate_mapper.reset_transformations()
@@ -352,33 +359,33 @@ class Canvas:
             drawable.reset()
         self.draw()
 
-    def archive(self):
+    def archive(self) -> None:
         """Archive the current state for undo functionality"""
         self.undo_redo_manager.archive()
 
-    def undo(self):
+    def undo(self) -> bool:
         """Restores the last archived state from the undo stack"""
         return self.undo_redo_manager.undo()
 
-    def redo(self):
+    def redo(self) -> bool:
         """Restores the last undone state from the redo stack"""
         return self.undo_redo_manager.redo()
 
-    def get_drawables(self):
+    def get_drawables(self) -> List["Drawable"]:
         """Get all drawables as a flat list"""
         return self.drawable_manager.get_drawables()
 
-    def get_drawables_state(self):
+    def get_drawables_state(self) -> Dict[str, Any]:
         return self.drawable_manager.drawables.get_state()
 
-    def get_drawables_by_class_name(self, class_name):
+    def get_drawables_by_class_name(self, class_name: str) -> List["Drawable"]:
         """Get drawables of a specific class name"""
         return self.drawable_manager.drawables.get_by_class_name(class_name)
 
-    def get_cartesian2axis_state(self):
+    def get_cartesian2axis_state(self) -> Dict[str, Any]:
         return self.cartesian2axis.get_state()
 
-    def get_canvas_state(self):
+    def get_canvas_state(self) -> Dict[str, Any]:
         state = self.get_drawables_state()
         cartesian_state = self.get_cartesian2axis_state()
         if cartesian_state is not None:
@@ -387,55 +394,55 @@ class Canvas:
             state["computations"] = self.computations
         return state
 
-    def get_point(self, x, y):
+    def get_point(self, x: float, y: float) -> Optional[Point]:
         """Get a point at the specified coordinates"""
         return self.drawable_manager.get_point(x, y)
 
-    def get_point_by_name(self, name):
+    def get_point_by_name(self, name: str) -> Optional[Point]:
         """Get a point by its name"""
         return self.drawable_manager.get_point_by_name(name)
 
-    def create_point(self, x, y, name="", extra_graphics=True):
+    def create_point(self, x: float, y: float, name: str = "", extra_graphics: bool = True) -> Point:
         """Create a point at the specified coordinates"""
         return self.drawable_manager.create_point(x, y, name, extra_graphics)
 
-    def delete_point(self, x, y):
+    def delete_point(self, x: float, y: float) -> bool:
         """Delete a point at the specified coordinates"""
         return self.drawable_manager.delete_point(x, y)
 
-    def delete_point_by_name(self, name):
+    def delete_point_by_name(self, name: str) -> bool:
         """Delete a point by its name"""
         return self.drawable_manager.delete_point_by_name(name)
 
-    def is_point_within_canvas_visible_area(self, x, y):
+    def is_point_within_canvas_visible_area(self, x: float, y: float) -> bool:
         """Check if a point is within the visible area of the canvas"""
         return (0 <= x <= self.width) and (0 <= y <= self.height)
 
-    def get_segment_by_coordinates(self, x1, y1, x2, y2):
+    def get_segment_by_coordinates(self, x1: float, y1: float, x2: float, y2: float) -> Optional["Drawable"]:
         """Get a segment by its endpoint coordinates"""
         return self.drawable_manager.get_segment_by_coordinates(x1, y1, x2, y2)
 
-    def get_segment_by_name(self, name):
+    def get_segment_by_name(self, name: str) -> Optional["Drawable"]:
         """Get a segment by its name"""
         return self.drawable_manager.get_segment_by_name(name)
 
-    def get_segment_by_points(self, p1, p2):
+    def get_segment_by_points(self, p1: Point, p2: Point) -> Optional["Drawable"]:
         """Get a segment by its endpoint points"""
         return self.drawable_manager.get_segment_by_points(p1, p2)
 
-    def create_segment(self, x1, y1, x2, y2, name="", extra_graphics=True):
+    def create_segment(self, x1: float, y1: float, x2: float, y2: float, name: str = "", extra_graphics: bool = True) -> "Drawable":
         """Create a segment between two points"""
         return self.drawable_manager.create_segment(x1, y1, x2, y2, name, extra_graphics)
 
-    def delete_segment(self, x1, y1, x2, y2, delete_children=True, delete_parents=False):
+    def delete_segment(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> bool:
         """Delete a segment by its endpoint coordinates"""
         return self.drawable_manager.delete_segment(x1, y1, x2, y2, delete_children, delete_parents)
 
-    def delete_segment_by_name(self, name, delete_children=True, delete_parents=False):
+    def delete_segment_by_name(self, name: str, delete_children: bool = True, delete_parents: bool = False) -> bool:
         """Delete a segment by its name"""
         return self.drawable_manager.delete_segment_by_name(name, delete_children, delete_parents)
 
-    def any_segment_part_visible_in_canvas_area(self, x1, y1, x2, y2):
+    def any_segment_part_visible_in_canvas_area(self, x1: float, y1: float, x2: float, y2: float) -> bool:
         """Check if any part of a segment is visible in the canvas area"""
         intersect_top = MathUtils.segments_intersect(x1, y1, x2, y2, 0, 0, self.width, 0)
         intersect_right = MathUtils.segments_intersect(x1, y1, x2, y2, self.width, 0, self.width, self.height)
@@ -443,107 +450,107 @@ class Canvas:
         intersect_left = MathUtils.segments_intersect(x1, y1, x2, y2, 0, self.height, 0, 0)
         return intersect_top or intersect_right or intersect_bottom or intersect_left
 
-    def get_vector(self, x1, y1, x2, y2):
+    def get_vector(self, x1: float, y1: float, x2: float, y2: float) -> Optional["Drawable"]:
         """Get a vector by its origin and tip coordinates"""
         return self.drawable_manager.get_vector(x1, y1, x2, y2)
 
-    def create_vector(self, origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True):
+    def create_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float, name: str = "", extra_graphics: bool = True) -> "Drawable":
         """Create a vector from origin to tip"""
         return self.drawable_manager.create_vector(origin_x, origin_y, tip_x, tip_y, name, extra_graphics)
 
-    def delete_vector(self, origin_x, origin_y, tip_x, tip_y):
+    def delete_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float) -> bool:
         """Delete a vector by its origin and tip coordinates"""
         return self.drawable_manager.delete_vector(origin_x, origin_y, tip_x, tip_y)
 
-    def get_triangle(self, x1, y1, x2, y2, x3, y3):
+    def get_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> Optional["Drawable"]:
         """Get a triangle by its vertex coordinates"""
         return self.drawable_manager.get_triangle(x1, y1, x2, y2, x3, y3)
 
-    def create_triangle(self, x1, y1, x2, y2, x3, y3, name="", extra_graphics=True):
+    def create_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float, name: str = "", extra_graphics: bool = True) -> "Drawable":
         """Create a triangle with the specified vertices"""
         return self.drawable_manager.create_triangle(x1, y1, x2, y2, x3, y3, name, extra_graphics)
 
-    def delete_triangle(self, x1, y1, x2, y2, x3, y3):
+    def delete_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> bool:
         """Delete a triangle by its vertex coordinates"""
         return self.drawable_manager.delete_triangle(x1, y1, x2, y2, x3, y3)
 
-    def get_rectangle_by_diagonal_points(self, px, py, opposite_px, opposite_py):
+    def get_rectangle_by_diagonal_points(self, px: float, py: float, opposite_px: float, opposite_py: float) -> Optional["Drawable"]:
         """Get a rectangle by its diagonal points"""
         return self.drawable_manager.get_rectangle_by_diagonal_points(px, py, opposite_px, opposite_py)
 
-    def get_rectangle_by_name(self, name):
+    def get_rectangle_by_name(self, name: str) -> Optional["Drawable"]:
         """Get a rectangle by its name"""
         return self.drawable_manager.get_rectangle_by_name(name)
 
-    def create_rectangle(self, px, py, opposite_px, opposite_py, name="", extra_graphics=True):
+    def create_rectangle(self, px: float, py: float, opposite_px: float, opposite_py: float, name: str = "", extra_graphics: bool = True) -> "Drawable":
         """Create a rectangle with the specified diagonal points"""
         return self.drawable_manager.create_rectangle(px, py, opposite_px, opposite_py, name, extra_graphics)
 
-    def delete_rectangle(self, name):
+    def delete_rectangle(self, name: str) -> bool:
         """Delete a rectangle by its name"""
         return self.drawable_manager.delete_rectangle(name)
 
-    def get_circle(self, center_x, center_y, radius):
+    def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional["Drawable"]:
         """Get a circle by its center coordinates and radius"""
         return self.drawable_manager.get_circle(center_x, center_y, radius)
 
-    def get_circle_by_name(self, name):
+    def get_circle_by_name(self, name: str) -> Optional["Drawable"]:
         """Get a circle by its name"""
         return self.drawable_manager.get_circle_by_name(name)
 
-    def create_circle(self, center_x, center_y, radius, name="", extra_graphics=True):
+    def create_circle(self, center_x: float, center_y: float, radius: float, name: str = "", extra_graphics: bool = True) -> "Drawable":
         """Create a circle with the specified center and radius"""
         return self.drawable_manager.create_circle(center_x, center_y, radius, name, extra_graphics)
 
-    def delete_circle(self, name):
+    def delete_circle(self, name: str) -> bool:
         """Delete a circle by its name"""
         return self.drawable_manager.delete_circle(name)
 
-    def get_ellipse(self, center_x, center_y, radius_x, radius_y):
+    def get_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float) -> Optional["Drawable"]:
         """Get an ellipse by its center coordinates and radii"""
         return self.drawable_manager.get_ellipse(center_x, center_y, radius_x, radius_y)
 
-    def get_ellipse_by_name(self, name):
+    def get_ellipse_by_name(self, name: str) -> Optional["Drawable"]:
         """Get an ellipse by its name"""
         return self.drawable_manager.get_ellipse_by_name(name)
 
-    def create_ellipse(self, center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", extra_graphics=True):
+    def create_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float, rotation_angle: float = 0, name: str = "", extra_graphics: bool = True) -> "Drawable":
         """Create an ellipse with the specified center, radii, and rotation"""
         return self.drawable_manager.create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle, name, extra_graphics)
 
-    def delete_ellipse(self, name):
+    def delete_ellipse(self, name: str) -> bool:
         """Delete an ellipse by its name"""
         return self.drawable_manager.delete_ellipse(name)
 
-    def get_function(self, name):
+    def get_function(self, name: str) -> Optional["Drawable"]:
         """Get a function by its name"""
         return self.drawable_manager.get_function(name)
 
-    def draw_function(self, function_string, name, left_bound=None, right_bound=None):
+    def draw_function(self, function_string: str, name: str, left_bound: Optional[float] = None, right_bound: Optional[float] = None) -> "Drawable":
         """Draw a function on the canvas"""
         return self.drawable_manager.draw_function(function_string, name, left_bound, right_bound)
 
-    def delete_function(self, name):
+    def delete_function(self, name: str) -> bool:
         """Delete a function by its name"""
         return self.drawable_manager.delete_function(name)
 
-    def translate_object(self, name, x_offset, y_offset):
+    def translate_object(self, name: str, x_offset: float, y_offset: float) -> bool:
         """Translates a drawable object by the specified offset"""
         return self.transformations_manager.translate_object(name, x_offset, y_offset)
         
-    def rotate_object(self, name, angle):
+    def rotate_object(self, name: str, angle: float) -> bool:
         """Rotates a drawable object by the specified angle"""
         return self.transformations_manager.rotate_object(name, angle)
 
-    def has_computation(self, expression):
+    def has_computation(self, expression: str) -> bool:
         """Check if a computation with the given expression already exists."""
         return ComputationUtils.has_computation(self.computations, expression)
 
-    def add_computation(self, expression, result):
+    def add_computation(self, expression: str, result: Any) -> None:
         """Add a computation to the history if it doesn't already exist."""
         self.computations = ComputationUtils.add_computation(self.computations, expression, result)
 
-    def zoom_to_bounds(self, left_bound, right_bound, top_bound, bottom_bound):
+    def zoom_to_bounds(self, left_bound: float, right_bound: float, top_bound: float, bottom_bound: float) -> bool:
         """Fit the viewport to the supplied math bounds and refresh the grid."""
         self.coordinate_mapper.set_visible_bounds(left_bound, right_bound, top_bound, bottom_bound)
         if hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
@@ -551,7 +558,7 @@ class Canvas:
         self.draw(apply_zoom=True)
         return True
 
-    def find_largest_connected_shape(self, shape):
+    def find_largest_connected_shape(self, shape: "Drawable") -> tuple[Optional["Drawable"], Optional[str]]:
         """Find the largest shape that shares segments with the given shape.
         Returns a tuple (largest_parent_shape, shape_type) where shape_type is the class name
         or None if no larger shape is found."""
@@ -589,7 +596,7 @@ class Canvas:
 
         return largest_parent_shape, largest_parent_shape.get_class_name() if largest_parent_shape else None
 
-    def get_shared_segments(self, shape1, shape2):
+    def get_shared_segments(self, shape1: "Drawable", shape2: "Drawable") -> List["Drawable"]:
         """Check if two shapes share any segments.
         Returns a list of shared segments."""
         shape1_segments = []
@@ -624,50 +631,50 @@ class Canvas:
 
         return shared_segments
 
-    def create_colored_area(self, drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3):
+    def create_colored_area(self, drawable1_name: str, drawable2_name: Optional[str] = None, left_bound: Optional[float] = None, right_bound: Optional[float] = None, color: str = "lightblue", opacity: float = 0.3) -> "Drawable":
         """Creates a colored area between two functions, two segments, or a function and a segment"""
         return self.drawable_manager.create_colored_area(drawable1_name, drawable2_name, left_bound, right_bound, color, opacity)
         
-    def delete_colored_area(self, name):
+    def delete_colored_area(self, name: str) -> bool:
         """Deletes a colored area with the given name"""
         return self.drawable_manager.delete_colored_area(name)
         
-    def delete_colored_areas_for_function(self, func):
+    def delete_colored_areas_for_function(self, func: "Drawable") -> None:
         """Deletes all colored areas associated with a function"""
         return self.drawable_manager.delete_colored_areas_for_function(func)
         
-    def delete_colored_areas_for_segment(self, segment):
+    def delete_colored_areas_for_segment(self, segment: "Drawable") -> None:
         """Deletes all colored areas associated with a segment"""
         return self.drawable_manager.delete_colored_areas_for_segment(segment)
         
-    def get_colored_areas_for_drawable(self, drawable):
+    def get_colored_areas_for_drawable(self, drawable: "Drawable") -> List["Drawable"]:
         """Gets all colored areas associated with a drawable (function or segment)"""
         return self.drawable_manager.get_colored_areas_for_drawable(drawable)
         
-    def update_colored_area_style(self, name, color=None, opacity=None):
+    def update_colored_area_style(self, name: str, color: Optional[str] = None, opacity: Optional[float] = None) -> bool:
         """Updates the color and/or opacity of a colored area"""
         return self.drawable_manager.update_colored_area_style(name, color, opacity)
 
-    def _validate_color_and_opacity(self, color, opacity):
+    def _validate_color_and_opacity(self, color: Optional[str], opacity: Optional[float]) -> bool:
         """Validates both color and opacity values"""
         return StyleUtils.validate_color_and_opacity(color, opacity)
 
-    def _is_valid_css_color(self, color):
+    def _is_valid_css_color(self, color: str) -> bool:
         """Validates if a string is a valid CSS color."""
         return StyleUtils.is_valid_css_color(color)
 
-    def _validate_opacity(self, opacity):
+    def _validate_opacity(self, opacity: float) -> bool:
         """Validates if an opacity value is between 0 and 1"""
         return StyleUtils.validate_opacity(opacity)
 
     @property
-    def name_generator(self):
+    def name_generator(self) -> Any:  # NameGenerator
         """Property to access the name generator from the drawable manager"""
         return self.drawable_manager.name_generator
 
     # ------------------- Angle Methods -------------------
 
-    def create_angle(self, vx, vy, p1x, p1y, p2x, p2y, color=None, angle_name=None, is_reflex: bool = False, extra_graphics=True):
+    def create_angle(self, vx: float, vy: float, p1x: float, p1y: float, p2x: float, p2y: float, color: Optional[str] = None, angle_name: Optional[str] = None, is_reflex: bool = False, extra_graphics: bool = True) -> Optional["Drawable"]:
         """Create an angle defined by three points via AngleManager."""
         if self.drawable_manager.angle_manager:
             return self.drawable_manager.angle_manager.create_angle(
@@ -679,13 +686,13 @@ class Canvas:
             )
         return None
 
-    def delete_angle(self, name):
+    def delete_angle(self, name: str) -> bool:
         """Remove an angle by its name via AngleManager."""
         if self.drawable_manager.angle_manager:
             return self.drawable_manager.angle_manager.delete_angle(name)
         return False
 
-    def update_angle_properties(self, name, new_color=None):
+    def update_angle_properties(self, name: str, new_color: Optional[str] = None) -> bool:
         """Update properties of an angle via AngleManager."""
         if self.drawable_manager.angle_manager:
             return self.drawable_manager.angle_manager.update_angle_properties(
@@ -695,62 +702,62 @@ class Canvas:
 
     # Property delegations to CoordinateMapper for backward compatibility
     @property
-    def center(self):
+    def center(self) -> Point:
         """Current viewport center point - delegates to coordinate_mapper.origin"""
         return self.coordinate_mapper.origin
     
     @center.setter
-    def center(self, value):
+    def center(self, value: Point) -> None:
         """Set viewport center point - delegates to coordinate_mapper.origin"""
         self.coordinate_mapper.origin = value
     
     @property
-    def scale_factor(self):
+    def scale_factor(self) -> float:
         """Current zoom level - delegates to coordinate_mapper.scale_factor"""
         return self.coordinate_mapper.scale_factor
     
     @scale_factor.setter
-    def scale_factor(self, value):
+    def scale_factor(self, value: float) -> None:
         """Set zoom level - delegates to coordinate_mapper.scale_factor"""
         self.coordinate_mapper.scale_factor = value
     
     @property
-    def offset(self):
+    def offset(self) -> Point:
         """Current pan offset - delegates to coordinate_mapper.offset"""
         return self.coordinate_mapper.offset
     
     @offset.setter
-    def offset(self, value):
+    def offset(self, value: Point) -> None:
         """Set pan offset - delegates to coordinate_mapper.offset"""
         self.coordinate_mapper.offset = value
     
     @property
-    def zoom_point(self):
+    def zoom_point(self) -> Point:
         """Current zoom center point - delegates to coordinate_mapper.zoom_point"""
         return self.coordinate_mapper.zoom_point
     
     @zoom_point.setter
-    def zoom_point(self, value):
+    def zoom_point(self, value: Point) -> None:
         """Set zoom center point - delegates to coordinate_mapper.zoom_point"""
         self.coordinate_mapper.zoom_point = value
     
     @property
-    def zoom_direction(self):
+    def zoom_direction(self) -> int:
         """Current zoom direction - delegates to coordinate_mapper.zoom_direction"""
         return self.coordinate_mapper.zoom_direction
     
     @zoom_direction.setter
-    def zoom_direction(self, value):
+    def zoom_direction(self, value: int) -> None:
         """Set zoom direction - delegates to coordinate_mapper.zoom_direction"""
         self.coordinate_mapper.zoom_direction = value
     
     @property
-    def zoom_step(self):
+    def zoom_step(self) -> float:
         """Zoom step size - delegates to coordinate_mapper.zoom_step"""
         return self.coordinate_mapper.zoom_step
     
     @zoom_step.setter
-    def zoom_step(self, value):
+    def zoom_step(self, value: float) -> None:
         """Set zoom step size - delegates to coordinate_mapper.zoom_step"""
         self.coordinate_mapper.zoom_step = value
 

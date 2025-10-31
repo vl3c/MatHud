@@ -35,8 +35,20 @@ Mathematical Context:
     - Geometric Relationships: Integrates with other geometric constructions
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, List, Optional
+
 from drawables.vector import Vector
 from utils.math_utils import MathUtils
+
+if TYPE_CHECKING:
+    from canvas import Canvas
+    from managers.drawables_container import DrawablesContainer
+    from managers.drawable_dependency_manager import DrawableDependencyManager
+    from managers.drawable_manager_proxy import DrawableManagerProxy
+    from managers.point_manager import PointManager
+    from name_generator.drawable import DrawableNameGenerator
 
 class VectorManager:
     """
@@ -48,7 +60,15 @@ class VectorManager:
     - Deleting vector objects
     """
     
-    def __init__(self, canvas, drawables_container, name_generator, dependency_manager, point_manager, drawable_manager_proxy):
+    def __init__(
+        self,
+        canvas: "Canvas",
+        drawables_container: "DrawablesContainer",
+        name_generator: "DrawableNameGenerator",
+        dependency_manager: "DrawableDependencyManager",
+        point_manager: "PointManager",
+        drawable_manager_proxy: "DrawableManagerProxy",
+    ) -> None:
         """
         Initialize the VectorManager.
         
@@ -60,14 +80,14 @@ class VectorManager:
             point_manager: Manager for point drawables
             drawable_manager_proxy: Proxy to the main DrawableManager
         """
-        self.canvas = canvas
-        self.drawables = drawables_container
-        self.name_generator = name_generator
-        self.dependency_manager = dependency_manager
-        self.point_manager = point_manager
-        self.drawable_manager = drawable_manager_proxy
+        self.canvas: "Canvas" = canvas
+        self.drawables: "DrawablesContainer" = drawables_container
+        self.name_generator: "DrawableNameGenerator" = name_generator
+        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        self.point_manager: "PointManager" = point_manager
+        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
         
-    def get_vector(self, x1, y1, x2, y2):
+    def get_vector(self, x1: float, y1: float, x2: float, y2: float) -> Optional[Vector]:
         """
         Get a vector by its origin and tip coordinates.
         
@@ -90,7 +110,7 @@ class VectorManager:
                 return vector
         return None
         
-    def create_vector(self, origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True):
+    def create_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float, name: str = "", extra_graphics: bool = True) -> Vector:
         """
         Create a vector from origin to tip coordinates.
         
@@ -115,7 +135,7 @@ class VectorManager:
             return existing_vector
             
         # Extract point names from vector name
-        point_names = ["", ""]
+        point_names: List[str] = ["", ""]
         if name:
             point_names = self.name_generator.split_point_names(name, 2)
         
@@ -139,7 +159,7 @@ class VectorManager:
             
         return new_vector
         
-    def delete_vector(self, origin_x, origin_y, tip_x, tip_y):
+    def delete_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float) -> bool:
         """
         Delete a vector by its origin and tip coordinates.
         

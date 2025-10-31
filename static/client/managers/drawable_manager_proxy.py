@@ -27,6 +27,13 @@ Architecture Benefits:
     - Enables complex inter-manager operations
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from managers.drawable_manager import DrawableManager
+
 class DrawableManagerProxy:
     """A proxy for the DrawableManager that forwards all attribute access to the real manager.
     
@@ -35,16 +42,16 @@ class DrawableManagerProxy:
     without creating initialization order constraints.
     """
     
-    def __init__(self, real_manager):
+    def __init__(self, real_manager: "DrawableManager") -> None:
         """
         Initialize the proxy with a reference to the real manager.
         
         Args:
             real_manager: The DrawableManager instance this proxy represents
         """
-        self._real_manager = real_manager
+        self._real_manager: "DrawableManager" = real_manager
     
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         """
         Delegate attribute access to the real manager.
         This is called when an attribute doesn't exist on the proxy.

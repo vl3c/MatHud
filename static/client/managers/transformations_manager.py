@@ -27,6 +27,13 @@ Integration Points:
     - Drawable Objects: Delegation to object-specific transformation methods
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from canvas import Canvas
+
 class TransformationsManager:
     """Manages geometric transformations of drawable objects on a Canvas.
     
@@ -34,16 +41,16 @@ class TransformationsManager:
     object validation, and canvas integration.
     """
     
-    def __init__(self, canvas):
+    def __init__(self, canvas: "Canvas") -> None:
         """
         Initialize the TransformationsManager.
         
         Args:
             canvas: The Canvas object this manager is responsible for
         """
-        self.canvas = canvas
+        self.canvas: "Canvas" = canvas
     
-    def translate_object(self, name, x_offset, y_offset):
+    def translate_object(self, name: str, x_offset: float, y_offset: float) -> bool:
         """
         Translates a drawable object by the specified offset.
         
@@ -85,7 +92,7 @@ class TransformationsManager:
             
         return True
     
-    def rotate_object(self, name, angle):
+    def rotate_object(self, name: str, angle: float) -> bool:
         """
         Rotates a drawable object by the specified angle.
         

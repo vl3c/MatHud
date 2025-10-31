@@ -40,9 +40,22 @@ State Management:
     - Dependency Tracking: Maintains relationships during operations
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, List, Optional, cast
+
 from drawables.triangle import Triangle
 from utils.math_utils import MathUtils
 from utils.geometry_utils import GeometryUtils
+
+if TYPE_CHECKING:
+    from canvas import Canvas
+    from managers.drawables_container import DrawablesContainer
+    from managers.drawable_dependency_manager import DrawableDependencyManager
+    from managers.drawable_manager_proxy import DrawableManagerProxy
+    from managers.point_manager import PointManager
+    from managers.segment_manager import SegmentManager
+    from name_generator.drawable import DrawableNameGenerator
 
 class TriangleManager:
     """
@@ -54,8 +67,16 @@ class TriangleManager:
     - Deleting triangle objects
     """
     
-    def __init__(self, canvas, drawables_container, name_generator, dependency_manager, 
-                 point_manager, segment_manager, drawable_manager_proxy):
+    def __init__(
+        self,
+        canvas: "Canvas",
+        drawables_container: "DrawablesContainer",
+        name_generator: "DrawableNameGenerator",
+        dependency_manager: "DrawableDependencyManager",
+        point_manager: "PointManager",
+        segment_manager: "SegmentManager",
+        drawable_manager_proxy: "DrawableManagerProxy",
+    ) -> None:
         """
         Initialize the TriangleManager.
         
@@ -68,15 +89,15 @@ class TriangleManager:
             segment_manager: Manager for segment drawables
             drawable_manager_proxy: Proxy to the main DrawableManager
         """
-        self.canvas = canvas
-        self.drawables = drawables_container
-        self.name_generator = name_generator
-        self.dependency_manager = dependency_manager
-        self.point_manager = point_manager
-        self.segment_manager = segment_manager
-        self.drawable_manager = drawable_manager_proxy
+        self.canvas: "Canvas" = canvas
+        self.drawables: "DrawablesContainer" = drawables_container
+        self.name_generator: "DrawableNameGenerator" = name_generator
+        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        self.point_manager: "PointManager" = point_manager
+        self.segment_manager: "SegmentManager" = segment_manager
+        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
         
-    def get_triangle(self, x1, y1, x2, y2, x3, y3):
+    def get_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> Optional[Triangle]:
         """
         Get a triangle by its vertex coordinates.
         
@@ -100,7 +121,7 @@ class TriangleManager:
                 return triangle
         return None
         
-    def create_triangle(self, x1, y1, x2, y2, x3, y3, name="", extra_graphics=True):
+    def create_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float, name: str = "", extra_graphics: bool = True) -> Triangle:
         """
         Create a triangle from three vertex coordinates.
         
@@ -130,7 +151,7 @@ class TriangleManager:
             return existing_triangle
             
         # Extract point names from triangle name
-        point_names = ["", "", ""]
+        point_names: List[str] = ["", "", ""]
         if name:
             point_names = self.name_generator.split_point_names(name, 3)
             
@@ -169,7 +190,7 @@ class TriangleManager:
             
         return new_triangle
         
-    def delete_triangle(self, x1, y1, x2, y2, x3, y3):
+    def delete_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> bool:
         """
         Delete a triangle by its vertex coordinates.
         
@@ -209,7 +230,7 @@ class TriangleManager:
             
         return True
 
-    def create_new_triangles_from_connected_segments(self):
+    def create_new_triangles_from_connected_segments(self) -> None:
         """
         Automatically detect and create triangles from existing connected segments.
         
@@ -228,7 +249,7 @@ class TriangleManager:
         to automatically detect triangular structures that emerge from point
         and segment creation.
         """
-        segments = list(self.drawables.Segments)
+        segments: List[Any] = cast(List[Any], list(self.drawables.Segments))
         for i in range(len(segments)):
             for j in range(i+1, len(segments)):
                 for k in range(j+1, len(segments)):

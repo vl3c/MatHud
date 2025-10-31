@@ -38,6 +38,13 @@ Access Patterns:
     - Bulk Operations: get_all(), get_colored_areas(), get_non_colored_areas()
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, List
+
+if TYPE_CHECKING:
+    from drawables.drawable import Drawable
+
 class DrawablesContainer:
     """
     A container for storing and accessing drawable objects by their class names.
@@ -46,11 +53,11 @@ class DrawablesContainer:
     providing a cleaner separation of concerns.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize an empty drawables container."""
-        self._drawables = {}
+        self._drawables: Dict[str, List["Drawable"]] = {}
         
-    def add(self, drawable):
+    def add(self, drawable: "Drawable") -> None:
         """
         Add a drawable to the container.
         
@@ -62,7 +69,7 @@ class DrawablesContainer:
             self._drawables[category] = []
         self._drawables[category].append(drawable)
         
-    def remove(self, drawable):
+    def remove(self, drawable: "Drawable") -> bool:
         """
         Remove a drawable from the container.
         
@@ -78,7 +85,7 @@ class DrawablesContainer:
             return True
         return False
         
-    def get_by_class_name(self, class_name):
+    def get_by_class_name(self, class_name: str) -> List["Drawable"]:
         """
         Get all drawables of a specific class name (private method).
         
@@ -90,7 +97,7 @@ class DrawablesContainer:
         """
         return self._drawables.get(class_name, [])
         
-    def get_all(self):
+    def get_all(self) -> List["Drawable"]:
         """
         Get all drawables as a flat list.
         
@@ -102,7 +109,7 @@ class DrawablesContainer:
             all_drawables.extend(self._drawables[drawable_type])
         return all_drawables
     
-    def get_colored_areas(self):
+    def get_colored_areas(self) -> List["Drawable"]:
         """
         Get all colored area drawables (for background rendering).
         
@@ -115,7 +122,7 @@ class DrawablesContainer:
                 colored_areas.extend(self._drawables[drawable_type])
         return colored_areas
     
-    def get_non_colored_areas(self):
+    def get_non_colored_areas(self) -> List["Drawable"]:
         """
         Get all non-colored area drawables (for foreground rendering).
         
@@ -128,7 +135,7 @@ class DrawablesContainer:
                 other_drawables.extend(self._drawables[drawable_type])
         return other_drawables
     
-    def get_all_with_layering(self):
+    def get_all_with_layering(self) -> List["Drawable"]:
         """
         Get all drawables with proper layering (colored areas first, then others).
         
@@ -137,11 +144,11 @@ class DrawablesContainer:
         """
         return self.get_colored_areas() + self.get_non_colored_areas()
         
-    def clear(self):
+    def clear(self) -> None:
         """Remove all drawables from the container."""
         self._drawables.clear()
         
-    def get_state(self):
+    def get_state(self) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get the state of all drawables in the container.
         
@@ -155,72 +162,72 @@ class DrawablesContainer:
         
     # Property-style access for specific drawable types (for convenience)
     @property
-    def Points(self):
+    def Points(self) -> List["Drawable"]:
         """Get all Point objects."""
         return self.get_by_class_name('Point')
         
     @property
-    def Segments(self):
+    def Segments(self) -> List["Drawable"]:
         """Get all Segment objects."""
         return self.get_by_class_name('Segment')
         
     @property
-    def Vectors(self):
+    def Vectors(self) -> List["Drawable"]:
         """Get all Vector objects."""
         return self.get_by_class_name('Vector')
         
     @property
-    def Triangles(self):
+    def Triangles(self) -> List["Drawable"]:
         """Get all Triangle objects."""
         return self.get_by_class_name('Triangle')
         
     @property
-    def Rectangles(self):
+    def Rectangles(self) -> List["Drawable"]:
         """Get all Rectangle objects."""
         return self.get_by_class_name('Rectangle')
         
     @property
-    def Circles(self):
+    def Circles(self) -> List["Drawable"]:
         """Get all Circle objects."""
         return self.get_by_class_name('Circle')
         
     @property
-    def Ellipses(self):
+    def Ellipses(self) -> List["Drawable"]:
         """Get all Ellipse objects."""
         return self.get_by_class_name('Ellipse')
         
     @property
-    def Functions(self):
+    def Functions(self) -> List["Drawable"]:
         """Get all Function objects."""
         return self.get_by_class_name('Function')
         
     @property
-    def ColoredAreas(self):
+    def ColoredAreas(self) -> List["Drawable"]:
         """Get all ColoredArea objects."""
         return self.get_by_class_name('ColoredArea')
         
     @property
-    def FunctionsBoundedColoredAreas(self):
+    def FunctionsBoundedColoredAreas(self) -> List["Drawable"]:
         """Get all FunctionsBoundedColoredArea objects."""
         return self.get_by_class_name('FunctionsBoundedColoredArea')
         
     @property
-    def Angles(self):
+    def Angles(self) -> List["Drawable"]:
         """Get all Angle objects."""
         return self.get_by_class_name('Angle')
         
     @property
-    def SegmentsBoundedColoredAreas(self):
+    def SegmentsBoundedColoredAreas(self) -> List["Drawable"]:
         """Get all SegmentsBoundedColoredArea objects."""
         return self.get_by_class_name('SegmentsBoundedColoredArea')
         
     @property
-    def FunctionSegmentBoundedColoredAreas(self):
+    def FunctionSegmentBoundedColoredAreas(self) -> List["Drawable"]:
         """Get all FunctionSegmentBoundedColoredArea objects."""
         return self.get_by_class_name('FunctionSegmentBoundedColoredArea')
         
     # Direct dictionary-like access
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> List["Drawable"]:
         """
         Allow dictionary-like access to drawable types.
         
@@ -232,7 +239,7 @@ class DrawablesContainer:
         """
         return self.get_by_class_name(key)
         
-    def __contains__(self, key):
+    def __contains__(self, key: str) -> bool:
         """
         Check if the container has drawables of a specific class.
         

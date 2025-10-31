@@ -44,7 +44,16 @@ Mathematical Integration:
     - Tolerance Handling: Robust matching with mathematical precision considerations
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+
 from utils.math_utils import MathUtils
+
+if TYPE_CHECKING:
+    from drawables.drawable import Drawable
+    from managers.drawable_manager_proxy import DrawableManagerProxy
+    from canvas import Canvas
 
 class DrawableDependencyManager:
     """
@@ -56,14 +65,14 @@ class DrawableDependencyManager:
     - Handles propagation of changes (like canvas references)
     """
     
-    def __init__(self, drawable_manager_proxy=None):
+    def __init__(self, drawable_manager_proxy: Optional["DrawableManagerProxy"] = None) -> None:
         """Initialize the dependency manager"""
-        self.drawable_manager = drawable_manager_proxy # Store the proxy
+        self.drawable_manager: Optional["DrawableManagerProxy"] = drawable_manager_proxy # Store the proxy
         # Re-add internal state maps needed by other methods
-        self._parents = {}
-        self._children = {}
+        self._parents: Dict["Drawable", Set["Drawable"]] = {}
+        self._children: Dict["Drawable", Set["Drawable"]] = {}
         # Type hierarchy - which types depend on which other types
-        self._type_hierarchy = {
+        self._type_hierarchy: Dict[str, List[str]] = {
             'Point': [],
             'Segment': ['Point'],
             'Vector': ['Point'],
@@ -79,13 +88,13 @@ class DrawableDependencyManager:
             'FunctionsBoundedColoredArea': ['Function']
         }
     
-    def _should_skip_point_point_dependency(self, child, parent):
+    def _should_skip_point_point_dependency(self, child: "Drawable", parent: "Drawable") -> bool:
         """Check if a dependency registration should be skipped (e.g., Point as child of Point)."""
         is_child_point = hasattr(child, 'get_class_name') and child.get_class_name() == 'Point'
         is_parent_point = hasattr(parent, 'get_class_name') and parent.get_class_name() == 'Point'
         return is_child_point and is_parent_point
 
-    def register_dependency(self, child, parent):
+    def register_dependency(self, child: "Drawable", parent: "Drawable") -> None:
         """
         Register a child-parent dependency
         
@@ -116,7 +125,7 @@ class DrawableDependencyManager:
         self._parents[child].add(parent)
         self._children[parent].add(child)
     
-    def unregister_dependency(self, child, parent):
+    def unregister_dependency(self, child: Optional["Drawable"], parent: Optional["Drawable"]) -> None:
         """
         Unregister a specific child-parent dependency.
 
@@ -134,7 +143,7 @@ class DrawableDependencyManager:
         if parent in self._children:
             self._children[parent].discard(child)
 
-    def _verify_get_class_name_method(self, obj, obj_type_name):
+    def _verify_get_class_name_method(self, obj: Any, obj_type_name: str) -> None:
         """
         Verify that an object has the get_class_name method
         
@@ -147,7 +156,7 @@ class DrawableDependencyManager:
             # If missing, let's make sure we can still identify the object
             print(f"{obj_type_name} object type: {type(obj)}")
     
-    def get_parents(self, drawable):
+    def get_parents(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
         Get all direct parents of a drawable
         
@@ -163,7 +172,7 @@ class DrawableDependencyManager:
         
         return self._parents.get(drawable, set())
     
-    def get_children(self, drawable):
+    def get_children(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
         Get all direct children of a drawable
         
@@ -179,7 +188,7 @@ class DrawableDependencyManager:
         
         return self._children.get(drawable, set())
     
-    def get_all_parents(self, drawable):
+    def get_all_parents(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
         Get all parents recursively (transitive closure)
         
@@ -209,7 +218,7 @@ class DrawableDependencyManager:
             
         return all_parents
     
-    def get_all_children(self, drawable):
+    def get_all_children(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
         Get all children recursively (transitive closure)
         
@@ -238,7 +247,7 @@ class DrawableDependencyManager:
             
         return all_children
     
-    def remove_drawable(self, drawable):
+    def remove_drawable(self, drawable: "Drawable") -> None:
         """
         Remove a drawable from the dependency graph
         
@@ -261,7 +270,7 @@ class DrawableDependencyManager:
         if drawable in self._children:
             del self._children[drawable]
     
-    def update_canvas_references(self, drawable, canvas):
+    def update_canvas_references(self, drawable: Optional["Drawable"], canvas: "Canvas") -> None:
         """
         Update canvas references for a drawable and its dependencies
         
@@ -276,10 +285,10 @@ class DrawableDependencyManager:
         print(f"Starting canvas update for {drawable}")
         
         # Track all visited objects to avoid cycles
-        visited = set()
+        visited: Set["Drawable"] = set()
         
         # Use a queue for breadth-first traversal
-        queue = [drawable]
+        queue: List["Drawable"] = [drawable]
         
         # Breadth-first traversal to update all connected objects
         while queue:
@@ -319,7 +328,7 @@ class DrawableDependencyManager:
                     if current.point2 not in visited:
                         queue.append(current.point2)
     
-    def analyze_drawable_for_dependencies(self, drawable):
+    def analyze_drawable_for_dependencies(self, drawable: "Drawable") -> List["Drawable"]:
         """
         Analyze a drawable to find and register its dependencies
         
@@ -329,7 +338,7 @@ class DrawableDependencyManager:
         Returns:
             list: List of identified dependencies
         """
-        dependencies = []
+        dependencies: List["Drawable"] = []
         
         # Verify drawable has get_class_name method
         self._verify_get_class_name_method(drawable, "Drawable")
@@ -455,7 +464,7 @@ class DrawableDependencyManager:
             
         return dependencies
     
-    def _find_segment_children(self, segment):
+    def _find_segment_children(self, segment: Optional["Drawable"]) -> List["Drawable"]:
         """Finds children geometrically by iterating through all segments."""
         # Safety check for segment and its points
         if not segment or not hasattr(segment, 'point1') or not hasattr(segment, 'point2'):
@@ -467,7 +476,7 @@ class DrawableDependencyManager:
             
         sp1x, sp1y = segment.point1.x, segment.point1.y
         sp2x, sp2y = segment.point2.x, segment.point2.y
-        children = []
+        children: List["Drawable"] = []
         
         # Access segments via the proxy
         if self.drawable_manager and self.drawable_manager.drawables:
@@ -488,7 +497,7 @@ class DrawableDependencyManager:
                     children.append(s)
         return children
 
-    def resolve_dependency_order(self, drawables):
+    def resolve_dependency_order(self, drawables: List["Drawable"]) -> List["Drawable"]:
         """
         Determine the correct order to process drawables based on dependencies
         
@@ -499,13 +508,13 @@ class DrawableDependencyManager:
             list: Ordered list of drawables (parents before children)
         """
         # Filter out None values
-        filtered_drawables = [d for d in drawables if d is not None]
+        filtered_drawables: List["Drawable"] = [d for d in drawables if d is not None]
         
         # Simple topological sort
-        result = []
-        visited = set()
+        result: List["Drawable"] = []
+        visited: Set["Drawable"] = set()
         
-        def visit(drawable):
+        def visit(drawable: "Drawable") -> None:
             if drawable in visited:
                 return
                 

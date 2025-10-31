@@ -15,13 +15,15 @@ Dependencies:
     - Custom modules: canvas, ai_interface, canvas_event_handler
 """
 
+from __future__ import annotations
+
 from ai_interface import AIInterface
 from browser import document
 from canvas import Canvas
 from canvas_event_handler import CanvasEventHandler
 
 
-def main():
+def main() -> None:
     """Initialize the MatHud client-side application.
     
     Creates the mathematical canvas, AI interface, and event handling system.

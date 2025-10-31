@@ -34,8 +34,22 @@ State Management:
     - Dependency Updates: Cascading updates to dependent geometric objects
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, List, Optional, cast
+
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
+
+if TYPE_CHECKING:
+    from drawables.drawable import Drawable
+    from drawables.point import Point
+    from canvas import Canvas
+    from managers.drawables_container import DrawablesContainer
+    from managers.drawable_dependency_manager import DrawableDependencyManager
+    from managers.drawable_manager_proxy import DrawableManagerProxy
+    from managers.point_manager import PointManager
+    from name_generator.drawable import DrawableNameGenerator
 
 class SegmentManager:
     """
@@ -47,7 +61,15 @@ class SegmentManager:
     - Deleting segment objects
     """
     
-    def __init__(self, canvas, drawables_container, name_generator, dependency_manager, point_manager, drawable_manager_proxy):
+    def __init__(
+        self,
+        canvas: "Canvas",
+        drawables_container: "DrawablesContainer",
+        name_generator: "DrawableNameGenerator",
+        dependency_manager: "DrawableDependencyManager",
+        point_manager: "PointManager",
+        drawable_manager_proxy: "DrawableManagerProxy",
+    ) -> None:
         """
         Initialize the SegmentManager.
         
@@ -59,14 +81,14 @@ class SegmentManager:
             point_manager: Manager for point drawables
             drawable_manager_proxy: Proxy to the main DrawableManager
         """
-        self.canvas = canvas
-        self.drawables = drawables_container
-        self.name_generator = name_generator
-        self.dependency_manager = dependency_manager
-        self.point_manager = point_manager
-        self.drawable_manager = drawable_manager_proxy
+        self.canvas: "Canvas" = canvas
+        self.drawables: "DrawablesContainer" = drawables_container
+        self.name_generator: "DrawableNameGenerator" = name_generator
+        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        self.point_manager: "PointManager" = point_manager
+        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
         
-    def get_segment_by_coordinates(self, x1, y1, x2, y2):
+    def get_segment_by_coordinates(self, x1: float, y1: float, x2: float, y2: float) -> Optional[Segment]:
         """
         Get a segment by its endpoint coordinates.
         
@@ -87,7 +109,7 @@ class SegmentManager:
                 return segment
         return None
         
-    def get_segment_by_name(self, name):
+    def get_segment_by_name(self, name: str) -> Optional[Segment]:
         """
         Get a segment by its name.
         
@@ -104,7 +126,7 @@ class SegmentManager:
                 return segment
         return None
         
-    def get_segment_by_points(self, p1, p2):
+    def get_segment_by_points(self, p1: "Point", p2: "Point") -> Optional[Segment]:
         """
         Get a segment by its endpoint points.
         
@@ -119,7 +141,7 @@ class SegmentManager:
         """
         return self.get_segment_by_coordinates(p1.x, p1.y, p2.x, p2.y)
         
-    def create_segment(self, x1, y1, x2, y2, name="", extra_graphics=True):
+    def create_segment(self, x1: float, y1: float, x2: float, y2: float, name: str = "", extra_graphics: bool = True) -> Segment:
         """
         Create a new segment between the specified points
         
@@ -141,7 +163,7 @@ class SegmentManager:
             return existing_segment
             
         # Handle point names from segment name, if provided
-        point_names = ["", ""]
+        point_names: List[str] = ["", ""]
         if name:
             point_names = self.name_generator.split_point_names(name, 2)
             
@@ -169,7 +191,7 @@ class SegmentManager:
             
         return segment
         
-    def delete_segment(self, x1, y1, x2, y2, delete_children=True, delete_parents=False):
+    def delete_segment(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> bool:
         """
         Delete a segment by its endpoint coordinates
         
@@ -193,7 +215,7 @@ class SegmentManager:
         if segment:
             # Get all children (including angles) that depend on this segment
             dependent_children = self.dependency_manager.get_children(segment)
-            for child in list(dependent_children):
+            for child in cast(List["Drawable"], list(dependent_children)):
                 if hasattr(child, 'get_class_name') and child.get_class_name() == 'Angle':
                     print(f"SegmentManager: Segment '{segment.name}' is being deleted. Removing dependent angle '{child.name}'.")
                     if hasattr(self.drawable_manager, 'angle_manager') and self.drawable_manager.angle_manager:
@@ -219,7 +241,7 @@ class SegmentManager:
             
         return True
         
-    def delete_segment_by_name(self, name, delete_children=True, delete_parents=False):
+    def delete_segment_by_name(self, name: str, delete_children: bool = True, delete_parents: bool = False) -> bool:
         """
         Delete a segment by its name.
         
@@ -246,7 +268,7 @@ class SegmentManager:
         result = self.delete_segment(x1, y1, x2, y2, delete_children, delete_parents)
         return result
 
-    def _delete_segment_dependencies(self, x1, y1, x2, y2, delete_children=True, delete_parents=False):
+    def _delete_segment_dependencies(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> None:
         """
         Delete all geometric objects that depend on the specified segment.
         
@@ -268,7 +290,7 @@ class SegmentManager:
         if delete_children:
             children = self.dependency_manager.get_all_children(segment)
             # print(f"Handling deletion of {len(children)} children for segment {segment.name}") # Keep commented unless debugging
-            for child in list(children): # Iterate over a copy
+            for child in cast(List["Drawable"], list(children)): # Iterate over a copy
                 if hasattr(child, 'point1') and hasattr(child, 'point2'): # Check if child is segment-like
                     # Unlink child from the current segment being processed
                     self.dependency_manager.unregister_dependency(child=child, parent=segment)
@@ -296,7 +318,7 @@ class SegmentManager:
         if delete_parents:
             parents_to_delete = self.dependency_manager.get_all_parents(segment)
             print(f"Handling deletion of {len(parents_to_delete)} parents for segment {segment.name}")
-            for parent in list(parents_to_delete):
+            for parent in cast(List["Drawable"], list(parents_to_delete)):
                 if hasattr(parent, 'point1') and hasattr(parent, 'point2'):
                         self.delete_segment(parent.point1.x, parent.point1.y,
                                           parent.point2.x, parent.point2.y,
@@ -320,7 +342,7 @@ class SegmentManager:
             if any(MathUtils.segment_matches_coordinates(s, x1, y1, x2, y2) for s in [triangle.segment1, triangle.segment2, triangle.segment3]):
                 self.drawables.remove(triangle) # Direct removal from container 
 
-    def _split_segments_with_point(self, x, y):
+    def _split_segments_with_point(self, x: float, y: float) -> None:
         """
         Split existing segments that pass through the specified point.
         

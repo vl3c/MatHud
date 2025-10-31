@@ -41,8 +41,21 @@ State Management:
     - Cleanup Logic: Intelligent removal of constituent segments during deletion
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+
 from drawables.rectangle import Rectangle
 from utils.math_utils import MathUtils
+
+if TYPE_CHECKING:
+    from canvas import Canvas
+    from managers.drawables_container import DrawablesContainer
+    from managers.drawable_dependency_manager import DrawableDependencyManager
+    from managers.drawable_manager_proxy import DrawableManagerProxy
+    from managers.point_manager import PointManager
+    from managers.segment_manager import SegmentManager
+    from name_generator.drawable import DrawableNameGenerator
 
 class RectangleManager:
     """
@@ -54,8 +67,16 @@ class RectangleManager:
     - Deleting rectangle objects
     """
     
-    def __init__(self, canvas, drawables_container, name_generator, dependency_manager, 
-                 point_manager, segment_manager, drawable_manager_proxy):
+    def __init__(
+        self,
+        canvas: "Canvas",
+        drawables_container: "DrawablesContainer",
+        name_generator: "DrawableNameGenerator",
+        dependency_manager: "DrawableDependencyManager",
+        point_manager: "PointManager",
+        segment_manager: "SegmentManager",
+        drawable_manager_proxy: "DrawableManagerProxy",
+    ) -> None:
         """
         Initialize the RectangleManager.
         
@@ -68,15 +89,15 @@ class RectangleManager:
             segment_manager: Manager for segment drawables
             drawable_manager_proxy: Proxy to the main DrawableManager
         """
-        self.canvas = canvas
-        self.drawables = drawables_container
-        self.name_generator = name_generator
-        self.dependency_manager = dependency_manager
-        self.point_manager = point_manager
-        self.segment_manager = segment_manager
-        self.drawable_manager = drawable_manager_proxy
+        self.canvas: "Canvas" = canvas
+        self.drawables: "DrawablesContainer" = drawables_container
+        self.name_generator: "DrawableNameGenerator" = name_generator
+        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        self.point_manager: "PointManager" = point_manager
+        self.segment_manager: "SegmentManager" = segment_manager
+        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
         
-    def get_rectangle_by_diagonal_points(self, px, py, opposite_px, opposite_py):
+    def get_rectangle_by_diagonal_points(self, px: float, py: float, opposite_px: float, opposite_py: float) -> Optional[Rectangle]:
         """
         Get a rectangle by two diagonal points.
         
@@ -96,15 +117,15 @@ class RectangleManager:
         rectangles = self.drawables.Rectangles
         
         # Calculate the coordinates of the other two corners based on the diagonal points
-        corner1 = (px, py)
-        corner2 = (opposite_px, py)
-        corner3 = (opposite_px, opposite_py)
-        corner4 = (px, opposite_py)
+        corner1: tuple[float, float] = (px, py)
+        corner2: tuple[float, float] = (opposite_px, py)
+        corner3: tuple[float, float] = (opposite_px, opposite_py)
+        corner4: tuple[float, float] = (px, opposite_py)
         
         # Iterate over all rectangles
         for rectangle in rectangles:
-            segments = [rectangle.segment1, rectangle.segment2, rectangle.segment3, rectangle.segment4]
-            rectangle_corners = [(segment.point1.x, segment.point1.y) for segment in segments]
+            segments: List[Any] = [rectangle.segment1, rectangle.segment2, rectangle.segment3, rectangle.segment4]
+            rectangle_corners: List[Tuple[float, float]] = [(segment.point1.x, segment.point1.y) for segment in segments]
             
             # Ensuring all corners are matched, considering rectangles could be defined in any direction
             if all(corner in rectangle_corners for corner in [corner1, corner2, corner3, corner4]):
@@ -112,7 +133,7 @@ class RectangleManager:
                 
         return None
         
-    def get_rectangle_by_name(self, name):
+    def get_rectangle_by_name(self, name: str) -> Optional[Rectangle]:
         """
         Get a rectangle by its name.
         
@@ -130,7 +151,7 @@ class RectangleManager:
                 return rectangle
         return None
         
-    def create_rectangle(self, px, py, opposite_px, opposite_py, name="", extra_graphics=True):
+    def create_rectangle(self, px: float, py: float, opposite_px: float, opposite_py: float, name: str = "", extra_graphics: bool = True) -> Rectangle:
         """
         Create a rectangle with the specified diagonal points.
         
@@ -158,7 +179,7 @@ class RectangleManager:
             return existing_rectangle
             
         # Extract point names from rectangle name
-        point_names = ["", "", "", ""]
+        point_names: List[str] = ["", "", "", ""]
         if name:
             point_names = self.name_generator.split_point_names(name, 4)
         
@@ -201,7 +222,7 @@ class RectangleManager:
             
         return new_rectangle
         
-    def delete_rectangle(self, name):
+    def delete_rectangle(self, name: str) -> bool:
         """
         Delete a rectangle by its name.
         

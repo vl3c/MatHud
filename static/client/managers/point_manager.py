@@ -32,9 +32,21 @@ Error Handling:
     - Dependency Safety: Safe deletion with preservation of essential objects
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, List, Optional, cast
+
 from drawables.point import Point
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
+
+if TYPE_CHECKING:
+    from drawables.drawable import Drawable
+    from canvas import Canvas
+    from managers.drawables_container import DrawablesContainer
+    from managers.drawable_dependency_manager import DrawableDependencyManager
+    from managers.drawable_manager_proxy import DrawableManagerProxy
+    from name_generator.drawable import DrawableNameGenerator
 
 class PointManager:
     """
@@ -46,7 +58,14 @@ class PointManager:
     - Deleting point objects
     """
     
-    def __init__(self, canvas, drawables_container, name_generator, dependency_manager, drawable_manager_proxy):
+    def __init__(
+        self,
+        canvas: "Canvas",
+        drawables_container: "DrawablesContainer",
+        name_generator: "DrawableNameGenerator",
+        dependency_manager: "DrawableDependencyManager",
+        drawable_manager_proxy: "DrawableManagerProxy",
+    ) -> None:
         """
         Initialize the PointManager.
         
@@ -57,13 +76,13 @@ class PointManager:
             dependency_manager: Manager for drawable dependencies
             drawable_manager_proxy: Proxy to the main DrawableManager
         """
-        self.canvas = canvas
-        self.drawables = drawables_container
-        self.name_generator = name_generator
-        self.dependency_manager = dependency_manager
-        self.drawable_manager = drawable_manager_proxy
+        self.canvas: "Canvas" = canvas
+        self.drawables: "DrawablesContainer" = drawables_container
+        self.name_generator: "DrawableNameGenerator" = name_generator
+        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
         
-    def get_point(self, x, y):
+    def get_point(self, x: float, y: float) -> Optional[Point]:
         """
         Get a point at the specified coordinates.
         
@@ -82,7 +101,7 @@ class PointManager:
                 return point
         return None
         
-    def get_point_by_name(self, name):
+    def get_point_by_name(self, name: str) -> Optional[Point]:
         """
         Get a point by its name.
         
@@ -99,7 +118,7 @@ class PointManager:
                 return point
         return None
         
-    def create_point(self, x, y, name="", extra_graphics=True):
+    def create_point(self, x: float, y: float, name: str = "", extra_graphics: bool = True) -> Point:
         """
         Create a new point at the specified coordinates
         
@@ -142,7 +161,7 @@ class PointManager:
             
         return new_point
         
-    def delete_point(self, x, y):
+    def delete_point(self, x: float, y: float) -> bool:
         """
         Delete a point at the specified coordinates.
         
@@ -176,7 +195,7 @@ class PointManager:
             
         return True
         
-    def delete_point_by_name(self, name):
+    def delete_point_by_name(self, name: str) -> bool:
         """
         Delete a point by its name.
         
@@ -195,7 +214,7 @@ class PointManager:
             
         return self.delete_point(point.x, point.y)
 
-    def _delete_point_dependencies(self, x, y):
+    def _delete_point_dependencies(self, x: float, y: float) -> None:
         """
         Delete all geometric objects that depend on the specified point.
         
@@ -214,7 +233,7 @@ class PointManager:
         if point_to_delete:
             # Get all children (including angles) that depend on this point
             dependent_children = self.dependency_manager.get_children(point_to_delete)
-            for child in list(dependent_children):
+            for child in cast(List["Drawable"], list(dependent_children)):
                 if hasattr(child, 'get_class_name') and child.get_class_name() == 'Angle':
                     print(f"PointManager: Point at ({x}, {y}) is being deleted. Removing dependent angle '{child.name}'.")
                     if hasattr(self.drawable_manager, 'angle_manager') and self.drawable_manager.angle_manager:
@@ -233,14 +252,14 @@ class PointManager:
                 self.drawables.remove(triangle)
         
         # Collect all segments that contain the point
-        segments_to_delete = []
+        segments_to_delete: List[Segment] = []
         segments = self.drawables.Segments
         for segment in segments.copy():
             if MathUtils.segment_has_end_point(segment, x, y):
                 segments_to_delete.append(segment)
         
         # Create a set of all parent segments that should be preserved
-        segments_to_preserve = set()
+        segments_to_preserve: set[Segment] = set()
         for segment in segments_to_delete:
             # Get all parents of this segment using the manager's public method
             parents = self.dependency_manager.get_parents(segment)

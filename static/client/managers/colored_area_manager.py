@@ -41,12 +41,24 @@ State Management:
     - Cleanup Logic: Intelligent removal of areas when boundaries are deleted
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, List, Optional, Union
+
 from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
 from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
 from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea
 from drawables.segment import Segment
 from drawables.function import Function
 from utils.style_utils import StyleUtils
+
+if TYPE_CHECKING:
+    from drawables.drawable import Drawable
+    from canvas import Canvas
+    from managers.drawables_container import DrawablesContainer
+    from managers.drawable_dependency_manager import DrawableDependencyManager
+    from managers.drawable_manager_proxy import DrawableManagerProxy
+    from name_generator.drawable import DrawableNameGenerator
 
 class ColoredAreaManager:
     """
@@ -58,7 +70,14 @@ class ColoredAreaManager:
     - Deleting colored area objects
     """
     
-    def __init__(self, canvas, drawables_container, name_generator, dependency_manager, drawable_manager_proxy):
+    def __init__(
+        self,
+        canvas: "Canvas",
+        drawables_container: "DrawablesContainer",
+        name_generator: "DrawableNameGenerator",
+        dependency_manager: "DrawableDependencyManager",
+        drawable_manager_proxy: "DrawableManagerProxy",
+    ) -> None:
         """
         Initialize the ColoredAreaManager.
         
@@ -69,13 +88,21 @@ class ColoredAreaManager:
             dependency_manager: Manager for drawable dependencies
             drawable_manager_proxy: Proxy to the main DrawableManager
         """
-        self.canvas = canvas
-        self.drawables = drawables_container
-        self.name_generator = name_generator
-        self.dependency_manager = dependency_manager
-        self.drawable_manager = drawable_manager_proxy
+        self.canvas: "Canvas" = canvas
+        self.drawables: "DrawablesContainer" = drawables_container
+        self.name_generator: "DrawableNameGenerator" = name_generator
+        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
         
-    def create_colored_area(self, drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3):
+    def create_colored_area(
+        self,
+        drawable1_name: Optional[str],
+        drawable2_name: Optional[str] = None,
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
+        color: str = "lightblue",
+        opacity: float = 0.3,
+    ) -> Union[FunctionsBoundedColoredArea, SegmentsBoundedColoredArea, FunctionSegmentBoundedColoredArea]:
         """
         Creates a colored area between two functions, two segments, or a function and a segment.
         Automatically determines the type of colored area based on the inputs.
@@ -101,7 +128,7 @@ class ColoredAreaManager:
         self.canvas.undo_redo_manager.archive()
         
         # Get the first drawable
-        drawable1 = None
+        drawable1: Optional[Union[Function, Segment]] = None
         if drawable1_name is not None and drawable1_name != "x_axis":
             drawable1 = self.drawable_manager.get_segment_by_name(drawable1_name)
             if drawable1 is None:
@@ -110,7 +137,7 @@ class ColoredAreaManager:
                 raise ValueError(f"Could not find drawable with name {drawable1_name}")
         
         # Get the second drawable if provided
-        drawable2 = None
+        drawable2: Optional[Union[Function, Segment]] = None
         if drawable2_name is not None and drawable2_name != "x_axis":
             drawable2 = self.drawable_manager.get_segment_by_name(drawable2_name)
             if drawable2 is None:
@@ -130,13 +157,15 @@ class ColoredAreaManager:
             # Segment-segment or segment-xaxis case
             if drawable2:  # Segment-segment case
                 # Create points at overlap boundaries
-                def get_y_at_x(segment, x):
+                def get_y_at_x(segment: Segment, x: float) -> float:
                     # Linear interpolation to find y value at x using math coordinates
-                    x1, y1 = segment.point1.x, segment.point1.y
-                    x2, y2 = segment.point2.x, segment.point2.y
+                    x1: float = segment.point1.x
+                    y1: float = segment.point1.y
+                    x2: float = segment.point2.x
+                    y2: float = segment.point2.y
                     if x2 == x1:
                         return y1  # Vertical segment
-                    t = (x - x1) / (x2 - x1)
+                    t: float = (x - x1) / (x2 - x1)
                     return y1 + t * (y2 - y1)
 
                 # Get x-ranges of both segments using math coordinates
@@ -161,6 +190,7 @@ class ColoredAreaManager:
                     y = get_y_at_x(drawable1, x2_max)
                     self.drawable_manager.create_point(x2_max, y)
 
+            colored_area: Union[SegmentsBoundedColoredArea, FunctionSegmentBoundedColoredArea, FunctionsBoundedColoredArea]
             colored_area = SegmentsBoundedColoredArea(drawable1, drawable2, color=color, opacity=opacity)
         elif isinstance(drawable2, Segment):
             # Function-segment case (we know drawable1 is not a segment due to the swap above)
@@ -179,7 +209,7 @@ class ColoredAreaManager:
             
         return colored_area
         
-    def delete_colored_area(self, name):
+    def delete_colored_area(self, name: str) -> bool:
         """
         Delete a colored area by its name.
         
@@ -193,7 +223,7 @@ class ColoredAreaManager:
             bool: True if the colored area was found and deleted, False otherwise
         """
         # Find the colored area in all categories
-        colored_area = None
+        colored_area: Optional["Drawable"] = None
         for category_property in [self.drawables.FunctionsBoundedColoredAreas, 
                                  self.drawables.SegmentsBoundedColoredAreas,
                                  self.drawables.FunctionSegmentBoundedColoredAreas]:
@@ -219,7 +249,7 @@ class ColoredAreaManager:
             
         return True
         
-    def delete_colored_areas_for_function(self, func):
+    def delete_colored_areas_for_function(self, func: Union[str, Function]) -> bool:
         """
         Deletes all colored areas associated with a function
         
@@ -264,7 +294,7 @@ class ColoredAreaManager:
             
         return False
         
-    def delete_colored_areas_for_segment(self, segment):
+    def delete_colored_areas_for_segment(self, segment: Union[str, Segment]) -> bool:
         """
         Deletes all colored areas associated with a segment
         
@@ -309,7 +339,7 @@ class ColoredAreaManager:
             
         return False
         
-    def get_colored_areas_for_drawable(self, drawable):
+    def get_colored_areas_for_drawable(self, drawable: Union[Function, Segment]) -> List["Drawable"]:
         """
         Gets all colored areas associated with a drawable (function or segment)
         
@@ -319,7 +349,7 @@ class ColoredAreaManager:
         Returns:
             list: List of colored areas that use the drawable
         """
-        areas = []
+        areas: List["Drawable"] = []
         
         if isinstance(drawable, Function):
             # Check FunctionsBoundedColoredArea
@@ -345,7 +375,7 @@ class ColoredAreaManager:
                     
         return areas
         
-    def update_colored_area_style(self, name, color=None, opacity=None):
+    def update_colored_area_style(self, name: str, color: Optional[str] = None, opacity: Optional[float] = None) -> bool:
         """
         Updates the color and/or opacity of a colored area
         
@@ -361,10 +391,10 @@ class ColoredAreaManager:
             ValueError: If the area doesn't exist or if color/opacity values are invalid
         """
         # First find the area
-        area = None
+        area: Optional["Drawable"] = None
         
         # Check in all colored area collections
-        collections = [
+        collections: List[List["Drawable"]] = [
             self.drawables.ColoredAreas,
             self.drawables.FunctionsBoundedColoredAreas,
             self.drawables.SegmentsBoundedColoredAreas,

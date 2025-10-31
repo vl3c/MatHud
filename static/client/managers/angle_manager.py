@@ -41,10 +41,23 @@ State Persistence:
     - Undo/Redo: Complete state archiving for angle operations
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+
 from drawables.angle import Angle
 from drawables.point import Point
 from drawables.segment import Segment
 
+if TYPE_CHECKING:
+    from drawables.drawable import Drawable
+    from canvas import Canvas
+    from managers.drawables_container import DrawablesContainer
+    from managers.drawable_dependency_manager import DrawableDependencyManager
+    from managers.drawable_manager_proxy import DrawableManagerProxy
+    from managers.point_manager import PointManager
+    from managers.segment_manager import SegmentManager
+    from name_generator.drawable import DrawableNameGenerator
 
 class AngleManager:
     """
@@ -55,8 +68,16 @@ class AngleManager:
     - (Future) Deleting Angle objects and managing their dependencies.
     """
 
-    def __init__(self, canvas, drawables_container, name_generator, 
-                 dependency_manager, point_manager, segment_manager, drawable_manager_proxy):
+    def __init__(
+        self,
+        canvas: "Canvas",
+        drawables_container: "DrawablesContainer",
+        name_generator: "DrawableNameGenerator",
+        dependency_manager: "DrawableDependencyManager",
+        point_manager: "PointManager",
+        segment_manager: "SegmentManager",
+        drawable_manager_proxy: "DrawableManagerProxy",
+    ) -> None:
         """
         Initialize the AngleManager.
 
@@ -69,19 +90,27 @@ class AngleManager:
             segment_manager: Manager for Segment drawables.
             drawable_manager_proxy: Proxy to the main DrawableManager or for inter-manager calls.
         """
-        self.canvas = canvas
-        self.drawables = drawables_container
-        self.name_generator = name_generator
-        self.dependency_manager = dependency_manager
-        self.point_manager = point_manager
-        self.segment_manager = segment_manager
-        self.drawable_manager = drawable_manager_proxy
+        self.canvas: "Canvas" = canvas
+        self.drawables: "DrawablesContainer" = drawables_container
+        self.name_generator: "DrawableNameGenerator" = name_generator
+        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        self.point_manager: "PointManager" = point_manager
+        self.segment_manager: "SegmentManager" = segment_manager
+        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
 
-    def create_angle(self, vx: float, vy: float, p1x: float, p1y: float, p2x: float, p2y: float, 
-                     color: str = None, 
-                     angle_name: str = None, 
-                     is_reflex: bool = False,
-                     extra_graphics: bool = True) -> Angle | None:
+    def create_angle(
+        self,
+        vx: float,
+        vy: float,
+        p1x: float,
+        p1y: float,
+        p2x: float,
+        p2y: float,
+        color: Optional[str] = None,
+        angle_name: Optional[str] = None,
+        is_reflex: bool = False,
+        extra_graphics: bool = True,
+    ) -> Optional[Angle]:
         """
         Creates an angle defined by a vertex point (vx, vy) and two other points 
         (p1x, p1y) and (p2x, p2y) that define the arms of the angle.
@@ -136,9 +165,9 @@ class AngleManager:
             return existing_angle
 
         # 4. Instantiate the Angle (let Angle compute deterministic name if none provided)
-        new_angle = None
+        new_angle: Optional[Angle] = None
         try:
-            angle_kwargs = {
+            angle_kwargs: Dict[str, Any] = {
                 'segment1': segment1,
                 'segment2': segment2,
                 'is_reflex': is_reflex
@@ -175,7 +204,7 @@ class AngleManager:
             
         return new_angle
 
-    def get_angle_by_name(self, name: str) -> Angle | None:
+    def get_angle_by_name(self, name: str) -> Optional[Angle]:
         """
         Retrieves an Angle by its unique name.
 
@@ -194,7 +223,7 @@ class AngleManager:
                 return angle
         return None
 
-    def get_angle_by_segments(self, segment1: Segment, segment2: Segment, is_reflex_filter: bool = None) -> Angle | None:
+    def get_angle_by_segments(self, segment1: Segment, segment2: Segment, is_reflex_filter: Optional[bool] = None) -> Optional[Angle]:
         """
         Retrieves an Angle by its two defining Segment objects.
         The order of segments does not matter.
@@ -229,7 +258,7 @@ class AngleManager:
                     return angle
         return None
 
-    def get_angle_by_points(self, vertex_point: Point, arm1_point: Point, arm2_point: Point, is_reflex_filter: bool = None) -> Angle | None:
+    def get_angle_by_points(self, vertex_point: Point, arm1_point: Point, arm2_point: Point, is_reflex_filter: Optional[bool] = None) -> Optional[Angle]:
         """
         Retrieves an Angle defined by three Point objects: a common vertex, 
         and one point on each arm. The order of arm1_point and arm2_point does not matter.
@@ -339,7 +368,7 @@ class AngleManager:
             
         return True
 
-    def update_angle_properties(self, angle_name: str, new_color: str = None) -> bool:
+    def update_angle_properties(self, angle_name: str, new_color: Optional[str] = None) -> bool:
         """
         Updates the properties (color) of an existing angle.
 
@@ -357,7 +386,7 @@ class AngleManager:
             # print(f"AngleManager: Angle '{angle_name}' not found for update.")
             return False
 
-        updated = False
+        updated: bool = False
         if new_color is not None and hasattr(angle_to_update, 'color'):
             angle_to_update.color = new_color
             updated = True
@@ -373,7 +402,7 @@ class AngleManager:
         
         return True # Returns True if angle found, even if no properties changed
 
-    def handle_segment_updated(self, updated_segment_name: str):
+    def handle_segment_updated(self, updated_segment_name: str) -> None:
         """
         Called when a segment (that an angle might depend on) is updated.
         This method should find all angles dependent on this segment and trigger their update/re-initialization.
@@ -384,8 +413,8 @@ class AngleManager:
         if not hasattr(self.drawables, 'Angles') or not isinstance(self.drawables.Angles, list):
             return
 
-        needs_redraw = False
-        for angle in list(self.drawables.Angles): # Iterate over a copy in case of modification
+        needs_redraw: bool = False
+        for angle in cast(List["Drawable"], list(self.drawables.Angles)): # Iterate over a copy in case of modification
             if not (hasattr(angle, 'segment1') and hasattr(angle, 'segment2')):
                 continue
             if not (angle.segment1 and angle.segment2): 
@@ -411,7 +440,7 @@ class AngleManager:
             # If delete_angle was called, it might have drawn. A final draw ensures overall consistency.
             self.canvas.draw()
 
-    def handle_segment_removed(self, removed_segment_name: str):
+    def handle_segment_removed(self, removed_segment_name: str) -> None:
         """
         Called when a segment (that an angle might depend on) is removed.
         This method should find all angles dependent on this segment and remove them.
@@ -423,7 +452,7 @@ class AngleManager:
             return
 
         # Collect names first to avoid modification issues while iterating
-        angles_to_remove_names = []
+        angles_to_remove_names: List[str] = []
         for angle in self.drawables.Angles: # No need for list copy if just collecting names
             if not (hasattr(angle, 'segment1') and hasattr(angle, 'segment2')):
                 continue
@@ -445,7 +474,7 @@ class AngleManager:
             # if self.canvas.draw_enabled:
             #     self.canvas.draw()
 
-    def load_angles(self, angles_data: list[dict]):
+    def load_angles(self, angles_data: List[Dict[str, Any]]) -> None:
         """
         Loads angles from a list of state dictionaries (e.g., from a saved workspace).
 
@@ -464,7 +493,7 @@ class AngleManager:
                 continue
             
             # Resolve segments via drawable_manager, then construct Angle without model canvas logic
-            args = angle_state.get('args', {})
+            args: Dict[str, Any] = angle_state.get('args', {})
             seg1_name = args.get('segment1_name')
             seg2_name = args.get('segment2_name')
             if not seg1_name or not seg2_name:
@@ -474,7 +503,7 @@ class AngleManager:
             if not segment1 or not segment2:
                 continue
 
-            angle_kwargs = {
+            angle_kwargs: Dict[str, Any] = {
                 'segment1': segment1,
                 'segment2': segment2,
                 'is_reflex': args.get('is_reflex', False)
@@ -512,7 +541,7 @@ class AngleManager:
         if self.canvas.draw_enabled:
             self.canvas.draw()
 
-    def get_angles_state(self) -> list[dict]:
+    def get_angles_state(self) -> List[Dict[str, Any]]:
         """
         Returns a list of state dictionaries for all managed angles, for saving to workspace.
 
@@ -523,7 +552,7 @@ class AngleManager:
             return []
         return [angle.get_state() for angle in self.drawables.Angles if hasattr(angle, 'get_state') and callable(angle.get_state)]
 
-    def clear_angles(self):
+    def clear_angles(self) -> None:
         """
         Removes all angles managed by this manager.
         """
@@ -532,7 +561,7 @@ class AngleManager:
         if not hasattr(self.drawables, 'Angles') or not isinstance(self.drawables.Angles, list):
             return
 
-        angle_names_to_remove = [angle.name for angle in list(self.drawables.Angles) if hasattr(angle, 'name')]
+        angle_names_to_remove: List[str] = [angle.name for angle in cast(List["Drawable"], list(self.drawables.Angles)) if hasattr(angle, 'name')]
         
         for angle_name in angle_names_to_remove:
             self.delete_angle(angle_name) # This will handle individual draws and further dependencies.
