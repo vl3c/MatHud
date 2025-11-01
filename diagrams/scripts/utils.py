@@ -1,11 +1,12 @@
-"""
-Shared utilities for diagram generation scripts.
-"""
+"""Shared utilities for diagram generation scripts."""
+
+from __future__ import annotations
 
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
+from typing import Iterable, List, Tuple
 
 
 # Font configuration constants
@@ -14,7 +15,7 @@ DIAGRAM_FONT_SIZE = "12"
 DIAGRAM_FONT_SIZE_STR = "12"
 
 
-def setup_graphviz_path():
+def setup_graphviz_path() -> None:
     """Setup Graphviz PATH on Windows automatically."""
     try:
         # Check if dot is already available
@@ -30,15 +31,15 @@ def setup_graphviz_path():
             return
             
         # Common Graphviz installation paths on Windows
-        potential_paths = [
+        potential_paths: List[Path] = [
             Path("C:/Program Files/Graphviz/bin"),
             Path("C:/Program Files (x86)/Graphviz/bin"),
             Path("C:/Graphviz/bin"),
-            Path("C:/tools/Graphviz/bin")
+            Path("C:/tools/Graphviz/bin"),
         ]
         
         # Find Graphviz installation
-        graphviz_bin = None
+        graphviz_bin: str | None = None
         for path in potential_paths:
             if path.exists() and (path / "dot.exe").exists():
                 graphviz_bin = str(path)
@@ -67,7 +68,7 @@ def setup_graphviz_path():
         print(f"  ⚠ Could not setup Graphviz PATH: {e}")
 
 
-def setup_font_environment():
+def setup_font_environment() -> None:
     """Setup environment variables to use configured font in Graphviz."""
     # Set Graphviz font preferences
     os.environ['FONTNAME'] = DIAGRAM_FONT
@@ -77,7 +78,7 @@ def setup_font_environment():
     os.environ['GRAPHVIZ_DOT_FONTSIZE'] = DIAGRAM_FONT_SIZE_STR
 
 
-def post_process_svg_fonts(svg_file, diagram_font=DIAGRAM_FONT):
+def post_process_svg_fonts(svg_file: Path, diagram_font: str = DIAGRAM_FONT) -> bool:
     """Post-process SVG file to ensure configured font is used."""
     try:
         if not svg_file.exists():
@@ -86,15 +87,15 @@ def post_process_svg_fonts(svg_file, diagram_font=DIAGRAM_FONT):
         content = svg_file.read_text(encoding='utf-8')
         
         # Replace common serif fonts with configured font
-        font_replacements = [
-            ('Times New Roman', diagram_font),
-            ('Times', diagram_font),
-            ('serif', f'{diagram_font},sans-serif'),
+        font_replacements: Tuple[Tuple[str, str], ...] = (
+            ("Times New Roman", diagram_font),
+            ("Times", diagram_font),
+            ("serif", f"{diagram_font},sans-serif"),
             ('font-family="Times-Roman"', f'font-family="{diagram_font}"'),
-            ('font-family=\'Times-Roman\'', f'font-family=\'{diagram_font}\''),
-            ('Times-Roman', diagram_font),
-            ('TimesNewRoman', diagram_font)
-        ]
+            ("font-family='Times-Roman'", f"font-family='{diagram_font}'"),
+            ("Times-Roman", diagram_font),
+            ("TimesNewRoman", diagram_font),
+        )
         
         modified = False
         for old_font, new_font in font_replacements:
