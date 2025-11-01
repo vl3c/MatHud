@@ -24,7 +24,15 @@ Dependencies:
     - constants: Success message definitions for result formatting
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple
+
 from constants import successful_call_message
+
+if TYPE_CHECKING:
+    from canvas import Canvas
+
 
 class ResultProcessor:
     """Handles the processing of function calls and their results.
@@ -35,7 +43,7 @@ class ResultProcessor:
     """
     
     @staticmethod
-    def get_results(calls, available_functions, undoable_functions, canvas):
+    def get_results(calls: List[Dict[str, Any]], available_functions: Dict[str, Any], undoable_functions: Tuple[str, ...], canvas: "Canvas") -> Dict[str, Any]:
         """
         Process function calls and collect their results.
         
@@ -50,11 +58,13 @@ class ResultProcessor:
         """
         ResultProcessor._validate_inputs(calls, available_functions, undoable_functions)
         
-        results = {}  # Use a dictionary for results
+        results: Dict[str, Any] = {}  # Use a dictionary for results
+        non_computation_functions: Tuple[str, ...]
+        unformattable_functions: Tuple[str, ...]
         non_computation_functions, unformattable_functions = ResultProcessor._prepare_helper_variables(undoable_functions)
         
         # Archive once at the start and then suspend archiving while calling undoable functions
-        contains_undoable_function = any(call.get('function_name', '') in undoable_functions for call in calls)
+        contains_undoable_function: bool = any(call.get('function_name', '') in undoable_functions for call in calls)
         if contains_undoable_function:
             canvas.archive()
             
@@ -64,13 +74,13 @@ class ResultProcessor:
                 ResultProcessor._process_function_call(call, available_functions, 
                                                      non_computation_functions, unformattable_functions, canvas, results)
             except Exception as e:
-                function_name = call.get('function_name', '')
+                function_name: str = call.get('function_name', '')
                 ResultProcessor._handle_exception(e, function_name, results)
         
         return results
     
     @staticmethod
-    def _validate_inputs(calls, available_functions, undoable_functions):
+    def _validate_inputs(calls: List[Dict[str, Any]], available_functions: Dict[str, Any], undoable_functions: Tuple[str, ...]) -> None:
         """Validate the input parameters."""
         if not isinstance(calls, list):
             raise ValueError("Invalid input for calls.")
@@ -80,17 +90,17 @@ class ResultProcessor:
             raise ValueError("Invalid input for undoable_functions.")
     
     @staticmethod
-    def _prepare_helper_variables(undoable_functions):
+    def _prepare_helper_variables(undoable_functions: Tuple[str, ...]) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
         """Prepare helper variables needed for processing."""
-        unformattable_functions = undoable_functions + ('undo', 'redo')
-        non_computation_functions = unformattable_functions + ('run_tests', 'list_workspaces', 
+        unformattable_functions: Tuple[str, ...] = undoable_functions + ('undo', 'redo')
+        non_computation_functions: Tuple[str, ...] = unformattable_functions + ('run_tests', 'list_workspaces', 
                                                               'save_workspace', 'load_workspace', 
                                                               'delete_workspace')
         return non_computation_functions, unformattable_functions
     
     @staticmethod
-    def _process_function_call(call, available_functions, 
-                              non_computation_functions, unformattable_functions, canvas, results):
+    def _process_function_call(call: Dict[str, Any], available_functions: Dict[str, Any], 
+                              non_computation_functions: Tuple[str, ...], unformattable_functions: Tuple[str, ...], canvas: "Canvas", results: Dict[str, Any]) -> None:
         """
         Process a single function call and update results.
         
@@ -102,49 +112,49 @@ class ResultProcessor:
             canvas: Canvas instance for adding computations
             results: Dictionary to update with the results
         """
-        function_name = call.get('function_name', '')
+        function_name: str = call.get('function_name', '')
         
         # Check if function exists
         if not ResultProcessor._is_function_available(function_name, available_functions, results):
             return
                 
         # Execute the function
-        args = call.get('arguments', {})
-        result = ResultProcessor._execute_function(function_name, args, available_functions)
+        args: Dict[str, Any] = call.get('arguments', {})
+        result: Any = ResultProcessor._execute_function(function_name, args, available_functions)
         
         # Format the key for results dictionary
-        key = ResultProcessor._generate_result_key(function_name, args)
+        key: str = ResultProcessor._generate_result_key(function_name, args)
         
         # Process the result based on function type
         ResultProcessor._process_result(function_name, args, result, key, unformattable_functions,
                                        non_computation_functions, canvas, results)
     
     @staticmethod
-    def _is_function_available(function_name, available_functions, results):
+    def _is_function_available(function_name: str, available_functions: Dict[str, Any], results: Dict[str, Any]) -> bool:
         """Check if the function exists and update results if not."""
         if function_name not in available_functions:
-            error_msg = f"Error: function {function_name} not found."
+            error_msg: str = f"Error: function {function_name} not found."
             print(error_msg)  # DEBUG
             results[function_name] = error_msg
             return False
         return True
     
     @staticmethod
-    def _execute_function(function_name, args, available_functions):
+    def _execute_function(function_name: str, args: Dict[str, Any], available_functions: Dict[str, Any]) -> Any:
         """Execute the function with the provided arguments."""
-        result = available_functions[function_name](**args)
+        result: Any = available_functions[function_name](**args)
         print(f"Called function {function_name} with args {args}. Result: {result}")   # DEBUG
         return result
     
     @staticmethod
-    def _generate_result_key(function_name, args):
+    def _generate_result_key(function_name: str, args: Dict[str, Any]) -> str:
         """Generate a consistent key format for the results dictionary."""
-        formatted_args = ResultProcessor._format_arguments(args)
+        formatted_args: str = ResultProcessor._format_arguments(args)
         return f"{function_name}({formatted_args})"
     
     @staticmethod
-    def _process_result(function_name, args, result, key, unformattable_functions,
-                       non_computation_functions, canvas, results):
+    def _process_result(function_name: str, args: Dict[str, Any], result: Any, key: str, unformattable_functions: Tuple[str, ...],
+                       non_computation_functions: Tuple[str, ...], canvas: "Canvas", results: Dict[str, Any]) -> None:
         """Process the result based on function type and update results dictionary."""
         if function_name in unformattable_functions:
             # Handle unformattable functions (return success message)
@@ -159,12 +169,12 @@ class ResultProcessor:
                                                    non_computation_functions, canvas, results)
     
     @staticmethod
-    def _handle_unformattable_function(key, results):
+    def _handle_unformattable_function(key: str, results: Dict[str, Any]) -> None:
         """Handle result for unformattable functions."""
         results[key] = successful_call_message
     
     @staticmethod
-    def _handle_regular_function(key, result, function_name, non_computation_functions, canvas, results):
+    def _handle_regular_function(key: str, result: Any, function_name: str, non_computation_functions: Tuple[str, ...], canvas: "Canvas", results: Dict[str, Any]) -> None:
         """Handle result for regular functions."""
         # Save computation to canvas state if it's not a non-computation function
         # DISABLED: Saving basic calculations to canvas state (takes up too many tokens, not useful info to store)
@@ -174,13 +184,13 @@ class ResultProcessor:
         results[key] = result
     
     @staticmethod
-    def _format_arguments(args):
+    def _format_arguments(args: Dict[str, Any]) -> str:
         """Format function arguments for display."""
         return ', '.join(f"{k}:{v}" for k, v in args.items() if k != 'canvas')
     
     @staticmethod
-    def _add_computation_if_needed(result, function_name, non_computation_functions, 
-                                  expression, canvas):
+    def _add_computation_if_needed(result: Any, function_name: str, non_computation_functions: Tuple[str, ...], 
+                                  expression: str, canvas: "Canvas") -> None:
         """Add the computation to canvas if it's not a non-computation function and succeeded."""
         if (not isinstance(result, str) or not result.startswith("Error:")) and \
            function_name not in non_computation_functions:
@@ -190,7 +200,7 @@ class ResultProcessor:
             )
     
     @staticmethod
-    def _handle_exception(exception, function_name, results):
+    def _handle_exception(exception: Exception, function_name: str, results: Dict[str, Any]) -> None:
         """
         Handle exceptions during function calls.
         
@@ -199,17 +209,17 @@ class ResultProcessor:
             function_name: Name of the function that caused the exception
             results: Dictionary to update with the error information
         """
-        error_message = f"Error calling function {function_name}: {exception}"
+        error_message: str = f"Error calling function {function_name}: {exception}"
         print(error_message)  # DEBUG
         
         # Use the function name as the key for storing the error
-        key = function_name
+        key: str = function_name
         
         # Store the error message as the result value
         results[key] = f"Error: {str(exception)}"
     
     @staticmethod
-    def _handle_expression_evaluation(args, result, function_name, non_computation_functions, canvas, results):
+    def _handle_expression_evaluation(args: Dict[str, Any], result: Any, function_name: str, non_computation_functions: Tuple[str, ...], canvas: "Canvas", results: Dict[str, Any]) -> None:
         """
         Handle the special case of expression evaluation results.
         
@@ -221,8 +231,11 @@ class ResultProcessor:
             canvas: Canvas instance for adding computations
             results: Dictionary to update with the result
         """
-        expression = args.get('expression').replace(' ', '')
-        key = ResultProcessor._format_expression_key(expression, args)
+        expression: str = args.get('expression', '')
+        if not expression:
+            return
+        expression = expression.replace(' ', '')
+        key: str = ResultProcessor._format_expression_key(expression, args)
             
         # DISABLED: Saving expression evaluation computations to canvas state (takes up too many tokens, not useful info to store)
         # ResultProcessor._add_computation_if_needed(result, function_name, non_computation_functions, 
@@ -232,13 +245,13 @@ class ResultProcessor:
         results[key] = result
     
     @staticmethod
-    def _format_expression_key(expression, args):
+    def _format_expression_key(expression: str, args: Dict[str, Any]) -> str:
         """Format a key for expression evaluation results."""
         if 'variables' in args:
-            variables_dict = args.get('variables', {})
+            variables_dict: Any = args.get('variables', {})
             if not isinstance(variables_dict, dict):
                 variables_dict = {}
-            variables = ', '.join(f"{k}:{v}" for k, v in variables_dict.items())
+            variables: str = ', '.join(f"{k}:{v}" for k, v in variables_dict.items())
             return f"{expression} for {variables}"
         else:
             return expression 

@@ -37,9 +37,20 @@ Dependencies:
     - json: State serialization and deserialization
 """
 
-from browser import document, ajax
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 import json
+from itertools import permutations
+
+from browser import ajax, document
 from utils.math_utils import MathUtils
+
+if TYPE_CHECKING:
+    from canvas import Canvas
+    from drawables.point import Point
+    from drawables.segment import Segment
 
 class WorkspaceManager:
     """
@@ -53,11 +64,11 @@ class WorkspaceManager:
         canvas: The canvas instance to manage workspaces for.
     """
     
-    def __init__(self, canvas):
+    def __init__(self, canvas: "Canvas") -> None:
         """Initialize workspace manager with canvas reference."""
-        self.canvas = canvas
+        self.canvas: "Canvas" = canvas
 
-    def save_workspace(self, name=None):
+    def save_workspace(self, name: Optional[str] = None) -> str:
         """
         Save the current workspace state to server via AJAX.
         
@@ -71,20 +82,20 @@ class WorkspaceManager:
         Returns:
             str: Success or error message from the save operation.
         """
-        def on_complete(req):
+        def on_complete(req: Any) -> str:
             try:
-                response = json.loads(req.text)
+                response: Dict[str, Any] = json.loads(req.text)
                 if response.get('status') == 'success':
                     return f'Workspace "{name if name else "current"}" saved successfully.'
                 return f'Error saving workspace: {response.get("message")}'
             except Exception as e:
                 return f'Error saving workspace: {str(e)}'
 
-        req = ajax.Ajax()
+        req: Any = ajax.Ajax()
         req.bind('complete', on_complete)
         req.bind('error', lambda e: f'Error saving workspace: {e.text}')
         
-        data = {
+        data: Dict[str, Any] = {
             'state': self.canvas.get_canvas_state(),
             'name': name
         }
@@ -94,7 +105,7 @@ class WorkspaceManager:
         req.send(json.dumps(data))
         return on_complete(req)
 
-    def _create_points(self, state):
+    def _create_points(self, state: Dict[str, Any]) -> None:
         """Create points from workspace state."""
         if "Points" not in state:
             return
@@ -105,13 +116,13 @@ class WorkspaceManager:
                 name=item_state.get("name", "")
             )
 
-    def _create_segments(self, state):
+    def _create_segments(self, state: Dict[str, Any]) -> None:
         """Create segments from workspace state."""
         if "Segments" not in state:
             return
         for item_state in state["Segments"]:
-            p1 = self.canvas.get_point_by_name(item_state["args"]["p1"])
-            p2 = self.canvas.get_point_by_name(item_state["args"]["p2"])
+            p1: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p1"])
+            p2: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p2"])
             if p1 and p2:
                 self.canvas.create_segment(
                     p1.x,
@@ -121,20 +132,20 @@ class WorkspaceManager:
                     name=item_state.get("name", "")
                 )
 
-    def _create_vectors(self, state):
+    def _create_vectors(self, state: Dict[str, Any]) -> None:
         """Create vectors from workspace state."""
         if "Vectors" not in state:
             return
         for item_state in state["Vectors"]:
-            origin_point_name = item_state["args"].get("origin")
-            tip_point_name = item_state["args"].get("tip")
+            origin_point_name: Optional[str] = item_state["args"].get("origin")
+            tip_point_name: Optional[str] = item_state["args"].get("tip")
 
             if not origin_point_name or not tip_point_name:
                 print(f"Warning: Vector '{item_state.get('name', 'Unnamed')}' is missing origin or tip point name in its state. Skipping.")
                 continue
 
-            origin_point = self.canvas.get_point_by_name(origin_point_name)
-            tip_point = self.canvas.get_point_by_name(tip_point_name)
+            origin_point: Optional["Point"] = self.canvas.get_point_by_name(origin_point_name)
+            tip_point: Optional["Point"] = self.canvas.get_point_by_name(tip_point_name)
 
             if not origin_point or not tip_point:
                 print(f"Warning: Could not find origin ('{origin_point_name}') or tip ('{tip_point_name}') point for vector '{item_state.get('name', 'Unnamed')}' in the canvas. Skipping.")
@@ -148,14 +159,14 @@ class WorkspaceManager:
                 name=item_state.get("name", "")
             )
 
-    def _create_triangles(self, state):
+    def _create_triangles(self, state: Dict[str, Any]) -> None:
         """Create triangles from workspace state."""
         if "Triangles" not in state:
             return
         for item_state in state["Triangles"]:
-            p1 = self.canvas.get_point_by_name(item_state["args"]["p1"])
-            p2 = self.canvas.get_point_by_name(item_state["args"]["p2"])
-            p3 = self.canvas.get_point_by_name(item_state["args"]["p3"])
+            p1: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p1"])
+            p2: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p2"])
+            p3: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p3"])
             if p1 and p2 and p3:
                 self.canvas.create_triangle(
                     p1.x,
@@ -167,7 +178,7 @@ class WorkspaceManager:
                     name=item_state.get("name", "")
                 )
 
-    def _create_rectangles(self, state):
+    def _create_rectangles(self, state: Dict[str, Any]) -> None:
         """
         Create rectangles from workspace state with diagonal point calculation and segment reuse.
         
@@ -182,9 +193,9 @@ class WorkspaceManager:
             return
         
         for item_state in state["Rectangles"]:
-            rect_name = item_state.get("name", "UnnamedRectangle")
+            rect_name: str = item_state.get("name", "UnnamedRectangle")
             
-            arg_point_names = [
+            arg_point_names: List[Optional[str]] = [
                 item_state["args"].get("p1"),
                 item_state["args"].get("p2"),
                 item_state["args"].get("p3"),
@@ -195,13 +206,15 @@ class WorkspaceManager:
                 print(f"Warning: Rectangle '{rect_name}' is missing one or more point names (p1, p2, p3, p4) in its state. Skipping.")
                 continue
 
-            points = [self.canvas.get_point_by_name(name) for name in arg_point_names]
+            points: List[Optional["Point"]] = [self.canvas.get_point_by_name(name) for name in arg_point_names]
 
             if not all(points):
-                missing_names = [arg_point_names[i] for i, p in enumerate(points) if not p]
+                missing_names: List[str] = [str(arg_point_names[i]) for i, p in enumerate(points) if not p]
                 print(f"Warning: Could not find one or more points ({', '.join(missing_names)}) for rectangle '{rect_name}' in the canvas. Skipping.")
                 continue
             
+            p_diag1: Optional["Point"]
+            p_diag2: Optional["Point"]
             p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, rect_name)
             
             if not p_diag1 or not p_diag2:
@@ -211,11 +224,11 @@ class WorkspaceManager:
             try:
                 # Instead of using canvas.create_rectangle (which creates new segments),
                 # find the existing segments that form this rectangle and create it directly
-                rect_segments = self._find_rectangle_segments(points)
+                rect_segments: Optional[List["Segment"]] = self._find_rectangle_segments(points)
                 
                 if not rect_segments:
                     # Fall back to standard creation if segments not found
-                    created_rect = self.canvas.create_rectangle(
+                    created_rect: Any = self.canvas.create_rectangle(
                         p_diag1.x,
                         p_diag1.y,
                         p_diag2.x,
@@ -225,7 +238,7 @@ class WorkspaceManager:
                 else:
                     # Existing segments found that connect the rectangle's points
                     # Create properly oriented segments for Rectangle constructor
-                    properly_oriented_segments = self._get_properly_oriented_rectangle_segments(rect_segments, points)
+                    properly_oriented_segments: Optional[List["Segment"]] = self._get_properly_oriented_rectangle_segments(rect_segments, points)
                     
                     if properly_oriented_segments:
                         # Create rectangle directly using properly oriented segments
@@ -276,7 +289,7 @@ class WorkspaceManager:
             except Exception as e:
                 raise
 
-    def _find_rectangle_segments(self, points):
+    def _find_rectangle_segments(self, points: List["Point"]) -> Optional[List["Segment"]]:
         """
         Find existing segments that form a rectangle from the given points.
         
@@ -293,12 +306,13 @@ class WorkspaceManager:
             return None
             
         # Find all segments that connect pairs of these points
-        connecting_segments = []
+        connecting_segments: List["Segment"] = []
         for i in range(len(points)):
             for j in range(i + 1, len(points)):
-                p1, p2 = points[i], points[j]
+                p1: "Point" = points[i]
+                p2: "Point" = points[j]
                 # Look for segment connecting these two points (regardless of direction)
-                segment = self.canvas.get_segment_by_points(p1, p2)
+                segment: Optional["Segment"] = self.canvas.get_segment_by_points(p1, p2)
                 if not segment:
                     # Try the other direction
                     segment = self.canvas.get_segment_by_points(p2, p1)
@@ -313,29 +327,30 @@ class WorkspaceManager:
         # A rectangle needs segments that form a closed loop
         return self._arrange_segments_in_rectangle_order(connecting_segments)
     
-    def _arrange_segments_in_rectangle_order(self, segments):
+    def _arrange_segments_in_rectangle_order(self, segments: List["Segment"]) -> Optional[List["Segment"]]:
         """Arrange segments in proper rectangle order (each segment's end connects to next segment's start)."""
         if len(segments) != 4:
             return None
         
         # Try different starting segments and arrangements
         for start_seg in segments:
-            remaining = segments.copy()
+            remaining: List["Segment"] = segments.copy()
             remaining.remove(start_seg)
             
             # Try both directions for the starting segment
             for start_direction in [True, False]:  # True = normal direction, False = reversed
-                ordered = [start_seg]
+                ordered: List["Segment"] = [start_seg]
+                current_end_point: "Point"
                 if start_direction:
                     current_end_point = start_seg.point2
                 else:
                     current_end_point = start_seg.point1  
                 
-                remaining_copy = remaining.copy()
+                remaining_copy: List["Segment"] = remaining.copy()
                 
                 # Try to build a path
                 while remaining_copy and len(ordered) < 4:
-                    found_next = False
+                    found_next: bool = False
                     for seg in remaining_copy:
                         if seg.point1 == current_end_point:
                             ordered.append(seg)
@@ -357,24 +372,25 @@ class WorkspaceManager:
                 # Check if we have a closed rectangle (4 segments, last connects back to first)
                 if len(ordered) == 4:
                     # Check if the path closes properly
+                    start_point: "Point"
                     if start_direction:
                         start_point = start_seg.point1
                     else:
                         start_point = start_seg.point2
                     
-                    closes_properly = (current_end_point == start_point)
+                    closes_properly: bool = (current_end_point == start_point)
                     
                     if closes_properly:
                         return ordered
         
         return None
 
-    def _create_circles(self, state):
+    def _create_circles(self, state: Dict[str, Any]) -> None:
         """Create circles from workspace state."""
         if "Circles" not in state:
             return
         for item_state in state["Circles"]:
-            center_point = self.canvas.get_point_by_name(item_state["args"]["center"])
+            center_point: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["center"])
             if center_point:
                 self.canvas.create_circle(
                     center_point.x,
@@ -383,12 +399,12 @@ class WorkspaceManager:
                     name=item_state.get("name", "")
                 )
 
-    def _create_ellipses(self, state):
+    def _create_ellipses(self, state: Dict[str, Any]) -> None:
         """Create ellipses from workspace state."""
         if "Ellipses" not in state:
             return
         for item_state in state["Ellipses"]:
-            center_point = self.canvas.get_point_by_name(item_state["args"]["center"])
+            center_point: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["center"])
             if center_point:
                 self.canvas.create_ellipse(
                     center_point.x,
@@ -399,7 +415,7 @@ class WorkspaceManager:
                     name=item_state.get("name", "")
                 )
 
-    def _create_functions(self, state):
+    def _create_functions(self, state: Dict[str, Any]) -> None:
         """Create functions from workspace state."""
         if "Functions" not in state:
             return
@@ -411,10 +427,10 @@ class WorkspaceManager:
                 right_bound=item_state["args"].get("right_bound")
             )
 
-    def _create_colored_areas(self, state):
+    def _create_colored_areas(self, state: Dict[str, Any]) -> None:
         """Create colored areas from workspace state."""
         # Handle different types of colored areas
-        colored_area_types = [
+        colored_area_types: List[str] = [
             "FunctionsBoundedColoredAreas",
             "SegmentsBoundedColoredAreas", 
             "FunctionSegmentBoundedColoredAreas",
@@ -428,6 +444,8 @@ class WorkspaceManager:
             for item_state in state[area_type]:
                 try:
                     # Extract parameters based on area type
+                    drawable1_name: Optional[str]
+                    drawable2_name: Optional[str]
                     if area_type == "FunctionsBoundedColoredAreas":
                         # Functions bounded colored areas use func1/func2
                         drawable1_name = item_state["args"]["func1"]
@@ -438,14 +456,14 @@ class WorkspaceManager:
                         drawable2_name = item_state["args"].get("drawable2_name") or item_state["args"].get("segment2") or item_state["args"].get("func2")
                     
                     # Common parameters
-                    left_bound = item_state["args"].get("left_bound")
-                    right_bound = item_state["args"].get("right_bound")
-                    color = item_state["args"].get("color", "lightblue")
-                    opacity = item_state["args"].get("opacity", 0.3)
-                    name = item_state.get("name", "")
+                    left_bound: Optional[float] = item_state["args"].get("left_bound")
+                    right_bound: Optional[float] = item_state["args"].get("right_bound")
+                    color: str = item_state["args"].get("color", "lightblue")
+                    opacity: float = item_state["args"].get("opacity", 0.3)
+                    name: str = item_state.get("name", "")
                     
                     # Create the colored area
-                    created_area = self.canvas.create_colored_area(
+                    created_area: Any = self.canvas.create_colored_area(
                         drawable1_name=drawable1_name,
                         drawable2_name=drawable2_name,
                         left_bound=left_bound,
@@ -462,7 +480,7 @@ class WorkspaceManager:
                     print(f"Warning: Could not restore colored area '{item_state.get('name', 'Unnamed')}': {e}")
                     continue
 
-    def _create_angles(self, state):
+    def _create_angles(self, state: Dict[str, Any]) -> None:
         """Create angles from workspace state."""
         if "Angles" not in state:
             return
@@ -478,7 +496,7 @@ class WorkspaceManager:
         else:
             print("Warning: Angle manager not available for loading angles")
 
-    def _restore_computations(self, state):
+    def _restore_computations(self, state: Dict[str, Any]) -> None:
         """Restore computations from workspace state."""
         if "computations" not in state:
             return
@@ -490,7 +508,7 @@ class WorkspaceManager:
                 continue
             self.canvas.add_computation(comp["expression"], comp["result"])
 
-    def _restore_workspace_state(self, state):
+    def _restore_workspace_state(self, state: Dict[str, Any]) -> None:
         """
         Main restoration orchestrator for complete workspace state.
         
@@ -518,7 +536,7 @@ class WorkspaceManager:
         self._create_angles(state)
         self._restore_computations(state)
 
-    def load_workspace(self, name=None):
+    def load_workspace(self, name: Optional[str] = None) -> str:
         """
         Load and restore workspace state from server.
         
@@ -532,11 +550,11 @@ class WorkspaceManager:
         Returns:
             str: Success or error message from the load operation.
         """
-        def on_complete(req):
+        def on_complete(req: Any) -> str:
             try:
-                response = json.loads(req.text)
+                response: Dict[str, Any] = json.loads(req.text)
                 if response.get('status') == 'success':
-                    state = response.get('data', {}).get('state')
+                    state: Optional[Dict[str, Any]] = response.get('data', {}).get('state')
                     if not state:
                         return f'Error loading workspace: No state data found in response'
                     
@@ -547,16 +565,16 @@ class WorkspaceManager:
             except Exception as e:
                 return f'Error loading workspace: {str(e)}'
 
-        req = ajax.Ajax()
+        req: Any = ajax.Ajax()
         req.bind('complete', on_complete)
         req.bind('error', lambda e: f'Error loading workspace: {e.text}')
         
-        url = f'/load_workspace?name={name}' if name else '/load_workspace'
+        url: str = f'/load_workspace?name={name}' if name else '/load_workspace'
         req.open('GET', url, False)  # Set to synchronous
         req.send()
         return on_complete(req)
 
-    def list_workspaces(self):
+    def list_workspaces(self) -> str:
         """
         Retrieve list of available workspace names from server storage.
         
@@ -566,17 +584,17 @@ class WorkspaceManager:
         Returns:
             str: Comma-separated list of workspace names, or 'None' if empty.
         """
-        def on_complete(req):
+        def on_complete(req: Any) -> str:
             try:
-                response = json.loads(req.text)
+                response: Dict[str, Any] = json.loads(req.text)
                 if response.get('status') == 'success':
-                    workspaces = response.get('data', [])
+                    workspaces: List[str] = response.get('data', [])
                     return ', '.join(workspaces) if workspaces else 'None'
                 return f'Error listing workspaces: {response.get("message")}'
             except Exception as e:
                 return f'Error listing workspaces: {str(e)}'
                 
-        req = ajax.Ajax()
+        req: Any = ajax.Ajax()
         req.bind('complete', on_complete)
         req.bind('error', lambda e: f'Error listing workspaces: {e.text}')
         
@@ -584,7 +602,7 @@ class WorkspaceManager:
         req.send()
         return on_complete(req)
 
-    def delete_workspace(self, name):
+    def delete_workspace(self, name: str) -> str:
         """
         Remove workspace from server persistent storage.
         
@@ -597,54 +615,57 @@ class WorkspaceManager:
         Returns:
             str: Success or error message from the delete operation.
         """
-        def on_complete(req):
+        def on_complete(req: Any) -> str:
             try:
-                response = json.loads(req.text)
+                response: Dict[str, Any] = json.loads(req.text)
                 if response.get('status') == 'success':
                     return f'Workspace "{name}" deleted successfully.'
                 return f'Error deleting workspace: {response.get("message")}'
             except Exception as e:
                 return f'Error deleting workspace: {str(e)}'
                 
-        req = ajax.Ajax()
+        req: Any = ajax.Ajax()
         req.bind('complete', on_complete)
         req.bind('error', lambda e: f'Error deleting workspace: {e.text}')
         
-        url = f'/delete_workspace?name={name}'
+        url: str = f'/delete_workspace?name={name}'
         req.open('GET', url, False)  # Set to synchronous
         req.send()
         return on_complete(req)
 
-    def _get_properly_oriented_rectangle_segments(self, segments, points):
+    def _get_properly_oriented_rectangle_segments(self, segments: List["Segment"], points: List["Point"]) -> Optional[List["Segment"]]:
         """Create properly oriented segments that satisfy Rectangle constructor connectivity.
         Since existing segments may have orientations that don't match Rectangle requirements,
         we create new segment objects with correct orientations."""
         if len(segments) != 4 or len(points) != 4:
             return None
         
-        from itertools import permutations
         from drawables.segment import Segment
         
         # Try all possible rectangular paths through the 4 points
         for point_perm in permutations(points):
+            p1: "Point"
+            p2: "Point"
+            p3: "Point"
+            p4: "Point"
             p1, p2, p3, p4 = point_perm
             
             # Check if this forms a valid rectangle path: p1 -> p2 -> p3 -> p4 -> p1
             # Verify we have segments connecting each pair of consecutive points
-            has_p1_p2 = any(self._segments_connect_points(seg, p1, p2) for seg in segments)
-            has_p2_p3 = any(self._segments_connect_points(seg, p2, p3) for seg in segments)
-            has_p3_p4 = any(self._segments_connect_points(seg, p3, p4) for seg in segments)
-            has_p4_p1 = any(self._segments_connect_points(seg, p4, p1) for seg in segments)
+            has_p1_p2: bool = any(self._segments_connect_points(seg, p1, p2) for seg in segments)
+            has_p2_p3: bool = any(self._segments_connect_points(seg, p2, p3) for seg in segments)
+            has_p3_p4: bool = any(self._segments_connect_points(seg, p3, p4) for seg in segments)
+            has_p4_p1: bool = any(self._segments_connect_points(seg, p4, p1) for seg in segments)
             
             if has_p1_p2 and has_p2_p3 and has_p3_p4 and has_p4_p1:
                 # This is a valid rectangular path
                 # Create new segments with correct orientations for Rectangle constructor
                 try:
                     # Create segments with proper connectivity: each segment's end connects to next segment's start
-                    seg1 = Segment(p1, p2)  # p1 -> p2
-                    seg2 = Segment(p2, p3)  # p2 -> p3  
-                    seg3 = Segment(p3, p4)  # p3 -> p4
-                    seg4 = Segment(p4, p1)  # p4 -> p1
+                    seg1: "Segment" = Segment(p1, p2)  # p1 -> p2
+                    seg2: "Segment" = Segment(p2, p3)  # p2 -> p3  
+                    seg3: "Segment" = Segment(p3, p4)  # p3 -> p4
+                    seg4: "Segment" = Segment(p4, p1)  # p4 -> p1
                     
                     # Verify this satisfies Rectangle constructor requirements
                     if (seg1.point2 == seg2.point1 and 
@@ -659,7 +680,7 @@ class WorkspaceManager:
         
         return None
     
-    def _segments_connect_points(self, segment, point1, point2):
+    def _segments_connect_points(self, segment: "Segment", point1: "Point", point2: "Point") -> bool:
         """Check if a segment connects two points (in either direction)."""
-        return ((segment.point1 == point1 and segment.point2 == point2) or 
+        return bool((segment.point1 == point1 and segment.point2 == point2) or 
                 (segment.point1 == point2 and segment.point2 == point1)) 

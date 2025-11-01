@@ -6,7 +6,7 @@ from .simple_mock import SimpleMock
 
 
 class TestPoint(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Create a real CoordinateMapper instance
         self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
         
@@ -30,12 +30,12 @@ class TestPoint(unittest.TestCase):
         
         self.point = Point(1, 2, name="p1", color="red")
 
-    def test_initialize(self):
+    def test_initialize(self) -> None:
         # Screen-space assertions use CoordinateMapper
         x, y = self.coordinate_mapper.math_to_screen(self.point.x, self.point.y)
         self.assertEqual((x, y), (251, 248))
 
-    def test_init(self):
+    def test_init(self) -> None:
         self.assertEqual(self.point.x, 1)
         self.assertEqual(self.point.y, 2)
         self.assertEqual(self.point.x, 1)
@@ -43,17 +43,17 @@ class TestPoint(unittest.TestCase):
         self.assertEqual(self.point.name, "p1")
         self.assertEqual(self.point.color, "red")
 
-    def test_get_class_name(self):
+    def test_get_class_name(self) -> None:
         self.assertEqual(self.point.get_class_name(), 'Point')
 
-    def test_str(self):
+    def test_str(self) -> None:
         self.assertEqual(str(self.point), '1,2')
 
-    def test_get_state(self):
+    def test_get_state(self) -> None:
         expected_state = {"name": "p1", "args": {"position": {"x": 1, "y": 2}}}
         self.assertEqual(self.point.get_state(), expected_state)
 
-    def test_deepcopy(self):
+    def test_deepcopy(self) -> None:
         point_copy = copy.deepcopy(self.point)
         self.assertEqual(point_copy.x, self.point.x)
         self.assertEqual(point_copy.y, self.point.y)
@@ -62,7 +62,7 @@ class TestPoint(unittest.TestCase):
         self.assertIsNot(point_copy, self.point)
         # Compatibility view removed; comparing direct coords instead
 
-    def test_translate(self):
+    def test_translate(self) -> None:
         initial_x, initial_y = self.coordinate_mapper.math_to_screen(self.point.x, self.point.y)
         # Translate in math-space so that screen shifts by (+1, +1) with scale 1
         self.point.translate(1, -1)
@@ -70,7 +70,7 @@ class TestPoint(unittest.TestCase):
         self.assertEqual(x, initial_x + 1)
         self.assertEqual(y, initial_y + 1)
 
-    def test_translate_point_in_math_space(self):
+    def test_translate_point_in_math_space(self) -> None:
         # Test translating the point in mathematical coordinate space
         original_math_x = self.point.x
         original_math_y = self.point.y
@@ -86,7 +86,7 @@ class TestPoint(unittest.TestCase):
         x, y = self.coordinate_mapper.math_to_screen(self.point.x, self.point.y)
         self.assertEqual((x, y), (253, 245))
 
-    def test_draw(self):
+    def test_draw(self) -> None:
         # This test would check if draw calls create_svg_element with expected arguments
         # Might require a more complex setup or mocking to verify SVG output
         pass

@@ -25,6 +25,11 @@ Dependencies:
     - None (pure validation utilities)
 """
 
+from __future__ import annotations
+
+from typing import Optional
+
+
 class StyleUtils:
     """CSS styling validation utilities for mathematical visualization objects.
     
@@ -32,7 +37,7 @@ class StyleUtils:
     styling properties used throughout the MatHud canvas system.
     """
     @staticmethod
-    def is_valid_css_color(color):
+    def is_valid_css_color(color: str) -> bool:
         """Validates if a string is a valid CSS color.
         Supports named colors, hex colors, rgb(), rgba(), hsl(), and hsla()."""
         # Basic named colors
@@ -74,19 +79,19 @@ class StyleUtils:
         return False
 
     @staticmethod
-    def validate_opacity(opacity):
+    def validate_opacity(opacity: float) -> bool:
         """Validates if an opacity value is between 0 and 1"""
         try:
-            opacity = float(opacity)
-            return 0 <= opacity <= 1
+            opacity_val: float = float(opacity)
+            return 0 <= opacity_val <= 1
         except (TypeError, ValueError):
             return False
 
     @staticmethod
-    def validate_color_and_opacity(color, opacity):
+    def validate_color_and_opacity(color: Optional[str], opacity: Optional[float]) -> bool:
         """Validates both color and opacity values"""
-        if not StyleUtils.is_valid_css_color(color):
+        if not StyleUtils.is_valid_css_color(color or ""):
             raise ValueError(f"Invalid CSS color: {color}")
-        if not StyleUtils.validate_opacity(opacity):
+        if not StyleUtils.validate_opacity(opacity or 0.0):
             raise ValueError(f"Invalid opacity value: {opacity}. Must be between 0 and 1")
         return True 

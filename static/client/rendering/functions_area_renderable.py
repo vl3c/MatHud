@@ -2,25 +2,29 @@
 Renderable for FunctionsBoundedColoredArea producing a screen-space ClosedArea.
 """
 
+from __future__ import annotations
+
+from typing import Any, List, Optional, Tuple
+
 from rendering.primitives import ClosedArea
 
 
 class FunctionsBoundedAreaRenderable:
-    def __init__(self, area_model, coordinate_mapper):
-        self.area = area_model
-        self.mapper = coordinate_mapper
+    def __init__(self, area_model: Any, coordinate_mapper: Any) -> None:
+        self.area: Any = area_model
+        self.mapper: Any = coordinate_mapper
 
-    def _is_function_like(self, f):
+    def _is_function_like(self, f: Any) -> bool:
         return hasattr(f, 'function')
 
-    def _eval_y_math(self, f, x_math):
+    def _eval_y_math(self, f: Any, x_math: float) -> Optional[float]:
         if f is None:
             return 0.0
         if isinstance(f, (int, float)):
             return float(f)
         if self._is_function_like(f):
             try:
-                y = f.function(x_math)
+                y: Any = f.function(x_math)
                 # Filter out NaN and infinite values
                 if y is None:
                     return None
@@ -33,9 +37,11 @@ class FunctionsBoundedAreaRenderable:
                 return None
         return None
 
-    def _get_bounds(self):
+    def _get_bounds(self) -> Tuple[float, float]:
         # Start from model math bounds
         try:
+            left: float
+            right: float
             left, right = self.area._get_bounds()
         except Exception:
             left, right = -10, 10
@@ -51,39 +57,39 @@ class FunctionsBoundedAreaRenderable:
             right = min(right, self.area.right_bound)
         # Finally, intersect with visible bounds for rendering
         try:
-            vis_left = self.mapper.get_visible_left_bound()
-            vis_right = self.mapper.get_visible_right_bound()
+            vis_left: float = self.mapper.get_visible_left_bound()
+            vis_right: float = self.mapper.get_visible_right_bound()
             left = max(left, vis_left)
             right = min(right, vis_right)
         except Exception:
             pass
         if left >= right:
-            c = (left + right) / 2.0
+            c: float = (left + right) / 2.0
             left, right = c - 0.1, c + 0.1
         return left, right
 
-    def _generate_pair_paths_screen(self, f1, f2, left, right, num_points):
+    def _generate_pair_paths_screen(self, f1: Any, f2: Any, left: float, right: float, num_points: int) -> Tuple[List[Tuple[float, float]], List[Tuple[float, float]]]:
         if num_points < 2:
             num_points = 2
-        dx = (right - left) / (num_points - 1) if num_points > 1 else 1.0
-        pairs = []
+        dx: float = (right - left) / (num_points - 1) if num_points > 1 else 1.0
+        pairs: List[Tuple[Tuple[float, float] | None, Tuple[float, float] | None]] = []
         for i in range(num_points):
-            x_m = left + i * dx
-            y1 = self._eval_y_math(f1, x_m)
-            y2 = self._eval_y_math(f2, x_m)
+            x_m: float = left + i * dx
+            y1: Optional[float] = self._eval_y_math(f1, x_m)
+            y2: Optional[float] = self._eval_y_math(f2, x_m)
             if y1 is None or y2 is None:
                 # Keep alignment: insert a break marker so ends do not transpose
                 pairs.append((None, None))
                 continue
-            s1 = self.mapper.math_to_screen(x_m, y1)
-            s2 = self.mapper.math_to_screen(x_m, y2)
+            s1: Tuple[float, float] = self.mapper.math_to_screen(x_m, y1)
+            s2: Tuple[float, float] = self.mapper.math_to_screen(x_m, y2)
             pairs.append((s1, s2))
         if not pairs:
             return [], []
         # Trim leading/trailing invalids and split on gaps to avoid transposed joins
-        def split_valid(seq):
-            chunks = []
-            cur = []
+        def split_valid(seq: List[Tuple[float, float] | None]) -> List[List[Tuple[float, float]]]:
+            chunks: List[List[Tuple[float, float]]] = []
+            cur: List[Tuple[float, float]] = []
             for p in seq:
                 if p is None:
                     if cur:
@@ -94,21 +100,25 @@ class FunctionsBoundedAreaRenderable:
             if cur:
                 chunks.append(cur)
             return chunks
-        f_seq = [p[0] if p[0] is not None else None for p in pairs]
-        g_seq = [p[1] if p[1] is not None else None for p in pairs]
-        f_chunks = split_valid(f_seq)
-        g_chunks = split_valid(g_seq)
+        f_seq: List[Tuple[float, float] | None] = [p[0] if p[0] is not None else None for p in pairs]
+        g_seq: List[Tuple[float, float] | None] = [p[1] if p[1] is not None else None for p in pairs]
+        f_chunks: List[List[Tuple[float, float]]] = split_valid(f_seq)
+        g_chunks: List[List[Tuple[float, float]]] = split_valid(g_seq)
         if not f_chunks or not g_chunks:
             return [], []
         # Use the longest aligned chunk to build area
-        idx = max(range(min(len(f_chunks), len(g_chunks))), key=lambda i: min(len(f_chunks[i]), len(g_chunks[i])))
-        forward = f_chunks[idx]
-        reverse = list(reversed(g_chunks[idx]))
+        idx: int = max(range(min(len(f_chunks), len(g_chunks))), key=lambda i: min(len(f_chunks[i]), len(g_chunks[i])))
+        forward: List[Tuple[float, float]] = f_chunks[idx]
+        reverse: List[Tuple[float, float]] = list(reversed(g_chunks[idx]))
         return forward, reverse
 
-    def build_screen_area(self, num_points=None):
+    def build_screen_area(self, num_points: Optional[int] = None) -> Optional[ClosedArea]:
+        left: float
+        right: float
         left, right = self._get_bounds()
-        n = num_points if num_points is not None else getattr(self.area, 'num_sample_points', 100)
+        n: int = num_points if num_points is not None else getattr(self.area, 'num_sample_points', 100)
+        fwd: List[Tuple[float, float]]
+        rev: List[Tuple[float, float]]
         fwd, rev = self._generate_pair_paths_screen(self.area.func1, self.area.func2, left, right, n)
         if not fwd or not rev:
             return None

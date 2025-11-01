@@ -17,8 +17,17 @@ Dependencies:
     - process_function_calls: Expression evaluation facade
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+
 from utils.math_utils import MathUtils
 from process_function_calls import ProcessFunctionCalls
+
+if TYPE_CHECKING:
+    from ai_interface import AIInterface
+    from canvas import Canvas
+    from workspace_manager import WorkspaceManager
 
 
 class FunctionRegistry:
@@ -29,7 +38,7 @@ class FunctionRegistry:
     """
 
     @staticmethod
-    def get_available_functions(canvas, workspace_manager, ai_interface=None):
+    def get_available_functions(canvas: "Canvas", workspace_manager: "WorkspaceManager", ai_interface: Optional["AIInterface"] = None) -> Dict[str, Any]:
         """Get the complete dictionary of all available functions with their implementations.
         
         Creates the mapping between AI function names and their bound Python methods,
@@ -43,7 +52,7 @@ class FunctionRegistry:
         Returns:
             dict: Complete mapping of function names to their bound implementations
         """
-        functions = {
+        functions: Dict[str, Any] = {
             # ===== CANVAS OPERATIONS =====
             "reset_canvas": canvas.reset,
             "clear_canvas": canvas.clear,
@@ -124,7 +133,7 @@ class FunctionRegistry:
         return functions
 
     @staticmethod
-    def get_undoable_functions():
+    def get_undoable_functions() -> Tuple[str, ...]:
         """Get the tuple of function names that support undo/redo operations.
         
         Defines which operations modify canvas state and can be reversed through

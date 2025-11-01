@@ -6,7 +6,7 @@ from coordinate_mapper import CoordinateMapper
 
 
 class TestCartesian2Axis(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Create a real CoordinateMapper instance
         self.coordinate_mapper = CoordinateMapper(800, 600)  # 800x600 canvas
         
@@ -30,7 +30,7 @@ class TestCartesian2Axis(unittest.TestCase):
         self.cartesian_system = Cartesian2Axis(coordinate_mapper=self.coordinate_mapper)
         self.canvas.cartesian2axis = self.cartesian_system
 
-    def test_init(self):
+    def test_init(self) -> None:
         self.assertEqual(self.cartesian_system.name, "cartesian-2axis-system")
         self.assertEqual(self.cartesian_system.width, self.canvas.width)
         self.assertEqual(self.cartesian_system.height, self.canvas.height)
@@ -39,7 +39,7 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertEqual(self.cartesian_system.origin.y, 300)
         self.assertEqual(self.cartesian_system.current_tick_spacing, self.cartesian_system.default_tick_spacing)
 
-    def test_get_visible_bounds(self):
+    def test_get_visible_bounds(self) -> None:
         # Test initial bounds - now calculated dynamically via CoordinateMapper
         left_bound = self.cartesian_system.get_visible_left_bound()
         right_bound = self.cartesian_system.get_visible_right_bound()
@@ -65,7 +65,7 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertEqual(top_bound, 150.0)
         self.assertEqual(bottom_bound, -150.0)
 
-    def test_reset(self):
+    def test_reset(self) -> None:
         # Changing the state of the Cartesian2Axis instance
         self.cartesian_system.current_tick_spacing = 50
         self.cartesian_system.reset()
@@ -75,7 +75,7 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertEqual(self.cartesian_system.origin.x, 400)
         self.assertEqual(self.cartesian_system.origin.y, 300)
 
-    def test_calculate_tick_spacing(self):
+    def test_calculate_tick_spacing(self) -> None:
         # Set up a Cartesian2Axis object with a specific width, max_ticks, and canvas scale factor
         self.cartesian_system.width = 1000
         self.cartesian_system.max_ticks = 10
@@ -89,7 +89,7 @@ class TestCartesian2Axis(unittest.TestCase):
         # The closest spacing to the ideal tick spacing that is larger or equal to it is 50.
         self.assertEqual(tick_spacing, 50)
 
-    def test_zoom_via_cache_invalidation(self):
+    def test_zoom_via_cache_invalidation(self) -> None:
         # Test zoom handling via new _invalidate_cache_on_zoom mechanism
         # Set up a Cartesian2Axis object with specific properties
         self.cartesian_system.width = 1000
@@ -124,7 +124,7 @@ class TestCartesian2Axis(unittest.TestCase):
         # Therefore, the current tick spacing should be updated to 200.
         self.assertEqual(self.cartesian_system.current_tick_spacing, 200)
 
-    def test_dynamic_origin_calculation(self):
+    def test_dynamic_origin_calculation(self) -> None:
         # Test that origin is calculated dynamically from CoordinateMapper
         original_origin = Position(self.cartesian_system.origin.x, self.cartesian_system.origin.y)
         
@@ -142,14 +142,14 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertEqual(new_origin.x, expected_x)
         self.assertEqual(new_origin.y, expected_y)
 
-    def test_state_retrieval(self):
+    def test_state_retrieval(self) -> None:
         state = self.cartesian_system.get_state()
         expected_keys = ["Cartesian_System_Visibility"]
         # Test the state retrieval
         self.assertTrue(all(key in state for key in expected_keys))
         self.assertTrue(isinstance(state["Cartesian_System_Visibility"], dict))
 
-    def test_get_axis_helpers(self):
+    def test_get_axis_helpers(self) -> None:
         # Test the axis helper methods we added during refactoring
         self.assertEqual(self.cartesian_system._get_axis_origin('x'), self.cartesian_system.origin.x)
         self.assertEqual(self.cartesian_system._get_axis_origin('y'), self.cartesian_system.origin.y)
@@ -157,7 +157,7 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertEqual(self.cartesian_system._get_axis_boundary('x'), self.cartesian_system.width)
         self.assertEqual(self.cartesian_system._get_axis_boundary('y'), self.cartesian_system.height)
     
-    def test_should_continue_drawing(self):
+    def test_should_continue_drawing(self) -> None:
         # Test the boundary condition method for drawing
         # Position within boundary, direction positive
         self.assertTrue(self.cartesian_system._should_continue_drawing(50, 100, 1))
@@ -173,7 +173,7 @@ class TestCartesian2Axis(unittest.TestCase):
         # Position below zero, direction negative
         self.assertFalse(self.cartesian_system._should_continue_drawing(-10, 100, -1))
     
-    def test_calculate_ideal_tick_spacing(self):
+    def test_calculate_ideal_tick_spacing(self) -> None:
         # Test the refactored tick spacing calculation
         self.cartesian_system.width = 1000
         self.cartesian_system.max_ticks = 10
@@ -190,7 +190,7 @@ class TestCartesian2Axis(unittest.TestCase):
         ideal_spacing = self.cartesian_system._calculate_ideal_tick_spacing()
         self.assertEqual(ideal_spacing, 100)  # 800/1/8 = 100
     
-    def test_find_appropriate_spacing(self):
+    def test_find_appropriate_spacing(self) -> None:
         # Test the spacing selection logic
         self.cartesian_system.tick_spacing_bias = 1.0
         # When ideal spacing is exactly a standard spacing value
@@ -209,7 +209,7 @@ class TestCartesian2Axis(unittest.TestCase):
         # When ideal spacing is very large
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(750), 1000)
 
-    def test_zoom_in_allows_fractional_tick_spacing(self):
+    def test_zoom_in_allows_fractional_tick_spacing(self) -> None:
         # Simulate high zoom-in so relative width is very small
         self.canvas.scale_factor = 200
         self.coordinate_mapper.sync_from_canvas(self.canvas)
@@ -224,7 +224,7 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertLess(spacing, 1.0)
         self.assertAlmostEqual(spacing, 0.2, places=6)
 
-    def test_zoom_out_allows_large_tick_spacing(self):
+    def test_zoom_out_allows_large_tick_spacing(self) -> None:
         # Simulate extreme zoom-out so relative width is very large
         self.canvas.scale_factor = 0.01
         self.coordinate_mapper.sync_from_canvas(self.canvas)
@@ -236,7 +236,7 @@ class TestCartesian2Axis(unittest.TestCase):
         # magnitude = 1000; candidates [1000, 2000, 5000, 10000] -> pick 10000
         self.assertGreater(spacing, 10000 - 1e-6)
 
-    def test_zoom_in_does_not_get_stuck_at_one(self):
+    def test_zoom_in_does_not_get_stuck_at_one(self) -> None:
         # Start around spacing ~1 and verify further zoom-in drops below 1
         # Configure such that visible_width yields ideal a bit under 2
         self.canvas.scale_factor = 40
@@ -253,7 +253,7 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertLessEqual(spacing1, 1.0)
         self.assertLess(spacing2, 1.0)
 
-    def test_zoom_out_does_not_get_stuck_at_10000(self):
+    def test_zoom_out_does_not_get_stuck_at_10000(self) -> None:
         # Start at spacing ~10000 and verify further zoom-out increases it beyond 10000
         self.canvas.scale_factor = 0.01  # very large visible width -> ideal ~8000 -> 10000 chosen
         self.coordinate_mapper.sync_from_canvas(self.canvas)
@@ -268,7 +268,7 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertGreaterEqual(spacing1, 10000 - 1e-6)
         self.assertGreater(spacing2, spacing1)
     
-    def test_relative_dimensions(self):
+    def test_relative_dimensions(self) -> None:
         # Test the relative width and height calculations
         self.cartesian_system.width = 800
         self.cartesian_system.height = 600

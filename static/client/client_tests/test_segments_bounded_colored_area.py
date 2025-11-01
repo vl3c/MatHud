@@ -8,7 +8,7 @@ from .simple_mock import SimpleMock
 
 
 class TestSegmentsBoundedColoredArea(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Create a real CoordinateMapper instance
         self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
         
@@ -44,7 +44,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
             point2=SimpleMock(x=280, y=220)   # Canvas coordinates
         )
 
-    def test_init_with_two_segments(self):
+    def test_init_with_two_segments(self) -> None:
         """Test initialization of SegmentsBoundedColoredArea with two segments."""
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         self.assertEqual(area.segment1, self.segment1)
@@ -52,30 +52,30 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         self.assertEqual(area.color, "lightblue")
         self.assertEqual(area.opacity, 0.3)
 
-    def test_init_with_segment_and_x_axis(self):
+    def test_init_with_segment_and_x_axis(self) -> None:
         """Test initialization of SegmentsBoundedColoredArea with segment and x-axis."""
         area = SegmentsBoundedColoredArea(self.segment1, None)
         self.assertEqual(area.segment1, self.segment1)
         self.assertIsNone(area.segment2)
 
-    def test_get_class_name(self):
+    def test_get_class_name(self) -> None:
         """Test class name retrieval."""
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         self.assertEqual(area.get_class_name(), 'SegmentsBoundedColoredArea')
 
-    def test_generate_name_with_two_segments(self):
+    def test_generate_name_with_two_segments(self) -> None:
         """Test name generation with two segments."""
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         expected_name = "area_between_AB_and_CD"
         self.assertEqual(area.name, expected_name)
 
-    def test_generate_name_with_segment_and_x_axis(self):
+    def test_generate_name_with_segment_and_x_axis(self) -> None:
         """Test name generation with segment and x-axis."""
         area = SegmentsBoundedColoredArea(self.segment1, None)
         expected_name = "area_between_AB_and_x_axis"
         self.assertEqual(area.name, expected_name)
 
-    def test_uses_segment_with_matching_first_segment(self):
+    def test_uses_segment_with_matching_first_segment(self) -> None:
         """Test uses_segment method with matching first segment."""
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         
@@ -87,7 +87,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         
         self.assertTrue(area.uses_segment(matching_segment))
 
-    def test_uses_segment_with_matching_second_segment(self):
+    def test_uses_segment_with_matching_second_segment(self) -> None:
         """Test uses_segment method with matching second segment."""
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         
@@ -99,7 +99,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         
         self.assertTrue(area.uses_segment(matching_segment))
 
-    def test_uses_segment_with_non_matching_segment(self):
+    def test_uses_segment_with_non_matching_segment(self) -> None:
         """Test uses_segment method with non-matching segment."""
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         
@@ -111,7 +111,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         
         self.assertFalse(area.uses_segment(different_segment))
 
-    def test_uses_segment_with_only_first_segment(self):
+    def test_uses_segment_with_only_first_segment(self) -> None:
         """Test uses_segment method when only first segment exists."""
         area = SegmentsBoundedColoredArea(self.segment1, None)
         
@@ -130,7 +130,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         self.assertTrue(area.uses_segment(matching_segment))
         self.assertFalse(area.uses_segment(different_segment))
 
-    def test_x_axis_positioning_uses_cartesian_origin(self):
+    def test_x_axis_positioning_uses_cartesian_origin(self) -> None:
         """Test that x-axis positioning correctly uses cartesian origin for simplicity."""
         area = SegmentsBoundedColoredArea(self.segment1, None)
         
@@ -139,7 +139,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         expected_x_axis_y = self.canvas.cartesian2axis.origin.y
         self.assertEqual(expected_x_axis_y, 250)  # Based on our setup
 
-    def test_get_state_with_two_segments(self):
+    def test_get_state_with_two_segments(self) -> None:
         """Test state serialization with two segments."""
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         state = area.get_state()
@@ -151,7 +151,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         self.assertEqual(state["args"]["segment1"], expected_args["segment1"])
         self.assertEqual(state["args"]["segment2"], expected_args["segment2"])
 
-    def test_get_state_with_segment_and_x_axis(self):
+    def test_get_state_with_segment_and_x_axis(self) -> None:
         """Test state serialization with segment and x-axis."""
         area = SegmentsBoundedColoredArea(self.segment1, None)
         state = area.get_state()
@@ -163,7 +163,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         self.assertEqual(state["args"]["segment1"], expected_args["segment1"])
         self.assertEqual(state["args"]["segment2"], expected_args["segment2"])
 
-    def test_deepcopy(self):
+    def test_deepcopy(self) -> None:
         """Test deep copy functionality."""
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         area_copy = copy.deepcopy(area)
@@ -174,7 +174,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         self.assertEqual(area_copy.color, area.color)
         self.assertEqual(area_copy.opacity, area.opacity)
 
-    def test_no_overlap_segments(self):
+    def test_no_overlap_segments(self) -> None:
         """Test case where segments don't overlap - should not draw anything."""
         # Create non-overlapping segments
         segment1 = SimpleMock(
@@ -196,7 +196,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         closed_area = renderable.build_screen_area()
         self.assertIsNone(closed_area)
 
-    def test_exactly_touching_segments(self):
+    def test_exactly_touching_segments(self) -> None:
         """Test case where segments exactly touch at one point."""
         # Create segments that touch at exactly one point
         segment1 = SimpleMock(
@@ -218,7 +218,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         closed_area = renderable.build_screen_area()
         self.assertIsNone(closed_area)
 
-    def test_vertical_segment_interpolation(self):
+    def test_vertical_segment_interpolation(self) -> None:
         """Test linear interpolation with vertical segment (x2 == x1)."""
         # Create one normal segment and one vertical segment
         normal_segment = SimpleMock(
@@ -249,7 +249,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         result = get_y_at_x(vertical_segment, 200)
         self.assertEqual(result, 100)  # Should return y1 when x2 == x1
 
-    def test_segment_with_negative_coordinates(self):
+    def test_segment_with_negative_coordinates(self) -> None:
         """Test segments with negative coordinates."""
         negative_segment1 = SimpleMock(
             name="AB",
@@ -271,7 +271,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         self.assertTrue(len(closed_area.forward_points) >= 1)
         self.assertTrue(len(closed_area.reverse_points) >= 1)
 
-    def test_segment_crossing_zero_coordinates(self):
+    def test_segment_crossing_zero_coordinates(self) -> None:
         """Test segments that cross zero on both axes."""
         crossing_segment1 = SimpleMock(
             name="AB",

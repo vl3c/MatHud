@@ -15,6 +15,10 @@ Dependencies:
     - name_generator.function: Function naming system
 """
 
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
 from .point import PointNameGenerator
 from .function import FunctionNameGenerator
 
@@ -32,26 +36,26 @@ class DrawableNameGenerator:
         function_generator (FunctionNameGenerator): Specialized function name generator
     """
     
-    def __init__(self, canvas):
+    def __init__(self, canvas: Any) -> None:
         """Initialize multi-type name generator with specialized generators.
         
         Args:
             canvas (Canvas): Canvas instance for drawable object access
         """
-        self.canvas = canvas
-        self.used_letters_from_names = {}  # Maintain for backward compatibility
+        self.canvas: Any = canvas
+        self.used_letters_from_names: Dict[str, Any] = {}  # Maintain for backward compatibility
         
         # Initialize specialized generators
-        self.point_generator = PointNameGenerator(canvas)
-        self.function_generator = FunctionNameGenerator(canvas)
+        self.point_generator: PointNameGenerator = PointNameGenerator(canvas)
+        self.function_generator: FunctionNameGenerator = FunctionNameGenerator(canvas)
     
-    def reset_state(self):
+    def reset_state(self) -> None:
         """Reset the state of all specialized name generators."""
         self.point_generator.reset_state()
         self.function_generator.reset_state() # Assuming FunctionNameGenerator might also have state
         # Add resets for other generators if they exist and have state
     
-    def print_names(self):
+    def print_names(self) -> None:
         """Print all drawable names by category for debugging."""
         print(f"Point names: {self.get_drawable_names('Point')}")
         print(f"Segment names: {self.get_drawable_names('Segment')}")
@@ -63,7 +67,7 @@ class DrawableNameGenerator:
     
     # Delegate methods to specialized generators or base NameGenerator
     
-    def get_drawable_names(self, class_name):
+    def get_drawable_names(self, class_name: str) -> List[str]:
         """Get sorted list of names for drawables of a specific class.
         
         Args:
@@ -73,10 +77,10 @@ class DrawableNameGenerator:
             list: Sorted list of drawable names for the specified class
         """
         drawables = self.canvas.get_drawables_by_class_name(class_name)
-        drawable_names = sorted([drawable.name for drawable in drawables])
+        drawable_names: List[str] = sorted([drawable.name for drawable in drawables])
         return drawable_names
     
-    def filter_string(self, name):
+    def filter_string(self, name: str) -> str:
         """Filter a string to keep only letters, apostrophes, digits, and parentheses.
         
         Args:
@@ -87,7 +91,7 @@ class DrawableNameGenerator:
         """
         return self.point_generator.filter_string(name)
     
-    def split_point_names(self, expression, n=2):
+    def split_point_names(self, expression: Optional[str], n: int = 2) -> List[str]:
         """Split a point expression into individual point names.
         
         Args:
@@ -98,12 +102,12 @@ class DrawableNameGenerator:
             list: List of individual point names
         """
         # Update our internal tracker for backward compatibility
-        result = self.point_generator.split_point_names(expression, n)
+        result: List[str] = self.point_generator.split_point_names(expression, n)
         if expression and expression in self.point_generator.used_letters_from_names:
             self.used_letters_from_names[expression] = self.point_generator.used_letters_from_names[expression]
         return result
     
-    def _generate_unique_point_name(self):
+    def _generate_unique_point_name(self) -> str:
         """Generate a unique point name using alphabetical sequence with apostrophes.
         
         Returns:
@@ -111,7 +115,7 @@ class DrawableNameGenerator:
         """
         return self.point_generator._generate_unique_point_name()
     
-    def generate_point_name(self, preferred_name):
+    def generate_point_name(self, preferred_name: Optional[str]) -> str:
         """Generate a unique point name, using preferred_name if possible.
         
         Args:
@@ -121,12 +125,12 @@ class DrawableNameGenerator:
             str: Unique point name
         """
         # Update our internal tracker for backward compatibility
-        result = self.point_generator.generate_point_name(preferred_name)
+        result: str = self.point_generator.generate_point_name(preferred_name)
         if preferred_name and preferred_name in self.point_generator.used_letters_from_names:
             self.used_letters_from_names[preferred_name] = self.point_generator.used_letters_from_names[preferred_name]
         return result
     
-    def _increment_function_name(self, func_name):
+    def _increment_function_name(self, func_name: str) -> str:
         """Increment a function name by adding or incrementing a number suffix.
         
         Args:
@@ -137,7 +141,7 @@ class DrawableNameGenerator:
         """
         return self.function_generator._increment_function_name(func_name)
     
-    def _generate_unique_function_name(self):
+    def _generate_unique_function_name(self) -> str:
         """Generate a unique function name using alphabetical sequence.
         
         Returns:
@@ -145,7 +149,7 @@ class DrawableNameGenerator:
         """
         return self.function_generator._generate_unique_function_name()
     
-    def generate_function_name(self, preferred_name):
+    def generate_function_name(self, preferred_name: Optional[str]) -> str:
         """Generate a unique function name, using preferred_name if possible.
         
         Args:
@@ -156,7 +160,7 @@ class DrawableNameGenerator:
         """
         return self.function_generator.generate_function_name(preferred_name)
 
-    def _is_valid_point_list(self, points):
+    def _is_valid_point_list(self, points: List[str]) -> bool:
         """Helper to check if a list of points is valid for angle name generation.
         
         Args:
@@ -173,7 +177,7 @@ class DrawableNameGenerator:
             return False
         return True
 
-    def generate_angle_name_from_segments(self, segment1_name, segment2_name):
+    def generate_angle_name_from_segments(self, segment1_name: str, segment2_name: str) -> Optional[str]:
         """Generate canonical angle name from two segment names.
         
         Segments are assumed to be named like "VP1", "VP2" (Vertex + Point).
@@ -196,35 +200,35 @@ class DrawableNameGenerator:
             if segment2_name in self.point_generator.used_letters_from_names:
                 self.point_generator.used_letters_from_names[segment2_name]['next_index'] = 0
             
-        s1_points = self.point_generator.split_point_names(segment1_name)
-        s2_points = self.point_generator.split_point_names(segment2_name)
+        s1_points: List[str] = self.point_generator.split_point_names(segment1_name)
+        s2_points: List[str] = self.point_generator.split_point_names(segment2_name)
 
-        valid_s1 = self._is_valid_point_list(s1_points)
-        valid_s2 = self._is_valid_point_list(s2_points)
+        valid_s1: bool = self._is_valid_point_list(s1_points)
+        valid_s2: bool = self._is_valid_point_list(s2_points)
 
         if not (valid_s1 and valid_s2):
             return None
 
-        set_s1_points = set(s1_points)
-        set_s2_points = set(s2_points)
+        set_s1_points: set[str] = set(s1_points)
+        set_s2_points: set[str] = set(s2_points)
 
-        common_points = list(set_s1_points.intersection(set_s2_points))
+        common_points: List[str] = list(set_s1_points.intersection(set_s2_points))
         if len(common_points) != 1:
             return None 
         
-        vertex_name = common_points[0]
+        vertex_name: str = common_points[0]
         
-        all_unique_points = list(set_s1_points.union(set_s2_points))
+        all_unique_points: List[str] = list(set_s1_points.union(set_s2_points))
         if len(all_unique_points) != 3:
             return None 
 
         # Identify and sort the two arm points (excluding the vertex)
         # Ensure elements are strings before comparison with vertex_name if there's any doubt
-        arm_point_candidates = [str(p) for p in all_unique_points if p is not None and str(p) != str(vertex_name)]
-        arm_point_names = sorted(arm_point_candidates)
+        arm_point_candidates: List[str] = [str(p) for p in all_unique_points if p is not None and str(p) != str(vertex_name)]
+        arm_point_names: List[str] = sorted(arm_point_candidates)
         
         if len(arm_point_names) != 2:
             return None 
 
-        final_name = f"angle_{arm_point_names[0]}{vertex_name}{arm_point_names[1]}"
+        final_name: str = f"angle_{arm_point_names[0]}{vertex_name}{arm_point_names[1]}"
         return final_name 

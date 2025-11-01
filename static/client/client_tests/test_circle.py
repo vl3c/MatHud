@@ -6,7 +6,7 @@ from coordinate_mapper import CoordinateMapper
 
 
 class TestCircle(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Create a real CoordinateMapper instance
         self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
         
@@ -32,36 +32,36 @@ class TestCircle(unittest.TestCase):
         self.radius = 5
         self.circle = Circle(self.center, self.radius, color="blue")
 
-    def test_init(self):
+    def test_init(self) -> None:
         self.assertEqual(self.circle.center, self.center)
         self.assertEqual(self.circle.radius, self.radius)
         self.assertEqual(self.circle.color, "blue")
 
-    def test_get_class_name(self):
+    def test_get_class_name(self) -> None:
         self.assertEqual(self.circle.get_class_name(), 'Circle')
 
-    def test_calculate_circle_algebraic_formula(self):
+    def test_calculate_circle_algebraic_formula(self) -> None:
         formula = self.circle._calculate_circle_algebraic_formula()
         self.assertIsNotNone(formula)
 
-    def test_get_state(self):
+    def test_get_state(self) -> None:
         state = self.circle.get_state()
         expected_state = {"name": self.circle.name, "args": {"center": self.center.name, "radius": self.radius, "circle_formula": self.circle.circle_formula}}
         self.assertEqual(state, expected_state)
 
-    def test_deepcopy(self):
+    def test_deepcopy(self) -> None:
         circle_copy = copy.deepcopy(self.circle)
         self.assertIsNot(circle_copy, self.circle)
         self.assertIsNot(circle_copy.center, self.circle.center)
         self.assertEqual(circle_copy.radius, self.circle.radius)
         self.assertEqual(circle_copy.color, self.circle.color)
 
-    def test_draw(self):
+    def test_draw(self) -> None:
         # This test would check if draw calls create_svg_element with expected arguments
         # Might require a more complex setup or mocking to verify SVG output
         pass
 
-    def test_translate_circle_in_math_space(self):
+    def test_translate_circle_in_math_space(self) -> None:
         """Test circle translation in mathematical space"""
         # Test center point coordinates before translation
         # Center at (1,1) in math space -> (251,249) in screen space

@@ -47,7 +47,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
             __repr__=SimpleMock(return_value=f"{class_name}({name})")
         )
     
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test environment before each test"""
         # Create a mock drawable manager
         self.mock_drawable_manager = SimpleMock(
@@ -66,7 +66,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.segment3 = self._create_mock_segment("S3", self.point3, self.point1)
         self.triangle = self._create_mock_drawable("T1", "Triangle")
         
-    def test_register_dependency(self):
+    def test_register_dependency(self) -> None:
         """Test registering dependencies between drawables"""
         # Register segment1 depends on point1 and point2
         self.manager.register_dependency(child=self.segment1, parent=self.point1)
@@ -87,7 +87,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.assertEqual(len(children_of_point2), 1, "Point2 should have 1 child")
         self.assertIn(self.segment1, children_of_point2, "Segment1 should be a child of Point2")
     
-    def test_get_all_parents(self):
+    def test_get_all_parents(self) -> None:
         """Test getting all parents recursively"""
         # Set up a hierarchical dependency structure
         # Points are parents of segments
@@ -104,7 +104,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.assertIn(self.point1, all_parents, "Point1 should be in Segment1's all parents")
         self.assertIn(self.point2, all_parents, "Point2 should be in Segment1's all parents")
     
-    def test_get_all_children(self):
+    def test_get_all_children(self) -> None:
         """Test getting all children recursively"""
         # Set up a hierarchical dependency structure
         # Points are parents of segments
@@ -121,7 +121,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.assertIn(self.segment1, all_children, "Segment1 should be in Point1's all children")
         self.assertIn(self.segment3, all_children, "Segment3 should be in Point1's all children")
     
-    def test_remove_drawable(self):
+    def test_remove_drawable(self) -> None:
         """Test removing a drawable and its dependencies"""
         # Set up dependencies
         self.manager.register_dependency(child=self.segment1, parent=self.point1)
@@ -142,7 +142,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         parents = self.manager.get_parents(self.segment1)
         self.assertEqual(len(parents), 0, "Segment1 should have no parents after removal")
     
-    def test_update_canvas_references_parent_propagation(self):
+    def test_update_canvas_references_parent_propagation(self) -> None:
         """Test updating canvas references with propagation to parents"""
         # Arrange: Set up a structure where segments depend on points
         self.manager.register_dependency(child=self.segment1, parent=self.point1)
@@ -167,7 +167,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         # Point2 should be updated via segment1 (child→parent propagation)
         self.assertEqual(self.point2.canvas, new_canvas, "Point2's canvas should be updated via segment1")
     
-    def test_update_canvas_references_segment_special_case(self):
+    def test_update_canvas_references_segment_special_case(self) -> None:
         """Test that updating a segment's canvas updates its points (special case)"""
         # Create simplified test objects with clear canvas references
         point1 = self._create_mock_point("TestPoint1")
@@ -195,7 +195,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.assertEqual(point1.canvas, new_canvas, "Point1's canvas should be updated")
         self.assertEqual(point2.canvas, new_canvas, "Point2's canvas should be updated")
     
-    def test_resolve_dependency_order(self):
+    def test_resolve_dependency_order(self) -> None:
         """Test resolving dependencies in the correct order"""
         # Set up dependencies: Segments -> Points (points are parents of segments)
         self.manager.register_dependency(child=self.segment1, parent=self.point1)
@@ -218,7 +218,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
                     self.assertLess(point_index, segment_index, 
                                    f"Point {point.name} should come before its segment {segment.name}")
     
-    def test_circular_dependencies(self):
+    def test_circular_dependencies(self) -> None:
         """Test handling of circular dependencies"""
         # Create a circular dependency: A -> B -> C -> A
         a = self._create_mock_drawable("A")
@@ -249,7 +249,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         except RecursionError:
             self.fail("resolve_dependency_order failed to handle circular dependency")
     
-    def test_analyze_drawable_for_dependencies(self):
+    def test_analyze_drawable_for_dependencies(self) -> None:
         """Test analyzing drawable for dependencies"""
         # Test Segment
         segment = self._create_mock_segment("TestSegment", self.point1, self.point2)
@@ -344,7 +344,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         dependencies = self.manager.analyze_drawable_for_dependencies(obj_without_method)
         self.assertEqual(len(dependencies), 0, "Object without get_class_name should return empty dependencies list")
     
-    def test_update_canvas_references_bidirectional(self):
+    def test_update_canvas_references_bidirectional(self) -> None:
         """Test updating canvas references with bidirectional propagation (parents and children)"""
         # Arrange: Create a structure with parents and children
         #   Point1 <- Segment1 -> Point2
@@ -391,7 +391,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.assertEqual(self.segment2.canvas, new_canvas, "Segment2's canvas should be updated")
         self.assertEqual(self.segment3.canvas, new_canvas, "Segment3's canvas should be updated")
     
-    def test_drawable_types_completeness(self):
+    def test_drawable_types_completeness(self) -> None:
         """Test that analyze_drawable_for_dependencies has cases for all drawable types"""
         # Use _type_hierarchy as the source of truth for drawable types
         drawable_types = set(self.manager._type_hierarchy.keys())
@@ -454,7 +454,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.assertEqual(len(missing_implementations), 0, 
                          f"Missing analyze_drawable_for_dependencies cases for: {', '.join(missing_implementations)}")
 
-    def test_error_handling_none_values(self):
+    def test_error_handling_none_values(self) -> None:
         """Test handling of None values in various methods"""
         # Test register_dependency with None values
         # Neither should raise exceptions, but should have no effect
@@ -491,7 +491,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.assertEqual(len(ordered), 2, "resolve_dependency_order should filter out None values")
         self.assertNotIn(None, ordered, "None should not appear in ordered results")
     
-    def test_edge_cases(self):
+    def test_edge_cases(self) -> None:
         """Test edge cases like empty inputs and non-existent drawables"""
         # Test empty list for resolve_dependency_order
         ordered = self.manager.resolve_dependency_order([])
@@ -510,7 +510,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.assertEqual(len(self.manager.get_children(non_existent)), 0, 
                          "get_children should return empty set for non-existent drawable")
     
-    def test_verify_get_class_name_method(self):
+    def test_verify_get_class_name_method(self) -> None:
         """Test verification of get_class_name method"""
         # Test with valid drawable
         valid_drawable = self._create_mock_drawable("Valid", "TestType")
@@ -538,7 +538,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.manager._verify_get_class_name_method(bad_method, "Test")
         # Should log warning but not raise error
 
-    def test_unregister_dependency(self):
+    def test_unregister_dependency(self) -> None:
         """Test unregistering dependencies between drawables"""
         # Set up initial dependencies
         self.manager.register_dependency(child=self.segment1, parent=self.point1)
@@ -566,7 +566,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.manager.unregister_dependency(child=None, parent=None)
         # Should not raise any errors
 
-    def test_get_parents_and_children(self):
+    def test_get_parents_and_children(self) -> None:
         """Test getting direct parents and children"""
         # Test empty sets
         self.assertEqual(len(self.manager.get_parents(self.segment1)), 0, 
@@ -597,7 +597,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.assertEqual(len(self.manager.get_children(None)), 0, 
                         "None should return empty children set")
 
-    def test_should_skip_point_point_dependency(self):
+    def test_should_skip_point_point_dependency(self) -> None:
         """Test the point-point dependency skip logic"""
         # Create test points
         point1 = self._create_mock_point("TestPoint1")
@@ -620,7 +620,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.manager.register_dependency(child=point1, parent=None)
         # Should not raise any errors
 
-    def test_analyze_drawable_for_dependencies_comprehensive(self):
+    def test_analyze_drawable_for_dependencies_comprehensive(self) -> None:
         """Test analyzing dependencies for all supported drawable types"""
         # Test Circle
         circle = self._create_mock_drawable("C1", "Circle")
@@ -671,7 +671,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         dependencies = self.manager.analyze_drawable_for_dependencies(bad)
         self.assertEqual(len(dependencies), 0, "Drawable without get_class_name should have no dependencies")
 
-    def test_find_segment_children(self):
+    def test_find_segment_children(self) -> None:
         """Test finding children segments geometrically"""
         # Create a parent segment with properly initialized points
         parent_point1 = self._create_mock_point("ParentPoint1", 0, 0)

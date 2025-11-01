@@ -6,7 +6,7 @@ from client_tests.simple_mock import SimpleMock
 
 
 class TestCustomDrawableNames(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.canvas = Canvas(500, 500, draw_enabled=False)
         self.mock_cartesian2axis = SimpleMock(draw=SimpleMock(return_value=None), reset=SimpleMock(return_value=None),
                                               get_state=SimpleMock(return_value={'Cartesian_System_Visibility': 'cartesian_state'}),
@@ -17,7 +17,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         # Clear the canvas
         self.canvas.clear()
 
-    def test_point_basic_naming(self):
+    def test_point_basic_naming(self) -> None:
         # Test creating a point with a custom name
         point = self.canvas.create_point(10, 10, "Custom")
         self.assertEqual(point.name, "C")
@@ -28,7 +28,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         point3 = self.canvas.create_point(30, 30, "CU")
         self.assertEqual(point3.name, "C'")
 
-    def test_point_apostrophe_naming(self):
+    def test_point_apostrophe_naming(self) -> None:
         # Test point with apostrophes in name
         point = self.canvas.create_point(40, 40, "TR'IA'NG'LE")
         self.assertEqual(point.name, "T")
@@ -41,7 +41,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         point4 = self.canvas.create_point(70, 70, "A''B'''C")
         self.assertEqual(point4.name, "B'''")
 
-    def test_segment_basic_naming(self):
+    def test_segment_basic_naming(self) -> None:
         # Test creating a segment with a custom name
         segment = self.canvas.create_segment(10, 10, 20, 20, "Segment")
         self.assertEqual(segment.point1.name, "S")
@@ -51,7 +51,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         self.assertEqual(segment2.point1.name, "G")
         self.assertEqual(segment2.point2.name, "M")
 
-    def test_segment_apostrophe_naming(self):
+    def test_segment_apostrophe_naming(self) -> None:
         # Test segment with apostrophes in name
         segment = self.canvas.create_segment(50, 50, 60, 60, "A'B''")
         self.assertEqual(segment.point1.name, "A'")
@@ -61,7 +61,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         self.assertEqual(segment2.point1.name, "X'")
         self.assertEqual(segment2.point2.name, "Y")
 
-    def test_triangle_basic_naming(self):
+    def test_triangle_basic_naming(self) -> None:
         # Test creating a triangle with a custom name
         triangle = self.canvas.create_triangle(10, 10, 20, 20, 30, 30, "Triangle")
         self.assertEqual(triangle.segment1.point1.name, "T")
@@ -73,14 +73,14 @@ class TestCustomDrawableNames(unittest.TestCase):
         self.assertEqual(triangle2.segment1.point2.name, "N")
         self.assertEqual(triangle2.segment2.point2.name, "G")
 
-    def test_triangle_apostrophe_naming(self):
+    def test_triangle_apostrophe_naming(self) -> None:
         # Test triangle with apostrophes in name
         triangle = self.canvas.create_triangle(70, 70, 80, 80, 90, 90, "A'B''C'''")
         self.assertEqual(triangle.segment1.point1.name, "A'")
         self.assertEqual(triangle.segment1.point2.name, "B''")
         self.assertEqual(triangle.segment2.point2.name, "C'''")
 
-    def test_rectangle_basic_naming(self):
+    def test_rectangle_basic_naming(self) -> None:
         # Test creating a rectangle with a custom name
         rectangle = self.canvas.create_rectangle(10, 10, 30, 30, "Rectangle")
         points = [
@@ -108,7 +108,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         self.assertIn("G", points2)
         self.assertIn("L", points2)
 
-    def test_rectangle_apostrophe_naming(self):
+    def test_rectangle_apostrophe_naming(self) -> None:
         # Test rectangle with apostrophes in name
         rectangle = self.canvas.create_rectangle(70, 70, 90, 90, "W'X''Y'''Z")
         points = [
@@ -123,7 +123,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         self.assertIn("Y'''", points)
         self.assertIn("Z", points)
 
-    def test_circle_basic_naming(self):
+    def test_circle_basic_naming(self) -> None:
         # Test creating a circle with a custom name
         circle = self.canvas.create_circle(10, 10, 5, "Circle")
         self.assertEqual(circle.center.name, "C")
@@ -131,7 +131,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         circle2 = self.canvas.create_circle(20, 20, 5, "Circle")
         self.assertEqual(circle2.center.name, "I")
 
-    def test_circle_apostrophe_naming(self):
+    def test_circle_apostrophe_naming(self) -> None:
         # Test circle with apostrophes in name
         circle = self.canvas.create_circle(30, 30, 5, "A'B''")
         self.assertEqual(circle.center.name, "A'")
@@ -139,7 +139,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         circle2 = self.canvas.create_circle(40, 40, 5, "X''Y'''Z")
         self.assertEqual(circle2.center.name, "X''")
 
-    def test_ellipse_basic_naming(self):
+    def test_ellipse_basic_naming(self) -> None:
         # Test creating an ellipse with a custom name
         ellipse = self.canvas.create_ellipse(10, 10, 5, 3, name="Ellipse")
         self.assertEqual(ellipse.center.name, "E")
@@ -147,7 +147,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         ellipse2 = self.canvas.create_ellipse(20, 20, 5, 3, name="Ellipse")
         self.assertEqual(ellipse2.center.name, "L")
 
-    def test_ellipse_apostrophe_naming(self):
+    def test_ellipse_apostrophe_naming(self) -> None:
         # Test ellipse with apostrophes in name
         ellipse = self.canvas.create_ellipse(30, 30, 5, 3, name="A'B''")
         self.assertEqual(ellipse.center.name, "A'")
@@ -155,7 +155,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         ellipse2 = self.canvas.create_ellipse(40, 40, 5, 3, name="X''Y'''Z")
         self.assertEqual(ellipse2.center.name, "X''")
 
-    def test_vector_basic_naming(self):
+    def test_vector_basic_naming(self) -> None:
         # Test creating a vector with a custom name
         vector = self.canvas.create_vector(10, 10, 20, 20, "Vector")
         self.assertEqual(vector.segment.point1.name, "V")  # Origin point
@@ -165,7 +165,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         self.assertEqual(vector2.segment.point1.name, "C")  # Origin point
         self.assertEqual(vector2.segment.point2.name, "T")  # Tip point
 
-    def test_vector_apostrophe_naming(self):
+    def test_vector_apostrophe_naming(self) -> None:
         # Test vector with apostrophes in name
         vector = self.canvas.create_vector(50, 50, 60, 60, "A'B''")
         self.assertEqual(vector.segment.point1.name, "A'")  # Origin point
@@ -175,7 +175,7 @@ class TestCustomDrawableNames(unittest.TestCase):
         self.assertEqual(vector2.segment.point1.name, "X'")  # Origin point
         self.assertEqual(vector2.segment.point2.name, "Y")  # Tip point
 
-    def test_name_fallback_sequence(self):
+    def test_name_fallback_sequence(self) -> None:
         # Create 26 points to use up all letters
         for i in range(26):
             point = self.canvas.create_point(i*10, i*10)

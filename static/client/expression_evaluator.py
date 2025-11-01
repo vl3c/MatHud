@@ -14,8 +14,16 @@ Dependencies:
     - re: Regular expression parsing for function calls
 """
 
-from utils.math_utils import MathUtils
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union, cast
+
 import re
+
+from utils.math_utils import MathUtils
+
+if TYPE_CHECKING:
+    from canvas import Canvas
 
 
 class ExpressionEvaluator:
@@ -26,7 +34,7 @@ class ExpressionEvaluator:
     """
     
     @staticmethod
-    def evaluate_numeric_expression(expression, variables):
+    def evaluate_numeric_expression(expression: str, variables: Dict[str, Any]) -> float:
         """Evaluates a numeric mathematical expression with variable substitution.
         
         Uses MathUtils for computation and ensures consistent float return type.
@@ -38,15 +46,15 @@ class ExpressionEvaluator:
         Returns:
             float: The computed numeric result
         """
-        result = MathUtils.evaluate(expression, variables)
+        result: Any = MathUtils.evaluate(expression, variables)
         print(f"Evaluated numeric expression: {expression} = {result}")   # DEBUG
         # Convert numeric results to float for consistency
         if isinstance(result, (int, float)):
             result = float(result)
-        return result
+        return cast(float, result)
     
     @staticmethod
-    def evaluate_function(expression, canvas):
+    def evaluate_function(expression: str, canvas: "Canvas") -> float:
         """Evaluates a function expression using canvas-defined functions.
         
         Parses function call syntax and evaluates using functions stored in the canvas.
@@ -67,8 +75,10 @@ class ExpressionEvaluator:
         
         functions = canvas.get_drawables_by_class_name('Function')
         # Split the expression into function name and argument
-        match = re.match(r'(\w+)\((.+)\)', expression)
+        match: Optional[re.Match[str]] = re.match(r'(\w+)\((.+)\)', expression)
         if match:
+            function_name: str
+            argument: str
             function_name, argument = match.groups()
             print(f"Function name: {function_name}, argument: {argument}")   # DEBUG
         else:
@@ -79,12 +89,12 @@ class ExpressionEvaluator:
                 # If the function name matches, evaluate the function
                 print(f"Found function: {function.name} = {function.function_string}")   # DEBUG
                 try:
-                    argument = float(argument)  # Convert argument to float
-                    result = function.function(argument)
+                    argument_val: float = float(argument)  # Convert argument to float
+                    result: Any = function.function(argument_val)
                     # Convert result to float for consistency
                     if isinstance(result, (int, float)):
                         result = float(result)
-                    return result
+                    return cast(float, result)
                 except ValueError:
                     raise ValueError(f"Invalid argument for function: {argument}")
         
@@ -92,7 +102,7 @@ class ExpressionEvaluator:
         raise ValueError(f"No function found with name: {function_name}")
     
     @staticmethod
-    def evaluate_expression(expression, variables=None, canvas=None):
+    def evaluate_expression(expression: str, variables: Optional[Dict[str, Any]] = None, canvas: Optional["Canvas"] = None) -> Union[float, str]:
         """Main method to evaluate expressions with fallback from numeric to function evaluation.
         
         First attempts numeric evaluation, then falls back to function evaluation if available.
@@ -108,23 +118,23 @@ class ExpressionEvaluator:
         """
         try:
             # First, try to evaluate the expression as a numeric expression
-            result = ExpressionEvaluator.evaluate_numeric_expression(expression, variables)
-            if not result or (isinstance(result, str) and "Error" in result):
+            numeric_result: float = ExpressionEvaluator.evaluate_numeric_expression(expression, variables or {})
+            if not numeric_result or (isinstance(numeric_result, str) and "Error" in numeric_result):
                 raise ValueError(f"Error evaluating numeric expression")
-            return result
+            return numeric_result
         except Exception as e:
-            bad_result_msg = "Sorry, that's not a supported mathematical expression."
+            bad_result_msg: str = "Sorry, that's not a supported mathematical expression."
             try:
                 # If numeric evaluation fails and we have a canvas, try to evaluate as a function
                 if canvas is not None:
-                    result = ExpressionEvaluator.evaluate_function(expression, canvas)
-                    if not result:
+                    function_result: float = ExpressionEvaluator.evaluate_function(expression, canvas)
+                    if not function_result:
                         return bad_result_msg
-                    return result
+                    return function_result
                 else:
                     # If no canvas is available, just return the numeric evaluation error
                     return f"{bad_result_msg} Error: {str(e)}"
             except Exception as e:
-                exception_details = str(e).split(":", 1)[0]
-                result = f"{bad_result_msg} Exception for ({expression}): {exception_details}."
-                return result 
+                exception_details: str = str(e).split(":", 1)[0]
+                error_result: str = f"{bad_result_msg} Exception for ({expression}): {exception_details}."
+                return error_result 

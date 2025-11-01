@@ -27,8 +27,16 @@ Dependencies:
     - utils.math_utils: Segment matching operations
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, List
+
 from itertools import combinations
 from .math_utils import MathUtils
+
+if TYPE_CHECKING:
+    from drawables.segment import Segment
+
 
 class GeometryUtils:
     """Graph theory and geometric analysis utilities for connectivity validation.
@@ -37,7 +45,7 @@ class GeometryUtils:
     particularly for validating connectivity in geometric networks and shapes.
     """
     @staticmethod
-    def get_unique_point_names_from_segments(segments):
+    def get_unique_point_names_from_segments(segments: List["Segment"]) -> List[str]:
         """
         Extract unique point names from a list of segments.
         
@@ -48,13 +56,13 @@ class GeometryUtils:
             list: Sorted list of unique point names
         """
         # Flatten the list of points from each segment and extract the names
-        points = [point for segment in segments for point in [segment.point1.name, segment.point2.name]]
+        points: List[str] = [point for segment in segments for point in [segment.point1.name, segment.point2.name]]
         # Remove duplicates by converting the list to a set, then convert it back to a sorted list
-        unique_points = sorted(set(points))
+        unique_points: List[str] = sorted(set(points))
         return unique_points
 
     @staticmethod
-    def is_fully_connected_graph(list_of_point_names, segments):
+    def is_fully_connected_graph(list_of_point_names: List[str], segments: List["Segment"]) -> bool:
         """
         Check if all points in the list are connected by segments.
         

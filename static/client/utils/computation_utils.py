@@ -26,6 +26,11 @@ Dependencies:
     - None (pure data management utilities)
 """
 
+from __future__ import annotations
+
+from typing import Any, Dict, List
+
+
 class ComputationUtils:
     """Computation history management utilities for mathematical expression tracking.
     
@@ -33,7 +38,7 @@ class ComputationUtils:
     and maintaining a record of mathematical calculations performed in the canvas.
     """
     @staticmethod
-    def has_computation(computations, expression):
+    def has_computation(computations: List[Dict[str, Any]], expression: str) -> bool:
         """
         Check if a computation with the given expression already exists.
         
@@ -47,7 +52,7 @@ class ComputationUtils:
         return any(comp["expression"] == expression for comp in computations)
 
     @staticmethod
-    def add_computation(computations, expression, result):
+    def add_computation(computations: List[Dict[str, Any]], expression: str, result: Any) -> List[Dict[str, Any]]:
         """
         Add a computation to the history if it doesn't already exist.
         

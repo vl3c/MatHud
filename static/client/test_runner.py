@@ -21,7 +21,14 @@ Dependencies:
     - process_function_calls: Function execution framework for testing
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+
 from process_function_calls import ProcessFunctionCalls
+
+if TYPE_CHECKING:
+    from canvas import Canvas
 
 
 class TestRunner:
@@ -40,7 +47,7 @@ class TestRunner:
         internal_errors (list): Collection of test errors for analysis
         internal_tests_run (int): Counter of executed test cases
     """
-    def __init__(self, canvas, available_functions, undoable_functions):
+    def __init__(self, canvas: "Canvas", available_functions: Dict[str, Any], undoable_functions: Tuple[str, ...]) -> None:
         """Initialize test runner with canvas and function registry access.
         
         Sets up testing environment with access to canvas operations and function validation.
@@ -50,34 +57,34 @@ class TestRunner:
             available_functions (dict): Registry of all available AI functions for testing
             undoable_functions (tuple): Functions that support undo/redo operations
         """
-        self.canvas = canvas
-        self.available_functions = available_functions
-        self.undoable_functions = undoable_functions
-        self.test_results = None
+        self.canvas: "Canvas" = canvas
+        self.available_functions: Dict[str, Any] = available_functions
+        self.undoable_functions: Tuple[str, ...] = undoable_functions
+        self.test_results: Optional[Dict[str, Any]] = None
         # Initialize to track internal test results
         self._reset_internal_results()
 
-    def _reset_internal_results(self):
+    def _reset_internal_results(self) -> None:
         """Reset all internal test result tracking variables."""
-        self.internal_failures = []
-        self.internal_errors = []
-        self.internal_tests_run = 0
+        self.internal_failures: List[Dict[str, str]] = []
+        self.internal_errors: List[Dict[str, str]] = []
+        self.internal_tests_run: int = 0
 
-    def _test_graphics_drawing(self):
+    def _test_graphics_drawing(self) -> Optional[Dict[str, Any]]:
         """Run tests for graphics drawing capabilities."""
         self.internal_tests_run += 1
         try:
-            function_calls = self._get_graphics_test_function_calls()
-            results = ProcessFunctionCalls.get_results(function_calls, self.available_functions, self.undoable_functions, self.canvas)
+            function_calls: List[Dict[str, Any]] = self._get_graphics_test_function_calls()
+            results: Dict[str, Any] = ProcessFunctionCalls.get_results(function_calls, self.available_functions, self.undoable_functions, self.canvas)
             print(f"Results of graphics drawing test: {results}")   # DEBUG
             return results
         except Exception as e:
-            error_message = f"Error in graphics drawing test: {str(e)}"
+            error_message: str = f"Error in graphics drawing test: {str(e)}"
             print(error_message)
             self._add_internal_error('Graphics Drawing Test', error_message)
             return None
             
-    def _get_graphics_test_function_calls(self):
+    def _get_graphics_test_function_calls(self) -> List[Dict[str, Any]]:
         """Return the list of function calls for graphics drawing tests."""
         return [
             {
@@ -166,7 +173,7 @@ class TestRunner:
             }
         ]
 
-    def _test_undoable_functions(self):
+    def _test_undoable_functions(self) -> bool:
         """Test that all undoable functions are available."""
         self.internal_tests_run += 1
         try:
@@ -174,35 +181,35 @@ class TestRunner:
             print("All undoable functions are available.")   # DEBUG
             return True
         except Exception as e:
-            error_message = f"Error in undoable functions test: {str(e)}"
+            error_message: str = f"Error in undoable functions test: {str(e)}"
             print(error_message)
             if not any(failure['test'] == 'Undoable Functions Test' for failure in self.internal_failures):
                 self._add_internal_failure('Undoable Functions Test', error_message)
             return False
             
-    def _validate_undoable_functions(self):
+    def _validate_undoable_functions(self) -> None:
         """Validate that all undoable functions are in the available functions list."""
         for function_name in self.undoable_functions:
             if function_name not in self.available_functions:
-                error_message = f"Function '{function_name}' is not available."
+                error_message: str = f"Function '{function_name}' is not available."
                 self._add_internal_failure('Undoable Functions Test', error_message)
                 raise Exception(error_message)
 
-    def _add_internal_failure(self, test_name, error_message):
+    def _add_internal_failure(self, test_name: str, error_message: str) -> None:
         """Add a failure to the internal failures list."""
         self.internal_failures.append({
             'test': test_name,
             'error': error_message
         })
         
-    def _add_internal_error(self, test_name, error_message):
+    def _add_internal_error(self, test_name: str, error_message: str) -> None:
         """Add an error to the internal errors list."""
         self.internal_errors.append({
             'test': test_name,
             'error': error_message
         })
 
-    def run_tests(self):
+    def run_tests(self) -> Dict[str, Any]:
         """Run unit tests for the graphics and function capabilities."""
         # Reset internal test results
         self._reset_internal_results()
@@ -214,7 +221,7 @@ class TestRunner:
 
         try:
             # Run the client-side main tests
-            client_results = self._run_client_tests()
+            client_results: Dict[str, Any] = self._run_client_tests()
             print("Client tests completed.") 
             
             # Set test results by merging client and internal results
@@ -229,23 +236,23 @@ class TestRunner:
             
         return self.test_results
         
-    def _run_client_tests(self):
+    def _run_client_tests(self) -> Dict[str, Any]:
         """Run the client-side tests and return the results."""
         try:
             from client_tests.tests import run_tests
-            return run_tests()
+            return cast(Dict[str, Any], run_tests())
         except ImportError as e:
             print(f"client_tests import failed: {e}")
             # Re-raise ImportError to be handled by the calling method
             raise ImportError(f"client_tests module not available: {e}")
         
-    def _merge_test_results(self, client_results):
+    def _merge_test_results(self, client_results: Dict[str, Any]) -> Dict[str, Any]:
         """Merge client test results with internal test results."""
         if not client_results:
             return self._create_results_from_internal_only()
             
         # Start with the client results
-        merged_results = client_results.copy()
+        merged_results: Dict[str, Any] = client_results.copy()
         
         # Add internal failures and errors to client test results
         merged_results['failures'].extend(self.internal_failures)
@@ -258,7 +265,7 @@ class TestRunner:
         
         return merged_results
         
-    def _create_results_from_internal_only(self):
+    def _create_results_from_internal_only(self) -> Dict[str, Any]:
         """Create test results containing only internal test results."""
         return {
             'failures': self.internal_failures,
@@ -270,9 +277,9 @@ class TestRunner:
             }
         }
         
-    def _create_results_with_client_error(self, error_message):
+    def _create_results_with_client_error(self, error_message: str) -> Dict[str, Any]:
         """Create test results with internal results plus a client test runner error."""
-        client_error = {
+        client_error: Dict[str, str] = {
             'test': 'Client Tests Runner',
             'error': f"Error running client tests: {error_message}"
         }
@@ -287,17 +294,17 @@ class TestRunner:
             }
         }
             
-    def get_test_results(self):
+    def get_test_results(self) -> Optional[Dict[str, Any]]:
         """Return the most recent test results."""
         return self.test_results
 
-    def format_results_for_ai(self, results):
+    def format_results_for_ai(self, results: Dict[str, Any]) -> Dict[str, Any]:
         """Format test results for the AI in a clean, concise format."""
         if not results:
             return {"tests_run": 0, "failures": 0, "errors": 0, "failing_tests": [], "error_tests": []}
         
         # Create a summary for the AI
-        formatted_results = self._create_formatted_results_summary(results)
+        formatted_results: Dict[str, Any] = self._create_formatted_results_summary(results)
         
         # Add details of failures and errors
         self._add_formatted_failure_details(formatted_results, results)
@@ -308,7 +315,7 @@ class TestRunner:
             
         return formatted_results
         
-    def _create_formatted_results_summary(self, results):
+    def _create_formatted_results_summary(self, results: Dict[str, Any]) -> Dict[str, Any]:
         """Create a basic summary of test results for AI consumption."""
         return {
             "tests_run": results['summary']['tests'],
@@ -318,7 +325,7 @@ class TestRunner:
             "error_tests": []
         }
         
-    def _add_formatted_failure_details(self, formatted_results, results):
+    def _add_formatted_failure_details(self, formatted_results: Dict[str, Any], results: Dict[str, Any]) -> None:
         """Add failure details to the formatted results."""
         if results['failures']:
             for failure in results['failures']:
@@ -327,7 +334,7 @@ class TestRunner:
                     "error": failure['error']
                 })
                 
-    def _add_formatted_error_details(self, formatted_results, results):
+    def _add_formatted_error_details(self, formatted_results: Dict[str, Any], results: Dict[str, Any]) -> None:
         """Add error details to the formatted results."""
         if results['errors']:
             for error in results['errors']:
@@ -336,7 +343,7 @@ class TestRunner:
                     "error": error['error']
                 })
                 
-    def _log_test_results_to_console(self, formatted_results):
+    def _log_test_results_to_console(self, formatted_results: Dict[str, Any]) -> None:
         """Log detailed test results to the console for debugging."""
         print("========================= TEST RESULTS =========================")
         print(f"Tests Run: {formatted_results['tests_run']}")

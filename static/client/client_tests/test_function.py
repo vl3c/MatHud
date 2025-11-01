@@ -8,7 +8,7 @@ from rendering.function_renderable import FunctionRenderable
 
 
 class TestFunction(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Create a real CoordinateMapper instance
         self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
         
@@ -43,20 +43,20 @@ class TestFunction(unittest.TestCase):
         self.name = "DoubleX"
         self.function = Function(self.function_string, self.name, left_bound=self.left_bound, right_bound=self.right_bound)
 
-    def test_initialize(self):
+    def test_initialize(self) -> None:
         # Test that the function is correctly initialized
         self.assertEqual(self.function.function_string, ExpressionValidator.fix_math_expression(self.function_string))
         self.assertIsNotNone(self.function.function)
         self.assertEqual(self.function.name, self.name)
 
-    def test_init_with_invalid_function_explicit(self):
+    def test_init_with_invalid_function_explicit(self) -> None:
         with self.assertRaises(ValueError):
             _ = Function("sin(/0)", "InvalidFunction")
 
-    def test_get_class_name(self):
+    def test_get_class_name(self) -> None:
         self.assertEqual(self.function.get_class_name(), 'Function')
 
-    def test_generate_values(self):
+    def test_generate_values(self) -> None:
         # Test the generation of function values within canvas bounds using FunctionRenderable
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
         screen_polyline = renderable.build_screen_paths()
@@ -89,18 +89,18 @@ class TestFunction(unittest.TestCase):
         self.assertGreater(points_within_bounds, points_outside_bounds, 
                           "Majority of points should be within y bounds")
 
-    def test_get_state(self):
+    def test_get_state(self) -> None:
         state = self.function.get_state()
         expected_state = {"name": self.name, "args": {"function_string": self.function_string, "left_bound": self.left_bound, "right_bound": self.right_bound}}
         self.assertEqual(state, expected_state)
 
-    def test_deepcopy(self):
+    def test_deepcopy(self) -> None:
         function_copy = copy.deepcopy(self.function)
         self.assertIsNot(function_copy, self.function)
         self.assertEqual(function_copy.function_string, self.function.function_string)
         self.assertEqual(function_copy.name, self.function.name)
 
-    def test_caching_mechanism(self):
+    def test_caching_mechanism(self) -> None:
         # Test that points are cached and reused in FunctionRenderable
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
         
@@ -113,7 +113,7 @@ class TestFunction(unittest.TestCase):
         second_call = renderable.build_screen_paths()
         self.assertEqual(len(first_call.paths), len(second_call.paths))
 
-    def test_cache_invalidation_on_zoom_new_mechanism(self):
+    def test_cache_invalidation_on_zoom_new_mechanism(self) -> None:
         """Test that cache is invalidated when invalidate_cache() is called on FunctionRenderable"""
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
         
@@ -130,7 +130,7 @@ class TestFunction(unittest.TestCase):
         # Should still generate valid paths (cache regenerated)
         self.assertTrue(len(new_paths.paths) > 0)
         
-    def test_zoom_via_canvas_draw_mechanism(self):
+    def test_zoom_via_canvas_draw_mechanism(self) -> None:
         """Test zoom cache invalidation through the Canvas.draw(apply_zoom=True) pattern using FunctionRenderable"""
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
         
@@ -151,7 +151,7 @@ class TestFunction(unittest.TestCase):
         # Verify paths are regenerated successfully
         self.assertTrue(len(new_paths.paths) > 0)
 
-    def test_adaptive_step_size(self):
+    def test_adaptive_step_size(self) -> None:
         # Test function with varying slopes using FunctionRenderable
         steep_function = Function("100*x", "Steep")
         gradual_function = Function("0.1*x", "Gradual")
@@ -171,7 +171,7 @@ class TestFunction(unittest.TestCase):
         self.assertGreaterEqual(steep_total_points, gradual_total_points,
                               f"Expected steep function to have at least as many points ({steep_total_points}) as gradual function ({gradual_total_points})")
 
-    def test_discontinuity_handling(self):
+    def test_discontinuity_handling(self) -> None:
         # Test function with discontinuity using FunctionRenderable
         discontinuous_function = Function("1/x", "Discontinuous", step=0.5)  # Smaller step size
         renderable = FunctionRenderable(discontinuous_function, self.canvas.coordinate_mapper)
@@ -199,7 +199,7 @@ class TestFunction(unittest.TestCase):
         
         self.assertTrue(has_discontinuity)
 
-    def test_bounds_checking(self):
+    def test_bounds_checking(self) -> None:
         # Test that points are properly bounded
         # For a 500x500 canvas with origin at (250, 250), to get bounds from -5 to 5:
         # scale_factor = 250 / 5 = 50
@@ -234,7 +234,7 @@ class TestFunction(unittest.TestCase):
                 self.assertGreaterEqual(math_y, -10.1)  # y=2x means y range is double x range
                 self.assertLessEqual(math_y, 10.1)
 
-    def test_should_regenerate_points(self):
+    def test_should_regenerate_points(self) -> None:
         # Test conditions for point regeneration using FunctionRenderable
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
         
@@ -247,7 +247,7 @@ class TestFunction(unittest.TestCase):
         new_paths = renderable.build_screen_paths()
         self.assertTrue(len(new_paths.paths) > 0)
 
-    def test_draw_with_empty_points(self):
+    def test_draw_with_empty_points(self) -> None:
         # Test drawing behavior when no points are generated using FunctionRenderable
         # Create a function that should generate no valid points
         empty_function = Function("sin(1/0)", "Empty")  # This should fail evaluation
@@ -262,7 +262,7 @@ class TestFunction(unittest.TestCase):
             # If it raises an exception, that's also acceptable behavior
             pass
 
-    def test_deepcopy_with_cache(self):
+    def test_deepcopy_with_cache(self) -> None:
         # Test that deepcopy properly handles Function objects (cache handled by renderables)
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
         renderable.build_screen_paths()  # Generate initial cache in renderable
@@ -273,7 +273,7 @@ class TestFunction(unittest.TestCase):
         self.assertEqual(function_copy.function_string, self.function.function_string)
         self.assertEqual(function_copy.name, self.function.name)
 
-    def test_performance_limits(self):
+    def test_performance_limits(self) -> None:
         # Test that point generation doesn't exceed limits using FunctionRenderable
         complex_function = Function("sin(x*10)", "Complex")
         renderable = FunctionRenderable(complex_function, self.canvas.coordinate_mapper)
@@ -294,7 +294,7 @@ class TestFunction(unittest.TestCase):
                     dy = abs(path[i][1] - path[i-1][1])  # y coordinates
                     self.assertGreater(dx + dy, 0, "Points should not be duplicates")
 
-    def test_high_frequency_trig_functions(self):
+    def test_high_frequency_trig_functions(self) -> None:
         test_cases = [
             ("10*sin(10*x)", "High frequency and amplitude", 50, 500),  # Custom bounds for high frequency
             ("sin(20*x)", "High frequency only", 50, 500),               # Custom bounds for high frequency 
@@ -323,7 +323,7 @@ class TestFunction(unittest.TestCase):
                 except Exception as e:
                     self.fail(f"Failed to handle {function_string}: {str(e)}")
 
-    def test_draw(self):
+    def test_draw(self) -> None:
         # Test that FunctionRenderable can build screen paths successfully
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
         paths = renderable.build_screen_paths()

@@ -3,10 +3,10 @@ from markdown_parser import MarkdownParser
 
 
 class TestMarkdownParser(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.parser = MarkdownParser()
 
-    def test_headers(self):
+    def test_headers(self) -> None:
         """Test all header levels H1-H6."""
         # Test H1
         result = self.parser.parse("# Header 1")
@@ -32,7 +32,7 @@ class TestMarkdownParser(unittest.TestCase):
         result = self.parser.parse("###### Header 6")
         self.assertIn("<h6>Header 6</h6>", result)
 
-    def test_bold_text(self):
+    def test_bold_text(self) -> None:
         """Test bold text formatting with both ** and __ syntax."""
         # Test ** syntax
         result = self.parser.parse("This is **bold** text")
@@ -47,7 +47,7 @@ class TestMarkdownParser(unittest.TestCase):
         self.assertIn("<strong>First</strong>", result)
         self.assertIn("<strong>second</strong>", result)
 
-    def test_italic_text(self):
+    def test_italic_text(self) -> None:
         """Test italic text formatting with both * and _ syntax."""
         # Test * syntax
         result = self.parser.parse("This is *italic* text")
@@ -62,17 +62,17 @@ class TestMarkdownParser(unittest.TestCase):
         self.assertIn("<em>First</em>", result)
         self.assertIn("<em>second</em>", result)
 
-    def test_strikethrough_text(self):
+    def test_strikethrough_text(self) -> None:
         """Test strikethrough text formatting."""
         result = self.parser.parse("This is ~~strikethrough~~ text")
         self.assertIn("<del>strikethrough</del>", result)
 
-    def test_inline_code(self):
+    def test_inline_code(self) -> None:
         """Test inline code formatting."""
         result = self.parser.parse("This is `inline code` text")
         self.assertIn("<code>inline code</code>", result)
 
-    def test_code_blocks(self):
+    def test_code_blocks(self) -> None:
         """Test code block formatting."""
         code_block = """```python
 def hello():
@@ -83,12 +83,12 @@ def hello():
         self.assertIn("def hello():", result)
         self.assertIn("</code></pre>", result)
 
-    def test_links(self):
+    def test_links(self) -> None:
         """Test link formatting."""
         result = self.parser.parse("This is a [link](https://example.com) text")
         self.assertIn('<a href="https://example.com">link</a>', result)
 
-    def test_unordered_lists(self):
+    def test_unordered_lists(self) -> None:
         """Test unordered list formatting."""
         markdown = """- Item 1
 - Item 2
@@ -100,7 +100,7 @@ def hello():
         self.assertIn("<li>Item 3</li>", result)
         self.assertIn("</ul>", result)
 
-    def test_ordered_lists(self):
+    def test_ordered_lists(self) -> None:
         """Test ordered list formatting."""
         markdown = """1. First item
 2. Second item
@@ -112,7 +112,7 @@ def hello():
         self.assertIn("<li>Third item</li>", result)
         self.assertIn("</ol>", result)
 
-    def test_nested_lists(self):
+    def test_nested_lists(self) -> None:
         """Test nested list formatting."""
         markdown = """- Item 1
   - Nested item 1
@@ -126,7 +126,7 @@ def hello():
         self.assertIn("<li>Nested item 2</li>", result)
         self.assertIn("<li>Item 2</li>", result)
 
-    def test_checkbox_lists(self):
+    def test_checkbox_lists(self) -> None:
         """Test checkbox list formatting."""
         markdown = """- [x] Completed task
 - [ ] Incomplete task
@@ -139,7 +139,7 @@ def hello():
         self.assertIn("Completed task", result)
         self.assertIn("Incomplete task", result)
 
-    def test_tables(self):
+    def test_tables(self) -> None:
         """Test table formatting."""
         markdown = """| Name | Age | City |
 |------|-----|------|
@@ -155,23 +155,23 @@ def hello():
         self.assertIn("<td>NYC</td>", result)
         self.assertIn("</table>", result)
 
-    def test_blockquotes(self):
+    def test_blockquotes(self) -> None:
         """Test blockquote formatting."""
         result = self.parser.parse("> This is a blockquote")
         self.assertIn("<blockquote>This is a blockquote</blockquote>", result)
 
-    def test_horizontal_rules(self):
+    def test_horizontal_rules(self) -> None:
         """Test horizontal rule formatting."""
         result = self.parser.parse("---")
         self.assertIn("<hr>", result)
 
-    def test_inline_math_expressions(self):
+    def test_inline_math_expressions(self) -> None:
         """Test inline mathematical expressions."""
         result = self.parser.parse("The equation \\(E = mc^2\\) is famous")
         self.assertIn('class="math-inline"', result)
         self.assertIn("\\(E = mc^2\\)", result)
 
-    def test_block_math_expressions(self):
+    def test_block_math_expressions(self) -> None:
         """Test block mathematical expressions."""
         markdown = """$$
 \\int_{0}^{\\infty} e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}
@@ -180,7 +180,7 @@ $$"""
         self.assertIn('class="math-block"', result)
         self.assertIn("\\int_{0}^{\\infty}", result)
 
-    def test_mixed_formatting(self):
+    def test_mixed_formatting(self) -> None:
         """Test multiple formatting elements together."""
         markdown = """# Main Title
 
@@ -224,7 +224,7 @@ The famous equation is \\(E = mc^2\\).
         self.assertIn("<table>", result)
         self.assertIn("<th>Formula</th>", result)
 
-    def test_edge_cases(self):
+    def test_edge_cases(self) -> None:
         """Test edge cases and malformed markdown."""
         # Empty string
         result = self.parser.parse("")
@@ -242,7 +242,7 @@ The famous equation is \\(E = mc^2\\).
         result = self.parser.parse("**bold with *italic* inside**")
         # Should handle reasonably
 
-    def test_multiple_math_expressions(self):
+    def test_multiple_math_expressions(self) -> None:
         """Test multiple math expressions in one text."""
         markdown = "First equation \\(x = 1\\) and second $$y = 2$$ then \\(z = 3\\)"
         result = self.parser.parse(markdown)
@@ -254,7 +254,7 @@ The famous equation is \\(E = mc^2\\).
         self.assertEqual(math_inline_count, 2)  # Two inline expressions
         self.assertEqual(math_block_count, 1)   # One block expression
 
-    def test_table_with_inline_formatting(self):
+    def test_table_with_inline_formatting(self) -> None:
         """Test tables with inline formatting in cells."""
         markdown = """| **Bold** | *Italic* | `Code` |
 |----------|----------|--------|
@@ -265,7 +265,7 @@ The famous equation is \\(E = mc^2\\).
         self.assertIn("<em>Italic</em>", result)
         self.assertIn("<code>Code</code>", result)
 
-    def test_list_with_mixed_types(self):
+    def test_list_with_mixed_types(self) -> None:
         """Test mixing ordered and unordered lists."""
         markdown = """1. Ordered item 1
 2. Ordered item 2
@@ -279,7 +279,7 @@ The famous equation is \\(E = mc^2\\).
         self.assertIn("<ul>", result)
         self.assertIn("</ul>", result)
 
-    def test_complex_nested_structure(self):
+    def test_complex_nested_structure(self) -> None:
         """Test complex nested markdown structure."""
         markdown = """## Complex Example
 
@@ -321,7 +321,7 @@ $$
         self.assertIn("<em>Italic</em>", result)
         self.assertIn("<code>code</code>", result)
 
-    def test_underscore_in_words_not_italic(self):
+    def test_underscore_in_words_not_italic(self) -> None:
         """Test that underscores in the middle of words are not treated as italic formatting."""
         # Test cases where underscores should NOT be italicized
         test_cases = [
@@ -342,7 +342,7 @@ $$
                 # Should contain the original text
                 self.assertIn(expected_content, result, f"Original text should be preserved in '{input_text}'")
 
-    def test_underscore_with_spaces_is_italic(self):
+    def test_underscore_with_spaces_is_italic(self) -> None:
         """Test that underscores surrounded by spaces are properly italicized."""
         # Test cases where underscores SHOULD be italicized
         test_cases = [
@@ -362,7 +362,7 @@ $$
                 else:
                     self.assertIn(expected, result, f"Expected '{expected}' in result for '{input_text}'")
 
-    def test_mixed_underscore_scenarios(self):
+    def test_mixed_underscore_scenarios(self) -> None:
         """Test mixed scenarios with both underscore types."""
         # Test cases with both italics and non-italics underscores
         test_cases = [
@@ -378,7 +378,7 @@ $$
                 for item in expected_items:
                     self.assertIn(item, result, f"Expected '{item}' in result for '{input_text}'")
 
-    def test_double_underscore_bold(self):
+    def test_double_underscore_bold(self) -> None:
         """Test that double underscores with proper spacing create bold text."""
         # Test cases where double underscores SHOULD be bold
         test_cases = [
@@ -398,7 +398,7 @@ $$
                 else:
                     self.assertIn(expected, result, f"Expected '{expected}' in result for '{input_text}'")
 
-    def test_malformed_underscore_patterns(self):
+    def test_malformed_underscore_patterns(self) -> None:
         """Test that malformed underscore patterns are not parsed as formatting."""
         # Test cases that should NOT be parsed as formatting
         test_cases = [
@@ -423,7 +423,7 @@ $$
                 # Should contain the original text
                 self.assertIn(expected_content, result, f"Original text should be preserved in '{input_text}'")
 
-    def test_underscore_edge_cases_with_punctuation(self):
+    def test_underscore_edge_cases_with_punctuation(self) -> None:
         """Test underscore behavior with punctuation and special characters."""
         # Test cases with punctuation that SHOULD work
         punctuation_cases = [
@@ -440,7 +440,7 @@ $$
                 result = self.parser.parse(input_text)
                 self.assertIn(expected, result, f"Expected '{expected}' in result for '{input_text}'")
 
-    def test_mixed_formatting_with_underscores(self):
+    def test_mixed_formatting_with_underscores(self) -> None:
         """Test mixed formatting scenarios with underscores."""
         markdown = "This has _italic_ and some_variable_name and **bold_text** formatting."
         result = self.parser.parse(markdown)
@@ -450,7 +450,7 @@ $$
         self.assertIn("some_variable_name", result)  # Should remain unchanged
         self.assertIn("<strong>bold_text</strong>", result)  # Bold should work
 
-    def test_mathematical_expressions_not_tables(self):
+    def test_mathematical_expressions_not_tables(self) -> None:
         """Test that mathematical expressions with pipes are NOT parsed as tables."""
         # Mathematical expressions that should NOT become tables
         math_examples = [
@@ -476,7 +476,7 @@ $$
                 # Should contain the original pipe characters
                 self.assertIn("|", result, f"Original pipe characters missing from '{example}'")
 
-    def test_proper_markdown_tables(self):
+    def test_proper_markdown_tables(self) -> None:
         """Test that proper markdown tables ARE correctly parsed."""
         # Basic table
         basic_table = """| Name | Age | City |
@@ -495,7 +495,7 @@ $$
         self.assertIn("<td>30</td>", result)
         self.assertIn("<td>NYC</td>", result)
 
-    def test_table_alignment(self):
+    def test_table_alignment(self) -> None:
         """Test table column alignment parsing."""
         aligned_table = """| Left | Center | Right |
 |:-----|:------:|------:|
@@ -508,7 +508,7 @@ $$
         self.assertIn('text-align: center;', result)
         self.assertIn('text-align: right;', result)
 
-    def test_table_without_separator_not_table(self):
+    def test_table_without_separator_not_table(self) -> None:
         """Test that lines with pipes but no separator row are NOT tables."""
         not_tables = [
             "| This has pipes | but no separator |",
@@ -526,7 +526,7 @@ $$
                 result = self.parser.parse(example)
                 self.assertNotIn("<table>", result, f"Non-table '{example}' was incorrectly parsed as table")
 
-    def test_malformed_table_separators(self):
+    def test_malformed_table_separators(self) -> None:
         """Test that malformed separator rows don't create tables."""
         malformed_tables = [
             """| Header |
@@ -551,7 +551,7 @@ $$
                 result = self.parser.parse(example)
                 self.assertNotIn("<table>", result, f"Malformed table was incorrectly parsed: {example}")
 
-    def test_valid_table_separators(self):
+    def test_valid_table_separators(self) -> None:
         """Test various valid separator row formats."""
         valid_separators = [
             """| Header |
@@ -582,7 +582,7 @@ $$
                 self.assertIn("<th", result)  # Match <th with or without attributes
                 self.assertIn("<td", result)  # Match <td with or without attributes
 
-    def test_table_with_math_expressions_in_cells(self):
+    def test_table_with_math_expressions_in_cells(self) -> None:
         """Test tables that contain mathematical expressions within cells."""
         table_with_math = """| Expression | Value |
 |------------|-------|
@@ -599,7 +599,7 @@ $$
         self.assertIn("positive reals", result)
         self.assertIn("Einstein", result)
 
-    def test_mixed_content_with_tables_and_math(self):
+    def test_mixed_content_with_tables_and_math(self) -> None:
         """Test content mixing tables and mathematical expressions."""
         mixed_content = """# Math and Tables
 
@@ -635,7 +635,7 @@ Final math: |a + b| ≤ |a| + |b|."""
         self.assertIn("<th>Function</th>", result)
         self.assertIn("<th>Definition</th>", result)
 
-    def test_lines_not_starting_with_pipe_not_tables(self):
+    def test_lines_not_starting_with_pipe_not_tables(self) -> None:
         """Test that lines not starting with pipes are never parsed as tables."""
         # These lines have pipes but don't start with pipes (after whitespace)
         # and should NEVER be considered tables, even with separators
@@ -691,7 +691,7 @@ More text | with | pipes""",
                                 self.assertIn(pipe_content, result, 
                                             f"Content '{pipe_content}' should appear in result")
 
-    def test_edge_cases_pipes_and_tables(self):
+    def test_edge_cases_pipes_and_tables(self) -> None:
         """Test edge cases with pipes and potential table confusion."""
         edge_cases = [
             # Single pipe in text

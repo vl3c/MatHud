@@ -6,7 +6,7 @@ from coordinate_mapper import CoordinateMapper
 
 
 class TestVector(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Create a real CoordinateMapper instance
         self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
         
@@ -33,7 +33,7 @@ class TestVector(unittest.TestCase):
         self.tip = Point(3, 4, name="T", color="black")
         self.vector = Vector(self.origin, self.tip, color="green")
 
-    def test_initialize(self):
+    def test_initialize(self) -> None:
         # Validate via CoordinateMapper
         m = self.coordinate_mapper
         ox, oy = m.math_to_screen(self.vector.origin.x, self.vector.origin.y)
@@ -41,32 +41,32 @@ class TestVector(unittest.TestCase):
         self.assertEqual((ox, oy), (250, 250))
         self.assertEqual((tx, ty), (253, 246))
 
-    def test_init(self):
+    def test_init(self) -> None:
         # Test the initial properties of the vector
         self.assertEqual(self.vector.segment.point1, self.origin)
         self.assertEqual(self.vector.segment.point2, self.tip)
         self.assertEqual(self.vector.color, "green")
 
-    def test_get_class_name(self):
+    def test_get_class_name(self) -> None:
         self.assertEqual(self.vector.get_class_name(), 'Vector')
 
-    def test_get_state(self):
+    def test_get_state(self) -> None:
         state = self.vector.get_state()
         expected_state = {"name": "OT", "args": {"origin": "O", "tip": "T", "line_formula": self.vector.segment.line_formula}}
         self.assertEqual(state, expected_state)
 
-    def test_deepcopy(self):
+    def test_deepcopy(self) -> None:
         vector_copy = copy.deepcopy(self.vector)
         self.assertIsNot(vector_copy, self.vector)
         self.assertIsNot(vector_copy.segment, self.vector.segment)
         self.assertEqual(vector_copy.color, self.vector.color)
 
-    def test_draw(self):
+    def test_draw(self) -> None:
         # This test would check if draw calls create_svg_element with expected arguments
         # Might require a more complex setup or mocking to verify SVG output
         pass
 
-    def test_translate_vector_in_math_space(self):
+    def test_translate_vector_in_math_space(self) -> None:
         """Test vector translation in mathematical space"""
         # Translate by (2, 3) in mathematical coordinates
         self.vector.translate(2, 3)

@@ -5,7 +5,7 @@ from browser import window as browser_window
 
 
 class TestThrottle(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Create a mock for performance.now that we can update
         self.current_time = 1000
         
@@ -43,7 +43,7 @@ class TestThrottle(unittest.TestCase):
         browser_window.setTimeout = self.original_setTimeout
         browser_window.clearTimeout = self.original_clearTimeout
 
-    def test_throttle_first_call_executes_immediately(self):
+    def test_throttle_first_call_executes_immediately(self) -> None:
         """Test that the first call to a throttled function executes immediately."""
         mock_func = SimpleMock()
         throttled_func = throttle(100)(mock_func)
@@ -54,7 +54,7 @@ class TestThrottle(unittest.TestCase):
         self.assertEqual(len(mock_func.calls), 1)
         mock_func.assert_called_once_with(1, b=2)
 
-    def test_throttle_subsequent_calls_are_delayed(self):
+    def test_throttle_subsequent_calls_are_delayed(self) -> None:
         """Test that subsequent calls within the wait period are delayed."""
         mock_func = SimpleMock()
         throttled_func = throttle(100)(mock_func)
@@ -73,7 +73,7 @@ class TestThrottle(unittest.TestCase):
         # setTimeout should have been called for the second invocation
         self.assertEqual(len(self.mock_window.setTimeout.calls), 1)
 
-    def test_throttle_clears_previous_timeout(self):
+    def test_throttle_clears_previous_timeout(self) -> None:
         """Test that new calls clear previous pending timeouts."""
         mock_func = SimpleMock()
         throttled_func = throttle(100)(mock_func)
@@ -99,7 +99,7 @@ class TestThrottle(unittest.TestCase):
         # Should have called setTimeout twice (once for second call, once for third)
         self.assertEqual(len(self.mock_window.setTimeout.calls), 2)
 
-    def test_throttle_respects_wait_time(self):
+    def test_throttle_respects_wait_time(self) -> None:
         """Test that throttle function respects the specified wait time."""
         mock_func = SimpleMock()
         throttled_func = throttle(100)(mock_func)
@@ -120,7 +120,7 @@ class TestThrottle(unittest.TestCase):
         # Should wait remaining 50ms (100ms - 50ms elapsed)
         self.assertEqual(remaining_time, 50)
 
-    def test_throttle_handles_errors(self):
+    def test_throttle_handles_errors(self) -> None:
         """Test that throttle function handles errors gracefully."""
         def failing_func():
             raise Exception("Test error")

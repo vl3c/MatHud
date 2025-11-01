@@ -16,9 +16,16 @@ Dependencies:
     - result_validator: Result structure and success validation
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+
 from expression_evaluator import ExpressionEvaluator
 from result_processor import ResultProcessor
 from result_validator import ResultValidator
+
+if TYPE_CHECKING:
+    from canvas import Canvas
 
 
 class ProcessFunctionCalls:
@@ -29,7 +36,7 @@ class ProcessFunctionCalls:
     """
     
     @staticmethod
-    def evaluate_expression(expression, variables=None, canvas=None):
+    def evaluate_expression(expression: str, variables: Optional[Dict[str, Any]] = None, canvas: Optional["Canvas"] = None) -> Any:
         """Evaluates a mathematical expression with optional variable substitution.
         
         Delegates to ExpressionEvaluator for mathematical computation and parsing.
@@ -45,7 +52,7 @@ class ProcessFunctionCalls:
         return ExpressionEvaluator.evaluate_expression(expression, variables, canvas)
     
     @staticmethod
-    def get_results(calls, available_functions, undoable_functions, canvas):
+    def get_results(calls: List[Dict[str, Any]], available_functions: Dict[str, Any], undoable_functions: Tuple[str, ...], canvas: "Canvas") -> Dict[str, Any]:
         """Process function calls and collect their results with state management.
         
         Delegates to ResultProcessor for function execution and result aggregation.
@@ -59,10 +66,10 @@ class ProcessFunctionCalls:
         Returns:
             dict: Mapping of function call strings to their computed results
         """
-        return ResultProcessor.get_results(calls, available_functions, undoable_functions, canvas)
+        return cast(Dict[str, Any], ResultProcessor.get_results(calls, available_functions, undoable_functions, canvas))
     
     @staticmethod
-    def validate_results(results):
+    def validate_results(results: Dict[str, Any]) -> bool:
         """Validates result structure and data types for integrity.
         
         Delegates to ResultValidator for structure and type validation.
@@ -73,10 +80,10 @@ class ProcessFunctionCalls:
         Returns:
             bool: True if results have correct structure, False otherwise
         """
-        return ResultValidator.validate_results(results)
+        return cast(bool, ResultValidator.validate_results(results))
     
     @staticmethod
-    def is_successful_result(value):
+    def is_successful_result(value: Any) -> bool:
         """Checks if a result represents successful computation vs error.
         
         Delegates to ResultValidator for success detection logic.
@@ -87,4 +94,4 @@ class ProcessFunctionCalls:
         Returns:
             bool: True if result is successful, False for errors or empty values
         """
-        return ResultValidator.is_successful_result(value)
+        return cast(bool, ResultValidator.is_successful_result(value))

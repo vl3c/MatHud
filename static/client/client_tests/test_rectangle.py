@@ -6,7 +6,7 @@ from coordinate_mapper import CoordinateMapper
 
 
 class TestRectangle(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Create a real CoordinateMapper instance
         self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
         
@@ -42,7 +42,7 @@ class TestRectangle(unittest.TestCase):
         # Setup the rectangle
         self.rectangle = Rectangle(self.segment1, self.segment2, self.segment3, self.segment4, color="orange")
 
-    def test_initialize(self):
+    def test_initialize(self) -> None:
         # Validate via CoordinateMapper
         m = self.coordinate_mapper
         s1p1x, s1p1y = m.math_to_screen(self.rectangle.segment1.point1.x, self.rectangle.segment1.point1.y)
@@ -56,7 +56,7 @@ class TestRectangle(unittest.TestCase):
         self.assertEqual((s2p2x, s2p2y), (254, 247))
         self.assertEqual((s3p1x, s3p1y), (254, 247))
 
-    def test_init(self):
+    def test_init(self) -> None:
         # Test the initial properties of the rectangle
         self.assertEqual(self.rectangle.segment1, self.segment1)
         self.assertEqual(self.rectangle.segment2, self.segment2)
@@ -64,27 +64,27 @@ class TestRectangle(unittest.TestCase):
         self.assertEqual(self.rectangle.segment4, self.segment4)
         self.assertEqual(self.rectangle.color, "orange")
 
-    def test_get_class_name(self):
+    def test_get_class_name(self) -> None:
         self.assertEqual(self.rectangle.get_class_name(), 'Rectangle')
 
-    def test_get_state(self):
+    def test_get_state(self) -> None:
         state = self.rectangle.get_state()
         # Expected state needs to account for the names of the points, which should be sorted and unique
         expected_state = {"name": self.rectangle.name, "args": {"p1": "P1", "p2": "P2", "p3": "P3", "p4": "P4"}}
         self.assertEqual(state, expected_state)
 
-    def test_deepcopy(self):
+    def test_deepcopy(self) -> None:
         rectangle_copy = copy.deepcopy(self.rectangle)
         self.assertIsNot(rectangle_copy, self.rectangle)
         self.assertIsNot(rectangle_copy.segment1, self.rectangle.segment1)
         self.assertEqual(rectangle_copy.color, self.rectangle.color)
 
-    def test_draw(self):
+    def test_draw(self) -> None:
         # This test would check if draw calls create_svg_element with expected arguments
         # Might require a more complex setup or mocking to verify SVG output
         pass
 
-    def test_translate_rectangle_in_math_space(self):
+    def test_translate_rectangle_in_math_space(self) -> None:
         """Test rectangle translation in mathematical space"""
         # Translate by (2, 1) in mathematical coordinates
         self.rectangle.translate(2, 1)

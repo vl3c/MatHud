@@ -13,7 +13,12 @@ Dependencies:
     - constants: Success message definitions
 """
 
+from __future__ import annotations
+
+from typing import Any, Dict
+
 from constants import successful_call_message
+
 
 class ResultValidator:
     """Handles validation of function call results and error detection.
@@ -23,7 +28,7 @@ class ResultValidator:
     """
     
     @staticmethod
-    def validate_results(results):
+    def validate_results(results: Dict[str, Any]) -> bool:
         """Validates that results have the correct structure and data types.
         
         Checks that the results dictionary contains only allowed types and
@@ -35,7 +40,7 @@ class ResultValidator:
         Returns:
             bool: True if the results have valid structure, False otherwise
         """
-        allowed_types = (str, int, float, bool)
+        allowed_types: tuple[type, ...] = (str, int, float, bool)
         if not isinstance(results, dict):
             return False
         print(f"Validating results: {results}")
@@ -46,7 +51,7 @@ class ResultValidator:
         )
     
     @staticmethod
-    def is_successful_result(value):
+    def is_successful_result(value: Any) -> bool:
         """Checks if a result value represents a successful computation.
         
         Determines whether a result contains actual computed data vs error messages,

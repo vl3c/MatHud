@@ -6,7 +6,7 @@ from drawables.function import Function
 
 
 class TestFunctionBoundedColoredAreaIntegration(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # 500x500 mapper with origin at center by default
         self.mapper = CoordinateMapper(500, 500)
 
@@ -17,7 +17,7 @@ class TestFunctionBoundedColoredAreaIntegration(unittest.TestCase):
         renderable = FunctionsBoundedAreaRenderable(area, self.mapper)
         return area, renderable
 
-    def test_area_respects_function_bounds_simple(self):
+    def test_area_respects_function_bounds_simple(self) -> None:
         left, right = -300, 300
         _, renderable = self._build_area('50 * sin(x / 50)', '100 * sin(x / 30)', left, right)
         closed = renderable.build_screen_area()
@@ -50,7 +50,7 @@ class TestFunctionBoundedColoredAreaIntegration(unittest.TestCase):
         self.assertAlmostEqual(closed.forward_points[-1][1], y1rs, places=5)
         self.assertAlmostEqual(closed.reverse_points[0][1], y2rs, places=5)
 
-    def test_area_respects_function_bounds_with_asymptotes(self):
+    def test_area_respects_function_bounds_with_asymptotes(self) -> None:
         # f3 with tan introduces vertical asymptotes; ensure pairing still aligns ends
         left, right = -300, 300
         _, renderable = self._build_area('50 * sin(x / 50)', '100 * sin(x / 50) + 50 * tan(x / 100)', left, right)

@@ -6,7 +6,7 @@ from .simple_mock import SimpleMock
 
 
 class TestProcessFunctionCalls(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Setup the mock canvas and its functions as described
         self.canvas = Canvas(500, 500, draw_enabled=False)  # Assuming a basic mock or actual Canvas class
         self.mock_cartesian2axis = SimpleMock(draw=SimpleMock(return_value=None), 
@@ -20,18 +20,18 @@ class TestProcessFunctionCalls(unittest.TestCase):
         # Assuming draw_function method is available to add mock functions
         self.f = self.canvas.draw_function(self.function_string, self.name)
 
-    def test_evaluate_numeric_expression(self):
+    def test_evaluate_numeric_expression(self) -> None:
         expression = "3 + 7"
         result = ProcessFunctionCalls.evaluate_expression(expression, variables=None, canvas=self.canvas)
         self.assertEqual(result, 10)
 
-    def test_evaluate_expression_with_variables(self):
+    def test_evaluate_expression_with_variables(self) -> None:
         expression = "x - 4 + y * 5"
         variables = {'x': 7, 'y': 65}
         result = ProcessFunctionCalls.evaluate_expression(expression, variables=variables, canvas=self.canvas)
         self.assertEqual(result, 328)  # Expected result for "x - 4 + y * 5" with x = 7 and y = 65
 
-    def test_evaluate_expression_combinatorics(self):
+    def test_evaluate_expression_combinatorics(self) -> None:
         result = ProcessFunctionCalls.evaluate_expression("arrangements(6, 3)", canvas=self.canvas)
         self.assertEqual(result, 120)
 
@@ -44,7 +44,7 @@ class TestProcessFunctionCalls(unittest.TestCase):
         result = ProcessFunctionCalls.evaluate_expression("combinations(6, 3)", canvas=self.canvas)
         self.assertEqual(result, 20)
 
-    def test_evaluate_expression_complex_combinatorics(self):
+    def test_evaluate_expression_complex_combinatorics(self) -> None:
         expression = "2*combinations(8, 3) + permutations(4, 2) - arrangements(5, 2)"
         result = ProcessFunctionCalls.evaluate_expression(expression, canvas=self.canvas)
         self.assertEqual(result, 104)
@@ -53,12 +53,12 @@ class TestProcessFunctionCalls(unittest.TestCase):
         result = ProcessFunctionCalls.evaluate_expression(expression, canvas=self.canvas)
         self.assertEqual(result, 84)
 
-    def test_evaluate_function_expression(self):
+    def test_evaluate_function_expression(self) -> None:
         expression = "Quadratic(5)"
         result = ProcessFunctionCalls.evaluate_expression(expression, variables=None, canvas=self.canvas)
         self.assertEqual(result, 25)  # Expected result for "Quadratic(5)"
 
-    def test_get_results1(self):
+    def test_get_results1(self) -> None:
         available_functions = {'evaluate_expression': ProcessFunctionCalls.evaluate_expression}
         calls = [{'function_name': 'evaluate_expression', 'arguments': {'expression': 'Quadratic(5)', 'canvas': self.canvas}}]
         undoable_functions = ()  # Example, assuming no undoable functions for simplicity
@@ -67,7 +67,7 @@ class TestProcessFunctionCalls(unittest.TestCase):
         self.assertIn('Quadratic(5)', results) # Check if the result for "Quadratic(5)" is available
         self.assertEqual(results['Quadratic(5)'], 25)  # Expected result for "Quadratic(5)"
 
-    def test_get_results2(self):
+    def test_get_results2(self) -> None:
         available_functions = {'evaluate_expression': ProcessFunctionCalls.evaluate_expression}
         calls = [{'function_name': 'evaluate_expression', 'arguments': {'expression': 'x + y', 'variables': {'x': 5, 'y': 1}, 'canvas': self.canvas}}]
         undoable_functions = ()  # Example, assuming no undoable functions for simplicity
@@ -76,43 +76,43 @@ class TestProcessFunctionCalls(unittest.TestCase):
         self.assertIn('x+y for x:5, y:1', results)
         self.assertEqual(results['x+y for x:5, y:1'], 6)
 
-    def test_evaluate_expression_invalid_function(self):
+    def test_evaluate_expression_invalid_function(self) -> None:
         # Testing with an invalid function expression
         expression = "NonExistentFunction(10)"
         result = ProcessFunctionCalls.evaluate_expression(expression, variables=None, canvas=self.canvas)
         self.assertTrue("Sorry" in result)
 
-    def test_validate_results_with_valid_input(self):
+    def test_validate_results_with_valid_input(self) -> None:
         # Testing result validation with valid types as dictionary values
         results = {"result1": 1, "result2": "a", "result3": True, "result4": 3.14}
         self.assertTrue(ProcessFunctionCalls.validate_results(results))
 
-    def test_validate_results_with_invalid_input1(self):
+    def test_validate_results_with_invalid_input1(self) -> None:
         # Testing result validation with an invalid type (list) as one of the dictionary values
         results = {"result1": 1, "result2": "a", "result3": [1, 2, 3], "result4": True}
         self.assertFalse(ProcessFunctionCalls.validate_results(results))
 
-    def test_validate_results_with_invalid_input2(self):
+    def test_validate_results_with_invalid_input2(self) -> None:
         # Testing result validation with an invalid type (None) as one of the dictionary values
         results = {"result1": 1, "result2": "a", "result3": None, "result4": True}
         self.assertFalse(ProcessFunctionCalls.validate_results(results))
 
-    def test_validate_results_with_empty_string_key(self):
+    def test_validate_results_with_empty_string_key(self) -> None:
         # Testing result validation with an empty string as a key
         results = {"": 1, "result2": "a", "result3": True, "result4": 3.14}
         self.assertFalse(ProcessFunctionCalls.validate_results(results))
 
-    def test_validate_results_with_none_key(self):
+    def test_validate_results_with_none_key(self) -> None:
         # Testing result validation with None as a key
         results = {None: 1, "result2": "a", "result3": True, "result4": 3.14}
         self.assertFalse(ProcessFunctionCalls.validate_results(results))
 
-    def test_validate_results_with_all_valid_keys_and_values(self):
+    def test_validate_results_with_all_valid_keys_and_values(self) -> None:
         # Testing result validation with all valid keys and values
         results = {"result1": 1, "result2": "a", "result3": True, "result4": 3.14}
         self.assertTrue(ProcessFunctionCalls.validate_results(results))
 
-    def test_validate_results_with_empty_dict(self):
+    def test_validate_results_with_empty_dict(self) -> None:
         # Testing result validation with an empty dictionary
         results = {}
         self.assertTrue(ProcessFunctionCalls.validate_results(results))

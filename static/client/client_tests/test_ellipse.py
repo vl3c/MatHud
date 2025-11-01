@@ -6,7 +6,7 @@ from coordinate_mapper import CoordinateMapper
 
 
 class TestEllipse(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Create a real CoordinateMapper instance
         self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
         
@@ -34,21 +34,21 @@ class TestEllipse(unittest.TestCase):
         self.rotation_angle = 45
         self.ellipse = Ellipse(self.center, self.radius_x, self.radius_y, color="red", rotation_angle=self.rotation_angle)
 
-    def test_init(self):
+    def test_init(self) -> None:
         self.assertEqual(self.ellipse.center, self.center)
         self.assertEqual(self.ellipse.radius_x, self.radius_x)
         self.assertEqual(self.ellipse.radius_y, self.radius_y)
         self.assertEqual(self.ellipse.rotation_angle, self.rotation_angle)
         self.assertEqual(self.ellipse.color, "red")
 
-    def test_get_class_name(self):
+    def test_get_class_name(self) -> None:
         self.assertEqual(self.ellipse.get_class_name(), 'Ellipse')
 
-    def test_calculate_ellipse_algebraic_formula(self):
+    def test_calculate_ellipse_algebraic_formula(self) -> None:
         formula = self.ellipse._calculate_ellipse_algebraic_formula()
         self.assertIsNotNone(formula)
 
-    def test_get_state(self):
+    def test_get_state(self) -> None:
         state = self.ellipse.get_state()
         expected_state = {
             "name": self.ellipse.name, 
@@ -62,7 +62,7 @@ class TestEllipse(unittest.TestCase):
         }
         self.assertEqual(state, expected_state)
 
-    def test_deepcopy(self):
+    def test_deepcopy(self) -> None:
         ellipse_copy = copy.deepcopy(self.ellipse)
         self.assertIsNot(ellipse_copy, self.ellipse)
         self.assertIsNot(ellipse_copy.center, self.ellipse.center)
@@ -70,19 +70,19 @@ class TestEllipse(unittest.TestCase):
         self.assertEqual(ellipse_copy.radius_y, self.ellipse.radius_y)
         self.assertEqual(ellipse_copy.color, self.ellipse.color)
 
-    def test_draw(self):
+    def test_draw(self) -> None:
         # This test would check if draw calls create_svg_element with expected arguments
         # Might require a more complex setup or mocking to verify SVG output
         pass
 
-    def test_rotate(self):
+    def test_rotate(self) -> None:
         initial_angle = self.ellipse.rotation_angle
         rotation = 30
         self.ellipse.rotate(rotation)
         expected_angle = (initial_angle + rotation) % 360
         self.assertEqual(self.ellipse.rotation_angle, expected_angle)
 
-    def test_translate_ellipse_in_math_space(self):
+    def test_translate_ellipse_in_math_space(self) -> None:
         """Test ellipse translation in mathematical space"""
         # Test center point coordinates before translation
         # Center at (2,2) in math space -> (252,248) in screen space

@@ -4,7 +4,7 @@ from browser import window as browser_window
 
 
 class TestWindowMocks(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Create a mock for performance.now that we can update
         self.current_time = 1000
         self.now_mock = SimpleMock(return_value=self.current_time)
@@ -35,7 +35,7 @@ class TestWindowMocks(unittest.TestCase):
         browser_window.setTimeout = self.original_setTimeout
         browser_window.clearTimeout = self.original_clearTimeout
 
-    def test_performance_now(self):
+    def test_performance_now(self) -> None:
         """Test that window.performance.now() returns the correct time and updates properly."""
         # Initial time check
         self.assertEqual(browser_window.performance.now(), 1000)
@@ -48,7 +48,7 @@ class TestWindowMocks(unittest.TestCase):
         # Verify the mock was actually called
         self.assertTrue(len(self.now_mock.calls) > 0)
 
-    def test_set_timeout(self):
+    def test_set_timeout(self) -> None:
         """Test that setTimeout stores the callback and returns the expected timer ID."""
         callback = lambda: None
         wait_time = 100
@@ -63,7 +63,7 @@ class TestWindowMocks(unittest.TestCase):
         self.assertEqual(call_args[0], callback)
         self.assertEqual(call_args[1], wait_time)
 
-    def test_clear_timeout(self):
+    def test_clear_timeout(self) -> None:
         """Test that clearTimeout is called with the correct timer ID."""
         timer_id = 123
         
@@ -75,7 +75,7 @@ class TestWindowMocks(unittest.TestCase):
         call_args, call_kwargs = self.mock_window.clearTimeout.calls[0]
         self.assertEqual(call_args[0], timer_id)
 
-    def test_mock_chain(self):
+    def test_mock_chain(self) -> None:
         """Test that the entire mock chain works together."""
         callback = lambda: None
         

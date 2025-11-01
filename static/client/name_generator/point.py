@@ -15,6 +15,10 @@ Dependencies:
     - name_generator.base: Base class functionality
 """
 
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
 import re
 from .base import NameGenerator
 
@@ -30,20 +34,20 @@ class PointNameGenerator(NameGenerator):
         used_letters_from_names (dict): Tracks which letters have been used for each name
     """
     
-    def __init__(self, canvas):
+    def __init__(self, canvas: Any) -> None:
         """Initialize point name generator with canvas reference.
         
         Args:
             canvas (Canvas): Canvas instance for drawable object access
         """
         super().__init__(canvas)
-        self.used_letters_from_names = {}  # Track which letters have been used for each name
+        self.used_letters_from_names: Dict[str, Dict[str, Any]] = {}  # Track which letters have been used for each name
     
-    def reset_state(self):
+    def reset_state(self) -> None:
         """Reset the internal tracking of used letters from names."""
         self.used_letters_from_names = {}
     
-    def _init_tracking_for_expression(self, expression):
+    def _init_tracking_for_expression(self, expression: str) -> Dict[str, Any]:
         """Initialize tracking for a point expression.
         
         Args:
@@ -53,14 +57,14 @@ class PointNameGenerator(NameGenerator):
             dict: Tracking data for the expression
         """
         if expression not in self.used_letters_from_names:
-            matches = re.findall(r'[A-Z][\']*', expression)
+            matches: List[str] = re.findall(r'[A-Z][\']*', expression)
             self.used_letters_from_names[expression] = {
                 'letters': list(dict.fromkeys(matches)),  # All letters
                 'next_index': 0  # Next unused letter index
             }
         return self.used_letters_from_names[expression]
     
-    def _get_next_letters(self, name_data, n):
+    def _get_next_letters(self, name_data: Dict[str, Any], n: int) -> List[str]:
         """Extract the next n letters from the name data.
         
         Args:
@@ -70,10 +74,10 @@ class PointNameGenerator(NameGenerator):
         Returns:
             list: List of the next n letters
         """
-        available_letters = name_data['letters']
-        start_index = name_data['next_index']
+        available_letters: List[str] = name_data['letters']
+        start_index: int = name_data['next_index']
         
-        result = []
+        result: List[str] = []
         for i in range(n):
             if start_index + i < len(available_letters):
                 result.append(available_letters[start_index + i])
@@ -84,7 +88,7 @@ class PointNameGenerator(NameGenerator):
         name_data['next_index'] = min(start_index + n, len(available_letters))
         return result
     
-    def split_point_names(self, expression, n=2):
+    def split_point_names(self, expression: Optional[str], n: int = 2) -> List[str]:
         """Split a point expression into individual point names.
         
         Args:
@@ -101,23 +105,23 @@ class PointNameGenerator(NameGenerator):
         expression = expression.upper()
         
         # Initialize tracking for this name
-        name_data = self._init_tracking_for_expression(expression)
+        name_data: Dict[str, Any] = self._init_tracking_for_expression(expression)
         
         # Get the next n letters
         return self._get_next_letters(name_data, n)
     
-    def _generate_unique_point_name(self):
+    def _generate_unique_point_name(self) -> str:
         """Generate a unique point name using alphabetical sequence with apostrophes.
         
         Returns:
             str: Unique point name following alphabetical progression
         """
-        alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        point_names = self.get_drawable_names('Point')
+        alphabet: str = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        point_names: List[str] = self.get_drawable_names('Point')
         
         return self._find_available_name_from_alphabet(alphabet, point_names)
     
-    def _find_available_name_from_alphabet(self, alphabet, existing_names):
+    def _find_available_name_from_alphabet(self, alphabet: str, existing_names: List[str]) -> str:
         """Find an available name from an alphabet, adding apostrophes as needed.
         
         Args:
@@ -127,15 +131,15 @@ class PointNameGenerator(NameGenerator):
         Returns:
             str: Available name with appropriate apostrophes
         """
-        num_apostrophes = 0
+        num_apostrophes: int = 0
         while True:
             for letter in alphabet:
-                name = letter + "'" * num_apostrophes
+                name: str = letter + "'" * num_apostrophes
                 if name not in existing_names:
                     return name
             num_apostrophes += 1
     
-    def _init_tracking_for_preferred_name(self, preferred_name):
+    def _init_tracking_for_preferred_name(self, preferred_name: str) -> Dict[str, Any]:
         """Initialize tracking for a preferred point name.
         
         Args:
@@ -145,14 +149,14 @@ class PointNameGenerator(NameGenerator):
             dict: Tracking data for the preferred name
         """
         if preferred_name not in self.used_letters_from_names:
-            matches = re.findall(r'[A-Z][\']*', preferred_name)
+            matches: List[str] = re.findall(r'[A-Z][\']*', preferred_name)
             self.used_letters_from_names[preferred_name] = {
                 'letters': list(dict.fromkeys(matches)),  # All available letters with their apostrophes
                 'next_index': 0  # Next unused letter index
             }
         return self.used_letters_from_names[preferred_name]
     
-    def _find_available_name_from_preferred(self, letter_with_apostrophes, point_names):
+    def _find_available_name_from_preferred(self, letter_with_apostrophes: str, point_names: List[str]) -> str:
         """Find an available name based on a preferred letter, adding apostrophes if needed.
         
         Args:
@@ -162,16 +166,17 @@ class PointNameGenerator(NameGenerator):
         Returns:
             str: Available name based on preferred letter
         """
-        base_letter = letter_with_apostrophes[0]  # Get just the letter without apostrophes
+        base_letter: str = letter_with_apostrophes[0]  # Get just the letter without apostrophes
         
         # Try the letter as is first
         if letter_with_apostrophes not in point_names:
             return letter_with_apostrophes
             
         # Try adding apostrophes
-        return self._try_add_apostrophes(base_letter, point_names)
+        result: Optional[str] = self._try_add_apostrophes(base_letter, point_names)
+        return result if result is not None else base_letter
     
-    def _try_add_apostrophes(self, base_letter, point_names, initial_count=1, max_attempts=5):
+    def _try_add_apostrophes(self, base_letter: str, point_names: List[str], initial_count: int = 1, max_attempts: int = 5) -> Optional[str]:
         """Try adding apostrophes to a base letter until finding an unused name.
         
         Args:
@@ -183,17 +188,17 @@ class PointNameGenerator(NameGenerator):
         Returns:
             str or None: Available name with apostrophes, or None if not found
         """
-        num_apostrophes = initial_count
+        num_apostrophes: int = initial_count
         
         while num_apostrophes <= max_attempts:
-            name = base_letter + "'" * num_apostrophes
+            name: str = base_letter + "'" * num_apostrophes
             if name not in point_names:
                 return name
             num_apostrophes += 1
             
         return None  # Could not find an available name with reasonable apostrophes
     
-    def generate_point_name(self, preferred_name):
+    def generate_point_name(self, preferred_name: Optional[str]) -> str:
         """Generate a unique point name, using preferred_name if possible.
         
         Args:
@@ -203,25 +208,25 @@ class PointNameGenerator(NameGenerator):
             str: Unique point name
         """
         if not preferred_name:
-            unique_name = self._generate_unique_point_name()
+            unique_name: str = self._generate_unique_point_name()
             return unique_name
             
         # Filter and uppercase the preferred name
         preferred_name = self.filter_string(preferred_name).upper()
         
-        point_names = self.get_drawable_names('Point')
+        point_names: List[str] = self.get_drawable_names('Point')
         
         # Initialize tracking for this name
-        name_data = self._init_tracking_for_preferred_name(preferred_name)
+        name_data: Dict[str, Any] = self._init_tracking_for_preferred_name(preferred_name)
         
-        available_letters = name_data['letters']
-        start_index = name_data['next_index']
+        available_letters: List[str] = name_data['letters']
+        start_index: int = name_data['next_index']
         
         # Try each remaining letter from the preferred name
         for i in range(start_index, len(available_letters)):
-            letter_with_apostrophes = available_letters[i]
+            letter_with_apostrophes: str = available_letters[i]
             
-            name = self._find_available_name_from_preferred(letter_with_apostrophes, point_names)
+            name: str = self._find_available_name_from_preferred(letter_with_apostrophes, point_names)
             
             if name:
                 name_data['next_index'] = i + 1

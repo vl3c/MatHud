@@ -4,9 +4,10 @@ from managers.angle_manager import AngleManager
 from .simple_mock import SimpleMock
 from coordinate_mapper import CoordinateMapper
 from geometry import Position
+from typing import Any
 
 class TestAngleManager(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Create a real CoordinateMapper instance
         self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
         
@@ -30,7 +31,7 @@ class TestAngleManager(unittest.TestCase):
         
         # Sync canvas state with coordinate mapper
         self.coordinate_mapper.sync_from_canvas(self.canvas_mock)
-        self.drawables_container_mock = SimpleMock(
+        self.drawables_container_mock: Any = SimpleMock(
             name="DrawablesContainerMock",
             Angles=[], # Holds created Angle instances
             add=MagicMock(side_effect=lambda x: self.drawables_container_mock.Angles.append(x))
@@ -114,13 +115,13 @@ class TestAngleManager(unittest.TestCase):
         self.seg_AD = self.segment_manager_mock.create_segment(self.A.x, self.A.y, self.D.x, self.D.y, name="AD")
 
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         self.assertIsNotNone(self.angle_manager.canvas)
         self.assertIsNotNone(self.angle_manager.drawables)
         self.assertIsNotNone(self.angle_manager.point_manager)
         self.assertIsNotNone(self.angle_manager.segment_manager)
 
-    def test_get_angle_by_name_found(self):
+    def test_get_angle_by_name_found(self) -> None:
         # Add a mock angle to the container
         mock_angle = SimpleMock(name="TestAngle1", segment1=self.seg_AB, segment2=self.seg_AC)
         self.drawables_container_mock.Angles.append(mock_angle)
@@ -128,11 +129,11 @@ class TestAngleManager(unittest.TestCase):
         found_angle = self.angle_manager.get_angle_by_name("TestAngle1")
         self.assertIs(found_angle, mock_angle)
 
-    def test_get_angle_by_name_not_found(self):
+    def test_get_angle_by_name_not_found(self) -> None:
         found_angle = self.angle_manager.get_angle_by_name("NonExistentAngle")
         self.assertIsNone(found_angle)
 
-    def test_get_angle_by_segments_found(self):
+    def test_get_angle_by_segments_found(self) -> None:
         mock_angle = SimpleMock(name="AngleBySegs", segment1=self.seg_AB, segment2=self.seg_AC, is_reflex=False)
         self.drawables_container_mock.Angles.append(mock_angle)
 
@@ -144,7 +145,7 @@ class TestAngleManager(unittest.TestCase):
         found_angle_reverse = self.angle_manager.get_angle_by_segments(self.seg_AC, self.seg_AB)
         self.assertIs(found_angle_reverse, mock_angle)
 
-    def test_get_angle_by_segments_not_found(self):
+    def test_get_angle_by_segments_not_found(self) -> None:
         # Segments that don't form a known angle in the container
         # Create a new point E for the other segment to avoid confusion
         E = self.point_manager_mock.create_point(20,20, name="E")
@@ -152,7 +153,7 @@ class TestAngleManager(unittest.TestCase):
         found_angle = self.angle_manager.get_angle_by_segments(self.seg_AB, other_segment)
         self.assertIsNone(found_angle)
 
-    def test_get_angle_by_points_found(self):     
+    def test_get_angle_by_points_found(self) -> None:     
         # Setup points that an Angle would have derived
         A_obj = SimpleMock(name="A_obj", x=0,y=0)
         B_obj = SimpleMock(name="B_obj", x=10,y=0)
@@ -178,7 +179,7 @@ class TestAngleManager(unittest.TestCase):
         found_angle_reverse = self.angle_manager.get_angle_by_points(A_obj, C_obj, B_obj)
         self.assertIs(found_angle_reverse, mock_angle)
 
-    def test_get_angle_by_points_not_found_wrong_vertex(self):
+    def test_get_angle_by_points_not_found_wrong_vertex(self) -> None:
         A_obj = SimpleMock(name="A_obj", x=0,y=0)
         B_obj = SimpleMock(name="B_obj", x=10,y=0)
         C_obj = SimpleMock(name="C_obj", x=0,y=10)
@@ -190,7 +191,7 @@ class TestAngleManager(unittest.TestCase):
         found_angle = self.angle_manager.get_angle_by_points(wrong_V_obj, B_obj, C_obj)
         self.assertIsNone(found_angle)
 
-    def test_get_angle_by_points_not_found_wrong_arm(self):
+    def test_get_angle_by_points_not_found_wrong_arm(self) -> None:
         A_obj = SimpleMock(name="A_obj", x=0,y=0)
         B_obj = SimpleMock(name="B_obj", x=10,y=0)
         C_obj = SimpleMock(name="C_obj", x=0,y=10)
@@ -202,7 +203,7 @@ class TestAngleManager(unittest.TestCase):
         found_angle = self.angle_manager.get_angle_by_points(A_obj, B_obj, wrong_D_obj)
         self.assertIsNone(found_angle)
 
-    def test_get_angle_by_points_input_points_none(self):
+    def test_get_angle_by_points_input_points_none(self) -> None:
         A_obj = SimpleMock(name="A_obj", x=0,y=0) # Changed from v_obj
         B_obj = SimpleMock(name="B_obj", x=10,y=0) # Changed from a1_obj
         self.assertIsNone(self.angle_manager.get_angle_by_points(None, B_obj, B_obj))

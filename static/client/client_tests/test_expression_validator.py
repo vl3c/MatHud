@@ -1,10 +1,11 @@
 import unittest
 import math
+from typing import Callable, Dict
 from expression_validator import ExpressionValidator
 
 
 class TestExpressionValidator(unittest.TestCase):
-    def test_validate_expression_tree_valid(self):
+    def test_validate_expression_tree_valid(self) -> None:
         valid_expressions = [
             "x**2",
             "sin(x) + cos(x)",
@@ -51,7 +52,7 @@ class TestExpressionValidator(unittest.TestCase):
                 except ValueError as e:
                     self.fail(f"Unexpected exception for '{expr}': {e}")
 
-    def test_validate_expression_tree_invalid(self):
+    def test_validate_expression_tree_invalid(self) -> None:
         invalid_expressions = [
             "", " ", "\t", "\n",  # Empty or whitespace-only strings
             "import os",  # Import statements
@@ -81,7 +82,7 @@ class TestExpressionValidator(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     ExpressionValidator.validate_expression_tree(expr)
 
-    def test_evaluate_expression(self):
+    def test_evaluate_expression(self) -> None:
         x = 2  # Define x for use in expressions
         expressions = {
             "sin(pi/2)": math.sin(math.pi / 2),
@@ -124,7 +125,7 @@ class TestExpressionValidator(unittest.TestCase):
                 else:
                     self.assertEqual(result, expected)
 
-    def test_degree_to_radian_conversion(self):
+    def test_degree_to_radian_conversion(self) -> None:
         expressions_and_expected = {
             "sin(30deg)": f"sin({30 * math.pi / 180})",  # Should convert 30 degrees to radians
             "cos(45deg) + sin(90deg)": f"cos({45 * math.pi / 180}) + sin({90 * math.pi / 180})",  # Converts both 45 and 90 degrees to radians
@@ -138,7 +139,7 @@ class TestExpressionValidator(unittest.TestCase):
                 self.assertAlmostEqual(eval(fixed_expr, {"sin": math.sin, "cos": math.cos, "tan": math.tan, "pi": math.pi}), \
                                        eval(expected, {"sin": math.sin, "cos": math.cos, "tan": math.tan, "pi": math.pi}))
 
-    def test_fix_math_expression_python_compatibility(self):
+    def test_fix_math_expression_python_compatibility(self) -> None:
         expressions_and_fixes = {
             "sin(pi/4)^2": "sin(pi/4)**2",
             "2x": "2*x",
@@ -154,7 +155,7 @@ class TestExpressionValidator(unittest.TestCase):
                 fixed_expr = ExpressionValidator.fix_math_expression(expr, python_compatible=True)
                 self.assertEqual(fixed_expr, expected_fix)
 
-    def test_fix_math_expression_js_compatibility(self):
+    def test_fix_math_expression_js_compatibility(self) -> None:
         expressions_and_expected = {
             # Checks for reverting Python-compatible transformations
             "sqrt(x)**2": "sqrt(x)^2",
@@ -169,7 +170,7 @@ class TestExpressionValidator(unittest.TestCase):
                 fixed_expr = ExpressionValidator.fix_math_expression(expr, python_compatible=False)
                 self.assertEqual(fixed_expr, expected)
 
-    def test_parse_function_string_returns_number(self):
+    def test_parse_function_string_returns_number(self) -> None:
         function_elements = [
             "sin(pi/4)",
             "cos(π/3)",
@@ -198,8 +199,8 @@ class TestExpressionValidator(unittest.TestCase):
                     result = f(x)
                     self.assertIsInstance(result, (int, float), f"Result of expression '{element}' for x={x} is not a number: {result}")
 
-    def test_parse_function_string(self):
-        expressions = {
+    def test_parse_function_string(self) -> None:
+        expressions: Dict[str, Callable[[float], float]] = {
             "x^2": lambda x: x**2,
             "sin(x)": math.sin,
             "log(x)": math.log,
@@ -220,7 +221,7 @@ class TestExpressionValidator(unittest.TestCase):
                         print(f"Expected: {expected_result}, Result: {result}")
                         self.assertAlmostEqual(result, expected_result, msg=f"Failed on expr: {expr} with x={value}")
 
-    def test_fix_math_expression_factorials(self):
+    def test_fix_math_expression_factorials(self) -> None:
         cases = [
             ("10!/(3!*(10-3)!)", "factorial(10)/(factorial(3)*factorial((10-3)))"),
             ("(3!)!", "factorial((factorial(3)))"),

@@ -10,7 +10,7 @@ import time
 class TestCanvasEventHandlerTouch(unittest.TestCase):
     """Test the touch event handling methods added for mobile support."""
     
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures with mock canvas, AI interface, and document elements."""
         # Create mock canvas
         self.mock_canvas = Canvas(500, 500, draw_enabled=False)
@@ -74,7 +74,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         mock_event.preventDefault = SimpleMock()
         return mock_event
 
-    def test_handle_touchstart_single_touch(self):
+    def test_handle_touchstart_single_touch(self) -> None:
         """Test handling single finger touch start for panning."""
         # Create single touch event
         touch = self._create_mock_touch(100, 150)
@@ -90,7 +90,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         # Verify preventDefault was called
         self.assertEqual(len(event.preventDefault.calls), 1)
 
-    def test_handle_touchstart_two_fingers_pinch(self):
+    def test_handle_touchstart_two_fingers_pinch(self) -> None:
         """Test handling two finger touch start for pinch-to-zoom."""
         # Create two touch event
         touch1 = self._create_mock_touch(100, 150)
@@ -107,7 +107,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         # Verify zoom point was set
         self.assertIsNotNone(self.mock_canvas.zoom_point)
 
-    def test_calculate_touch_distance(self):
+    def test_calculate_touch_distance(self) -> None:
         """Test calculation of distance between two touch points."""
         touch1 = self._create_mock_touch(0, 0)
         touch2 = self._create_mock_touch(30, 40)
@@ -118,7 +118,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         # Distance should be 50 (3-4-5 triangle)
         self.assertEqual(distance, 50)
 
-    def test_handle_touchmove_single_finger_panning(self):
+    def test_handle_touchmove_single_finger_panning(self) -> None:
         """Test handling single finger movement for panning."""
         # Setup initial dragging state
         self.mock_canvas.dragging = True
@@ -134,7 +134,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         # Verify preventDefault was called
         self.assertEqual(len(event.preventDefault.calls), 1)
 
-    def test_handle_touchmove_pinch_zoom_in(self):
+    def test_handle_touchmove_pinch_zoom_in(self) -> None:
         """Test handling pinch gesture for zooming in."""
         # Setup initial pinch state
         self.event_handler.last_pinch_distance = 50
@@ -154,7 +154,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         # Verify last_pinch_distance was updated
         self.assertIsNotNone(self.event_handler.last_pinch_distance)
 
-    def test_handle_touchmove_pinch_zoom_out(self):
+    def test_handle_touchmove_pinch_zoom_out(self) -> None:
         """Test handling pinch gesture for zooming out."""
         # Setup initial pinch state
         self.event_handler.last_pinch_distance = 100
@@ -174,7 +174,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         # Verify last_pinch_distance was updated
         self.assertIsNotNone(self.event_handler.last_pinch_distance)
 
-    def test_handle_touchend(self):
+    def test_handle_touchend(self) -> None:
         """Test handling touch end events."""
         # Setup touch dragging state
         self.mock_canvas.dragging = True
@@ -194,7 +194,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         self.assertIsNone(self.event_handler.initial_pinch_distance)
         self.assertIsNone(self.event_handler.last_pinch_distance)
 
-    def test_handle_touchcancel(self):
+    def test_handle_touchcancel(self) -> None:
         """Test handling touch cancel events."""
         # Setup touch dragging state
         self.mock_canvas.dragging = True
@@ -210,7 +210,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         self.assertFalse(self.mock_canvas.dragging)
         self.assertIsNone(self.event_handler.current_mouse_position)
 
-    def test_handle_double_tap(self):
+    def test_handle_double_tap(self) -> None:
         """Test handling double tap for coordinate capture."""
         # Create first tap
         touch = self._create_mock_touch(100, 150)
@@ -232,7 +232,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
             # Restore original time
             time.time = original_time
 
-    def test_initialize_touch_dragging(self):
+    def test_initialize_touch_dragging(self) -> None:
         """Test initialization of touch dragging state."""
         touch = self._create_mock_touch(100, 150)
         
@@ -245,13 +245,13 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         self.assertEqual(self.event_handler.current_mouse_position.x, 100)
         self.assertEqual(self.event_handler.current_mouse_position.y, 150)
 
-    def test_touch_action_none_set_in_bind_events(self):
+    def test_touch_action_none_set_in_bind_events(self) -> None:
         """Test that touch-action: none is set when binding events."""
         # This test verifies that the CSS property is set to prevent default touch behaviors
         # The actual binding happens in bind_events which is called in __init__
         self.assertEqual(self.mock_svg_element.style.touchAction, "none")
 
-    def test_error_handling_in_touch_methods(self):
+    def test_error_handling_in_touch_methods(self) -> None:
         """Test that touch methods handle errors gracefully."""
         # Create an event that might cause errors
         malformed_event = SimpleMock()

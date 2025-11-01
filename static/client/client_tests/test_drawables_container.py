@@ -6,7 +6,7 @@ from .simple_mock import SimpleMock
 class TestDrawablesContainer(unittest.TestCase):
     """Test cases for the DrawablesContainer class."""
     
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures before each test."""
         self.container = DrawablesContainer()
         # Create mock drawables of different types
@@ -17,12 +17,12 @@ class TestDrawablesContainer(unittest.TestCase):
         self.circle = SimpleMock(get_class_name=SimpleMock(return_value="Circle"), 
                                 get_state=SimpleMock(return_value={"name": "c1", "center": "A", "radius": 5}))
         
-    def test_init(self):
+    def test_init(self) -> None:
         """Test initialization of the container."""
         container = DrawablesContainer()
         self.assertEqual(len(container.get_all()), 0, "New container should be empty")
         
-    def test_add(self):
+    def test_add(self) -> None:
         """Test adding drawables to the container."""
         self.container.add(self.point)
         self.assertEqual(len(self.container.get_all()), 1, "Container should have 1 drawable")
@@ -37,7 +37,7 @@ class TestDrawablesContainer(unittest.TestCase):
         self.assertEqual(len(self.container.get_all()), 3, "Container should have 3 drawables")
         self.assertEqual(len(self.container.get_by_class_name("Point")), 2, "Container should have 2 Points")
         
-    def test_remove(self):
+    def test_remove(self) -> None:
         """Test removing drawables from the container."""
         # Add drawables first
         self.container.add(self.point)
@@ -54,7 +54,7 @@ class TestDrawablesContainer(unittest.TestCase):
         result = self.container.remove(non_existent)
         self.assertFalse(result, "Remove should return False when drawable not found")
         
-    def test_get_by_class_name(self):
+    def test_get_by_class_name(self) -> None:
         """Test getting drawables by class name."""
         # Add drawables of different types
         self.container.add(self.point)
@@ -69,7 +69,7 @@ class TestDrawablesContainer(unittest.TestCase):
         non_existent = self.container.get_by_class_name("NonExistent")
         self.assertEqual(len(non_existent), 0, "Should return empty list for non-existent class")
         
-    def test_get_all(self):
+    def test_get_all(self) -> None:
         """Test getting all drawables."""
         # Empty container
         self.assertEqual(len(self.container.get_all()), 0, "Empty container should return empty list")
@@ -85,7 +85,7 @@ class TestDrawablesContainer(unittest.TestCase):
         self.assertIn(self.segment, all_drawables, "Segment should be in the result")
         self.assertIn(self.circle, all_drawables, "Circle should be in the result")
         
-    def test_clear(self):
+    def test_clear(self) -> None:
         """Test clearing all drawables."""
         # Add drawables
         self.container.add(self.point)
@@ -97,7 +97,7 @@ class TestDrawablesContainer(unittest.TestCase):
         self.container.clear()
         self.assertEqual(len(self.container.get_all()), 0, "Container should be empty after clear")
         
-    def test_get_state(self):
+    def test_get_state(self) -> None:
         """Test getting state of all drawables."""
         # Add drawables
         self.container.add(self.point)
@@ -110,7 +110,7 @@ class TestDrawablesContainer(unittest.TestCase):
         self.assertEqual(len(state["Segments"]), 1, "Should have 1 Segment state")
         self.assertEqual(state["Points"][0], {"name": "A", "coords": [1, 2]}, "Point state should match")
         
-    def test_property_accessors(self):
+    def test_property_accessors(self) -> None:
         """Test property-style access for drawable types."""
         # Add drawables
         self.container.add(self.point)
@@ -130,7 +130,7 @@ class TestDrawablesContainer(unittest.TestCase):
         triangles = self.container.Triangles
         self.assertEqual(len(triangles), 0, "Should return empty list for non-existent type")
         
-    def test_dictionary_access(self):
+    def test_dictionary_access(self) -> None:
         """Test dictionary-like access to drawable types."""
         # Add drawables
         self.container.add(self.point)

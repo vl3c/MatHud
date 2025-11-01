@@ -1,5 +1,6 @@
 import unittest
 import json
+from typing import List
 from utils.math_utils import MathUtils
 from geometry import Position
 from .simple_mock import SimpleMock
@@ -8,14 +9,14 @@ from rendering.function_renderable import FunctionRenderable
 
 
 class TestMathFunctions(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Mock points for use in some tests (math-space coordinates only)
         self.point1 = SimpleMock(x=0, y=0, name='A')
         self.point2 = SimpleMock(x=1, y=1, name='B')
         # Mock segment using mocked points
         self.segment = SimpleMock(point1=self.point1, point2=self.point2)
     
-    def test_format_number_for_cartesian(self):
+    def test_format_number_for_cartesian(self) -> None:
         test_cases = [
             (123456789, 6, '1.2e+8'),
             (0.000123456789, 6, '0.00012'),
@@ -50,38 +51,38 @@ class TestMathFunctions(unittest.TestCase):
             with self.subTest(i=i):
                 self.assertEqual(MathUtils.format_number_for_cartesian(input, max_digits=max_digits), expected)
 
-    def test_point_matches_coordinates(self):
+    def test_point_matches_coordinates(self) -> None:
         self.assertTrue(MathUtils.point_matches_coordinates(self.point1, 0, 0))
         self.assertFalse(MathUtils.point_matches_coordinates(self.point1, 1, 1))
 
-    def test_segment_matches_coordinates(self):
+    def test_segment_matches_coordinates(self) -> None:
         self.assertTrue(MathUtils.segment_matches_coordinates(self.segment, 0, 0, 1, 1))
         self.assertTrue(MathUtils.segment_matches_coordinates(self.segment, 1, 1, 0, 0))  # Reverse order
         self.assertFalse(MathUtils.segment_matches_coordinates(self.segment, 2, 2, 3, 3))  # Incorrect coordinates
 
-    def test_segment_matches_point_names(self):
+    def test_segment_matches_point_names(self) -> None:
         self.assertTrue(MathUtils.segment_matches_point_names(self.segment, 'A', 'B'))
         self.assertTrue(MathUtils.segment_matches_point_names(self.segment, 'B', 'A'))  # Reverse order
         self.assertFalse(MathUtils.segment_matches_point_names(self.segment, 'C', 'D'))  # Incorrect names
 
-    def test_segment_has_end_point(self):
+    def test_segment_has_end_point(self) -> None:
         self.assertTrue(MathUtils.segment_has_end_point(self.segment, 0, 0))
         self.assertTrue(MathUtils.segment_has_end_point(self.segment, 1, 1))
         self.assertFalse(MathUtils.segment_has_end_point(self.segment, 2, 2))  # Point not in segment
 
-    def test_get_2D_distance(self):
+    def test_get_2D_distance(self) -> None:
         p1 = Position(0, 0)
         p2 = Position(3, 4)
         self.assertEqual(MathUtils.get_2D_distance(p1, p2), 5)
 
-    def test_get_2D_midpoint(self):
+    def test_get_2D_midpoint(self) -> None:
         p1 = Position(0, 0)
         p2 = Position(2, 2)
         x, y = MathUtils.get_2D_midpoint(p1, p2)
         self.assertEqual(x, 1)
         self.assertEqual(y, 1)
 
-    def test_is_point_on_segment(self):
+    def test_is_point_on_segment(self) -> None:
         # Basic tests
         self.assertTrue(MathUtils.is_point_on_segment(1, 1, 0, 0, 2, 2))
         self.assertTrue(MathUtils.is_point_on_segment(1, 1, 2, 2, 0, 0))
@@ -159,35 +160,35 @@ class TestMathFunctions(unittest.TestCase):
             f"Interpolated point ({point_x}, {point_y}) should be detected as being on segment from (-122.0, -69.0) to (311.0, 154.0)"
         )
 
-    def test_get_triangle_area(self):
+    def test_get_triangle_area(self) -> None:
         p1 = Position(0, 0)
         p2 = Position(1, 0)
         p3 = Position(0, 1)
         self.assertAlmostEqual(MathUtils.get_triangle_area(p1, p2, p3), 0.5)
 
-    def test_get_rectangle_area(self):
+    def test_get_rectangle_area(self) -> None:
         p1 = Position(0, 0)
         p2 = Position(2, 3)
         self.assertEqual(MathUtils.get_rectangle_area(p1, p2), 6)
 
-    def test_cross_product(self):
+    def test_cross_product(self) -> None:
         self.assertEqual(MathUtils.cross_product(Position(0, 0), Position(1, 0), Position(0, 1)), 1)       # "Perpendicular vectors"
         self.assertEqual(MathUtils.cross_product(Position(0, 0), Position(1, 1), Position(1, 1)), 0)       # "Zero vector test"
         self.assertEqual(MathUtils.cross_product(Position(1, 2), Position(-1, -1), Position(2, -3)), 13)   # "Negative values test"
         self.assertEqual(MathUtils.cross_product(Position(0, 0), Position(1, 0), Position(2, 0)), 0)       # "Collinear vectors"
 
-    def test_dot_product(self):
+    def test_dot_product(self) -> None:
         self.assertEqual(MathUtils.dot_product(Position(0, 0), Position(1, 0), Position(1, 0)), 1)      # "Parallel vectors"
         self.assertEqual(MathUtils.dot_product(Position(0, 0), Position(0, 0), Position(0, 1)), 0)      # "Zero vector test"
         self.assertEqual(MathUtils.dot_product(Position(1, 2), Position(-1, -1), Position(2, -3)), 13)  # "Negative values test"
         self.assertEqual(MathUtils.dot_product(Position(0, 0), Position(1, 0), Position(0, 1)), 0)      # "Perpendicular vectors"
 
-    def test_is_right_angle(self):
+    def test_is_right_angle(self) -> None:
         self.assertEqual(MathUtils.is_right_angle(Position(0, 0), Position(1, 0), Position(0, 1)), True)   # "Right angle"
         self.assertEqual(MathUtils.is_right_angle(Position(0, 0), Position(1, 1), Position(1, 0)), False)  # "Not right angle"
         self.assertEqual(MathUtils.is_right_angle(Position(0, 0), Position(1, 0), Position(1, 1)), False)  # "Almost right angle but not quite"
 
-    def test_calculate_angle_degrees(self):
+    def test_calculate_angle_degrees(self) -> None:
         # Vertex at origin for simplicity in these tests
         v = (0,0)
         # Test cases: (arm1_coords, arm2_coords, expected_degrees)
@@ -227,7 +228,7 @@ class TestMathFunctions(unittest.TestCase):
         p2_offset = (5,6) # (0,1) relative to v_offset
         self.assertAlmostEqual(MathUtils.calculate_angle_degrees(v_offset, p1_offset, p2_offset), 90.0, places=5)
 
-    def test_are_points_valid_for_angle_geometry(self):
+    def test_are_points_valid_for_angle_geometry(self) -> None:
         # Test cases: (vertex_coords, arm1_coords, arm2_coords, expected_validity)
         v = (0.0, 0.0)
         p1 = (1.0, 0.0)
@@ -258,7 +259,7 @@ class TestMathFunctions(unittest.TestCase):
             with self.subTest(i=i, v=vc, a1=ac1, a2=ac2, expected=expected):
                 self.assertEqual(MathUtils.are_points_valid_for_angle_geometry(vc, ac1, ac2), expected)
 
-    def test_validate_rectangle(self):
+    def test_validate_rectangle(self) -> None:
         # square
         self.assertTrue(MathUtils.is_rectangle(0, 0, 1, 0, 1, 1, 0, 1))
         self.assertTrue(MathUtils.is_rectangle(0, 0, 0, 1, 1, 1, 1, 0))
@@ -283,112 +284,112 @@ class TestMathFunctions(unittest.TestCase):
         self.assertFalse(MathUtils.is_rectangle(0, 0, 0, 0, 2, 0, 2, 0))
         self.assertFalse(MathUtils.is_rectangle(2, 0, 2, 0, 0, 0, 0, 0))
 
-    def test_segments_intersect(self):
+    def test_segments_intersect(self) -> None:
         self.assertTrue(MathUtils.segments_intersect(0, 0, 10, 10, 0, 10, 10, 0))
         self.assertFalse(MathUtils.segments_intersect(0, 0, 10, 10, 20, 20, 30, 30))
         self.assertTrue(MathUtils.segments_intersect(0, 0, 10, 10, 0, 0, 10, 10))
         self.assertTrue(MathUtils.segments_intersect(0, 0, 10, 10, 0, 0, 5, 5))
 
-    def test_get_segments_intersection(self):
+    def test_get_segments_intersection(self) -> None:
         x_intersection, y_intersection = MathUtils.get_segments_intersection(0, 0, 1, 1, 0, 1, 1, 0)
         self.assertAlmostEqual(x_intersection, 0.5, places=7)
         self.assertAlmostEqual(y_intersection, 0.5, places=7)
 
-    def test_get_segments_intersection_parallel(self):
+    def test_get_segments_intersection_parallel(self) -> None:
         # Define two parallel segments
         result = MathUtils.get_segments_intersection(0, 0, 1, 1, 2, 2, 3, 3)
         # Since the segments are parallel, the result should be None
         self.assertIsNone(result, "Expected None for parallel segments")
 
-    def test_get_line_formula(self):
+    def test_get_line_formula(self) -> None:
         self.assertEqual(MathUtils.get_line_formula(0, 0, 1, 1), "y = 1.0 * x + 0.0")
         self.assertEqual(MathUtils.get_line_formula(0, 0, 0, 1), "x = 0")
 
-    def test_get_circle_formula(self):
+    def test_get_circle_formula(self) -> None:
         self.assertEqual(MathUtils.get_circle_formula(0, 0, 1), "(x - 0)**2 + (y - 0)**2 = 1**2")
 
-    def test_get_ellipse_formula(self):
+    def test_get_ellipse_formula(self) -> None:
         self.assertEqual(MathUtils.get_ellipse_formula(0, 0, 1, 2), "((x - 0)**2)/1**2 + ((y - 0)**2)/2**2 = 1")
 
-    def test_sqrt(self):
+    def test_sqrt(self) -> None:
         result = MathUtils.sqrt(-4)
         self.assertEqual(result, "2i")
         result = MathUtils.sqrt(4)
         self.assertEqual(int(result), 2)
 
-    def test_pow(self):
+    def test_pow(self) -> None:
         result = MathUtils.pow(2, 3)
         self.assertEqual(int(result), 8)
         matrix = [[-1, 2], [3, 1]]
         result = MathUtils.pow(matrix, 2)
         self.assertEqual(result, "[[7, 0], [0, 7]]")
 
-    def test_evaluate_conversion(self):
+    def test_evaluate_conversion(self) -> None:
         result = MathUtils.convert(12.7, "cm", "inch")
         self.assertEqual(result, "5 inch")
 
-    def test_evaluate_addition(self):
+    def test_evaluate_addition(self) -> None:
         result = MathUtils.evaluate("7 + 3")
         self.assertEqual(int(result), 10)
 
-    def test_evaluate_division(self):
+    def test_evaluate_division(self) -> None:
         result = MathUtils.evaluate("12 / (2.3 + 0.7)")
         self.assertEqual(int(result), 4)
 
-    def test_evaluate_sin(self):
+    def test_evaluate_sin(self) -> None:
         result = MathUtils.evaluate("sin(45 deg) ^ 2")
         print(f"sin(45 deg) ^ 2 = {result}")
         self.assertAlmostEqual(float(result), 0.5, places=9)
 
-    def test_evaluate_js_power_symbol(self):
+    def test_evaluate_js_power_symbol(self) -> None:
         result = MathUtils.evaluate("9^2 / 3")
         self.assertEqual(int(result), 27)
 
-    def test_evaluate_py_power_symbol(self):
+    def test_evaluate_py_power_symbol(self) -> None:
         result = MathUtils.evaluate("9**2 / 3")
         self.assertEqual(int(result), 27)
 
-    def test_evaluate_complex(self):
+    def test_evaluate_complex(self) -> None:
         result = MathUtils.evaluate("1 + 2i + 1j")
         self.assertEqual(result, "1 + 3i")
 
-    def test_evaluate_factorial_expression(self):
+    def test_evaluate_factorial_expression(self) -> None:
         result = MathUtils.evaluate("10!/(3!*(10-3)!)")
         expected = math.factorial(10) // (math.factorial(3) * math.factorial(7))
         self.assertAlmostEqual(float(result), expected)
 
-    def test_evaluate_det(self):
+    def test_evaluate_det(self) -> None:
         matrix = [[-1, 2], [3, 1]]
         result = MathUtils.det(matrix)
         self.assertEqual(int(result), -7)
 
-    def test_random(self):
+    def test_random(self) -> None:
         result = MathUtils.random()
         self.assertTrue(0 <= result <= 1)
 
-    def test_round(self):
+    def test_round(self) -> None:
         result = MathUtils.round(1.2345, 2)
         self.assertEqual(result, 1.23)
 
-    def test_gcd(self):
+    def test_gcd(self) -> None:
         result = MathUtils.gcd(48, 18)
         self.assertEqual(result, 6)
 
-    def test_lcm(self):
+    def test_lcm(self) -> None:
         result = MathUtils.lcm(4, 5)
         self.assertEqual(result, 20)
 
-    def test_mean(self):
+    def test_mean(self) -> None:
         result = MathUtils.mean([1, 2, 3, 4, 5])
         self.assertEqual(result, 3)
 
-    def test_combinatorics_values(self):
+    def test_combinatorics_values(self) -> None:
         self.assertEqual(MathUtils.permutations(5), math.factorial(5))
         self.assertEqual(MathUtils.permutations(6, 3), math.perm(6, 3))
         self.assertEqual(MathUtils.arrangements(6, 3), math.perm(6, 3))
         self.assertEqual(MathUtils.combinations(6, 3), math.comb(6, 3))
 
-    def test_combinatorics_invalid_inputs(self):
+    def test_combinatorics_invalid_inputs(self) -> None:
         with self.assertRaises(ValueError):
             MathUtils.permutations(4, 5)
         with self.assertRaises(ValueError):
@@ -400,7 +401,7 @@ class TestMathFunctions(unittest.TestCase):
         with self.assertRaises(TypeError):
             MathUtils.arrangements(True, 2)
 
-    def test_evaluate_combinatorics_functions(self):
+    def test_evaluate_combinatorics_functions(self) -> None:
         result = MathUtils.evaluate("arrangements(6, 3)")
         self.assertEqual(int(result), math.perm(6, 3))
         result = MathUtils.evaluate("permutations(5, 2)")
@@ -410,23 +411,23 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.evaluate("combinations(7, 4)")
         self.assertEqual(int(result), math.comb(7, 4))
 
-    def test_median(self):
+    def test_median(self) -> None:
         result = MathUtils.median([1, 2, 3, 4, 5])
         self.assertEqual(result, 3)
 
-    def test_mode(self):
+    def test_mode(self) -> None:
         result = MathUtils.mode([1, 2, 2, 3])
         self.assertEqual(result, 2)
 
-    def test_stdev(self):
+    def test_stdev(self) -> None:
         result = MathUtils.stdev([2, 4, 6, 8, 10])
         self.assertAlmostEqual(result, 3.1623, places=4)
 
-    def test_variance(self):
+    def test_variance(self) -> None:
         result = MathUtils.variance([2.75, 1.75, 1.25, 0.25, 0.5, 1.25, 3.5])
         self.assertAlmostEqual(result, 1.372, places=3)
 
-    def test_check_div_by_zero(self):
+    def test_check_div_by_zero(self) -> None:
         # Test cases that should raise ZeroDivisionError
         zero_division_cases = [
             "1/0",                    # Simple division by zero
@@ -534,210 +535,210 @@ class TestMathFunctions(unittest.TestCase):
                 self.assertIsInstance(result, (int, float, str),
                                     f"Result should be numeric or string for edge case: {expr}")
 
-    def test_limit(self):
+    def test_limit(self) -> None:
         result = MathUtils.limit('sin(x) / x', 'x', 0)
         result = float(result)  # convert result to float
         self.assertEqual(result, 1.0)
 
-    def test_derivative(self):
+    def test_derivative(self) -> None:
         result = MathUtils.derivative('x^2', 'x')
         self.assertEqual(result, "2*x")
 
-    def test_integral_indefinite(self):
+    def test_integral_indefinite(self) -> None:
         result = MathUtils.integral('x^2', 'x')
         result = MathUtils.simplify(result)  # simplify the result
         self.assertEqual(result, "0.3333333333333333*x^3")
 
-    def test_integral(self):
+    def test_integral(self) -> None:
         result = MathUtils.integral('x^2', 'x', 0, 1)
         result = float(result)  # convert result to float
         self.assertAlmostEqual(result, 0.333, places=3)
 
-    def test_simplify(self):
+    def test_simplify(self) -> None:
         result = MathUtils.simplify('x^2 + 2*x + 1')
         self.assertEqual(result, "(1+x)^2")
 
-    def test_expand(self):
+    def test_expand(self) -> None:
         result = MathUtils.expand('(x + 1)^2')
         self.assertEqual(result, "1+2*x+x^2")
 
-    def test_factor(self):
+    def test_factor(self) -> None:
         result = MathUtils.factor('x^2 - 1')
         self.assertEqual(result, "(-1+x)*(1+x)")
 
-    def test_get_equation_type_with_linear_equation(self):
+    def test_get_equation_type_with_linear_equation(self) -> None:
         equation = "x + 2"
         result = MathUtils.get_equation_type(equation)
         self.assertEqual(result, "Linear")
 
-    def test_get_equation_type_with_quadratic_equation(self):
+    def test_get_equation_type_with_quadratic_equation(self) -> None:
         equation = "x^2 + 2*x + 1"
         result = MathUtils.get_equation_type(equation)
         self.assertEqual(result, "Quadratic")  # Adjusted to expect "Quadratic"
 
-    def test_get_equation_type_with_cubic_equation(self):
+    def test_get_equation_type_with_cubic_equation(self) -> None:
         equation = "x^3 + 3*x^2 + 3*x + 1"
         result = MathUtils.get_equation_type(equation)
         self.assertEqual(result, "Cubic")  # Testing for cubic equation
 
-    def test_get_equation_type_with_quartic_equation(self):
+    def test_get_equation_type_with_quartic_equation(self) -> None:
         equation = "x^4 + 4*x^3 + 6*x^2 + 4*x + 1"
         result = MathUtils.get_equation_type(equation)
         self.assertEqual(result, "Quartic")  # Testing for quartic equation
 
-    def test_get_equation_type_with_higher_order_equation(self):
+    def test_get_equation_type_with_higher_order_equation(self) -> None:
         equation = "x^5 + 5*x^4 + 10*x^3 + 10*x^2 + 5*x + 1"
         result = MathUtils.get_equation_type(equation)
         self.assertTrue("Order" in result)  # Testing for higher order equation, expecting "Order 5"
 
-    def test_get_equation_type_with_trigonometric_equation1(self):
+    def test_get_equation_type_with_trigonometric_equation1(self) -> None:
         equation = "sin(x) + 2"
         result = MathUtils.get_equation_type(equation)
         self.assertEqual(result, "Trigonometric")
     
-    def test_get_equation_type_with_trigonometric_equation2(self):
+    def test_get_equation_type_with_trigonometric_equation2(self) -> None:
         equation = "cos(x + 3) - 2"
         result = MathUtils.get_equation_type(equation)
         self.assertEqual(result, "Trigonometric")
 
-    def test_get_equation_type_with_trigonometric_equation3(self):
+    def test_get_equation_type_with_trigonometric_equation3(self) -> None:
         equation = "tan(x * sin(24)) = 2"
         result = MathUtils.get_equation_type(equation)
         self.assertEqual(result, "Trigonometric")
 
-    def test_get_equation_type_with_non_linear_due_to_variable_multiplication1(self):
+    def test_get_equation_type_with_non_linear_due_to_variable_multiplication1(self) -> None:
         equation = "x*y + 2"
         result = MathUtils.get_equation_type(equation)
         self.assertEqual(result, "Other Non-linear")  # Adjusted to expect "Other Non-linear"
 
-    def test_get_equation_type_with_non_linear_due_to_variable_multiplication2(self):
+    def test_get_equation_type_with_non_linear_due_to_variable_multiplication2(self) -> None:
         equation = "xy - 5"
         result = MathUtils.get_equation_type(equation)
         self.assertEqual(result, "Other Non-linear")  # Adjusted to expect "Other Non-linear"
 
-    def test_get_equation_type_with_linear_after_expansion(self):
+    def test_get_equation_type_with_linear_after_expansion(self) -> None:
         equation = "(x + 1)^2"
         expanded = MathUtils.expand(equation)  # Assuming this correctly expands to "x^2 + 2*x + 1"
         result = MathUtils.get_equation_type(expanded)
         self.assertEqual(result, "Quadratic")  # Adjusted to expect "Quadratic"
 
-    def test_get_equation_type_with_implicit_multiplication_not_detected_as_non_linear(self):
+    def test_get_equation_type_with_implicit_multiplication_not_detected_as_non_linear(self) -> None:
         equation = "2x + 3"
         result = MathUtils.get_equation_type(equation)
         self.assertEqual(result, "Linear")  # Assuming implicit multiplication by constants is handled as linear
 
-    def test_determine_max_number_of_solutions_linear_and_linear(self):
+    def test_determine_max_number_of_solutions_linear_and_linear(self) -> None:
         equations = ["2x + 3 = y", "5x - 2 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 1, "Linear and linear should have exactly 1 solution.")
     
-    def test_determine_max_number_of_solutions_linear_and_quadratic(self):
+    def test_determine_max_number_of_solutions_linear_and_quadratic(self) -> None:
         equations = ["x + 2 = y", "x^2 - 4x + 3 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 2, "Linear and quadratic should have at most 2 solutions.")
     
-    def test_determine_max_number_of_solutions_linear_and_cubic(self):
+    def test_determine_max_number_of_solutions_linear_and_cubic(self) -> None:
         equations = ["3x + 1 = y", "x^3 - 6x^2 + 11x - 6 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 3, "Linear and cubic should intersect in at most 3 points.")
     
-    def test_determine_max_number_of_solutions_quadratic_and_quartic(self):
+    def test_determine_max_number_of_solutions_quadratic_and_quartic(self) -> None:
         equations = ["x^2 + x - 2 = y", "x^4 - 5x^2 + 4 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 8, "Quadratic and quartic should intersect in at most 8 points.")
     
-    def test_determine_max_number_of_solutions_cubic_and_quartic_with_higher_order_count(self):
+    def test_determine_max_number_of_solutions_cubic_and_quartic_with_higher_order_count(self) -> None:
         equations = ["x^3 + x - 4 = y", "x^5 - x^4 + x^3 - x^2 + x - 1 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 15, "Cubic and quintic equations can theoretically intersect in at most 15 points.")
     
-    def test_determine_max_number_of_solutions_single_equation(self):
+    def test_determine_max_number_of_solutions_single_equation(self) -> None:
         equations = ["x^2 + 4x + 4 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 0, "Single equation should not determine a solution count between equations.")
     
-    def test_determine_max_number_of_solutions_no_equations(self):
-        equations = []
+    def test_determine_max_number_of_solutions_no_equations(self) -> None:
+        equations: List[str] = []
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 0, "No equations should not determine a solution count.")
 
-    def test_determine_max_number_of_solutions_trigonometric(self):
+    def test_determine_max_number_of_solutions_trigonometric(self) -> None:
         equations = ["sin(x) = y", "cos(x) = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 0, "Trigonometric combinations should indicate complex or uncertain scenarios.")
 
-    def test_determine_max_number_of_solutions_other_non_linear(self):
+    def test_determine_max_number_of_solutions_other_non_linear(self) -> None:
         equations = ["x*y - 2 = 0", "x^2 + y = 4"]  # Changed second equation to avoid using xy term twice
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 0, "Other non-linear equations should indicate complex or uncertain scenarios.")
 
-    def test_solve1(self):
+    def test_solve1(self) -> None:
         result = MathUtils.solve('x^2 - 4', 'x')
         result = json.loads(result)  # parse result from JSON string to list
         result = [float(r) for r in result]  # convert results to floats
         self.assertEqual(result, [2.0, -2.0])
 
-    def test_solve2(self):
+    def test_solve2(self) -> None:
         result = MathUtils.solve('0.4 * x + 37.2 = -0.9 * x - 8', 'x')
         result = json.loads(result)  # Parse result from JSON string to list
         # Assuming the result is always a list with a single item for this test case
         solution = float(result[0])  # Convert the first (and only) result to float
         self.assertAlmostEqual(solution, -34.7692307692308, places=5)
 
-    def test_solve_linear_quadratic_invalid_input(self):
+    def test_solve_linear_quadratic_invalid_input(self) -> None:
         equations = ["y = 2*x + 3"]  # Not enough equations
         with self.assertRaises(ValueError):
             MathUtils.solve_linear_quadratic_system(equations)
 
-    def test_solve_linear_quadratic_no_real_solution(self):
+    def test_solve_linear_quadratic_no_real_solution(self) -> None:
         equations = ["y = 2*x + 3", "y = x^2 + 4*x + 5"]
         with self.assertRaises(ValueError):
             MathUtils.solve_linear_quadratic_system(equations)
 
-    def test_solve_linear_quadratic_returns_string(self):
+    def test_solve_linear_quadratic_returns_string(self) -> None:
         equations = ["2x + 3 = y", "x^2 + 4x + 3 = y"]
         result = MathUtils.solve_linear_quadratic_system(equations)
         self.assertTrue(isinstance(result, str))  # Check if the result is correctly formatted as a string
 
-    def test_solve_linear_quadratic_one_real_solution(self):
+    def test_solve_linear_quadratic_one_real_solution(self) -> None:
         equations = ["y = 2x - 1", "y = x^2"]
         result = MathUtils.solve_linear_quadratic_system(equations)
         result = dict(item.split(" = ") for item in result.split(", "))  # parse result from string to dictionary
         result = {k: float(v) for k, v in result.items()}  # convert results to floats
         self.assertEqual(result, {"x": 1.0, "y": 1.0})
 
-    def test_solve_linear_quadratic_two_real_solutions(self):
+    def test_solve_linear_quadratic_two_real_solutions(self) -> None:
         equations = ["y = x + 1", "y = x^2 + 2x + 1"]
         result = MathUtils.solve_linear_quadratic_system(equations)
         result = dict(item.split(" = ") for item in result.split(", "))  # parse result from string to dictionary
         result = {k: float(v) for k, v in result.items()}  # convert results to floats
         self.assertEqual(result, {"x1": 0.0, "y1": 1.0, "x2": -1.0, "y2": 0.0})
 
-    def test_solve_system_of_equations_linear(self):
+    def test_solve_system_of_equations_linear(self) -> None:
         result = MathUtils.solve_system_of_equations(['x + y = 4', 'x - y = 2'])
         result = dict(item.split(" = ") for item in result.split(", "))  # parse result from string to dictionary
         result = {k: float(v) for k, v in result.items()}  # convert results to floats
         self.assertEqual(result, {"x": 3.0, "y": 1.0})
 
-    def test_solve_system_of_equations_quadratic_linear(self):
+    def test_solve_system_of_equations_quadratic_linear(self) -> None:
         result = MathUtils.solve_system_of_equations(['x^2 = y', '-x + 2 = y'])
         result = dict(item.split(" = ") for item in result.split(", "))  # parse result from string to dictionary
         result = {k: float(v) for k, v in result.items()}  # convert results to floats
         self.assertEqual(result, {"x1": 1.0, "y1": 1.0, "x2": -2.0, "y2": 4.0})
 
-    def test_determine_max_number_of_solutions_cubic_and_quintic(self):
+    def test_determine_max_number_of_solutions_cubic_and_quintic(self) -> None:
         equations = ["x^3 + x - 4 = y", "x^5 - x^4 + x^3 - x^2 + x - 1 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 15, "Cubic and quintic equations can theoretically intersect in at most 15 points.")
 
-    def test_solve_system_of_equations_with_high_order(self):
+    def test_solve_system_of_equations_with_high_order(self) -> None:
         equations = ["x^3 + x - 4 = y", "x^5 - x^4 + x^3 - x^2 + x - 1 = y"]
         result = MathUtils.solve_system_of_equations(equations)
         result = dict(item.split(" = ") for item in result.split(", "))  # parse result from string to dictionary
         result = {k: float(v) for k, v in result.items()}  # convert results to floats
         self.assertEqual(result, {"x": -1.0, "y": -6.0})
 
-    def test_calculate_vertical_asymptotes(self):
+    def test_calculate_vertical_asymptotes(self) -> None:
         # Test logarithmic function
         result = MathUtils.calculate_vertical_asymptotes("log(x)")
         self.assertEqual(result, [0], "log(x) should have vertical asymptote at x=0")
@@ -791,7 +792,7 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.calculate_vertical_asymptotes("x^2 + 1")
         self.assertEqual(result, [], "x^2 + 1 should have no vertical asymptotes")
 
-    def test_calculate_horizontal_asymptotes(self):
+    def test_calculate_horizontal_asymptotes(self) -> None:
         # Test rational function approaching constant
         result = MathUtils.calculate_horizontal_asymptotes("(x^2+1)/(x^2+2)")
         self.assertEqual(sorted(list(set(result))), [1], "(x^2+1)/(x^2+2) should approach 1 as x approaches infinity")
@@ -808,7 +809,7 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.calculate_horizontal_asymptotes("x/(x^2+1)")
         self.assertEqual(sorted(list(set(result))), [0], "x/(x^2+1) should approach 0 as x approaches infinity")
 
-    def test_calculate_asymptotes(self):
+    def test_calculate_asymptotes(self) -> None:
         # Test function with both vertical and horizontal asymptotes
         vert, horiz, disc = MathUtils.calculate_asymptotes_and_discontinuities("1/x", -10, 10)
         self.assertEqual(vert, [0], "1/x should have vertical asymptote at x=0")
@@ -847,7 +848,7 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(horiz, [], "sin(x) should have no horizontal asymptotes")
         self.assertEqual(disc, [], "sin(x) should have no point discontinuities")
 
-    def test_calculate_point_discontinuities(self):
+    def test_calculate_point_discontinuities(self) -> None:
         # Test piecewise function with conditions
         result = MathUtils.calculate_point_discontinuities("x if x < 2 else x + 1")
         self.assertEqual(result, [2], "Piecewise function should have discontinuity at transition point")
@@ -888,7 +889,7 @@ class TestMathFunctions(unittest.TestCase):
         result = MathUtils.calculate_point_discontinuities("1 if x < 0 else 2 if x <= 1 else 3 if x >= 2 else 4")
         self.assertEqual(sorted(result), [0, 1, 2], "Complex piecewise should identify all transition points")
 
-    def test_function_vertical_asymptote_path_breaking(self):
+    def test_function_vertical_asymptote_path_breaking(self) -> None:
         """Test that Function class properly breaks paths at vertical asymptotes without visual artifacts."""
         try:
             from drawables.function import Function
@@ -900,17 +901,17 @@ class TestMathFunctions(unittest.TestCase):
             
             # Create a mock canvas with required methods and properties
             mock_canvas = SimpleMock()
-            mock_canvas.scale_factor = 50
-            mock_canvas.cartesian2axis = SimpleMock()
-            mock_canvas.cartesian2axis.origin = SimpleMock(x=300, y=200)
-            mock_canvas.cartesian2axis.height = 400
-            mock_canvas.coordinate_mapper = coordinate_mapper
+            mock_canvas.scale_factor = 50  # type: ignore[attr-defined]  # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis = SimpleMock()  # type: ignore[attr-defined]  # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis.origin = SimpleMock(x=300, y=200)  # type: ignore[attr-defined]  # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis.height = 400  # type: ignore[attr-defined]  # type: ignore[attr-defined]
+            mock_canvas.coordinate_mapper = coordinate_mapper  # type: ignore[attr-defined]  # type: ignore[attr-defined]
             
             # Mock the visible bounds methods
-            mock_canvas.cartesian2axis.get_visible_left_bound = lambda: -10
-            mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10  
-            mock_canvas.cartesian2axis.get_visible_top_bound = lambda: 8
-            mock_canvas.cartesian2axis.get_visible_bottom_bound = lambda: -8
+            mock_canvas.cartesian2axis.get_visible_left_bound = lambda: -10  # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10    # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis.get_visible_top_bound = lambda: 8  # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis.get_visible_bottom_bound = lambda: -8  # type: ignore[attr-defined]
             
             # Sync coordinate mapper with canvas state
             coordinate_mapper.sync_from_canvas(mock_canvas)
@@ -976,7 +977,7 @@ class TestMathFunctions(unittest.TestCase):
         except Exception as e:
             self.fail(f"Unexpected error in vertical asymptote path breaking test: {e}")
 
-    def test_function_path_continuity(self):
+    def test_function_path_continuity(self) -> None:
         """Test that Function class generates continuous paths where the function should be continuous."""
         try:
             from drawables.function import Function
@@ -988,17 +989,17 @@ class TestMathFunctions(unittest.TestCase):
             
             # Create a mock canvas
             mock_canvas = SimpleMock()
-            mock_canvas.scale_factor = 50
-            mock_canvas.cartesian2axis = SimpleMock()
-            mock_canvas.cartesian2axis.origin = SimpleMock(x=300, y=200)
-            mock_canvas.cartesian2axis.height = 400
-            mock_canvas.coordinate_mapper = coordinate_mapper
+            mock_canvas.scale_factor = 50  # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis = SimpleMock()  # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis.origin = SimpleMock(x=300, y=200)  # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis.height = 400  # type: ignore[attr-defined]
+            mock_canvas.coordinate_mapper = coordinate_mapper  # type: ignore[attr-defined]
             
             # Mock the visible bounds methods
-            mock_canvas.cartesian2axis.get_visible_left_bound = lambda: -10
-            mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10  
-            mock_canvas.cartesian2axis.get_visible_top_bound = lambda: 8
-            mock_canvas.cartesian2axis.get_visible_bottom_bound = lambda: -8
+            mock_canvas.cartesian2axis.get_visible_left_bound = lambda: -10  # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10    # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis.get_visible_top_bound = lambda: 8  # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis.get_visible_bottom_bound = lambda: -8  # type: ignore[attr-defined]
             
             # Sync coordinate mapper with canvas state
             coordinate_mapper.sync_from_canvas(mock_canvas)
@@ -1131,7 +1132,7 @@ class TestMathFunctions(unittest.TestCase):
         except Exception as e:
             self.fail(f"Unexpected error in function path continuity test: {e}")
 
-    def test_find_diagonal_points_standard_order(self):
+    def test_find_diagonal_points_standard_order(self) -> None:
         points = [
             SimpleMock(name="A", x=0, y=1),
             SimpleMock(name="B", x=1, y=1),
@@ -1151,7 +1152,7 @@ class TestMathFunctions(unittest.TestCase):
         self.assertIn(actual_pair, [tuple(sorted(p)) for p in expected_pairs], 
                       f"Expected diagonal pair like AC or BD, got {actual_pair}")
 
-    def test_find_diagonal_points_shuffled_order(self):
+    def test_find_diagonal_points_shuffled_order(self) -> None:
         points = [
             SimpleMock(name="D", x=0, y=0),
             SimpleMock(name="B", x=1, y=1),
@@ -1169,7 +1170,7 @@ class TestMathFunctions(unittest.TestCase):
         self.assertIn(actual_pair, [tuple(sorted(p)) for p in expected_pairs],
                       f"Expected diagonal pair like AC or BD, got {actual_pair}")
 
-    def test_find_diagonal_points_collinear_fail_case(self):
+    def test_find_diagonal_points_collinear_fail_case(self) -> None:
         points = [
             SimpleMock(name="A", x=0, y=0),
             SimpleMock(name="B", x=1, y=0),
@@ -1180,7 +1181,7 @@ class TestMathFunctions(unittest.TestCase):
         self.assertIsNone(p_diag1)
         self.assertIsNone(p_diag2)
 
-    def test_find_diagonal_points_L_shape_fail_case(self):
+    def test_find_diagonal_points_L_shape_fail_case(self) -> None:
         points = [
             SimpleMock(name="A", x=0, y=1),
             SimpleMock(name="B", x=1, y=1),
@@ -1193,7 +1194,7 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(p_diag1.name, "A")
         self.assertEqual(p_diag2.name, "C")
 
-    def test_find_diagonal_points_less_than_4_points(self):
+    def test_find_diagonal_points_less_than_4_points(self) -> None:
         points = [
             SimpleMock(name="A", x=0, y=0), 
             SimpleMock(name="B", x=1, y=1)
@@ -1202,7 +1203,7 @@ class TestMathFunctions(unittest.TestCase):
         self.assertIsNone(p_diag1)
         self.assertIsNone(p_diag2)
 
-    def test_find_diagonal_points_degenerate_rectangle_one_point_repeated(self):
+    def test_find_diagonal_points_degenerate_rectangle_one_point_repeated(self) -> None:
         points = [
             SimpleMock(name="A1", x=0, y=1),
             SimpleMock(name="B", x=1, y=1),
@@ -1215,7 +1216,7 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(p_diag1.name, "A1")
         self.assertEqual(p_diag2.name, "C")
 
-    def test_find_diagonal_points_another_order(self):
+    def test_find_diagonal_points_another_order(self) -> None:
         points = [
             SimpleMock(name="A", x=0, y=0),
             SimpleMock(name="C", x=1, y=1),
