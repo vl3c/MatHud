@@ -2,21 +2,41 @@
 
 # Basic Mathematical Tools
 - implement full matrix operations (addition, multiplication, inverse, determinants, row operations)
+- add eigenvalue and eigenvector computation
 - add complex number utilities plus base-n calculations and conversions (binary, octal, hexadecimal)
 - expand number theory functions (prime factorization, gcd, lcm, modular arithmetic)
 - add truth tables and boolean algebra workflows for logic and circuit analysis
 - add table view for function values and lightweight tabular data exploration
+- add list and spreadsheet structures for numeric and symbolic data (support formulas, basic stats, and function links)
+- add coordinate conversion tools (polar ↔ rectangular)
+- add combinatorial and factorial functions (nCr, nPr, factorial, permutations)
+- add random number generation utilities
+- add unit conversions (angle, base, engineering/scientific notation)
 
 # Advanced Mathematical Tools
 - add sequence and series calculations (summation, products, convergence tests)
+- add symbolic and numeric differentiation and integration tools
+- add symbolic simplification, expansion, and factoring capabilities
 - add differential equations solver with visualization of direction fields and solution families
 - add numerical methods (Newton's method, Simpson's rule, trapezoidal rule, numerical ODE solvers)
 - add eigenvalue and eigenvector calculations for advanced linear algebra
+- add support for solving linear and nonlinear systems of equations
+- add limit calculation tools
+- add symbolic manipulation tools for algebraic expressions (simplify, expand, rationalize)
+- add summation and product operators for discrete analysis (Σ, Π)
+- add coordinate and vector operations (dot, cross, magnitude, normalization)
+- add geometry module for 2D constructions (points, lines, circles, measurements, transformations)
 
 # Statistics and Analysis
 - add probability distribution tools and statistical hypothesis testing workflows
-- add regression analysis with multiple models (linear, polynomial, exponential, logarithmic)
+- add regression analysis with multiple models (linear, polynomial, exponential, logarithmic, power, logistic, sinusoidal)
+- add descriptive statistics (mean, median, variance, standard deviation)
+- add scatter plot, histogram, box plot, and probability plot visualization
+- add confidence interval and ANOVA tools
+- add statistical tests (z-test, t-test, chi-square, F-test)
 - add financial mathematics (compound interest, annuities, amortization, bond valuation)
+- add data list correlation and covariance functions
+- add cumulative frequency tables and graph generation
 
 # 2D Graphing Enhancements
 - add region coloring for complex bounded areas and inequality-defined zones
@@ -26,12 +46,23 @@
 - add inequality graphing and systems of inequalities with shading controls
 - add vector field visualization
 - add polar graph support for functions in polar coordinates
+- add parametric graphing support (x(t), y(t))
+- add recursive/sequence graphing mode
 - add animation capabilities for transformations and function changes
+- add interactive tracing, root/extrema/intersection finding tools
+- add shaded integration areas and tangent/normal line drawing
+- add grid snapping and coordinate readout on graph hover
 - add split screen and tabbed workspace modes to compare different graphs/calculations
+- add dynamic sliders to manipulate parameters in real time
+- add dual display (graph + table or graph + graph) modes
 
 # Future 3D Features
 - add 3D graphing capabilities and 3D shape visualization
-- add parametric equation plotting in 3D 
+- add parametric equation plotting in 3D
+- add 3D surface plotting (plane, sphere, cylinder templates)
+- add rotation, zoom, and cross-section tools for 3D visualization
+- add vector field and gradient visualization in 3D space
+
 
 # Static Typing Rollout
 - annotate `static/functions_definitions.py` and supporting utilities (math utils, expression validator)
