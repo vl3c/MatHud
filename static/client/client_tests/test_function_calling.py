@@ -1,4 +1,8 @@
+from __future__ import annotations
+
 import unittest
+from typing import Any, Dict
+
 from geometry import Position
 from canvas import Canvas
 from process_function_calls import ProcessFunctionCalls
@@ -62,7 +66,12 @@ class TestProcessFunctionCalls(unittest.TestCase):
         available_functions = {'evaluate_expression': ProcessFunctionCalls.evaluate_expression}
         calls = [{'function_name': 'evaluate_expression', 'arguments': {'expression': 'Quadratic(5)', 'canvas': self.canvas}}]
         undoable_functions = ()  # Example, assuming no undoable functions for simplicity
-        results = ProcessFunctionCalls.get_results(calls, available_functions, undoable_functions, self.canvas)
+        results: Dict[str, Any] = ProcessFunctionCalls.get_results(
+            calls,
+            available_functions,
+            undoable_functions,
+            self.canvas,
+        )
         self.assertTrue(len(results) > 0)
         self.assertIn('Quadratic(5)', results) # Check if the result for "Quadratic(5)" is available
         self.assertEqual(results['Quadratic(5)'], 25)  # Expected result for "Quadratic(5)"
@@ -114,5 +123,5 @@ class TestProcessFunctionCalls(unittest.TestCase):
 
     def test_validate_results_with_empty_dict(self) -> None:
         # Testing result validation with an empty dictionary
-        results = {}
+        results: Dict[str, Any] = {}
         self.assertTrue(ProcessFunctionCalls.validate_results(results))

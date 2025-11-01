@@ -1,10 +1,14 @@
+from __future__ import annotations
+
+import time
 import unittest
+from typing import List
+
 from canvas_event_handler import CanvasEventHandler
 from .simple_mock import SimpleMock
 from browser import window as browser_window
 from geometry import Position
 from canvas import Canvas
-import time
 
 
 class TestCanvasEventHandlerTouch(unittest.TestCase):
@@ -24,22 +28,21 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         self.mock_canvas.draw = SimpleMock()
         
         # Create mock AI interface
-        self.mock_ai_interface = SimpleMock()
-        self.mock_ai_interface.interact_with_ai = SimpleMock()
-        self.mock_ai_interface.start_new_conversation = SimpleMock()
+        self.mock_ai_interface = SimpleMock(
+            interact_with_ai=SimpleMock(),
+            start_new_conversation=SimpleMock(),
+        )
         
         # Mock document elements
-        self.mock_svg_element = SimpleMock()
-        self.mock_svg_element.getBoundingClientRect = SimpleMock(return_value=SimpleMock(left=10, top=20))
-        self.mock_svg_element.style = SimpleMock()
-        self.mock_svg_element.bind = SimpleMock()
-        
-        self.mock_chat_input = SimpleMock(value="")
-        self.mock_chat_input.bind = SimpleMock()
-        self.mock_send_button = SimpleMock()
-        self.mock_send_button.bind = SimpleMock()
-        self.mock_new_conversation_button = SimpleMock()
-        self.mock_new_conversation_button.bind = SimpleMock()
+        self.mock_svg_element = SimpleMock(
+            getBoundingClientRect=SimpleMock(return_value=SimpleMock(left=10, top=20)),
+            style=SimpleMock(),
+            bind=SimpleMock(),
+        )
+
+        self.mock_chat_input = SimpleMock(value="", bind=SimpleMock())
+        self.mock_send_button = SimpleMock(bind=SimpleMock())
+        self.mock_new_conversation_button = SimpleMock(bind=SimpleMock())
         
         # Mock document
         self.mock_document = {
@@ -57,22 +60,26 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         # Create event handler
         self.event_handler = CanvasEventHandler(self.mock_canvas, self.mock_ai_interface)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Restore original document."""
         import canvas_event_handler
         canvas_event_handler.document = self.original_document
 
-    def _create_mock_touch(self, client_x, client_y):
+    def _create_mock_touch(self, client_x: float, client_y: float) -> SimpleMock:
         """Helper to create a mock touch object."""
         return SimpleMock(clientX=client_x, clientY=client_y)
 
-    def _create_mock_touch_event(self, touches, event_type="touchstart"):
+    def _create_mock_touch_event(
+        self,
+        touches: List[SimpleMock],
+        event_type: str = "touchstart",
+    ) -> SimpleMock:
         """Helper to create a mock touch event."""
-        mock_event = SimpleMock()
-        mock_event.type = event_type
-        mock_event.touches = touches
-        mock_event.preventDefault = SimpleMock()
-        return mock_event
+        return SimpleMock(
+            type=event_type,
+            touches=touches,
+            preventDefault=SimpleMock(),
+        )
 
     def test_handle_touchstart_single_touch(self) -> None:
         """Test handling single finger touch start for panning."""
@@ -254,9 +261,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
     def test_error_handling_in_touch_methods(self) -> None:
         """Test that touch methods handle errors gracefully."""
         # Create an event that might cause errors
-        malformed_event = SimpleMock()
-        malformed_event.touches = None  # This should cause an error
-        malformed_event.preventDefault = SimpleMock()
+        malformed_event = SimpleMock(touches=None, preventDefault=SimpleMock())
         
         # These should not raise exceptions, but handle errors gracefully
         try:

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import unittest
+
 from canvas_event_handler import throttle
 from .simple_mock import SimpleMock
 from browser import window as browser_window
@@ -10,7 +13,7 @@ class TestThrottle(unittest.TestCase):
         self.current_time = 1000
         
         # Create a now function that returns the current time
-        def now():
+        def now() -> int:
             return self.current_time
             
         # Create the performance mock with our updatable now function
@@ -33,11 +36,11 @@ class TestThrottle(unittest.TestCase):
         browser_window.setTimeout = self.mock_window.setTimeout
         browser_window.clearTimeout = self.mock_window.clearTimeout
 
-    def set_time(self, new_time):
+    def set_time(self, new_time: int) -> None:
         """Helper to update the mock time."""
         self.current_time = new_time  # This will automatically update the now function
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         # Restore original window objects
         browser_window.performance = self.original_performance
         browser_window.setTimeout = self.original_setTimeout
@@ -122,7 +125,7 @@ class TestThrottle(unittest.TestCase):
 
     def test_throttle_handles_errors(self) -> None:
         """Test that throttle function handles errors gracefully."""
-        def failing_func():
+        def failing_func() -> None:
             raise Exception("Test error")
         
         throttled_func = throttle(100)(failing_func)

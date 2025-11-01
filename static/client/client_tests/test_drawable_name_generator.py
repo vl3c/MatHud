@@ -1,20 +1,26 @@
+from __future__ import annotations
+
 import unittest
+from typing import Any, List
+
 from name_generator.drawable import DrawableNameGenerator
 from .simple_mock import SimpleMock
 
 
 class TestDrawableNameGenerator(unittest.TestCase):
     def setUp(self) -> None:
-        self.canvas = SimpleMock()
+        self.canvas: Any = SimpleMock()
         # Ensure canvas has the get_drawables_by_class_name method from the start
-        self.canvas.get_drawables_by_class_name = SimpleMock(return_value=[])
+        self.get_drawables_mock = SimpleMock(return_value=[])
+        setattr(self.canvas, "get_drawables_by_class_name", self.get_drawables_mock)
         self.generator = DrawableNameGenerator(self.canvas)
 
     def test_get_drawable_names(self) -> None:
         # Here, get_drawables_by_class_name is expected to be a callable that returns a list of mocks when called
-        self.canvas.get_drawables_by_class_name = SimpleMock(
+        set_drawables = SimpleMock(
             return_value=[SimpleMock(name='Point1'), SimpleMock(name='Point2')]
         )
+        setattr(self.canvas, "get_drawables_by_class_name", set_drawables)
         result = self.generator.get_drawable_names('Point')
         self.assertEqual(result, ['Point1', 'Point2'])
 
@@ -38,7 +44,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
     def test_print_names(self) -> None:
         """Test the print_names method outputs the expected information."""
         # Create a completely fresh generator with a new mock canvas
-        mock_canvas = SimpleMock()
+        mock_canvas: Any = SimpleMock()
         
         # Define predictable returns for each class name
         mock_returns = {
@@ -52,10 +58,10 @@ class TestDrawableNameGenerator(unittest.TestCase):
         }
         
         # Set up the canvas.get_drawables_by_class_name to return the appropriate mock objects
-        def mock_get_drawables(class_name):
+        def mock_get_drawables(class_name: str) -> List[SimpleMock]:
             return mock_returns.get(class_name, [])
-            
-        mock_canvas.get_drawables_by_class_name = mock_get_drawables
+
+        setattr(mock_canvas, "get_drawables_by_class_name", mock_get_drawables)
         
         # Create a test generator with our fully controlled mock canvas
         test_generator = DrawableNameGenerator(mock_canvas)
@@ -64,7 +70,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
         original_print = __builtins__.print
         printed_lines = []
         
-        def mock_print(*args, **kwargs):
+        def mock_print(*args: object, **kwargs: object) -> None:
             line = ' '.join(str(arg) for arg in args)
             printed_lines.append(line)
         
@@ -127,34 +133,41 @@ class TestDrawableNameGenerator(unittest.TestCase):
         self.assertEqual(result3, ["E", ""])
     
     def test_generate_unique_point_name(self) -> None:
-        self.canvas.get_drawables_by_class_name = SimpleMock(return_value=[])
+        self.get_drawables_mock = SimpleMock(return_value=[])
+        setattr(self.canvas, "get_drawables_by_class_name", self.get_drawables_mock)
         point_names = []
         for _ in range(52):
             new_name = self.generator._generate_unique_point_name()
             point_names.append(new_name)
             # Update the return_value of get_drawables_by_class_name with each new name
-            self.canvas.get_drawables_by_class_name.return_value.append(SimpleMock(name=new_name))
+            self.get_drawables_mock.return_value.append(SimpleMock(name=new_name))
         # The next point name should be 'A'' (A with two apostrophes)
         result = self.generator._generate_unique_point_name()
         self.assertEqual(result, "A''")
 
     def test_generate_point_name(self) -> None:
-        self.canvas.get_drawables_by_class_name = SimpleMock(
-            return_value=[SimpleMock(name='A')]
+        setattr(
+            self.canvas,
+            "get_drawables_by_class_name",
+            SimpleMock(return_value=[SimpleMock(name='A')]),
         )
         result = self.generator.generate_point_name(None)
         self.assertEqual(result, 'B')
 
     def test_generate_point_name_with_preferred_name(self) -> None:
-        self.canvas.get_drawables_by_class_name = SimpleMock(
-            return_value=[SimpleMock(name='A')]
+        setattr(
+            self.canvas,
+            "get_drawables_by_class_name",
+            SimpleMock(return_value=[SimpleMock(name='A')]),
         )
         result = self.generator.generate_point_name('B')
         self.assertEqual(result, 'B')
 
     def test_generate_point_name_with_used_preferred_name(self) -> None:
-        self.canvas.get_drawables_by_class_name = SimpleMock(
-            return_value=[SimpleMock(name='A'), SimpleMock(name='B')]
+        setattr(
+            self.canvas,
+            "get_drawables_by_class_name",
+            SimpleMock(return_value=[SimpleMock(name='A'), SimpleMock(name='B')]),
         )
         result = self.generator.generate_point_name('B')
         self.assertNotEqual(result, 'B')
@@ -163,8 +176,10 @@ class TestDrawableNameGenerator(unittest.TestCase):
         # When we pass "AB'C" as preferred_name, and 'A' is already used,
         # the code should attempt to generate 'A'' (A with an apostrophe)
         # rather than moving to next letter 'B''
-        self.canvas.get_drawables_by_class_name = SimpleMock(
-            return_value=[SimpleMock(name='A'), SimpleMock(name="B'")]
+        setattr(
+            self.canvas,
+            "get_drawables_by_class_name",
+            SimpleMock(return_value=[SimpleMock(name='A'), SimpleMock(name="B'")]),
         )
         
         # Reset the dictionary for a clean test

@@ -1,4 +1,8 @@
+from __future__ import annotations
+
 import unittest
+from typing import Tuple
+
 from coordinate_mapper import CoordinateMapper
 from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
 from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
@@ -10,7 +14,13 @@ class TestFunctionBoundedColoredAreaIntegration(unittest.TestCase):
         # 500x500 mapper with origin at center by default
         self.mapper = CoordinateMapper(500, 500)
 
-    def _build_area(self, f1_str, f2_str, left, right):
+    def _build_area(
+        self,
+        f1_str: str,
+        f2_str: str,
+        left: float,
+        right: float,
+    ) -> Tuple[FunctionsBoundedColoredArea, FunctionsBoundedAreaRenderable]:
         f1 = Function(f1_str, name='f1', left_bound=left, right_bound=right)
         f2 = Function(f2_str, name='f2', left_bound=left, right_bound=right)
         area = FunctionsBoundedColoredArea(f1, f2, left_bound=left, right_bound=right, num_sample_points=50)

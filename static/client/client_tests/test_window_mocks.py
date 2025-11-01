@@ -29,7 +29,7 @@ class TestWindowMocks(unittest.TestCase):
         browser_window.setTimeout = self.mock_window.setTimeout
         browser_window.clearTimeout = self.mock_window.clearTimeout
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         # Restore original window objects
         browser_window.performance = self.original_performance
         browser_window.setTimeout = self.original_setTimeout

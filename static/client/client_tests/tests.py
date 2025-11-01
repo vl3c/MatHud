@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import unittest
+from typing import Any, Dict, List, Tuple, Type, cast
 
 from .test_canvas import TestCanvas
 from .test_cartesian import TestCartesian2Axis
@@ -30,36 +33,29 @@ from .test_angle_manager import TestAngleManager
 from .test_markdown_parser import TestMarkdownParser
 from .test_function_bounded_colored_area_integration import TestFunctionBoundedColoredAreaIntegration
 
-# Import the utility classes
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
 
 class Tests:
     """Class encapsulating test functionality for client-side tests."""
-    
+
     @classmethod
-    def run_tests(cls):
+    def run_tests(cls) -> Dict[str, Any]:
         """Run all unit tests and return results in a format suitable for AI display."""
         test_runner = cls()
         try:
-            # Create test suite and execute tests
             suite = test_runner._create_test_suite()
             result = test_runner._run_test_suite(suite)
-            
-            # Format results for AI display
             return test_runner._format_results_for_ai(result)
-        except Exception as e:
-            # If anything goes wrong, return a structured error
-            return test_runner._create_error_result(str(e))
-    
-    def _create_test_suite(self):
+        except Exception as exc:
+            return test_runner._create_error_result(str(exc))
+
+    def _create_test_suite(self) -> unittest.TestSuite:
         """Create a test suite containing all test cases."""
         suite = unittest.TestSuite()
         loader = unittest.TestLoader()
-        
-        # Add all test cases to the suite
-        test_cases = [
+        test_cases: List[Type[unittest.TestCase]] = [
             TestMathFunctions,
             TestDrawableNameGenerator,
             TestPosition,
@@ -88,115 +84,93 @@ class Tests:
             TestDrawableDependencyManager,
             TestDrawablesContainer,
             TestMarkdownParser,
-            TestFunctionBoundedColoredAreaIntegration
+            TestFunctionBoundedColoredAreaIntegration,
         ]
-        
         for test_case in test_cases:
             suite.addTest(loader.loadTestsFromTestCase(test_case))
-            
         return suite
-    
-    def _run_test_suite(self, suite):
+
+    def _run_test_suite(self, suite: unittest.TestSuite) -> AITestResult:
         """Run the test suite using our custom test runner and stream."""
         print("\n========================= TEST OUTPUT =========================")
         custom_stream = BrythonTestStream()
-        
-        # Use TextTestRunner with our custom stream and result class
         runner = unittest.TextTestRunner(
-            stream=custom_stream,
+            stream=cast(Any, custom_stream),
             resultclass=AITestResult,
-            verbosity=2
+            verbosity=2,
         )
-        result = runner.run(suite)
+        result = cast(AITestResult, runner.run(suite))
         print("===============================================================\n")
-        
         return result
-    
-    def _format_results_for_ai(self, result):
+
+    def _format_results_for_ai(self, result: AITestResult) -> Dict[str, Any]:
         """Format the test results for AI display, with concise error messages."""
         total_tests = result.testsRun
         failures = result.failures
         errors = result.errors
-        
-        # Format failures and errors
         failures_details = self._format_failures(failures)
         errors_details = self._format_errors(errors)
-        
-        # Return in our standard format
         return {
-            'failures': failures_details,
-            'errors': errors_details,
-            'summary': {
-                'tests': total_tests,
-                'failures': len(failures),
-                'errors': len(errors)
+            "failures": failures_details,
+            "errors": errors_details,
+            "summary": {
+                "tests": total_tests,
+                "failures": len(failures),
+                "errors": len(errors),
             },
-            'output': None  # Don't send the full output to the AI
+            "output": None,
         }
-    
-    def _format_failures(self, failures):
-        """Format test failures with concise error messages."""
-        failures_details = []
-        
+
+    def _format_failures(
+        self,
+        failures: List[Tuple[unittest.TestCase, str]],
+    ) -> List[Dict[str, str]]:
+        failures_details: List[Dict[str, str]] = []
         for test, error_msg in failures:
             error_message = self._extract_assertion_message(error_msg)
-            failures_details.append({
-                'test': str(test),
-                'error': error_message
-            })
-            
+            failures_details.append({"test": str(test), "error": error_message})
         return failures_details
-    
-    def _format_errors(self, errors):
-        """Format test errors with concise error messages."""
-        errors_details = []
-        
+
+    def _format_errors(
+        self,
+        errors: List[Tuple[unittest.TestCase, str]],
+    ) -> List[Dict[str, str]]:
+        errors_details: List[Dict[str, str]] = []
         for test, error_msg in errors:
             error_message = self._extract_error_message(error_msg)
-            errors_details.append({
-                'test': str(test),
-                'error': error_message
-            })
-            
+            errors_details.append({"test": str(test), "error": error_message})
         return errors_details
-    
-    def _extract_assertion_message(self, error_msg):
-        """Extract just the assertion message from a test failure."""
+
+    def _extract_assertion_message(self, error_msg: str) -> str:
         error_str = str(error_msg)
         if "AssertionError:" in error_str:
-            # For assertion errors, extract just the assertion message
             return "AssertionError: " + error_str.split("AssertionError:", 1)[1].strip()
-        else:
-            # For other errors, get the last non-empty line
-            return self._extract_error_message(error_msg)
-    
-    def _extract_error_message(self, error_msg):
-        """Extract the final error message from a traceback."""
+        return self._extract_error_message(error_msg)
+
+    def _extract_error_message(self, error_msg: str) -> str:
         error_str = str(error_msg)
-        lines = [line for line in error_str.split('\n') if line.strip()]
+        lines = [line for line in error_str.split("\n") if line.strip()]
         return lines[-1] if lines else error_str
-    
-    def _create_error_result(self, error_message):
-        """Create a standardized error result when test execution fails."""
+
+    def _create_error_result(self, error_message: str) -> Dict[str, Any]:
         formatted_message = f"Error running tests: {error_message}"
         print(f"\nERROR: {formatted_message}")
-        
         return {
-            'failures': [],
-            'errors': [{
-                'test': 'unittest.run',
-                'error': formatted_message
-            }],
-            'summary': {
-                'tests': 0,
-                'failures': 0,
-                'errors': 1
-            }
+            "failures": [],
+            "errors": [
+                {
+                    "test": "unittest.run",
+                    "error": formatted_message,
+                }
+            ],
+            "summary": {
+                "tests": 0,
+                "failures": 0,
+                "errors": 1,
+            },
         }
 
 
-# For backward compatibility, keep the run_tests function in the global scope
-# but delegate to the class method
-def run_tests():
+def run_tests() -> Dict[str, Any]:
     """Run all unit tests and return results in a format suitable for AI display."""
     return Tests.run_tests()

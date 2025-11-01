@@ -901,17 +901,17 @@ class TestMathFunctions(unittest.TestCase):
             
             # Create a mock canvas with required methods and properties
             mock_canvas = SimpleMock()
-            mock_canvas.scale_factor = 50  # type: ignore[attr-defined]  # type: ignore[attr-defined]
-            mock_canvas.cartesian2axis = SimpleMock()  # type: ignore[attr-defined]  # type: ignore[attr-defined]
-            mock_canvas.cartesian2axis.origin = SimpleMock(x=300, y=200)  # type: ignore[attr-defined]  # type: ignore[attr-defined]
-            mock_canvas.cartesian2axis.height = 400  # type: ignore[attr-defined]  # type: ignore[attr-defined]
-            mock_canvas.coordinate_mapper = coordinate_mapper  # type: ignore[attr-defined]  # type: ignore[attr-defined]
+            mock_canvas.scale_factor = 50
+            mock_canvas.cartesian2axis = SimpleMock()
+            mock_canvas.cartesian2axis.origin = SimpleMock(x=300, y=200)
+            mock_canvas.cartesian2axis.height = 400
+            mock_canvas.coordinate_mapper = coordinate_mapper
             
             # Mock the visible bounds methods
-            mock_canvas.cartesian2axis.get_visible_left_bound = lambda: -10  # type: ignore[attr-defined]
-            mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10    # type: ignore[attr-defined]
-            mock_canvas.cartesian2axis.get_visible_top_bound = lambda: 8  # type: ignore[attr-defined]
-            mock_canvas.cartesian2axis.get_visible_bottom_bound = lambda: -8  # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis.get_visible_left_bound = lambda: -10
+            mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10  
+            mock_canvas.cartesian2axis.get_visible_top_bound = lambda: 8
+            mock_canvas.cartesian2axis.get_visible_bottom_bound = lambda: -8
             
             # Sync coordinate mapper with canvas state
             coordinate_mapper.sync_from_canvas(mock_canvas)
@@ -989,17 +989,17 @@ class TestMathFunctions(unittest.TestCase):
             
             # Create a mock canvas
             mock_canvas = SimpleMock()
-            mock_canvas.scale_factor = 50  # type: ignore[attr-defined]
-            mock_canvas.cartesian2axis = SimpleMock()  # type: ignore[attr-defined]
-            mock_canvas.cartesian2axis.origin = SimpleMock(x=300, y=200)  # type: ignore[attr-defined]
-            mock_canvas.cartesian2axis.height = 400  # type: ignore[attr-defined]
-            mock_canvas.coordinate_mapper = coordinate_mapper  # type: ignore[attr-defined]
+            mock_canvas.scale_factor = 50
+            mock_canvas.cartesian2axis = SimpleMock()
+            mock_canvas.cartesian2axis.origin = SimpleMock(x=300, y=200)
+            mock_canvas.cartesian2axis.height = 400
+            mock_canvas.coordinate_mapper = coordinate_mapper
             
             # Mock the visible bounds methods
-            mock_canvas.cartesian2axis.get_visible_left_bound = lambda: -10  # type: ignore[attr-defined]
-            mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10    # type: ignore[attr-defined]
-            mock_canvas.cartesian2axis.get_visible_top_bound = lambda: 8  # type: ignore[attr-defined]
-            mock_canvas.cartesian2axis.get_visible_bottom_bound = lambda: -8  # type: ignore[attr-defined]
+            mock_canvas.cartesian2axis.get_visible_left_bound = lambda: -10
+            mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10  
+            mock_canvas.cartesian2axis.get_visible_top_bound = lambda: 8
+            mock_canvas.cartesian2axis.get_visible_bottom_bound = lambda: -8
             
             # Sync coordinate mapper with canvas state
             coordinate_mapper.sync_from_canvas(mock_canvas)

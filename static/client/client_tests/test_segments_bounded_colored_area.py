@@ -1,5 +1,9 @@
-import unittest
+from __future__ import annotations
+
 import copy
+import unittest
+from typing import Any, cast
+
 from geometry import Position
 from coordinate_mapper import CoordinateMapper
 from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
@@ -237,9 +241,11 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         
         # For vertical segment, the get_y_at_x function should handle x2 == x1 case
         # Let's test this directly
-        def get_y_at_x(segment, x):
-            x1, y1 = segment.point1.x, segment.point1.y
-            x2, y2 = segment.point2.x, segment.point2.y
+        def get_y_at_x(segment: Any, x: float) -> float:
+            x1 = cast(float, segment.point1.x)
+            y1 = cast(float, segment.point1.y)
+            x2 = cast(float, segment.point2.x)
+            y2 = cast(float, segment.point2.y)
             if x2 == x1:
                 return y1  # Should return y1 for vertical segment
             t = (x - x1) / (x2 - x1)

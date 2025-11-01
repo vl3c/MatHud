@@ -1,5 +1,9 @@
-import unittest
+from __future__ import annotations
+
 import copy
+import unittest
+from typing import Any
+
 from geometry import Position
 from coordinate_mapper import CoordinateMapper
 from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
@@ -351,7 +355,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         
         # Mock coordinate_mapper for predictable results
         call_count = [0]  # Use list to allow modification in nested function
-        def mock_math_to_screen(x, y):
+        def mock_math_to_screen(x: float, y: float) -> tuple[float, float]:
             call_count[0] += 1
             return (x * 10 + 250, 250 - y * 10)  # Simple linear transformation
         
@@ -376,7 +380,10 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         self.assertGreater(len(closed_area.forward_points), 0, "Forward path should not be empty")
         self.assertGreater(len(closed_area.reverse_points), 0, "Reverse path should not be empty")
 
-        def assert_point_matches_function(screen_pt, func):
+        def assert_point_matches_function(
+            screen_pt: tuple[float, float],
+            func: Any,
+        ) -> None:
             sx, sy = screen_pt
             # Recover math x from screen x
             x_math, _ = self.coordinate_mapper.screen_to_math(sx, sy)

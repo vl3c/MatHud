@@ -1,3 +1,8 @@
+"""Rendering package."""
+
+from __future__ import annotations
+
+__all__: list[str] = []
 """Rendering package (local).
 
 This file ensures Brython treats `rendering` as a local package so that

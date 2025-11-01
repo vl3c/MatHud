@@ -1,3 +1,8 @@
+"""Name generator package."""
+
+from __future__ import annotations
+
+__all__: list[str] = []
 """
 Name generator package for managing unique names of drawable objects.
 """
