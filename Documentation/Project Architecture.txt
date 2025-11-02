@@ -7,6 +7,7 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - AI-powered mathematical assistant
 - Real-time geometric visualization and analysis
 - Support for mathematical expressions and calculations
+- Linear algebra expression evaluation with MathJS-backed matrix operations
 - Visual problem-solving with multimodal AI
 - Real-world problem analysis and modeling
 - Workspace management for saving and loading states
@@ -22,6 +23,7 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Graphing Functions: plot functions, parametric equations, polar coordinates
 - Geometric Calculations: distance, angle, area, volume, intersections
 - Equation Solving: linear equations, quadratic equations, systems of equations
+- Linear Algebra: matrix and vector arithmetic, transpose, inverse, determinant, dot/cross products, norms, traces, diagonal/identity/zeros/ones helpers, reshape/size queries, and grouped expressions evaluated via MathJS
 - Advanced Operations: 40+ AI tool definitions available in `static/functions_definitions.py` including canvas operations, geometric shape creation/deletion, mathematical operations, transformations, and workspace management
 
 ## Geometric Shape Management

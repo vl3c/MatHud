@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import unittest
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .simple_mock import SimpleMock
-from utils.linear_algebra_utils import LinearAlgebraUtils
+from utils.linear_algebra_utils import LinearAlgebraObject, LinearAlgebraUtils
 import utils.linear_algebra_utils as linear_algebra_utils_module
 
 A_MATRIX: List[List[int]] = [
@@ -74,12 +74,27 @@ class FakeBigNumber:
         return self._value
 
 
+class FakeComplex:
+    def __init__(self, value: complex):
+        self.value: complex = value
+
+
 class FakeMath:
-    def __init__(self, return_value: Any = None, raise_exception: bool = False):
+    def __init__(
+        self,
+        return_value: Any = None,
+        raise_exception: bool = False,
+        *,
+        type_of: Optional[Callable[[Any], str]] = None,
+        format_func: Optional[Callable[[Any], str]] = None,
+        number_func: Optional[Callable[[Any], float]] = None,
+        has_matrix: bool = True,
+    ):
         self.return_value: Any = return_value
         self.raise_exception: bool = raise_exception
         self.evaluate_calls: List[Tuple[str, Dict[str, Any]]] = []
-        self.matrix: Callable[[Any], Any] = lambda value: value
+        if has_matrix:
+            self.matrix = lambda value: value
         self.transpose: Callable[[Any], Any] = lambda value: value
         self.inv: Callable[[Any], Any] = lambda value: value
         self.det: Callable[[Any], Any] = lambda value: value
@@ -87,16 +102,38 @@ class FakeMath:
         self.cross: Callable[[Any, Any], Tuple[Any, Any]] = lambda a, b: (a, b)
         self.norm: Callable[[Any], Any] = lambda value: value
         self.trace: Callable[[Any], Any] = lambda value: value
-        self.diag: Callable[..., Tuple[Any, ...]] = lambda *args: args
+        self.diag: Callable[..., List[Any]] = lambda *args: list(args)
         self.identity: Callable[[Any], Any] = lambda n: n
+        self.zeros: Callable[..., Tuple[Any, ...]] = lambda *shape: shape
+        self.ones: Callable[..., Tuple[Any, ...]] = lambda *shape: shape
+        self.reshape: Callable[[Any, Any], Any] = lambda value, shape: (value, shape)
+        self.size: Callable[[Any], Any] = lambda value: len(value)
         self.e: float = 2.718281828
         self.pi: float = 3.141592654
+        self._type_of: Optional[Callable[[Any], str]] = type_of
+        self._format_func: Optional[Callable[[Any], str]] = format_func
+        self._number_func: Optional[Callable[[Any], float]] = number_func
 
     def evaluate(self, expression: str, scope: Dict[str, Any]) -> Any:
         self.evaluate_calls.append((expression, scope))
         if self.raise_exception:
             raise ValueError("evaluation failed")
         return self.return_value
+
+    def typeOf(self, value: Any) -> str:
+        if self._type_of is None:
+            raise AttributeError("typeOf is not available")
+        return self._type_of(value)
+
+    def format(self, value: Any) -> str:
+        if self._format_func is None:
+            raise AttributeError("format is not available")
+        return self._format_func(value)
+
+    def number(self, value: Any) -> float:
+        if self._number_func is None:
+            raise AttributeError("number is not available")
+        return self._number_func(value)
 
 
 class TestLinearAlgebraUtils(unittest.TestCase):
@@ -214,6 +251,40 @@ class TestLinearAlgebraUtils(unittest.TestCase):
         self.assertEqual(result["type"], "scalar")
         self.assertEqual(result["value"], 0.0)
 
+    def test_scope_includes_supported_functions_and_constants(self) -> None:
+        fake_math = FakeMath(FakeMatrix([[1.0]]))
+        self._set_math(fake_math)
+
+        objects = [{"name": "A", "value": [[1.0]]}]
+
+        LinearAlgebraUtils.evaluate_expression(objects, "A")
+
+        _, scope = fake_math.evaluate_calls[0]
+        for name in LinearAlgebraUtils.ALLOWED_FUNCTION_NAMES:
+            self.assertIn(name, scope)
+        self.assertIn("pi", scope)
+        self.assertIn("e", scope)
+
+    def test_empty_expression_raises_value_error(self) -> None:
+        fake_math = FakeMath()
+        self._set_math(fake_math)
+
+        objects = [{"name": "A", "value": [[1.0]]}]
+
+        with self.assertRaises(ValueError):
+            LinearAlgebraUtils.evaluate_expression(objects, " ")
+
+        self.assertEqual(len(fake_math.evaluate_calls), 0)
+
+    def test_mixed_dimension_array_raises_value_error(self) -> None:
+        fake_math = FakeMath(FakeMatrix([[0.0]]))
+        self._set_math(fake_math)
+
+        objects = [{"name": "A", "value": [[1, 2], 3]}]
+
+        with self.assertRaises(ValueError):
+            LinearAlgebraUtils.evaluate_expression(objects, "A")
+
     def test_large_matrix_addition_matches_expected_values(self) -> None:
         fake_math = FakeMath(FakeMatrix(A_PLUS_B_MATRIX))
         self._set_math(fake_math)
@@ -291,6 +362,62 @@ class TestLinearAlgebraUtils(unittest.TestCase):
         self.assertEqual(product_math.evaluate_calls[0][0], "Ainv * Binv")
 
         self.assertEqual(product_result["value"], inverse_result["value"])
+
+    def test_missing_math_matrix_returns_matrix_result(self) -> None:
+        def type_of(value: Any) -> str:
+            if isinstance(value, list):
+                return "Array"
+            return "Number"
+
+        fake_math = FakeMath(
+            return_value=A_PLUS_B_MATRIX,
+            type_of=type_of,
+            has_matrix=False,
+        )
+        self._set_math(fake_math)
+
+        objects = [
+            {"name": "A", "value": A_MATRIX},
+            {"name": "B", "value": B_MATRIX},
+        ]
+
+        result = LinearAlgebraUtils.evaluate_expression(objects, "A + B")
+
+        self.assertFalse(hasattr(fake_math, "matrix"))
+        self.assertEqual(result["type"], "matrix")
+        self.assertEqual(result["value"], A_PLUS_B_MATRIX)
+
+    def test_complex_result_uses_format_conversion(self) -> None:
+        complex_value = FakeComplex(1 + 2j)
+
+        fake_math = FakeMath(
+            return_value=complex_value,
+            type_of=lambda value: "Complex",
+            format_func=lambda value: f"{value.value.real}+{value.value.imag}i",
+        )
+        self._set_math(fake_math)
+
+        objects = [{"name": "z", "value": 0}]
+
+        result = LinearAlgebraUtils.evaluate_expression(objects, "z")
+
+        self.assertEqual(result, {"type": "complex", "value": "1.0+2.0i"})
+
+    def test_diag_expression_uses_allowlist_function(self) -> None:
+        fake_math = FakeMath(
+            return_value=[1, 2, 3],
+            type_of=lambda value: "Array" if isinstance(value, list) else "Number",
+        )
+        self._set_math(fake_math)
+
+        objects: List[LinearAlgebraObject] = []
+
+        result = LinearAlgebraUtils.evaluate_expression(objects, "diag(1, 2, 3)")
+
+        self.assertEqual(result["type"], "vector")
+        self.assertEqual(result["value"], [1.0, 2.0, 3.0])
+        _, scope = fake_math.evaluate_calls[0]
+        self.assertIn("diag", scope)
 
 
 if __name__ == "__main__":

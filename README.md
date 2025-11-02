@@ -100,7 +100,7 @@ For local development, the application runs without authentication by default. T
 5. **Available AI Commands**:
    - `create point at (2, 3)` - Create geometric shapes
    - `calculate the distance between points A and B` - Mathematical calculations
-  - `evaluate linear algebra expression with A=[[1,2],[3,4]] and B=[[5,6],[7,8]]: inv(A) * B` - Matrix operations
+  - `evaluate linear algebra expression with A=[[1,2],[3,4]] and B=[[5,6],[7,8]]: inv(A) * B` - Linear algebra evaluation
    - `solve x^2 + 2x - 3 = 0` - Equation solving
    - `save workspace as "my_project"` - Save your work
    - `load workspace "my_project"` - Load previous work

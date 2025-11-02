@@ -125,6 +125,28 @@ class TestProcessFunctionCalls(unittest.TestCase):
                 {"name": "A", "value": [[1.0]]}
             ], "A")
 
+    def test_evaluate_linear_algebra_expression_supports_grouped_operations(self) -> None:
+        captured_calls: List[Any] = []
+
+        def fake_evaluate(objects: List[Dict[str, Any]], expression: str) -> LinearAlgebraResult:
+            captured_calls.append((objects, expression))
+            return {"type": "matrix", "value": [[42.0]]}
+
+        LinearAlgebraUtils.evaluate_expression = staticmethod(fake_evaluate)
+
+        objects = [
+            {"name": "A", "value": [[1, 0], [0, 1]]},
+            {"name": "Binv", "value": [[1, 0], [0, 1]]},
+        ]
+
+        result = ProcessFunctionCalls.evaluate_linear_algebra_expression(
+            objects,
+            "transpose(A) * Binv",
+        )
+
+        self.assertEqual(result["value"], [[42.0]])
+        self.assertEqual(captured_calls[0][1], "transpose(A) * Binv")
+
     def test_get_results_records_matrix_sum(self) -> None:
         expected_result: LinearAlgebraResult = {
             "type": "matrix",
@@ -205,6 +227,72 @@ class TestProcessFunctionCalls(unittest.TestCase):
         self.assertEqual(len(results), 1)
         _, value = next(iter(results.items()))
         self.assertEqual(value, expected_result)
+
+    def test_get_results_records_error_payload(self) -> None:
+        expected_result: LinearAlgebraResult = {
+            "type": "error",
+            "value": "Error: singular matrix",
+        }
+
+        def fake_evaluate(*_: Any) -> LinearAlgebraResult:
+            return expected_result
+
+        LinearAlgebraUtils.evaluate_expression = staticmethod(fake_evaluate)
+
+        objects = [
+            {"name": "A", "value": [[1, 0], [0, 0]]},
+        ]
+
+        calls = [
+            {
+                "function_name": "evaluate_linear_algebra_expression",
+                "arguments": {"objects": objects, "expression": "inv(A)"},
+            }
+        ]
+
+        available_functions = {
+            "evaluate_linear_algebra_expression": ProcessFunctionCalls.evaluate_linear_algebra_expression,
+        }
+
+        results = ProcessFunctionCalls.get_results(calls, available_functions, (), self.canvas)
+
+        self.assertEqual(list(results.values())[0], expected_result)
+
+    def test_get_results_handles_combined_operations_expression(self) -> None:
+        expected_result: LinearAlgebraResult = {
+            "type": "matrix",
+            "value": [[42.0, 0.0], [0.0, 42.0]],
+        }
+
+        def fake_evaluate(objects: List[Dict[str, Any]], expression: str) -> LinearAlgebraResult:
+            self.assertEqual(expression, "inv(transpose(A)) * diag(1, 2, 3)")
+            self.assertEqual(len(objects), 1)
+            self.assertEqual(objects[0]["name"], "A")
+            return expected_result
+
+        LinearAlgebraUtils.evaluate_expression = staticmethod(fake_evaluate)
+
+        objects = [
+            {"name": "A", "value": [[42, -17], [-28, 91]]},
+        ]
+
+        calls = [
+            {
+                "function_name": "evaluate_linear_algebra_expression",
+                "arguments": {
+                    "objects": objects,
+                    "expression": "inv(transpose(A)) * diag(1, 2, 3)",
+                },
+            }
+        ]
+
+        available_functions = {
+            "evaluate_linear_algebra_expression": ProcessFunctionCalls.evaluate_linear_algebra_expression,
+        }
+
+        results = ProcessFunctionCalls.get_results(calls, available_functions, (), self.canvas)
+
+        self.assertEqual(list(results.values())[0], expected_result)
 
     def test_get_results_validates_ba_inverse_identity(self) -> None:
         sum_objects = [
