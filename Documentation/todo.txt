@@ -9,8 +9,6 @@
 - add table view for function values and lightweight tabular data exploration
 - add list and spreadsheet structures for numeric and symbolic data (support formulas, basic stats, and function links)
 - add coordinate conversion tools (polar ↔ rectangular)
-- add combinatorial and factorial functions (nCr, nPr, factorial, permutations)
-- add random number generation utilities
 - add unit conversions (angle, base, engineering/scientific notation)
 
 # Advanced Mathematical Tools
@@ -30,7 +28,6 @@
 # Statistics and Analysis
 - add probability distribution tools and statistical hypothesis testing workflows
 - add regression analysis with multiple models (linear, polynomial, exponential, logarithmic, power, logistic, sinusoidal)
-- add descriptive statistics (mean, median, variance, standard deviation)
 - add scatter plot, histogram, box plot, and probability plot visualization
 - add confidence interval and ANOVA tools
 - add statistical tests (z-test, t-test, chi-square, F-test)
