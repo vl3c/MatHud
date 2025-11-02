@@ -16,16 +16,23 @@ Output:
 
 import os
 import re
-from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
+from typing import Any, DefaultDict, Dict, List, Optional, Set, cast
+
 
 class ProjectMetricsAnalyzer:
-    def __init__(self, project_root):
+    def __init__(self, project_root: str | Path) -> None:
         self.project_root = Path(project_root)
-        self.metrics = {
-            'files': defaultdict(int),
-            'lines': defaultdict(int),
+
+        files: DefaultDict[str, int] = defaultdict(int)
+        lines: DefaultDict[str, int] = defaultdict(int)
+        file_details: DefaultDict[str, List[Dict[str, Any]]] = defaultdict(list)
+
+        self.metrics: Dict[str, Any] = {
+            'files': files,
+            'lines': lines,
             'classes': 0,
             'methods': 0,
             'functions': 0,
@@ -42,11 +49,11 @@ class ProjectMetricsAnalyzer:
             'python_dependencies': 0,
             'javascript_libraries': 0,
             'test_files': 0,
-            'file_details': defaultdict(list)
+            'file_details': file_details,
         }
-        
+
         # File extensions to analyze
-        self.extensions = {
+        self.extensions: Dict[str, str] = {
             '.py': 'Python',
             '.html': 'HTML',
             '.css': 'CSS',
@@ -55,14 +62,14 @@ class ProjectMetricsAnalyzer:
             # '.js': 'JavaScript',
             '.json': 'JSON'
         }
-        
+
         # Directories to exclude
-        self.exclude_dirs = {
+        self.exclude_dirs: Set[str] = {
             '__pycache__', '.git', 'venv', '.vscode', '.pytest_cache',
             'logs', 'workspaces', 'canvas_snapshots', 'generated_svg', 'generated_png'
         }
     
-    def analyze_project(self):
+    def analyze_project(self) -> None:
         """Main analysis method that walks through the project directory."""
         print(f"Analyzing MatHud project at: {self.project_root}")
         print("=" * 60)
@@ -79,7 +86,7 @@ class ProjectMetricsAnalyzer:
         self.analyze_dependencies()
         self.generate_reports()
     
-    def analyze_file(self, file_path):
+    def analyze_file(self, file_path: Path) -> None:
         """Analyze a single file for various metrics."""
         try:
             suffix = file_path.suffix.lower()
@@ -110,7 +117,7 @@ class ProjectMetricsAnalyzer:
             
             # Store file details
             relative_path = file_path.relative_to(self.project_root)
-            file_info = {
+            file_info: Dict[str, Any] = {
                 'path': str(relative_path),
                 'lines': line_count,
                 'size': file_path.stat().st_size,
@@ -136,15 +143,16 @@ class ProjectMetricsAnalyzer:
                     self.metrics['test_files'] += 1
                     file_info['is_test_file'] = True
             
-            self.metrics['file_details'][file_type].append(file_info)
+            file_details = cast(DefaultDict[str, List[Dict[str, Any]]], self.metrics['file_details'])
+            file_details[file_type].append(file_info)
             
         except Exception as e:
             print(f"Error analyzing {file_path}: {e}")
     
-    def analyze_python_file(self, content, file_path):
+    def analyze_python_file(self, content: str, file_path: Path) -> Dict[str, Any]:
         """Detailed analysis of Python files."""
         lines = content.split('\n')
-        file_metrics = {
+        file_metrics: Dict[str, Any] = {
             'classes': 0,
             'methods': 0,
             'functions': 0,
@@ -159,7 +167,7 @@ class ProjectMetricsAnalyzer:
         }
         
         in_multiline_string = False
-        string_delimiter = None
+        string_delimiter: Optional[str] = None
         
         for line in lines:
             stripped = line.strip()
@@ -183,7 +191,7 @@ class ProjectMetricsAnalyzer:
             else:
                 # Inside multiline docstring
                 file_metrics['docstring_lines'] += 1
-                if string_delimiter in stripped:
+                if string_delimiter and string_delimiter in stripped:
                     in_multiline_string = False
                 continue
             
@@ -254,7 +262,7 @@ class ProjectMetricsAnalyzer:
         
         return file_metrics
     
-    def extract_import_module(self, import_line):
+    def extract_import_module(self, import_line: str) -> Optional[str]:
         """Extract the main module name from an import statement."""
         try:
             # Handle 'import module' and 'from module import ...'
@@ -269,13 +277,13 @@ class ProjectMetricsAnalyzer:
             if module and not module.startswith('.') and module.isidentifier():
                 return module
             return None
-        except:
+        except Exception:
             return None
     
-    def analyze_dependencies(self):
+    def analyze_dependencies(self) -> None:
         """Analyze Python and JavaScript dependencies."""
         # Analyze Python requirements files
-        deps = set()
+        deps: Set[str] = set()
         
         # Main requirements.txt
         requirements_files = [
@@ -294,7 +302,7 @@ class ProjectMetricsAnalyzer:
                             dep = line.split('==')[0].split('>=')[0].split('<=')[0].split('~=')[0].split('!=')[0].strip()
                             if dep:
                                 deps.add(dep)
-                except:
+                except Exception:
                     pass
         
         self.metrics['python_dependencies'] = len(deps)
@@ -332,23 +340,23 @@ class ProjectMetricsAnalyzer:
                         js_libs.add('nerdamer')
                     
                     self.metrics['javascript_libraries'] = len(js_libs)
-            except:
+            except Exception:
                 pass
     
-    def count_ai_functions(self, content):
+    def count_ai_functions(self, content: str) -> int:
         """Count AI function definitions in functions_definitions.py."""
         # Look for function definitions in the AI functions file
         function_pattern = r'"name":\s*"([^"]+)"'
         matches = re.findall(function_pattern, content)
         return len(matches)
     
-    def generate_reports(self):
+    def generate_reports(self) -> None:
         """Generate both summary and detailed reports."""
         self.print_summary()
         self.save_overview_table()
         self.save_detailed_report()
     
-    def print_summary(self):
+    def print_summary(self) -> None:
         """Print summary metrics to console."""
         print("\n" + "="*60)
         print("MATHUD PROJECT METRICS SUMMARY")
@@ -392,7 +400,7 @@ class ProjectMetricsAnalyzer:
         print(f"   Drawable Classes: {self.metrics['drawable_classes']:>4}")
         print(f"   Manager Classes:  {self.metrics['manager_classes']:>4}")
     
-    def save_overview_table(self):
+    def save_overview_table(self) -> None:
         """Save a formatted overview table to file."""
         output_file = self.project_root / 'Documentation' / 'Project Overview Table.txt'
         
@@ -470,7 +478,7 @@ class ProjectMetricsAnalyzer:
         
         print(f"\nOverview table saved to: {output_file}")
     
-    def save_detailed_report(self):
+    def save_detailed_report(self) -> None:
         """Save detailed metrics report to file."""
         output_file = self.project_root / 'Documentation' / 'metrics' / 'detailed_project_metrics.txt'
         
@@ -480,8 +488,9 @@ class ProjectMetricsAnalyzer:
             f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             
             # Detailed file breakdown by type
-            for file_type in sorted(self.metrics['file_details'].keys()):
-                files = self.metrics['file_details'][file_type]
+            file_details = cast(DefaultDict[str, List[Dict[str, Any]]], self.metrics['file_details'])
+            for file_type in sorted(file_details.keys()):
+                files = file_details[file_type]
                 if not files:
                     continue
                 
@@ -518,7 +527,7 @@ class ProjectMetricsAnalyzer:
         
         print(f"Detailed report saved to: {output_file}")
 
-def main():
+def main() -> None:
     """Main function to run the project analysis."""
     # Get the project root (parent directory of Documentation)
     script_path = Path(__file__).parent
@@ -536,4 +545,4 @@ def main():
     print(f"   • Documentation/metrics/detailed_project_metrics.txt (detailed breakdown)")
 
 if __name__ == "__main__":
-    main() 
+    main()

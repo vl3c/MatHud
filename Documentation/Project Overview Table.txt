@@ -1,67 +1,67 @@
 MatHud Project Overview Table
 ==================================================
-Generated on: 2025-06-09 16:17:53
+Generated on: 2025-11-02 16:58:20
 
 PROJECT METRICS OVERVIEW
 --------------------------------------------------
 Metric                    Count      Details        
 --------------------------------------------------
-Total Files               127        All types      
-Total Lines of Code       60,202     All files      
-Python Files              110        22,222 lines
-HTML Files                2          196 lines
-CSS Files                 1          601 lines
+Total Files               3,337      All types      
+Total Lines of Code       34,895     All files      
+Python Files              126        28,366 lines
+HTML Files                3          716 lines
+CSS Files                 1          780 lines
 JavaScript Files          0          0 lines
-Documentation Files       14         37,183 lines
+Documentation Files       12         1,831 lines
 
 --------------------------------------------------
 CODE ARCHITECTURE
 --------------------------------------------------
-Classes                   100        OOP Design     
-Methods                   1434       Class methods  
-Functions                 16         Module functions
+Classes                   147        OOP Design     
+Methods                   1649       Class methods  
+Functions                 18         Module functions
 Drawable Classes          23         Geometric shapes
 Manager Classes           22         System managers
 
 --------------------------------------------------
 DEPENDENCIES
 --------------------------------------------------
-Python Dependencies       11         External packages
-JavaScript Libraries      5          Frontend libs  
-Import Statements         451        All imports    
-Unique Python Imports     57         Distinct modules
+Python Dependencies       16         External packages
+JavaScript Libraries      10         Frontend libs  
+Import Statements         880        All imports    
+Unique Python Imports     65         Distinct modules
 
 --------------------------------------------------
 TESTING
 --------------------------------------------------
-Test Files                32         Test modules   
-Test Functions            489        Unit tests     
+Test Files                40         Test modules   
+Test Functions            624        Unit tests     
 
 --------------------------------------------------
 DOCUMENTATION
 --------------------------------------------------
-Comments                  2243       Code comments  
-Docstrings                996        Documentation  
-Docstring Lines           5980       Doc content    
+Comments                  2775       Code comments  
+Docstrings                1258       Documentation  
+Docstring Lines           6543       Doc content    
 
 --------------------------------------------------
 AI INTEGRATION
 --------------------------------------------------
-AI Functions              42         Tool definitions
+AI Functions              43         Tool definitions
 
 ==================================================
 PROJECT SUMMARY
 ==================================================
 MatHud is a comprehensive mathematical visualization tool featuring:
 
-• 60,202 lines of code across 127 files
-• 100 classes with 1434 methods
+• 34,895 lines of code across 3337 files
+• 147 classes with 1649 methods
 • 23 drawable geometric shapes
 • 22 specialized system managers
-• 42 AI-powered mathematical functions
-• 489 test functions for quality assurance
-• Flask backend with Brython 3.12.5 (CDN) frontend architecture
+• 43 AI-powered mathematical functions
+• 624 test functions for quality assurance
+• Flask backend with Brython frontend architecture
 • Interactive SVG canvas with real-time mathematical visualization
 
-NOTE: Reference Manual.txt (3,637 lines) contains duplicated docstring
+NOTE: Reference Manual.txt (3,694 lines) contains duplicated docstring
 content and is excluded from documentation totals to avoid double-counting.
