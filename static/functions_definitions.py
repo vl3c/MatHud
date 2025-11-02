@@ -19,31 +19,13 @@ Dependencies:
 
 from __future__ import annotations
 
-from typing import Dict, List, Literal, TypedDict, Union
+from typing import Any, Dict, List
 
 
-JsonValue = Union[str, int, float, bool, None, Dict[str, "JsonValue"], List["JsonValue"]]
-JsonObject = Dict[str, JsonValue]
+FunctionDefinition = Dict[str, Any]
 
 
-class FunctionSchema(TypedDict, total=False):
-    """JSON schema for an AI-exposed function."""
-
-    name: str
-    description: str
-    strict: bool
-    parameters: JsonObject
-    returns: JsonObject
-
-
-class FunctionDefinition(TypedDict):
-    """Top-level tool definition structure used by the OpenAI API."""
-
-    type: Literal["function"]
-    function: FunctionSchema
-
-
-FUNCTIONS: List[FunctionDefinition] = [
+FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
@@ -639,6 +621,67 @@ FUNCTIONS: List[FunctionDefinition] = [
                             }
                         },
                         "required": ["expression", "variables"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "evaluate_linear_algebra_expression",
+                    "description": "Evaluates a linear algebra expression using named matrices, vectors, or scalars. Supports operations such as addition, subtraction, multiplication, transpose and inverse.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "objects": {
+                                "type": "array",
+                                "minItems": 1,
+                                "description": "List of named linear algebra objects available to the expression evaluator.",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Identifier used to reference the object inside the expression. Must start with a letter or underscore."
+                                        },
+                                        "value": {
+                                            "description": "Scalar, vector, or matrix definition for the object.",
+                                            "anyOf": [
+                                                {
+                                                    "type": "number"
+                                                },
+                                                {
+                                                    "type": "array",
+                                                    "minItems": 1,
+                                                    "items": {
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                {
+                                                    "type": "array",
+                                                    "minItems": 1,
+                                                    "items": {
+                                                        "type": "array",
+                                                        "minItems": 1,
+                                                        "items": {
+                                                            "type": "number"
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "required": ["name", "value"],
+                                    "additionalProperties": False
+                                }
+                            },
+                            "expression": {
+                                "type": "string",
+                                "description": "Math.js compatible expression composed of the provided object names and supported linear algebra functions. Example: 'A + B' or 'inv(A) * b'."
+                            }
+                        },
+                        "required": ["objects", "expression"],
                         "additionalProperties": False
                     }
                 }

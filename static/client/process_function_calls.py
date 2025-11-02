@@ -16,13 +16,12 @@ Dependencies:
     - result_validator: Result structure and success validation
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 from expression_evaluator import ExpressionEvaluator
 from result_processor import ResultProcessor
 from result_validator import ResultValidator
+from utils.linear_algebra_utils import LinearAlgebraUtils, LinearAlgebraObject, LinearAlgebraResult
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -36,7 +35,11 @@ class ProcessFunctionCalls:
     """
     
     @staticmethod
-    def evaluate_expression(expression: str, variables: Optional[Dict[str, Any]] = None, canvas: Optional["Canvas"] = None) -> Any:
+    def evaluate_expression(
+        expression: str,
+        variables: Optional[Dict[str, Any]] = None,
+        canvas: Optional["Canvas"] = None,
+    ) -> Any:
         """Evaluates a mathematical expression with optional variable substitution.
         
         Delegates to ExpressionEvaluator for mathematical computation and parsing.
@@ -52,7 +55,32 @@ class ProcessFunctionCalls:
         return ExpressionEvaluator.evaluate_expression(expression, variables, canvas)
     
     @staticmethod
-    def get_results(calls: List[Dict[str, Any]], available_functions: Dict[str, Any], undoable_functions: Tuple[str, ...], canvas: "Canvas") -> Dict[str, Any]:
+    def evaluate_linear_algebra_expression(
+        objects: List[LinearAlgebraObject],
+        expression: str
+    ) -> LinearAlgebraResult:
+        """Evaluates a linear algebra expression using predefined objects.
+        
+        Delegates to LinearAlgebraUtils for matrix and vector validation and
+        MathJS-backed evaluation.
+
+        Args:
+            objects (list): List of object definitions containing names and values
+            expression (str): Linear algebra expression referencing the objects
+
+        Returns:
+            The evaluated result converted into Python-native structures.
+        """
+
+        return LinearAlgebraUtils.evaluate_expression(objects, expression)
+    
+    @staticmethod
+    def get_results(
+        calls: List[Dict[str, Any]],
+        available_functions: Dict[str, Any],
+        undoable_functions: Tuple[str, ...],
+        canvas: "Canvas",
+    ) -> Dict[str, Any]:
         """Process function calls and collect their results with state management.
         
         Delegates to ResultProcessor for function execution and result aggregation.
@@ -66,7 +94,10 @@ class ProcessFunctionCalls:
         Returns:
             dict: Mapping of function call strings to their computed results
         """
-        return cast(Dict[str, Any], ResultProcessor.get_results(calls, available_functions, undoable_functions, canvas))
+        return cast(
+            Dict[str, Any],
+            ResultProcessor.get_results(calls, available_functions, undoable_functions, canvas),
+        )
     
     @staticmethod
     def validate_results(results: Dict[str, Any]) -> bool:
@@ -80,7 +111,7 @@ class ProcessFunctionCalls:
         Returns:
             bool: True if results have correct structure, False otherwise
         """
-        return cast(bool, ResultValidator.validate_results(results))
+        return bool(ResultValidator.validate_results(results))
     
     @staticmethod
     def is_successful_result(value: Any) -> bool:
@@ -94,4 +125,4 @@ class ProcessFunctionCalls:
         Returns:
             bool: True if result is successful, False for errors or empty values
         """
-        return cast(bool, ResultValidator.is_successful_result(value))
+        return bool(ResultValidator.is_successful_result(value))

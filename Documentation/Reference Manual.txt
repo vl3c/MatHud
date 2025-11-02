@@ -125,6 +125,7 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 2. Style Utils (`utils/style_utils.py`)
 3. Geometry Utils (`utils/geometry_utils.py`)
 4. Computation Utils (`utils/computation_utils.py`)
+5. Linear Algebra Utils (`utils/linear_algebra_utils.py`)
 
 ### Name Generators
 1. Base Name Generator (`name_generator/base.py`)

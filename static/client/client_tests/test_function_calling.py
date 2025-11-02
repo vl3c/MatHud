@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import unittest
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from geometry import Position
 from canvas import Canvas
 from process_function_calls import ProcessFunctionCalls
 from .simple_mock import SimpleMock
+from utils.linear_algebra_utils import LinearAlgebraUtils
+from utils.linear_algebra_utils import LinearAlgebraResult
 
 
 class TestProcessFunctionCalls(unittest.TestCase):
@@ -23,6 +25,10 @@ class TestProcessFunctionCalls(unittest.TestCase):
         self.function_string, self.name = "x^2", "Quadratic"
         # Assuming draw_function method is available to add mock functions
         self.f = self.canvas.draw_function(self.function_string, self.name)
+        self._original_linear_algebra_evaluate = LinearAlgebraUtils.evaluate_expression
+
+    def tearDown(self) -> None:
+        LinearAlgebraUtils.evaluate_expression = staticmethod(self._original_linear_algebra_evaluate)
 
     def test_evaluate_numeric_expression(self) -> None:
         expression = "3 + 7"
@@ -90,6 +96,173 @@ class TestProcessFunctionCalls(unittest.TestCase):
         expression = "NonExistentFunction(10)"
         result = ProcessFunctionCalls.evaluate_expression(expression, variables=None, canvas=self.canvas)
         self.assertTrue("Sorry" in result)
+
+    def test_evaluate_linear_algebra_expression_delegates_to_utils(self) -> None:
+        captured_calls: List[Any] = []
+
+        def fake_evaluate(objects: List[Dict[str, Any]], expression: str) -> LinearAlgebraResult:
+            captured_calls.append((objects, expression))
+            return {"type": "matrix", "value": [[1.0]]}
+
+        LinearAlgebraUtils.evaluate_expression = staticmethod(fake_evaluate)
+
+        objects = [{"name": "A", "value": [[1, 2], [3, 4]]}]
+        expression = "A"
+
+        result = ProcessFunctionCalls.evaluate_linear_algebra_expression(objects, expression)
+
+        self.assertEqual(result, {"type": "matrix", "value": [[1.0]]})
+        self.assertEqual(captured_calls, [(objects, expression)])
+
+    def test_evaluate_linear_algebra_expression_propagates_errors(self) -> None:
+        def fake_evaluate(*_: Any) -> Dict[str, Any]:
+            raise ValueError("invalid data")
+
+        LinearAlgebraUtils.evaluate_expression = staticmethod(fake_evaluate)
+
+        with self.assertRaises(ValueError):
+            ProcessFunctionCalls.evaluate_linear_algebra_expression([
+                {"name": "A", "value": [[1.0]]}
+            ], "A")
+
+    def test_get_results_records_matrix_sum(self) -> None:
+        expected_result: LinearAlgebraResult = {
+            "type": "matrix",
+            "value": [
+                [57, -105, 134, 15],
+                [-121, 98, -118, 115],
+                [100, -92, 110, 77],
+                [8, 18, -44, 177],
+            ],
+        }
+
+        def fake_evaluate(objects: List[Dict[str, Any]], expression: str) -> LinearAlgebraResult:
+            self.assertEqual(expression, "A + B")
+            self.assertEqual(len(objects), 2)
+            return expected_result
+
+        LinearAlgebraUtils.evaluate_expression = staticmethod(fake_evaluate)
+
+        objects = [
+            {"name": "A", "value": [[42, -17, 63, -5], [-28, 91, -74, 60], [39, -56, 81, -13], [22, -48, 9, 100]]},
+            {"name": "B", "value": [[15, -88, 71, 20], [-93, 7, -44, 55], [61, -36, 29, 90], [-14, 66, -53, 77]]},
+        ]
+
+        calls = [
+            {
+                "function_name": "evaluate_linear_algebra_expression",
+                "arguments": {"objects": objects, "expression": "A + B"},
+            }
+        ]
+
+        available_functions = {
+            "evaluate_linear_algebra_expression": ProcessFunctionCalls.evaluate_linear_algebra_expression,
+        }
+
+        results = ProcessFunctionCalls.get_results(calls, available_functions, (), self.canvas)
+
+        self.assertEqual(len(results), 1)
+        key, value = next(iter(results.items()))
+        self.assertIn("expression:A + B", key)
+        self.assertIn("objects:[{'name': 'A'", key)
+        self.assertEqual(value, expected_result)
+
+    def test_get_results_records_matrix_inverse(self) -> None:
+        expected_result: LinearAlgebraResult = {
+            "type": "matrix",
+            "value": [
+                [-0.01852789402109, -0.00012003596207, 0.01726042942533, -0.01527634792136],
+                [0.03015604564334, -0.02073178307553, -0.02950658907737, 0.0414638983539],
+                [0.05327575815057, -0.02568902469341, -0.04039437128784, 0.05172564429912],
+                [0.007453579912, 0.00006621910084, 0.00062570406241, 0.01027237643632],
+            ],
+        }
+
+        def fake_evaluate(objects: List[Dict[str, Any]], expression: str) -> LinearAlgebraResult:
+            self.assertEqual(expression, "inv(B)")
+            self.assertEqual(len(objects), 1)
+            return expected_result
+
+        LinearAlgebraUtils.evaluate_expression = staticmethod(fake_evaluate)
+
+        objects = [
+            {"name": "B", "value": [[15, -88, 71, 20], [-93, 7, -44, 55], [61, -36, 29, 90], [-14, 66, -53, 77]]},
+        ]
+
+        calls = [
+            {
+                "function_name": "evaluate_linear_algebra_expression",
+                "arguments": {"objects": objects, "expression": "inv(B)"},
+            }
+        ]
+
+        available_functions = {
+            "evaluate_linear_algebra_expression": ProcessFunctionCalls.evaluate_linear_algebra_expression,
+        }
+
+        results = ProcessFunctionCalls.get_results(calls, available_functions, (), self.canvas)
+
+        self.assertEqual(len(results), 1)
+        _, value = next(iter(results.items()))
+        self.assertEqual(value, expected_result)
+
+    def test_get_results_validates_ba_inverse_identity(self) -> None:
+        sum_objects = [
+            {"name": "A", "value": [[42, -17, 63, -5], [-28, 91, -74, 60], [39, -56, 81, -13], [22, -48, 9, 100]]},
+            {"name": "B", "value": [[15, -88, 71, 20], [-93, 7, -44, 55], [61, -36, 29, 90], [-14, 66, -53, 77]]},
+        ]
+
+        expected_product: LinearAlgebraResult = {
+            "type": "matrix",
+            "value": [
+                [-0.00875984820092, 0.00373635492043, 0.00731680437918, -0.0087386531244],
+                [0.00119883460219, -0.00071708153649, -0.00106171960295, 0.00134112408346],
+                [0.00603075860861, -0.00275910171608, -0.00502222087331, 0.00611333377118],
+                [0.0020343747376, -0.00091721587455, -0.00166106545361, 0.00211876697239],
+            ],
+        }
+
+        def fake_evaluate(objects: List[Dict[str, Any]], expression: str) -> LinearAlgebraResult:
+            if expression == "Ainv * Binv":
+                self.assertEqual(len(objects), 2)
+                return expected_product
+            if expression == "inv(B * A)":
+                self.assertEqual(len(objects), 2)
+                return expected_product
+            self.fail(f"Unexpected expression {expression}")
+
+        LinearAlgebraUtils.evaluate_expression = staticmethod(fake_evaluate)
+
+        calls = [
+            {
+                "function_name": "evaluate_linear_algebra_expression",
+                "arguments": {
+                    "objects": [
+                        {"name": "Ainv", "value": [[0.08978748025755, -0.0431349377372, -0.1110128961747, 0.01593866015249], [0.00113046897795, 0.01621907946636, 0.01479939945209, -0.00775100230215], [-0.04488430734323, 0.03425951076629, 0.07993324152089, -0.01240860042922], [-0.01517103288635, 0.01419148847707, 0.02433255715856, 0.00388978770005]]},
+                        {"name": "Binv", "value": [[-0.01852789402109, -0.00012003596207, 0.01726042942533, -0.01527634792136], [0.03015604564334, -0.02073178307553, -0.02950658907737, 0.0414638983539], [0.05327575815057, -0.02568902469341, -0.04039437128784, 0.05172564429912], [0.007453579912, 0.00006621910084, 0.00062570406241, 0.01027237643632]]},
+                    ],
+                    "expression": "Ainv * Binv",
+                },
+            },
+            {
+                "function_name": "evaluate_linear_algebra_expression",
+                "arguments": {
+                    "objects": sum_objects,
+                    "expression": "inv(B * A)",
+                },
+            },
+        ]
+
+        available_functions = {
+            "evaluate_linear_algebra_expression": ProcessFunctionCalls.evaluate_linear_algebra_expression,
+        }
+
+        results = ProcessFunctionCalls.get_results(calls, available_functions, (), self.canvas)
+
+        self.assertEqual(len(results), 2)
+        values = list(results.values())
+        self.assertEqual(values[0], expected_product)
+        self.assertEqual(values[1], expected_product)
 
     def test_validate_results_with_valid_input(self) -> None:
         # Testing result validation with valid types as dictionary values

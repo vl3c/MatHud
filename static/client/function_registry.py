@@ -96,6 +96,7 @@ class FunctionRegistry:
             
             # ===== MATHEMATICAL OPERATIONS =====
             "evaluate_expression": ProcessFunctionCalls.evaluate_expression,
+            "evaluate_linear_algebra_expression": ProcessFunctionCalls.evaluate_linear_algebra_expression,
             "convert": MathUtils.convert,
             "limit": MathUtils.limit,
             "derive": MathUtils.derivative,
