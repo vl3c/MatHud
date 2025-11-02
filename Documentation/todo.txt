@@ -13,17 +13,12 @@
 
 # Advanced Mathematical Tools
 - add sequence and series calculations (summation, products, convergence tests)
-- add symbolic and numeric differentiation and integration tools
-- add symbolic simplification, expansion, and factoring capabilities
 - add differential equations solver with visualization of direction fields and solution families
 - add numerical methods (Newton's method, Simpson's rule, trapezoidal rule, numerical ODE solvers)
 - add eigenvalue and eigenvector calculations for advanced linear algebra
-- add support for solving linear and nonlinear systems of equations
-- add limit calculation tools
 - add symbolic manipulation tools for algebraic expressions (simplify, expand, rationalize)
 - add summation and product operators for discrete analysis (Σ, Π)
 - add coordinate and vector operations (dot, cross, magnitude, normalization)
-- add geometry module for 2D constructions (points, lines, circles, measurements, transformations)
 
 # Statistics and Analysis
 - add probability distribution tools and statistical hypothesis testing workflows
@@ -36,7 +31,6 @@
 - add cumulative frequency tables and graph generation
 
 # 2D Graphing Enhancements
-- add region coloring for complex bounded areas and inequality-defined zones
 - add piecewise function support and graphing
 - add implicit function plotting
 - add conic section specialized tools
