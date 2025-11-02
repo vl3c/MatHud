@@ -10,6 +10,8 @@ Tests all coordinate transformation functionality including:
 - Canvas integration and synchronization
 """
 
+from __future__ import annotations
+
 import unittest
 from coordinate_mapper import CoordinateMapper
 from drawables.position import Position
@@ -469,7 +471,7 @@ class TestCoordinateMapper(unittest.TestCase):
         """Test synchronization with a mock Canvas object."""
         # Create a mock canvas object with coordinate properties
         class MockCanvas:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.width = 1000
                 self.height = 800
                 self.scale_factor = 1.5
@@ -481,7 +483,7 @@ class TestCoordinateMapper(unittest.TestCase):
                 
                 # Mock cartesian2axis with origin
                 class MockCartesian:
-                    def __init__(self):
+                    def __init__(self) -> None:
                         self.origin = Position(520, 380)  # Slightly off center
                         
                 self.cartesian2axis = MockCartesian()
@@ -507,7 +509,7 @@ class TestCoordinateMapper(unittest.TestCase):
     def test_sync_from_canvas_minimal(self) -> None:
         """Test sync with minimal Canvas object (missing some properties)."""
         class MinimalCanvas:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.width = 600
                 self.height = 400
                 self.scale_factor = 0.8
@@ -535,14 +537,14 @@ class TestCoordinateMapper(unittest.TestCase):
         """Test factory method to create CoordinateMapper from Canvas."""
         # Create mock canvas
         class MockCanvas:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.width = 1200
                 self.height = 900
                 self.scale_factor = 2.5
                 self.offset = Position(150, -100)
                 
                 class MockCartesian:
-                    def __init__(self):
+                    def __init__(self) -> None:
                         self.origin = Position(600, 450)
                         
                 self.cartesian2axis = MockCartesian()

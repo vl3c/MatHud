@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import unittest
+
 from managers.drawable_dependency_manager import DrawableDependencyManager
 from client_tests.simple_mock import SimpleMock
-import inspect
-import re
 
 
 class TestDrawableDependencyManager(unittest.TestCase):
@@ -12,7 +13,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
     and canvas reference propagation.
     """
     
-    def _create_mock_point(self, name, x=0, y=0):
+    def _create_mock_point(self, name: str, x: float = 0, y: float = 0) -> SimpleMock:
         """Factory function to create a point mock with SimpleMock"""
         return SimpleMock(
             name=name,
@@ -24,7 +25,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
             __repr__=SimpleMock(return_value=f"Point({name})")
         )
 
-    def _create_mock_segment(self, name, point1, point2):
+    def _create_mock_segment(self, name: str, point1: SimpleMock, point2: SimpleMock) -> SimpleMock:
         """Factory function to create a segment mock with SimpleMock"""
         return SimpleMock(
             name=name,
@@ -36,7 +37,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
             __repr__=SimpleMock(return_value=f"Segment({name})")
         )
 
-    def _create_mock_drawable(self, name, class_name="MockDrawable"):
+    def _create_mock_drawable(self, name: str, class_name: str = "MockDrawable") -> SimpleMock:
         """Factory function to create a generic drawable mock with SimpleMock"""
         return SimpleMock(
             name=name,
@@ -519,7 +520,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         
         # Test with object missing get_class_name
         class NoMethodDrawable:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.name = "NoMethod"
         no_method = NoMethodDrawable()
         self.manager._verify_get_class_name_method(no_method, "Test")
@@ -531,7 +532,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         
         # Test with object that has get_class_name but it's not callable
         class BadMethodDrawable:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.name = "BadMethod"
                 self.get_class_name = "not a method"
         bad_method = BadMethodDrawable()
@@ -665,7 +666,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         
         # Test with missing get_class_name method
         class BadDrawable:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.name = "Bad"
         bad = BadDrawable()
         dependencies = self.manager.analyze_drawable_for_dependencies(bad)

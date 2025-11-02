@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import unittest
 from copy import deepcopy
+from typing import Any, Dict
 
 from drawables.angle import Angle
 from managers.angle_manager import AngleManager
@@ -39,10 +42,12 @@ class TestAngle(unittest.TestCase):
         self.name_generator = DrawableNameGenerator(self.canvas)
 
         # Setup for DrawableManager
-        self.drawable_manager_segments = {}
-        def get_segment_by_name_mock(name):
+        self.drawable_manager_segments: Dict[str, Any] = {}
+
+        def get_segment_by_name_mock(name: str) -> Any:
             return self.drawable_manager_segments.get(name)
-        def add_segment_mock(segment):
+
+        def add_segment_mock(segment: Any) -> None:
             self.drawable_manager_segments[segment.name] = segment
 
         self.drawable_manager = SimpleMock(
@@ -372,7 +377,7 @@ class TestAngle(unittest.TestCase):
         original_angle_non_reflex = Angle(self.s_AB, self.s_AD, is_reflex=False)
         self.assertEqual(original_angle_non_reflex.name, "angle_BAD") 
         
-        memo = {}
+        memo: Dict[int, Any] = {}
         copied_angle_non_reflex = deepcopy(original_angle_non_reflex, memo)
 
         self.assertIsNot(original_angle_non_reflex, copied_angle_non_reflex)
@@ -390,7 +395,7 @@ class TestAngle(unittest.TestCase):
         original_angle_reflex = Angle(self.s_AB, self.s_AC, is_reflex=True)
         self.assertEqual(original_angle_reflex.name, "angle_BAC_reflex")
 
-        memo_reflex = {}
+        memo_reflex: Dict[int, Any] = {}
         copied_angle_reflex = deepcopy(original_angle_reflex, memo_reflex)
         
         self.assertIsNot(original_angle_reflex, copied_angle_reflex)
@@ -407,7 +412,7 @@ class TestAngle(unittest.TestCase):
         self.assertAlmostEqual(original_angle.raw_angle_degrees, 45.0, places=5)
         self.assertAlmostEqual(original_angle.angle_degrees, 45.0, places=5)
 
-        memo = {}
+        memo: Dict[int, Any] = {}
         copied_angle = deepcopy(original_angle, memo)
 
         self.assertIsNot(original_angle, copied_angle)
@@ -417,7 +422,7 @@ class TestAngle(unittest.TestCase):
 
         # Reflex angle
         original_angle_reflex = Angle(self.s_AB, self.s_AC, is_reflex=True)
-        memo_reflex_again = {}
+        memo_reflex_again: Dict[int, Any] = {}
         # Add segments to memo first to test sharing
         memo_reflex_again[id(original_angle_reflex.segment1)] = original_angle_reflex.segment1
         memo_reflex_again[id(original_angle_reflex.segment2)] = original_angle_reflex.segment2
@@ -441,7 +446,7 @@ class TestAngle(unittest.TestCase):
         dependency_manager_mock.remove_drawable = lambda drawable: None
         
         angle_manager_mock = SimpleMock()
-        angles_list = []
+        angles_list: list[Any] = []
         angle_manager_mock.drawables = SimpleMock(Angles=angles_list)
         
         # Create an angle and manually register it in our mock system
@@ -485,7 +490,7 @@ class TestAngle(unittest.TestCase):
         dependency_manager_mock.remove_drawable = lambda drawable: None
         
         angle_manager_mock = SimpleMock()
-        angles_list = []
+        angles_list: list[Any] = []
         angle_manager_mock.drawables = SimpleMock(Angles=angles_list)
         
         # Create an angle and manually register it in our mock system
@@ -519,13 +524,13 @@ class TestAngle(unittest.TestCase):
         self.assertEqual(len(angles_list), 0)
         self.assertNotIn(angle, angles_list)
 
-    def _add_dependency(self, dependencies_dict, child, parent):
+    def _add_dependency(self, dependencies_dict: Dict[Any, list[Any]], child: Any, parent: Any) -> None:
         """Helper method to add a dependency relationship."""
         if parent not in dependencies_dict:
             dependencies_dict[parent] = []
         dependencies_dict[parent].append(child)
 
-    def _get_dependencies(self, dependencies_dict, parent, dep_type):
+    def _get_dependencies(self, dependencies_dict: Dict[Any, list[Any]], parent: Any, dep_type: str) -> list[Any]:
         """Helper method to get dependencies."""
         if dep_type == 'children':
             return dependencies_dict.get(parent, [])

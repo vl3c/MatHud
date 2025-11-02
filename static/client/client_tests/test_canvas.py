@@ -1,5 +1,10 @@
+from __future__ import annotations
+
 import unittest
 from random import randint
+from typing import Any, Dict, List, cast
+import re
+
 from canvas import Canvas
 from expression_validator import ExpressionValidator
 from utils.math_utils import MathUtils
@@ -28,12 +33,13 @@ class TestCanvas(unittest.TestCase):
         # Add backward-compatible drawables property for tests
         # This allows existing tests to work with the new DrawablesContainer
         # by providing getter and setter for the drawables dictionary
-        def get_drawables():
-            return self.canvas.drawable_manager.drawables._drawables
-            
-        def set_drawables(value):
-            self.canvas.drawable_manager.drawables._drawables = value
-            
+        def get_drawables(canvas_self: Canvas) -> Dict[str, List[Any]]:
+            drawables = cast(Dict[str, List[Any]], canvas_self.drawable_manager.drawables._drawables)
+            return drawables
+
+        def set_drawables(canvas_self: Canvas, value: Dict[str, List[Any]]) -> None:
+            canvas_self.drawable_manager.drawables._drawables = value
+
         setattr(Canvas, 'drawables', property(get_drawables, set_drawables))
 
     def test_init(self) -> None:
@@ -1463,19 +1469,18 @@ class TestCanvas(unittest.TestCase):
                         f"Point {i+1} y-coordinate not translated correctly")
 
     def test_translate_function(self) -> None:
-        def replace_x(func_str, x_offset):
-            import re
+        def replace_x(func_str: str, x_offset: float) -> str:
             protected_funcs = sorted(ExpressionValidator.ALLOWED_FUNCTIONS, key=len, reverse=True)
             func_pattern = '|'.join(map(re.escape, protected_funcs))
             pattern = rf'\b(x)\b|({func_pattern})'
-            
-            def replace_match(match):
+
+            def replace_match(match: re.Match[str]) -> str:
                 if match.group(1):
                     return f'(x - {x_offset})'
-                elif match.group(2):
+                if match.group(2):
                     return match.group(2)
                 return match.group(0)
-                
+
             return re.sub(pattern, replace_match, func_str)
 
         # Test basic function translations

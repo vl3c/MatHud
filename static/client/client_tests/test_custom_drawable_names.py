@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import unittest
+
 from canvas import Canvas
 from drawables.drawable import Drawable
 from geometry import Position
@@ -13,7 +16,7 @@ class TestCustomDrawableNames(unittest.TestCase):
                                               origin=Position(0, 0))
         self.canvas.cartesian2axis = self.mock_cartesian2axis
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         # Clear the canvas
         self.canvas.clear()
 
