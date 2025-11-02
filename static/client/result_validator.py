@@ -40,13 +40,11 @@ class ResultValidator:
         Returns:
             bool: True if the results have valid structure, False otherwise
         """
-        allowed_types: tuple[type, ...] = (str, int, float, bool)
         if not isinstance(results, dict):
             return False
         print(f"Validating results: {results}")
         return all(
-            k and isinstance(k, str) and 
-            isinstance(v, allowed_types)
+            k and isinstance(k, str) and ResultValidator._is_allowed_value(v, allow_list=False)
             for k, v in results.items()
         )
     
@@ -63,6 +61,40 @@ class ResultValidator:
         Returns:
             bool: True if the result represents successful computation, False for errors/empty
         """
-        return not (isinstance(value, str) and 
-                   (value in [successful_call_message, ""] or 
-                    value.startswith("Error:"))) 
+        if isinstance(value, str):
+            if value in [successful_call_message, ""]:
+                return False
+            if value.startswith("Error:"):
+                return False
+            return True
+
+        if isinstance(value, dict):
+            value_type = value.get("type") if isinstance(value.get("type"), str) else None
+            if value_type == "error":
+                return False
+            return True
+
+        return True
+
+    @staticmethod
+    def _is_allowed_value(value: Any, *, allow_list: bool) -> bool:
+        """Determine if a result value is permitted."""
+
+        if isinstance(value, (str, int, float, bool)):
+            return True
+
+        if isinstance(value, list):
+            if not allow_list:
+                return False
+            return all(ResultValidator._is_allowed_value(item, allow_list=True) for item in value)
+
+        if isinstance(value, dict):
+            value_type = value.get("type")
+            if isinstance(value_type, str) and "value" in value:
+                return ResultValidator._is_allowed_value(value["value"], allow_list=True)
+            return all(
+                isinstance(k, str) and ResultValidator._is_allowed_value(v, allow_list=allow_list)
+                for k, v in value.items()
+            )
+
+        return False

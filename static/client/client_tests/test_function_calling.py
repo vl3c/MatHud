@@ -294,6 +294,51 @@ class TestProcessFunctionCalls(unittest.TestCase):
 
         self.assertEqual(list(results.values())[0], expected_result)
 
+    def test_get_results_handles_four_by_four_inverse(self) -> None:
+        expected_result: LinearAlgebraResult = {
+            "type": "matrix",
+            "value": [
+                [0.08978748025755, -0.0431349377372, -0.1110128961747, 0.01593866015249],
+                [0.00113046897795, 0.01621907946636, 0.01479939945209, -0.00775100230215],
+                [-0.04488430734323, 0.03425951076629, 0.07993324152089, -0.01240860042922],
+                [-0.01517103288635, 0.01419148847707, 0.02433255715856, 0.00388978770005],
+            ],
+        }
+
+        def fake_evaluate(objects: List[Dict[str, Any]], expression: str) -> LinearAlgebraResult:
+            self.assertEqual(expression, "inv(A)")
+            self.assertEqual(len(objects), 1)
+            return expected_result
+
+        LinearAlgebraUtils.evaluate_expression = staticmethod(fake_evaluate)
+
+        objects = [
+            {
+                "name": "A",
+                "value": [
+                    [42, -17, 63, -5],
+                    [-28, 91, -74, 60],
+                    [39, -56, 81, -13],
+                    [22, -48, 9, 100],
+                ],
+            }
+        ]
+
+        calls = [
+            {
+                "function_name": "evaluate_linear_algebra_expression",
+                "arguments": {"objects": objects, "expression": "inv(A)"},
+            }
+        ]
+
+        available_functions = {
+            "evaluate_linear_algebra_expression": ProcessFunctionCalls.evaluate_linear_algebra_expression,
+        }
+
+        results = ProcessFunctionCalls.get_results(calls, available_functions, (), self.canvas)
+
+        self.assertEqual(list(results.values())[0], expected_result)
+
     def test_get_results_validates_ba_inverse_identity(self) -> None:
         sum_objects = [
             {"name": "A", "value": [[42, -17, 63, -5], [-28, 91, -74, 60], [39, -56, 81, -13], [22, -48, 9, 100]]},
@@ -366,6 +411,23 @@ class TestProcessFunctionCalls(unittest.TestCase):
         # Testing result validation with an invalid type (None) as one of the dictionary values
         results = {"result1": 1, "result2": "a", "result3": None, "result4": True}
         self.assertFalse(ProcessFunctionCalls.validate_results(results))
+
+    def test_validate_results_accepts_linear_algebra_payload(self) -> None:
+        payload: Dict[str, Any] = {
+            "expression:A+B": {
+                "type": "matrix",
+                "value": [[10.0, 10.0], [10.0, 10.0]],
+            }
+        }
+        self.assertTrue(ProcessFunctionCalls.validate_results(payload))
+
+    def test_is_successful_result_handles_error_payload(self) -> None:
+        error_payload = {"type": "error", "value": "Error: singular"}
+        self.assertFalse(ProcessFunctionCalls.is_successful_result(error_payload))
+
+    def test_is_successful_result_accepts_scalar_payload(self) -> None:
+        scalar_payload = {"type": "scalar", "value": -10.0}
+        self.assertTrue(ProcessFunctionCalls.is_successful_result(scalar_payload))
 
     def test_validate_results_with_empty_string_key(self) -> None:
         # Testing result validation with an empty string as a key
