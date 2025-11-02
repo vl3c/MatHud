@@ -9,24 +9,26 @@ Usage:
     python setup_diagram_tools.py
 """
 
+from __future__ import annotations
+
+import platform
 import subprocess
 import sys
-import platform
-import os
-from pathlib import Path
+from typing import List
+
 
 class DiagramToolsSetup:
-    def __init__(self):
-        self.system = platform.system().lower()
-        self.python_packages = [
-            'pylint',           # for pyreverse
-            'graphviz',         # Python graphviz bindings
-            'diagrams',         # for architecture diagrams
-            'pydeps',           # for dependency analysis
-            'pycallgraph2',     # for call graph generation
+    def __init__(self) -> None:
+        self.system: str = platform.system().lower()
+        self.python_packages: List[str] = [
+            'pylint',
+            'graphviz',
+            'diagrams',
+            'pydeps',
+            'pycallgraph2',
         ]
         
-    def run_command(self, cmd, description):
+    def run_command(self, cmd: str, description: str) -> bool:
         """Run a command and handle errors gracefully."""
         print(f"🔧 {description}...")
         try:
@@ -37,7 +39,7 @@ class DiagramToolsSetup:
             print(f"   ✗ Failed: {e.stderr.strip()}")
             return False
     
-    def install_graphviz_system(self):
+    def install_graphviz_system(self) -> bool:
         """Install system-level Graphviz based on the operating system."""
         if self.system == 'windows':
             print("📋 For Windows, please manually install Graphviz:")
@@ -60,8 +62,9 @@ class DiagramToolsSetup:
             else:
                 print("⚠️  Please manually install Graphviz for your Linux distribution")
                 return False
+        return False
     
-    def install_python_packages(self):
+    def install_python_packages(self) -> None:
         """Install required Python packages."""
         print("🐍 Installing Python packages...")
         
@@ -77,7 +80,7 @@ class DiagramToolsSetup:
             if not success:
                 print(f"⚠️  Failed to install {package} - you may need to install it manually")
     
-    def verify_installation(self):
+    def verify_installation(self) -> bool:
         """Verify that all tools are properly installed."""
         print("\n🔍 Verifying installation...")
         
@@ -119,7 +122,7 @@ class DiagramToolsSetup:
             print("⚠️  Some tools are missing. Please check the installation instructions above.")
             return False
     
-    def setup(self):
+    def setup(self) -> None:
         """Run the complete setup process."""
         print("🚀 MatHud Diagram Tools Setup")
         print("=" * 50)
@@ -156,7 +159,7 @@ class DiagramToolsSetup:
         print("\n" + "=" * 50)
 
 
-def main():
+def main() -> None:
     setup = DiagramToolsSetup()
     setup.setup()
 

@@ -15,29 +15,37 @@ Usage:
     python generate_diagrams.py [--png-dir ../generated_png] [--svg-dir ../generated_svg] [--format png,svg]
 """
 
-import subprocess
+from __future__ import annotations
+
 import argparse
+import subprocess
 import sys
 from pathlib import Path
+from typing import Dict, List, Sequence, Tuple
 
-# Import shared utilities
 from utils import (
-    setup_graphviz_path, 
-    setup_font_environment, 
-    post_process_svg_fonts,
     DIAGRAM_FONT,
-    DIAGRAM_FONT_SIZE_STR
+    DIAGRAM_FONT_SIZE_STR,
+    post_process_svg_fonts,
+    setup_font_environment,
+    setup_graphviz_path,
 )
 
+
 class DiagramGenerator:
-    
-    def __init__(self, png_dir="../generated_png", svg_dir="../generated_svg", formats=["png", "svg"]):
-        # Convert to absolute paths to avoid issues with cwd changes
-        self.base_dir = Path(__file__).parent.absolute()
-        self.png_dir = self.base_dir / png_dir
-        self.svg_dir = self.base_dir / svg_dir
-        self.formats = formats
-        self.font_updates_count = 0  # Track font updates
+    """Encapsulates all diagram generation routines for the project."""
+
+    def __init__(
+        self,
+        png_dir: str = "../generated_png",
+        svg_dir: str = "../generated_svg",
+        formats: Sequence[str] | None = None,
+    ) -> None:
+        self.base_dir: Path = Path(__file__).parent.absolute()
+        self.png_dir: Path = self.base_dir / png_dir
+        self.svg_dir: Path = self.base_dir / svg_dir
+        self.formats: List[str] = list(formats) if formats is not None else ["png", "svg"]
+        self.font_updates_count: int = 0
         
         # Create output directories if they don't exist
         self.png_dir.mkdir(parents=True, exist_ok=True)
@@ -51,7 +59,7 @@ class DiagramGenerator:
     
 
 
-    def get_output_dir(self, fmt):
+    def get_output_dir(self, fmt: str) -> Path:
         """Get the appropriate output directory for a format."""
         if fmt == 'png':
             return self.png_dir
@@ -61,27 +69,27 @@ class DiagramGenerator:
             # For other formats like dot, use svg directory
             return self.svg_dir
     
-    def get_server_output_dir(self, fmt):
+    def get_server_output_dir(self, fmt: str) -> Path:
         """Get the server-specific output directory for a format."""
         base_dir = self.get_output_dir(fmt)
         server_dir = base_dir / 'server'
         server_dir.mkdir(parents=True, exist_ok=True)
         return server_dir
     
-    def _update_fonts_and_count(self, svg_file):
+    def _update_fonts_and_count(self, svg_file: Path) -> None:
         """Update SVG fonts and track count."""
         if post_process_svg_fonts(svg_file):
             self.font_updates_count += 1
     
-    def check_dependencies(self):
+    def check_dependencies(self) -> None:
         """Check if required tools are installed."""
-        tools = {
+        tools: Dict[str, str] = {
             'pyreverse': 'pylint',
             'dot': 'graphviz',
             'python': 'python'
         }
         
-        missing = []
+        missing: List[str] = []
         for tool, package in tools.items():
             # Use 'where' on Windows, 'which' on Unix-like systems
             cmd = 'where' if sys.platform == 'win32' else 'which'
@@ -99,12 +107,12 @@ class DiagramGenerator:
             print("\nNote: You may need to restart your shell or add tools to PATH")
             sys.exit(1)
     
-    def generate_class_diagrams(self):
+    def generate_class_diagrams(self) -> None:
         """Generate UML class diagrams for the entire project."""
         print("Generating class diagrams...")
         
         # List of all Python files with classes
-        class_files = [
+        class_files: List[str] = [
             'static/app_manager.py',
             'static/openai_api.py', 
             'static/webdriver_manager.py',
@@ -136,7 +144,7 @@ class DiagramGenerator:
             except subprocess.CalledProcessError as e:
                 print(f"  Error: Error generating main class diagram: {e.stderr}")
     
-    def generate_package_diagrams(self):
+    def generate_package_diagrams(self) -> None:
         """Generate package dependency diagrams."""
         print("Generating package diagrams...")
         
@@ -166,11 +174,11 @@ class DiagramGenerator:
             except subprocess.CalledProcessError as e:
                 print(f"  Error: Error generating package diagram: {e.stderr}")
     
-    def generate_module_specific_diagrams(self):
+    def generate_module_specific_diagrams(self) -> None:
         """Generate diagrams for specific important modules."""
         print("Generating module-specific diagrams...")
         
-        important_modules = [
+        important_modules: List[Tuple[str, str]] = [
             ('static/app_manager.py', 'AppManager'),
             ('static/openai_api.py', 'OpenAI_API'),
             ('static/webdriver_manager.py', 'WebDriver'),
@@ -203,7 +211,7 @@ class DiagramGenerator:
                     except subprocess.CalledProcessError as e:
                         print(f"  Error: Error generating {name} diagram: {e.stderr}")
     
-    def generate_flask_routes_diagram(self):
+    def generate_flask_routes_diagram(self) -> None:
         """Generate comprehensive Flask routes diagrams and function analysis."""
         print("Generating Flask routes visualization...")
         
@@ -216,7 +224,7 @@ class DiagramGenerator:
         # Generate function call diagram for routes.py
         self._generate_function_call_diagram()
     
-    def _generate_custom_routes_diagram(self):
+    def _generate_custom_routes_diagram(self) -> None:
         """Create a custom SVG diagram showing Flask routes and their relationships."""
         try:
             import re
@@ -271,7 +279,7 @@ class DiagramGenerator:
         except Exception as e:
             print(f"  Warning: Custom routes diagram generation failed: {e}")
     
-    def _convert_svg_to_png(self, svg_file, png_file):
+    def _convert_svg_to_png(self, svg_file: Path, png_file: Path) -> None:
         """Convert SVG file to PNG using cairosvg."""
         try:
             import cairosvg
@@ -284,7 +292,7 @@ class DiagramGenerator:
             print(f"  Warning: SVG to PNG conversion failed: {e}")
             self._convert_svg_to_png_fallback(svg_file, png_file)
     
-    def _convert_svg_to_png_fallback(self, svg_file, png_file):
+    def _convert_svg_to_png_fallback(self, svg_file: Path, png_file: Path) -> None:
         """Fallback SVG to PNG conversion using dot command."""
         try:
             # Use dot (Graphviz) to convert SVG to PNG
@@ -299,7 +307,11 @@ class DiagramGenerator:
             print("  Warning: No conversion tool available (dot command not found)")
             print(f"    Consider installing cairosvg: pip install cairosvg")
 
-    def _create_routes_svg(self, routes, functions):
+    def _create_routes_svg(
+        self,
+        routes: Sequence[Tuple[str, str, str]],
+        functions: Sequence[str],
+    ) -> str:
         """Create SVG content showing Flask routes."""
         # SVG header
         svg_width = max(600, len(routes) * 150)
@@ -356,7 +368,7 @@ class DiagramGenerator:
         
         return svg
     
-    def _generate_pyreverse_routes_diagram(self):
+    def _generate_pyreverse_routes_diagram(self) -> None:
         """Try pyreverse analysis for any class-like structures in routes."""
         try:
             for fmt in self.formats:
@@ -384,7 +396,7 @@ class DiagramGenerator:
         except Exception as e:
             print(f"  Warning: Pyreverse routes analysis failed: {e}")
     
-    def _generate_function_call_diagram(self):
+    def _generate_function_call_diagram(self) -> None:
         """Generate function call relationships for routes.py."""
         try:
             # Use pydeps to analyze function calls in routes.py specifically
@@ -410,12 +422,12 @@ class DiagramGenerator:
         except FileNotFoundError:
             print("  Warning: pydeps not available for function analysis")
     
-    def generate_function_analysis(self):
+    def generate_function_analysis(self) -> None:
         """Generate enhanced function analysis for files with minimal class content."""
         print("Generating function analysis for enhanced visualization...")
         
         # Files that may benefit from function analysis
-        files_to_analyze = [
+        files_to_analyze: List[Tuple[str, str]] = [
             ('static/functions_definitions.py', 'FunctionDefinitions'),
             ('app.py', 'AppMain'),
             ('run_server_tests.py', 'server_tests')
@@ -427,7 +439,7 @@ class DiagramGenerator:
             if abs_file_path.exists():
                 self._generate_file_function_analysis(file_path, name)
     
-    def _generate_file_function_analysis(self, file_path, name):
+    def _generate_file_function_analysis(self, file_path: str, name: str) -> None:
         """Generate function analysis for a specific file."""
         try:
             # Use pydeps for enhanced function call visualization
@@ -457,7 +469,7 @@ class DiagramGenerator:
         except Exception as e:
             print(f"  Warning: Function analysis error for {name}: {e}")
     
-    def generate_architecture_diagram(self):
+    def generate_architecture_diagram(self) -> None:
         """Generate comprehensive architecture diagrams using Python diagrams library."""
         print("Generating architecture diagrams (integrated mode)...")
         try:
@@ -481,7 +493,7 @@ class DiagramGenerator:
             print(f"  Error: Error generating architecture diagrams: {e}")
             print("     Note: Check that Graphviz is properly installed and accessible")
     
-    def generate_dependency_graph(self):
+    def generate_dependency_graph(self) -> None:
         """Generate a dependency graph using pydeps."""
         print("Generating dependency graph...")
         
@@ -533,7 +545,7 @@ class DiagramGenerator:
         except FileNotFoundError:
             print("  Warning: pydeps not found - skipping dependency graph")
     
-    def generate_call_graph(self):
+    def generate_call_graph(self) -> None:
         """Generate call graph using pycallgraph2."""
         print("Generating call graph...")
         
@@ -562,7 +574,7 @@ class DiagramGenerator:
         except Exception as e:
             print(f"  Error: Error setting up call graph: {e}")
     
-    def generate_brython_diagrams(self):
+    def generate_brython_diagrams(self) -> None:
         """Generate comprehensive Brython client-side diagrams."""
         print("Generating Brython client-side diagrams (integrated mode)...")
         try:
@@ -586,7 +598,7 @@ class DiagramGenerator:
             print(f"  Error: Error generating Brython diagrams: {e}")
             print("     Note: Check that Brython source code is available and Graphviz is properly installed")
 
-    def run(self, include_brython=False):
+    def run(self, include_brython: bool = False) -> None:
         """Run all diagram generation tasks."""
         print(f"MatHud Diagram Generator")
         print(f"PNG output: {self.png_dir}")
@@ -619,7 +631,7 @@ class DiagramGenerator:
             print(f"Fonts updated to {DIAGRAM_FONT} in {self.font_updates_count} SVG files")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description='Generate diagrams for MatHud project')
     parser.add_argument('--png-dir', default='../generated_png', 
                        help='Output directory for PNG diagrams (default: ../generated_png)')
@@ -636,7 +648,7 @@ def main():
                                help='Explicitly disable Brython diagrams (overrides default)')
     
     args = parser.parse_args()
-    formats = [f.strip() for f in args.format.split(',')]
+    formats: List[str] = [f.strip() for f in args.format.split(',') if f.strip()]
     
     # Determine if Brython should be included
     include_brython = args.include_brython and not args.no_brython

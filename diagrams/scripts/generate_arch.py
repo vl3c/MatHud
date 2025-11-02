@@ -6,49 +6,61 @@ Generates comprehensive architecture diagrams using the Python diagrams library:
 - System Overview: Overall MatHud system flow
 - AI Integration: How OpenAI API integrates with the app
 - WebDriver Flow: Vision capture and processing workflow  
-- Data Flow: User interaction → AI → Response pipeline
+- Data Flow: User interaction to AI to response pipeline
 
 Dependencies:
     pip install diagrams
 """
 
-from pathlib import Path
+from __future__ import annotations
 
-# Import shared utilities
+from importlib import import_module
+from pathlib import Path
+from typing import Any, List, Sequence, Tuple
+
 from utils import (
-    setup_graphviz_path, 
-    post_process_svg_fonts,
     DIAGRAM_FONT,
-    DIAGRAM_FONT_SIZE
+    DIAGRAM_FONT_SIZE,
+    post_process_svg_fonts,
+    setup_graphviz_path,
 )
 
 
+def _diagram_objects(*names: str) -> Tuple[Any, ...]:
+    """Dynamically import objects from the diagrams library."""
+    diagrams_module = import_module("diagrams")
+    return tuple(getattr(diagrams_module, name) for name in names)
+
+
 class ArchitectureDiagramGenerator:
-    
-    def __init__(self, png_dir="diagrams/generated_png", svg_dir="diagrams/generated_svg", formats=["png", "svg"]):
-        # Convert to absolute paths to avoid issues with cwd changes
-        self.png_dir = Path(png_dir).resolve()
-        self.svg_dir = Path(svg_dir).resolve()
-        self.formats = formats
-        
-        # Setup Graphviz PATH for Windows
+    """Generate high-level architecture diagrams using the diagrams library."""
+
+    def __init__(
+        self,
+        png_dir: str = "diagrams/generated_png",
+        svg_dir: str = "diagrams/generated_svg",
+        formats: Sequence[str] | None = None,
+    ) -> None:
+        self.png_dir: Path = Path(png_dir).resolve()
+        self.svg_dir: Path = Path(svg_dir).resolve()
+        self.formats: List[str] = list(formats) if formats is not None else ["png", "svg"]
+
         setup_graphviz_path()
-        
-        # Create output directories and architecture subdirectories
-        if "png" in formats:
+
+        if "png" in self.formats:
             self.png_dir.mkdir(exist_ok=True)
             (self.png_dir / "architecture").mkdir(exist_ok=True)
-        if "svg" in formats:
+        if "svg" in self.formats:
             self.svg_dir.mkdir(exist_ok=True)
             (self.svg_dir / "architecture").mkdir(exist_ok=True)
     
 
     
-    def clean_generated_folders(self):
+    def clean_generated_folders(self) -> None:
         """Carefully delete all content from generated_png and generated_svg folders."""
         print("Cleaning generated folders before architecture diagram generation...")
         
-        folders_to_clean = []
+        folders_to_clean: List[Path] = []
         if "png" in self.formats and self.png_dir.exists():
             folders_to_clean.append(self.png_dir)
         if "svg" in self.formats and self.svg_dir.exists():
@@ -102,7 +114,7 @@ class ArchitectureDiagramGenerator:
         else:
             print("All folders were already clean - ready for generation!")
     
-    def get_output_dir(self, fmt):
+    def get_output_dir(self, fmt: str) -> Path:
         """Get the appropriate output directory for the given format."""
         if fmt == "png":
             return self.png_dir / "architecture"  # Architecture subfolder
@@ -113,10 +125,10 @@ class ArchitectureDiagramGenerator:
     
 
 
-    def generate_system_overview_diagram(self):
+    def generate_system_overview_diagram(self) -> None:
         """Generate overall MatHud system architecture diagram."""
         try:
-            from diagrams import Diagram, Cluster
+            Diagram, Cluster = _diagram_objects("Diagram", "Cluster")
             from diagrams.onprem.client import Client
             from diagrams.programming.framework import Flask
             from diagrams.programming.language import Python
@@ -236,10 +248,10 @@ class ArchitectureDiagramGenerator:
         except Exception as e:
             print(f"  ✗ System overview diagram failed: {e}")
     
-    def generate_ai_integration_diagram(self):
+    def generate_ai_integration_diagram(self) -> None:
         """Generate AI integration flow diagram."""
         try:
-            from diagrams import Diagram, Cluster, Edge
+            Diagram, Cluster, Edge = _diagram_objects("Diagram", "Cluster", "Edge")
             from diagrams.onprem.client import Client
             from diagrams.programming.language import Python
             from diagrams.onprem.network import Internet
@@ -335,10 +347,10 @@ class ArchitectureDiagramGenerator:
         except Exception as e:
             print(f"  ✗ AI integration diagram failed: {e}")
     
-    def generate_webdriver_flow_diagram(self):
+    def generate_webdriver_flow_diagram(self) -> None:
         """Generate WebDriver vision capture workflow diagram."""
         try:
-            from diagrams import Diagram, Cluster, Edge
+            Diagram, Cluster, Edge = _diagram_objects("Diagram", "Cluster", "Edge")
             from diagrams.programming.language import Python
             from diagrams.onprem.client import Client
             from diagrams.onprem.network import Internet
@@ -428,10 +440,10 @@ class ArchitectureDiagramGenerator:
         except Exception as e:
             print(f"  ✗ WebDriver flow diagram failed: {e}")
     
-    def generate_data_flow_diagram(self):
+    def generate_data_flow_diagram(self) -> None:
         """Generate end-to-end data flow diagram."""
         try:
-            from diagrams import Diagram, Cluster, Edge
+            Diagram, Cluster, Edge = _diagram_objects("Diagram", "Cluster", "Edge")
             from diagrams.onprem.client import Client
             from diagrams.programming.language import Python
             from diagrams.onprem.database import Mongodb
@@ -521,10 +533,10 @@ class ArchitectureDiagramGenerator:
         except Exception as e:
             print(f"  ✗ Data flow diagram failed: {e}")
 
-    def generate_manager_architecture_diagram(self):
+    def generate_manager_architecture_diagram(self) -> None:
         """Generate detailed manager pattern architecture diagram."""
         try:
-            from diagrams import Diagram, Cluster, Edge
+            Diagram, Cluster, Edge = _diagram_objects("Diagram", "Cluster", "Edge")
             from diagrams.programming.language import Python
             from diagrams.onprem.client import Client
             
@@ -636,7 +648,7 @@ class ArchitectureDiagramGenerator:
         except Exception as e:
             print(f"  ✗ Manager architecture diagram failed: {e}")
 
-    def generate_all_architecture_diagrams(self, clean_first=True):
+    def generate_all_architecture_diagrams(self, clean_first: bool = True) -> None:
         """Generate all architecture diagrams."""
         if clean_first:
             print("Starting MatHud Architecture Diagram Generation...")
@@ -685,7 +697,7 @@ class ArchitectureDiagramGenerator:
             print(f"     💡 Check that Graphviz is properly installed and accessible")
 
 
-def main():
+def main() -> None:
     """Main function for standalone execution."""
     print("MatHud Architecture Diagram Generator (Standalone Mode)")
     print("   Running architecture diagram generation with full cleanup...")

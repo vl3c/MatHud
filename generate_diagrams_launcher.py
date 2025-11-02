@@ -9,12 +9,16 @@ Usage:
     python generate_diagrams_launcher.py [options]
 """
 
+from __future__ import annotations
+
+import os
 import subprocess
 import sys
-import os
 from pathlib import Path
+from typing import List
 
-def main():
+
+def main() -> None:
     # Path to the actual generator script
     script_path = Path("diagrams/scripts/generate_diagrams.py")
     
@@ -34,7 +38,7 @@ def main():
         os.chdir("diagrams/scripts")
         
         # Forward all command line arguments to the actual script
-        args = sys.argv[1:]
+        args: List[str] = sys.argv[1:]
         
         # Add --include-brython by default if not already specified
         if "--include-brython" not in args and "--no-brython" not in args:
@@ -42,8 +46,8 @@ def main():
             print("   Including Brython diagrams by default (use --no-brython to disable)")
         
         cmd = [sys.executable, "generate_diagrams.py"] + args
-        result = subprocess.run(cmd)
-        
+        result = subprocess.run(cmd, check=False)
+
         sys.exit(result.returncode)
         
     except Exception as e:
