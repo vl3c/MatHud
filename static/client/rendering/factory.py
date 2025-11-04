@@ -45,8 +45,9 @@ def create_renderer(preferred: Optional[str] = None) -> Optional[RendererProtoco
     except Exception:
         pass
 
-    # Always fall back to SVG last
-    preference_chain.append("svg")
+    # Only fall back to SVG if no explicit preference is supplied
+    if not preference_chain:
+        preference_chain.append("svg")
 
     for mode in preference_chain:
         if mode == "canvas2d" and Canvas2DRenderer is not None:
