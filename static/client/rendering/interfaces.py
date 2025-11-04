@@ -14,30 +14,25 @@ Notes:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable, Protocol
 
 
-class Renderer:
-    """Abstract renderer interface.
-
-    Concrete implementations should override the methods below.
-    """
+class RendererProtocol(Protocol):
+    """Minimal renderer contract consumed by the canvas."""
 
     def clear(self) -> None:
-        """Clear the drawing surface for a new frame."""
-        raise NotImplementedError("Renderer.clear must be implemented by subclasses")
+        ...
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
-        """Render a single drawable using the provided CoordinateMapper.
+        ...
 
-        Args:
-            drawable: A math-space model instance (Point, Segment, etc.)
-            coordinate_mapper: The CoordinateMapper instance to convert math
-                coordinates to screen coordinates
-            
-        Returns:
-            bool: True if the drawable was rendered, False otherwise
-        """
-        raise NotImplementedError("Renderer.render must be implemented by subclasses")
+    def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
+        ...
+
+    def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
+        ...
+
+    def register_default_drawables(self) -> None:
+        ...
 
 

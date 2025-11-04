@@ -45,11 +45,9 @@ from utils.computation_utils import ComputationUtils
 from managers.undo_redo_manager import UndoRedoManager
 from managers.drawable_manager import DrawableManager
 from managers.transformations_manager import TransformationsManager
-try:
-    from rendering.svg_renderer import SvgRenderer
-except Exception:
-    # Allow running tests outside browser context without failing imports
-    SvgRenderer = None
+from constants import DEFAULT_RENDERER_MODE
+from rendering.factory import create_renderer
+from rendering.interfaces import RendererProtocol
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
@@ -79,7 +77,7 @@ class Canvas:
         zoom_direction (int): Current zoom direction (-1=in, 1=out, 0=none)
         zoom_step (float): Zoom increment per step
     """
-    def __init__(self, width: float, height: float, draw_enabled: bool = True, renderer: Optional[Any] = None) -> None:
+    def __init__(self, width: float, height: float, draw_enabled: bool = True, renderer: Optional[RendererProtocol] = None) -> None:
         """Initialize the mathematical canvas with specified dimensions.
         
         Sets up the coordinate system, managers, and initial state for mathematical visualization.
@@ -110,9 +108,9 @@ class Canvas:
 
         # Initialize renderer lazily to avoid hard dependency in non-browser tests
         if renderer is not None:
-            self.renderer: Optional[Any] = renderer  # SvgRenderer
+            self.renderer: Optional[RendererProtocol] = renderer
         else:
-            self.renderer = cast(Optional[Any], SvgRenderer() if SvgRenderer is not None else None)
+            self.renderer = cast(Optional[RendererProtocol], create_renderer(DEFAULT_RENDERER_MODE))
         
         if self.draw_enabled and self.renderer is not None:
             try:
@@ -126,7 +124,17 @@ class Canvas:
         self.drawable_manager.drawables.add(drawable)
 
     def _register_renderer_handlers(self) -> None:
-        """Register renderer handlers for all drawable types. Kept isolated to avoid tight import coupling."""
+        """Register renderer handlers for all drawable types."""
+        if self.renderer is None:
+            return
+        try:
+            self.renderer.register_default_drawables()
+        except AttributeError:
+            self._register_renderer_handlers_legacy()
+        except Exception:
+            self._register_renderer_handlers_legacy()
+
+    def _register_renderer_handlers_legacy(self) -> None:
         if self.renderer is None:
             return
         try:

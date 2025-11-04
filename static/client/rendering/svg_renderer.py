@@ -16,9 +16,10 @@ from browser import document, svg
 from constants import default_color, default_point_size, point_label_font_size, DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR, DEFAULT_ANGLE_ARC_SCREEN_RADIUS
 from utils.math_utils import MathUtils
 from rendering.function_renderable import FunctionRenderable
+from rendering.interfaces import RendererProtocol
 
 
-class SvgRenderer:
+class SvgRenderer(RendererProtocol):
     """SVG-based renderer.
 
     Parameters
@@ -69,6 +70,40 @@ class SvgRenderer:
         # Handlers will be populated incrementally per shape
         # Example shape registrations will be added in later steps
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
+
+    def register_default_drawables(self) -> None:
+        self._register_shape("drawables.point", "Point", self._render_point)
+        self._register_shape("drawables.segment", "Segment", self._render_segment)
+        self._register_shape("drawables.circle", "Circle", self._render_circle)
+        self._register_shape("drawables.ellipse", "Ellipse", self._render_ellipse)
+        self._register_shape("drawables.vector", "Vector", self._render_vector)
+        self._register_shape("drawables.angle", "Angle", self._render_angle)
+        self._register_shape("drawables.function", "Function", self._render_function)
+        self._register_shape("drawables.triangle", "Triangle", self._render_triangle)
+        self._register_shape("drawables.rectangle", "Rectangle", self._render_rectangle)
+        self._register_shape(
+            "drawables.functions_bounded_colored_area",
+            "FunctionsBoundedColoredArea",
+            self._render_functions_bounded_colored_area,
+        )
+        self._register_shape(
+            "drawables.function_segment_bounded_colored_area",
+            "FunctionSegmentBoundedColoredArea",
+            self._render_function_segment_bounded_colored_area,
+        )
+        self._register_shape(
+            "drawables.segments_bounded_colored_area",
+            "SegmentsBoundedColoredArea",
+            self._render_segments_bounded_colored_area,
+        )
+
+    def _register_shape(self, module_path: str, class_name: str, handler: Callable[[Any, Any], None]) -> None:
+        try:
+            module = __import__(module_path, fromlist=[class_name])
+            drawable_cls = getattr(module, class_name)
+            self.register(drawable_cls, handler)
+        except Exception:
+            pass
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
         """Register a handler for a given drawable class."""

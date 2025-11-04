@@ -39,6 +39,10 @@ DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR: float = 1.8  # Text positioning relative t
 zoom_in_scale_factor: float = 1.1   # 10% increase per zoom in action
 zoom_out_scale_factor: float = 0.9  # 10% decrease per zoom out action
 
+# ===== RENDERER SELECTION =====
+# Default rendering backend used by Canvas when none is specified
+DEFAULT_RENDERER_MODE: str = "svg"  # other options: "canvas2d", "webgl"
+
 # ===== PERFORMANCE OPTIMIZATION CONSTANTS =====
 # Event throttling settings for smooth user experience
 mousemove_throttle_ms: int = 8  # Mouse movement throttling (8ms = ~120fps for smooth panning)
