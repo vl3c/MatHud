@@ -5,8 +5,9 @@ from typing import Any, Callable, Dict, Sequence, Tuple
 
 from browser import document, html, window, console
 
-from constants import default_color
+from constants import default_color, default_point_size
 from rendering.interfaces import RendererProtocol
+from rendering.style_manager import get_renderer_style
 
 
 class WebGLRenderer(RendererProtocol):
@@ -19,6 +20,8 @@ class WebGLRenderer(RendererProtocol):
         if self.gl is None:
             raise RuntimeError("WebGL context unavailable")
         self._log("### WebGLRenderer.__init__: context acquired")
+
+        self.style: Dict[str, Any] = get_renderer_style()
 
         self._program = self._create_program()
         self.gl.useProgram(self._program)
@@ -59,9 +62,9 @@ class WebGLRenderer(RendererProtocol):
         ox, oy = coordinate_mapper.math_to_screen(0, 0)
         width = self.canvas_el.width
         height = self.canvas_el.height
-        color = self._parse_color(default_color)
-        self._draw_lines([(0, oy), (width, oy)], color)
-        self._draw_lines([(ox, 0), (ox, height)], color)
+        axis_color = self._parse_color(self.style.get("cartesian_axis_color", default_color))
+        self._draw_lines([(0, oy), (width, oy)], axis_color)
+        self._draw_lines([(ox, 0), (ox, height)], axis_color)
         self._log("### WebGLRenderer.render_cartesian: rendered axis", width, height)
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
@@ -91,22 +94,26 @@ class WebGLRenderer(RendererProtocol):
 
     def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
         sx, sy = coordinate_mapper.math_to_screen(point.x, point.y)
-        color = self._parse_color(getattr(point, "color", default_color))
+        point_color = getattr(point, "color", self.style.get("point_color", default_color))
+        color = self._parse_color(point_color)
         ndc = [self._to_ndc(sx, sy)]
-        self._draw_points(ndc, color, getattr(point, "size", 6.0))
+        size = getattr(point, "size", self.style.get("point_radius", default_point_size) * 2)
+        self._draw_points(ndc, color, size)
         self._log("### WebGLRenderer._render_point: rendered", getattr(point, "name", None))
 
     def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
         p1 = coordinate_mapper.math_to_screen(segment.point1.x, segment.point1.y)
         p2 = coordinate_mapper.math_to_screen(segment.point2.x, segment.point2.y)
-        color = self._parse_color(getattr(segment, "color", default_color))
+        seg_color = getattr(segment, "color", self.style.get("segment_color", default_color))
+        color = self._parse_color(seg_color)
         self._draw_lines([p1, p2], color)
         self._log("### WebGLRenderer._render_segment: rendered", getattr(segment, "name", None))
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
         cx, cy = coordinate_mapper.math_to_screen(circle.center.x, circle.center.y)
         radius = coordinate_mapper.scale_value(circle.radius)
-        color = self._parse_color(getattr(circle, "color", default_color))
+        circle_color = getattr(circle, "color", self.style.get("circle_color", default_color))
+        color = self._parse_color(circle_color)
         segments = 32
         points: list[Tuple[float, float]] = []
         for i in range(segments + 1):

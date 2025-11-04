@@ -1,22 +1,17 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
-from browser import document, html, console
+from browser import document, html
 
-from constants import (
-    default_color,
-    default_point_size,
-    point_label_font_size,
-    DEFAULT_ANGLE_ARC_SCREEN_RADIUS,
-    DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR,
-)
+from constants import default_color, default_point_size, point_label_font_size
 from utils.math_utils import MathUtils
 from rendering.function_renderable import FunctionRenderable
 from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
 from rendering.function_segment_area_renderable import FunctionSegmentAreaRenderable
 from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
+from rendering.style_manager import get_renderer_style, get_default_style_value
 from rendering.interfaces import RendererProtocol
 
 
@@ -30,32 +25,7 @@ class Canvas2DRenderer(RendererProtocol):
         if self.ctx is None:
             raise RuntimeError("Canvas 2D context unavailable")
         self._log("### Canvas2DRenderer.__init__: context acquired")
-        self.style: Dict[str, Any] = {
-            "point_color": default_color,
-            "point_radius": default_point_size,
-            "point_label_font_size": point_label_font_size,
-            "segment_color": default_color,
-            "segment_stroke_width": 1,
-            "vector_color": default_color,
-            "vector_tip_size": default_point_size * 4,
-            "fill_style": "rgba(0, 0, 0, 0)",
-            "circle_color": default_color,
-            "circle_stroke_width": 1,
-            "cartesian_axis_color": default_color,
-            "cartesian_grid_color": "lightgrey",
-            "cartesian_tick_size": 3,
-            "cartesian_tick_font_size": 8,
-            "cartesian_label_color": "grey",
-            "angle_color": default_color,
-            "angle_arc_radius": DEFAULT_ANGLE_ARC_SCREEN_RADIUS,
-            "angle_label_font_size": point_label_font_size,
-            "angle_text_arc_radius_factor": DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR,
-            "function_color": default_color,
-            "function_stroke_width": 1,
-            "function_label_font_size": point_label_font_size,
-            "area_fill_color": "lightblue",
-            "area_opacity": 0.3,
-        }
+        self.style: Dict[str, Any] = get_renderer_style()
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self.register_default_drawables()
 
@@ -339,7 +309,18 @@ class Canvas2DRenderer(RendererProtocol):
         p1x, p1y = coordinate_mapper.math_to_screen(angle.arm1_point.x, angle.arm1_point.y)
         p2x, p2y = coordinate_mapper.math_to_screen(angle.arm2_point.x, angle.arm2_point.y)
 
-        params = angle._calculate_arc_parameters(vx, vy, p1x, p1y, p2x, p2y, arc_radius=self.style.get("angle_arc_radius", DEFAULT_ANGLE_ARC_SCREEN_RADIUS))
+        params = angle._calculate_arc_parameters(
+            vx,
+            vy,
+            p1x,
+            p1y,
+            p2x,
+            p2y,
+            arc_radius=self.style.get(
+                "angle_arc_radius",
+                get_default_style_value("angle_arc_radius"),
+            ),
+        )
         if not params:
             return
 
@@ -363,7 +344,10 @@ class Canvas2DRenderer(RendererProtocol):
         self.ctx.stroke()
         self.ctx.restore()
 
-        text_radius = radius * self.style.get("angle_text_arc_radius_factor", DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR)
+        text_radius = radius * self.style.get(
+            "angle_text_arc_radius_factor",
+            get_default_style_value("angle_text_arc_radius_factor"),
+        )
         text_angle = start_angle + direction * delta / 2
         tx = vx + text_radius * math.cos(text_angle)
         ty = vy + text_radius * math.sin(text_angle)

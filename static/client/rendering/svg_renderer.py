@@ -13,10 +13,12 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from browser import document, svg
-from constants import default_color, default_point_size, point_label_font_size, DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR, DEFAULT_ANGLE_ARC_SCREEN_RADIUS
+
+from constants import default_color, default_point_size, point_label_font_size
 from utils.math_utils import MathUtils
 from rendering.function_renderable import FunctionRenderable
 from rendering.interfaces import RendererProtocol
+from rendering.style_manager import get_renderer_style, get_default_style_value
 
 
 class SvgRenderer(RendererProtocol):
@@ -30,43 +32,7 @@ class SvgRenderer(RendererProtocol):
     """
 
     def __init__(self, style_config: Optional[Dict[str, Any]] = None) -> None:
-        # Renderer style defaults; can be overridden via style_config
-        defaults: Dict[str, Any] = {
-            'point_color': default_color,
-            'point_radius': default_point_size,
-            'point_label_font_size': point_label_font_size,
-
-            'segment_color': default_color,
-            'segment_stroke_width': 1,
-
-            'circle_color': default_color,
-            'circle_stroke_width': 1,
-
-            'ellipse_color': default_color,
-            'ellipse_stroke_width': 1,
-
-            'vector_color': default_color,
-            'vector_tip_size': default_point_size * 4,
-
-            'angle_color': default_color,
-            'angle_arc_radius': DEFAULT_ANGLE_ARC_SCREEN_RADIUS,
-            'angle_label_font_size': point_label_font_size,
-            'angle_text_arc_radius_factor': DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR,
-
-            'function_color': default_color,
-            'function_stroke_width': 1,
-            'function_label_font_size': point_label_font_size,
-
-            'area_fill_color': 'lightblue',
-            'area_opacity': 0.3,
-
-            'cartesian_axis_color': default_color,
-            'cartesian_grid_color': 'lightgrey',
-            'cartesian_tick_size': 3,
-            'cartesian_tick_font_size': 8,
-            'cartesian_label_color': 'grey',
-        }
-        self.style: Dict[str, Any] = {**defaults, **(style_config or {})}
+        self.style: Dict[str, Any] = get_renderer_style(style_config)
         # Handlers will be populated incrementally per shape
         # Example shape registrations will be added in later steps
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
@@ -294,7 +260,10 @@ class SvgRenderer(RendererProtocol):
             if arc_params["final_sweep_flag"] == '0':  # CW
                 effective_text_mid_arc_delta_rad = -effective_text_mid_arc_delta_rad
             text_angle_rad: float = arc_params["angle_v_p1_rad"] + effective_text_mid_arc_delta_rad
-            text_r: float = arc_params["arc_radius_on_screen"] * self.style.get('angle_text_arc_radius_factor', DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR)
+            text_r: float = arc_params["arc_radius_on_screen"] * self.style.get(
+                'angle_text_arc_radius_factor',
+                get_default_style_value('angle_text_arc_radius_factor'),
+            )
             tx: float = vx + text_r * _math.cos(text_angle_rad)
             ty: float = vy + text_r * _math.sin(text_angle_rad)
             text: str = f"{angle.angle_degrees:.1f}°"
