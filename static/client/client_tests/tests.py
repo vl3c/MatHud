@@ -33,7 +33,7 @@ from .test_angle import TestAngle
 from .test_angle_manager import TestAngleManager
 from .test_markdown_parser import TestMarkdownParser
 from .test_function_bounded_colored_area_integration import TestFunctionBoundedColoredAreaIntegration
-
+from .renderer_performance_tests import TestRendererPerformance
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
@@ -55,6 +55,7 @@ class Tests:
         suite = unittest.TestSuite()
         loader = unittest.TestLoader()
         test_cases: List[Type[unittest.TestCase]] = [
+            TestRendererPerformance,
             TestMathFunctions,
             TestDrawableNameGenerator,
             TestPosition,
