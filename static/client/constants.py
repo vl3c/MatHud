@@ -41,7 +41,7 @@ zoom_out_scale_factor: float = 0.9  # 10% decrease per zoom out action
 
 # ===== RENDERER SELECTION =====
 # Default rendering backend used by Canvas when none is specified
-DEFAULT_RENDERER_MODE: str = "svg"  # other options: "canvas2d", "webgl"
+DEFAULT_RENDERER_MODE: str = "canvas2d"  # other options: "svg", "webgl"
 
 # ===== PERFORMANCE OPTIMIZATION CONSTANTS =====
 # Event throttling settings for smooth user experience
