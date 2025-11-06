@@ -167,17 +167,13 @@ class AngleManager:
         # 4. Instantiate the Angle (let Angle compute deterministic name if none provided)
         new_angle: Optional[Angle] = None
         try:
-            angle_kwargs: Dict[str, Any] = {
-                'segment1': segment1,
-                'segment2': segment2,
-                'is_reflex': is_reflex
-            }
+            angle_kwargs: Dict[str, Any] = {'is_reflex': is_reflex}
             if color is not None:
                 angle_kwargs['color'] = color
             if angle_name is not None:
                 angle_kwargs['name'] = angle_name
 
-            new_angle = Angle(**angle_kwargs)
+            new_angle = Angle(segment1, segment2, **angle_kwargs)
         except ValueError as e:
             print(f"AngleManager: Error creating Angle - {e}")
             # Segments might be valid, but not form a valid angle (e.g., collinear)
@@ -503,15 +499,11 @@ class AngleManager:
             if not segment1 or not segment2:
                 continue
 
-            angle_kwargs: Dict[str, Any] = {
-                'segment1': segment1,
-                'segment2': segment2,
-                'is_reflex': args.get('is_reflex', False)
-            }
+            angle_kwargs: Dict[str, Any] = {'is_reflex': args.get('is_reflex', False)}
             if 'color' in args:
                 angle_kwargs['color'] = args['color']
 
-            new_angle = Angle(**angle_kwargs)
+            new_angle = Angle(segment1, segment2, **angle_kwargs)
             
             if new_angle:
                 # Check for duplicates by name before adding, though from_state might handle this

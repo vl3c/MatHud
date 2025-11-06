@@ -145,15 +145,45 @@ class TestRunner:
             },
             {
                 "function_name": "create_angle",
-                "arguments": {"vx": 50, "vy": 50, "p1x": 150, "p1y": 50, "p2x": 50, "p2y": 150, "color": "red", "is_reflex": True}
+                "arguments": {
+                    "vx": 50,
+                    "vy": 50,
+                    "p1x": 150,
+                    "p1y": 50,
+                    "p2x": 50,
+                    "p2y": 150,
+                    "color": "red",
+                    "angle_name": "Angle1",
+                    "is_reflex": True
+                }
             },
             {
                 "function_name": "create_angle",
-                "arguments": {"vx": 200, "vy": 200, "p1x": 300, "p1y": 200, "p2x": 300, "p2y": 300, "color": "blue"}
+                "arguments": {
+                    "vx": 200,
+                    "vy": 200,
+                    "p1x": 300,
+                    "p1y": 200,
+                    "p2x": 300,
+                    "p2y": 300,
+                    "color": "blue",
+                    "angle_name": "Angle2",
+                    "is_reflex": False
+                }
             },
             {
                 "function_name": "create_angle",
-                "arguments": {"vx": 350, "vy": 150, "p1x": 450, "p1y": 150, "p2x": 350, "p2y": 50, "color": "green"}
+                "arguments": {
+                    "vx": 350,
+                    "vy": 150,
+                    "p1x": 450,
+                    "p1y": 150,
+                    "p2x": 350,
+                    "p2y": 50,
+                    "color": "green",
+                    "angle_name": "Angle3",
+                    "is_reflex": False
+                }
             },
             {
                 "function_name": "clear_canvas",

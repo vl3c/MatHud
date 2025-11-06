@@ -55,7 +55,16 @@ class Angle(Drawable):
         angle_degrees (float): Display angle (small or reflex based on is_reflex)
          (arc radius is provided by the renderer; a default constant is used when not specified)
     """
-    def __init__(self, segment1: Segment, segment2: Segment, color: str = DEFAULT_ANGLE_COLOR, is_reflex: bool = False, name: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        arg1: Segment | Point,
+        arg2: Segment | Point,
+        arg3: Optional[Point] = None,
+        *,
+        color: str = DEFAULT_ANGLE_COLOR,
+        is_reflex: bool = False,
+        name: Optional[str] = None,
+    ) -> None:
         """Initialize an angle from two intersecting line segments.
         
         Validates segment intersection and extracts angle properties for visualization.
@@ -69,6 +78,18 @@ class Angle(Drawable):
         Raises:
             ValueError: If segments do not form a valid angle (must share exactly one vertex)
         """
+        if arg3 is None:
+            # Accept any segment-like objects (including test doubles) that expose point1/point2.
+            segment1 = cast(Segment, arg1)
+            segment2 = cast(Segment, arg2)
+        elif arg3 is not None and isinstance(arg1, Point) and isinstance(arg2, Point) and isinstance(arg3, Point):
+            segment1 = Segment(arg2, arg1)
+            segment2 = Segment(arg2, arg3)
+        else:
+            raise TypeError(
+                "Angle requires either two segment-like objects or three Point instances (arm1, vertex, arm2)."
+            )
+
         if not self._segments_form_angle(segment1, segment2):
             raise ValueError("The segments do not form a valid angle (must share exactly one vertex and have distinct arms).")
 
@@ -287,9 +308,11 @@ class Angle(Drawable):
         if id(self) in memo:
             return cast(Angle, memo[id(self)])
         
+        new_segment1 = deepcopy(self.segment1, memo)
+        new_segment2 = deepcopy(self.segment2, memo)
         new_angle: Angle = Angle(
-            segment1=deepcopy(self.segment1, memo),
-            segment2=deepcopy(self.segment2, memo),
+            new_segment1,
+            new_segment2,
             color=self.color,
             is_reflex=self.is_reflex
         )
