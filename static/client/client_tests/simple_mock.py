@@ -54,6 +54,12 @@ class SimpleMock:
             return self._return_value
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{attr}'")
 
+    def setAttribute(self, key: str, value: Any) -> None:
+        """Simulate DOM ``setAttribute`` by recording on the attrs dict if present."""
+        if "attrs" not in self._attributes or not isinstance(self._attributes["attrs"], dict):
+            self._attributes["attrs"] = {}
+        self._attributes["attrs"][key] = value
+
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Record a call and return the configured ``return_value``."""
         self.calls.append((args, kwargs))
