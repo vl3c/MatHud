@@ -45,6 +45,17 @@ All primitives operate in screen coordinates. Core parameter groups:
 
 `build_*_colored_area` renderables attach `color` and `opacity` values to the resulting `ClosedArea`. Shared helpers forward these to primitive adapters so each renderer can respect user-selected fill styling while falling back to theme defaults when metadata is missing.
 
+### Cartesian Axis Helper
+
+`render_cartesian_helper` consumes the canvas dimensions and coordinate mapper to emit axis lines, grid lines, tick marks, and labels through the primitive surface. The helper normalises tick spacing and scale, then:
+
+- draws horizontal and vertical axes via `stroke_line`
+- emits grid columns/rows with `stroke_line`
+- produces tick marks using short `stroke_line` calls
+- prints origin and numeric tick labels using `draw_text`
+
+Because the helper only references `RendererPrimitives`, every backend renderer (SVG, Canvas2D, WebGL) now renders the Cartesian system through the shared pipeline with consistent styling.
+
 ### Backend Adapter Responsibilities
 
 Each renderer exposes implementations of the primitives mapped to its drawing API:

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import math
 import unittest
 import unittest.mock
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from coordinate_mapper import CoordinateMapper
@@ -17,6 +19,7 @@ from rendering.canvas2d_renderer import Canvas2DRenderer
 from rendering.svg_renderer import SvgRenderer
 from rendering.svg_primitive_adapter import SvgPrimitiveAdapter
 from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
+from rendering.shared_drawable_renderers import RendererPrimitives
 from .simple_mock import SimpleMock
 
 
@@ -247,12 +250,99 @@ def normalize_canvas_log(log: Sequence[Any]) -> List[Any]:
 
 
 # ---------------------------------------------------------------------------
+# Primitive recorder for cartesian helper verification
+# ---------------------------------------------------------------------------
+
+
+class RecordingPrimitives(RendererPrimitives):
+    def __init__(self) -> None:
+        self.calls: List[Tuple[Any, ...]] = []
+
+    def begin_shape(self) -> None:
+        self.calls.append(("begin_shape",))
+
+    def end_shape(self) -> None:
+        self.calls.append(("end_shape",))
+
+    def stroke_line(self, start: Point2D, end: Point2D, stroke: Any, *, include_width: bool = True) -> None:
+        self.calls.append(("stroke_line", start, end, stroke.color, stroke.width))
+
+    def draw_text(
+        self,
+        text: str,
+        position: Point2D,
+        font: Any,
+        color: str,
+        alignment: Any,
+        style_overrides: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        self.calls.append(("draw_text", text, position, color))
+
+    # The remaining primitives are not expected in cartesian rendering; raise if invoked.
+    def stroke_polyline(self, points: List[Point2D], stroke: Any) -> None:
+        raise AssertionError("Unexpected stroke_polyline call")
+
+    def stroke_circle(self, center: Point2D, radius: float, stroke: Any) -> None:
+        raise AssertionError("Unexpected stroke_circle call")
+
+    def fill_circle(self, center: Point2D, radius: float, fill: Any, stroke: Optional[Any] = None) -> None:
+        raise AssertionError("Unexpected fill_circle call")
+
+    def stroke_ellipse(self, center: Point2D, radius_x: float, radius_y: float, rotation_rad: float, stroke: Any) -> None:
+        raise AssertionError("Unexpected stroke_ellipse call")
+
+    def fill_polygon(self, points: List[Point2D], fill: Any, stroke: Optional[Any] = None) -> None:
+        raise AssertionError("Unexpected fill_polygon call")
+
+    def fill_joined_area(self, forward: List[Point2D], reverse: List[Point2D], fill: Any) -> None:
+        raise AssertionError("Unexpected fill_joined_area call")
+
+    def stroke_arc(
+        self,
+        center: Point2D,
+        radius: float,
+        start_angle_rad: float,
+        end_angle_rad: float,
+        sweep_clockwise: bool,
+        stroke: Any,
+        css_class: Optional[str] = None,
+    ) -> None:
+        raise AssertionError("Unexpected stroke_arc call")
+
+    def clear_surface(self) -> None:
+        raise AssertionError("Unexpected clear_surface call")
+
+    def resize_surface(self, width: float, height: float) -> None:
+        raise AssertionError("Unexpected resize_surface call")
+
+
+# ---------------------------------------------------------------------------
 # Test cases
 # ---------------------------------------------------------------------------
 
 
 class TestRendererPrimitives(unittest.TestCase):
     maxDiff = None
+
+    def _assert_line_present(
+        self,
+        calls: List[Tuple[Any, ...]],
+        color: str,
+        start: Tuple[float, float],
+        end: Tuple[float, float],
+    ) -> None:
+        for entry in calls:
+            if entry[0] != "stroke_line":
+                continue
+            _, call_start, call_end, call_color, _ = entry
+            if call_color != color:
+                continue
+            if all(math.isclose(a, b, rel_tol=1e-6, abs_tol=1e-6) for a, b in zip(call_start, start)) and all(
+                math.isclose(a, b, rel_tol=1e-6, abs_tol=1e-6) for a, b in zip(call_end, end)
+            ):
+                return
+        self.fail(f"Expected stroke_line from {start} to {end} with color {color}")
+
     def setUp(self) -> None:
         self.mapper = CoordinateMapper(400, 300)
         self.point_a = Point(1, 2, name="A", color="red")
@@ -316,3 +406,50 @@ class TestRendererPrimitives(unittest.TestCase):
         self.assertTrue(any(op == "arc" for op in operations))
         text_operations = [entry for entry in ctx.log if entry[0] == "fillText"]
         self.assertTrue(any(entry[1] == "f" for entry in text_operations))
+
+    def test_canvas_cartesian_uses_shared_primitives(self) -> None:
+        renderer = Canvas2DRenderer()
+        mock_canvas = MockCanvasElement()
+        reset_canvas_environment(renderer, mock_canvas)
+        recorder = RecordingPrimitives()
+        renderer._shared_primitives = recorder
+        cartesian = SimpleNamespace(current_tick_spacing=50.0, default_tick_spacing=50.0)
+
+        renderer.render_cartesian(cartesian, self.mapper)
+
+        self.assertEqual(cartesian.width, mock_canvas.width)
+        self.assertEqual(cartesian.height, mock_canvas.height)
+
+        ox, oy = self.mapper.math_to_screen(0, 0)
+        axis_color = renderer.style["cartesian_axis_color"]
+        grid_color = renderer.style["cartesian_grid_color"]
+
+        self._assert_line_present(recorder.calls, axis_color, (0.0, oy), (float(mock_canvas.width), oy))
+        self._assert_line_present(recorder.calls, axis_color, (ox, 0.0), (ox, float(mock_canvas.height)))
+        self.assertTrue(any(call[0] == "stroke_line" and call[3] == grid_color for call in recorder.calls))
+
+        text_calls = [call for call in recorder.calls if call[0] == "draw_text"]
+        self.assertTrue(any(call[1] == "O" for call in text_calls))
+        self.assertTrue(any(call[1] != "O" for call in text_calls))
+        self.assertIn(("begin_shape",), recorder.calls)
+        self.assertIn(("end_shape",), recorder.calls)
+
+    def test_svg_cartesian_uses_shared_primitives(self) -> None:
+        renderer = SvgRenderer()
+        recorder = RecordingPrimitives()
+        renderer._shared_primitives = recorder
+        cartesian = SimpleNamespace(width=400.0, height=300.0, current_tick_spacing=50.0, default_tick_spacing=50.0)
+
+        renderer.render_cartesian(cartesian, self.mapper)
+
+        ox, oy = self.mapper.math_to_screen(0, 0)
+        axis_color = renderer.style["cartesian_axis_color"]
+        grid_color = renderer.style["cartesian_grid_color"]
+
+        self._assert_line_present(recorder.calls, axis_color, (0.0, oy), (cartesian.width, oy))
+        self._assert_line_present(recorder.calls, axis_color, (ox, 0.0), (ox, cartesian.height))
+        self.assertTrue(any(call[0] == "stroke_line" and call[3] == grid_color for call in recorder.calls))
+
+        text_calls = [call for call in recorder.calls if call[0] == "draw_text"]
+        self.assertTrue(any(call[1] == "O" for call in text_calls))
+        self.assertTrue(any(call[1] != "O" for call in text_calls))

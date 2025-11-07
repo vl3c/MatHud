@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import math
 
+from utils.math_utils import MathUtils
+
 Point2D = tuple
 
 class StrokeStyle:
@@ -442,6 +444,161 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
         color,
         TextAlignment(horizontal="center", vertical="middle"),
     )
+
+
+def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
+    width = getattr(cartesian, "width", None)
+    height = getattr(cartesian, "height", None)
+    if width is None or height is None:
+        return
+    try:
+        width_px = float(width)
+        height_px = float(height)
+    except Exception:
+        return
+    if not math.isfinite(width_px) or not math.isfinite(height_px) or width_px <= 0 or height_px <= 0:
+        return
+
+    try:
+        ox, oy = coordinate_mapper.math_to_screen(0, 0)
+    except Exception:
+        return
+    try:
+        ox = float(ox)
+        oy = float(oy)
+    except Exception:
+        return
+
+    scale_factor = getattr(coordinate_mapper, "scale_factor", 1)
+    try:
+        scale = float(scale_factor)
+    except Exception:
+        scale = 1.0
+    if not math.isfinite(scale) or scale == 0:
+        scale = 1.0
+
+    tick_spacing_raw = getattr(cartesian, "current_tick_spacing", None)
+    if tick_spacing_raw is None:
+        tick_spacing_raw = getattr(cartesian, "default_tick_spacing", 1)
+    try:
+        tick_spacing = float(tick_spacing_raw)
+    except Exception:
+        tick_spacing = 1.0
+    if not math.isfinite(tick_spacing) or tick_spacing <= 0:
+        tick_spacing = 1.0
+
+    display_tick = tick_spacing * scale
+    try:
+        display_tick = float(display_tick)
+    except Exception:
+        display_tick = scale
+    if not math.isfinite(display_tick) or display_tick <= 0:
+        display_tick = scale if math.isfinite(scale) and scale > 0 else 1.0
+    if not math.isfinite(display_tick) or display_tick <= 0:
+        display_tick = 1.0
+
+    axis_color = str(style.get("cartesian_axis_color", "#000"))
+    grid_color = str(style.get("cartesian_grid_color", "lightgrey"))
+    label_color = str(style.get("cartesian_label_color", "grey"))
+
+    tick_size_raw = style.get("cartesian_tick_size", 3)
+    try:
+        tick_size = float(tick_size_raw)
+    except Exception:
+        tick_size = 3.0
+    if not math.isfinite(tick_size):
+        tick_size = 3.0
+    tick_size = max(tick_size, 0.0)
+
+    tick_font_raw = style.get("cartesian_tick_font_size", 8)
+    try:
+        tick_font_float = float(tick_font_raw)
+    except Exception:
+        tick_font_float = 8.0
+    if not math.isfinite(tick_font_float):
+        tick_font_float = 8.0
+    font = FontStyle(family="Inter, sans-serif", size=tick_font_raw)
+    label_alignment = TextAlignment(horizontal="left", vertical="alphabetic")
+
+    axis_stroke = StrokeStyle(color=axis_color, width=1)
+    grid_stroke = StrokeStyle(color=grid_color, width=1)
+    tick_stroke = StrokeStyle(color=axis_color, width=1)
+
+    begin_shape = getattr(primitives, "begin_shape", None)
+    end_shape = getattr(primitives, "end_shape", None)
+    managing_shape = callable(begin_shape) and callable(end_shape)
+    if managing_shape:
+        begin_shape()
+    try:
+        primitives.stroke_line((0.0, oy), (width_px, oy), axis_stroke)
+        primitives.stroke_line((ox, 0.0), (ox, height_px), axis_stroke)
+
+        def draw_tick_x(x_pos: float) -> None:
+            primitives.stroke_line((x_pos, oy - tick_size), (x_pos, oy + tick_size), tick_stroke)
+            if abs(x_pos - ox) < 1e-6:
+                primitives.draw_text(
+                    "O",
+                    (x_pos + 2, oy + tick_size + tick_font_float),
+                    font,
+                    label_color,
+                    label_alignment,
+                )
+            else:
+                value = (x_pos - ox) / scale
+                label = MathUtils.format_number_for_cartesian(value)
+                primitives.draw_text(
+                    label,
+                    (x_pos + 2, oy + tick_size + tick_font_float),
+                    font,
+                    label_color,
+                    label_alignment,
+                )
+
+        def draw_tick_y(y_pos: float) -> None:
+            primitives.stroke_line((ox - tick_size, y_pos), (ox + tick_size, y_pos), tick_stroke)
+            if abs(y_pos - oy) >= 1e-6:
+                value = (oy - y_pos) / scale
+                label = MathUtils.format_number_for_cartesian(value)
+                primitives.draw_text(
+                    label,
+                    (ox + tick_size + 2, y_pos - tick_size),
+                    font,
+                    label_color,
+                    label_alignment,
+                )
+
+        def draw_grid_line_x(x_pos: float) -> None:
+            primitives.stroke_line((x_pos, 0.0), (x_pos, height_px), grid_stroke)
+
+        def draw_grid_line_y(y_pos: float) -> None:
+            primitives.stroke_line((0.0, y_pos), (width_px, y_pos), grid_stroke)
+
+        x = ox
+        while x <= width_px:
+            draw_grid_line_x(x)
+            draw_tick_x(x)
+            x += display_tick
+
+        x = ox - display_tick
+        while x >= 0.0:
+            draw_grid_line_x(x)
+            draw_tick_x(x)
+            x -= display_tick
+
+        y = oy
+        while y <= height_px:
+            draw_grid_line_y(y)
+            draw_tick_y(y)
+            y += display_tick
+
+        y = oy - display_tick
+        while y >= 0.0:
+            draw_grid_line_y(y)
+            draw_tick_y(y)
+            y -= display_tick
+    finally:
+        if managing_shape:
+            end_shape()
 
 
 def render_function_helper(primitives, func, coordinate_mapper, style):

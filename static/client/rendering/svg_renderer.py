@@ -12,7 +12,6 @@ from typing import Any, Callable, Dict, Optional
 
 from browser import document, svg
 
-from utils.math_utils import MathUtils
 from rendering.interfaces import RendererProtocol
 from rendering.style_manager import get_renderer_style
 from rendering.svg_primitive_adapter import SvgPrimitiveAdapter
@@ -29,6 +28,7 @@ from rendering.shared_drawable_renderers import (
     render_triangle_helper,
     render_rectangle_helper,
     render_ellipse_helper,
+    render_cartesian_helper,
 )
 
 
@@ -166,88 +166,7 @@ class SvgRenderer(RendererProtocol):
 
     # ----------------------- Cartesian Grid -----------------------
     def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
-        """Render axes, ticks, labels, and grid lines for the Cartesian system.
-
-        This mirrors the logic in Cartesian2Axis.draw(), using the cartesian object's
-        current_tick_spacing, colors, and the canvas size.
-        """
-        try:
-            width: float = cartesian.width
-            height: float = cartesian.height
-            # Origin in screen space via mapper
-            ox: float
-            oy: float
-            ox, oy = coordinate_mapper.math_to_screen(0, 0)
-            # Axes
-            axis_color: str = self.style['cartesian_axis_color']
-            document["math-svg"] <= svg.line(x1=str(0), y1=str(oy), x2=str(width), y2=str(oy), stroke=axis_color)
-            document["math-svg"] <= svg.line(x1=str(ox), y1=str(0), x2=str(ox), y2=str(height), stroke=axis_color)
-
-            # Tick spacing displayed in pixels
-            display_tick: float = cartesian.current_tick_spacing * coordinate_mapper.scale_factor
-
-            def draw_tick_x(x: float) -> None:
-                tick_size: int = self.style['cartesian_tick_size']
-                document["math-svg"] <= svg.line(x1=str(x), y1=str(oy - tick_size), x2=str(x), y2=str(oy + tick_size), stroke=axis_color)
-                if abs(x - ox) > 1e-6:
-                    val: float = (x - ox) / coordinate_mapper.scale_factor
-                    label: str = MathUtils.format_number_for_cartesian(val)
-                    tx: float = x + 2
-                    ty: float = oy + tick_size + self.style['cartesian_tick_font_size']
-                    t: Any = svg.text(label, x=str(tx), y=str(ty), fill=self.style['cartesian_label_color'])
-                    t.setAttribute('font-size', str(self.style['cartesian_tick_font_size']))
-                    document["math-svg"] <= t
-                else:
-                    t = svg.text('O', x=str(x + 2), y=str(oy + tick_size + self.style['cartesian_tick_font_size']), fill=self.style['cartesian_label_color'])
-                    t.setAttribute('font-size', str(self.style['cartesian_tick_font_size']))
-                    document["math-svg"] <= t
-
-            def draw_tick_y(y: float) -> None:
-                tick_size: int = self.style['cartesian_tick_size']
-                document["math-svg"] <= svg.line(x1=str(ox - tick_size), y1=str(y), x2=str(ox + tick_size), y2=str(y), stroke=axis_color)
-                if abs(y - oy) > 1e-6:
-                    val: float = (oy - y) / coordinate_mapper.scale_factor
-                    label: str = MathUtils.format_number_for_cartesian(val)
-                    tx: float = ox + tick_size
-                    ty: float = y - tick_size
-                    t: Any = svg.text(label, x=str(tx), y=str(ty), fill=self.style['cartesian_label_color'])
-                    t.setAttribute('font-size', str(self.style['cartesian_tick_font_size']))
-                    document["math-svg"] <= t
-
-            # Grid lines
-            def draw_grid_line_x(x: float) -> None:
-                document["math-svg"] <= svg.line(x1=str(x), y1=str(0), x2=str(x), y2=str(height), stroke=self.style['cartesian_grid_color'])
-
-            def draw_grid_line_y(y: float) -> None:
-                document["math-svg"] <= svg.line(x1=str(0), y1=str(y), x2=str(width), y2=str(y), stroke=self.style['cartesian_grid_color'])
-
-            # Iterate ticks and grid in both directions
-            # X positive
-            x: float = ox
-            while x < width:
-                draw_grid_line_x(x)
-                draw_tick_x(x)
-                x += display_tick
-            # X negative
-            x = ox - display_tick
-            while x > 0:
-                draw_grid_line_x(x)
-                draw_tick_x(x)
-                x -= display_tick
-            # Y positive (down)
-            y: float = oy
-            while y < height:
-                draw_grid_line_y(y)
-                draw_tick_y(y)
-                y += display_tick
-            # Y negative (up)
-            y = oy - display_tick
-            while y > 0:
-                draw_grid_line_y(y)
-                draw_tick_y(y)
-                y -= display_tick
-        except Exception:
-            return
+        render_cartesian_helper(self._shared_primitives, cartesian, coordinate_mapper, self.style)
 
     # ----------------------- Colored Areas: FunctionsBoundedColoredArea -----------------------
     def register_functions_bounded_colored_area(self, cls: type) -> None:

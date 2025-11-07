@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import math
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 from browser import document, html, window, console
 
-from constants import default_color
 from rendering.interfaces import RendererProtocol
 from rendering.style_manager import get_renderer_style
 from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
@@ -13,6 +11,7 @@ from rendering.shared_drawable_renderers import (
     render_point_helper,
     render_segment_helper,
     render_circle_helper,
+    render_cartesian_helper,
 )
 
 
@@ -55,12 +54,11 @@ class WebGLRenderer(RendererProtocol):
         return True
 
     def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
-        ox, oy = coordinate_mapper.math_to_screen(0, 0)
         width = self.canvas_el.width
         height = self.canvas_el.height
-        axis_color = self._parse_color(self.style.get("cartesian_axis_color", default_color))
-        self._draw_lines([(0, oy), (width, oy)], axis_color)
-        self._draw_lines([(ox, 0), (ox, height)], axis_color)
+        cartesian.width = width
+        cartesian.height = height
+        render_cartesian_helper(self._shared_primitives, cartesian, coordinate_mapper, self.style)
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
         self._handlers_by_type[cls] = handler

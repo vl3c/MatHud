@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import math
 from typing import Any, Callable, Dict
 
 from browser import document, html
 
-from constants import default_color
-from utils.math_utils import MathUtils
 from rendering.style_manager import get_renderer_style
 from rendering.interfaces import RendererProtocol
 from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
@@ -20,6 +17,7 @@ from rendering.shared_drawable_renderers import (
     render_functions_bounded_area_helper,
     render_function_segment_area_helper,
     render_segments_bounded_area_helper,
+    render_cartesian_helper,
 )
 
 
@@ -54,110 +52,7 @@ class Canvas2DRenderer(RendererProtocol):
         height = self.canvas_el.height
         cartesian.width = width
         cartesian.height = height
-
-        axis_color = self.style.get("cartesian_axis_color", default_color)
-        grid_color = self.style.get("cartesian_grid_color", "lightgrey")
-        tick_size = int(self.style.get("cartesian_tick_size", 3))
-        tick_font_size = int(self.style.get("cartesian_tick_font_size", 8))
-        label_color = self.style.get("cartesian_label_color", "grey")
-
-        try:
-            ox, oy = coordinate_mapper.math_to_screen(0, 0)
-        except Exception:
-            return
-
-        display_tick = cartesian.current_tick_spacing * getattr(coordinate_mapper, "scale_factor", 1)
-        if not display_tick or display_tick <= 0 or math.isinf(display_tick) or math.isnan(display_tick):
-            display_tick = getattr(coordinate_mapper, "scale_factor", 1) or 1
-
-        self.ctx.save()
-        self.ctx.strokeStyle = axis_color
-        self.ctx.lineWidth = 1
-        self.ctx.beginPath()
-        self.ctx.moveTo(0, oy)
-        self.ctx.lineTo(width, oy)
-        self.ctx.moveTo(ox, 0)
-        self.ctx.lineTo(ox, height)
-        self.ctx.stroke()
-
-        self.ctx.font = f"{tick_font_size}px Inter, sans-serif"
-        self.ctx.fillStyle = label_color
-
-        def draw_tick_x(x: float) -> None:
-            self.ctx.beginPath()
-            self.ctx.moveTo(x, oy - tick_size)
-            self.ctx.lineTo(x, oy + tick_size)
-            self.ctx.stroke()
-            if abs(x - ox) < 1e-6:
-                self.ctx.fillText("O", x + 2, oy + tick_size + tick_font_size)
-            else:
-                value = (x - ox) / getattr(coordinate_mapper, "scale_factor", 1)
-                label = MathUtils.format_number_for_cartesian(value)
-                self.ctx.fillText(label, x + 2, oy + tick_size + tick_font_size)
-
-        def draw_tick_y(y: float) -> None:
-            self.ctx.beginPath()
-            self.ctx.moveTo(ox - tick_size, y)
-            self.ctx.lineTo(ox + tick_size, y)
-            self.ctx.stroke()
-            if abs(y - oy) >= 1e-6:
-                value = (oy - y) / getattr(coordinate_mapper, "scale_factor", 1)
-                label = MathUtils.format_number_for_cartesian(value)
-                self.ctx.fillText(label, ox + tick_size + 2, y - tick_size)
-
-        def draw_grid_line_x(x: float) -> None:
-            self.ctx.save()
-            self.ctx.strokeStyle = grid_color
-            self.ctx.beginPath()
-            self.ctx.moveTo(x, 0)
-            self.ctx.lineTo(x, height)
-            self.ctx.stroke()
-            self.ctx.restore()
-
-        def draw_grid_line_y(y: float) -> None:
-            self.ctx.save()
-            self.ctx.strokeStyle = grid_color
-            self.ctx.beginPath()
-            self.ctx.moveTo(0, y)
-            self.ctx.lineTo(width, y)
-            self.ctx.stroke()
-            self.ctx.restore()
-
-        # Positive X direction including origin
-        x = ox
-        while x <= width:
-            draw_grid_line_x(x)
-            self.ctx.strokeStyle = axis_color
-            draw_tick_x(x)
-            x += display_tick
-
-        # Negative X direction
-        x = ox - display_tick
-        while x >= 0:
-            draw_grid_line_x(x)
-            self.ctx.strokeStyle = axis_color
-            draw_tick_x(x)
-            x -= display_tick
-
-        # Positive Y direction including origin
-        y = oy
-        while y <= height:
-            draw_grid_line_y(y)
-            self.ctx.strokeStyle = axis_color
-            draw_tick_y(y)
-            y += display_tick
-
-        # Negative Y direction
-        y = oy - display_tick
-        while y >= 0:
-            draw_grid_line_y(y)
-            self.ctx.strokeStyle = axis_color
-            draw_tick_y(y)
-            y -= display_tick
-
-        self.ctx.restore()
-        assert self.ctx, "Canvas context missing"
-        assert self.canvas_el, "Canvas element missing"
+        render_cartesian_helper(self._shared_primitives, cartesian, coordinate_mapper, self.style)
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
         self._handlers_by_type[cls] = handler
