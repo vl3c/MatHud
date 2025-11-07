@@ -44,6 +44,7 @@ from utils.geometry_utils import GeometryUtils
 from utils.computation_utils import ComputationUtils
 from managers.undo_redo_manager import UndoRedoManager
 from managers.drawable_manager import DrawableManager
+from managers.drawable_dependency_manager import DrawableDependencyManager
 from managers.transformations_manager import TransformationsManager
 from constants import DEFAULT_RENDERER_MODE
 from rendering.factory import create_renderer
@@ -66,6 +67,7 @@ class Canvas:
         computations (list): History of mathematical computations performed
         cartesian2axis (Cartesian2Axis): Coordinate grid system
         drawable_manager (DrawableManager): Manages all geometric objects
+        dependency_manager (DrawableDependencyManager): Tracks drawable relationships
         undo_redo_manager (UndoRedoManager): Handles state archiving/restoration
         transformations_manager (TransformationsManager): Manages object transformations
         
@@ -104,6 +106,7 @@ class Canvas:
         # Add managers
         self.undo_redo_manager: UndoRedoManager = UndoRedoManager(self)
         self.drawable_manager: DrawableManager = DrawableManager(self)
+        self.dependency_manager: DrawableDependencyManager = self.drawable_manager.dependency_manager
         self.transformations_manager: TransformationsManager = TransformationsManager(self)
 
         # Initialize renderer lazily to avoid hard dependency in non-browser tests
