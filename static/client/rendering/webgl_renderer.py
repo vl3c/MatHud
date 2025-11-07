@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 from browser import document, html, window, console
 
-from constants import default_color, default_point_size
+from constants import default_color
 from rendering.interfaces import RendererProtocol
 from rendering.style_manager import get_renderer_style
 from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
@@ -17,7 +17,7 @@ from rendering.shared_drawable_renderers import (
 
 
 class WebGLRenderer(RendererProtocol):
-    """Experimental renderer backed by WebGL (line and point support)."""
+    """Experimental renderer backed by WebGL that delegates shape drawing to primitives."""
 
     def __init__(self, canvas_id: str = "math-webgl") -> None:
         self.canvas_el = self._ensure_canvas(canvas_id)
@@ -41,8 +41,7 @@ class WebGLRenderer(RendererProtocol):
         self.gl.clearColor(0.0, 0.0, 0.0, 0.0)
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self.register_default_drawables()
-        self._shared_primitives: Optional[WebGLPrimitiveAdapter] = None
-        self._shared_rendering_enabled: bool = False
+        self._shared_primitives: WebGLPrimitiveAdapter = WebGLPrimitiveAdapter(self)
 
     def clear(self) -> None:
         self._resize_viewport()
@@ -83,52 +82,17 @@ class WebGLRenderer(RendererProtocol):
         except Exception:
             pass
 
-    def enable_shared_rendering(self, enabled: bool) -> None:
-        self._shared_rendering_enabled = enabled
-
-    def _get_shared_primitives(self) -> WebGLPrimitiveAdapter:
-        if self._shared_primitives is None:
-            self._shared_primitives = WebGLPrimitiveAdapter(self)
-        return self._shared_primitives
-
     # ------------------------------------------------------------------
     # Handlers
 
     def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
-        if self._shared_rendering_enabled:
-            render_point_helper(self._get_shared_primitives(), point, coordinate_mapper, self.style)
-            return
-        sx, sy = coordinate_mapper.math_to_screen(point.x, point.y)
-        point_color = getattr(point, "color", self.style.get("point_color", default_color))
-        color = self._parse_color(point_color)
-        ndc = [self._to_ndc(sx, sy)]
-        size = getattr(point, "size", self.style.get("point_radius", default_point_size) * 2)
-        self._draw_points(ndc, color, size)
+        render_point_helper(self._shared_primitives, point, coordinate_mapper, self.style)
 
     def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
-        if self._shared_rendering_enabled:
-            render_segment_helper(self._get_shared_primitives(), segment, coordinate_mapper, self.style)
-            return
-        p1 = coordinate_mapper.math_to_screen(segment.point1.x, segment.point1.y)
-        p2 = coordinate_mapper.math_to_screen(segment.point2.x, segment.point2.y)
-        seg_color = getattr(segment, "color", self.style.get("segment_color", default_color))
-        color = self._parse_color(seg_color)
-        self._draw_lines([p1, p2], color)
+        render_segment_helper(self._shared_primitives, segment, coordinate_mapper, self.style)
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
-        if self._shared_rendering_enabled:
-            render_circle_helper(self._get_shared_primitives(), circle, coordinate_mapper, self.style)
-            return
-        cx, cy = coordinate_mapper.math_to_screen(circle.center.x, circle.center.y)
-        radius = coordinate_mapper.scale_value(circle.radius)
-        circle_color = getattr(circle, "color", self.style.get("circle_color", default_color))
-        color = self._parse_color(circle_color)
-        segments = 32
-        points: list[Tuple[float, float]] = []
-        for i in range(segments + 1):
-            theta = 2 * math.pi * i / segments
-            points.append((cx + radius * math.cos(theta), cy + radius * math.sin(theta)))
-        self._draw_line_strip(points, color)
+        render_circle_helper(self._shared_primitives, circle, coordinate_mapper, self.style)
 
     # ------------------------------------------------------------------
     # Drawing helpers

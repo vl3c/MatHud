@@ -28,13 +28,22 @@ class ScreenPolyline:
 
 class ClosedArea:
     """A closed area defined by a forward path and a reverse path.
-
+    
     The paths can be in math-space or screen-space, depending on context.
     """
-    def __init__(self, forward_points: List[Tuple[float, float]], reverse_points: List[Tuple[float, float]], is_screen: bool = False) -> None:
+    def __init__(
+        self,
+        forward_points: List[Tuple[float, float]],
+        reverse_points: List[Tuple[float, float]],
+        is_screen: bool = False,
+        color: str | None = None,
+        opacity: float | None = None,
+    ) -> None:
         self.forward_points: List[Tuple[float, float]] = forward_points or []
         self.reverse_points: List[Tuple[float, float]] = reverse_points or []
         self.is_screen: bool = is_screen
+        self.color: str | None = color
+        self.opacity: float | None = opacity
 
 
 class Label:

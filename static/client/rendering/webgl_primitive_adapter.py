@@ -36,7 +36,16 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
         fill: FillStyle,
         stroke: Optional[StrokeStyle] = None,
     ) -> None:
-        raise NotImplementedError
+        try:
+            size = float(radius) * 2.0
+        except Exception:
+            size = 0.0
+        if size <= 0.0:
+            size = 1.0
+        color = self.renderer._parse_color(fill.color)
+        self.renderer._draw_points([center], color, size)
+        if stroke:
+            self.stroke_circle(center, radius, stroke)
 
     def stroke_ellipse(
         self,
@@ -73,6 +82,7 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
         end_angle_rad: float,
         sweep_clockwise: bool,
         stroke: StrokeStyle,
+        css_class: Optional[str] = None,
     ) -> None:
         samples = self._sample_arc(center, radius, start_angle_rad, end_angle_rad, sweep_clockwise)
         self.stroke_polyline(samples, stroke)
@@ -85,7 +95,8 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
         color: str,
         alignment: TextAlignment,
     ) -> None:
-        raise NotImplementedError
+        # Text rendering is not supported in the current WebGL pipeline; no-op.
+        return None
 
     def clear_surface(self) -> None:
         self.renderer.clear()

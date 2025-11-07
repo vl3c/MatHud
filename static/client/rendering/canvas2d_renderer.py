@@ -1,24 +1,30 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict
 
 from browser import document, html
 
-from constants import default_color, default_point_size, point_label_font_size
+from constants import default_color
 from utils.math_utils import MathUtils
-from rendering.function_renderable import FunctionRenderable
-from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
-from rendering.function_segment_area_renderable import FunctionSegmentAreaRenderable
-from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
-from rendering.style_manager import get_renderer_style, get_default_style_value
+from rendering.style_manager import get_renderer_style
 from rendering.interfaces import RendererProtocol
 from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
-from rendering.shared_drawable_renderers import render_point_helper, render_segment_helper, render_circle_helper, render_vector_helper, render_angle_helper, render_function_helper, render_functions_bounded_area_helper, render_function_segment_area_helper, render_segments_bounded_area_helper
+from rendering.shared_drawable_renderers import (
+    render_point_helper,
+    render_segment_helper,
+    render_circle_helper,
+    render_vector_helper,
+    render_angle_helper,
+    render_function_helper,
+    render_functions_bounded_area_helper,
+    render_function_segment_area_helper,
+    render_segments_bounded_area_helper,
+)
 
 
 class Canvas2DRenderer(RendererProtocol):
-    """Experimental renderer backed by the Canvas 2D API."""
+    """Experimental renderer backed by the Canvas 2D API using shared primitives."""
 
     def __init__(self, canvas_id: str = "math-canvas-2d") -> None:
         self.canvas_el = self._ensure_canvas(canvas_id)
@@ -28,8 +34,7 @@ class Canvas2DRenderer(RendererProtocol):
         self.style: Dict[str, Any] = get_renderer_style()
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self.register_default_drawables()
-        self._shared_primitives: Optional[Canvas2DPrimitiveAdapter] = None
-        self._shared_rendering_enabled: bool = False
+        self._shared_primitives: Canvas2DPrimitiveAdapter = Canvas2DPrimitiveAdapter(self.canvas_el)
 
     def clear(self) -> None:
         width = self.canvas_el.width
@@ -204,302 +209,35 @@ class Canvas2DRenderer(RendererProtocol):
         except Exception:
             pass
 
-    def enable_shared_rendering(self, enabled: bool) -> None:
-        self._shared_rendering_enabled = enabled
-
-    def _get_shared_primitives(self) -> Canvas2DPrimitiveAdapter:
-        if self._shared_primitives is None:
-            self._shared_primitives = Canvas2DPrimitiveAdapter(self.canvas_el)
-        return self._shared_primitives
-
     # ------------------------------------------------------------------
     # Handlers
 
     def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
-        if self._shared_rendering_enabled:
-            render_point_helper(self._get_shared_primitives(), point, coordinate_mapper, self.style)
-            return
-        sx, sy = coordinate_mapper.math_to_screen(point.x, point.y)
-        radius = self.style.get("point_radius", default_point_size)
-        color = getattr(point, "color", self.style.get("point_color", default_color))
-
-        self.ctx.save()
-        self.ctx.fillStyle = color
-        self.ctx.beginPath()
-        self.ctx.arc(sx, sy, radius, 0, 2 * math.pi)
-        self.ctx.fill()
-
-        label_name = point.name or ""
-        if label_name:
-            label_text = f"{label_name}({round(point.x, 3)}, {round(point.y, 3)})"
-            self.ctx.fillStyle = color
-            font_size = self.style.get("point_label_font_size", point_label_font_size)
-            font_size_str = str(int(font_size)) if isinstance(font_size, (int, float)) and float(font_size).is_integer() else str(font_size)
-            self.ctx.font = f"{font_size_str}px Inter, sans-serif"
-            self.ctx.fillText(label_text, sx + radius, sy - radius)
-        self.ctx.restore()
+        render_point_helper(self._shared_primitives, point, coordinate_mapper, self.style)
 
     def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
-        if self._shared_rendering_enabled:
-            render_segment_helper(self._get_shared_primitives(), segment, coordinate_mapper, self.style)
-            return
-        x1, y1 = coordinate_mapper.math_to_screen(segment.point1.x, segment.point1.y)
-        x2, y2 = coordinate_mapper.math_to_screen(segment.point2.x, segment.point2.y)
-        color = getattr(segment, "color", self.style.get("segment_color", default_color))
-
-        self.ctx.save()
-        self.ctx.strokeStyle = color
-        self.ctx.lineWidth = self.style.get("segment_stroke_width", 1)
-        self.ctx.beginPath()
-        self.ctx.moveTo(x1, y1)
-        self.ctx.lineTo(x2, y2)
-        self.ctx.stroke()
-        self.ctx.restore()
+        render_segment_helper(self._shared_primitives, segment, coordinate_mapper, self.style)
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
-        if self._shared_rendering_enabled:
-            render_circle_helper(self._get_shared_primitives(), circle, coordinate_mapper, self.style)
-            return
-        cx, cy = coordinate_mapper.math_to_screen(circle.center.x, circle.center.y)
-        radius = coordinate_mapper.scale_value(circle.radius)
-        color = getattr(circle, "color", self.style.get("circle_color", default_color))
-
-        self.ctx.save()
-        self.ctx.strokeStyle = color
-        self.ctx.lineWidth = self.style.get("circle_stroke_width", 1)
-        self.ctx.beginPath()
-        self.ctx.arc(cx, cy, radius, 0, 2 * math.pi)
-        self.ctx.stroke()
-        self.ctx.restore()
+        render_circle_helper(self._shared_primitives, circle, coordinate_mapper, self.style)
 
     def _render_vector(self, vector: Any, coordinate_mapper: Any) -> None:
-        if self._shared_rendering_enabled:
-            render_vector_helper(self._get_shared_primitives(), vector, coordinate_mapper, self.style)
-            return
-        seg = vector.segment
-        color = getattr(vector, "color", getattr(seg, "color", self.style.get("vector_color", default_color)))
-        x1, y1 = coordinate_mapper.math_to_screen(seg.point1.x, seg.point1.y)
-        x2, y2 = coordinate_mapper.math_to_screen(seg.point2.x, seg.point2.y)
-
-        self.ctx.save()
-        self.ctx.strokeStyle = color
-        self.ctx.lineWidth = self.style.get("segment_stroke_width", 1)
-        self.ctx.beginPath()
-        self.ctx.moveTo(x1, y1)
-        self.ctx.lineTo(x2, y2)
-        self.ctx.stroke()
-
-        dx = x2 - x1
-        dy = y2 - y1
-        angle = math.atan2(dy, dx)
-        side_length = self.style.get("vector_tip_size", default_point_size * 4)
-        half_base = side_length / 2
-        height = side_length if side_length < half_base else math.sqrt(max(side_length * side_length - half_base * half_base, 0))
-
-        p1x = x2
-        p1y = y2
-        p2x = x2 - height * math.cos(angle) - half_base * math.sin(angle)
-        p2y = y2 - height * math.sin(angle) + half_base * math.cos(angle)
-        p3x = x2 - height * math.cos(angle) + half_base * math.sin(angle)
-        p3y = y2 - height * math.sin(angle) - half_base * math.cos(angle)
-
-        self.ctx.fillStyle = color
-        self.ctx.beginPath()
-        self.ctx.moveTo(p1x, p1y)
-        self.ctx.lineTo(p2x, p2y)
-        self.ctx.lineTo(p3x, p3y)
-        self.ctx.closePath()
-        self.ctx.fill()
-        self.ctx.restore()
+        render_vector_helper(self._shared_primitives, vector, coordinate_mapper, self.style)
 
     def _render_angle(self, angle: Any, coordinate_mapper: Any) -> None:
-        if self._shared_rendering_enabled:
-            render_angle_helper(self._get_shared_primitives(), angle, coordinate_mapper, self.style)
-            return
-        vx, vy = coordinate_mapper.math_to_screen(angle.vertex_point.x, angle.vertex_point.y)
-        p1x, p1y = coordinate_mapper.math_to_screen(angle.arm1_point.x, angle.arm1_point.y)
-        p2x, p2y = coordinate_mapper.math_to_screen(angle.arm2_point.x, angle.arm2_point.y)
-
-        params = angle._calculate_arc_parameters(
-            vx,
-            vy,
-            p1x,
-            p1y,
-            p2x,
-            p2y,
-            arc_radius=self.style.get(
-                "angle_arc_radius",
-                get_default_style_value("angle_arc_radius"),
-            ),
-        )
-        if not params:
-            return
-
-        color = getattr(angle, "color", self.style.get("angle_color", default_color))
-        radius = params["arc_radius_on_screen"]
-
-        start_angle = math.atan2(p1y - vy, p1x - vx)
-        sweep_cw = params.get("final_sweep_flag", '0') == '1'
-        display_degrees = getattr(angle, "angle_degrees", None)
-        if display_degrees is None:
-            return
-        delta = math.radians(display_degrees)
-        direction = 1 if sweep_cw else -1
-        end_angle = start_angle + direction * delta
-
-        self.ctx.save()
-        self.ctx.strokeStyle = color
-        self.ctx.lineWidth = 1
-        self.ctx.beginPath()
-        self.ctx.arc(vx, vy, radius, start_angle, end_angle, not sweep_cw)
-        self.ctx.stroke()
-        self.ctx.restore()
-
-        text_radius = radius * self.style.get(
-            "angle_text_arc_radius_factor",
-            get_default_style_value("angle_text_arc_radius_factor"),
-        )
-        text_delta = delta / 2.0
-        if params.get("final_sweep_flag", '0') == '0':
-            text_delta = -text_delta
-        base_angle = params.get("angle_v_p1_rad")
-        if base_angle is None:
-            base_angle = math.atan2(vy - p1y, p1x - vx)
-        text_angle = base_angle + text_delta
-        tx = vx + text_radius * math.cos(text_angle)
-        ty = vy + text_radius * math.sin(text_angle)
-        label = f"{display_degrees:.1f}°"
-
-        self.ctx.save()
-        self.ctx.fillStyle = color
-        font_size_raw = self.style.get("angle_label_font_size", point_label_font_size)
-        font_size = int(font_size_raw) if isinstance(font_size_raw, (int, float)) and float(font_size_raw).is_integer() else font_size_raw
-        self.ctx.font = f"{font_size}px Inter, sans-serif"
-        self.ctx.textAlign = "center"
-        self.ctx.textBaseline = "middle"
-        self.ctx.fillText(label, tx, ty)
-        self.ctx.restore()
+        render_angle_helper(self._shared_primitives, angle, coordinate_mapper, self.style)
 
     def _render_function(self, func: Any, coordinate_mapper: Any) -> None:
-        if self._shared_rendering_enabled:
-            render_function_helper(self._get_shared_primitives(), func, coordinate_mapper, self.style)
-            return
-        color = getattr(func, "color", self.style.get("function_color", default_color))
-        cartesian = getattr(getattr(func, "canvas", None), "cartesian2axis", None)
-        renderable = FunctionRenderable(func, coordinate_mapper, cartesian)
-        screen_paths = renderable.build_screen_paths().paths
-        if not screen_paths:
-            return
-
-        self.ctx.save()
-        self.ctx.strokeStyle = color
-        self.ctx.lineWidth = self.style.get("function_stroke_width", 1)
-        for path in screen_paths:
-            if not path:
-                continue
-            self.ctx.beginPath()
-            self.ctx.moveTo(path[0][0], path[0][1])
-            for x, y in path[1:]:
-                self.ctx.lineTo(x, y)
-            self.ctx.stroke()
-        self.ctx.restore()
-
-        if getattr(func, "name", "") and screen_paths and screen_paths[0]:
-            first = screen_paths[0][0]
-            font_size_raw = self.style.get("function_label_font_size", point_label_font_size)
-            font_size = float(font_size_raw) if isinstance(font_size_raw, (int, float)) else font_size_raw
-            label_offset_x = (1 + len(func.name)) * font_size / 2
-            label_x = first[0] - label_offset_x
-            label_y = max(first[1], font_size)
-            font_size_str = str(int(font_size)) if isinstance(font_size, float) and font_size.is_integer() else str(font_size)
-            self.ctx.save()
-            self.ctx.fillStyle = color
-            self.ctx.font = f"{font_size_str}px Inter, sans-serif"
-            if getattr(self.ctx, "_textAlign", None) != "left":
-                try:
-                    object.__setattr__(self.ctx, "_textAlign", "left")
-                except Exception:
-                    setattr(self.ctx, "_textAlign", "left")
-            if getattr(self.ctx, "_textBaseline", None) != "alphabetic":
-                try:
-                    object.__setattr__(self.ctx, "_textBaseline", "alphabetic")
-                except Exception:
-                    setattr(self.ctx, "_textBaseline", "alphabetic")
-            self.ctx.fillText(func.name, label_x, label_y)
-            self.ctx.restore()
+        render_function_helper(self._shared_primitives, func, coordinate_mapper, self.style)
 
     def _render_functions_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        if self._shared_rendering_enabled:
-            render_functions_bounded_area_helper(self._get_shared_primitives(), area, coordinate_mapper, self.style)
-            return
-        renderable = FunctionsBoundedAreaRenderable(area, coordinate_mapper)
-        closed_area = renderable.build_screen_area()
-        if not closed_area or not closed_area.forward_points or not closed_area.reverse_points:
-            return
-        forward = closed_area.forward_points
-        reverse = closed_area.reverse_points
-        if not getattr(closed_area, "is_screen", False):
-            reverse = [coordinate_mapper.math_to_screen(x, y) for (x, y) in reverse]
-        self._fill_area_path(forward, reverse, getattr(area, "color", self.style.get("area_fill_color", "lightblue")), getattr(area, "opacity", self.style.get("area_opacity", 0.3)))
+        render_functions_bounded_area_helper(self._shared_primitives, area, coordinate_mapper, self.style)
 
     def _render_function_segment_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        if self._shared_rendering_enabled:
-            render_function_segment_area_helper(self._get_shared_primitives(), area, coordinate_mapper, self.style)
-            return
-        renderable = FunctionSegmentAreaRenderable(area, coordinate_mapper)
-        closed_area = renderable.build_screen_area(num_points=100)
-        if not closed_area or not closed_area.forward_points or not closed_area.reverse_points:
-            return
-        self._fill_area_path(
-            closed_area.forward_points,
-            closed_area.reverse_points,
-            getattr(area, "color", self.style.get("area_fill_color", "lightblue")),
-            getattr(area, "opacity", self.style.get("area_opacity", 0.3)),
-        )
+        render_function_segment_area_helper(self._shared_primitives, area, coordinate_mapper, self.style)
 
     def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        if self._shared_rendering_enabled:
-            render_segments_bounded_area_helper(self._get_shared_primitives(), area, coordinate_mapper, self.style)
-            return
-        renderable = SegmentsBoundedAreaRenderable(area, coordinate_mapper)
-        closed_area = renderable.build_screen_area()
-        if not closed_area or not closed_area.forward_points or not closed_area.reverse_points:
-            return
-        self._fill_area_path(
-            closed_area.forward_points,
-            closed_area.reverse_points,
-            getattr(area, "color", self.style.get("area_fill_color", "lightblue")),
-            getattr(area, "opacity", self.style.get("area_opacity", 0.3)),
-        )
-
-    # ------------------------------------------------------------------
-    # Helpers
-
-    def _fill_area_path(
-        self,
-        forward: List[Tuple[float, float]],
-        reverse: List[Tuple[float, float]],
-        fill_color: str,
-        opacity: float,
-    ) -> None:
-        if not forward:
-            return
-        self.ctx.save()
-        self.ctx.fillStyle = fill_color
-        self.ctx.globalAlpha = max(0.0, min(1.0, float(opacity)))
-        self.ctx.beginPath()
-        self.ctx.moveTo(forward[0][0], forward[0][1])
-        for x, y in forward[1:]:
-            if x is None or y is None:
-                continue
-            self.ctx.lineTo(x, y)
-        for x, y in reverse:
-            if x is None or y is None:
-                continue
-            self.ctx.lineTo(x, y)
-        self.ctx.closePath()
-        self.ctx.fill()
-        self.ctx.restore()
+        render_segments_bounded_area_helper(self._shared_primitives, area, coordinate_mapper, self.style)
 
     def _ensure_canvas(self, canvas_id: str):
         canvas_el = document.getElementById(canvas_id)

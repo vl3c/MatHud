@@ -67,7 +67,16 @@ class RendererPrimitives:
     def fill_joined_area(self, forward, reverse, fill):
         raise NotImplementedError
 
-    def stroke_arc(self, center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke):
+    def stroke_arc(
+        self,
+        center,
+        radius,
+        start_angle_rad,
+        end_angle_rad,
+        sweep_clockwise,
+        stroke,
+        css_class=None,
+    ):
         raise NotImplementedError
 
     def draw_text(self, text, position, font, color, alignment, style_overrides=None):
@@ -164,6 +173,125 @@ def render_segment_helper(primitives, segment, coordinate_mapper, style):
         begin_shape()
     try:
         primitives.stroke_line(start, end, stroke, include_width=False)
+    finally:
+        if managing_shape:
+            end_shape()
+
+
+def render_triangle_helper(primitives, triangle, coordinate_mapper, style):
+    segments = []
+    for attr in ("segment1", "segment2", "segment3"):
+        seg = getattr(triangle, attr, None)
+        if seg is None:
+            return
+        segments.append(seg)
+
+    color = str(getattr(triangle, "color", style.get("segment_color", "#000")))
+    stroke_width_raw = style.get("segment_stroke_width", 1) or 1
+    try:
+        stroke_width = float(stroke_width_raw)
+    except Exception:
+        stroke_width = 1.0
+    stroke = StrokeStyle(color=color, width=stroke_width)
+
+    begin_shape = getattr(primitives, "begin_shape", None)
+    end_shape = getattr(primitives, "end_shape", None)
+    managing_shape = callable(begin_shape) and callable(end_shape)
+    if managing_shape:
+        begin_shape()
+    try:
+        for seg in segments:
+            try:
+                start = coordinate_mapper.math_to_screen(seg.point1.x, seg.point1.y)  # type: ignore[attr-defined]
+                end = coordinate_mapper.math_to_screen(seg.point2.x, seg.point2.y)
+            except Exception:
+                continue
+            if not start or not end:
+                continue
+            primitives.stroke_line(start, end, stroke, include_width=False)
+    finally:
+        if managing_shape:
+            end_shape()
+
+
+def render_rectangle_helper(primitives, rectangle, coordinate_mapper, style):
+    segments = []
+    for attr in ("segment1", "segment2", "segment3", "segment4"):
+        seg = getattr(rectangle, attr, None)
+        if seg is None:
+            return
+        segments.append(seg)
+
+    color = str(getattr(rectangle, "color", style.get("segment_color", "#000")))
+    stroke_width_raw = style.get("segment_stroke_width", 1) or 1
+    try:
+        stroke_width = float(stroke_width_raw)
+    except Exception:
+        stroke_width = 1.0
+    stroke = StrokeStyle(color=color, width=stroke_width)
+
+    begin_shape = getattr(primitives, "begin_shape", None)
+    end_shape = getattr(primitives, "end_shape", None)
+    managing_shape = callable(begin_shape) and callable(end_shape)
+    if managing_shape:
+        begin_shape()
+    try:
+        for seg in segments:
+            try:
+                start = coordinate_mapper.math_to_screen(seg.point1.x, seg.point1.y)  # type: ignore[attr-defined]
+                end = coordinate_mapper.math_to_screen(seg.point2.x, seg.point2.y)
+            except Exception:
+                continue
+            if not start or not end:
+                continue
+            primitives.stroke_line(start, end, stroke, include_width=False)
+    finally:
+        if managing_shape:
+            end_shape()
+
+
+def render_ellipse_helper(primitives, ellipse, coordinate_mapper, style):
+    try:
+        center = coordinate_mapper.math_to_screen(ellipse.center.x, ellipse.center.y)  # type: ignore[attr-defined]
+        radius_x = coordinate_mapper.scale_value(getattr(ellipse, "radius_x", None))  # type: ignore[attr-defined]
+        radius_y = coordinate_mapper.scale_value(getattr(ellipse, "radius_y", None))
+    except Exception:
+        return
+    if not center or radius_x is None or radius_y is None:
+        return
+
+    try:
+        rx = float(radius_x)
+    except Exception:
+        rx = None
+    try:
+        ry = float(radius_y)
+    except Exception:
+        ry = None
+    if rx is None or ry is None or rx <= 0 or ry <= 0:
+        return
+
+    color = str(getattr(ellipse, "color", style.get("ellipse_color", "#000")))
+    stroke_width_raw = style.get("ellipse_stroke_width", 1) or 1
+    try:
+        stroke_width = float(stroke_width_raw)
+    except Exception:
+        stroke_width = 1.0
+    stroke = StrokeStyle(color=color, width=stroke_width)
+
+    rotation_deg = getattr(ellipse, "rotation_angle", 0) or 0
+    try:
+        rotation_rad = -math.radians(float(rotation_deg))
+    except Exception:
+        rotation_rad = 0.0
+
+    begin_shape = getattr(primitives, "begin_shape", None)
+    end_shape = getattr(primitives, "end_shape", None)
+    managing_shape = callable(begin_shape) and callable(end_shape)
+    if managing_shape:
+        begin_shape()
+    try:
+        primitives.stroke_ellipse(center, rx, ry, rotation_rad, stroke)
     finally:
         if managing_shape:
             end_shape()
@@ -385,9 +513,23 @@ def render_colored_area_helper(primitives, closed_area, coordinate_mapper, style
     reverse = _filter_valid_points(reverse)
     if len(forward) < 2 or len(reverse) < 1:
         return
+    raw_color = getattr(closed_area, "color", None)
+    if not raw_color:
+        raw_color = style.get("area_fill_color", "lightblue")
+    raw_opacity = getattr(closed_area, "opacity", None)
+    if raw_opacity is None:
+        raw_opacity = style.get("area_opacity", 0.3)
+    try:
+        opacity = float(raw_opacity)
+    except Exception:
+        opacity = 0.3
+    if not math.isfinite(opacity):
+        opacity = 0.3
+    else:
+        opacity = max(0.0, min(opacity, 1.0))
     fill = FillStyle(
-        color=str(style.get("area_fill_color", "lightblue")),
-        opacity=float(style.get("area_opacity", 0.3)),
+        color=str(raw_color),
+        opacity=opacity,
     )
     begin_shape = getattr(primitives, "begin_shape", None)
     end_shape = getattr(primitives, "end_shape", None)

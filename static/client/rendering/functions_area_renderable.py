@@ -122,6 +122,12 @@ class FunctionsBoundedAreaRenderable:
         fwd, rev = self._generate_pair_paths_screen(self.area.func1, self.area.func2, left, right, n)
         if not fwd or not rev:
             return None
-        return ClosedArea(fwd, rev, is_screen=True)
+        return ClosedArea(
+            fwd,
+            rev,
+            is_screen=True,
+            color=getattr(self.area, "color", None),
+            opacity=getattr(self.area, "opacity", None),
+        )
 
 

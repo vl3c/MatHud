@@ -48,7 +48,13 @@ class SegmentsBoundedAreaRenderable:
             xaxis_screen_at_p2: float = self.mapper.math_to_screen(self.mapper.screen_to_math(p2[0], p2[1])[0], 0)[1]
             xaxis_screen_at_p1: float = self.mapper.math_to_screen(self.mapper.screen_to_math(p1[0], p1[1])[0], 0)[1]
             reverse_points: List[Tuple[float, float]] = [(p2[0], xaxis_screen_at_p2), (p1[0], xaxis_screen_at_p1)]
-            return ClosedArea([(p1[0], p1[1]), (p2[0], p2[1])], reverse_points, is_screen=True)
+            return ClosedArea(
+                [(p1[0], p1[1]), (p2[0], p2[1])],
+                reverse_points,
+                is_screen=True,
+                color=getattr(self.area, "color", None),
+                opacity=getattr(self.area, "opacity", None),
+            )
 
         x11: Optional[float]
         x12: Optional[float]
@@ -78,6 +84,12 @@ class SegmentsBoundedAreaRenderable:
         assert y1_start is not None and y1_end is not None and y2_start is not None and y2_end is not None
         points: List[Tuple[float, float]] = [(overlap_min, y1_start), (overlap_max, y1_end)]
         reverse_points_seg: List[Tuple[float, float]] = [(overlap_max, y2_end), (overlap_min, y2_start)]
-        return ClosedArea(points, reverse_points_seg, is_screen=True)
+        return ClosedArea(
+            points,
+            reverse_points_seg,
+            is_screen=True,
+            color=getattr(self.area, "color", None),
+            opacity=getattr(self.area, "opacity", None),
+        )
 
 

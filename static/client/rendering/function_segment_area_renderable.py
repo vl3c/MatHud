@@ -73,6 +73,12 @@ class FunctionSegmentAreaRenderable:
         reverse_points: Optional[List[Tuple[float, float]]] = self._segment_reverse_points_math()
         if not forward or not reverse_points:
             return None
-        return ClosedArea(forward, reverse_points, is_screen=True)
+        return ClosedArea(
+            forward,
+            reverse_points,
+            is_screen=True,
+            color=getattr(self.area, "color", None),
+            opacity=getattr(self.area, "opacity", None),
+        )
 
 
