@@ -64,7 +64,14 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
         fill: FillStyle,
         stroke: Optional[StrokeStyle] = None,
     ) -> None:
-        raise NotImplementedError
+        if len(points) < 2:
+            return
+        color_source = stroke.color if stroke else fill.color
+        color = self.renderer._parse_color(color_source)
+        path = list(points)
+        if path[0] != path[-1]:
+            path = path + [path[0]]
+        self.renderer._draw_line_strip(path, color)
 
     def fill_joined_area(
         self,
@@ -72,7 +79,13 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
         reverse: List[Point2D],
         fill: FillStyle,
     ) -> None:
-        raise NotImplementedError
+        if len(forward) < 2 or not reverse:
+            return
+        outline = list(forward) + list(reverse)
+        if outline[0] != outline[-1]:
+            outline.append(outline[0])
+        color = self.renderer._parse_color(fill.color)
+        self.renderer._draw_line_strip(outline, color)
 
     def stroke_arc(
         self,

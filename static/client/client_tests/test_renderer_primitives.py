@@ -19,7 +19,12 @@ from rendering.canvas2d_renderer import Canvas2DRenderer
 from rendering.svg_renderer import SvgRenderer
 from rendering.svg_primitive_adapter import SvgPrimitiveAdapter
 from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
-from rendering.shared_drawable_renderers import RendererPrimitives
+from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
+from rendering.shared_drawable_renderers import (
+    RendererPrimitives,
+    FillStyle,
+    render_vector_helper,
+)
 from .simple_mock import SimpleMock
 
 
@@ -316,6 +321,29 @@ class RecordingPrimitives(RendererPrimitives):
         raise AssertionError("Unexpected resize_surface call")
 
 
+class MockWebGLRenderer:
+    def __init__(self) -> None:
+        self.log: List[Tuple[str, Any]] = []
+
+    def _draw_lines(self, points: Sequence[Point2D], color: Any) -> None:
+        self.log.append(("lines", list(points), color))
+
+    def _draw_line_strip(self, points: Sequence[Point2D], color: Any) -> None:
+        self.log.append(("line_strip", list(points), color))
+
+    def _draw_points(self, points: Sequence[Point2D], color: Any, size: float) -> None:
+        self.log.append(("points", list(points), color, size))
+
+    def _parse_color(self, color: str) -> str:
+        return color
+
+    def clear(self) -> None:
+        self.log.append(("clear",))
+
+    def _resize_viewport(self) -> None:
+        self.log.append(("resize",))
+
+
 # ---------------------------------------------------------------------------
 # Test cases
 # ---------------------------------------------------------------------------
@@ -453,3 +481,37 @@ class TestRendererPrimitives(unittest.TestCase):
         text_calls = [call for call in recorder.calls if call[0] == "draw_text"]
         self.assertTrue(any(call[1] == "O" for call in text_calls))
         self.assertTrue(any(call[1] != "O" for call in text_calls))
+
+    def test_webgl_fill_polygon_and_joined_area_do_not_raise(self) -> None:
+        mock_renderer = MockWebGLRenderer()
+        adapter = WebGLPrimitiveAdapter(mock_renderer)
+        triangle = [(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]
+        adapter.fill_polygon(triangle, FillStyle("orange"))
+        forward = [(0.0, 0.0), (1.0, 0.0)]
+        reverse = [(1.0, 1.0), (0.0, 1.0)]
+        adapter.fill_joined_area(forward, reverse, FillStyle("purple"))
+
+        line_strip_calls = [entry for entry in mock_renderer.log if entry[0] == "line_strip"]
+        self.assertGreaterEqual(len(line_strip_calls), 2)
+        first_path = line_strip_calls[0][1]
+        self.assertEqual(first_path[0], first_path[-1], "fill_polygon should close the path")
+        second_path = line_strip_calls[1][1]
+        self.assertEqual(second_path[0], second_path[-1], "fill_joined_area should produce a closed outline")
+
+    def test_webgl_vector_helper_uses_polygon_fallback(self) -> None:
+        mock_renderer = MockWebGLRenderer()
+        adapter = WebGLPrimitiveAdapter(mock_renderer)
+        style = {
+            "segment_stroke_width": 1,
+            "vector_tip_size": 8,
+            "point_radius": 2,
+            "vector_color": "teal",
+        }
+
+        render_vector_helper(adapter, self.vector_ab, self.mapper, style)
+
+        line_ops = [entry for entry in mock_renderer.log if entry[0] == "lines"]
+        self.assertTrue(line_ops, "vector helper should draw the segment body")
+        tip_calls = [entry for entry in mock_renderer.log if entry[0] == "line_strip"]
+        self.assertTrue(tip_calls, "vector helper should approximate arrowhead with line strip fallback")
+

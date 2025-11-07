@@ -62,7 +62,7 @@ Each renderer exposes implementations of the primitives mapped to its drawing AP
 
 - **SVG**: `svg.line`, `svg.path`, `svg.circle`, `svg.ellipse`, `svg.polygon`, `svg.text`
 - **Canvas2D**: `ctx.beginPath`, `ctx.moveTo/lineTo`, `ctx.arc`, `ctx.fillText`
-- **WebGL (stub)**: translate polylines to buffers; more limited until expanded
+- **WebGL**: polyline sampling translated to `_draw_line_strip`/`_draw_lines`; filled shapes fall back to outlined line strips and text remains a no-op pending shader support
 
 By funnelling all drawable logic through these primitives, helper functions can generate consistent geometry while renderers focus on execution details and style integration.
 
