@@ -30,6 +30,10 @@ from rendering.shared_drawable_renderers import (
     render_ellipse_helper,
     render_cartesian_helper,
 )
+from rendering.optimized_drawable_renderers import (
+    build_plan_for_cartesian,
+    build_plan_for_drawable,
+)
 
 
 class SvgRenderer(RendererProtocol):
@@ -48,6 +52,7 @@ class SvgRenderer(RendererProtocol):
         # Example shape registrations will be added in later steps
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self._shared_primitives: SvgPrimitiveAdapter = SvgPrimitiveAdapter("math-svg")
+        self._render_mode: str = "legacy"
 
     def register_default_drawables(self) -> None:
         self._register_shape("drawables.point", "Point", self._render_point)
@@ -94,6 +99,22 @@ class SvgRenderer(RendererProtocol):
             # In non-browser environments, silently ignore
             pass
 
+    def set_render_mode(self, mode: str) -> None:
+        normalized = str(mode).strip().lower()
+        if normalized == "optimized":
+            self._render_mode = "optimized"
+        else:
+            self._render_mode = "legacy"
+
+    def get_render_mode(self) -> str:
+        return self._render_mode
+
+    def begin_frame(self) -> None:
+        self._shared_primitives.begin_frame()
+
+    def end_frame(self) -> None:
+        self._shared_primitives.end_frame()
+
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
         handler: Optional[Callable[[Any, Any], None]] = self._handlers_by_type.get(type(drawable))
         if handler is None:
@@ -106,66 +127,70 @@ class SvgRenderer(RendererProtocol):
         self.register(point_cls, self._render_point)
 
     def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
-        render_point_helper(self._shared_primitives, point, coordinate_mapper, self.style)
+        self._render_with_mode(point, coordinate_mapper, render_point_helper)
 
     # ----------------------- Segment -----------------------
     def register_segment(self, segment_cls: type) -> None:
         self.register(segment_cls, self._render_segment)
 
     def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
-        render_segment_helper(self._shared_primitives, segment, coordinate_mapper, self.style)
+        self._render_with_mode(segment, coordinate_mapper, render_segment_helper)
 
     # ----------------------- Circle -----------------------
     def register_circle(self, circle_cls: type) -> None:
         self.register(circle_cls, self._render_circle)
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
-        render_circle_helper(self._shared_primitives, circle, coordinate_mapper, self.style)
+        self._render_with_mode(circle, coordinate_mapper, render_circle_helper)
 
     # ----------------------- Ellipse -----------------------
     def register_ellipse(self, ellipse_cls: type) -> None:
         self.register(ellipse_cls, self._render_ellipse)
 
     def _render_ellipse(self, ellipse: Any, coordinate_mapper: Any) -> None:
-        render_ellipse_helper(self._shared_primitives, ellipse, coordinate_mapper, self.style)
+        self._render_with_mode(ellipse, coordinate_mapper, render_ellipse_helper)
 
     # ----------------------- Vector -----------------------
     def register_vector(self, vector_cls: type) -> None:
         self.register(vector_cls, self._render_vector)
 
     def _render_vector(self, vector: Any, coordinate_mapper: Any) -> None:
-        render_vector_helper(self._shared_primitives, vector, coordinate_mapper, self.style)
+        self._render_with_mode(vector, coordinate_mapper, render_vector_helper)
 
     # ----------------------- Angle -----------------------
     def register_angle(self, angle_cls: type) -> None:
         self.register(angle_cls, self._render_angle)
 
     def _render_angle(self, angle: Any, coordinate_mapper: Any) -> None:
-        render_angle_helper(self._shared_primitives, angle, coordinate_mapper, self.style)
+        self._render_with_mode(angle, coordinate_mapper, render_angle_helper)
 
     # ----------------------- Triangle -----------------------
     def register_triangle(self, triangle_cls: type) -> None:
         self.register(triangle_cls, self._render_triangle)
 
     def _render_triangle(self, triangle: Any, coordinate_mapper: Any) -> None:
-        render_triangle_helper(self._shared_primitives, triangle, coordinate_mapper, self.style)
+        self._render_with_mode(triangle, coordinate_mapper, render_triangle_helper)
 
     # ----------------------- Rectangle -----------------------
     def register_rectangle(self, rectangle_cls: type) -> None:
         self.register(rectangle_cls, self._render_rectangle)
 
     def _render_rectangle(self, rectangle: Any, coordinate_mapper: Any) -> None:
-        render_rectangle_helper(self._shared_primitives, rectangle, coordinate_mapper, self.style)
+        self._render_with_mode(rectangle, coordinate_mapper, render_rectangle_helper)
 
     # ----------------------- Function -----------------------
     def register_function(self, function_cls: type) -> None:
         self.register(function_cls, self._render_function)
 
     def _render_function(self, func: Any, coordinate_mapper: Any) -> None:
-        render_function_helper(self._shared_primitives, func, coordinate_mapper, self.style)
+        self._render_with_mode(func, coordinate_mapper, render_function_helper)
 
     # ----------------------- Cartesian Grid -----------------------
     def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
+        if self._render_mode == "optimized":
+            plan = build_plan_for_cartesian(cartesian, coordinate_mapper, self.style)
+            plan.apply(self._shared_primitives)
+            return
         render_cartesian_helper(self._shared_primitives, cartesian, coordinate_mapper, self.style)
 
     # ----------------------- Colored Areas: FunctionsBoundedColoredArea -----------------------
@@ -173,20 +198,28 @@ class SvgRenderer(RendererProtocol):
         self.register(cls, self._render_functions_bounded_colored_area)
 
     def _render_functions_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        render_functions_bounded_area_helper(self._shared_primitives, area, coordinate_mapper, self.style)
+        self._render_with_mode(area, coordinate_mapper, render_functions_bounded_area_helper)
 
     # ----------------------- Colored Areas: FunctionSegmentBoundedColoredArea -----------------
     def register_function_segment_bounded_colored_area(self, cls: type) -> None:
         self.register(cls, self._render_function_segment_bounded_colored_area)
 
     def _render_function_segment_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        render_function_segment_area_helper(self._shared_primitives, area, coordinate_mapper, self.style)
+        self._render_with_mode(area, coordinate_mapper, render_function_segment_area_helper)
 
     # ----------------------- Colored Areas: SegmentsBoundedColoredArea -----------------------
     def register_segments_bounded_colored_area(self, cls: type) -> None:
         self.register(cls, self._render_segments_bounded_colored_area)
 
     def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        render_segments_bounded_area_helper(self._shared_primitives, area, coordinate_mapper, self.style)
+        self._render_with_mode(area, coordinate_mapper, render_segments_bounded_area_helper)
+
+    def _render_with_mode(self, drawable: Any, coordinate_mapper: Any, legacy_callable: Callable[[Any, Any, Any], None]) -> None:
+        if self._render_mode == "optimized":
+            plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style)
+            if plan is not None:
+                plan.apply(self._shared_primitives)
+                return
+        legacy_callable(self._shared_primitives, drawable, coordinate_mapper, self.style)
 
 

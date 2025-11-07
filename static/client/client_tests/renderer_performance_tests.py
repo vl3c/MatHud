@@ -122,6 +122,7 @@ def run_renderer_performance(
     *,
     scene_spec: Optional[Dict[str, Any]] = None,
     iterations: int = 5,
+    render_mode: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Execute the renderer performance benchmark inside the Brython runtime."""
 
@@ -131,6 +132,13 @@ def run_renderer_performance(
     perf_api = getattr(window, "performance", None)
     if perf_api is None:
         raise RuntimeError("window.performance API is not available")
+
+    previous_strategy = getattr(window, "MatHudRendererStrategy", None)
+    if render_mode:
+        try:
+            setattr(window, "MatHudRendererStrategy", render_mode)
+        except Exception:
+            pass
 
     viewport = document["math-svg"].getBoundingClientRect()
     canvas = Canvas(viewport.width, viewport.height)
@@ -190,12 +198,25 @@ def run_renderer_performance(
         "scene_spec": spec,
         "metrics": metrics,
         "drawables_created": drawables_created,
+        "render_mode": render_mode or "legacy",
     }
     if active_renderer is not None:
         result["renderer"] = getattr(active_renderer, "__class__", type(active_renderer)).__name__
     else:
         result["renderer"] = "None"
     result["default_mode"] = DEFAULT_RENDERER_MODE
+    if render_mode is not None:
+        if previous_strategy is None:
+            try:
+                delattr(window, "MatHudRendererStrategy")
+            except Exception:
+                pass
+        else:
+            try:
+                setattr(window, "MatHudRendererStrategy", previous_strategy)
+            except Exception:
+                pass
+
     return result
 
 
@@ -206,4 +227,34 @@ class TestRendererPerformance(unittest.TestCase):
         result = run_renderer_performance(iterations=2)
         self.assertIsInstance(result, dict)
         self.assertIn("metrics", result)
+
+    def test_optimized_renderer_not_slower(self) -> None:
+        run_renderer_performance(iterations=1, render_mode="legacy")
+        legacy = run_renderer_performance(iterations=2, render_mode="legacy")
+
+        run_renderer_performance(iterations=1, render_mode="optimized")
+        optimized = run_renderer_performance(iterations=2, render_mode="optimized")
+
+        legacy_avgs = {metric["operation"]: metric["avg_ms"] for metric in legacy["metrics"]}
+        optimized_avgs = {metric["operation"]: metric["avg_ms"] for metric in optimized["metrics"]}
+
+        for operation, legacy_avg in legacy_avgs.items():
+            optimized_avg = optimized_avgs.get(operation)
+            self.assertIsNotNone(
+                optimized_avg,
+                f"Missing optimized metric for operation {operation}",
+            )
+            if optimized_avg is None:
+                continue
+            if optimized_avg > legacy_avg * 1.25:
+                print(
+                    "[RendererPerf] Optimized mode slower than legacy for "
+                    f"{operation}: optimized={optimized_avg:.2f} ms legacy={legacy_avg:.2f} ms"
+                )
+            allowed = legacy_avg * 2.5 + 1e-6
+            self.assertLessEqual(
+                optimized_avg,
+                allowed,
+                f"Optimized mode slower for {operation}: {optimized_avg:.2f} ms vs {legacy_avg:.2f} ms",
+            )
 

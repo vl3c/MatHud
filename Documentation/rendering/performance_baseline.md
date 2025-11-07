@@ -68,3 +68,57 @@ Renderer: Canvas2DRenderer
 
 The refactor routed drawable rendering directly through Canvas2D algorithms without the intermediate primitive batching the legacy helpers used. Every shape now triggers full context save or style recomputation on each draw, which retained visual output but caused a significant slowdown compared with the earlier primitive-mediated path.
 
+-----------------------------------------------------------------------------------------------------
+
+## Canvas2DRenderer (dual-mode benchmark)
+
+Date: 2025-11-07  
+Renderer: Canvas2DRenderer – legacy vs optimized strategy (run via `TestRendererPerformance.test_optimized_renderer_not_slower`)
+
+- Scene: same as SVG baseline
+- Iterations: warm-up 1, measured 2 draws/pans/zooms
+- DOM nodes (post-render): 0
+
+### Legacy Strategy
+
+| Operation | Avg ms | Iterations |
+|-----------|--------|------------|
+| draw      | 118.00 | 2          |
+| pan       | 117.25 | 4          |
+| zoom      | 122.50 | 4          |
+
+### Optimized Strategy
+
+| Operation | Avg ms | Iterations |
+|-----------|--------|------------|
+| draw      | 213.00 | 2          |
+| pan       | 213.75 | 4          |
+| zoom      | 238.25 | 4          |
+
+> Note: optimized SVG plans are still under active development; these numbers show the current gap and provide a baseline for continued tuning.
+
+-----------------------------------------------------------------------------------------------------
+
+## SVG vs SVG (2025-11-07 – default switched back to SVG)
+
+- Harness default renderer: SVG (legacy strategy)
+- Scene and iteration settings as above
+
+### SVG (Legacy Strategy)
+
+| Operation | Avg ms | Iterations |
+|-----------|--------|------------|
+| draw      | 144.00 | 2          |
+| pan       | 147.50 | 4          |
+| zoom      | 149.50 | 4          |
+
+### SVG (Optimized Strategy)
+
+| Operation | Avg ms | Iterations |
+|-----------|--------|------------|
+| draw      | 250.50 | 2          |
+| pan       | 247.00 | 4          |
+| zoom      | 251.00 | 4          |
+
+DOM node counts remained at 362 in both cases. These measurements capture the current delta between the legacy and optimized SVG paths after restoring SVG as the default renderer, and provide a baseline for tuning the optimized plan path further.
+

@@ -35,4 +35,16 @@ class RendererProtocol(Protocol):
     def register_default_drawables(self) -> None:
         ...
 
+    def set_render_mode(self, mode: str) -> None:
+        ...
+
+    def get_render_mode(self) -> str:
+        ...
+
+    def begin_frame(self) -> None:
+        ...
+
+    def end_frame(self) -> None:
+        ...
+
 

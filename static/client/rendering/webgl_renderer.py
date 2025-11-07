@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Sequence, Tuple
 
 from browser import document, html, window, console
 
@@ -12,6 +12,10 @@ from rendering.shared_drawable_renderers import (
     render_segment_helper,
     render_circle_helper,
     render_cartesian_helper,
+)
+from rendering.optimized_drawable_renderers import (
+    build_plan_for_cartesian,
+    build_plan_for_drawable,
 )
 
 
@@ -41,6 +45,7 @@ class WebGLRenderer(RendererProtocol):
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self.register_default_drawables()
         self._shared_primitives: WebGLPrimitiveAdapter = WebGLPrimitiveAdapter(self)
+        self._render_mode: str = "legacy"
 
     def clear(self) -> None:
         self._resize_viewport()
@@ -58,6 +63,10 @@ class WebGLRenderer(RendererProtocol):
         height = self.canvas_el.height
         cartesian.width = width
         cartesian.height = height
+        if self._render_mode == "optimized":
+            plan = build_plan_for_cartesian(cartesian, coordinate_mapper, self.style)
+            plan.apply(self._shared_primitives)
+            return
         render_cartesian_helper(self._shared_primitives, cartesian, coordinate_mapper, self.style)
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
@@ -80,17 +89,41 @@ class WebGLRenderer(RendererProtocol):
         except Exception:
             pass
 
+    def set_render_mode(self, mode: str) -> None:
+        normalized = str(mode).strip().lower()
+        if normalized == "optimized":
+            self._render_mode = "optimized"
+        else:
+            self._render_mode = "legacy"
+
+    def get_render_mode(self) -> str:
+        return self._render_mode
+
+    def begin_frame(self) -> None:
+        self._shared_primitives.begin_frame()
+
+    def end_frame(self) -> None:
+        self._shared_primitives.end_frame()
+
     # ------------------------------------------------------------------
     # Handlers
 
     def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
-        render_point_helper(self._shared_primitives, point, coordinate_mapper, self.style)
+        self._render_with_mode(point, coordinate_mapper, render_point_helper)
 
     def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
-        render_segment_helper(self._shared_primitives, segment, coordinate_mapper, self.style)
+        self._render_with_mode(segment, coordinate_mapper, render_segment_helper)
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
-        render_circle_helper(self._shared_primitives, circle, coordinate_mapper, self.style)
+        self._render_with_mode(circle, coordinate_mapper, render_circle_helper)
+
+    def _render_with_mode(self, drawable: Any, coordinate_mapper: Any, legacy_callable: Callable[[Any, Any, Any], None]) -> None:
+        if self._render_mode == "optimized":
+            plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style)
+            if plan is not None:
+                plan.apply(self._shared_primitives)
+                return
+        legacy_callable(self._shared_primitives, drawable, coordinate_mapper, self.style)
 
     # ------------------------------------------------------------------
     # Drawing helpers

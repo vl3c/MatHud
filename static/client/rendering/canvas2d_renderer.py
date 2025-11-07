@@ -19,6 +19,10 @@ from rendering.shared_drawable_renderers import (
     render_segments_bounded_area_helper,
     render_cartesian_helper,
 )
+from rendering.optimized_drawable_renderers import (
+    build_plan_for_cartesian,
+    build_plan_for_drawable,
+)
 
 
 class Canvas2DRenderer(RendererProtocol):
@@ -33,6 +37,7 @@ class Canvas2DRenderer(RendererProtocol):
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self.register_default_drawables()
         self._shared_primitives: Canvas2DPrimitiveAdapter = Canvas2DPrimitiveAdapter(self.canvas_el)
+        self._render_mode: str = "legacy"
 
     def clear(self) -> None:
         width = self.canvas_el.width
@@ -52,7 +57,27 @@ class Canvas2DRenderer(RendererProtocol):
         height = self.canvas_el.height
         cartesian.width = width
         cartesian.height = height
+        if self._render_mode == "optimized":
+            plan = build_plan_for_cartesian(cartesian, coordinate_mapper, self.style)
+            plan.apply(self._shared_primitives)
+            return
         render_cartesian_helper(self._shared_primitives, cartesian, coordinate_mapper, self.style)
+
+    def set_render_mode(self, mode: str) -> None:
+        normalized = str(mode).strip().lower()
+        if normalized == "optimized":
+            self._render_mode = "optimized"
+        else:
+            self._render_mode = "legacy"
+
+    def get_render_mode(self) -> str:
+        return self._render_mode
+
+    def begin_frame(self) -> None:
+        self._shared_primitives.begin_frame()
+
+    def end_frame(self) -> None:
+        self._shared_primitives.end_frame()
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
         self._handlers_by_type[cls] = handler
@@ -108,31 +133,31 @@ class Canvas2DRenderer(RendererProtocol):
     # Handlers
 
     def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
-        render_point_helper(self._shared_primitives, point, coordinate_mapper, self.style)
+        self._render_with_mode(point, coordinate_mapper, render_point_helper)
 
     def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
-        render_segment_helper(self._shared_primitives, segment, coordinate_mapper, self.style)
+        self._render_with_mode(segment, coordinate_mapper, render_segment_helper)
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
-        render_circle_helper(self._shared_primitives, circle, coordinate_mapper, self.style)
+        self._render_with_mode(circle, coordinate_mapper, render_circle_helper)
 
     def _render_vector(self, vector: Any, coordinate_mapper: Any) -> None:
-        render_vector_helper(self._shared_primitives, vector, coordinate_mapper, self.style)
+        self._render_with_mode(vector, coordinate_mapper, render_vector_helper)
 
     def _render_angle(self, angle: Any, coordinate_mapper: Any) -> None:
-        render_angle_helper(self._shared_primitives, angle, coordinate_mapper, self.style)
+        self._render_with_mode(angle, coordinate_mapper, render_angle_helper)
 
     def _render_function(self, func: Any, coordinate_mapper: Any) -> None:
-        render_function_helper(self._shared_primitives, func, coordinate_mapper, self.style)
+        self._render_with_mode(func, coordinate_mapper, render_function_helper)
 
     def _render_functions_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        render_functions_bounded_area_helper(self._shared_primitives, area, coordinate_mapper, self.style)
+        self._render_with_mode(area, coordinate_mapper, render_functions_bounded_area_helper)
 
     def _render_function_segment_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        render_function_segment_area_helper(self._shared_primitives, area, coordinate_mapper, self.style)
+        self._render_with_mode(area, coordinate_mapper, render_function_segment_area_helper)
 
     def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        render_segments_bounded_area_helper(self._shared_primitives, area, coordinate_mapper, self.style)
+        self._render_with_mode(area, coordinate_mapper, render_segments_bounded_area_helper)
 
     def _ensure_canvas(self, canvas_id: str):
         canvas_el = document.getElementById(canvas_id)
@@ -176,5 +201,13 @@ class Canvas2DRenderer(RendererProtocol):
             self.canvas_el.attrs["height"] = str(pixel_height)
         self.canvas_el.style.width = f"{int(self.canvas_el.width)}px"
         self.canvas_el.style.height = f"{int(self.canvas_el.height)}px"
+
+    def _render_with_mode(self, drawable: Any, coordinate_mapper: Any, legacy_callable: Callable[[Any, Any, Any], None]) -> None:
+        if self._render_mode == "optimized":
+            plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style)
+            if plan is not None:
+                plan.apply(self._shared_primitives)
+                return
+        legacy_callable(self._shared_primitives, drawable, coordinate_mapper, self.style)
 
 

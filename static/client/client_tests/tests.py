@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+import traceback
 from typing import Any, Dict, List, Tuple, Type, cast
 
 from .test_canvas import TestCanvas
@@ -34,6 +35,7 @@ from .test_angle_manager import TestAngleManager
 from .test_markdown_parser import TestMarkdownParser
 from .test_function_bounded_colored_area_integration import TestFunctionBoundedColoredAreaIntegration
 from .renderer_performance_tests import TestRendererPerformance
+from .test_optimized_renderers import TestOptimizedRendererParity
 from .test_renderer_primitives import TestRendererPrimitives
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
@@ -44,18 +46,24 @@ class Tests:
 
     @classmethod
     def run_tests(cls) -> Dict[str, Any]:
+        print("[ClientTests] run_tests invoked.")
         test_runner = cls()
         try:
             suite = test_runner._create_test_suite()
+            print("[ClientTests] Test suite created.")
             result = test_runner._run_test_suite(suite)
+            print("[ClientTests] Test suite execution finished.")
             return test_runner._format_results_for_ai(result)
         except Exception as exc:  # pragma: no cover - defensive path
+            print(f"[ClientTests] Exception during run_tests: {repr(exc)}")
+            traceback.print_exc()
             return test_runner._create_error_result(str(exc))
 
     def _create_test_suite(self) -> unittest.TestSuite:
         suite = unittest.TestSuite()
         loader = unittest.TestLoader()
         test_cases: List[Type[unittest.TestCase]] = [
+            TestOptimizedRendererParity,
             TestRendererPerformance,
             TestRendererPrimitives,
             TestMathFunctions,
@@ -91,6 +99,7 @@ class Tests:
         ]
 
         for test_case in test_cases:
+            print(f"[ClientTests] Loading tests for {test_case.__name__}.")
             suite.addTest(loader.loadTestsFromTestCase(test_case))
 
         return suite
@@ -103,7 +112,9 @@ class Tests:
             resultclass=AITestResult,
             verbosity=2,
         )
+        print("[ClientTests] Beginning unittest runner.")
         result = cast(AITestResult, runner.run(suite))
+        print("[ClientTests] Unittest runner completed.")
         print("===============================================================\n")
         return result
 

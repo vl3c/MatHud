@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from browser import document, svg
 
@@ -20,10 +20,295 @@ class SvgPrimitiveAdapter(RendererPrimitives):
 
     def __init__(self, surface_id: str = "math-svg") -> None:
         self.surface_id = surface_id
+        self._pool: Dict[str, List[Any]] = {}
+        self._active_indices: Dict[str, int] = {}
+        self._batch_stack: List[str] = []
 
     @property
     def _surface(self) -> Any:
         return document[self.surface_id]
+
+    def begin_frame(self) -> None:
+        for key in self._pool:
+            self._active_indices[key] = 0
+
+    def end_frame(self) -> None:
+        for key, pool in self._pool.items():
+            active = self._active_indices.get(key, 0)
+            for idx in range(active, len(pool)):
+                try:
+                    pool[idx].style["display"] = "none"
+                except Exception:
+                    pass
+
+    def begin_batch(self, plan: Any = None) -> None:
+        key = getattr(plan, "plan_key", "")
+        self._batch_stack.append(str(key))
+
+    def end_batch(self, plan: Any = None) -> None:
+        if self._batch_stack:
+            self._batch_stack.pop()
+
+    def execute_optimized(self, command: Any) -> None:
+        handler_name = f"_optimized_{getattr(command, 'op', '')}"
+        handler = getattr(self, handler_name, None)
+        if callable(handler):
+            handler(command)
+            return
+        super().execute_optimized(command)
+
+    def _acquire_element(self, kind: str, factory: Callable[[], Any]) -> Tuple[Any, Dict[str, Any]]:
+        pool = self._pool.setdefault(kind, [])
+        index = self._active_indices.get(kind, 0)
+        if index < len(pool):
+            elem = pool[index]
+        else:
+            elem = factory()
+            pool.append(elem)
+            self._surface <= elem
+        self._active_indices[kind] = index + 1
+        try:
+            elem.style["display"] = ""
+        except Exception:
+            pass
+        cache = getattr(elem, "_mathud_cache", None)
+        if cache is None:
+            cache = {}
+            setattr(elem, "_mathud_cache", cache)
+        return elem, cache
+
+    def _set_attribute(self, elem: Any, cache: Dict[str, Any], name: str, value: Optional[str]) -> None:
+        attrs = cache.setdefault("attrs", {})
+        if attrs.get(name) == value:
+            return
+        if value is None:
+            attrs.pop(name, None)
+            try:
+                del elem.attrs[name]
+            except Exception:
+                try:
+                    elem.removeAttribute(name)
+                except Exception:
+                    pass
+            return
+        elem.setAttribute(name, value)
+        attrs[name] = value
+
+    def _format_number(self, value: Any) -> str:
+        try:
+            num = float(value)
+        except Exception:
+            return str(value)
+        if math.isfinite(num) and num.is_integer():
+            return str(int(num))
+        return str(num)
+
+    def _ensure_stroke_attrs(self, elem: Any, cache: Dict[str, Any], stroke: StrokeStyle, *, include_width: bool = True) -> None:
+        stroke_cache = cache.setdefault("stroke", {})
+        if stroke_cache.get("color") != stroke.color:
+            self._set_attribute(elem, cache, "stroke", stroke.color)
+            stroke_cache["color"] = stroke.color
+        if include_width:
+            width_value = self._format_number(stroke.width)
+            if stroke_cache.get("width") != width_value:
+                self._set_attribute(elem, cache, "stroke-width", width_value)
+                stroke_cache["width"] = width_value
+        if stroke.line_join != stroke_cache.get("line_join"):
+            if stroke.line_join:
+                self._set_attribute(elem, cache, "stroke-linejoin", stroke.line_join)
+            else:
+                self._set_attribute(elem, cache, "stroke-linejoin", None)
+            stroke_cache["line_join"] = stroke.line_join
+        if stroke.line_cap != stroke_cache.get("line_cap"):
+            if stroke.line_cap:
+                self._set_attribute(elem, cache, "stroke-linecap", stroke.line_cap)
+            else:
+                self._set_attribute(elem, cache, "stroke-linecap", None)
+            stroke_cache["line_cap"] = stroke.line_cap
+
+    def _ensure_fill_attrs(self, elem: Any, cache: Dict[str, Any], fill: FillStyle) -> None:
+        fill_cache = cache.setdefault("fill", {})
+        if fill_cache.get("color") != fill.color:
+            self._set_attribute(elem, cache, "fill", fill.color)
+            fill_cache["color"] = fill.color
+        if fill.opacity is None:
+            if fill_cache.get("opacity") is not None:
+                self._set_attribute(elem, cache, "fill-opacity", None)
+                fill_cache["opacity"] = None
+        else:
+            opacity_value = self._format_number(fill.opacity)
+            if fill_cache.get("opacity") != opacity_value:
+                self._set_attribute(elem, cache, "fill-opacity", opacity_value)
+                fill_cache["opacity"] = opacity_value
+
+    def _apply_style_overrides(self, elem: Any, cache: Dict[str, Any], overrides: Optional[Dict[str, Any]]) -> None:
+        style_cache = cache.setdefault("style_overrides", {})
+        keys_to_remove = [key for key in style_cache.keys() if not overrides or key not in overrides]
+        for key in keys_to_remove:
+            try:
+                del elem.style[key]
+            except Exception:
+                pass
+            style_cache.pop(key, None)
+        if not overrides:
+            return
+        for key, value in overrides.items():
+            if style_cache.get(key) != value:
+                elem.style[key] = value
+                style_cache[key] = value
+
+    # ------------------------------------------------------------------
+    # Optimized command handlers
+    # ------------------------------------------------------------------
+
+    def _optimized_stroke_line(self, command: Any) -> None:
+        start, end, stroke = command.args
+        include_width = command.kwargs.get("include_width", True)
+        elem, cache = self._acquire_element("stroke_line", lambda: svg.line())
+        self._ensure_stroke_attrs(elem, cache, stroke, include_width=include_width)
+        self._set_attribute(elem, cache, "fill", "none")
+        self._set_attribute(elem, cache, "x1", self._format_number(start[0]))
+        self._set_attribute(elem, cache, "y1", self._format_number(start[1]))
+        self._set_attribute(elem, cache, "x2", self._format_number(end[0]))
+        self._set_attribute(elem, cache, "y2", self._format_number(end[1]))
+
+    def _optimized_stroke_polyline(self, command: Any) -> None:
+        points, stroke = command.args
+        elem, cache = self._acquire_element("stroke_polyline", lambda: svg.path())
+        segments = [f"{self._format_number(x)} {self._format_number(y)}" for x, y in points]
+        d_value = "M " + " L ".join(segments)
+        self._set_attribute(elem, cache, "d", d_value)
+        self._set_attribute(elem, cache, "fill", "none")
+        self._ensure_stroke_attrs(elem, cache, stroke)
+
+    def _optimized_stroke_circle(self, command: Any) -> None:
+        center, radius, stroke = command.args
+        elem, cache = self._acquire_element("stroke_circle", lambda: svg.circle())
+        self._ensure_stroke_attrs(elem, cache, stroke)
+        self._set_attribute(elem, cache, "cx", self._format_number(center[0]))
+        self._set_attribute(elem, cache, "cy", self._format_number(center[1]))
+        self._set_attribute(elem, cache, "r", self._format_number(radius))
+        self._set_attribute(elem, cache, "fill", "none")
+
+    def _optimized_fill_circle(self, command: Any) -> None:
+        center, radius, fill, stroke = command.args
+        elem, cache = self._acquire_element("fill_circle", lambda: svg.circle())
+        self._set_attribute(elem, cache, "cx", self._format_number(center[0]))
+        self._set_attribute(elem, cache, "cy", self._format_number(center[1]))
+        self._set_attribute(elem, cache, "r", self._format_number(radius))
+        self._ensure_fill_attrs(elem, cache, fill)
+        if stroke:
+            self._ensure_stroke_attrs(elem, cache, stroke)
+
+    def _optimized_stroke_ellipse(self, command: Any) -> None:
+        center, radius_x, radius_y, rotation_rad, stroke = command.args
+        elem, cache = self._acquire_element("stroke_ellipse", lambda: svg.ellipse())
+        self._ensure_stroke_attrs(elem, cache, stroke)
+        self._set_attribute(elem, cache, "cx", self._format_number(center[0]))
+        self._set_attribute(elem, cache, "cy", self._format_number(center[1]))
+        self._set_attribute(elem, cache, "rx", self._format_number(radius_x))
+        self._set_attribute(elem, cache, "ry", self._format_number(radius_y))
+        if rotation_rad % (2 * math.pi) != 0:
+            transform = f"rotate({math.degrees(rotation_rad)} {self._format_number(center[0])} {self._format_number(center[1])})"
+            self._set_attribute(elem, cache, "transform", transform)
+        else:
+            self._set_attribute(elem, cache, "transform", None)
+        self._set_attribute(elem, cache, "fill", "none")
+
+    def _optimized_fill_polygon(self, command: Any) -> None:
+        points, fill, stroke = command.args
+        elem, cache = self._acquire_element("fill_polygon", lambda: svg.polygon())
+        points_str = " ".join(f"{self._format_number(x)},{self._format_number(y)}" for x, y in points)
+        self._set_attribute(elem, cache, "points", points_str)
+        self._ensure_fill_attrs(elem, cache, fill)
+        if stroke:
+            self._ensure_stroke_attrs(elem, cache, stroke)
+
+    def _optimized_fill_joined_area(self, command: Any) -> None:
+        forward, reverse, fill = command.args
+        elem, cache = self._acquire_element("fill_joined_area", lambda: svg.path())
+        d_parts = [f"M {self._format_number(forward[0][0])} {self._format_number(forward[0][1])}"]
+        d_parts.extend(f"L {self._format_number(x)} {self._format_number(y)}" for x, y in forward[1:])
+        d_parts.extend(f"L {self._format_number(x)} {self._format_number(y)}" for x, y in reverse)
+        d_parts.append("Z")
+        self._set_attribute(elem, cache, "d", " ".join(d_parts))
+        self._ensure_fill_attrs(elem, cache, fill)
+        self._set_attribute(elem, cache, "stroke", "none")
+
+    def _optimized_stroke_arc(self, command: Any) -> None:
+        center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke = command.args
+        css_class = command.kwargs.get("css_class")
+        elem, cache = self._acquire_element("stroke_arc", lambda: svg.path())
+        start_x = center[0] + radius * math.cos(start_angle_rad)
+        start_y = center[1] + radius * math.sin(start_angle_rad)
+        end_x = center[0] + radius * math.cos(end_angle_rad)
+        end_y = center[1] + radius * math.sin(end_angle_rad)
+        large_arc_flag = "1" if abs(end_angle_rad - start_angle_rad) > math.pi else "0"
+        sweep_flag = "1" if sweep_clockwise else "0"
+        radius_str = self._format_number(radius)
+        d_value = (
+            f"M {self._format_number(start_x)} {self._format_number(start_y)} "
+            f"A {radius_str} {radius_str} 0 {large_arc_flag} {sweep_flag} "
+            f"{self._format_number(end_x)} {self._format_number(end_y)}"
+        )
+        self._set_attribute(elem, cache, "d", d_value)
+        if css_class:
+            self._set_attribute(elem, cache, "class", css_class)
+        else:
+            self._set_attribute(elem, cache, "class", None)
+        self._set_attribute(elem, cache, "fill", "none")
+        self._ensure_stroke_attrs(elem, cache, stroke)
+
+    def _optimized_draw_text(self, command: Any) -> None:
+        text, position, font, color, alignment = command.args
+        style_overrides = command.kwargs.get("style_overrides")
+        elem, cache = self._acquire_element("draw_text", lambda: svg.text())
+        if cache.get("text") != text:
+            elem.text = text
+            cache["text"] = text
+        self._set_attribute(elem, cache, "x", self._format_number(position[0]))
+        self._set_attribute(elem, cache, "y", self._format_number(position[1]))
+        self._ensure_fill_attrs(elem, cache, FillStyle(color=color))
+        font_cache = cache.setdefault("font", {})
+        font_size_str = self._format_number(font.size)
+        if font_cache.get("size") != font_size_str:
+            elem.setAttribute("font-size", font_size_str)
+            font_cache["size"] = font_size_str
+        if font.weight:
+            if font_cache.get("weight") != font.weight:
+                elem.setAttribute("font-weight", font.weight)
+                font_cache["weight"] = font.weight
+        elif font_cache.get("weight"):
+            self._set_attribute(elem, cache, "font-weight", None)
+            font_cache["weight"] = None
+        horizontal = alignment.horizontal
+        if horizontal == "center":
+            horizontal_anchor = "middle"
+        else:
+            horizontal_anchor = horizontal if horizontal else None
+        style_cache = cache.setdefault("text_style", {})
+        if horizontal_anchor:
+            if style_cache.get("text-anchor") != horizontal_anchor:
+                elem.style["text-anchor"] = horizontal_anchor
+                style_cache["text-anchor"] = horizontal_anchor
+        elif style_cache.get("text-anchor"):
+            try:
+                del elem.style["text-anchor"]
+            except Exception:
+                pass
+            style_cache["text-anchor"] = None
+        vertical = alignment.vertical
+        if vertical and vertical != "alphabetic":
+            if style_cache.get("dominant-baseline") != vertical:
+                elem.style["dominant-baseline"] = vertical
+                style_cache["dominant-baseline"] = vertical
+        elif style_cache.get("dominant-baseline"):
+            try:
+                del elem.style["dominant-baseline"]
+            except Exception:
+                pass
+            style_cache["dominant-baseline"] = None
+        self._apply_style_overrides(elem, cache, style_overrides)
 
     def _stroke_kwargs(self, stroke: StrokeStyle, include_width: bool = True) -> dict[str, str]:
         kwargs: dict[str, str] = {"stroke": stroke.color}

@@ -234,23 +234,37 @@ class Canvas:
         
         # Zoom is view-only now; no model displacement
         
-        # Draw all drawables - coordinate transformations handled by CoordinateMapper
-        for drawable in self.drawable_manager.get_drawables():
-            # Handle special cases for cache invalidation and radius scaling
-            if apply_zoom and hasattr(drawable, '_invalidate_cache_on_zoom'):
-                drawable._invalidate_cache_on_zoom()
-            # During migration, if a renderer is present and knows this type, use it
-            rendered = False
-            if self.renderer is not None:
+        renderer_begin = getattr(self.renderer, "begin_frame", None)
+        renderer_end = getattr(self.renderer, "end_frame", None)
+        if callable(renderer_begin):
+            try:
+                renderer_begin()
+            except Exception:
+                pass
+        try:
+            # Draw all drawables - coordinate transformations handled by CoordinateMapper
+            for drawable in self.drawable_manager.get_drawables():
+                # Handle special cases for cache invalidation and radius scaling
+                if apply_zoom and hasattr(drawable, '_invalidate_cache_on_zoom'):
+                    drawable._invalidate_cache_on_zoom()
+                # During migration, if a renderer is present and knows this type, use it
+                rendered = False
+                if self.renderer is not None:
+                    try:
+                        # Apply simple visibility filtering for performance and to match previous behavior
+                        if self._is_drawable_visible(drawable):
+                            rendered = self.renderer.render(drawable, self.coordinate_mapper)
+                        else:
+                            rendered = True  # Treat as handled (intentionally skipped)
+                    except Exception:
+                        rendered = False
+                # No fallback to drawable.draw(); rendering is exclusively via renderer
+        finally:
+            if callable(renderer_end):
                 try:
-                    # Apply simple visibility filtering for performance and to match previous behavior
-                    if self._is_drawable_visible(drawable):
-                        rendered = self.renderer.render(drawable, self.coordinate_mapper)
-                    else:
-                        rendered = True  # Treat as handled (intentionally skipped)
+                    renderer_end()
                 except Exception:
-                    rendered = False
-            # No fallback to drawable.draw(); rendering is exclusively via renderer
+                    pass
 
     def _is_drawable_visible(self, drawable: "Drawable") -> bool:
         """Best-effort visibility check to avoid rendering off-canvas objects.

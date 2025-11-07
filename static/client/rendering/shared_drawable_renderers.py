@@ -90,6 +90,34 @@ class RendererPrimitives:
     def resize_surface(self, width, height):
         raise NotImplementedError
 
+    # ------------------------------------------------------------------
+    # Optional lifecycle hooks used by optimized rendering paths.
+    # Default implementations are no-ops so legacy adapters do not need
+    # to override them.
+    # ------------------------------------------------------------------
+
+    def begin_frame(self):
+        """Hook invoked at the start of a full canvas render cycle."""
+        return None
+
+    def end_frame(self):
+        """Hook invoked at the end of a full canvas render cycle."""
+        return None
+
+    def begin_batch(self, plan=None):
+        """Hook invoked before executing a batched render plan."""
+        return None
+
+    def end_batch(self, plan=None):
+        """Hook invoked after executing a batched render plan."""
+        return None
+
+    def execute_optimized(self, command):
+        """Fallback execution path for optimized commands."""
+        handler = getattr(self, getattr(command, "op", ""), None)
+        if callable(handler):
+            handler(*getattr(command, "args", ()), **getattr(command, "kwargs", {}))
+
 from rendering.function_renderable import FunctionRenderable
 from rendering.function_segment_area_renderable import FunctionSegmentAreaRenderable
 from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable

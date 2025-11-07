@@ -1,31 +1,31 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, TypeVar
+
+RendererType = TypeVar("RendererType")
+
+
+def _load_renderer(module_path: str, attr: str) -> Optional[RendererType]:
+    try:
+        module = __import__(module_path, fromlist=[attr])
+        return getattr(module, attr)
+    except Exception:
+        return None
 
 from browser import window
 
 from rendering.interfaces import RendererProtocol
 
-try:
-    from rendering.svg_renderer import SvgRenderer
-except Exception:
-    SvgRenderer = None  # type: ignore
-
-try:
-    from rendering.canvas2d_renderer import Canvas2DRenderer
-except Exception:
-    Canvas2DRenderer = None  # type: ignore
-
-try:
-    from rendering.webgl_renderer import WebGLRenderer
-except Exception:
-    WebGLRenderer = None  # type: ignore
+SvgRenderer = _load_renderer("rendering.svg_renderer", "SvgRenderer")
+Canvas2DRenderer = _load_renderer("rendering.canvas2d_renderer", "Canvas2DRenderer")
+WebGLRenderer = _load_renderer("rendering.webgl_renderer", "WebGLRenderer")
 
 
 def create_renderer(preferred: Optional[str] = None) -> Optional[RendererProtocol]:
     """Instantiate a renderer based on preference and environment support."""
 
     preference_chain: list[str] = []
+    strategy_preference: list[str] = []
 
     if preferred:
         preference_chain.append(preferred)
@@ -45,6 +45,19 @@ def create_renderer(preferred: Optional[str] = None) -> Optional[RendererProtoco
     except Exception:
         pass
 
+    try:
+        runtime_strategy = getattr(window, "MatHudRendererStrategy", None)
+        if runtime_strategy:
+            strategy_preference.append(runtime_strategy)
+    except Exception:
+        pass
+    try:
+        stored_strategy = window.localStorage.getItem("mathud.renderer.strategy")
+        if stored_strategy:
+            strategy_preference.append(stored_strategy)
+    except Exception:
+        pass
+
     # Only fall back to SVG if no explicit preference is supplied
     if not preference_chain:
         preference_chain.append("svg")
@@ -55,21 +68,35 @@ def create_renderer(preferred: Optional[str] = None) -> Optional[RendererProtoco
                 renderer = Canvas2DRenderer()
                 if renderer is None:
                     raise RuntimeError("Canvas2DRenderer returned None")
+                _apply_strategy(renderer, strategy_preference)
                 return renderer
             except Exception:
                 continue
         if mode == "webgl" and WebGLRenderer is not None:
             try:
                 renderer = WebGLRenderer()
+                _apply_strategy(renderer, strategy_preference)
                 return renderer
             except Exception:
                 continue
         if mode == "svg" and SvgRenderer is not None:
             try:
                 renderer = SvgRenderer()
+                _apply_strategy(renderer, strategy_preference)
                 return renderer
             except Exception:
                 continue
 
     return None
 
+
+def _apply_strategy(renderer: RendererProtocol, strategies: list[str]) -> None:
+    if not hasattr(renderer, "set_render_mode"):
+        return
+    for strategy in strategies:
+        if isinstance(strategy, str) and strategy:
+            try:
+                renderer.set_render_mode(strategy)
+                return
+            except Exception:
+                continue

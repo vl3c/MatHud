@@ -25,6 +25,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
+import traceback
+
 from process_function_calls import ProcessFunctionCalls
 
 if TYPE_CHECKING:
@@ -252,16 +254,17 @@ class TestRunner:
         try:
             # Run the client-side main tests
             client_results: Dict[str, Any] = self._run_client_tests()
-            print("Client tests completed.") 
+            print("[TestRunner] Client tests completed successfully.")
             
             # Set test results by merging client and internal results
             self.test_results = self._merge_test_results(client_results)
             
         except ImportError:
-            print("Client tests module not available - skipping additional tests.")
+            print("[TestRunner] client_tests module not available - skipping additional tests.")
             self.test_results = self._create_results_from_internal_only()
         except Exception as e:
-            print(f"Error running client tests: {str(e)}")
+            print(f"[TestRunner] Error running client tests: {repr(e)}")
+            traceback.print_exc()
             self.test_results = self._create_results_with_client_error(str(e))
             
         return self.test_results
