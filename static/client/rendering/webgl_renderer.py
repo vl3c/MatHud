@@ -96,29 +96,44 @@ class WebGLRenderer(RendererProtocol):
     # Drawing helpers
 
     def _draw_points(self, points: Sequence[Tuple[float, float]], color: Tuple[float, float, float, float], size: float) -> None:
+        self.gl.useProgram(self._program)
+        self.gl.bindBuffer(self.gl.ARRAY_BUFFER, self._buffer)
+        self.gl.enableVertexAttribArray(self._position_attrib)
+        self.gl.vertexAttribPointer(self._position_attrib, 2, self.gl.FLOAT, False, 0, 0)
         ndc = [self._to_ndc(x, y) for x, y in points]
         flat = [coord for vertex in ndc for coord in vertex]
-        self.gl.uniform4fv(self._color_uniform, color)
-        self.gl.uniform1f(self._point_size_uniform, size)
-        buffer_data = window.Float32Array(flat)
+        color_vec = window.Float32Array.new(color)
+        self.gl.uniform4fv(self._color_uniform, color_vec)
+        self.gl.uniform1f(self._point_size_uniform, float(size))
+        buffer_data = window.Float32Array.new(flat)
         self.gl.bufferData(self.gl.ARRAY_BUFFER, buffer_data, self.gl.STATIC_DRAW)
         self.gl.drawArrays(self.gl.POINTS, 0, len(points))
 
     def _draw_lines(self, points: Sequence[Tuple[float, float]], color: Tuple[float, float, float, float]) -> None:
+        self.gl.useProgram(self._program)
+        self.gl.bindBuffer(self.gl.ARRAY_BUFFER, self._buffer)
+        self.gl.enableVertexAttribArray(self._position_attrib)
+        self.gl.vertexAttribPointer(self._position_attrib, 2, self.gl.FLOAT, False, 0, 0)
         ndc = [self._to_ndc(x, y) for x, y in points]
         flat = [coord for vertex in ndc for coord in vertex]
-        self.gl.uniform4fv(self._color_uniform, color)
+        color_vec = window.Float32Array.new(color)
+        self.gl.uniform4fv(self._color_uniform, color_vec)
         self.gl.uniform1f(self._point_size_uniform, 1.0)
-        buffer_data = window.Float32Array(flat)
+        buffer_data = window.Float32Array.new(flat)
         self.gl.bufferData(self.gl.ARRAY_BUFFER, buffer_data, self.gl.STATIC_DRAW)
         self.gl.drawArrays(self.gl.LINES, 0, len(points))
 
     def _draw_line_strip(self, points: Sequence[Tuple[float, float]], color: Tuple[float, float, float, float]) -> None:
+        self.gl.useProgram(self._program)
+        self.gl.bindBuffer(self.gl.ARRAY_BUFFER, self._buffer)
+        self.gl.enableVertexAttribArray(self._position_attrib)
+        self.gl.vertexAttribPointer(self._position_attrib, 2, self.gl.FLOAT, False, 0, 0)
         ndc = [self._to_ndc(x, y) for x, y in points]
         flat = [coord for vertex in ndc for coord in vertex]
-        self.gl.uniform4fv(self._color_uniform, color)
+        color_vec = window.Float32Array.new(color)
+        self.gl.uniform4fv(self._color_uniform, color_vec)
         self.gl.uniform1f(self._point_size_uniform, 1.0)
-        buffer_data = window.Float32Array(flat)
+        buffer_data = window.Float32Array.new(flat)
         self.gl.bufferData(self.gl.ARRAY_BUFFER, buffer_data, self.gl.STATIC_DRAW)
         self.gl.drawArrays(self.gl.LINE_STRIP, 0, len(points))
 
@@ -146,6 +161,20 @@ class WebGLRenderer(RendererProtocol):
             g = int(computed[3:5], 16) / 255.0
             b = int(computed[5:7], 16) / 255.0
             return r, g, b, 1.0
+        if computed.startswith("rgb"):
+            inside = computed[computed.index("(") + 1 : computed.rindex(")")]
+            parts = [part.strip() for part in inside.split(",")]
+            if len(parts) >= 3:
+                try:
+                    r = float(parts[0]) / 255.0
+                    g = float(parts[1]) / 255.0
+                    b = float(parts[2]) / 255.0
+                    a = float(parts[3]) if len(parts) > 3 else 1.0
+                    if a > 1.0:
+                        a /= 255.0
+                    return r, g, b, a
+                except Exception:
+                    pass
         return 1.0, 1.0, 1.0, 1.0
 
     def _resize_viewport(self) -> None:
