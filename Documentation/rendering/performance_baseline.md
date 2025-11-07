@@ -17,6 +17,25 @@ Renderer: SvgRenderer (default)
 
 These numbers were captured via `run_renderer_performance(iterations=2)` in the Brython runtime on MatHud’s default SVG renderer. Future runs with alternative renderers (Canvas2D, WebGL) should log comparable data for side-by-side analysis.
 
+## SvgRenderer (post-refactor)
+
+Date: 2025-11-07
+Renderer: SvgRenderer
+
+- Scene: same as SVG baseline
+- Iterations: 2 draws/pans/zooms
+- DOM nodes (post-render): 362
+
+| Operation | Avg ms | Total ms | Iterations |
+|-----------|--------|----------|------------|
+| draw      | 145.00 | 290.00   | 2          |
+| pan       | 141.00 | 564.00   | 4          |
+| zoom      | 147.75 | 591.00   | 4          |
+
+Compared with the earlier SVG baseline, the refactored path is about 20% slower across draw, pan, and zoom. The visual output matches the legacy renderer, but the additional coordination logic introduced alongside the Canvas2D changes now impacts SVG performance as well.
+
+-----------------------------------------------------------------------------------------------------
+
 ## Canvas2DRenderer
 
 Date: 2025-11-04
@@ -31,4 +50,21 @@ Renderer: Canvas2DRenderer
 | draw      | 8.50   | 17.00    | 2          |
 | pan       | 8.75   | 35.00    | 4          |
 | zoom      | 13.75  | 55.00    | 4          |
+
+## Canvas2DRenderer (post-refactor)
+
+Date: 2025-11-07
+Renderer: Canvas2DRenderer
+
+- Scene: same as SVG baseline
+- Iterations: 2 draws/pans/zooms
+- DOM nodes (post-render): 0
+
+| Operation | Avg ms | Total ms | Iterations |
+|-----------|--------|----------|------------|
+| draw      | 145.50 | 291.00   | 2          |
+| pan       | 140.75 | 563.00   | 4          |
+| zoom      | 145.00 | 580.00   | 4          |
+
+The refactor routed drawable rendering directly through Canvas2D algorithms without the intermediate primitive batching the legacy helpers used. Every shape now triggers full context save or style recomputation on each draw, which retained visual output but caused a significant slowdown compared with the earlier primitive-mediated path.
 
