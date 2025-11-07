@@ -72,7 +72,7 @@ class FunctionsBoundedAreaRenderable:
         if num_points < 2:
             num_points = 2
         dx: float = (right - left) / (num_points - 1) if num_points > 1 else 1.0
-        pairs: List[Tuple[Tuple[float, float] | None, Tuple[float, float] | None]] = []
+        pairs: List[Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]] = []
         for i in range(num_points):
             x_m: float = left + i * dx
             y1: Optional[float] = self._eval_y_math(f1, x_m)
@@ -87,7 +87,7 @@ class FunctionsBoundedAreaRenderable:
         if not pairs:
             return [], []
         # Trim leading/trailing invalids and split on gaps to avoid transposed joins
-        def split_valid(seq: List[Tuple[float, float] | None]) -> List[List[Tuple[float, float]]]:
+        def split_valid(seq: List[Optional[Tuple[float, float]]]) -> List[List[Tuple[float, float]]]:
             chunks: List[List[Tuple[float, float]]] = []
             cur: List[Tuple[float, float]] = []
             for p in seq:
@@ -100,8 +100,8 @@ class FunctionsBoundedAreaRenderable:
             if cur:
                 chunks.append(cur)
             return chunks
-        f_seq: List[Tuple[float, float] | None] = [p[0] if p[0] is not None else None for p in pairs]
-        g_seq: List[Tuple[float, float] | None] = [p[1] if p[1] is not None else None for p in pairs]
+        f_seq: List[Optional[Tuple[float, float]]] = [p[0] if p[0] is not None else None for p in pairs]
+        g_seq: List[Optional[Tuple[float, float]]] = [p[1] if p[1] is not None else None for p in pairs]
         f_chunks: List[List[Tuple[float, float]]] = split_valid(f_seq)
         g_chunks: List[List[Tuple[float, float]]] = split_valid(g_seq)
         if not f_chunks or not g_chunks:

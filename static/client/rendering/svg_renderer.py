@@ -19,6 +19,18 @@ from utils.math_utils import MathUtils
 from rendering.function_renderable import FunctionRenderable
 from rendering.interfaces import RendererProtocol
 from rendering.style_manager import get_renderer_style, get_default_style_value
+from rendering.svg_primitive_adapter import SvgPrimitiveAdapter
+from rendering.shared_drawable_renderers import (
+    render_point_helper,
+    render_segment_helper,
+    render_circle_helper,
+    render_vector_helper,
+    render_angle_helper,
+    render_function_helper,
+    render_functions_bounded_area_helper,
+    render_function_segment_area_helper,
+    render_segments_bounded_area_helper,
+)
 
 
 class SvgRenderer(RendererProtocol):
@@ -26,7 +38,7 @@ class SvgRenderer(RendererProtocol):
 
     Parameters
     ----------
-    style_config : dict | None
+    style_config : Optional[dict]
         Dict holding visual configuration such as colors, sizes, font sizes.
         Optional and can be extended per shape over time.
     """
@@ -36,6 +48,8 @@ class SvgRenderer(RendererProtocol):
         # Handlers will be populated incrementally per shape
         # Example shape registrations will be added in later steps
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
+        self._shared_primitives: Optional[SvgPrimitiveAdapter] = None
+        self._shared_rendering_enabled: bool = False
 
     def register_default_drawables(self) -> None:
         self._register_shape("drawables.point", "Point", self._render_point)
@@ -62,6 +76,15 @@ class SvgRenderer(RendererProtocol):
             "SegmentsBoundedColoredArea",
             self._render_segments_bounded_colored_area,
         )
+
+    def enable_shared_rendering(self, enabled: bool) -> None:
+        """Toggle shared helper rendering pathway (used for parity tests)."""
+        self._shared_rendering_enabled = enabled
+
+    def _get_shared_primitives(self) -> SvgPrimitiveAdapter:
+        if self._shared_primitives is None:
+            self._shared_primitives = SvgPrimitiveAdapter("math-svg")
+        return self._shared_primitives
 
     def _register_shape(self, module_path: str, class_name: str, handler: Callable[[Any, Any], None]) -> None:
         try:
@@ -94,6 +117,9 @@ class SvgRenderer(RendererProtocol):
         self.register(point_cls, self._render_point)
 
     def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_point_helper(self._get_shared_primitives(), point, coordinate_mapper, self.style)
+            return
         # Prefer model color, then style, then default
         color: str = getattr(point, 'color', self.style.get('point_color', default_color))
         radius_val: float = self.style.get('point_radius', default_point_size)
@@ -115,7 +141,7 @@ class SvgRenderer(RendererProtocol):
         text_el.style['-webkit-user-select'] = 'none'
         text_el.style['-moz-user-select'] = 'none'
         text_el.style['-ms-user-select'] = 'none'
-        text_el.setAttribute('font-size', f'{int(font_size_val)}px')
+        text_el.setAttribute('font-size', str(int(font_size_val)))
         document["math-svg"] <= text_el
 
     # ----------------------- Segment -----------------------
@@ -123,6 +149,9 @@ class SvgRenderer(RendererProtocol):
         self.register(segment_cls, self._render_segment)
 
     def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_segment_helper(self._get_shared_primitives(), segment, coordinate_mapper, self.style)
+            return
         # Prefer model color, then style, then default
         color: str = getattr(segment, 'color', self.style.get('segment_color', default_color))
 
@@ -141,6 +170,9 @@ class SvgRenderer(RendererProtocol):
         self.register(circle_cls, self._render_circle)
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_circle_helper(self._get_shared_primitives(), circle, coordinate_mapper, self.style)
+            return
         color: str = getattr(circle, 'color', self.style.get('circle_color', default_color))
         cx: float
         cy: float
@@ -180,6 +212,9 @@ class SvgRenderer(RendererProtocol):
         self.register(vector_cls, self._render_vector)
 
     def _render_vector(self, vector: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_vector_helper(self._get_shared_primitives(), vector, coordinate_mapper, self.style)
+            return
         # Draw underlying segment
         seg: Any = vector.segment
         seg_color: str = getattr(vector, 'color', getattr(seg, 'color', self.style.get('vector_color', default_color)))
@@ -223,6 +258,9 @@ class SvgRenderer(RendererProtocol):
         self.register(angle_cls, self._render_angle)
 
     def _render_angle(self, angle: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_angle_helper(self._get_shared_primitives(), angle, coordinate_mapper, self.style)
+            return
         # Compute screen coordinates for vertex and arms
         vx: float
         vy: float
@@ -313,6 +351,9 @@ class SvgRenderer(RendererProtocol):
         self.register(function_cls, self._render_function)
 
     def _render_function(self, func: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_function_helper(self._get_shared_primitives(), func, coordinate_mapper, self.style)
+            return
         # Build screen-space paths using validated generator to match original behavior
         try:
             # Math models are canvas-free; do not read func.canvas
@@ -429,6 +470,9 @@ class SvgRenderer(RendererProtocol):
         self.register(cls, self._render_functions_bounded_colored_area)
 
     def _render_functions_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_functions_bounded_area_helper(self._get_shared_primitives(), area, coordinate_mapper, self.style)
+            return
         try:
             # Use renderable to build screen-space closed area
             from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
@@ -457,6 +501,9 @@ class SvgRenderer(RendererProtocol):
         self.register(cls, self._render_function_segment_bounded_colored_area)
 
     def _render_function_segment_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_function_segment_area_helper(self._get_shared_primitives(), area, coordinate_mapper, self.style)
+            return
         try:
             from rendering.function_segment_area_renderable import FunctionSegmentAreaRenderable
             renderable: FunctionSegmentAreaRenderable = FunctionSegmentAreaRenderable(area, coordinate_mapper)
@@ -479,6 +526,9 @@ class SvgRenderer(RendererProtocol):
         self.register(cls, self._render_segments_bounded_colored_area)
 
     def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_segments_bounded_area_helper(self._get_shared_primitives(), area, coordinate_mapper, self.style)
+            return
         try:
             if not area.segment2:
                 x1: float

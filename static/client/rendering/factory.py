@@ -52,7 +52,10 @@ def create_renderer(preferred: Optional[str] = None) -> Optional[RendererProtoco
     for mode in preference_chain:
         if mode == "canvas2d" and Canvas2DRenderer is not None:
             try:
-                return Canvas2DRenderer()
+                renderer = Canvas2DRenderer()
+                if renderer is None:
+                    raise RuntimeError("Canvas2DRenderer returned None")
+                return renderer
             except Exception:
                 continue
         if mode == "webgl" and WebGLRenderer is not None:
@@ -63,7 +66,8 @@ def create_renderer(preferred: Optional[str] = None) -> Optional[RendererProtoco
                 continue
         if mode == "svg" and SvgRenderer is not None:
             try:
-                return SvgRenderer()
+                renderer = SvgRenderer()
+                return renderer
             except Exception:
                 continue
 

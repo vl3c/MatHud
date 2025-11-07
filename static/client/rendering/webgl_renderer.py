@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Dict, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 from browser import document, html, window, console
 
 from constants import default_color, default_point_size
 from rendering.interfaces import RendererProtocol
 from rendering.style_manager import get_renderer_style
+from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
+from rendering.shared_drawable_renderers import (
+    render_point_helper,
+    render_segment_helper,
+    render_circle_helper,
+)
 
 
 class WebGLRenderer(RendererProtocol):
@@ -15,11 +21,9 @@ class WebGLRenderer(RendererProtocol):
 
     def __init__(self, canvas_id: str = "math-webgl") -> None:
         self.canvas_el = self._ensure_canvas(canvas_id)
-        self._log("### WebGLRenderer.__init__: canvas element", self.canvas_el)
         self.gl = self.canvas_el.getContext("webgl")
         if self.gl is None:
             raise RuntimeError("WebGL context unavailable")
-        self._log("### WebGLRenderer.__init__: context acquired")
 
         self.style: Dict[str, Any] = get_renderer_style()
 
@@ -37,24 +41,17 @@ class WebGLRenderer(RendererProtocol):
         self.gl.clearColor(0.0, 0.0, 0.0, 0.0)
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self.register_default_drawables()
-
-    def _log(self, *args: Any) -> None:
-        try:
-            console.log(*args)
-        except Exception:
-            pass
+        self._shared_primitives: Optional[WebGLPrimitiveAdapter] = None
+        self._shared_rendering_enabled: bool = False
 
     def clear(self) -> None:
         self._resize_viewport()
         self.gl.clear(self.gl.COLOR_BUFFER_BIT)
-        self._log("### WebGLRenderer.clear: viewport", self.canvas_el.width, self.canvas_el.height)
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
         handler = self._handlers_by_type.get(type(drawable))
         if handler is None:
-            self._log("### WebGLRenderer.render: missing handler for", type(drawable))
             return False
-        self._log("### WebGLRenderer.render: rendering", type(drawable))
         handler(drawable, coordinate_mapper)
         return True
 
@@ -65,11 +62,9 @@ class WebGLRenderer(RendererProtocol):
         axis_color = self._parse_color(self.style.get("cartesian_axis_color", default_color))
         self._draw_lines([(0, oy), (width, oy)], axis_color)
         self._draw_lines([(ox, 0), (ox, height)], axis_color)
-        self._log("### WebGLRenderer.render_cartesian: rendered axis", width, height)
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
         self._handlers_by_type[cls] = handler
-        self._log("### WebGLRenderer.register: handler for", cls)
 
     def register_default_drawables(self) -> None:
         try:
@@ -87,29 +82,43 @@ class WebGLRenderer(RendererProtocol):
             self.register(CircleDrawable, self._render_circle)
         except Exception:
             pass
-        self._log("### WebGLRenderer.register_default_drawables: completed")
+
+    def enable_shared_rendering(self, enabled: bool) -> None:
+        self._shared_rendering_enabled = enabled
+
+    def _get_shared_primitives(self) -> WebGLPrimitiveAdapter:
+        if self._shared_primitives is None:
+            self._shared_primitives = WebGLPrimitiveAdapter(self)
+        return self._shared_primitives
 
     # ------------------------------------------------------------------
     # Handlers
 
     def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_point_helper(self._get_shared_primitives(), point, coordinate_mapper, self.style)
+            return
         sx, sy = coordinate_mapper.math_to_screen(point.x, point.y)
         point_color = getattr(point, "color", self.style.get("point_color", default_color))
         color = self._parse_color(point_color)
         ndc = [self._to_ndc(sx, sy)]
         size = getattr(point, "size", self.style.get("point_radius", default_point_size) * 2)
         self._draw_points(ndc, color, size)
-        self._log("### WebGLRenderer._render_point: rendered", getattr(point, "name", None))
 
     def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_segment_helper(self._get_shared_primitives(), segment, coordinate_mapper, self.style)
+            return
         p1 = coordinate_mapper.math_to_screen(segment.point1.x, segment.point1.y)
         p2 = coordinate_mapper.math_to_screen(segment.point2.x, segment.point2.y)
         seg_color = getattr(segment, "color", self.style.get("segment_color", default_color))
         color = self._parse_color(seg_color)
         self._draw_lines([p1, p2], color)
-        self._log("### WebGLRenderer._render_segment: rendered", getattr(segment, "name", None))
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_circle_helper(self._get_shared_primitives(), circle, coordinate_mapper, self.style)
+            return
         cx, cy = coordinate_mapper.math_to_screen(circle.center.x, circle.center.y)
         radius = coordinate_mapper.scale_value(circle.radius)
         circle_color = getattr(circle, "color", self.style.get("circle_color", default_color))
@@ -120,7 +129,6 @@ class WebGLRenderer(RendererProtocol):
             theta = 2 * math.pi * i / segments
             points.append((cx + radius * math.cos(theta), cy + radius * math.sin(theta)))
         self._draw_line_strip(points, color)
-        self._log("### WebGLRenderer._render_circle: rendered", getattr(circle, "name", None))
 
     # ------------------------------------------------------------------
     # Drawing helpers
@@ -133,7 +141,6 @@ class WebGLRenderer(RendererProtocol):
         buffer_data = window.Float32Array(flat)
         self.gl.bufferData(self.gl.ARRAY_BUFFER, buffer_data, self.gl.STATIC_DRAW)
         self.gl.drawArrays(self.gl.POINTS, 0, len(points))
-        self._log("### WebGLRenderer._draw_points: count", len(points))
 
     def _draw_lines(self, points: Sequence[Tuple[float, float]], color: Tuple[float, float, float, float]) -> None:
         ndc = [self._to_ndc(x, y) for x, y in points]
@@ -143,7 +150,6 @@ class WebGLRenderer(RendererProtocol):
         buffer_data = window.Float32Array(flat)
         self.gl.bufferData(self.gl.ARRAY_BUFFER, buffer_data, self.gl.STATIC_DRAW)
         self.gl.drawArrays(self.gl.LINES, 0, len(points))
-        self._log("### WebGLRenderer._draw_lines: vertices", len(points))
 
     def _draw_line_strip(self, points: Sequence[Tuple[float, float]], color: Tuple[float, float, float, float]) -> None:
         ndc = [self._to_ndc(x, y) for x, y in points]
@@ -153,7 +159,6 @@ class WebGLRenderer(RendererProtocol):
         buffer_data = window.Float32Array(flat)
         self.gl.bufferData(self.gl.ARRAY_BUFFER, buffer_data, self.gl.STATIC_DRAW)
         self.gl.drawArrays(self.gl.LINE_STRIP, 0, len(points))
-        self._log("### WebGLRenderer._draw_line_strip: vertices", len(points))
 
     # ------------------------------------------------------------------
     # Utility
@@ -191,13 +196,9 @@ class WebGLRenderer(RendererProtocol):
             self.canvas_el.height = pixel_height
             self.canvas_el.attrs["width"] = pixel_width
             self.canvas_el.attrs["height"] = pixel_height
-            self._log("### WebGLRenderer._resize_viewport: resized", pixel_width, pixel_height)
-        else:
-            self._log("### WebGLRenderer._resize_viewport: no container")
         self.canvas_el.style.width = f"{int(self.canvas_el.width)}px"
         self.canvas_el.style.height = f"{int(self.canvas_el.height)}px"
         self.gl.viewport(0, 0, self.canvas_el.width, self.canvas_el.height)
-        self._log("### WebGLRenderer._resize_viewport: viewport set")
 
     def _create_program(self):
         vertex_src = """
@@ -251,9 +252,6 @@ class WebGLRenderer(RendererProtocol):
             canvas_el.height = pixel_height
             canvas_el.attrs["width"] = pixel_width
             canvas_el.attrs["height"] = pixel_height
-            self._log("### WebGLRenderer._ensure_canvas: sized to", pixel_width, pixel_height)
-        else:
-            self._log("### WebGLRenderer._ensure_canvas: no rect for container", container)
         canvas_el.style.width = f"{int(canvas_el.width)}px"
         canvas_el.style.height = f"{int(canvas_el.height)}px"
         canvas_el.style.position = "absolute"
@@ -262,7 +260,6 @@ class WebGLRenderer(RendererProtocol):
         canvas_el.style.pointerEvents = "none"
         canvas_el.style.display = "block"
         canvas_el.style.zIndex = "20"
-        self._log("### WebGLRenderer._ensure_canvas: display block")
         return canvas_el
 
 

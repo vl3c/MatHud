@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from browser import document, html
 
@@ -13,6 +13,8 @@ from rendering.function_segment_area_renderable import FunctionSegmentAreaRender
 from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
 from rendering.style_manager import get_renderer_style, get_default_style_value
 from rendering.interfaces import RendererProtocol
+from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
+from rendering.shared_drawable_renderers import render_point_helper, render_segment_helper, render_circle_helper, render_vector_helper, render_angle_helper, render_function_helper, render_functions_bounded_area_helper, render_function_segment_area_helper, render_segments_bounded_area_helper
 
 
 class Canvas2DRenderer(RendererProtocol):
@@ -20,34 +22,24 @@ class Canvas2DRenderer(RendererProtocol):
 
     def __init__(self, canvas_id: str = "math-canvas-2d") -> None:
         self.canvas_el = self._ensure_canvas(canvas_id)
-        self._log("### Canvas2DRenderer.__init__: canvas element", self.canvas_el)
         self.ctx = self.canvas_el.getContext("2d")
         if self.ctx is None:
             raise RuntimeError("Canvas 2D context unavailable")
-        self._log("### Canvas2DRenderer.__init__: context acquired")
         self.style: Dict[str, Any] = get_renderer_style()
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self.register_default_drawables()
-
-    def _log(self, *args: Any) -> None:
-        try:
-            # console.log(*args)
-            pass
-        except Exception:
-            pass
+        self._shared_primitives: Optional[Canvas2DPrimitiveAdapter] = None
+        self._shared_rendering_enabled: bool = False
 
     def clear(self) -> None:
         width = self.canvas_el.width
         height = self.canvas_el.height
         self.ctx.clearRect(0, 0, width, height)
-        self._log("### Canvas2DRenderer.clear: cleared", width, height)
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
         handler = self._handlers_by_type.get(type(drawable))
         if handler is None:
-            self._log("### Canvas2DRenderer.render: missing handler for", type(drawable))
             return False
-        self._log("### Canvas2DRenderer.render: rendering", type(drawable))
         handler(drawable, coordinate_mapper)
         return True
 
@@ -159,11 +151,11 @@ class Canvas2DRenderer(RendererProtocol):
             y -= display_tick
 
         self.ctx.restore()
-        self._log("### Canvas2DRenderer.render_cartesian: rendered axis", width, height)
+        assert self.ctx, "Canvas context missing"
+        assert self.canvas_el, "Canvas element missing"
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
         self._handlers_by_type[cls] = handler
-        self._log("### Canvas2DRenderer.register: handler for", cls)
 
     def register_default_drawables(self) -> None:
         try:
@@ -211,12 +203,22 @@ class Canvas2DRenderer(RendererProtocol):
             self.register(SegmentsAreaDrawable, self._render_segments_bounded_colored_area)
         except Exception:
             pass
-        self._log("### Canvas2DRenderer.register_default_drawables: completed")
+
+    def enable_shared_rendering(self, enabled: bool) -> None:
+        self._shared_rendering_enabled = enabled
+
+    def _get_shared_primitives(self) -> Canvas2DPrimitiveAdapter:
+        if self._shared_primitives is None:
+            self._shared_primitives = Canvas2DPrimitiveAdapter(self.canvas_el)
+        return self._shared_primitives
 
     # ------------------------------------------------------------------
     # Handlers
 
     def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_point_helper(self._get_shared_primitives(), point, coordinate_mapper, self.style)
+            return
         sx, sy = coordinate_mapper.math_to_screen(point.x, point.y)
         radius = self.style.get("point_radius", default_point_size)
         color = getattr(point, "color", self.style.get("point_color", default_color))
@@ -232,12 +234,15 @@ class Canvas2DRenderer(RendererProtocol):
             label_text = f"{label_name}({round(point.x, 3)}, {round(point.y, 3)})"
             self.ctx.fillStyle = color
             font_size = self.style.get("point_label_font_size", point_label_font_size)
-            self.ctx.font = f"{font_size}px Inter, sans-serif"
+            font_size_str = str(int(font_size)) if isinstance(font_size, (int, float)) and float(font_size).is_integer() else str(font_size)
+            self.ctx.font = f"{font_size_str}px Inter, sans-serif"
             self.ctx.fillText(label_text, sx + radius, sy - radius)
         self.ctx.restore()
-        self._log("### Canvas2DRenderer._render_point: rendered", point.name)
 
     def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_segment_helper(self._get_shared_primitives(), segment, coordinate_mapper, self.style)
+            return
         x1, y1 = coordinate_mapper.math_to_screen(segment.point1.x, segment.point1.y)
         x2, y2 = coordinate_mapper.math_to_screen(segment.point2.x, segment.point2.y)
         color = getattr(segment, "color", self.style.get("segment_color", default_color))
@@ -250,9 +255,11 @@ class Canvas2DRenderer(RendererProtocol):
         self.ctx.lineTo(x2, y2)
         self.ctx.stroke()
         self.ctx.restore()
-        self._log("### Canvas2DRenderer._render_segment: rendered", getattr(segment, "name", None))
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_circle_helper(self._get_shared_primitives(), circle, coordinate_mapper, self.style)
+            return
         cx, cy = coordinate_mapper.math_to_screen(circle.center.x, circle.center.y)
         radius = coordinate_mapper.scale_value(circle.radius)
         color = getattr(circle, "color", self.style.get("circle_color", default_color))
@@ -264,9 +271,11 @@ class Canvas2DRenderer(RendererProtocol):
         self.ctx.arc(cx, cy, radius, 0, 2 * math.pi)
         self.ctx.stroke()
         self.ctx.restore()
-        self._log("### Canvas2DRenderer._render_circle: rendered", getattr(circle, "name", None))
 
     def _render_vector(self, vector: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_vector_helper(self._get_shared_primitives(), vector, coordinate_mapper, self.style)
+            return
         seg = vector.segment
         color = getattr(vector, "color", getattr(seg, "color", self.style.get("vector_color", default_color)))
         x1, y1 = coordinate_mapper.math_to_screen(seg.point1.x, seg.point1.y)
@@ -302,9 +311,11 @@ class Canvas2DRenderer(RendererProtocol):
         self.ctx.closePath()
         self.ctx.fill()
         self.ctx.restore()
-        self._log("### Canvas2DRenderer._render_vector: rendered", getattr(vector, "name", None))
 
     def _render_angle(self, angle: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_angle_helper(self._get_shared_primitives(), angle, coordinate_mapper, self.style)
+            return
         vx, vy = coordinate_mapper.math_to_screen(angle.vertex_point.x, angle.vertex_point.y)
         p1x, p1y = coordinate_mapper.math_to_screen(angle.arm1_point.x, angle.arm1_point.y)
         p2x, p2y = coordinate_mapper.math_to_screen(angle.arm2_point.x, angle.arm2_point.y)
@@ -348,22 +359,31 @@ class Canvas2DRenderer(RendererProtocol):
             "angle_text_arc_radius_factor",
             get_default_style_value("angle_text_arc_radius_factor"),
         )
-        text_angle = start_angle + direction * delta / 2
+        text_delta = delta / 2.0
+        if params.get("final_sweep_flag", '0') == '0':
+            text_delta = -text_delta
+        base_angle = params.get("angle_v_p1_rad")
+        if base_angle is None:
+            base_angle = math.atan2(vy - p1y, p1x - vx)
+        text_angle = base_angle + text_delta
         tx = vx + text_radius * math.cos(text_angle)
         ty = vy + text_radius * math.sin(text_angle)
         label = f"{display_degrees:.1f}°"
 
         self.ctx.save()
         self.ctx.fillStyle = color
-        font_size = int(self.style.get("angle_label_font_size", point_label_font_size))
+        font_size_raw = self.style.get("angle_label_font_size", point_label_font_size)
+        font_size = int(font_size_raw) if isinstance(font_size_raw, (int, float)) and float(font_size_raw).is_integer() else font_size_raw
         self.ctx.font = f"{font_size}px Inter, sans-serif"
         self.ctx.textAlign = "center"
         self.ctx.textBaseline = "middle"
         self.ctx.fillText(label, tx, ty)
         self.ctx.restore()
-        self._log("### Canvas2DRenderer._render_angle: rendered", getattr(angle, "name", None))
 
     def _render_function(self, func: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_function_helper(self._get_shared_primitives(), func, coordinate_mapper, self.style)
+            return
         color = getattr(func, "color", self.style.get("function_color", default_color))
         cartesian = getattr(getattr(func, "canvas", None), "cartesian2axis", None)
         renderable = FunctionRenderable(func, coordinate_mapper, cartesian)
@@ -386,18 +406,32 @@ class Canvas2DRenderer(RendererProtocol):
 
         if getattr(func, "name", "") and screen_paths and screen_paths[0]:
             first = screen_paths[0][0]
-            font_size = self.style.get("function_label_font_size", point_label_font_size)
+            font_size_raw = self.style.get("function_label_font_size", point_label_font_size)
+            font_size = float(font_size_raw) if isinstance(font_size_raw, (int, float)) else font_size_raw
             label_offset_x = (1 + len(func.name)) * font_size / 2
             label_x = first[0] - label_offset_x
             label_y = max(first[1], font_size)
+            font_size_str = str(int(font_size)) if isinstance(font_size, float) and font_size.is_integer() else str(font_size)
             self.ctx.save()
             self.ctx.fillStyle = color
-            self.ctx.font = f"{font_size}px Inter, sans-serif"
+            self.ctx.font = f"{font_size_str}px Inter, sans-serif"
+            if getattr(self.ctx, "_textAlign", None) != "left":
+                try:
+                    object.__setattr__(self.ctx, "_textAlign", "left")
+                except Exception:
+                    setattr(self.ctx, "_textAlign", "left")
+            if getattr(self.ctx, "_textBaseline", None) != "alphabetic":
+                try:
+                    object.__setattr__(self.ctx, "_textBaseline", "alphabetic")
+                except Exception:
+                    setattr(self.ctx, "_textBaseline", "alphabetic")
             self.ctx.fillText(func.name, label_x, label_y)
             self.ctx.restore()
-        self._log("### Canvas2DRenderer._render_function: rendered", getattr(func, "name", None))
 
     def _render_functions_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_functions_bounded_area_helper(self._get_shared_primitives(), area, coordinate_mapper, self.style)
+            return
         renderable = FunctionsBoundedAreaRenderable(area, coordinate_mapper)
         closed_area = renderable.build_screen_area()
         if not closed_area or not closed_area.forward_points or not closed_area.reverse_points:
@@ -407,9 +441,11 @@ class Canvas2DRenderer(RendererProtocol):
         if not getattr(closed_area, "is_screen", False):
             reverse = [coordinate_mapper.math_to_screen(x, y) for (x, y) in reverse]
         self._fill_area_path(forward, reverse, getattr(area, "color", self.style.get("area_fill_color", "lightblue")), getattr(area, "opacity", self.style.get("area_opacity", 0.3)))
-        self._log("### Canvas2DRenderer._render_functions_bounded_colored_area: rendered", getattr(area, "name", None))
 
     def _render_function_segment_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_function_segment_area_helper(self._get_shared_primitives(), area, coordinate_mapper, self.style)
+            return
         renderable = FunctionSegmentAreaRenderable(area, coordinate_mapper)
         closed_area = renderable.build_screen_area(num_points=100)
         if not closed_area or not closed_area.forward_points or not closed_area.reverse_points:
@@ -420,9 +456,11 @@ class Canvas2DRenderer(RendererProtocol):
             getattr(area, "color", self.style.get("area_fill_color", "lightblue")),
             getattr(area, "opacity", self.style.get("area_opacity", 0.3)),
         )
-        self._log("### Canvas2DRenderer._render_function_segment_bounded_colored_area: rendered", getattr(area, "name", None))
 
     def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
+        if self._shared_rendering_enabled:
+            render_segments_bounded_area_helper(self._get_shared_primitives(), area, coordinate_mapper, self.style)
+            return
         renderable = SegmentsBoundedAreaRenderable(area, coordinate_mapper)
         closed_area = renderable.build_screen_area()
         if not closed_area or not closed_area.forward_points or not closed_area.reverse_points:
@@ -433,7 +471,6 @@ class Canvas2DRenderer(RendererProtocol):
             getattr(area, "color", self.style.get("area_fill_color", "lightblue")),
             getattr(area, "opacity", self.style.get("area_opacity", 0.3)),
         )
-        self._log("### Canvas2DRenderer._render_segments_bounded_colored_area: rendered", getattr(area, "name", None))
 
     # ------------------------------------------------------------------
     # Helpers
@@ -480,11 +517,8 @@ class Canvas2DRenderer(RendererProtocol):
             pixel_height = int(rect.height)
             canvas_el.width = pixel_width
             canvas_el.height = pixel_height
-            canvas_el.attrs["width"] = pixel_width
-            canvas_el.attrs["height"] = pixel_height
-            self._log("### Canvas2DRenderer._ensure_canvas: sized to", pixel_width, pixel_height)
-        else:
-            self._log("### Canvas2DRenderer._ensure_canvas: no rect for container", container)
+            canvas_el.attrs["width"] = str(pixel_width)
+            canvas_el.attrs["height"] = str(pixel_height)
         canvas_el.style.width = f"{int(canvas_el.width)}px"
         canvas_el.style.height = f"{int(canvas_el.height)}px"
         canvas_el.style.position = "absolute"
@@ -493,13 +527,11 @@ class Canvas2DRenderer(RendererProtocol):
         canvas_el.style.pointerEvents = "none"
         canvas_el.style.display = "block"
         canvas_el.style.zIndex = "10"
-        self._log("### Canvas2DRenderer._ensure_canvas: parent", container)
         return canvas_el
 
     def _resize_to_container(self) -> None:
         container = getattr(self.canvas_el, "parentElement", None)
         if container is None or not hasattr(container, "getBoundingClientRect"):
-            self._log("### Canvas2DRenderer._resize_to_container: no container")
             return
         rect = container.getBoundingClientRect()
         if rect.width != self.canvas_el.width or rect.height != self.canvas_el.height:
@@ -507,11 +539,8 @@ class Canvas2DRenderer(RendererProtocol):
             pixel_height = int(rect.height)
             self.canvas_el.width = pixel_width
             self.canvas_el.height = pixel_height
-            self.canvas_el.attrs["width"] = pixel_width
-            self.canvas_el.attrs["height"] = pixel_height
-            self._log("### Canvas2DRenderer._resize_to_container: resized", pixel_width, pixel_height)
-        else:
-            self._log("### Canvas2DRenderer._resize_to_container: size unchanged")
+            self.canvas_el.attrs["width"] = str(pixel_width)
+            self.canvas_el.attrs["height"] = str(pixel_height)
         self.canvas_el.style.width = f"{int(self.canvas_el.width)}px"
         self.canvas_el.style.height = f"{int(self.canvas_el.height)}px"
 
