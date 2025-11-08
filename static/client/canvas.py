@@ -216,49 +216,52 @@ class Canvas:
     def draw(self, apply_zoom: bool = False) -> None:
         if not self.draw_enabled:
             return
-        # If a renderer exists, prefer it to clear and draw
-        if self.renderer is not None:
-            try:
-                self.renderer.clear()
-            except Exception:
-                pass
-        if self.renderer is not None:
-            # Render cartesian via renderer
-            try:
-                # Handle cartesian cache invalidation if needed
-                if apply_zoom and hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
-                    self.cartesian2axis._invalidate_cache_on_zoom()
-                self.renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
-            except Exception:
-                pass
-        
-        # Zoom is view-only now; no model displacement
-        
-        renderer_begin = getattr(self.renderer, "begin_frame", None)
-        renderer_end = getattr(self.renderer, "end_frame", None)
+        renderer = self.renderer
+        renderer_begin = getattr(renderer, "begin_frame", None) if renderer is not None else None
+        renderer_end = getattr(renderer, "end_frame", None) if renderer is not None else None
+
         if callable(renderer_begin):
             try:
                 renderer_begin()
             except Exception:
                 pass
+
         try:
+            if renderer is not None:
+                renderer_mode = None
+                mode_getter = getattr(renderer, "get_render_mode", None)
+                if callable(mode_getter):
+                    try:
+                        renderer_mode = mode_getter()
+                    except Exception:
+                        renderer_mode = None
+                is_svg_renderer = renderer.__class__.__name__ == "SvgRenderer"
+                skip_clear = bool(is_svg_renderer and renderer_mode == "optimized")
+                if not skip_clear:
+                    try:
+                        renderer.clear()
+                    except Exception:
+                        pass
+                try:
+                    if apply_zoom and hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
+                        self.cartesian2axis._invalidate_cache_on_zoom()
+                    renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
+                except Exception:
+                    pass
+
             # Draw all drawables - coordinate transformations handled by CoordinateMapper
             for drawable in self.drawable_manager.get_drawables():
-                # Handle special cases for cache invalidation and radius scaling
                 if apply_zoom and hasattr(drawable, '_invalidate_cache_on_zoom'):
                     drawable._invalidate_cache_on_zoom()
-                # During migration, if a renderer is present and knows this type, use it
                 rendered = False
-                if self.renderer is not None:
+                if renderer is not None:
                     try:
-                        # Apply simple visibility filtering for performance and to match previous behavior
                         if self._is_drawable_visible(drawable):
-                            rendered = self.renderer.render(drawable, self.coordinate_mapper)
+                            rendered = renderer.render(drawable, self.coordinate_mapper)
                         else:
-                            rendered = True  # Treat as handled (intentionally skipped)
+                            rendered = True
                     except Exception:
                         rendered = False
-                # No fallback to drawable.draw(); rendering is exclusively via renderer
         finally:
             if callable(renderer_end):
                 try:
