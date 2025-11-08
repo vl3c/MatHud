@@ -172,6 +172,8 @@ class FunctionRenderable:
         left_bound: float = max(visible_left, base_left)
         right_bound: float = min(visible_right, base_right)
 
+        MAX_POINTS: float = 160.0
+
         paths: list[list[tuple[float, float]]] = []
         current_path: list[tuple[float, float]] = []
         expect_asymptote_behind: bool = False
@@ -192,12 +194,11 @@ class FunctionRenderable:
                 visible_periods: float = range_width / period if period != 0 else 1.0
                 if visible_periods <= 1:
                     return base_step
-                points_per_period: float = 400.0 / max(visible_periods, 1e-9)
-                points_per_period = min(200.0, points_per_period)
+                points_per_period: float = 320.0 / max(visible_periods, 1e-9)
+                points_per_period = min(MAX_POINTS, points_per_period)
                 step_trig: float = period / points_per_period if points_per_period > 0 else base_step
                 # Enforce a global cap by adjusting to at most 200 points across the range
-                max_points: float = 200.0
-                cap_step: float = range_width / max_points
+                cap_step: float = range_width / MAX_POINTS
                 return max(cap_step, step_trig)
             if any(pattern in fs for pattern in ['x**2', 'x^2']):
                 return base_step * 2.0
@@ -207,8 +208,7 @@ class FunctionRenderable:
         step: float = calculate_step_size()
         # Global cap: ensure total samples across range does not exceed 200
         if step > 0:
-            max_points: float = 200.0
-            cap_step: float = (right_bound - left_bound) / max_points
+            cap_step: float = (right_bound - left_bound) / MAX_POINTS
             step = max(cap_step, step)
 
         # Adaptive step by slope magnitude to densify steep functions
@@ -224,7 +224,7 @@ class FunctionRenderable:
                     target_pixel: float = 2.0
                     desired_step: float = (target_pixel / scale) / slope_abs
                     # Respect global cap while allowing densification for steep regions
-                    step = min(step, max((right_bound - left_bound) / 200.0, desired_step))
+                    step = min(step, max((right_bound - left_bound) / MAX_POINTS, desired_step))
         except Exception:
             pass
 
@@ -232,6 +232,10 @@ class FunctionRenderable:
         height: float = getattr(self.cartesian2axis, 'height', None) or 0
         if not height:
             height = getattr(self.mapper, 'canvas_height', 0) or 0
+        width: float = getattr(self.cartesian2axis, 'width', None) or 0
+        if not width:
+            width = getattr(self.mapper, 'canvas_width', 0) or 0
+        screen_margin: float = 16.0
 
         def eval_scaled_point(x_val: float) -> tuple[tuple[float, float] | tuple[None, None], Any]:
             try:
@@ -301,6 +305,8 @@ class FunctionRenderable:
             # Use screen y for bound checks
             prev_sy: float = neighbor_prev_scaled_point[1]
             sy: float = scaled_point[1]
+            prev_sx: float = neighbor_prev_scaled_point[0]
+            sx_val: float = scaled_point[0]
 
             # Large pixel jump -> break path
             if abs(prev_sy - sy) > height * 2:
@@ -317,6 +323,14 @@ class FunctionRenderable:
             crosses_top_bound_downward: bool = prev_sy <= top_bound and sy > top_bound
             crosses_bottom_bound_downward: bool = prev_sy <= bottom_bound and sy > bottom_bound
             crosses_bottom_bound_upward: bool = prev_sy >= bottom_bound and sy < bottom_bound
+            left_bound_screen: float = -screen_margin
+            right_bound_screen: float = width + screen_margin
+            prev_visible_x: bool = (left_bound_screen <= prev_sx <= right_bound_screen)
+            curr_visible_x: bool = (left_bound_screen <= sx_val <= right_bound_screen)
+            crosses_left_enter: bool = prev_sx <= left_bound_screen and sx_val > left_bound_screen
+            crosses_left_exit: bool = prev_sx >= left_bound_screen and sx_val < left_bound_screen
+            crosses_right_enter: bool = prev_sx >= right_bound_screen and sx_val < right_bound_screen
+            crosses_right_exit: bool = prev_sx <= right_bound_screen and sx_val > right_bound_screen
 
             crossed_bound_onto_screen: bool = crosses_top_bound_downward or crosses_bottom_bound_upward
             crossed_bound_off_screen: bool = crosses_top_bound_upward or crosses_bottom_bound_downward
@@ -334,12 +348,28 @@ class FunctionRenderable:
                         current_path = []
                     x += step
                     continue
+                if width > 0:
+                    if crosses_left_enter or crosses_right_enter:
+                        current_path.append((neighbor_prev_scaled_point[0], neighbor_prev_scaled_point[1]))
+                        current_path.append((scaled_point[0], scaled_point[1]))
+                        x += step
+                        continue
+                    if crosses_left_exit or crosses_right_exit:
+                        current_path.append((scaled_point[0], scaled_point[1]))
+                        if current_path:
+                            paths.append(current_path)
+                            current_path = []
+                        x += step
+                        continue
 
             if x > right_bound:
                 break
 
             # Skip off-screen points
             if sy >= bottom_bound or sy <= top_bound:
+                x += step
+                continue
+            if width > 0 and not curr_visible_x:
                 x += step
                 continue
 

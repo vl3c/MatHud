@@ -182,16 +182,12 @@ Source: `TestRendererPerformance.test_optimized_renderer_not_slower` run against
 | Legacy    | 164.50        | 167.50       | 172.00        | 177    | 0                 | —                   | 0                 | —                   | 0.29 (14875 events)     | —                             | —                              |
 | Optimized | 74.00         | 149.25       | 152.00        | 177    | 157               | 4.33                | 14875             | 0.26                | 0.00                    | 41.56 (9 events)              | 127.00 (9 events)              |
 
-### Additional Harness Run (optimized mode)
+### Updated Canvas2D Baseline After Batching & Culling (2025-11-08 – single measured pass)
 
-`TestRendererPerformance.test_renderer_performance_harness` captured comparable optimized metrics:
+| Mode      | Draw Avg (ms) | Pan Avg (ms) | Zoom Avg (ms) | Frames | Plan Build Events | Plan Build Avg (ms) | Plan Apply Events | Plan Apply Avg (ms) | Legacy Render Avg (ms) |
+|-----------|---------------|--------------|---------------|--------|-------------------|---------------------|-------------------|---------------------|-------------------------|
+| Legacy    | 145.00        | 150.00       | 163.00        | 172    | 0                 | —                   | 0                 | —                   | 0.28 (14130 events)     |
+| Optimized | 77.00         | 168.50       | 169.50        | 172    | 153               | 3.66                | 14130             | 0.31                | 0.00                    |
 
-- Draw 76.50 ms, Pan 149.25 ms, Zoom 156.00 ms (averages over two draw, four pan, four zoom iterations).  
-- Plan build: 157 events, 657.00 ms total (4.18 ms avg).  
-- Plan apply: 14875 events, 3934.00 ms total (0.26 ms avg).  
-- Cartesian plan build: 9 events, 361.00 ms total (40.11 ms avg).  
-- Cartesian plan apply: 9 events, 1166.00 ms total (129.56 ms avg).  
-- Legacy render path unused (0 events).
-
-These tables document the first cache-enabled Canvas2D baseline and replace the earlier telemetry placeholder for post-instrumentation measurements.
+Optimized adapter counters during this run recorded `begin_path`=19 684, `stroke_calls`=11 940, `line_batch_segments`=17 187, and `polygon_batch_polygons`=935 (legacy remained at the original counts). Plan skips were not triggered because the baseline scene keeps all drawables on screen.
 
