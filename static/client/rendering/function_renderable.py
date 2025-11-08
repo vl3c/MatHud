@@ -25,12 +25,14 @@ class FunctionRenderable:
         self._cache_valid: bool = False
         self._last_scale: Optional[float] = None
         self._last_bounds: Optional[Tuple[float, float]] = None
+        self._last_screen_bounds: Optional[Tuple[int, int]] = None
 
     def invalidate_cache(self) -> None:
         self._cached_screen_paths = None
         self._cache_valid = False
         self._last_scale = None
         self._last_bounds = None
+        self._last_screen_bounds = None
 
     def _get_visible_bounds(self) -> Tuple[float, float]:
         # Use cartesian2axis if available (legacy path), otherwise rely on mapper
@@ -54,16 +56,24 @@ class FunctionRenderable:
         right: float
         left, right = self._get_visible_bounds()
         current_bounds: Tuple[float, float] = (left, right)
+        screen_width = getattr(self.mapper, "canvas_width", None) or getattr(self.cartesian2axis, "width", None)
+        screen_height = getattr(self.mapper, "canvas_height", None) or getattr(self.cartesian2axis, "height", None)
+        screen_signature = (int(screen_width or 0), int(screen_height or 0))
         if (self._cached_screen_paths is None or not self._cache_valid or self._last_bounds != current_bounds):
             self._last_scale = current_scale
             self._last_bounds = current_bounds
+            self._last_screen_bounds = screen_signature
             return True
         if self._last_scale is not None and current_scale is not None:
             ratio: float = current_scale / self._last_scale if self._last_scale else 1
             if ratio < 0.8 or ratio > 1.2:
                 self._last_scale = current_scale
                 self._last_bounds = current_bounds
+                self._last_screen_bounds = screen_signature
                 return True
+        if self._last_screen_bounds != screen_signature:
+            self._last_screen_bounds = screen_signature
+            return True
         return False
 
     def build_math_paths(self, left_bound: Optional[float] = None, right_bound: Optional[float] = None) -> MathPolyline:
@@ -173,6 +183,8 @@ class FunctionRenderable:
         right_bound: float = min(visible_right, base_right)
 
         MAX_POINTS: float = 160.0
+        MAX_POINTS_VISIBLE_FRACTION: float = 0.65
+        MIN_POINTS_PER_FUNCTION: int = 100
 
         paths: list[list[tuple[float, float]]] = []
         current_path: list[tuple[float, float]] = []
@@ -236,6 +248,10 @@ class FunctionRenderable:
         if not width:
             width = getattr(self.mapper, 'canvas_width', 0) or 0
         screen_margin: float = 16.0
+        visible_min_x: float = -screen_margin
+        visible_max_x: float = width + screen_margin
+        samples_emitted = 0
+        samples_visible = 0
 
         def eval_scaled_point(x_val: float) -> tuple[tuple[float, float] | tuple[None, None], Any]:
             try:
@@ -369,13 +385,15 @@ class FunctionRenderable:
             if sy >= bottom_bound or sy <= top_bound:
                 x += step
                 continue
-            if width > 0 and not curr_visible_x:
+            if width > 0 and not (visible_min_x <= sx_val <= visible_max_x):
                 x += step
                 continue
+            samples_visible += 1
 
             # Add visibly different points
             if not current_path:
                 current_path = [(scaled_point[0], scaled_point[1])]
+                samples_emitted += 1
                 x += step
                 continue
 
@@ -387,11 +405,32 @@ class FunctionRenderable:
             visible_y_diff: bool = abs(scaled_point[1] - lasty) > pixel_diff
             if visible_x_diff or visible_y_diff:
                 current_path.append((scaled_point[0], scaled_point[1]))
+                samples_emitted += 1
 
             x += step
 
         if current_path:
             paths.append(current_path)
+
+        total_points_threshold = max(MIN_POINTS_PER_FUNCTION, int(MAX_POINTS * MAX_POINTS_VISIBLE_FRACTION))
+        if samples_emitted > total_points_threshold and samples_visible > total_points_threshold:
+            original_paths = paths
+            downsampled_paths: list[list[tuple[float, float]]] = []
+            decimation_factor = int(max(2, round(samples_emitted / total_points_threshold)))
+            for path in paths:
+                if len(path) <= decimation_factor:
+                    downsampled_paths.append(path)
+                    continue
+                reduced: list[tuple[float, float]] = []
+                for index, point in enumerate(path):
+                    if index % decimation_factor == 0 or index == len(path) - 1:
+                        reduced.append(point)
+                downsampled_paths.append(reduced)
+            total_after = sum(len(path) for path in downsampled_paths)
+            if total_after >= MIN_POINTS_PER_FUNCTION:
+                paths = downsampled_paths
+            else:
+                paths = original_paths
 
         return paths
 

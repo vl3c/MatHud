@@ -191,3 +191,15 @@ Source: `TestRendererPerformance.test_optimized_renderer_not_slower` run against
 
 Optimized adapter counters during this run recorded `begin_path`=19 684, `stroke_calls`=11 940, `line_batch_segments`=17 187, and `polygon_batch_polygons`=935 (legacy remained at the original counts). Plan skips were not triggered because the baseline scene keeps all drawables on screen.
 
+### Optimized Mode After Function Sampling & Culling Refinements (2025-11-08)
+
+| Mode      | Draw Avg (ms) | Pan Avg (ms) | Zoom Avg (ms) | Frames | Plan Build Events | Plan Build Avg (ms) | Plan Apply Events | Plan Apply Avg (ms) |
+|-----------|---------------|--------------|---------------|--------|-------------------|---------------------|-------------------|---------------------|
+| Optimized | 71.00         | 155.50       | 160.00        | 172    | 153               | 3.47                | 14130             | 0.29                |
+
+Adapter telemetry remained stable (`begin_path`=19 684, `stroke_calls`=11 940, `line_batch_segments`=17 187, `polygon_batch_polygons`=935) while optimized function sampling trimmed plan apply time. Cartesian plan apply averaged 267.80 ms across five draws. Plan skips continued to register zero because every drawable remained in view during the baseline run.
+
+### Additional Harness Run (optimized mode)
+
+`TestRendererPerformance.test_renderer_performance_harness` captured comparable optimized metrics:
+
