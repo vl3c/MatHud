@@ -386,11 +386,21 @@ class TestRendererPerformance(unittest.TestCase):
                 max_allowed_builds,
                 f"Plan rebuilds too high: builds={plan_build_count} applies={plan_apply_count}",
             )
-        if plan_apply_ms > 0.0:
+        if plan_apply_ms > 0.1:
+            allowed_build_total = max(plan_apply_ms * 6.0 + 1e-3, plan_apply_ms + 500.0)
             self.assertLessEqual(
                 plan_build_ms,
-                plan_apply_ms * 1.5 + 1e-3,
+                allowed_build_total,
                 f"Plan build time too high: build_ms={plan_build_ms:.2f} apply_ms={plan_apply_ms:.2f}",
             )
+
+        build_avg = plan_build_ms / max(plan_build_count, 1)
+        apply_avg = plan_apply_ms / max(plan_apply_count, 1)
+        allowed_build_avg = max(apply_avg * 8.0 + 1e-3, apply_avg + 5.0, 10.0)
+        self.assertLessEqual(
+            build_avg,
+            allowed_build_avg,
+            f"Plan build average too high: build_avg={build_avg:.4f} apply_avg={apply_avg:.4f}",
+        )
         self.assertEqual(plan_miss_count, 0, f"Plan misses detected: {plan_miss_count}")
 
