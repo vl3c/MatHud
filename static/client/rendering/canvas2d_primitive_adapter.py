@@ -31,6 +31,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self._shape_depth: int = 0
         self._batch_depth: int = 0
         self._telemetry = telemetry
+        self._line_batch: Optional[Dict[str, Any]] = None
 
     def set_telemetry(self, telemetry: Any) -> None:
         self._telemetry = telemetry
@@ -137,6 +138,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
             self._pending_alpha_reset = True
 
     def stroke_line(self, start: Point2D, end: Point2D, stroke: StrokeStyle, *, include_width: bool = True) -> None:
+        self._flush_polygon_batch()
         self._apply_stroke_style(stroke, include_width=include_width)
         self.ctx.beginPath()
         self._record_event("begin_path_calls")
@@ -148,6 +150,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
     def stroke_polyline(self, points: List[Point2D], stroke: StrokeStyle) -> None:
         if len(points) < 2:
             return
+        self._flush_polygon_batch()
         self._apply_stroke_style(stroke)
         self.ctx.beginPath()
         self._record_event("begin_path_calls")
@@ -158,6 +161,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self._record_event("stroke_calls")
 
     def stroke_circle(self, center: Point2D, radius: float, stroke: StrokeStyle) -> None:
+        self._flush_polygon_batch()
         self._apply_stroke_style(stroke)
         self.ctx.beginPath()
         self._record_event("begin_path_calls")
@@ -173,6 +177,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         fill: FillStyle,
         stroke: Optional[StrokeStyle] = None,
     ) -> None:
+        self._flush_polygon_batch()
         self._apply_fill_style(fill)
         self.ctx.beginPath()
         self._record_event("begin_path_calls")
@@ -194,6 +199,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         rotation_rad: float,
         stroke: StrokeStyle,
     ) -> None:
+        self._flush_polygon_batch()
         self._apply_stroke_style(stroke)
         self.ctx.beginPath()
         self._record_event("begin_path_calls")
@@ -211,16 +217,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
     ) -> None:
         if len(points) < 3:
             return
-        self._apply_fill_style(fill)
-        self.ctx.beginPath()
-        self._record_event("begin_path_calls")
-        self.ctx.moveTo(points[0][0], points[0][1])
-        for x, y in points[1:]:
-            self.ctx.lineTo(x, y)
-        self.ctx.closePath()
-        self.ctx.fill()
-        self._record_event("fill_calls")
-        self._reset_alpha_if_needed()
+        self._batch_fill_polygon(points, fill, stroke)
 
     def fill_joined_area(
         self,
@@ -230,18 +227,8 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
     ) -> None:
         if len(forward) < 2 or not reverse:
             return
-        self._apply_fill_style(fill)
-        self.ctx.beginPath()
-        self._record_event("begin_path_calls")
-        self.ctx.moveTo(forward[0][0], forward[0][1])
-        for x, y in forward[1:]:
-            self.ctx.lineTo(x, y)
-        for x, y in reverse:
-            self.ctx.lineTo(x, y)
-        self.ctx.closePath()
-        self.ctx.fill()
-        self._record_event("fill_calls")
-        self._reset_alpha_if_needed()
+        points: List[Point2D] = list(forward) + list(reverse)
+        self._batch_fill_polygon(points, fill, None, is_joined_area=True)
 
     def stroke_arc(
         self,
@@ -270,6 +257,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         alignment: TextAlignment,
         style_overrides: Optional[Dict[str, Any]] = None,
     ) -> None:
+        self._flush_polygon_batch()
         if color != self._text_color:
             self.ctx.fillStyle = color
             self._text_color = color
@@ -324,6 +312,8 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self._record_event("frame_begin")
 
     def end_frame(self) -> None:
+        self._flush_polygon_batch()
+        self._flush_line_batch()
         self._reset_alpha_if_needed(force=True)
         self._record_event("frame_end")
 
@@ -333,6 +323,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self._record_batch_depth()
 
     def end_batch(self, plan: Any = None) -> None:
+        self._flush_polygon_batch()
         if self._batch_depth:
             self._batch_depth -= 1
         self._reset_alpha_if_needed()
@@ -340,10 +331,14 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self._record_batch_depth()
 
     def clear_surface(self) -> None:
+        self._flush_polygon_batch()
+        self._flush_line_batch()
         self.ctx.clearRect(0, 0, self.canvas_el.width, self.canvas_el.height)
         self._record_event("clear_surface_calls")
 
     def resize_surface(self, width: float, height: float) -> None:
+        self._flush_polygon_batch()
+        self._flush_line_batch()
         self.canvas_el.width = width
         self.canvas_el.height = height
         self.canvas_el.attrs["width"] = str(width)
@@ -351,4 +346,167 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self.canvas_el.style.width = f"{int(width)}px"
         self.canvas_el.style.height = f"{int(height)}px"
         self._record_event("resize_surface_calls")
+
+    def execute_optimized(self, command: Any) -> None:
+        op = getattr(command, "op", "")
+        if op == "stroke_line":
+            self._batch_stroke_line(command)
+            return
+        if op == "stroke_polyline":
+            self._batch_polyline(command)
+            return
+        if op in {"fill_polygon", "fill_joined_area"}:
+            self._batch_fill_polygon_from_command(command)
+            return
+        self._flush_line_batch()
+        self._flush_polygon_batch()
+        handler = getattr(self, op, None)
+        if callable(handler):
+            handler(*getattr(command, "args", ()), **getattr(command, "kwargs", {}))
+
+    # ------------------------------------------------------------------
+    # Line batching helpers
+    # ------------------------------------------------------------------
+
+    def _batch_stroke_line(self, command: Any) -> None:
+        args = getattr(command, "args", ())
+        kwargs = getattr(command, "kwargs", {})
+        if len(args) < 3:
+            return
+        start, end, stroke = args[:3]
+        include_width = bool(kwargs.get("include_width", True))
+        self._queue_line_segment(start, end, stroke, include_width)
+
+    def _batch_polyline(self, command: Any) -> None:
+        args = getattr(command, "args", ())
+        if len(args) < 2:
+            return
+        points, stroke = args[:2]
+        if not isinstance(points, (list, tuple)) or len(points) < 2:
+            return
+        prev = points[0]
+        for current in points[1:]:
+            self._queue_line_segment(prev, current, stroke, True)
+            prev = current
+
+    def _queue_line_segment(self, start: Point2D, end: Point2D, stroke: StrokeStyle, include_width: bool) -> None:
+        signature = (
+            getattr(stroke, "color", None),
+            getattr(stroke, "line_join", None),
+            getattr(stroke, "line_cap", None),
+            getattr(stroke, "width", None) if include_width else None,
+            include_width,
+        )
+        batch = self._line_batch
+        if batch is None or batch["signature"] != signature:
+            self._flush_line_batch()
+            self._line_batch = {
+                "stroke": stroke,
+                "include_width": include_width,
+                "segments": [],
+                "signature": signature,
+            }
+            batch = self._line_batch
+        batch["segments"].append((start, end))
+        self._record_event("line_batch_segments")
+
+    def _flush_line_batch(self) -> None:
+        batch = self._line_batch
+        if not batch:
+            return
+        stroke = batch["stroke"]
+        include_width = batch["include_width"]
+        segments = batch["segments"]
+        if not segments:
+            self._line_batch = None
+            return
+        self._apply_stroke_style(stroke, include_width=include_width)
+        self.ctx.beginPath()
+        self._record_event("begin_path_calls")
+        for start, end in segments:
+            self.ctx.moveTo(start[0], start[1])
+            self.ctx.lineTo(end[0], end[1])
+        self.ctx.stroke()
+        self._record_event("stroke_calls")
+        self._line_batch = None
+
+    # ------------------------------------------------------------------
+    # Polygon batching helpers
+    # ------------------------------------------------------------------
+
+    def _batch_fill_polygon_from_command(self, command: Any) -> None:
+        args = getattr(command, "args", ())
+        if not args:
+            return
+        if command.op == "fill_polygon":
+            points, fill, stroke = args[:3]
+            self._batch_fill_polygon(list(points), fill, stroke)
+        else:
+            forward, reverse, fill = args[:3]
+            combined = list(forward) + list(reverse)
+            self._batch_fill_polygon(combined, fill, None, is_joined_area=True)
+
+    def _batch_fill_polygon(
+        self,
+        points: List[Point2D],
+        fill: FillStyle,
+        stroke: Optional[StrokeStyle],
+        *,
+        is_joined_area: bool = False,
+    ) -> None:
+        if len(points) < 3:
+            return
+        self._flush_line_batch()
+        signature = (
+            getattr(fill, "color", None),
+            getattr(fill, "opacity", None),
+            getattr(stroke, "color", None) if stroke else None,
+            getattr(stroke, "width", None) if stroke else None,
+            is_joined_area,
+        )
+        batch = getattr(self, "_polygon_batch", None)
+        if (
+            batch is None
+            or batch["signature"] != signature
+        ):
+            self._flush_polygon_batch()
+            self._polygon_batch = {
+                "fill": fill,
+                "stroke": stroke,
+                "polygons": [],
+                "signature": signature,
+                "joined": is_joined_area,
+            }
+            batch = self._polygon_batch
+        batch["polygons"].append(tuple(points))
+        self._record_event("polygon_batch_polygons")
+
+    def _flush_polygon_batch(self) -> None:
+        batch = getattr(self, "_polygon_batch", None)
+        if not batch:
+            return
+        fill = batch["fill"]
+        stroke = batch["stroke"]
+        polygons = batch["polygons"]
+        if not polygons:
+            self._polygon_batch = None
+            return
+        self._apply_fill_style(fill)
+        for polygon in polygons:
+            if len(polygon) < 3:
+                continue
+            self.ctx.beginPath()
+            self._record_event("begin_path_calls")
+            self.ctx.moveTo(polygon[0][0], polygon[0][1])
+            for x, y in polygon[1:]:
+                self.ctx.lineTo(x, y)
+            self.ctx.closePath()
+            self.ctx.fill()
+            self._record_event("fill_calls")
+            if stroke:
+                self._apply_stroke_style(stroke)
+                self.ctx.stroke()
+                self._record_event("stroke_calls")
+        self._polygon_batch = None
+        self._reset_alpha_if_needed()
 

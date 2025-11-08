@@ -47,6 +47,7 @@ class Canvas2DTelemetry:
             "cartesian_plan_count": 0,
             "legacy_render_count": 0,
             "plan_miss_count": 0,
+            "plan_skip_count": 0,
         }
         self._per_drawable: Dict[str, Dict[str, float]] = {}
         self._adapter_events: Dict[str, int] = {}
@@ -89,6 +90,7 @@ class Canvas2DTelemetry:
                 "plan_apply_count": 0,
                 "legacy_render_count": 0,
                 "plan_miss_count": 0,
+                "plan_skip_count": 0,
             }
             self._per_drawable[name] = bucket
         return bucket
@@ -116,6 +118,11 @@ class Canvas2DTelemetry:
         self._phase_counts["plan_miss_count"] += 1
         bucket = self._drawable_bucket(name)
         bucket["plan_miss_count"] += 1
+
+    def record_plan_skip(self, name: str) -> None:
+        self._phase_counts["plan_skip_count"] += 1
+        bucket = self._drawable_bucket(name)
+        bucket["plan_skip_count"] += 1
 
     def record_legacy_render(self, name: str, duration_ms: float, *, cartesian: bool = False) -> None:
         self._phase_totals["legacy_render_ms"] += duration_ms
@@ -211,7 +218,9 @@ class Canvas2DRenderer(RendererProtocol):
                 plan.update_map_state(map_state)
                 self._cartesian_cache = {"plan": plan, "signature": signature}
             apply_start = self._telemetry.mark_time()
-            plan.update_map_state(map_state)
+            if not plan.is_visible(width, height):
+                self._telemetry.record_plan_skip(drawable_name)
+                return
             plan.apply(self._shared_primitives)
             apply_elapsed = self._telemetry.elapsed_since(apply_start)
             self._telemetry.record_plan_apply(drawable_name, apply_elapsed, cartesian=True)
@@ -394,7 +403,9 @@ class Canvas2DRenderer(RendererProtocol):
                     self._plan_cache.pop(cache_key, None)
             if plan is not None:
                 apply_start = self._telemetry.mark_time()
-                plan.update_map_state(map_state)
+                if not plan.is_visible(self.canvas_el.width, self.canvas_el.height):
+                    self._telemetry.record_plan_skip(drawable_name)
+                    return
                 plan.apply(self._shared_primitives)
                 apply_elapsed = self._telemetry.elapsed_since(apply_start)
                 self._telemetry.record_plan_apply(drawable_name, apply_elapsed)

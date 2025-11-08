@@ -223,6 +223,20 @@ def run_renderer_performance(
         add_phase("legacy_render", "legacy_render_ms", "legacy_render_count")
         add_phase("cartesian_plan_build", "cartesian_plan_build_ms", "cartesian_plan_count")
         add_phase("cartesian_plan_apply", "cartesian_plan_apply_ms", "cartesian_plan_count")
+        skip_count = phase_data.get("plan_skip_count")
+        if skip_count:
+            try:
+                skip_int = int(skip_count)
+            except Exception:
+                skip_int = None
+            if skip_int is not None:
+                phase_metrics.append(
+                    {
+                        "phase": "plan_skip",
+                        "total_ms": 0.0,
+                        "count": skip_int,
+                    }
+                )
 
     console = getattr(window, "console", None)
     if console is not None:

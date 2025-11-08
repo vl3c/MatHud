@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from rendering import shared_drawable_renderers as shared
@@ -247,7 +248,7 @@ class PrimitiveCommand:
 
 
 class OptimizedPrimitivePlan:
-    __slots__ = ("drawable", "commands", "plan_key", "metadata", "_map_state")
+    __slots__ = ("drawable", "commands", "plan_key", "metadata", "_map_state", "_screen_bounds")
 
     def __init__(
         self,
@@ -262,6 +263,14 @@ class OptimizedPrimitivePlan:
         self.plan_key = plan_key
         self.metadata = metadata
         self._map_state: Optional[MapState] = dict(metadata.get("map_state", {}))
+        stored_bounds = metadata.get("screen_bounds")
+        self._screen_bounds: Optional[Tuple[float, float, float, float]] = (
+            tuple(stored_bounds) if isinstance(stored_bounds, (list, tuple)) and len(stored_bounds) == 4 else None
+        )
+        if not self._screen_bounds:
+            self._recompute_bounds_from_commands()
+        else:
+            self._screen_bounds = tuple(float(v) for v in self._screen_bounds)
 
     def update_map_state(self, new_state: MapState) -> None:
         if not new_state:
@@ -279,6 +288,7 @@ class OptimizedPrimitivePlan:
             _reproject_command(command, current_state, new_state)
         self._map_state = dict(new_state)
         self.metadata["map_state"] = dict(new_state)
+        self._recompute_bounds_from_commands()
 
     def apply(self, primitives: RendererPrimitives) -> None:
         if not self.commands:
@@ -290,6 +300,88 @@ class OptimizedPrimitivePlan:
         finally:
             primitives.end_batch(self)
 
+    def _recompute_bounds_from_commands(self) -> None:
+        min_x = float("inf")
+        max_x = float("-inf")
+        min_y = float("inf")
+        max_y = float("-inf")
+
+        def consider_point(px: float, py: float) -> None:
+            nonlocal min_x, max_x, min_y, max_y
+            if px < min_x:
+                min_x = px
+            if px > max_x:
+                max_x = px
+            if py < min_y:
+                min_y = py
+            if py > max_y:
+                max_y = py
+
+        for command in self.commands:
+            op = command.op
+            if op == "stroke_line":
+                start, end, _ = command.args[:3]
+                consider_point(start[0], start[1])
+                consider_point(end[0], end[1])
+            elif op == "stroke_polyline":
+                points, _ = command.args[:2]
+                for x, y in points:
+                    consider_point(x, y)
+            elif op in {"fill_polygon", "fill_joined_area"}:
+                if op == "fill_polygon":
+                    points = command.args[0]
+                else:
+                    forward, reverse, _ = command.args[:3]
+                    points = list(forward) + list(reverse)
+                for x, y in points:
+                    consider_point(x, y)
+            elif op in {"stroke_circle", "fill_circle"}:
+                center = command.args[0]
+                radius = float(command.args[1])
+                cx, cy = center
+                consider_point(cx - radius, cy - radius)
+                consider_point(cx + radius, cy + radius)
+            elif op == "stroke_ellipse":
+                center, rx, ry, rotation, _ = command.args[:5]
+                cx, cy = center
+                cos_r = math.cos(rotation)
+                sin_r = math.sin(rotation)
+                width = abs(rx * cos_r) + abs(ry * sin_r)
+                height = abs(rx * sin_r) + abs(ry * cos_r)
+                consider_point(cx - width, cy - height)
+                consider_point(cx + width, cy + height)
+            elif op == "stroke_arc":
+                center, radius, start_angle, end_angle, _, _ = command.args[:6]
+                cx, cy = center
+                consider_point(cx - radius, cy - radius)
+                consider_point(cx + radius, cy + radius)
+                consider_point(cx + radius * math.cos(start_angle), cy + radius * math.sin(start_angle))
+                consider_point(cx + radius * math.cos(end_angle), cy + radius * math.sin(end_angle))
+            elif op == "draw_text":
+                _, position, *_ = command.args
+                consider_point(position[0], position[1])
+
+        if min_x == float("inf") or min_y == float("inf"):
+            self._screen_bounds = None
+        else:
+            self._screen_bounds = (min_x, max_x, min_y, max_y)
+        if self._screen_bounds is not None:
+            self.metadata["screen_bounds"] = self._screen_bounds
+
+    def is_visible(self, width: float, height: float, *, margin: float = 1.0) -> bool:
+        if self._screen_bounds is None:
+            return True
+        min_x, max_x, min_y, max_y = self._screen_bounds
+        if max_x < -margin:
+            return False
+        if max_y < -margin:
+            return False
+        if min_x > width + margin:
+            return False
+        if min_y > height + margin:
+            return False
+        return True
+
 
 class _RecordingPrimitives(shared.RendererPrimitives):
     def __init__(self, drawable_key: str) -> None:
@@ -297,6 +389,7 @@ class _RecordingPrimitives(shared.RendererPrimitives):
         self._drawable_key = drawable_key
         self._counter = 0
         self._style_pool: Dict[Tuple[Any, ...], Any] = {}
+        self._bounds = [float("inf"), float("-inf"), float("inf"), float("-inf")]
 
     def _style_signature(self, style: Any) -> Optional[Tuple[Any, ...]]:
         if style is None:
@@ -338,10 +431,38 @@ class _RecordingPrimitives(shared.RendererPrimitives):
             meta["style"] = style_sig
         geometry_sig = _geometry_signature(geometry)
         if geometry_sig:
-            meta["geometry"] = _quantize_geometry(geometry_sig)
+            quantized = _quantize_geometry(geometry_sig)
+            meta["geometry"] = quantized
+            self._update_bounds_from_geometry(quantized)
         pooled_args = self._pool_styles(args)
         pooled_kwargs = self._pool_styles(kwargs)
         self.commands.append(PrimitiveCommand(op, pooled_args, pooled_kwargs, command_key, meta))
+
+    def _update_bounds_from_geometry(self, geometry: Tuple[Any, ...]) -> None:
+        if not geometry:
+            return
+        min_x, max_x, min_y, max_y = self._bounds
+        for item in geometry:
+            if isinstance(item, (tuple, list)):
+                if len(item) == 2 and all(isinstance(coord, (int, float)) for coord in item):
+                    x, y = float(item[0]), float(item[1])
+                    if x < min_x:
+                        min_x = x
+                    if x > max_x:
+                        max_x = x
+                    if y < min_y:
+                        min_y = y
+                    if y > max_y:
+                        max_y = y
+                else:
+                    self._update_bounds_from_geometry(tuple(item))
+        self._bounds = [min_x, max_x, min_y, max_y]
+
+    def get_bounds(self) -> Optional[Tuple[float, float, float, float]]:
+        min_x, max_x, min_y, max_y = self._bounds
+        if min_x == float("inf") or min_y == float("inf"):
+            return None
+        return (min_x, max_x, min_y, max_y)
 
     def stroke_line(self, start, end, stroke, *, include_width=True):
         self._record("stroke_line", (start, end, stroke), {"include_width": include_width}, style=stroke, geometry=(start, end))
@@ -419,7 +540,11 @@ def build_plan_for_drawable(drawable: Any, coordinate_mapper: Any, style: Dict[s
         drawable=drawable,
         commands=list(recorder.commands),
         plan_key=drawable_key,
-        metadata={"class_name": class_name, "map_state": map_state},
+        metadata={
+            "class_name": class_name,
+            "map_state": map_state,
+            "screen_bounds": recorder.get_bounds(),
+        },
     )
     plan.update_map_state(map_state)
     return plan
@@ -435,7 +560,11 @@ def build_plan_for_cartesian(cartesian: Any, coordinate_mapper: Any, style: Dict
         drawable=cartesian,
         commands=list(recorder.commands),
         plan_key=key,
-        metadata={"class_name": "Cartesian2Axis", "map_state": map_state},
+        metadata={
+            "class_name": "Cartesian2Axis",
+            "map_state": map_state,
+            "screen_bounds": recorder.get_bounds(),
+        },
     )
     plan.update_map_state(map_state)
     return plan
