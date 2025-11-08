@@ -338,7 +338,7 @@ class TestRendererPerformance(unittest.TestCase):
                     "[RendererPerf] Optimized mode slower than legacy for "
                     f"{operation}: optimized={optimized_avg:.2f} ms legacy={legacy_avg:.2f} ms"
                 )
-            allowed = legacy_avg * 2.5 + 1e-6
+            allowed = legacy_avg * 1.5 + 1e-6
             self.assertLessEqual(
                 optimized_avg,
                 allowed,
@@ -362,4 +362,33 @@ class TestRendererPerformance(unittest.TestCase):
                 allowed_dom_delta,
                 f"DOM node delta too high for {operation}: legacy={legacy_nodes} optimized={optimized_nodes}",
             )
+        for operation, optimized_nodes in optimized_dom.items():
+            self.assertGreater(
+                optimized_nodes,
+                0.0,
+                f"Optimized mode produced no DOM nodes for {operation}",
+            )
+
+        optimized_telemetry = optimized.get("telemetry") or {}
+        phase = optimized_telemetry.get("phase", {})
+        plan_build_count = int(phase.get("plan_build_count", 0) or 0)
+        plan_apply_count = int(phase.get("plan_apply_count", 0) or 0)
+        plan_build_ms = float(phase.get("plan_build_ms", 0.0) or 0.0)
+        plan_apply_ms = float(phase.get("plan_apply_ms", 0.0) or 0.0)
+        plan_miss_count = int(phase.get("plan_miss_count", 0) or 0)
+
+        if plan_apply_count > 0:
+            max_allowed_builds = max(5, int(plan_apply_count * 0.25))
+            self.assertLessEqual(
+                plan_build_count,
+                max_allowed_builds,
+                f"Plan rebuilds too high: builds={plan_build_count} applies={plan_apply_count}",
+            )
+        if plan_apply_ms > 0.0:
+            self.assertLessEqual(
+                plan_build_ms,
+                plan_apply_ms * 1.5 + 1e-3,
+                f"Plan build time too high: build_ms={plan_build_ms:.2f} apply_ms={plan_apply_ms:.2f}",
+            )
+        self.assertEqual(plan_miss_count, 0, f"Plan misses detected: {plan_miss_count}")
 

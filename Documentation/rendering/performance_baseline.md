@@ -122,6 +122,32 @@ Renderer: Canvas2DRenderer – legacy vs optimized strategy (run via `TestRender
 
 DOM node counts remained at 362 in both cases. These measurements capture the current delta between the legacy and optimized SVG paths after restoring SVG as the default renderer, and provide a baseline for tuning the optimized plan path further.
 
+### SVG (2025-11-08 – cache/staging validation pass)
+
+- Scene / iterations: unchanged baseline workload, warm-up + one measured pass (draw, pan, zoom)
+- Legacy DOM nodes: 362  
+- Optimized DOM nodes: 1 086 (cloned nodes retained after offscreen staging)
+
+| Mode      | Draw Avg (ms) | Pan Avg (ms) | Zoom Avg (ms) |
+|-----------|---------------|--------------|---------------|
+| Legacy    | 214.00        | 208.50       | 189.50        |
+| Optimized | 110.00        | 230.50       | 242.00        |
+
+Telemetry snapshot (`run_renderer_performance(iterations=1, render_mode="optimized")`):
+
+- Frames: 172  
+- Plan build: 172 events, 3.94 ms avg (677 ms total)  
+- Plan apply: 15 038 events, 0.42 ms avg (6 360 ms total)  
+- Cartesian plan build: 5 events, 52.00 ms avg (260 ms total)  
+- Cartesian plan apply: 5 events, 396.40 ms avg (1 982 ms total)  
+- Adapter counters: `fragment_append`=277, `direct_append`=85, `new_elements`=362, `svg_clone_copy` emitted per staged node
+
+Notes:
+
+1. Caching improvements dropped initial draw time below legacy, but pan/zoom still exceed the 1.5× budget (test harness flagged zoom = 242.00 ms vs legacy 189.50 ms).  
+2. DOM nodes increased to 1 086 because cloned offscreen children accumulate; additional pruning is required before promoting the optimized path.  
+3. Plan build counts now align with frame count (one cartesian rebuild per visible redraw plus drawable plans), but cartesian plan apply remains the dominant cost at ~396 ms; next tuning steps should focus on pruning cartesian command lists and tightening visibility checks.
+
 -----------------------------------------------------------------------------------------------------
 
 ## Canvas2DRenderer (telemetry snapshot – optimized instrumentation)

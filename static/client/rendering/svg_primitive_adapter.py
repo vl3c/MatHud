@@ -126,20 +126,25 @@ class SvgPrimitiveAdapter(RendererPrimitives):
 
     def _attach_new_element(self, elem: Any) -> None:
         fragment = self._staged_fragment
+        appended = False
         if fragment is not None:
             try:
                 fragment <= elem
             except Exception:
-                try:
-                    self._surface <= elem
-                except Exception:
-                    pass
-        else:
+                appended = False
+            else:
+                self._record_adapter_event("fragment_append")
+                appended = True
+        if not appended:
             try:
                 self._surface <= elem
             except Exception:
                 pass
-        self._record_adapter_event("new_elements")
+            else:
+                self._record_adapter_event("direct_append")
+                appended = True
+        if appended:
+            self._record_adapter_event("new_elements")
 
     def _set_attribute(self, elem: Any, cache: Dict[str, Any], name: str, value: Optional[str]) -> None:
         attrs = cache.setdefault("attrs", {})

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Set, Tuple
 
 from browser import document, svg, window
 
@@ -185,6 +185,8 @@ class SvgRenderer(RendererProtocol):
             adapter_surface_id, telemetry=self._telemetry
         )
         self._telemetry.set_mode(self._render_mode)
+        self._frame_seen_plan_keys: Set[str] = set()
+        self._cartesian_rendered_this_frame: bool = False
 
     def register_default_drawables(self) -> None:
         self._register_shape("drawables.point", "Point", self._render_point)
@@ -252,11 +254,15 @@ class SvgRenderer(RendererProtocol):
         if self._use_offscreen_surface:
             self._pull_main_to_offscreen()
         self._shared_primitives.begin_frame()
+        self._frame_seen_plan_keys.clear()
+        self._cartesian_rendered_this_frame = False
 
     def end_frame(self) -> None:
         self._shared_primitives.end_frame()
         if self._use_offscreen_surface:
             self._push_offscreen_to_main()
+        if self._render_mode == "optimized":
+            self._prune_unused_plan_entries()
         self._telemetry.end_frame()
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
@@ -354,6 +360,7 @@ class SvgRenderer(RendererProtocol):
                 self._telemetry.record_plan_build(drawable_name, build_elapsed, cartesian=True)
                 plan.update_map_state(map_state)
                 self._cartesian_cache = {"plan": plan, "signature": signature}
+            self._cartesian_rendered_this_frame = True
             if not plan.is_visible(width, height):
                 self._telemetry.record_plan_skip(drawable_name)
                 return
@@ -365,6 +372,7 @@ class SvgRenderer(RendererProtocol):
         legacy_start = self._telemetry.mark_time()
         try:
             render_cartesian_helper(self._shared_primitives, cartesian, coordinate_mapper, self.style)
+            self._cartesian_rendered_this_frame = True
         finally:
             legacy_elapsed = self._telemetry.elapsed_since(legacy_start)
             self._telemetry.record_legacy_render(drawable_name, legacy_elapsed, cartesian=True)
@@ -418,6 +426,7 @@ class SvgRenderer(RendererProtocol):
                     self._telemetry.record_plan_miss(drawable_name)
                     self._plan_cache.pop(cache_key, None)
             if plan is not None:
+                self._frame_seen_plan_keys.add(cache_key)
                 width, height = self._get_surface_dimensions()
                 if not plan.is_visible(width, height):
                     self._telemetry.record_plan_skip(drawable_name)
@@ -439,6 +448,25 @@ class SvgRenderer(RendererProtocol):
 
     def peek_telemetry(self) -> Dict[str, Any]:
         return self._telemetry.snapshot()
+
+    def invalidate_drawable_cache(self, drawable: Any) -> None:
+        cache_key = self._plan_cache_key(drawable, self._resolve_drawable_name(drawable))
+        self._plan_cache.pop(cache_key, None)
+
+    def invalidate_all_drawable_caches(self) -> None:
+        self._plan_cache.clear()
+
+    def invalidate_cartesian_cache(self) -> None:
+        self._cartesian_cache = None
+
+    def _prune_unused_plan_entries(self) -> None:
+        if not self._plan_cache:
+            self._frame_seen_plan_keys.clear()
+            return
+        stale_keys = [key for key in self._plan_cache.keys() if key not in self._frame_seen_plan_keys]
+        for key in stale_keys:
+            self._plan_cache.pop(key, None)
+        self._frame_seen_plan_keys.clear()
 
     def _resolve_drawable_name(self, drawable: Any) -> str:
         try:
@@ -592,19 +620,11 @@ class SvgRenderer(RendererProtocol):
         main_surface = self._get_main_surface()
         if offscreen is None or main_surface is None:
             return
+        self._sync_offscreen_size()
         try:
-            offscreen.clear()
+            main_surface.clear()
         except Exception:
             pass
-        try:
-            children = list(main_surface.children)
-        except Exception:
-            children = []
-        for child in children:
-            try:
-                offscreen <= child
-            except Exception:
-                pass
 
     def _push_offscreen_to_main(self) -> None:
         if not self._use_offscreen_surface:
@@ -623,14 +643,14 @@ class SvgRenderer(RendererProtocol):
             children = []
         for child in children:
             try:
-                main_surface <= child
+                clone = child.cloneNode(True)
             except Exception:
                 pass
-        if self._render_mode == "optimized":
-            plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style)
-            if plan is not None:
-                plan.apply(self._shared_primitives)
-                return
-        legacy_callable(self._shared_primitives, drawable, coordinate_mapper, self.style)
+            else:
+                try:
+                    main_surface <= clone
+                    self._telemetry.record_adapter_event("svg_clone_copy")
+                except Exception:
+                    pass
 
 
