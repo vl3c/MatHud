@@ -172,8 +172,11 @@ class Canvas2DRenderer(RendererProtocol):
         self._telemetry = Canvas2DTelemetry()
         self._render_mode: str = "legacy"
         self._telemetry.set_mode(self._render_mode)
+        self._use_layer_compositing: bool = self._should_use_layer_compositing()
+        self._offscreen_canvas = self._create_offscreen_canvas() if self._use_layer_compositing else None
+        target_canvas = self._offscreen_canvas or self.canvas_el
         self._shared_primitives: Canvas2DPrimitiveAdapter = Canvas2DPrimitiveAdapter(
-            self.canvas_el, telemetry=self._telemetry
+            target_canvas, telemetry=self._telemetry
         )
         self.register_default_drawables()
         self._plan_cache: Dict[str, Dict[str, Any]] = {}
@@ -182,6 +185,7 @@ class Canvas2DRenderer(RendererProtocol):
     def clear(self) -> None:
         width = self.canvas_el.width
         height = self.canvas_el.height
+        self._shared_primitives.clear_surface()
         self.ctx.clearRect(0, 0, width, height)
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
@@ -193,6 +197,7 @@ class Canvas2DRenderer(RendererProtocol):
 
     def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
         self._resize_to_container()
+        self._sync_offscreen_size()
         width = self.canvas_el.width
         height = self.canvas_el.height
         cartesian.width = width
@@ -249,6 +254,7 @@ class Canvas2DRenderer(RendererProtocol):
 
     def end_frame(self) -> None:
         self._shared_primitives.end_frame()
+        self._flush_offscreen_to_main()
         self._telemetry.end_frame()
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
@@ -497,5 +503,52 @@ class Canvas2DRenderer(RendererProtocol):
 
     def peek_telemetry(self) -> Dict[str, Any]:
         return self._telemetry.snapshot()
+
+    def _should_use_layer_compositing(self) -> bool:
+        try:
+            flag = getattr(window, "MatHudCanvas2DOffscreen", None)
+            if isinstance(flag, bool):
+                return flag
+        except Exception:
+            pass
+        try:
+            stored = window.localStorage.getItem("mathud.canvas2d.offscreen")
+            if stored and stored.lower() in {"1", "true", "yes", "on"}:
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _create_offscreen_canvas(self):
+        offscreen = html.CANVAS()
+        offscreen.width = self.canvas_el.width
+        offscreen.height = self.canvas_el.height
+        offscreen.attrs["width"] = str(offscreen.width)
+        offscreen.attrs["height"] = str(offscreen.height)
+        offscreen.style.display = "none"
+        return offscreen
+
+    def _sync_offscreen_size(self) -> None:
+        if not self._use_layer_compositing or self._offscreen_canvas is None:
+            return
+        target_width = self.canvas_el.width
+        target_height = self.canvas_el.height
+        if self._offscreen_canvas.width != target_width or self._offscreen_canvas.height != target_height:
+            self._shared_primitives.resize_surface(target_width, target_height)
+
+    def _flush_offscreen_to_main(self) -> None:
+        if not self._use_layer_compositing or self._offscreen_canvas is None:
+            return
+        try:
+            self.ctx.clearRect(0, 0, self.canvas_el.width, self.canvas_el.height)
+            self.ctx.drawImage(self._offscreen_canvas, 0, 0)
+        except Exception:
+            try:
+                off_ctx = self._offscreen_canvas.getContext("2d")
+                if off_ctx is not None:
+                    image = off_ctx.getImageData(0, 0, self._offscreen_canvas.width, self._offscreen_canvas.height)
+                    self.ctx.putImageData(image, 0, 0)
+            except Exception:
+                pass
 
 
