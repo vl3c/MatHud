@@ -360,14 +360,31 @@ class SvgRenderer(RendererProtocol):
                 self._telemetry.record_plan_build(drawable_name, build_elapsed, cartesian=True)
                 plan.update_map_state(map_state)
                 self._cartesian_cache = {"plan": plan, "signature": signature}
+            usage_counts = getattr(plan, "get_usage_counts", lambda: {})()
+            reserve = getattr(self._shared_primitives, "reserve_usage_counts", None)
+            supports_transform = getattr(plan, "supports_transform", lambda: False)()
+            if supports_transform:
+                set_transform = getattr(self._shared_primitives, "set_group_transform", None)
+                transform = getattr(plan, "get_transform", lambda: None)()
+                if callable(set_transform):
+                    set_transform(plan.plan_key, transform)
             self._cartesian_rendered_this_frame = True
             if not plan.is_visible(width, height):
                 self._telemetry.record_plan_skip(drawable_name)
+                return
+            if not plan.needs_apply():
+                if callable(reserve) and usage_counts:
+                    reserve(usage_counts, trim_excess=True)
                 return
             apply_start = self._telemetry.mark_time()
             plan.apply(self._shared_primitives)
             apply_elapsed = self._telemetry.elapsed_since(apply_start)
             self._telemetry.record_plan_apply(drawable_name, apply_elapsed, cartesian=True)
+            if supports_transform:
+                transform = getattr(plan, "get_transform", lambda: None)()
+                set_transform = getattr(self._shared_primitives, "set_group_transform", None)
+                if callable(set_transform):
+                    set_transform(plan.plan_key, transform)
             return
         legacy_start = self._telemetry.mark_time()
         try:
@@ -427,14 +444,31 @@ class SvgRenderer(RendererProtocol):
                     self._plan_cache.pop(cache_key, None)
             if plan is not None:
                 self._frame_seen_plan_keys.add(cache_key)
+                supports_transform = getattr(plan, "supports_transform", lambda: False)()
+                if supports_transform:
+                    set_transform = getattr(self._shared_primitives, "set_group_transform", None)
+                    transform = getattr(plan, "get_transform", lambda: None)()
+                    if callable(set_transform):
+                        set_transform(plan.plan_key, transform)
                 width, height = self._get_surface_dimensions()
                 if not plan.is_visible(width, height):
                     self._telemetry.record_plan_skip(drawable_name)
+                    return
+                if not plan.needs_apply():
+                    usage_counts = getattr(plan, "get_usage_counts", lambda: {})()
+                    reserve = getattr(self._shared_primitives, "reserve_usage_counts", None)
+                    if callable(reserve) and usage_counts:
+                        reserve(usage_counts, trim_excess=True)
                     return
                 apply_start = self._telemetry.mark_time()
                 plan.apply(self._shared_primitives)
                 apply_elapsed = self._telemetry.elapsed_since(apply_start)
                 self._telemetry.record_plan_apply(drawable_name, apply_elapsed)
+                if supports_transform:
+                    transform = getattr(plan, "get_transform", lambda: None)()
+                    set_transform = getattr(self._shared_primitives, "set_group_transform", None)
+                    if callable(set_transform):
+                        set_transform(plan.plan_key, transform)
                 return
         legacy_start = self._telemetry.mark_time()
         try:
@@ -451,12 +485,29 @@ class SvgRenderer(RendererProtocol):
 
     def invalidate_drawable_cache(self, drawable: Any) -> None:
         cache_key = self._plan_cache_key(drawable, self._resolve_drawable_name(drawable))
-        self._plan_cache.pop(cache_key, None)
+        entry = self._plan_cache.pop(cache_key, None)
+        if entry:
+            plan_obj = entry.get("plan")
+            drop = getattr(self._shared_primitives, "drop_group", None)
+            if callable(drop) and getattr(plan_obj, "plan_key", None):
+                drop(plan_obj.plan_key)
 
     def invalidate_all_drawable_caches(self) -> None:
+        if self._plan_cache:
+            drop = getattr(self._shared_primitives, "drop_group", None)
+            if callable(drop):
+                for entry in self._plan_cache.values():
+                    plan_obj = entry.get("plan") if isinstance(entry, dict) else None
+                    if getattr(plan_obj, "plan_key", None):
+                        drop(plan_obj.plan_key)
         self._plan_cache.clear()
 
     def invalidate_cartesian_cache(self) -> None:
+        if self._cartesian_cache:
+            plan_obj = self._cartesian_cache.get("plan")
+            drop = getattr(self._shared_primitives, "drop_group", None)
+            if callable(drop) and getattr(plan_obj, "plan_key", None):
+                drop(plan_obj.plan_key)
         self._cartesian_cache = None
 
     def _prune_unused_plan_entries(self) -> None:
@@ -465,7 +516,12 @@ class SvgRenderer(RendererProtocol):
             return
         stale_keys = [key for key in self._plan_cache.keys() if key not in self._frame_seen_plan_keys]
         for key in stale_keys:
-            self._plan_cache.pop(key, None)
+            entry = self._plan_cache.pop(key, None)
+            if entry:
+                plan_obj = entry.get("plan")
+                drop = getattr(self._shared_primitives, "drop_group", None)
+                if callable(drop) and getattr(plan_obj, "plan_key", None):
+                    drop(plan_obj.plan_key)
         self._frame_seen_plan_keys.clear()
 
     def _resolve_drawable_name(self, drawable: Any) -> str:

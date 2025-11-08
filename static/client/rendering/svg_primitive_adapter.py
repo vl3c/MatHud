@@ -23,6 +23,8 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         self._pool: Dict[str, List[Any]] = {}
         self._active_indices: Dict[str, int] = {}
         self._batch_stack: List[str] = []
+        self._group_stack: List[Tuple[str, Any]] = []
+        self._groups: Dict[str, Any] = {}
         self._staged_fragment: Optional[Any] = None
         self._telemetry: Optional[Any] = telemetry
 
@@ -58,6 +60,17 @@ class SvgPrimitiveAdapter(RendererPrimitives):
             fragment = None
         return fragment
 
+    def _ensure_group(self, plan_key: str) -> Any:
+        group = self._groups.get(plan_key)
+        if group is None:
+            group = svg.g()
+            self._groups[plan_key] = group
+            try:
+                self._surface <= group
+            except Exception:
+                pass
+        return group
+
     def begin_frame(self) -> None:
         for key in self._pool:
             self._active_indices[key] = 0
@@ -86,14 +99,53 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         self._staged_fragment = None
         self._record_adapter_event("frame_end")
 
+    def reserve_usage_counts(self, usage_counts: Dict[str, int], *, trim_excess: bool = False) -> None:
+        if not usage_counts:
+            return
+        for kind, required in usage_counts.items():
+            if required <= 0:
+                continue
+            pool = self._pool.get(kind)
+            if not pool:
+                continue
+            current = self._active_indices.get(kind, 0)
+            if required > len(pool):
+                required = len(pool)
+            if required > current:
+                self._active_indices[kind] = required
+                for idx in range(required):
+                    elem = pool[idx]
+                    try:
+                        elem.style["display"] = ""
+                    except Exception:
+                        pass
+            if trim_excess and len(pool) > required:
+                for _ in range(len(pool) - required):
+                    elem = pool.pop()
+                    try:
+                        elem.remove()
+                    except Exception:
+                        try:
+                            self._surface.removeChild(elem)
+                        except Exception:
+                            pass
+                self._active_indices[kind] = min(self._active_indices.get(kind, 0), len(pool))
+
     def begin_batch(self, plan: Any = None) -> None:
         key = getattr(plan, "plan_key", "")
-        self._batch_stack.append(str(key))
+        plan_key = str(key)
+        self._batch_stack.append(plan_key)
+        group = None
+        if plan_key:
+            group = self._ensure_group(plan_key)
+        self._group_stack.append((plan_key, group))
         self._track_batch_depth()
 
     def end_batch(self, plan: Any = None) -> None:
         if self._batch_stack:
             self._batch_stack.pop()
+        if self._group_stack:
+            self._group_stack.pop()
         self._track_batch_depth()
 
     def execute_optimized(self, command: Any) -> None:
@@ -107,12 +159,17 @@ class SvgPrimitiveAdapter(RendererPrimitives):
     def _acquire_element(self, kind: str, factory: Callable[[], Any]) -> Tuple[Any, Dict[str, Any]]:
         pool = self._pool.setdefault(kind, [])
         index = self._active_indices.get(kind, 0)
+        target = self._surface
+        if self._group_stack:
+            _, group = self._group_stack[-1]
+            if group is not None:
+                target = group
         if index < len(pool):
             elem = pool[index]
         else:
             elem = factory()
             pool.append(elem)
-            self._attach_new_element(elem)
+            self._attach_new_element(elem, target)
         self._active_indices[kind] = index + 1
         try:
             elem.style["display"] = ""
@@ -124,7 +181,15 @@ class SvgPrimitiveAdapter(RendererPrimitives):
             setattr(elem, "_mathud_cache", cache)
         return elem, cache
 
-    def _attach_new_element(self, elem: Any) -> None:
+    def _attach_new_element(self, elem: Any, target: Any) -> None:
+        if target is not self._surface:
+            try:
+                target <= elem
+            except Exception:
+                return
+            self._record_adapter_event("direct_append")
+            self._record_adapter_event("new_elements")
+            return
         fragment = self._staged_fragment
         appended = False
         if fragment is not None:
@@ -137,7 +202,7 @@ class SvgPrimitiveAdapter(RendererPrimitives):
                 appended = True
         if not appended:
             try:
-                self._surface <= elem
+                target <= elem
             except Exception:
                 pass
             else:
@@ -145,6 +210,36 @@ class SvgPrimitiveAdapter(RendererPrimitives):
                 appended = True
         if appended:
             self._record_adapter_event("new_elements")
+
+    def set_group_transform(self, plan_key: str, transform: Optional[str]) -> None:
+        group = self._groups.get(plan_key)
+        if group is None:
+            return
+        if transform:
+            try:
+                group.setAttribute("transform", transform)
+            except Exception:
+                pass
+        else:
+            try:
+                group.removeAttribute("transform")
+            except Exception:
+                try:
+                    del group.attrs["transform"]
+                except Exception:
+                    pass
+
+    def drop_group(self, plan_key: str) -> None:
+        group = self._groups.pop(plan_key, None)
+        if group is None:
+            return
+        try:
+            group.remove()
+        except Exception:
+            try:
+                self._surface.removeChild(group)
+            except Exception:
+                pass
 
     def _set_attribute(self, elem: Any, cache: Dict[str, Any], name: str, value: Optional[str]) -> None:
         attrs = cache.setdefault("attrs", {})
@@ -540,6 +635,11 @@ class SvgPrimitiveAdapter(RendererPrimitives):
 
     def clear_surface(self) -> None:
         self._surface.clear()
+        self._groups.clear()
+        self._group_stack.clear()
+        self._pool.clear()
+        self._active_indices.clear()
+        self._staged_fragment = None
 
     def resize_surface(self, width: float, height: float) -> None:
         surface = self._surface

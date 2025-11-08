@@ -81,6 +81,39 @@ def _map_state_equal(left: MapState, right: MapState, *, epsilon: float = 1e-6) 
     return True
 
 
+def _compute_transform_params(base: MapState, target: MapState) -> Tuple[float, float, float]:
+    base_scale = float(base.get("scale", 1.0) or 1.0)
+    target_scale = float(target.get("scale", 1.0) or 1.0)
+    if base_scale == 0.0:
+        base_scale = 1.0
+    scale_ratio = target_scale / base_scale
+    base_sum_x = float(base.get("origin_x", 0.0)) + float(base.get("offset_x", 0.0))
+    target_sum_x = float(target.get("origin_x", 0.0)) + float(target.get("offset_x", 0.0))
+    tx = target_sum_x - scale_ratio * base_sum_x
+    base_sum_y = float(base.get("origin_y", 0.0)) + float(base.get("offset_y", 0.0))
+    target_sum_y = float(target.get("origin_y", 0.0)) + float(target.get("offset_y", 0.0))
+    ty = target_sum_y - scale_ratio * base_sum_y
+    return scale_ratio, tx, ty
+
+
+def _transform_bounds(
+    bounds: Optional[Tuple[float, float, float, float]], scale: float, tx: float, ty: float
+) -> Optional[Tuple[float, float, float, float]]:
+    if not bounds:
+        return None
+    min_x, max_x, min_y, max_y = bounds
+    corners = (
+        (min_x, min_y),
+        (min_x, max_y),
+        (max_x, min_y),
+        (max_x, max_y),
+    )
+    transformed = [(scale * x + tx, scale * y + ty) for x, y in corners]
+    xs = [point[0] for point in transformed]
+    ys = [point[1] for point in transformed]
+    return (min(xs), max(xs), min(ys), max(ys))
+
+
 def _math_to_screen_point(math_point: Tuple[float, float], state: MapState) -> Tuple[float, float]:
     mx, my = math_point
     sx = state["origin_x"] + mx * state["scale"] + state["offset_x"]
@@ -248,7 +281,21 @@ class PrimitiveCommand:
 
 
 class OptimizedPrimitivePlan:
-    __slots__ = ("drawable", "commands", "plan_key", "metadata", "_map_state", "_screen_bounds")
+    __slots__ = (
+        "drawable",
+        "commands",
+        "plan_key",
+        "metadata",
+        "_map_state",
+        "_screen_bounds",
+        "_needs_apply",
+        "_usage_counts",
+        "_supports_transform",
+        "_base_map_state",
+        "_display_map_state",
+        "_current_transform",
+        "_base_screen_bounds",
+    )
 
     def __init__(
         self,
@@ -257,23 +304,47 @@ class OptimizedPrimitivePlan:
         commands: List[PrimitiveCommand],
         plan_key: str,
         metadata: Dict[str, Any],
+        usage_counts: Optional[Dict[str, int]] = None,
     ) -> None:
         self.drawable = drawable
         self.commands = commands
         self.plan_key = plan_key
         self.metadata = metadata
         self._map_state: Optional[MapState] = dict(metadata.get("map_state", {}))
+        self._needs_apply: bool = True
+        self._usage_counts: Dict[str, int] = dict(usage_counts or {})
+        self._supports_transform: bool = bool(metadata.get("supports_transform"))
+        self._base_map_state: MapState = dict(self._map_state or {})
+        self._display_map_state: MapState = dict(self._map_state or {})
+        self._current_transform: Optional[str] = None
         stored_bounds = metadata.get("screen_bounds")
         self._screen_bounds: Optional[Tuple[float, float, float, float]] = (
             tuple(stored_bounds) if isinstance(stored_bounds, (list, tuple)) and len(stored_bounds) == 4 else None
+        )
+        self._base_screen_bounds: Optional[Tuple[float, float, float, float]] = (
+            tuple(self._screen_bounds) if self._screen_bounds is not None else None
         )
         if not self._screen_bounds:
             self._recompute_bounds_from_commands()
         else:
             self._screen_bounds = tuple(float(v) for v in self._screen_bounds)
+        if self._supports_transform:
+            self._current_transform = "matrix(1 0 0 1 0 0)"
+            self.metadata["transform"] = self._current_transform
 
     def update_map_state(self, new_state: MapState) -> None:
         if not new_state:
+            return
+        if self._supports_transform:
+            self._display_map_state = dict(new_state)
+            self.metadata["display_map_state"] = dict(new_state)
+            scale_ratio, tx, ty = _compute_transform_params(self._base_map_state, new_state)
+            self._current_transform = f"matrix({scale_ratio} 0 0 {scale_ratio} {tx} {ty})"
+            self.metadata["transform"] = self._current_transform
+            transformed_bounds = _transform_bounds(self._base_screen_bounds, scale_ratio, tx, ty)
+            if transformed_bounds is not None:
+                self._screen_bounds = transformed_bounds
+                self.metadata["screen_bounds"] = transformed_bounds
             return
         current_state = self._map_state or {}
         if _map_state_equal(current_state, new_state):
@@ -289,9 +360,11 @@ class OptimizedPrimitivePlan:
         self._map_state = dict(new_state)
         self.metadata["map_state"] = dict(new_state)
         self._recompute_bounds_from_commands()
+        self._needs_apply = True
 
     def apply(self, primitives: RendererPrimitives) -> None:
         if not self.commands:
+            self._needs_apply = False
             return
         primitives.begin_batch(self)
         try:
@@ -299,6 +372,7 @@ class OptimizedPrimitivePlan:
                 primitives.execute_optimized(command)
         finally:
             primitives.end_batch(self)
+        self._needs_apply = False
 
     def _recompute_bounds_from_commands(self) -> None:
         min_x = float("inf")
@@ -367,6 +441,8 @@ class OptimizedPrimitivePlan:
             self._screen_bounds = (min_x, max_x, min_y, max_y)
         if self._screen_bounds is not None:
             self.metadata["screen_bounds"] = self._screen_bounds
+        if self._supports_transform and self._base_screen_bounds is None:
+            self._base_screen_bounds = self._screen_bounds
 
     def is_visible(self, width: float, height: float, *, margin: float = 1.0) -> bool:
         if self._screen_bounds is None:
@@ -382,6 +458,21 @@ class OptimizedPrimitivePlan:
             return False
         return True
 
+    def needs_apply(self) -> bool:
+        return self._needs_apply
+
+    def mark_dirty(self) -> None:
+        self._needs_apply = True
+
+    def get_usage_counts(self) -> Dict[str, int]:
+        return dict(self._usage_counts)
+
+    def supports_transform(self) -> bool:
+        return self._supports_transform
+
+    def get_transform(self) -> Optional[str]:
+        return self._current_transform
+
 
 class _RecordingPrimitives(shared.RendererPrimitives):
     def __init__(self, drawable_key: str) -> None:
@@ -390,6 +481,7 @@ class _RecordingPrimitives(shared.RendererPrimitives):
         self._counter = 0
         self._style_pool: Dict[Tuple[Any, ...], Any] = {}
         self._bounds = [float("inf"), float("-inf"), float("inf"), float("-inf")]
+        self._usage_counts: Dict[str, int] = {}
 
     def _style_signature(self, style: Any) -> Optional[Tuple[Any, ...]]:
         if style is None:
@@ -437,6 +529,7 @@ class _RecordingPrimitives(shared.RendererPrimitives):
         pooled_args = self._pool_styles(args)
         pooled_kwargs = self._pool_styles(kwargs)
         self.commands.append(PrimitiveCommand(op, pooled_args, pooled_kwargs, command_key, meta))
+        self._usage_counts[op] = self._usage_counts.get(op, 0) + 1
 
     def _update_bounds_from_geometry(self, geometry: Tuple[Any, ...]) -> None:
         if not geometry:
@@ -463,6 +556,9 @@ class _RecordingPrimitives(shared.RendererPrimitives):
         if min_x == float("inf") or min_y == float("inf"):
             return None
         return (min_x, max_x, min_y, max_y)
+
+    def get_usage_counts(self) -> Dict[str, int]:
+        return dict(self._usage_counts)
 
     def stroke_line(self, start, end, stroke, *, include_width=True):
         self._record("stroke_line", (start, end, stroke), {"include_width": include_width}, style=stroke, geometry=(start, end))
@@ -544,7 +640,9 @@ def build_plan_for_drawable(drawable: Any, coordinate_mapper: Any, style: Dict[s
             "class_name": class_name,
             "map_state": map_state,
             "screen_bounds": recorder.get_bounds(),
+            "display_map_state": map_state,
         },
+        usage_counts=recorder.get_usage_counts(),
     )
     plan.update_map_state(map_state)
     return plan
@@ -564,7 +662,10 @@ def build_plan_for_cartesian(cartesian: Any, coordinate_mapper: Any, style: Dict
             "class_name": "Cartesian2Axis",
             "map_state": map_state,
             "screen_bounds": recorder.get_bounds(),
+            "supports_transform": True,
+            "display_map_state": map_state,
         },
+        usage_counts=recorder.get_usage_counts(),
     )
     plan.update_map_state(map_state)
     return plan
