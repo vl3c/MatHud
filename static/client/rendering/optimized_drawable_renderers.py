@@ -5,6 +5,16 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from rendering import shared_drawable_renderers as shared
 from rendering.shared_drawable_renderers import RendererPrimitives
 
+_STYLE_CLASSES = (
+    shared.StrokeStyle,
+    shared.FillStyle,
+    shared.FontStyle,
+    shared.TextAlignment,
+)
+
+Number = float | int
+MapState = Dict[str, float]
+
 
 PrimitiveArgs = Tuple[Any, ...]
 PrimitiveKwargs = Dict[str, Any]
@@ -28,6 +38,155 @@ def _geometry_signature(values: Iterable[Any]) -> Tuple[Any, ...]:
         else:
             signature.append(value)
     return tuple(signature)
+
+
+def _quantize_number(value: Any, *, decimals: int = 4) -> Any:
+    if isinstance(value, float):
+        if value == 0.0:
+            return 0.0
+        try:
+            return round(value, decimals)
+        except Exception:
+            return value
+    return value
+
+
+def _quantize_geometry(value: Any, *, decimals: int = 4) -> Any:
+    if isinstance(value, (tuple, list)):
+        return tuple(_quantize_geometry(v, decimals=decimals) for v in value)
+    return _quantize_number(value, decimals=decimals)
+
+
+def _capture_map_state(mapper: Any) -> MapState:
+    origin = getattr(mapper, "origin", None)
+    offset = getattr(mapper, "offset", None)
+    return {
+        "scale": float(getattr(mapper, "scale_factor", 1.0)),
+        "offset_x": float(getattr(offset, "x", 0.0)) if offset is not None else 0.0,
+        "offset_y": float(getattr(offset, "y", 0.0)) if offset is not None else 0.0,
+        "origin_x": float(getattr(origin, "x", 0.0)) if origin is not None else 0.0,
+        "origin_y": float(getattr(origin, "y", 0.0)) if origin is not None else 0.0,
+    }
+
+
+def _map_state_equal(left: MapState, right: MapState, *, epsilon: float = 1e-6) -> bool:
+    if left is right:
+        return True
+    for key in ("scale", "offset_x", "offset_y", "origin_x", "origin_y"):
+        lv = float(left.get(key, 0.0))
+        rv = float(right.get(key, 0.0))
+        if abs(lv - rv) > epsilon:
+            return False
+    return True
+
+
+def _math_to_screen_point(math_point: Tuple[float, float], state: MapState) -> Tuple[float, float]:
+    mx, my = math_point
+    sx = state["origin_x"] + mx * state["scale"] + state["offset_x"]
+    sy = state["origin_y"] - my * state["scale"] + state["offset_y"]
+    return (sx, sy)
+
+
+def _screen_to_math_point(screen_point: Tuple[float, float], state: MapState) -> Tuple[float, float]:
+    sx, sy = screen_point
+    scale = state["scale"] if state["scale"] else 1.0
+    mx = (sx - state["offset_x"] - state["origin_x"]) / scale
+    my = (state["origin_y"] + state["offset_y"] - sy) / scale
+    return (mx, my)
+
+
+def _reproject_points(points: Iterable[Tuple[float, float]], old: MapState, new: MapState) -> Tuple[Tuple[float, float], ...]:
+    return tuple(_math_to_screen_point(_screen_to_math_point(point, old), new) for point in points)
+
+
+def _reproject_radius(radius: float, old: MapState, new: MapState) -> float:
+    scale_old = old["scale"] if old["scale"] else 1.0
+    math_radius = radius / scale_old
+    return math_radius * new["scale"]
+
+
+def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
+    op = command.op
+    if not op:
+        return
+
+    if op == "stroke_line":
+        start, end, stroke = command.args
+        new_start = _math_to_screen_point(_screen_to_math_point(start, old_state), new_state)
+        new_end = _math_to_screen_point(_screen_to_math_point(end, old_state), new_state)
+        command.args = (new_start, new_end, stroke)
+        command.meta["geometry"] = _quantize_geometry((new_start, new_end))
+        return
+
+    if op == "stroke_polyline":
+        points, stroke = command.args
+        new_points = _reproject_points(points, old_state, new_state)
+        command.args = (new_points, stroke)
+        command.meta["geometry"] = _quantize_geometry(new_points)
+        return
+
+    if op == "stroke_circle":
+        center, radius, stroke = command.args
+        new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
+        new_radius = _reproject_radius(float(radius), old_state, new_state)
+        command.args = (new_center, new_radius, stroke)
+        command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
+        return
+
+    if op == "fill_circle":
+        center, radius, fill, stroke = command.args
+        new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
+        new_radius = _reproject_radius(float(radius), old_state, new_state)
+        command.args = (new_center, new_radius, fill, stroke)
+        command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
+        return
+
+    if op == "stroke_ellipse":
+        center, radius_x, radius_y, rotation, stroke = command.args
+        new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
+        new_rx = _reproject_radius(float(radius_x), old_state, new_state)
+        new_ry = _reproject_radius(float(radius_y), old_state, new_state)
+        command.args = (new_center, new_rx, new_ry, rotation, stroke)
+        command.meta["geometry"] = _quantize_geometry((new_center, new_rx, new_ry, rotation))
+        return
+
+    if op == "fill_polygon":
+        points, fill, stroke = command.args
+        new_points = _reproject_points(points, old_state, new_state)
+        command.args = (new_points, fill, stroke)
+        command.meta["geometry"] = _quantize_geometry(new_points)
+        return
+
+    if op == "fill_joined_area":
+        forward, reverse, fill = command.args
+        new_forward = _reproject_points(forward, old_state, new_state)
+        new_reverse = _reproject_points(reverse, old_state, new_state)
+        command.args = (new_forward, new_reverse, fill)
+        command.meta["geometry"] = _quantize_geometry(new_forward + new_reverse)
+        return
+
+    if op == "stroke_arc":
+        center, radius, start_angle, end_angle, sweep_clockwise, stroke = command.args
+        new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
+        new_radius = _reproject_radius(float(radius), old_state, new_state)
+        command.args = (new_center, new_radius, start_angle, end_angle, sweep_clockwise, stroke)
+        command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
+        return
+
+    if op == "draw_text":
+        text, position, font, color, alignment = command.args
+        new_position = _math_to_screen_point(_screen_to_math_point(position, old_state), new_state)
+        command.args = (text, new_position, font, color, alignment)
+        command.meta["geometry"] = _quantize_geometry((new_position,))
+        return
+
+    if op == "stroke_vector":
+        # Not currently emitted, guard for completeness
+        return
+
+    if op == "stroke_line_with_arrow":
+        # Not currently emitted
+        return
 
 
 def _drawable_key(drawable: Any, fallback: str) -> str:
@@ -88,7 +247,7 @@ class PrimitiveCommand:
 
 
 class OptimizedPrimitivePlan:
-    __slots__ = ("drawable", "commands", "plan_key", "metadata")
+    __slots__ = ("drawable", "commands", "plan_key", "metadata", "_map_state")
 
     def __init__(
         self,
@@ -102,6 +261,24 @@ class OptimizedPrimitivePlan:
         self.commands = commands
         self.plan_key = plan_key
         self.metadata = metadata
+        self._map_state: Optional[MapState] = dict(metadata.get("map_state", {}))
+
+    def update_map_state(self, new_state: MapState) -> None:
+        if not new_state:
+            return
+        current_state = self._map_state or {}
+        if _map_state_equal(current_state, new_state):
+            self._map_state = dict(new_state)
+            self.metadata["map_state"] = dict(new_state)
+            return
+        if not current_state:
+            self._map_state = dict(new_state)
+            self.metadata["map_state"] = dict(new_state)
+            return
+        for command in self.commands:
+            _reproject_command(command, current_state, new_state)
+        self._map_state = dict(new_state)
+        self.metadata["map_state"] = dict(new_state)
 
     def apply(self, primitives: RendererPrimitives) -> None:
         if not self.commands:
@@ -119,6 +296,38 @@ class _RecordingPrimitives(shared.RendererPrimitives):
         self.commands: List[PrimitiveCommand] = []
         self._drawable_key = drawable_key
         self._counter = 0
+        self._style_pool: Dict[Tuple[Any, ...], Any] = {}
+
+    def _style_signature(self, style: Any) -> Optional[Tuple[Any, ...]]:
+        if style is None:
+            return None
+        if not isinstance(style, _STYLE_CLASSES):
+            return None
+        signature: List[Any] = [style.__class__.__name__]
+        for attr in getattr(style, "__slots__", ()):
+            signature.append(getattr(style, attr, None))
+        return tuple(signature)
+
+    def _pool_style(self, style: Any) -> Any:
+        signature = self._style_signature(style)
+        if signature is None:
+            return style
+        pooled = self._style_pool.get(signature)
+        if pooled is None:
+            self._style_pool[signature] = style
+            return style
+        return pooled
+
+    def _pool_styles(self, value: Any) -> Any:
+        if isinstance(value, _STYLE_CLASSES):
+            return self._pool_style(value)
+        if isinstance(value, tuple):
+            return tuple(self._pool_styles(item) for item in value)
+        if isinstance(value, list):
+            return [self._pool_styles(item) for item in value]
+        if isinstance(value, dict):
+            return {key: self._pool_styles(item) for key, item in value.items()}
+        return value
 
     def _record(self, op: str, args: PrimitiveArgs, kwargs: PrimitiveKwargs, *, style: Any = None, geometry: Iterable[Any] = ()) -> None:
         command_key = f"{self._drawable_key}:{op}:{self._counter}"
@@ -129,8 +338,10 @@ class _RecordingPrimitives(shared.RendererPrimitives):
             meta["style"] = style_sig
         geometry_sig = _geometry_signature(geometry)
         if geometry_sig:
-            meta["geometry"] = geometry_sig
-        self.commands.append(PrimitiveCommand(op, args, kwargs, command_key, meta))
+            meta["geometry"] = _quantize_geometry(geometry_sig)
+        pooled_args = self._pool_styles(args)
+        pooled_kwargs = self._pool_styles(kwargs)
+        self.commands.append(PrimitiveCommand(op, pooled_args, pooled_kwargs, command_key, meta))
 
     def stroke_line(self, start, end, stroke, *, include_width=True):
         self._record("stroke_line", (start, end, stroke), {"include_width": include_width}, style=stroke, geometry=(start, end))
@@ -203,7 +414,15 @@ def build_plan_for_drawable(drawable: Any, coordinate_mapper: Any, style: Dict[s
     recorder = _RecordingPrimitives(drawable_key)
     cached_mapper = _CachedCoordinateMapper(coordinate_mapper)
     helper(recorder, drawable, cached_mapper, style)
-    return OptimizedPrimitivePlan(drawable=drawable, commands=list(recorder.commands), plan_key=drawable_key, metadata={"class_name": class_name})
+    map_state = _capture_map_state(coordinate_mapper)
+    plan = OptimizedPrimitivePlan(
+        drawable=drawable,
+        commands=list(recorder.commands),
+        plan_key=drawable_key,
+        metadata={"class_name": class_name, "map_state": map_state},
+    )
+    plan.update_map_state(map_state)
+    return plan
 
 
 def build_plan_for_cartesian(cartesian: Any, coordinate_mapper: Any, style: Dict[str, Any]) -> OptimizedPrimitivePlan:
@@ -211,5 +430,13 @@ def build_plan_for_cartesian(cartesian: Any, coordinate_mapper: Any, style: Dict
     recorder = _RecordingPrimitives(key)
     cached_mapper = _CachedCoordinateMapper(coordinate_mapper)
     shared.render_cartesian_helper(recorder, cartesian, cached_mapper, style)
-    return OptimizedPrimitivePlan(drawable=cartesian, commands=list(recorder.commands), plan_key=key, metadata={"class_name": "Cartesian2Axis"})
+    map_state = _capture_map_state(coordinate_mapper)
+    plan = OptimizedPrimitivePlan(
+        drawable=cartesian,
+        commands=list(recorder.commands),
+        plan_key=key,
+        metadata={"class_name": "Cartesian2Axis", "map_state": map_state},
+    )
+    plan.update_map_state(map_state)
+    return plan
 

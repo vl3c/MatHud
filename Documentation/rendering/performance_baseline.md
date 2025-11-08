@@ -122,3 +122,76 @@ Renderer: Canvas2DRenderer – legacy vs optimized strategy (run via `TestRender
 
 DOM node counts remained at 362 in both cases. These measurements capture the current delta between the legacy and optimized SVG paths after restoring SVG as the default renderer, and provide a baseline for tuning the optimized plan path further.
 
+-----------------------------------------------------------------------------------------------------
+
+## Canvas2DRenderer (telemetry snapshot – optimized instrumentation)
+
+Date: 2025-11-08  
+Renderer: Canvas2DRenderer (legacy and optimized telemetry probes enabled)
+
+- Scene: same as SVG baseline  
+- Iterations: 2 draws/pans/zooms (optimized mode)  
+- DOM nodes (post-render): 0
+
+| Operation | Avg ms | Total ms | Iterations |
+|-----------|--------|----------|------------|
+| draw      | 131.00 | 262.00   | 2          |
+| pan       | 131.50 | 526.00   | 4          |
+| zoom      | 140.25 | 561.00   | 4          |
+
+Telemetry summary (captured via `run_renderer_performance(iterations=2, render_mode="optimized")`):
+
+- Frames rendered: 172  
+- Plan metrics: `plan_build` and `plan_apply` recorded 0 events (optimized builders currently fall back to legacy helpers)  
+- Legacy helper time: 3001.00 ms total across 14130 drawable renders (avg 0.21 ms)  
+- Adapter counters: `begin_path`=24922, `begin_shape`=14130, `end_shape`=14130, `fill`=8679, `stroke`=16243, `text_draw`=12434, `stroke_color_changes`=9685, `fill_color_changes`=1, `stroke_width_changes`=1, `frame_begin/frame_end`=172  
+
+These measurements establish the post-instrumentation baseline ahead of the optimized-plan caching and batching work.
+
+-----------------------------------------------------------------------------------------------------
+
+## Canvas2DRenderer (pre-optimization baseline – 2025-11-08)
+
+Source: `TestRendererPerformance.test_optimized_renderer_not_slower` and `test_renderer_performance_harness` executed prior to the optimized plan caching changes. Shared scene: 50 points, 25 segments, 10 vectors, 10 triangles, 5 rectangles, 5 circles, 3 ellipses, 3 functions. Metrics were gathered after a warm-up pass; the tables below use the second measurement (two draws/pans/zooms) for each mode.
+
+### Timing Summary
+
+| Mode      | Draw Avg (ms) | Pan Avg (ms) | Zoom Avg (ms) |
+|-----------|---------------|--------------|---------------|
+| Legacy    | 118.00        | 115.75       | 120.75        |
+| Optimized | 214.50        | 211.50       | 217.25        |
+
+### Additional Harness Run
+
+`TestRendererPerformance.test_renderer_performance_harness` (legacy renderer) recorded:
+
+- Draw 112.50 ms, Pan 113.50 ms, Zoom 117.75 ms (averages across two draw, four pan, four zoom iterations).
+
+These results capture the Canvas2D performance state before introducing telemetry-driven caching and batching optimizations, providing a reference point for subsequent improvements.
+
+-----------------------------------------------------------------------------------------------------
+
+## Canvas2DRenderer (2025-11-08 – legacy vs optimized instrumentation run)
+
+Source: `TestRendererPerformance.test_optimized_renderer_not_slower` run against the shared scene (50 points, 25 segments, 10 vectors, 10 triangles, 5 rectangles, 5 circles, 3 ellipses, 3 functions). Metrics were collected after a warm-up pass with two draw/pan/zoom iterations per measurement.
+
+### Timing Summary
+
+| Mode      | Draw Avg (ms) | Pan Avg (ms) | Zoom Avg (ms) | Frames | Plan Build Events | Plan Build Avg (ms) | Plan Apply Events | Plan Apply Avg (ms) | Legacy Render Avg (ms) | Cartesian Plan Build Avg (ms) | Cartesian Plan Apply Avg (ms) |
+|-----------|---------------|--------------|---------------|--------|-------------------|---------------------|-------------------|---------------------|-------------------------|-------------------------------|--------------------------------|
+| Legacy    | 164.50        | 167.50       | 172.00        | 177    | 0                 | —                   | 0                 | —                   | 0.29 (14875 events)     | —                             | —                              |
+| Optimized | 74.00         | 149.25       | 152.00        | 177    | 157               | 4.33                | 14875             | 0.26                | 0.00                    | 41.56 (9 events)              | 127.00 (9 events)              |
+
+### Additional Harness Run (optimized mode)
+
+`TestRendererPerformance.test_renderer_performance_harness` captured comparable optimized metrics:
+
+- Draw 76.50 ms, Pan 149.25 ms, Zoom 156.00 ms (averages over two draw, four pan, four zoom iterations).  
+- Plan build: 157 events, 657.00 ms total (4.18 ms avg).  
+- Plan apply: 14875 events, 3934.00 ms total (0.26 ms avg).  
+- Cartesian plan build: 9 events, 361.00 ms total (40.11 ms avg).  
+- Cartesian plan apply: 9 events, 1166.00 ms total (129.56 ms avg).  
+- Legacy render path unused (0 events).
+
+These tables document the first cache-enabled Canvas2D baseline and replace the earlier telemetry placeholder for post-instrumentation measurements.
+

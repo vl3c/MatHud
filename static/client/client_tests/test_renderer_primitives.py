@@ -241,7 +241,8 @@ def reset_svg_environment(log: List[Any]) -> Tuple[MockSvgModule, MockDocument]:
 def reset_canvas_environment(renderer: Canvas2DRenderer, mock_canvas: MockCanvasElement) -> RecordingCanvasContext:
     renderer.canvas_el = mock_canvas
     renderer.ctx = mock_canvas.getContext("2d")
-    renderer._shared_primitives = Canvas2DPrimitiveAdapter(mock_canvas)
+    telemetry = getattr(renderer, "_telemetry", None)
+    renderer._shared_primitives = Canvas2DPrimitiveAdapter(mock_canvas, telemetry=telemetry)
     mock_canvas._ctx.log.clear()
     return mock_canvas._ctx
 

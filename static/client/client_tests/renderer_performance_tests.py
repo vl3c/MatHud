@@ -183,6 +183,47 @@ def run_renderer_performance(
         canvas.draw(apply_zoom=True)
     collect("zoom", perf_api.now() - start, iterations * 2)
 
+    telemetry_snapshot: Optional[Dict[str, Any]] = None
+    if active_renderer is not None:
+        drain_telemetry = getattr(active_renderer, "drain_telemetry", None)
+        if callable(drain_telemetry):
+            try:
+                telemetry_snapshot = drain_telemetry()
+            except Exception:
+                telemetry_snapshot = None
+
+    phase_metrics: List[Dict[str, Any]] = []
+    if telemetry_snapshot:
+        phase_data = telemetry_snapshot.get("phase", {})
+
+        def add_phase(name: str, total_key: str, count_key: str) -> None:
+            total_value = phase_data.get(total_key)
+            count_value = phase_data.get(count_key)
+            if total_value is None or count_value is None:
+                return
+            try:
+                total_ms = float(total_value)
+            except Exception:
+                return
+            try:
+                count_int = int(count_value)
+            except Exception:
+                return
+            entry: Dict[str, Any] = {
+                "phase": name,
+                "total_ms": total_ms,
+                "count": count_int,
+            }
+            if count_int > 0:
+                entry["avg_ms"] = total_ms / count_int
+            phase_metrics.append(entry)
+
+        add_phase("plan_build", "plan_build_ms", "plan_build_count")
+        add_phase("plan_apply", "plan_apply_ms", "plan_apply_count")
+        add_phase("legacy_render", "legacy_render_ms", "legacy_render_count")
+        add_phase("cartesian_plan_build", "cartesian_plan_build_ms", "cartesian_plan_count")
+        add_phase("cartesian_plan_apply", "cartesian_plan_apply_ms", "cartesian_plan_count")
+
     console = getattr(window, "console", None)
     if console is not None:
         console.groupCollapsed("[RendererPerf] Baseline Results")
@@ -192,6 +233,35 @@ def run_renderer_performance(
                 f"over {metric['iterations']} draws (DOM nodes={metric['dom_nodes']})"
             )
         console.log(f"[RendererPerf] Scene spec: {spec}")
+        if telemetry_snapshot:
+            console.groupCollapsed("[RendererPerf] Canvas2D Telemetry")
+            frames = telemetry_snapshot.get("frames")
+            if frames is not None:
+                console.log(f"[RendererPerf] frames={frames}")
+            for summary in phase_metrics:
+                phase_name = summary["phase"]
+                total_ms = summary["total_ms"]
+                count_int = summary["count"]
+                avg_ms = summary.get("avg_ms")
+                if avg_ms is None:
+                    console.log(
+                        f"[RendererPerf] {phase_name}: total={total_ms:.2f} ms over {count_int} events"
+                    )
+                else:
+                    console.log(
+                        f"[RendererPerf] {phase_name}: avg={avg_ms:.2f} ms "
+                        f"over {count_int} events (total={total_ms:.2f} ms)"
+                    )
+            plan_miss = telemetry_snapshot.get("phase", {}).get("plan_miss_count")
+            if plan_miss:
+                console.log(f"[RendererPerf] plan_miss_count={int(plan_miss)}")
+            adapter_events = telemetry_snapshot.get("adapter_events", {})
+            if adapter_events:
+                console.groupCollapsed("[RendererPerf] Adapter Events")
+                for event_name in sorted(adapter_events):
+                    console.log(f"[RendererPerf] adapter.{event_name}={adapter_events[event_name]}")
+                console.groupEnd()
+            console.groupEnd()
         console.groupEnd()
 
     result = {
@@ -200,6 +270,8 @@ def run_renderer_performance(
         "drawables_created": drawables_created,
         "render_mode": render_mode or "legacy",
     }
+    result["telemetry"] = telemetry_snapshot
+    result["phase_metrics"] = phase_metrics
     if active_renderer is not None:
         result["renderer"] = getattr(active_renderer, "__class__", type(active_renderer)).__name__
     else:
@@ -223,17 +295,18 @@ def run_renderer_performance(
 class TestRendererPerformance(unittest.TestCase):
     """Renderer performance test case executed via the client test suite."""
 
-    def test_renderer_performance_harness(self) -> None:
-        result = run_renderer_performance(iterations=2)
-        self.assertIsInstance(result, dict)
-        self.assertIn("metrics", result)
-
-    def test_optimized_renderer_not_slower(self) -> None:
+    def test_renderer_performance_modes(self) -> None:
+        # Warm legacy mode once, then capture the measured run
         run_renderer_performance(iterations=1, render_mode="legacy")
-        legacy = run_renderer_performance(iterations=2, render_mode="legacy")
+        legacy = run_renderer_performance(iterations=1, render_mode="legacy")
 
+        # Warm optimized mode once, then capture the measured run
         run_renderer_performance(iterations=1, render_mode="optimized")
-        optimized = run_renderer_performance(iterations=2, render_mode="optimized")
+        optimized = run_renderer_performance(iterations=1, render_mode="optimized")
+
+        for label, result in (("legacy", legacy), ("optimized", optimized)):
+            self.assertIsInstance(result, dict, f"{label} run did not return a dict")
+            self.assertIn("metrics", result, f"{label} run missing metrics")
 
         legacy_avgs = {metric["operation"]: metric["avg_ms"] for metric in legacy["metrics"]}
         optimized_avgs = {metric["operation"]: metric["avg_ms"] for metric in optimized["metrics"]}

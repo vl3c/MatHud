@@ -16,7 +16,7 @@ from rendering.shared_drawable_renderers import (
 class Canvas2DPrimitiveAdapter(RendererPrimitives):
     """RendererPrimitives implementation for Canvas 2D."""
 
-    def __init__(self, canvas_el: Any) -> None:
+    def __init__(self, canvas_el: Any, *, telemetry: Optional[Any] = None) -> None:
         self.canvas_el = canvas_el
         self.ctx = canvas_el.getContext("2d")
         self._stroke_state: Dict[str, Any] = {"color": None, "width": None, "line_join": None, "line_cap": None}
@@ -30,6 +30,28 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self._text_baseline: Optional[str] = None
         self._shape_depth: int = 0
         self._batch_depth: int = 0
+        self._telemetry = telemetry
+
+    def set_telemetry(self, telemetry: Any) -> None:
+        self._telemetry = telemetry
+
+    def _record_event(self, name: str, amount: int = 1) -> None:
+        telemetry = self._telemetry
+        if telemetry is None:
+            return
+        try:
+            telemetry.record_adapter_event(name, amount)
+        except Exception:
+            pass
+
+    def _record_batch_depth(self) -> None:
+        telemetry = self._telemetry
+        if telemetry is None:
+            return
+        try:
+            telemetry.track_batch_depth(self._batch_depth)
+        except Exception:
+            pass
 
     def _coerce_number(self, value: Any) -> Any:
         try:
@@ -65,69 +87,84 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
 
     def begin_shape(self) -> None:
         self._shape_depth += 1
+        self._record_event("begin_shape_calls")
 
     def end_shape(self) -> None:
         if self._shape_depth:
             self._shape_depth -= 1
         self._reset_alpha_if_needed()
+        self._record_event("end_shape_calls")
 
     def _apply_stroke_style(self, stroke: StrokeStyle, *, include_width: bool = True) -> None:
         if stroke.color != self._stroke_state["color"]:
             self.ctx.strokeStyle = stroke.color
             self._stroke_state["color"] = stroke.color
+            self._record_event("stroke_color_changes")
         if include_width:
             normalized_width = self._coerce_number(stroke.width)
             if normalized_width != self._stroke_state["width"]:
                 self.ctx.lineWidth = normalized_width
                 self._stroke_state["width"] = normalized_width
+                self._record_event("stroke_width_changes")
         if stroke.line_join != self._stroke_state["line_join"]:
             if stroke.line_join:
                 self.ctx.lineJoin = stroke.line_join
             self._stroke_state["line_join"] = stroke.line_join
+            self._record_event("stroke_join_changes")
         if stroke.line_cap != self._stroke_state["line_cap"]:
             if stroke.line_cap:
                 self.ctx.lineCap = stroke.line_cap
             self._stroke_state["line_cap"] = stroke.line_cap
+            self._record_event("stroke_cap_changes")
 
     def _apply_fill_style(self, fill: FillStyle) -> None:
         if fill.color != self._fill_state["color"]:
             self.ctx.fillStyle = fill.color
             self._fill_state["color"] = fill.color
+            self._record_event("fill_color_changes")
         if fill.opacity is None:
             if self._global_alpha != 1.0:
                 self.ctx.globalAlpha = 1.0
                 self._global_alpha = 1.0
+                self._record_event("alpha_sets")
             self._pending_alpha_reset = False
         else:
             opacity = float(fill.opacity)
             if opacity != self._global_alpha:
                 self.ctx.globalAlpha = opacity
                 self._global_alpha = opacity
+                self._record_event("alpha_sets")
             self._pending_alpha_reset = True
 
     def stroke_line(self, start: Point2D, end: Point2D, stroke: StrokeStyle, *, include_width: bool = True) -> None:
         self._apply_stroke_style(stroke, include_width=include_width)
         self.ctx.beginPath()
+        self._record_event("begin_path_calls")
         self.ctx.moveTo(start[0], start[1])
         self.ctx.lineTo(end[0], end[1])
         self.ctx.stroke()
+        self._record_event("stroke_calls")
 
     def stroke_polyline(self, points: List[Point2D], stroke: StrokeStyle) -> None:
         if len(points) < 2:
             return
         self._apply_stroke_style(stroke)
         self.ctx.beginPath()
+        self._record_event("begin_path_calls")
         self.ctx.moveTo(points[0][0], points[0][1])
         for x, y in points[1:]:
             self.ctx.lineTo(x, y)
         self.ctx.stroke()
+        self._record_event("stroke_calls")
 
     def stroke_circle(self, center: Point2D, radius: float, stroke: StrokeStyle) -> None:
         self._apply_stroke_style(stroke)
         self.ctx.beginPath()
+        self._record_event("begin_path_calls")
         coerced_radius = self._coerce_number(radius)
         self.ctx.arc(center[0], center[1], coerced_radius, 0, 2 * math.pi)
         self.ctx.stroke()
+        self._record_event("stroke_calls")
 
     def fill_circle(
         self,
@@ -138,12 +175,15 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
     ) -> None:
         self._apply_fill_style(fill)
         self.ctx.beginPath()
+        self._record_event("begin_path_calls")
         coerced_radius = self._coerce_number(radius)
         self.ctx.arc(center[0], center[1], coerced_radius, 0, 2 * math.pi)
         self.ctx.fill()
+        self._record_event("fill_calls")
         if stroke:
             self._apply_stroke_style(stroke)
             self.ctx.stroke()
+            self._record_event("stroke_calls")
         self._reset_alpha_if_needed()
 
     def stroke_ellipse(
@@ -156,10 +196,12 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
     ) -> None:
         self._apply_stroke_style(stroke)
         self.ctx.beginPath()
+        self._record_event("begin_path_calls")
         rx = self._coerce_number(radius_x)
         ry = self._coerce_number(radius_y)
         self.ctx.ellipse(center[0], center[1], rx, ry, rotation_rad, 0, 2 * math.pi)
         self.ctx.stroke()
+        self._record_event("stroke_calls")
 
     def fill_polygon(
         self,
@@ -171,11 +213,13 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
             return
         self._apply_fill_style(fill)
         self.ctx.beginPath()
+        self._record_event("begin_path_calls")
         self.ctx.moveTo(points[0][0], points[0][1])
         for x, y in points[1:]:
             self.ctx.lineTo(x, y)
         self.ctx.closePath()
         self.ctx.fill()
+        self._record_event("fill_calls")
         self._reset_alpha_if_needed()
 
     def fill_joined_area(
@@ -188,6 +232,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
             return
         self._apply_fill_style(fill)
         self.ctx.beginPath()
+        self._record_event("begin_path_calls")
         self.ctx.moveTo(forward[0][0], forward[0][1])
         for x, y in forward[1:]:
             self.ctx.lineTo(x, y)
@@ -195,6 +240,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
             self.ctx.lineTo(x, y)
         self.ctx.closePath()
         self.ctx.fill()
+        self._record_event("fill_calls")
         self._reset_alpha_if_needed()
 
     def stroke_arc(
@@ -209,9 +255,11 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
     ) -> None:
         self._apply_stroke_style(stroke)
         self.ctx.beginPath()
+        self._record_event("begin_path_calls")
         coerced_radius = self._coerce_number(radius)
         self.ctx.arc(center[0], center[1], coerced_radius, start_angle_rad, end_angle_rad, not sweep_clockwise)
         self.ctx.stroke()
+        self._record_event("stroke_calls")
 
     def draw_text(
         self,
@@ -236,6 +284,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
             self.ctx.textBaseline = alignment.vertical
             self._text_baseline = alignment.vertical
         self.ctx.fillText(text, position[0], position[1])
+        self._record_event("text_draw_calls")
 
     def _resolve_font_string(self, font: FontStyle) -> str:
         key = (font.weight or "", font.size, font.family or "")
@@ -258,29 +307,41 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
             return
         if not force and (self._shape_depth > 0 or self._batch_depth > 0):
             return
+        did_reset = False
+        was_pending = self._pending_alpha_reset
         if self._global_alpha != 1.0:
             self.ctx.globalAlpha = 1.0
             self._global_alpha = 1.0
+            did_reset = True
         self._pending_alpha_reset = False
+        if did_reset or was_pending:
+            self._record_event("alpha_resets")
 
     def begin_frame(self) -> None:
         self._shape_depth = 0
         self._batch_depth = 0
         self._pending_alpha_reset = False
+        self._record_event("frame_begin")
 
     def end_frame(self) -> None:
         self._reset_alpha_if_needed(force=True)
+        self._record_event("frame_end")
 
     def begin_batch(self, plan: Any = None) -> None:
         self._batch_depth += 1
+        self._record_event("begin_batch_calls")
+        self._record_batch_depth()
 
     def end_batch(self, plan: Any = None) -> None:
         if self._batch_depth:
             self._batch_depth -= 1
         self._reset_alpha_if_needed()
+        self._record_event("end_batch_calls")
+        self._record_batch_depth()
 
     def clear_surface(self) -> None:
         self.ctx.clearRect(0, 0, self.canvas_el.width, self.canvas_el.height)
+        self._record_event("clear_surface_calls")
 
     def resize_surface(self, width: float, height: float) -> None:
         self.canvas_el.width = width
@@ -289,4 +350,5 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self.canvas_el.attrs["height"] = str(height)
         self.canvas_el.style.width = f"{int(width)}px"
         self.canvas_el.style.height = f"{int(height)}px"
+        self._record_event("resize_surface_calls")
 
