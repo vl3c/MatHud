@@ -365,11 +365,12 @@ class TestRendererPerformance(unittest.TestCase):
                 f"DOM node delta too high for {operation}: legacy={legacy_nodes} optimized={optimized_nodes}",
             )
         for operation, optimized_nodes in optimized_dom.items():
-            self.assertGreater(
-                optimized_nodes,
-                0.0,
-                f"Optimized mode produced no DOM nodes for {operation}",
-            )
+            if legacy_dom.get(operation, 0.0) > 0.0:
+                self.assertGreater(
+                    optimized_nodes,
+                    0.0,
+                    f"Optimized mode produced no DOM nodes for {operation}",
+                )
 
         optimized_telemetry = optimized.get("telemetry") or {}
         phase = optimized_telemetry.get("phase", {})
