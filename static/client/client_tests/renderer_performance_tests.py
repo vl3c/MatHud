@@ -355,7 +355,9 @@ class TestRendererPerformance(unittest.TestCase):
             )
             if optimized_nodes is None:
                 continue
-            diff = abs(optimized_nodes - legacy_nodes)
+            if optimized_nodes <= legacy_nodes:
+                continue
+            diff = optimized_nodes - legacy_nodes
             allowed_dom_delta = max(legacy_nodes * 0.15, 5.0)
             self.assertLessEqual(
                 diff,

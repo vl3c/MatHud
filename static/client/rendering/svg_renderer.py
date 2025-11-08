@@ -181,12 +181,34 @@ class SvgRenderer(RendererProtocol):
             adapter_surface_id = self._offscreen_surface_id
         else:
             adapter_surface_id = self._primary_surface_id
+        try:
+            document[self._primary_surface_id].clear()
+        except Exception:
+            pass
         self._shared_primitives: SvgPrimitiveAdapter = SvgPrimitiveAdapter(
             adapter_surface_id, telemetry=self._telemetry
         )
         self._telemetry.set_mode(self._render_mode)
         self._frame_seen_plan_keys: Set[str] = set()
         self._cartesian_rendered_this_frame: bool = False
+
+    def _record_plan_usage(self, name: str, usage_counts: Dict[str, int], *, cartesian: bool = False) -> None:
+        if not usage_counts:
+            return
+        total = 0
+        for count in usage_counts.values():
+            try:
+                total += int(count)
+            except Exception:
+                continue
+        if total <= 0:
+            return
+        if cartesian:
+            for _ in range(total):
+                self._telemetry.record_plan_apply(name, 0.0, cartesian=True)
+        else:
+            for _ in range(total):
+                self._telemetry.record_plan_apply(name, 0.0)
 
     def register_default_drawables(self) -> None:
         self._register_shape("drawables.point", "Point", self._render_point)
@@ -353,7 +375,20 @@ class SvgRenderer(RendererProtocol):
             ):
                 plan = plan_entry["plan"]
                 plan.update_map_state(map_state)
+            elif (
+                plan_entry is not None
+                and isinstance(plan_entry.get("plan"), OptimizedPrimitivePlan)
+                and getattr(plan_entry.get("plan"), "supports_transform", lambda: False)()
+            ):
+                plan = plan_entry["plan"]
+                plan.update_map_state(map_state)
+                plan_entry["signature"] = signature
             else:
+                if plan_entry is not None:
+                    old_plan = plan_entry.get("plan")
+                    drop = getattr(self._shared_primitives, "drop_group", None)
+                    if callable(drop) and getattr(old_plan, "plan_key", None):
+                        drop(old_plan.plan_key)
                 build_start = self._telemetry.mark_time()
                 plan = build_plan_for_cartesian(cartesian, coordinate_mapper, self.style)
                 build_elapsed = self._telemetry.elapsed_since(build_start)
@@ -373,9 +408,15 @@ class SvgRenderer(RendererProtocol):
                 self._telemetry.record_plan_skip(drawable_name)
                 return
             if not plan.needs_apply():
+                if usage_counts:
+                    self._record_plan_usage(drawable_name, usage_counts, cartesian=True)
                 if callable(reserve) and usage_counts:
-                    reserve(usage_counts, trim_excess=True)
+                    reserve(usage_counts, trim_excess=False)
                 return
+            if supports_transform:
+                clear_group = getattr(self._shared_primitives, "clear_group", None)
+                if callable(clear_group):
+                    clear_group(plan.plan_key)
             apply_start = self._telemetry.mark_time()
             plan.apply(self._shared_primitives)
             apply_elapsed = self._telemetry.elapsed_since(apply_start)
@@ -385,6 +426,10 @@ class SvgRenderer(RendererProtocol):
                 set_transform = getattr(self._shared_primitives, "set_group_transform", None)
                 if callable(set_transform):
                     set_transform(plan.plan_key, transform)
+            if usage_counts:
+                self._record_plan_usage(drawable_name, usage_counts, cartesian=True)
+            if callable(reserve) and usage_counts:
+                reserve(usage_counts, trim_excess=True)
             return
         legacy_start = self._telemetry.mark_time()
         try:
@@ -430,7 +475,20 @@ class SvgRenderer(RendererProtocol):
             ):
                 plan = cached_entry["plan"]
                 plan.update_map_state(map_state)
+            elif (
+                cached_entry is not None
+                and isinstance(cached_entry.get("plan"), OptimizedPrimitivePlan)
+                and getattr(cached_entry.get("plan"), "supports_transform", lambda: False)()
+            ):
+                plan = cached_entry["plan"]
+                plan.update_map_state(map_state)
+                cached_entry["signature"] = signature
             else:
+                if cached_entry is not None:
+                    old_plan = cached_entry.get("plan")
+                    drop = getattr(self._shared_primitives, "drop_group", None)
+                    if callable(drop) and getattr(old_plan, "plan_key", None):
+                        drop(old_plan.plan_key)
                 build_start = self._telemetry.mark_time()
                 plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style)
                 build_elapsed = self._telemetry.elapsed_since(build_start)
@@ -454,12 +512,18 @@ class SvgRenderer(RendererProtocol):
                 if not plan.is_visible(width, height):
                     self._telemetry.record_plan_skip(drawable_name)
                     return
+                usage_counts = getattr(plan, "get_usage_counts", lambda: {})()
+                reserve = getattr(self._shared_primitives, "reserve_usage_counts", None)
                 if not plan.needs_apply():
-                    usage_counts = getattr(plan, "get_usage_counts", lambda: {})()
-                    reserve = getattr(self._shared_primitives, "reserve_usage_counts", None)
+                    if usage_counts:
+                        self._record_plan_usage(drawable_name, usage_counts)
                     if callable(reserve) and usage_counts:
-                        reserve(usage_counts, trim_excess=True)
+                        reserve(usage_counts, trim_excess=False)
                     return
+                if supports_transform:
+                    clear_group = getattr(self._shared_primitives, "clear_group", None)
+                    if callable(clear_group):
+                        clear_group(plan.plan_key)
                 apply_start = self._telemetry.mark_time()
                 plan.apply(self._shared_primitives)
                 apply_elapsed = self._telemetry.elapsed_since(apply_start)
@@ -469,6 +533,10 @@ class SvgRenderer(RendererProtocol):
                     set_transform = getattr(self._shared_primitives, "set_group_transform", None)
                     if callable(set_transform):
                         set_transform(plan.plan_key, transform)
+                if usage_counts:
+                    self._record_plan_usage(drawable_name, usage_counts)
+                if callable(reserve) and usage_counts:
+                    reserve(usage_counts, trim_excess=True)
                 return
         legacy_start = self._telemetry.mark_time()
         try:

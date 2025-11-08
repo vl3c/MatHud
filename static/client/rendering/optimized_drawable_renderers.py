@@ -640,6 +640,7 @@ def build_plan_for_drawable(drawable: Any, coordinate_mapper: Any, style: Dict[s
             "class_name": class_name,
             "map_state": map_state,
             "screen_bounds": recorder.get_bounds(),
+            "supports_transform": True,
             "display_map_state": map_state,
         },
         usage_counts=recorder.get_usage_counts(),

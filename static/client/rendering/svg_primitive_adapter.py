@@ -60,6 +60,28 @@ class SvgPrimitiveAdapter(RendererPrimitives):
             fragment = None
         return fragment
 
+    def _detach_element(self, elem: Any) -> None:
+        try:
+            elem.remove()
+        except Exception:
+            try:
+                parent = getattr(elem, "parentNode", None)
+                if parent is not None:
+                    parent.removeChild(elem)
+            except Exception:
+                pass
+
+    def _ensure_parent(self, elem: Any, target: Any) -> None:
+        parent = getattr(elem, "parentNode", None)
+        if parent is target:
+            return
+        if parent is not None:
+            self._detach_element(elem)
+        try:
+            target <= elem
+        except Exception:
+            pass
+
     def _ensure_group(self, plan_key: str) -> Any:
         group = self._groups.get(plan_key)
         if group is None:
@@ -69,6 +91,14 @@ class SvgPrimitiveAdapter(RendererPrimitives):
                 self._surface <= group
             except Exception:
                 pass
+        else:
+            current_parent = getattr(group, "parentNode", None)
+            if current_parent is not self._surface:
+                self._detach_element(group)
+                try:
+                    self._surface <= group
+                except Exception:
+                    pass
         return group
 
     def begin_frame(self) -> None:
@@ -81,10 +111,9 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         for key, pool in self._pool.items():
             active = self._active_indices.get(key, 0)
             for idx in range(active, len(pool)):
-                try:
-                    pool[idx].style["display"] = "none"
-                except Exception:
-                    pass
+                elem = pool[idx]
+                if elem.parentNode is self._surface:
+                    self._surface.removeChild(elem)
         fragment = self._staged_fragment
         if fragment is not None:
             try:
@@ -113,23 +142,23 @@ class SvgPrimitiveAdapter(RendererPrimitives):
                 required = len(pool)
             if required > current:
                 self._active_indices[kind] = required
+                target = self._surface
+                if self._group_stack:
+                    _, group = self._group_stack[-1]
+                    if group is not None:
+                        target = group
                 for idx in range(required):
                     elem = pool[idx]
+                    self._ensure_parent(elem, target)
                     try:
                         elem.style["display"] = ""
                     except Exception:
                         pass
             if trim_excess and len(pool) > required:
-                for _ in range(len(pool) - required):
-                    elem = pool.pop()
-                    try:
-                        elem.remove()
-                    except Exception:
-                        try:
-                            self._surface.removeChild(elem)
-                        except Exception:
-                            pass
+                for idx in range(required, len(pool)):
+                    self._detach_element(pool[idx])
                 self._active_indices[kind] = min(self._active_indices.get(kind, 0), len(pool))
+                self._record_adapter_event(f"pool_trim_{kind}")
 
     def begin_batch(self, plan: Any = None) -> None:
         key = getattr(plan, "plan_key", "")
@@ -166,6 +195,7 @@ class SvgPrimitiveAdapter(RendererPrimitives):
                 target = group
         if index < len(pool):
             elem = pool[index]
+            self._ensure_parent(elem, target)
         else:
             elem = factory()
             pool.append(elem)
@@ -190,6 +220,8 @@ class SvgPrimitiveAdapter(RendererPrimitives):
             self._record_adapter_event("direct_append")
             self._record_adapter_event("new_elements")
             return
+        if elem.parentNode is not None and elem.parentNode is not target:
+            self._detach_element(elem)
         fragment = self._staged_fragment
         appended = False
         if fragment is not None:
@@ -240,6 +272,23 @@ class SvgPrimitiveAdapter(RendererPrimitives):
                 self._surface.removeChild(group)
             except Exception:
                 pass
+
+    def clear_group(self, plan_key: str) -> None:
+        group = self._groups.get(plan_key)
+        if group is None:
+            return
+        try:
+            while group.firstChild is not None:
+                child = group.firstChild
+                try:
+                    child.remove()
+                except Exception:
+                    try:
+                        group.removeChild(child)
+                    except Exception:
+                        break
+        except Exception:
+            pass
 
     def _set_attribute(self, elem: Any, cache: Dict[str, Any], name: str, value: Optional[str]) -> None:
         attrs = cache.setdefault("attrs", {})
