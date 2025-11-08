@@ -345,3 +345,21 @@ class TestRendererPerformance(unittest.TestCase):
                 f"Optimized mode slower for {operation}: {optimized_avg:.2f} ms vs {legacy_avg:.2f} ms",
             )
 
+        legacy_dom = {metric["operation"]: metric["dom_nodes"] for metric in legacy["metrics"]}
+        optimized_dom = {metric["operation"]: metric["dom_nodes"] for metric in optimized["metrics"]}
+        for operation, legacy_nodes in legacy_dom.items():
+            optimized_nodes = optimized_dom.get(operation)
+            self.assertIsNotNone(
+                optimized_nodes,
+                f"Missing optimized DOM metric for operation {operation}",
+            )
+            if optimized_nodes is None:
+                continue
+            diff = abs(optimized_nodes - legacy_nodes)
+            allowed_dom_delta = max(legacy_nodes * 0.15, 5.0)
+            self.assertLessEqual(
+                diff,
+                allowed_dom_delta,
+                f"DOM node delta too high for {operation}: legacy={legacy_nodes} optimized={optimized_nodes}",
+            )
+

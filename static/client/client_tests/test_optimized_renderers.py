@@ -175,6 +175,28 @@ class TestOptimizedRendererParity(unittest.TestCase):
         circle = Circle(center, radius=6.5)
         self._assert_drawable_parity(circle)
 
+    def test_plan_visibility_culling(self) -> None:
+        point = Point(0.0, 0.0, name="P_cull")
+        plan = build_plan_for_drawable(point, self.mapper, self.style)
+        self.assertIsNotNone(plan)
+        if plan is None:
+            return
+        viewport_width = self.mapper.canvas_width
+        viewport_height = self.mapper.canvas_height
+        self.assertTrue(plan.is_visible(viewport_width, viewport_height))
+        shifted_mapper = CoordinateMapper(viewport_width, viewport_height)
+        shifted_mapper.apply_pan(2000, 2000)
+        plan.update_map_state(
+            {
+                "scale": shifted_mapper.scale_factor,
+                "offset_x": shifted_mapper.offset.x,
+                "offset_y": shifted_mapper.offset.y,
+                "origin_x": shifted_mapper.origin.x,
+                "origin_y": shifted_mapper.origin.y,
+            }
+        )
+        self.assertFalse(plan.is_visible(viewport_width, viewport_height))
+
     def test_cartesian_plan_matches_legacy(self) -> None:
         cartesian = Cartesian2Axis(self.mapper)
         legacy_primitives = RecordingPrimitives()

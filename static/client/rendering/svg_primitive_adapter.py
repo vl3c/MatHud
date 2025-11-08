@@ -18,19 +18,51 @@ from rendering.shared_drawable_renderers import (
 class SvgPrimitiveAdapter(RendererPrimitives):
     """RendererPrimitives implementation backed by the SVG surface."""
 
-    def __init__(self, surface_id: str = "math-svg") -> None:
+    def __init__(self, surface_id: str = "math-svg", *, telemetry: Optional[Any] = None) -> None:
         self.surface_id = surface_id
         self._pool: Dict[str, List[Any]] = {}
         self._active_indices: Dict[str, int] = {}
         self._batch_stack: List[str] = []
+        self._staged_fragment: Optional[Any] = None
+        self._telemetry: Optional[Any] = telemetry
 
     @property
     def _surface(self) -> Any:
         return document[self.surface_id]
 
+    def set_telemetry(self, telemetry: Any) -> None:
+        self._telemetry = telemetry
+
+    def _record_adapter_event(self, name: str, amount: int = 1) -> None:
+        telemetry = self._telemetry
+        if telemetry is None:
+            return
+        try:
+            telemetry.record_adapter_event(name, amount)
+        except Exception:
+            pass
+
+    def _track_batch_depth(self) -> None:
+        telemetry = self._telemetry
+        if telemetry is None:
+            return
+        try:
+            telemetry.track_batch_depth(len(self._batch_stack))
+        except Exception:
+            pass
+
+    def _create_fragment(self) -> Optional[Any]:
+        try:
+            fragment = document.createDocumentFragment()
+        except Exception:
+            fragment = None
+        return fragment
+
     def begin_frame(self) -> None:
         for key in self._pool:
             self._active_indices[key] = 0
+        self._staged_fragment = self._create_fragment()
+        self._record_adapter_event("frame_begin")
 
     def end_frame(self) -> None:
         for key, pool in self._pool.items():
@@ -40,14 +72,29 @@ class SvgPrimitiveAdapter(RendererPrimitives):
                     pool[idx].style["display"] = "none"
                 except Exception:
                     pass
+        fragment = self._staged_fragment
+        if fragment is not None:
+            try:
+                self._surface <= fragment
+            except Exception:
+                try:
+                    # Fallback: append children individually if fragment append fails
+                    for child in list(getattr(fragment, "children", [])):
+                        self._surface <= child
+                except Exception:
+                    pass
+        self._staged_fragment = None
+        self._record_adapter_event("frame_end")
 
     def begin_batch(self, plan: Any = None) -> None:
         key = getattr(plan, "plan_key", "")
         self._batch_stack.append(str(key))
+        self._track_batch_depth()
 
     def end_batch(self, plan: Any = None) -> None:
         if self._batch_stack:
             self._batch_stack.pop()
+        self._track_batch_depth()
 
     def execute_optimized(self, command: Any) -> None:
         handler_name = f"_optimized_{getattr(command, 'op', '')}"
@@ -65,7 +112,7 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         else:
             elem = factory()
             pool.append(elem)
-            self._surface <= elem
+            self._attach_new_element(elem)
         self._active_indices[kind] = index + 1
         try:
             elem.style["display"] = ""
@@ -76,6 +123,23 @@ class SvgPrimitiveAdapter(RendererPrimitives):
             cache = {}
             setattr(elem, "_mathud_cache", cache)
         return elem, cache
+
+    def _attach_new_element(self, elem: Any) -> None:
+        fragment = self._staged_fragment
+        if fragment is not None:
+            try:
+                fragment <= elem
+            except Exception:
+                try:
+                    self._surface <= elem
+                except Exception:
+                    pass
+        else:
+            try:
+                self._surface <= elem
+            except Exception:
+                pass
+        self._record_adapter_event("new_elements")
 
     def _set_attribute(self, elem: Any, cache: Dict[str, Any], name: str, value: Optional[str]) -> None:
         attrs = cache.setdefault("attrs", {})
