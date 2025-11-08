@@ -176,6 +176,8 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         radius: float,
         fill: FillStyle,
         stroke: Optional[StrokeStyle] = None,
+        *,
+        screen_space: bool = False,
     ) -> None:
         self._flush_polygon_batch()
         self._apply_fill_style(fill)
@@ -214,6 +216,9 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         points: List[Point2D],
         fill: FillStyle,
         stroke: Optional[StrokeStyle] = None,
+        *,
+        screen_space: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         if len(points) < 3:
             return
@@ -239,6 +244,9 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         sweep_clockwise: bool,
         stroke: StrokeStyle,
         css_class: str = None,
+        *,
+        screen_space: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._apply_stroke_style(stroke)
         self.ctx.beginPath()
@@ -256,6 +264,9 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         color: str,
         alignment: TextAlignment,
         style_overrides: Optional[Dict[str, Any]] = None,
+        *,
+        screen_space: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._flush_polygon_batch()
         if color != self._text_color:

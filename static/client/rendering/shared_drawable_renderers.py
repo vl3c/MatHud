@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import math
 
+from typing import Any, Dict, Optional, Tuple
+
 from utils.math_utils import MathUtils
 
 Point2D = tuple
@@ -57,13 +59,21 @@ class RendererPrimitives:
     def stroke_circle(self, center, radius, stroke):
         raise NotImplementedError
 
-    def fill_circle(self, center, radius, fill, stroke=None):
+    def fill_circle(self, center, radius, fill, stroke=None, *, screen_space=False):
         raise NotImplementedError
 
     def stroke_ellipse(self, center, radius_x, radius_y, rotation_rad, stroke):
         raise NotImplementedError
 
-    def fill_polygon(self, points, fill, stroke=None):
+    def fill_polygon(
+        self,
+        points,
+        fill,
+        stroke=None,
+        *,
+        screen_space: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
         raise NotImplementedError
 
     def fill_joined_area(self, forward, reverse, fill):
@@ -78,10 +88,24 @@ class RendererPrimitives:
         sweep_clockwise,
         stroke,
         css_class=None,
+        *,
+        screen_space: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         raise NotImplementedError
 
-    def draw_text(self, text, position, font, color, alignment, style_overrides=None):
+    def draw_text(
+        self,
+        text,
+        position,
+        font,
+        color,
+        alignment,
+        style_overrides=None,
+        *,
+        screen_space: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
         raise NotImplementedError
 
     def clear_surface(self):
@@ -128,7 +152,7 @@ from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
 def render_point_helper(primitives, point, coordinate_mapper, style):
     try:
         sx_sy = coordinate_mapper.math_to_screen(point.x, point.y)  # type: ignore[attr-defined]
-    except Exception:
+    except Exception as exc:
         return
     if not sx_sy:
         return
@@ -136,7 +160,7 @@ def render_point_helper(primitives, point, coordinate_mapper, style):
     radius_raw = style.get("point_radius", 0) or 0
     try:
         radius = float(radius_raw)
-    except Exception:
+    except Exception as exc:
         return
     if radius <= 0:
         return
@@ -149,7 +173,7 @@ def render_point_helper(primitives, point, coordinate_mapper, style):
     if managing_shape:
         begin_shape()
     try:
-        primitives.fill_circle((sx, sy), radius_raw, fill)
+        primitives.fill_circle((sx, sy), radius_raw, fill, screen_space=True)
 
         label = getattr(point, "name", "")
         if label:
@@ -166,6 +190,12 @@ def render_point_helper(primitives, point, coordinate_mapper, style):
                 else:
                     font_size = font_size_float
             font = FontStyle(family="Inter, sans-serif", size=font_size)
+            label_metadata = {
+                "point_label": {
+                    "math_position": (float(getattr(point, "x", 0.0)), float(getattr(point, "y", 0.0))),
+                    "screen_offset": (float(radius), float(-radius)),
+                }
+            }
             primitives.draw_text(
                 label_text,
                 (sx + radius, sy - radius),
@@ -178,6 +208,8 @@ def render_point_helper(primitives, point, coordinate_mapper, style):
                     "-moz-user-select": "none",
                     "-ms-user-select": "none",
                 },
+                screen_space=True,
+                metadata=label_metadata,
             )
     finally:
         if managing_shape:
@@ -390,7 +422,20 @@ def render_vector_helper(primitives, vector, coordinate_mapper, style):
             end[0] - height * math.cos(angle) + half_base * math.sin(angle),
             end[1] - height * math.sin(angle) - half_base * math.cos(angle),
         )
-        primitives.fill_polygon([tip, base1, base2], FillStyle(color=color), StrokeStyle(color=color, width=1))
+        metadata = {
+            "vector_arrow": {
+                "start_math": (getattr(seg.point1, "x", 0.0), getattr(seg.point1, "y", 0.0)),
+                "end_math": (getattr(seg.point2, "x", 0.0), getattr(seg.point2, "y", 0.0)),
+                "tip_size": side_length,
+            }
+        }
+        primitives.fill_polygon(
+            [tip, base1, base2],
+            FillStyle(color=color),
+            StrokeStyle(color=color, width=1),
+            screen_space=True,
+            metadata=metadata,
+        )
     finally:
         if managing_shape:
             end_shape()
@@ -452,6 +497,17 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
         begin_shape()
     try:
         css_class = "angle-arc" if hasattr(primitives, "_surface") else None
+        angle_metadata = {
+            "angle": {
+                "vertex_math": (getattr(angle_obj.vertex_point, "x", 0.0), getattr(angle_obj.vertex_point, "y", 0.0)),
+                "arm1_math": (getattr(angle_obj.arm1_point, "x", 0.0), getattr(angle_obj.arm1_point, "y", 0.0)),
+                "arm2_math": (getattr(angle_obj.arm2_point, "x", 0.0), getattr(angle_obj.arm2_point, "y", 0.0)),
+                "arc_radius_on_screen": float(params["arc_radius_on_screen"]),
+                "display_degrees": float(display_degrees),
+                "final_sweep_flag": params.get("final_sweep_flag", "0"),
+                "text_radius_factor": float(style.get("angle_text_arc_radius_factor", 1.8)),
+            }
+        }
         primitives.stroke_arc(
             (vx, vy),
             float(params["arc_radius_on_screen"]),
@@ -460,17 +516,20 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
             sweep_cw,
             stroke,
             css_class=css_class,
+            screen_space=True,
+            metadata=angle_metadata,
         )
     finally:
         if managing_shape:
             end_shape()
-
     primitives.draw_text(
         f"{display_degrees:.1f}°",
         (tx, ty),
         font,
         color,
         TextAlignment(horizontal="center", vertical="middle"),
+        screen_space=True,
+        metadata=angle_metadata,
     )
 
 

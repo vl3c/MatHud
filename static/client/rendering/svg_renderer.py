@@ -13,42 +13,22 @@ from rendering.optimized_drawable_renderers import (
 from rendering.interfaces import RendererProtocol
 from rendering.style_manager import get_renderer_style
 from rendering.svg_primitive_adapter import SvgPrimitiveAdapter
-from rendering.shared_drawable_renderers import (
-    render_point_helper,
-    render_segment_helper,
-    render_circle_helper,
-    render_vector_helper,
-    render_angle_helper,
-    render_function_helper,
-    render_functions_bounded_area_helper,
-    render_function_segment_area_helper,
-    render_segments_bounded_area_helper,
-    render_triangle_helper,
-    render_rectangle_helper,
-    render_ellipse_helper,
-    render_cartesian_helper,
-)
-
 
 class SvgTelemetry:
     def __init__(self) -> None:
-        self._mode: str = "legacy"
         self.reset()
 
     def reset(self) -> None:
-        mode = getattr(self, "_mode", "legacy")
         self._phase_totals: Dict[str, float] = {
             "plan_build_ms": 0.0,
             "plan_apply_ms": 0.0,
             "cartesian_plan_build_ms": 0.0,
             "cartesian_plan_apply_ms": 0.0,
-            "legacy_render_ms": 0.0,
         }
         self._phase_counts: Dict[str, int] = {
             "plan_build_count": 0,
             "plan_apply_count": 0,
             "cartesian_plan_count": 0,
-            "legacy_render_count": 0,
             "plan_miss_count": 0,
             "plan_skip_count": 0,
         }
@@ -56,10 +36,6 @@ class SvgTelemetry:
         self._adapter_events: Dict[str, int] = {}
         self._frames: int = 0
         self._max_batch_depth: int = 0
-        self._mode = mode
-
-    def set_mode(self, mode: str) -> None:
-        self._mode = mode
 
     def begin_frame(self) -> None:
         self._frames += 1
@@ -88,10 +64,8 @@ class SvgTelemetry:
             bucket = {
                 "plan_build_ms": 0.0,
                 "plan_apply_ms": 0.0,
-                "legacy_render_ms": 0.0,
                 "plan_build_count": 0,
                 "plan_apply_count": 0,
-                "legacy_render_count": 0,
                 "plan_miss_count": 0,
                 "plan_skip_count": 0,
             }
@@ -127,13 +101,6 @@ class SvgTelemetry:
         bucket = self._drawable_bucket(name)
         bucket["plan_skip_count"] += 1
 
-    def record_legacy_render(self, name: str, duration_ms: float, *, cartesian: bool = False) -> None:
-        self._phase_totals["legacy_render_ms"] += duration_ms
-        self._phase_counts["legacy_render_count"] += 1
-        bucket = self._drawable_bucket(name)
-        bucket["legacy_render_ms"] += duration_ms
-        bucket["legacy_render_count"] += 1
-
     def record_adapter_event(self, name: str, amount: int = 1) -> None:
         self._adapter_events[name] = self._adapter_events.get(name, 0) + amount
 
@@ -149,7 +116,6 @@ class SvgTelemetry:
         phase = dict(self._phase_totals)
         phase.update(self._phase_counts)
         return {
-            "mode": self._mode,
             "frames": self._frames,
             "phase": phase,
             "per_drawable": per_drawable,
@@ -165,10 +131,11 @@ class SvgTelemetry:
 class SvgRenderer(RendererProtocol):
     """SVG renderer with caching, culling, and optional offscreen staging."""
 
+    SKIP_AUTO_CLEAR = True
+
     def __init__(self, style_config: Optional[Dict[str, Any]] = None, surface_id: str = "math-svg") -> None:
         self.style: Dict[str, Any] = get_renderer_style(style_config)
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
-        self._render_mode: str = "legacy"
         self._primary_surface_id: str = surface_id
         self._offscreen_surface_id: str = f"{surface_id}-offscreen"
         self._telemetry = SvgTelemetry()
@@ -188,7 +155,6 @@ class SvgRenderer(RendererProtocol):
         self._shared_primitives: SvgPrimitiveAdapter = SvgPrimitiveAdapter(
             adapter_surface_id, telemetry=self._telemetry
         )
-        self._telemetry.set_mode(self._render_mode)
         self._frame_seen_plan_keys: Set[str] = set()
         self._cartesian_rendered_this_frame: bool = False
 
@@ -260,17 +226,6 @@ class SvgRenderer(RendererProtocol):
         except Exception:
             pass
 
-    def set_render_mode(self, mode: str) -> None:
-        normalized = str(mode).strip().lower()
-        if normalized == "optimized":
-            self._render_mode = "optimized"
-        else:
-            self._render_mode = "legacy"
-        self._telemetry.set_mode(self._render_mode)
-
-    def get_render_mode(self) -> str:
-        return self._render_mode
-
     def begin_frame(self) -> None:
         self._telemetry.begin_frame()
         if self._use_offscreen_surface:
@@ -283,7 +238,6 @@ class SvgRenderer(RendererProtocol):
         self._shared_primitives.end_frame()
         if self._use_offscreen_surface:
             self._push_offscreen_to_main()
-        if self._render_mode == "optimized":
             self._prune_unused_plan_entries()
         self._telemetry.end_frame()
 
@@ -299,63 +253,63 @@ class SvgRenderer(RendererProtocol):
         self.register(point_cls, self._render_point)
 
     def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(point, coordinate_mapper, render_point_helper)
+        self._render_drawable(point, coordinate_mapper)
 
     # ----------------------- Segment -----------------------
     def register_segment(self, segment_cls: type) -> None:
         self.register(segment_cls, self._render_segment)
 
     def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(segment, coordinate_mapper, render_segment_helper)
+        self._render_drawable(segment, coordinate_mapper)
 
     # ----------------------- Circle -----------------------
     def register_circle(self, circle_cls: type) -> None:
         self.register(circle_cls, self._render_circle)
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(circle, coordinate_mapper, render_circle_helper)
+        self._render_drawable(circle, coordinate_mapper)
 
     # ----------------------- Ellipse -----------------------
     def register_ellipse(self, ellipse_cls: type) -> None:
         self.register(ellipse_cls, self._render_ellipse)
 
     def _render_ellipse(self, ellipse: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(ellipse, coordinate_mapper, render_ellipse_helper)
+        self._render_drawable(ellipse, coordinate_mapper)
 
     # ----------------------- Vector -----------------------
     def register_vector(self, vector_cls: type) -> None:
         self.register(vector_cls, self._render_vector)
 
     def _render_vector(self, vector: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(vector, coordinate_mapper, render_vector_helper)
+        self._render_drawable(vector, coordinate_mapper)
 
     # ----------------------- Angle -----------------------
     def register_angle(self, angle_cls: type) -> None:
         self.register(angle_cls, self._render_angle)
 
     def _render_angle(self, angle: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(angle, coordinate_mapper, render_angle_helper)
+        self._render_drawable(angle, coordinate_mapper)
 
     # ----------------------- Triangle -----------------------
     def register_triangle(self, triangle_cls: type) -> None:
         self.register(triangle_cls, self._render_triangle)
 
     def _render_triangle(self, triangle: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(triangle, coordinate_mapper, render_triangle_helper)
+        self._render_drawable(triangle, coordinate_mapper)
 
     # ----------------------- Rectangle -----------------------
     def register_rectangle(self, rectangle_cls: type) -> None:
         self.register(rectangle_cls, self._render_rectangle)
 
     def _render_rectangle(self, rectangle: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(rectangle, coordinate_mapper, render_rectangle_helper)
+        self._render_drawable(rectangle, coordinate_mapper)
 
     # ----------------------- Function -----------------------
     def register_function(self, function_cls: type) -> None:
         self.register(function_cls, self._render_function)
 
     def _render_function(self, func: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(func, coordinate_mapper, render_function_helper)
+        self._render_drawable(func, coordinate_mapper)
 
     # ----------------------- Cartesian Grid -----------------------
     def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
@@ -365,185 +319,156 @@ class SvgRenderer(RendererProtocol):
         drawable_name = "Cartesian2Axis"
         map_state = self._capture_map_state(coordinate_mapper)
         signature = self._compute_drawable_signature(cartesian)
-        if self._render_mode == "optimized":
-            plan_entry = self._cartesian_cache
-            plan: Optional[OptimizedPrimitivePlan] = None
-            if (
-                plan_entry is not None
-                and plan_entry.get("signature") == signature
-                and isinstance(plan_entry.get("plan"), OptimizedPrimitivePlan)
-            ):
-                plan = plan_entry["plan"]
-                plan.update_map_state(map_state)
-            elif (
-                plan_entry is not None
-                and isinstance(plan_entry.get("plan"), OptimizedPrimitivePlan)
-                and getattr(plan_entry.get("plan"), "supports_transform", lambda: False)()
-            ):
-                plan = plan_entry["plan"]
-                plan.update_map_state(map_state)
-                plan_entry["signature"] = signature
-            else:
-                if plan_entry is not None:
-                    old_plan = plan_entry.get("plan")
-                    drop = getattr(self._shared_primitives, "drop_group", None)
-                    if callable(drop) and getattr(old_plan, "plan_key", None):
-                        drop(old_plan.plan_key)
-                build_start = self._telemetry.mark_time()
-                plan = build_plan_for_cartesian(cartesian, coordinate_mapper, self.style)
-                build_elapsed = self._telemetry.elapsed_since(build_start)
-                self._telemetry.record_plan_build(drawable_name, build_elapsed, cartesian=True)
-                plan.update_map_state(map_state)
-                self._cartesian_cache = {"plan": plan, "signature": signature}
-            usage_counts = getattr(plan, "get_usage_counts", lambda: {})()
-            reserve = getattr(self._shared_primitives, "reserve_usage_counts", None)
-            supports_transform = getattr(plan, "supports_transform", lambda: False)()
-            if supports_transform:
-                set_transform = getattr(self._shared_primitives, "set_group_transform", None)
-                transform = getattr(plan, "get_transform", lambda: None)()
-                if callable(set_transform):
-                    set_transform(plan.plan_key, transform)
-            self._cartesian_rendered_this_frame = True
-            if not plan.is_visible(width, height):
-                self._telemetry.record_plan_skip(drawable_name)
+        plan_entry = self._cartesian_cache
+        plan: Optional[OptimizedPrimitivePlan] = None
+        if (
+            plan_entry is not None
+            and plan_entry.get("signature") == signature
+            and isinstance(plan_entry.get("plan"), OptimizedPrimitivePlan)
+        ):
+            plan = plan_entry["plan"]
+            plan.update_map_state(map_state)
+            if getattr(plan, "uses_screen_space", lambda: False)():
+                plan.mark_dirty()
+        else:
+            if plan_entry is not None:
+                old_plan = plan_entry.get("plan")
+                drop = getattr(self._shared_primitives, "drop_group", None)
+                if callable(drop) and getattr(old_plan, "plan_key", None):
+                    drop(old_plan.plan_key)
+            build_start = self._telemetry.mark_time()
+            try:
+                plan = build_plan_for_cartesian(cartesian, coordinate_mapper, self.style, supports_transform=False)
+            except Exception as exc:
+                raise
+            build_elapsed = self._telemetry.elapsed_since(build_start)
+            if plan is None:
+                self._telemetry.record_plan_miss(drawable_name)
+                self._cartesian_cache = None
                 return
-            if not plan.needs_apply():
-                if usage_counts:
-                    self._record_plan_usage(drawable_name, usage_counts, cartesian=True)
-                if callable(reserve) and usage_counts:
-                    reserve(usage_counts, trim_excess=False)
-                return
-            if supports_transform:
-                clear_group = getattr(self._shared_primitives, "clear_group", None)
-                if callable(clear_group):
-                    clear_group(plan.plan_key)
-            apply_start = self._telemetry.mark_time()
-            plan.apply(self._shared_primitives)
-            apply_elapsed = self._telemetry.elapsed_since(apply_start)
-            self._telemetry.record_plan_apply(drawable_name, apply_elapsed, cartesian=True)
-            if supports_transform:
-                transform = getattr(plan, "get_transform", lambda: None)()
-                set_transform = getattr(self._shared_primitives, "set_group_transform", None)
-                if callable(set_transform):
-                    set_transform(plan.plan_key, transform)
-            if usage_counts:
-                self._record_plan_usage(drawable_name, usage_counts, cartesian=True)
-            if callable(reserve) and usage_counts:
-                reserve(usage_counts, trim_excess=True)
+            plan.update_map_state(map_state)
+            if getattr(plan, "uses_screen_space", lambda: False)():
+                plan.mark_dirty()
+            self._cartesian_cache = {"plan": plan, "signature": signature}
+        usage_counts = getattr(plan, "get_usage_counts", lambda: {})()
+        reserve = getattr(self._shared_primitives, "reserve_usage_counts", None)
+        plan_key = getattr(plan, "plan_key", None)
+        supports_transform = getattr(plan, "supports_transform", lambda: False)()
+        needs_apply = getattr(plan, "needs_apply", lambda: True)()
+        if supports_transform:
+            set_transform = getattr(self._shared_primitives, "set_group_transform", None)
+            transform = getattr(plan, "get_transform", lambda: None)()
+            if callable(set_transform):
+                set_transform(plan_key, transform)
+        self._cartesian_rendered_this_frame = True
+        if not plan.is_visible(width, height):
+            self._telemetry.record_plan_skip(drawable_name)
             return
-        legacy_start = self._telemetry.mark_time()
-        try:
-            render_cartesian_helper(self._shared_primitives, cartesian, coordinate_mapper, self.style)
-            self._cartesian_rendered_this_frame = True
-        finally:
-            legacy_elapsed = self._telemetry.elapsed_since(legacy_start)
-            self._telemetry.record_legacy_render(drawable_name, legacy_elapsed, cartesian=True)
+        if needs_apply and plan_key:
+            clear_group = getattr(self._shared_primitives, "clear_group", None)
+            if callable(clear_group):
+                clear_group(plan_key)
+        apply_start = self._telemetry.mark_time()
+        plan.apply(self._shared_primitives)
+        apply_elapsed = self._telemetry.elapsed_since(apply_start)
+        self._telemetry.record_plan_apply(drawable_name, apply_elapsed, cartesian=True)
+        if supports_transform:
+            transform = getattr(plan, "get_transform", lambda: None)()
+            set_transform = getattr(self._shared_primitives, "set_group_transform", None)
+            if callable(set_transform):
+                set_transform(plan_key, transform)
+        if usage_counts:
+            self._record_plan_usage(drawable_name, usage_counts, cartesian=True)
+        if callable(reserve) and usage_counts:
+            reserve(usage_counts, trim_excess=True)
 
     # ----------------------- Colored Areas: FunctionsBoundedColoredArea -----------------------
     def register_functions_bounded_colored_area(self, cls: type) -> None:
         self.register(cls, self._render_functions_bounded_colored_area)
 
     def _render_functions_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(area, coordinate_mapper, render_functions_bounded_area_helper)
+        self._render_drawable(area, coordinate_mapper)
 
     # ----------------------- Colored Areas: FunctionSegmentBoundedColoredArea -----------------
     def register_function_segment_bounded_colored_area(self, cls: type) -> None:
         self.register(cls, self._render_function_segment_bounded_colored_area)
 
     def _render_function_segment_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(area, coordinate_mapper, render_function_segment_area_helper)
+        self._render_drawable(area, coordinate_mapper)
 
     # ----------------------- Colored Areas: SegmentsBoundedColoredArea -----------------------
     def register_segments_bounded_colored_area(self, cls: type) -> None:
         self.register(cls, self._render_segments_bounded_colored_area)
 
     def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(area, coordinate_mapper, render_segments_bounded_area_helper)
+        self._render_drawable(area, coordinate_mapper)
 
-    def _render_with_mode(self, drawable: Any, coordinate_mapper: Any, legacy_callable: Callable[[Any, Any, Any], None]) -> None:
+    def _render_drawable(self, drawable: Any, coordinate_mapper: Any) -> None:
         drawable_name = self._resolve_drawable_name(drawable)
         map_state = self._capture_map_state(coordinate_mapper)
         signature = self._compute_drawable_signature(drawable)
         cache_key = self._plan_cache_key(drawable, drawable_name)
-        if self._render_mode == "optimized":
-            cached_entry = self._plan_cache.get(cache_key)
-            plan: Optional[OptimizedPrimitivePlan] = None
-            if (
-                cached_entry is not None
-                and cached_entry.get("signature") == signature
-                and isinstance(cached_entry.get("plan"), OptimizedPrimitivePlan)
-            ):
-                plan = cached_entry["plan"]
-                plan.update_map_state(map_state)
-            elif (
-                cached_entry is not None
-                and isinstance(cached_entry.get("plan"), OptimizedPrimitivePlan)
-                and getattr(cached_entry.get("plan"), "supports_transform", lambda: False)()
-            ):
-                plan = cached_entry["plan"]
-                plan.update_map_state(map_state)
-                cached_entry["signature"] = signature
-            else:
-                if cached_entry is not None:
-                    old_plan = cached_entry.get("plan")
-                    drop = getattr(self._shared_primitives, "drop_group", None)
-                    if callable(drop) and getattr(old_plan, "plan_key", None):
-                        drop(old_plan.plan_key)
-                build_start = self._telemetry.mark_time()
-                plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style)
-                build_elapsed = self._telemetry.elapsed_since(build_start)
-                if plan is not None:
-                    self._telemetry.record_plan_build(drawable_name, build_elapsed)
-                    plan.update_map_state(map_state)
-                    if signature is not None:
-                        self._plan_cache[cache_key] = {"plan": plan, "signature": signature}
-                else:
-                    self._telemetry.record_plan_miss(drawable_name)
-                    self._plan_cache.pop(cache_key, None)
+        cached_entry = self._plan_cache.get(cache_key)
+        plan: Optional[OptimizedPrimitivePlan] = None
+        if (
+            cached_entry is not None
+            and cached_entry.get("signature") == signature
+            and isinstance(cached_entry.get("plan"), OptimizedPrimitivePlan)
+        ):
+            plan = cached_entry["plan"]
+            plan.update_map_state(map_state)
+            if getattr(plan, "uses_screen_space", lambda: False)():
+                plan.mark_dirty()
+        else:
+            if cached_entry is not None:
+                old_plan = cached_entry.get("plan")
+                drop = getattr(self._shared_primitives, "drop_group", None)
+                if callable(drop) and getattr(old_plan, "plan_key", None):
+                    drop(old_plan.plan_key)
+            build_start = self._telemetry.mark_time()
+            try:
+                plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style, supports_transform=False)
+            except Exception as exc:
+                raise
+            build_elapsed = self._telemetry.elapsed_since(build_start)
             if plan is not None:
-                self._frame_seen_plan_keys.add(cache_key)
-                supports_transform = getattr(plan, "supports_transform", lambda: False)()
-                if supports_transform:
-                    set_transform = getattr(self._shared_primitives, "set_group_transform", None)
-                    transform = getattr(plan, "get_transform", lambda: None)()
-                    if callable(set_transform):
-                        set_transform(plan.plan_key, transform)
-                width, height = self._get_surface_dimensions()
-                if not plan.is_visible(width, height):
-                    self._telemetry.record_plan_skip(drawable_name)
-                    return
-                usage_counts = getattr(plan, "get_usage_counts", lambda: {})()
-                reserve = getattr(self._shared_primitives, "reserve_usage_counts", None)
-                if not plan.needs_apply():
-                    if usage_counts:
-                        self._record_plan_usage(drawable_name, usage_counts)
-                    if callable(reserve) and usage_counts:
-                        reserve(usage_counts, trim_excess=False)
-                    return
-                if supports_transform:
-                    clear_group = getattr(self._shared_primitives, "clear_group", None)
-                    if callable(clear_group):
-                        clear_group(plan.plan_key)
-                apply_start = self._telemetry.mark_time()
-                plan.apply(self._shared_primitives)
-                apply_elapsed = self._telemetry.elapsed_since(apply_start)
-                self._telemetry.record_plan_apply(drawable_name, apply_elapsed)
-                if supports_transform:
-                    transform = getattr(plan, "get_transform", lambda: None)()
-                    set_transform = getattr(self._shared_primitives, "set_group_transform", None)
-                    if callable(set_transform):
-                        set_transform(plan.plan_key, transform)
-                if usage_counts:
-                    self._record_plan_usage(drawable_name, usage_counts)
-                if callable(reserve) and usage_counts:
-                    reserve(usage_counts, trim_excess=True)
+                self._telemetry.record_plan_build(drawable_name, build_elapsed)
+                plan.update_map_state(map_state)
+                if getattr(plan, "uses_screen_space", lambda: False)():
+                    plan.mark_dirty()
+                if signature is not None:
+                    self._plan_cache[cache_key] = {"plan": plan, "signature": signature}
+            else:
+                self._telemetry.record_plan_miss(drawable_name)
+                self._plan_cache.pop(cache_key, None)
                 return
-        legacy_start = self._telemetry.mark_time()
-        try:
-            legacy_callable(self._shared_primitives, drawable, coordinate_mapper, self.style)
-        finally:
-            legacy_elapsed = self._telemetry.elapsed_since(legacy_start)
-            self._telemetry.record_legacy_render(drawable_name, legacy_elapsed)
+        self._frame_seen_plan_keys.add(cache_key)
+        plan_key = getattr(plan, "plan_key", None)
+        supports_transform = getattr(plan, "supports_transform", lambda: False)()
+        needs_apply = getattr(plan, "needs_apply", lambda: True)()
+        if supports_transform:
+            set_transform = getattr(self._shared_primitives, "set_group_transform", None)
+            transform = getattr(plan, "get_transform", lambda: None)()
+            if callable(set_transform):
+                set_transform(plan_key, transform)
+        width, height = self._get_surface_dimensions()
+        if not plan.is_visible(width, height):
+            self._telemetry.record_plan_skip(drawable_name)
+            return
+        usage_counts = getattr(plan, "get_usage_counts", lambda: {})()
+        reserve = getattr(self._shared_primitives, "reserve_usage_counts", None)
+        if needs_apply and plan_key:
+            clear_group = getattr(self._shared_primitives, "clear_group", None)
+            if callable(clear_group):
+                clear_group(plan_key)
+        apply_start = self._telemetry.mark_time()
+        plan.apply(self._shared_primitives)
+        apply_elapsed = self._telemetry.elapsed_since(apply_start)
+        self._telemetry.record_plan_apply(drawable_name, apply_elapsed)
+        if usage_counts:
+            self._record_plan_usage(drawable_name, usage_counts)
+        if callable(reserve) and usage_counts:
+            reserve(usage_counts, trim_excess=True)
 
     def drain_telemetry(self) -> Dict[str, Any]:
         return self._telemetry.drain()

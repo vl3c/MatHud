@@ -36,50 +36,78 @@ Point2D = Tuple[float, float]
 # ---------------------------------------------------------------------------
 
 
+class SvgElement(SimpleMock):
+    def __init__(self, element_type: str, **attrs: Any) -> None:
+        super().__init__(element_type=element_type, attrs=dict(attrs), style={}, children=[])
+
+    def __le__(self, child: Any) -> "SvgElement":
+        children = self._attributes.setdefault("children", [])
+        children.append(child)
+        return self
+
+
 class MockSvgModule:
-    def circle(self, **attrs: Any) -> SimpleMock:
-        return SimpleMock(element_type="circle", attrs=dict(attrs), style={})
+    def circle(self, **attrs: Any) -> SvgElement:
+        return SvgElement("circle", **attrs)
 
-    def line(self, **attrs: Any) -> SimpleMock:
-        return SimpleMock(element_type="line", attrs=dict(attrs), style={})
+    def line(self, **attrs: Any) -> SvgElement:
+        return SvgElement("line", **attrs)
 
-    def ellipse(self, **attrs: Any) -> SimpleMock:
-        return SimpleMock(element_type="ellipse", attrs=dict(attrs), style={})
+    def ellipse(self, **attrs: Any) -> SvgElement:
+        return SvgElement("ellipse", **attrs)
 
-    def polygon(self, **attrs: Any) -> SimpleMock:
-        return SimpleMock(element_type="polygon", attrs=dict(attrs), style={})
+    def polygon(self, **attrs: Any) -> SvgElement:
+        return SvgElement("polygon", **attrs)
 
-    def path(self, **attrs: Any) -> SimpleMock:
-        return SimpleMock(element_type="path", attrs=dict(attrs), style={})
+    def path(self, **attrs: Any) -> SvgElement:
+        return SvgElement("path", **attrs)
 
-    def text(self, *args: Any, **attrs: Any) -> SimpleMock:
+    def text(self, *args: Any, **attrs: Any) -> SvgElement:
         if args:
             attrs = dict(attrs)
             attrs["__text"] = args[0]
-        return SimpleMock(element_type="text", attrs=dict(attrs), style={})
+        return SvgElement("text", **attrs)
+
+    def g(self, **attrs: Any) -> SvgElement:
+        return SvgElement("g", **attrs)
 
 
 class MockSvgSurface:
     def __init__(self, log: List[Any]) -> None:
         self.log = log
+        self.attrs: Dict[str, Any] = {"width": "400", "height": "300"}
+        self.children: List[Any] = []
+
+    def getBoundingClientRect(self) -> SimpleNamespace:
+        return SimpleNamespace(width=400.0, height=300.0)
 
     def clear(self) -> None:
         self.log.append(("clear",))
+        self.children.clear()
 
     def __le__(self, other: SimpleMock) -> "MockSvgSurface":
-        self.log.append(
-            (
-                other.element_type,
-                dict(other.attrs),
-                dict(getattr(other, "style", {})),
-            )
-        )
+        element_type = getattr(other, "element_type", None)
+        if element_type is None:
+            children = getattr(other, "children", None)
+            if children:
+                for child in children:
+                    self <= child
+            return self
+        self.log.append((element_type, dict(other.attrs), dict(getattr(other, "style", {}))))
+        self.children.append(other)
+        children = getattr(other, "children", None)
+        if children:
+            for child in children:
+                self <= child
         return self
 
 
 class MockDocument:
     def __init__(self, surface: MockSvgSurface) -> None:
         self.surface = surface
+
+    def createDocumentFragment(self) -> "MockDocumentFragment":
+        return MockDocumentFragment(self.surface.log)
 
     def getElementById(self, element_id: str) -> Optional[MockSvgSurface]:
         if element_id == "math-svg":
@@ -93,6 +121,16 @@ class MockDocument:
         if item == "math-svg":
             return self.surface
         raise KeyError(item)
+
+
+class MockDocumentFragment:
+    def __init__(self, log: List[Any]) -> None:
+        self.log = log
+        self.children: List[Any] = []
+
+    def __le__(self, element: Any) -> "MockDocumentFragment":
+        self.children.append(element)
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +276,74 @@ def reset_svg_environment(log: List[Any]) -> Tuple[MockSvgModule, MockDocument]:
     return mock_svg, document
 
 
+def collect_element_types(surface: MockSvgSurface) -> List[str]:
+    element_types: List[str] = []
+
+    def visit(node: Any) -> None:
+        elem_type = getattr(node, "element_type", None)
+        if elem_type:
+            element_types.append(elem_type)
+        children = getattr(node, "children", None)
+        if children:
+            for child in children:
+                visit(child)
+
+    for node in surface.children:
+        visit(node)
+    return element_types
+
+
+def collect_text_labels(surface: MockSvgSurface) -> List[str]:
+    labels: List[str] = []
+
+    def visit(node: Any) -> None:
+        elem_type = getattr(node, "element_type", None)
+        if elem_type == "text":
+            attrs = getattr(node, "attrs", {})
+            label = attrs.get("__text")
+            if not label:
+                label = getattr(node, "text", None)
+            if label is not None:
+                labels.append(label)
+        children = getattr(node, "children", None)
+        if children:
+            for child in children:
+                visit(child)
+
+    for node in surface.children:
+        visit(node)
+    return labels
+
+
+def serialize_svg_tree(surface: MockSvgSurface) -> List[Dict[str, Any]]:
+    def serialize(node: Any) -> Dict[str, Any]:
+        data: Dict[str, Any] = {
+            "type": getattr(node, "element_type", None),
+            "attrs": dict(getattr(node, "attrs", {})),
+        }
+        text_value = getattr(node, "text", None)
+        if text_value is not None:
+            data["text"] = text_value
+        children = getattr(node, "children", None)
+        if children:
+            data["children"] = [serialize(child) for child in children]
+        return data
+
+    return [serialize(node) for node in surface.children]
+
+
+def svg_tree_contains(tree: List[Dict[str, Any]], element_type: str, attr_key: str, attr_value: str) -> bool:
+    def visit(node: Dict[str, Any]) -> bool:
+        if node.get("type") == element_type and node.get("attrs", {}).get(attr_key) == attr_value:
+            return True
+        for child in node.get("children", []):
+            if visit(child):
+                return True
+        return False
+
+    return any(visit(node) for node in tree)
+
+
 def reset_canvas_environment(renderer: Canvas2DRenderer, mock_canvas: MockCanvasElement) -> RecordingCanvasContext:
     renderer.canvas_el = mock_canvas
     renderer.ctx = mock_canvas.getContext("2d")
@@ -281,6 +387,7 @@ class RecordingPrimitives(RendererPrimitives):
         color: str,
         alignment: Any,
         style_overrides: Optional[Dict[str, Any]] = None,
+        **kwargs,
     ) -> None:
         self.calls.append(("draw_text", text, position, color))
 
@@ -401,21 +508,29 @@ class TestRendererPrimitives(unittest.TestCase):
             renderer._render_angle(self.angle_abc, self.mapper)
             renderer._render_function(self.function, self.mapper)
 
-        element_types = [entry[0] for entry in normalize_svg_log(log)]
+        element_types = collect_element_types(mock_document.surface)
         self.assertIn("circle", element_types)
         self.assertIn("line", element_types)
         self.assertIn("polygon", element_types)
         self.assertTrue(any(et == "path" for et in element_types))
 
-        text_entries = [entry[1].get("__text") for entry in log if len(entry) > 1 and entry[0] == "text"]
-        self.assertTrue(any(text and text.startswith("A(") for text in text_entries))
+        text_entries = collect_text_labels(mock_document.surface)
+        svg_tree = serialize_svg_tree(mock_document.surface)
+        if not any(text and text.startswith("A(") for text in text_entries):
+            diagnostics = {
+                "text_entries": text_entries,
+                "element_types": element_types,
+                "svg_tree": svg_tree,
+                "logged_calls": log,
+            }
+            self.fail(f"Point label beginning with 'A(' not found. Diagnostics: {diagnostics}")
         self.assertIn("f", text_entries)
+        has_angle_arc = svg_tree_contains(svg_tree, "path", "class", "angle-arc") or svg_tree_contains(
+            svg_tree, "path", "stroke", self.angle_abc.color
+        )
         self.assertTrue(
-            any(
-                entry[0] == "path" and entry[1].get("class") == "angle-arc"
-                for entry in log
-                if len(entry) > 1
-            )
+            has_angle_arc,
+            msg=f"Angle arc path not found. Expected stroke '{self.angle_abc.color}'. SVG tree: {svg_tree}",
         )
 
     def test_canvas_primitives_render_shapes(self) -> None:

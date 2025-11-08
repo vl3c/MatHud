@@ -228,15 +228,7 @@ class Canvas:
 
         try:
             if renderer is not None:
-                renderer_mode = None
-                mode_getter = getattr(renderer, "get_render_mode", None)
-                if callable(mode_getter):
-                    try:
-                        renderer_mode = mode_getter()
-                    except Exception:
-                        renderer_mode = None
-                is_svg_renderer = renderer.__class__.__name__ == "SvgRenderer"
-                skip_clear = bool(is_svg_renderer and renderer_mode == "optimized")
+                skip_clear = bool(getattr(renderer, "SKIP_AUTO_CLEAR", False))
                 if not skip_clear:
                     try:
                         renderer.clear()

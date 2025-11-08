@@ -156,7 +156,10 @@ class SvgPrimitiveAdapter(RendererPrimitives):
                         pass
             if trim_excess and len(pool) > required:
                 for idx in range(required, len(pool)):
-                    self._detach_element(pool[idx])
+                    elem = pool[idx]
+                    parent = getattr(elem, "parentNode", None)
+                    if parent is self._surface:
+                        self._detach_element(elem)
                 self._active_indices[kind] = min(self._active_indices.get(kind, 0), len(pool))
                 self._record_adapter_event(f"pool_trim_{kind}")
 
@@ -405,6 +408,7 @@ class SvgPrimitiveAdapter(RendererPrimitives):
 
     def _optimized_fill_circle(self, command: Any) -> None:
         center, radius, fill, stroke = command.args
+        screen_space = command.kwargs.get("screen_space")
         elem, cache = self._acquire_element("fill_circle", lambda: svg.circle())
         self._set_attribute(elem, cache, "cx", self._format_number(center[0]))
         self._set_attribute(elem, cache, "cy", self._format_number(center[1]))
@@ -567,6 +571,8 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         radius: float,
         fill: FillStyle,
         stroke: Optional[StrokeStyle] = None,
+        *,
+        screen_space: bool = False,
     ) -> None:
         attrs: Dict[str, Any] = {"cx": str(center[0]), "cy": str(center[1]), "r": str(radius), "fill": fill.color}
         if fill.opacity is not None:
@@ -600,6 +606,9 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         points: List[Point2D],
         fill: FillStyle,
         stroke: Optional[StrokeStyle] = None,
+        *,
+        screen_space: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         if len(points) < 3:
             return
@@ -637,6 +646,9 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         sweep_clockwise: bool,
         stroke: StrokeStyle,
         css_class: str = None,
+        *,
+        screen_space: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         start_x = center[0] + radius * math.cos(start_angle_rad)
         start_y = center[1] + radius * math.sin(start_angle_rad)
@@ -661,6 +673,9 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         color: str,
         alignment: TextAlignment,
         style_overrides: Optional[Dict[str, Any]] = None,
+        *,
+        screen_space: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         elem = svg.text(text, x=str(position[0]), y=str(position[1]), fill=color)
         elem.setAttribute("font-size", str(font.size))

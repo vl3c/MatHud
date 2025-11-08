@@ -8,18 +8,6 @@ from browser import document, html, window
 from rendering.style_manager import get_renderer_style
 from rendering.interfaces import RendererProtocol
 from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
-from rendering.shared_drawable_renderers import (
-    render_point_helper,
-    render_segment_helper,
-    render_circle_helper,
-    render_vector_helper,
-    render_angle_helper,
-    render_function_helper,
-    render_functions_bounded_area_helper,
-    render_function_segment_area_helper,
-    render_segments_bounded_area_helper,
-    render_cartesian_helper,
-)
 from rendering.optimized_drawable_renderers import (
     OptimizedPrimitivePlan,
     build_plan_for_cartesian,
@@ -29,23 +17,19 @@ from rendering.optimized_drawable_renderers import (
 
 class Canvas2DTelemetry:
     def __init__(self) -> None:
-        self._mode: str = "legacy"
         self.reset()
 
     def reset(self) -> None:
-        mode = getattr(self, "_mode", "legacy")
         self._phase_totals: Dict[str, float] = {
             "plan_build_ms": 0.0,
             "plan_apply_ms": 0.0,
             "cartesian_plan_build_ms": 0.0,
             "cartesian_plan_apply_ms": 0.0,
-            "legacy_render_ms": 0.0,
         }
         self._phase_counts: Dict[str, int] = {
             "plan_build_count": 0,
             "plan_apply_count": 0,
             "cartesian_plan_count": 0,
-            "legacy_render_count": 0,
             "plan_miss_count": 0,
             "plan_skip_count": 0,
         }
@@ -53,10 +37,6 @@ class Canvas2DTelemetry:
         self._adapter_events: Dict[str, int] = {}
         self._frames: int = 0
         self._max_batch_depth: int = 0
-        self._mode = mode
-
-    def set_mode(self, mode: str) -> None:
-        self._mode = mode
 
     def begin_frame(self) -> None:
         self._frames += 1
@@ -124,13 +104,6 @@ class Canvas2DTelemetry:
         bucket = self._drawable_bucket(name)
         bucket["plan_skip_count"] += 1
 
-    def record_legacy_render(self, name: str, duration_ms: float, *, cartesian: bool = False) -> None:
-        self._phase_totals["legacy_render_ms"] += duration_ms
-        self._phase_counts["legacy_render_count"] += 1
-        bucket = self._drawable_bucket(name)
-        bucket["legacy_render_ms"] += duration_ms
-        bucket["legacy_render_count"] += 1
-
     def record_adapter_event(self, name: str, amount: int = 1) -> None:
         self._adapter_events[name] = self._adapter_events.get(name, 0) + amount
 
@@ -146,7 +119,6 @@ class Canvas2DTelemetry:
         phase = dict(self._phase_totals)
         phase.update(self._phase_counts)
         return {
-            "mode": self._mode,
             "frames": self._frames,
             "phase": phase,
             "per_drawable": per_drawable,
@@ -170,8 +142,6 @@ class Canvas2DRenderer(RendererProtocol):
         self.style: Dict[str, Any] = get_renderer_style()
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self._telemetry = Canvas2DTelemetry()
-        self._render_mode: str = "legacy"
-        self._telemetry.set_mode(self._render_mode)
         self._use_layer_compositing: bool = self._should_use_layer_compositing()
         self._offscreen_canvas = self._create_offscreen_canvas() if self._use_layer_compositing else None
         target_canvas = self._offscreen_canvas or self.canvas_el
@@ -205,48 +175,33 @@ class Canvas2DRenderer(RendererProtocol):
         drawable_name = "Cartesian2Axis"
         map_state = self._capture_map_state(coordinate_mapper)
         signature = self._compute_drawable_signature(cartesian)
-        if self._render_mode == "optimized":
-            plan_entry = self._cartesian_cache
-            plan: Optional[OptimizedPrimitivePlan] = None
-            if (
-                plan_entry is not None
-                and plan_entry.get("signature") == signature
-                and isinstance(plan_entry.get("plan"), OptimizedPrimitivePlan)
-            ):
-                plan = plan_entry["plan"]
-                plan.update_map_state(map_state)
-            else:
-                build_start = self._telemetry.mark_time()
-                plan = build_plan_for_cartesian(cartesian, coordinate_mapper, self.style)
-                build_elapsed = self._telemetry.elapsed_since(build_start)
-                self._telemetry.record_plan_build(drawable_name, build_elapsed, cartesian=True)
-                plan.update_map_state(map_state)
-                self._cartesian_cache = {"plan": plan, "signature": signature}
-            apply_start = self._telemetry.mark_time()
-            if not plan.is_visible(width, height):
-                self._telemetry.record_plan_skip(drawable_name)
-                return
-            plan.apply(self._shared_primitives)
-            apply_elapsed = self._telemetry.elapsed_since(apply_start)
-            self._telemetry.record_plan_apply(drawable_name, apply_elapsed, cartesian=True)
-            return
-        legacy_start = self._telemetry.mark_time()
-        try:
-            render_cartesian_helper(self._shared_primitives, cartesian, coordinate_mapper, self.style)
-        finally:
-            legacy_elapsed = self._telemetry.elapsed_since(legacy_start)
-            self._telemetry.record_legacy_render(drawable_name, legacy_elapsed)
-
-    def set_render_mode(self, mode: str) -> None:
-        normalized = str(mode).strip().lower()
-        if normalized == "optimized":
-            self._render_mode = "optimized"
+        plan_entry = self._cartesian_cache
+        plan: Optional[OptimizedPrimitivePlan] = None
+        if (
+            plan_entry is not None
+            and plan_entry.get("signature") == signature
+            and isinstance(plan_entry.get("plan"), OptimizedPrimitivePlan)
+        ):
+            plan = plan_entry["plan"]
+            plan.update_map_state(map_state)
         else:
-            self._render_mode = "legacy"
-        self._telemetry.set_mode(self._render_mode)
-
-    def get_render_mode(self) -> str:
-        return self._render_mode
+            build_start = self._telemetry.mark_time()
+            plan = build_plan_for_cartesian(cartesian, coordinate_mapper, self.style, supports_transform=False)
+            build_elapsed = self._telemetry.elapsed_since(build_start)
+            self._telemetry.record_plan_build(drawable_name, build_elapsed, cartesian=True)
+            if plan is None:
+                self._telemetry.record_plan_miss(drawable_name)
+                self._cartesian_cache = None
+                return
+            plan.update_map_state(map_state)
+            self._cartesian_cache = {"plan": plan, "signature": signature}
+        apply_start = self._telemetry.mark_time()
+        if not plan.is_visible(width, height):
+            self._telemetry.record_plan_skip(drawable_name)
+            return
+        plan.apply(self._shared_primitives)
+        apply_elapsed = self._telemetry.elapsed_since(apply_start)
+        self._telemetry.record_plan_apply(drawable_name, apply_elapsed, cartesian=True)
 
     def begin_frame(self) -> None:
         self._telemetry.begin_frame()
@@ -311,31 +266,31 @@ class Canvas2DRenderer(RendererProtocol):
     # Handlers
 
     def _render_point(self, point: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(point, coordinate_mapper, render_point_helper)
+        self._render_drawable(point, coordinate_mapper)
 
     def _render_segment(self, segment: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(segment, coordinate_mapper, render_segment_helper)
+        self._render_drawable(segment, coordinate_mapper)
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(circle, coordinate_mapper, render_circle_helper)
+        self._render_drawable(circle, coordinate_mapper)
 
     def _render_vector(self, vector: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(vector, coordinate_mapper, render_vector_helper)
+        self._render_drawable(vector, coordinate_mapper)
 
     def _render_angle(self, angle: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(angle, coordinate_mapper, render_angle_helper)
+        self._render_drawable(angle, coordinate_mapper)
 
     def _render_function(self, func: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(func, coordinate_mapper, render_function_helper)
+        self._render_drawable(func, coordinate_mapper)
 
     def _render_functions_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(area, coordinate_mapper, render_functions_bounded_area_helper)
+        self._render_drawable(area, coordinate_mapper)
 
     def _render_function_segment_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(area, coordinate_mapper, render_function_segment_area_helper)
+        self._render_drawable(area, coordinate_mapper)
 
     def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
-        self._render_with_mode(area, coordinate_mapper, render_segments_bounded_area_helper)
+        self._render_drawable(area, coordinate_mapper)
 
     def _ensure_canvas(self, canvas_id: str):
         canvas_el = document.getElementById(canvas_id)
@@ -380,43 +335,40 @@ class Canvas2DRenderer(RendererProtocol):
         self.canvas_el.style.width = f"{int(self.canvas_el.width)}px"
         self.canvas_el.style.height = f"{int(self.canvas_el.height)}px"
 
-    def _render_with_mode(self, drawable: Any, coordinate_mapper: Any, legacy_callable: Callable[[Any, Any, Any], None]) -> None:
+    def _render_drawable(self, drawable: Any, coordinate_mapper: Any) -> None:
         drawable_name = self._resolve_drawable_name(drawable)
         map_state = self._capture_map_state(coordinate_mapper)
         signature = self._compute_drawable_signature(drawable)
         cache_key = self._plan_cache_key(drawable, drawable_name)
-        if self._render_mode == "optimized":
-            cached_entry = self._plan_cache.get(cache_key)
-            plan: Optional[OptimizedPrimitivePlan] = None
-            if (
-                cached_entry is not None
-                and cached_entry.get("signature") == signature
-                and isinstance(cached_entry.get("plan"), OptimizedPrimitivePlan)
-            ):
-                plan = cached_entry["plan"]
-                plan.update_map_state(map_state)
-            else:
-                build_start = self._telemetry.mark_time()
-                plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style)
-                build_elapsed = self._telemetry.elapsed_since(build_start)
-                if plan is not None:
-                    self._telemetry.record_plan_build(drawable_name, build_elapsed)
-                    plan.update_map_state(map_state)
-                    if signature is not None:
-                        self._plan_cache[cache_key] = {"plan": plan, "signature": signature}
-                else:
-                    self._telemetry.record_plan_miss(drawable_name)
-                    self._plan_cache.pop(cache_key, None)
+        cached_entry = self._plan_cache.get(cache_key)
+        plan: Optional[OptimizedPrimitivePlan] = None
+        if (
+            cached_entry is not None
+            and cached_entry.get("signature") == signature
+            and isinstance(cached_entry.get("plan"), OptimizedPrimitivePlan)
+        ):
+            plan = cached_entry["plan"]
+            plan.update_map_state(map_state)
+        else:
+            build_start = self._telemetry.mark_time()
+            plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style, supports_transform=False)
+            build_elapsed = self._telemetry.elapsed_since(build_start)
             if plan is not None:
-                apply_start = self._telemetry.mark_time()
-                if not plan.is_visible(self.canvas_el.width, self.canvas_el.height):
-                    self._telemetry.record_plan_skip(drawable_name)
-                    return
-                plan.apply(self._shared_primitives)
-                apply_elapsed = self._telemetry.elapsed_since(apply_start)
-                self._telemetry.record_plan_apply(drawable_name, apply_elapsed)
+                self._telemetry.record_plan_build(drawable_name, build_elapsed)
+                plan.update_map_state(map_state)
+                if signature is not None:
+                    self._plan_cache[cache_key] = {"plan": plan, "signature": signature}
+            else:
+                self._telemetry.record_plan_miss(drawable_name)
+                self._plan_cache.pop(cache_key, None)
                 return
-        self._render_legacy(drawable_name, legacy_callable, drawable, coordinate_mapper)
+        apply_start = self._telemetry.mark_time()
+        if not plan.is_visible(self.canvas_el.width, self.canvas_el.height):
+            self._telemetry.record_plan_skip(drawable_name)
+            return
+        plan.apply(self._shared_primitives)
+        apply_elapsed = self._telemetry.elapsed_since(apply_start)
+        self._telemetry.record_plan_apply(drawable_name, apply_elapsed)
 
     def _capture_map_state(self, mapper: Any) -> Dict[str, float]:
         origin = getattr(mapper, "origin", None)
@@ -472,20 +424,6 @@ class Canvas2DRenderer(RendererProtocol):
         if isinstance(value, (int, str, bool)) or value is None:
             return (value,)
         return (repr(value),)
-
-    def _render_legacy(
-        self,
-        drawable_name: str,
-        legacy_callable: Callable[[Any, Any, Any], None],
-        drawable: Any,
-        coordinate_mapper: Any,
-    ) -> None:
-        start = self._telemetry.mark_time()
-        try:
-            legacy_callable(self._shared_primitives, drawable, coordinate_mapper, self.style)
-        finally:
-            elapsed = self._telemetry.elapsed_since(start)
-            self._telemetry.record_legacy_render(drawable_name, elapsed)
 
     def _resolve_drawable_name(self, drawable: Any) -> str:
         try:

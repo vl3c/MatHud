@@ -162,7 +162,8 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
     if op == "stroke_circle":
         center, radius, stroke = command.args
         new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
-        new_radius = _reproject_radius(float(radius), old_state, new_state)
+        screen_space = bool(command.kwargs.get("screen_space"))  # future-proof
+        new_radius = float(radius) if screen_space else _reproject_radius(float(radius), old_state, new_state)
         command.args = (new_center, new_radius, stroke)
         command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
         return
@@ -170,7 +171,8 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
     if op == "fill_circle":
         center, radius, fill, stroke = command.args
         new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
-        new_radius = _reproject_radius(float(radius), old_state, new_state)
+        screen_space = bool(command.kwargs.get("screen_space"))
+        new_radius = float(radius) if screen_space else _reproject_radius(float(radius), old_state, new_state)
         command.args = (new_center, new_radius, fill, stroke)
         command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
         return
@@ -186,8 +188,41 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
 
     if op == "fill_polygon":
         points, fill, stroke = command.args
-        new_points = _reproject_points(points, old_state, new_state)
-        command.args = (new_points, fill, stroke)
+        metadata = command.kwargs.get("metadata") or {}
+        vector_meta = metadata.get("vector_arrow") if isinstance(metadata, dict) else None
+        if vector_meta:
+            start_math = tuple(vector_meta.get("start_math", (0.0, 0.0)))
+            end_math = tuple(vector_meta.get("end_math", (0.0, 0.0)))
+            tip_size = float(vector_meta.get("tip_size", 8.0))
+            start_screen = _math_to_screen_point(start_math, new_state)
+            end_screen = _math_to_screen_point(end_math, new_state)
+            dx = end_screen[0] - start_screen[0]
+            dy = end_screen[1] - start_screen[1]
+            direction_length = math.hypot(dx, dy)
+            if direction_length <= 1e-6:
+                new_points = (end_screen, end_screen, end_screen)
+            else:
+                angle = math.atan2(dy, dx)
+                half_base = tip_size / 2.0
+                height_sq = max(tip_size * tip_size - half_base * half_base, 0.0)
+                height = min(math.sqrt(height_sq), direction_length)
+                tip = end_screen
+                base1 = (
+                    end_screen[0] - height * math.cos(angle) - half_base * math.sin(angle),
+                    end_screen[1] - height * math.sin(angle) + half_base * math.cos(angle),
+                )
+                base2 = (
+                    end_screen[0] - height * math.cos(angle) + half_base * math.sin(angle),
+                    end_screen[1] - height * math.sin(angle) - half_base * math.cos(angle),
+                )
+                new_points = (tip, base1, base2)
+        else:
+            screen_space = bool(command.kwargs.get("screen_space"))
+            if screen_space:
+                new_points = _reproject_points(points, old_state, new_state)
+            else:
+                new_points = _reproject_points(points, old_state, new_state)
+        command.args = (tuple(new_points), fill, stroke)
         command.meta["geometry"] = _quantize_geometry(new_points)
         return
 
@@ -201,15 +236,73 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
 
     if op == "stroke_arc":
         center, radius, start_angle, end_angle, sweep_clockwise, stroke = command.args
-        new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
-        new_radius = _reproject_radius(float(radius), old_state, new_state)
-        command.args = (new_center, new_radius, start_angle, end_angle, sweep_clockwise, stroke)
-        command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
+        metadata = command.kwargs.get("metadata") or {}
+        angle_meta = metadata.get("angle") if isinstance(metadata, dict) else None
+        if angle_meta:
+            vertex_math = tuple(angle_meta.get("vertex_math", (0.0, 0.0)))
+            arm1_math = tuple(angle_meta.get("arm1_math", (0.0, 0.0)))
+            arm2_math = tuple(angle_meta.get("arm2_math", (0.0, 0.0)))
+            radius_screen = float(angle_meta.get("arc_radius_on_screen", radius))
+            display_degrees = float(angle_meta.get("display_degrees", 0.0))
+            sweep_flag = str(angle_meta.get("final_sweep_flag", "0"))
+            vertex_screen = _math_to_screen_point(vertex_math, new_state)
+            arm1_screen = _math_to_screen_point(arm1_math, new_state)
+            arm2_screen = _math_to_screen_point(arm2_math, new_state)
+            angle_v_p1_rad = math.atan2(vertex_screen[1] - arm1_screen[1], arm1_screen[0] - vertex_screen[0])
+            start_angle = math.atan2(arm1_screen[1] - vertex_screen[1], arm1_screen[0] - vertex_screen[0])
+            sweep_cw = sweep_flag == "1"
+            delta = math.radians(display_degrees)
+            direction = 1 if sweep_cw else -1
+            end_angle = start_angle + direction * delta
+            command.args = (vertex_screen, radius_screen, start_angle, end_angle, sweep_cw, stroke)
+            command.meta["geometry"] = _quantize_geometry((vertex_screen, radius_screen))
+        else:
+            new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
+            screen_space = bool(command.kwargs.get("screen_space"))
+            if screen_space:
+                new_radius = float(radius)
+            else:
+                new_radius = _reproject_radius(float(radius), old_state, new_state)
+            command.args = (new_center, new_radius, start_angle, end_angle, sweep_clockwise, stroke)
+            command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
         return
 
     if op == "draw_text":
         text, position, font, color, alignment = command.args
-        new_position = _math_to_screen_point(_screen_to_math_point(position, old_state), new_state)
+        metadata = command.kwargs.get("metadata") or {}
+        angle_meta = metadata.get("angle") if isinstance(metadata, dict) else None
+        point_meta = metadata.get("point_label") if isinstance(metadata, dict) else None
+        if angle_meta:
+            vertex_math = tuple(angle_meta.get("vertex_math", (0.0, 0.0)))
+            arm1_math = tuple(angle_meta.get("arm1_math", (0.0, 0.0)))
+            arm2_math = tuple(angle_meta.get("arm2_math", (0.0, 0.0)))
+            radius_screen = float(angle_meta.get("arc_radius_on_screen", 0.0))
+            text_factor = float(angle_meta.get("text_radius_factor", 1.8))
+            display_degrees = float(angle_meta.get("display_degrees", 0.0))
+            sweep_flag = str(angle_meta.get("final_sweep_flag", "0"))
+            vertex_screen = _math_to_screen_point(vertex_math, new_state)
+            arm1_screen = _math_to_screen_point(arm1_math, new_state)
+            arm2_screen = _math_to_screen_point(arm2_math, new_state)
+            angle_v_p1_rad = math.atan2(vertex_screen[1] - arm1_screen[1], arm1_screen[0] - vertex_screen[0])
+            text_radius = radius_screen * text_factor
+            text_delta = math.radians(display_degrees) / 2.0
+            if sweep_flag == "0":
+                text_delta = -text_delta
+            text_angle = angle_v_p1_rad + text_delta
+            tx = vertex_screen[0] + text_radius * math.cos(text_angle)
+            ty = vertex_screen[1] - text_radius * math.sin(text_angle)
+            new_position = (tx, ty)
+        elif point_meta:
+            math_position = tuple(point_meta.get("math_position", (0.0, 0.0)))
+            screen_offset = point_meta.get("screen_offset", (0.0, 0.0))
+            if isinstance(screen_offset, (list, tuple)) and len(screen_offset) == 2:
+                offset_x, offset_y = float(screen_offset[0]), float(screen_offset[1])
+            else:
+                offset_x = offset_y = 0.0
+            base_screen = _math_to_screen_point(math_position, new_state)
+            new_position = (base_screen[0] + offset_x, base_screen[1] + offset_y)
+        else:
+            new_position = _math_to_screen_point(_screen_to_math_point(position, old_state), new_state)
         command.args = (text, new_position, font, color, alignment)
         command.meta["geometry"] = _quantize_geometry((new_position,))
         return
@@ -295,6 +388,7 @@ class OptimizedPrimitivePlan:
         "_display_map_state",
         "_current_transform",
         "_base_screen_bounds",
+        "_uses_screen_space",
     )
 
     def __init__(
@@ -324,6 +418,7 @@ class OptimizedPrimitivePlan:
         self._base_screen_bounds: Optional[Tuple[float, float, float, float]] = (
             tuple(self._screen_bounds) if self._screen_bounds is not None else None
         )
+        self._uses_screen_space: bool = bool(metadata.get("uses_screen_space"))
         if not self._screen_bounds:
             self._recompute_bounds_from_commands()
         else:
@@ -473,6 +568,9 @@ class OptimizedPrimitivePlan:
     def get_transform(self) -> Optional[str]:
         return self._current_transform
 
+    def uses_screen_space(self) -> bool:
+        return self._uses_screen_space
+
 
 class _RecordingPrimitives(shared.RendererPrimitives):
     def __init__(self, drawable_key: str) -> None:
@@ -482,6 +580,7 @@ class _RecordingPrimitives(shared.RendererPrimitives):
         self._style_pool: Dict[Tuple[Any, ...], Any] = {}
         self._bounds = [float("inf"), float("-inf"), float("inf"), float("-inf")]
         self._usage_counts: Dict[str, int] = {}
+        self._screen_space_used: bool = False
 
     def _style_signature(self, style: Any) -> Optional[Tuple[Any, ...]]:
         if style is None:
@@ -526,6 +625,8 @@ class _RecordingPrimitives(shared.RendererPrimitives):
             quantized = _quantize_geometry(geometry_sig)
             meta["geometry"] = quantized
             self._update_bounds_from_geometry(quantized)
+        if kwargs.get("screen_space"):
+            self._screen_space_used = True
         pooled_args = self._pool_styles(args)
         pooled_kwargs = self._pool_styles(kwargs)
         self.commands.append(PrimitiveCommand(op, pooled_args, pooled_kwargs, command_key, meta))
@@ -560,6 +661,9 @@ class _RecordingPrimitives(shared.RendererPrimitives):
     def get_usage_counts(self) -> Dict[str, int]:
         return dict(self._usage_counts)
 
+    def uses_screen_space(self) -> bool:
+        return self._screen_space_used
+
     def stroke_line(self, start, end, stroke, *, include_width=True):
         self._record("stroke_line", (start, end, stroke), {"include_width": include_width}, style=stroke, geometry=(start, end))
 
@@ -569,35 +673,82 @@ class _RecordingPrimitives(shared.RendererPrimitives):
     def stroke_circle(self, center, radius, stroke):
         self._record("stroke_circle", (center, radius, stroke), {}, style=stroke, geometry=(center, radius))
 
-    def fill_circle(self, center, radius, fill, stroke=None):
-        self._record("fill_circle", (center, radius, fill, stroke), {}, style=fill, geometry=(center, radius))
+    def fill_circle(self, center, radius, fill, stroke=None, *, screen_space=False):
+        self._record(
+            "fill_circle",
+            (center, radius, fill, stroke),
+            {"screen_space": screen_space},
+            style=fill,
+            geometry=(center, radius),
+        )
 
     def stroke_ellipse(self, center, radius_x, radius_y, rotation_rad, stroke):
         self._record("stroke_ellipse", (center, radius_x, radius_y, rotation_rad, stroke), {}, style=stroke, geometry=(center, radius_x, radius_y, rotation_rad))
 
-    def fill_polygon(self, points, fill, stroke=None):
-        self._record("fill_polygon", (tuple(points), fill, stroke), {}, style=fill, geometry=points)
+    def fill_polygon(self, points, fill, stroke=None, *, screen_space=False, metadata=None):
+        self._record(
+            "fill_polygon",
+            (tuple(points), fill, stroke),
+            {"screen_space": screen_space, "metadata": metadata or {}},
+            style=fill,
+            geometry=points,
+        )
 
     def fill_joined_area(self, forward, reverse, fill):
         self._record("fill_joined_area", (tuple(forward), tuple(reverse), fill), {}, style=fill, geometry=list(forward) + list(reverse))
 
-    def stroke_arc(self, center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class=None):
+    def stroke_arc(
+        self,
+        center,
+        radius,
+        start_angle_rad,
+        end_angle_rad,
+        sweep_clockwise,
+        stroke,
+        css_class=None,
+        *,
+        screen_space=False,
+        metadata=None,
+    ):
         self._record(
             "stroke_arc",
             (center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke),
-            {"css_class": css_class},
+            {"css_class": css_class, "screen_space": screen_space, "metadata": metadata or {}},
             style=stroke,
             geometry=(center, radius, start_angle_rad, end_angle_rad, sweep_clockwise),
         )
 
-    def draw_text(self, text, position, font, color, alignment, style_overrides=None):
-        self._record("draw_text", (text, position, font, color, alignment), {"style_overrides": style_overrides or {}}, style=font, geometry=(position,))
+    def draw_text(
+        self,
+        text,
+        position,
+        font,
+        color,
+        alignment,
+        style_overrides=None,
+        *,
+        screen_space=False,
+        metadata=None,
+    ):
+        self._record(
+            "draw_text",
+            (text, position, font, color, alignment),
+            {"style_overrides": style_overrides or {}, "screen_space": screen_space, "metadata": metadata or {}},
+            style=font,
+            geometry=(position,),
+        )
 
     def clear_surface(self):
         return None
 
     def resize_surface(self, width, height):
         return None
+
+    def begin_shape(self):
+        self._record("begin_shape", (), {})
+
+    def end_shape(self):
+        self._record("end_shape", (), {})
 
 
 _HELPERS: Dict[str, Any] = {
@@ -616,7 +767,13 @@ _HELPERS: Dict[str, Any] = {
 }
 
 
-def build_plan_for_drawable(drawable: Any, coordinate_mapper: Any, style: Dict[str, Any]) -> Optional[OptimizedPrimitivePlan]:
+def build_plan_for_drawable(
+    drawable: Any,
+    coordinate_mapper: Any,
+    style: Dict[str, Any],
+    *,
+    supports_transform: bool = True,
+) -> Optional[OptimizedPrimitivePlan]:
     class_name = getattr(drawable, "get_class_name", None)
     if callable(class_name):
         class_name = class_name()
@@ -632,6 +789,7 @@ def build_plan_for_drawable(drawable: Any, coordinate_mapper: Any, style: Dict[s
     cached_mapper = _CachedCoordinateMapper(coordinate_mapper)
     helper(recorder, drawable, cached_mapper, style)
     map_state = _capture_map_state(coordinate_mapper)
+    effective_supports_transform = supports_transform and not recorder.uses_screen_space()
     plan = OptimizedPrimitivePlan(
         drawable=drawable,
         commands=list(recorder.commands),
@@ -640,7 +798,8 @@ def build_plan_for_drawable(drawable: Any, coordinate_mapper: Any, style: Dict[s
             "class_name": class_name,
             "map_state": map_state,
             "screen_bounds": recorder.get_bounds(),
-            "supports_transform": True,
+            "supports_transform": supports_transform,
+            "uses_screen_space": recorder.uses_screen_space(),
             "display_map_state": map_state,
         },
         usage_counts=recorder.get_usage_counts(),
@@ -649,7 +808,13 @@ def build_plan_for_drawable(drawable: Any, coordinate_mapper: Any, style: Dict[s
     return plan
 
 
-def build_plan_for_cartesian(cartesian: Any, coordinate_mapper: Any, style: Dict[str, Any]) -> OptimizedPrimitivePlan:
+def build_plan_for_cartesian(
+    cartesian: Any,
+    coordinate_mapper: Any,
+    style: Dict[str, Any],
+    *,
+    supports_transform: bool = True,
+) -> OptimizedPrimitivePlan:
     key = _drawable_key(cartesian, "cartesian")
     recorder = _RecordingPrimitives(key)
     cached_mapper = _CachedCoordinateMapper(coordinate_mapper)
@@ -663,7 +828,8 @@ def build_plan_for_cartesian(cartesian: Any, coordinate_mapper: Any, style: Dict
             "class_name": "Cartesian2Axis",
             "map_state": map_state,
             "screen_bounds": recorder.get_bounds(),
-            "supports_transform": True,
+            "supports_transform": supports_transform,
+            "uses_screen_space": recorder.uses_screen_space(),
             "display_map_state": map_state,
         },
         usage_counts=recorder.get_usage_counts(),

@@ -1,30 +1,76 @@
-# Renderer Rollout, Testing, and Benchmark Plan
+# Renderer Rollout and Verification Plan
 
-## Phase 0 – Baseline
-1. Use `performance/renderer_performance.py` to record SVG timings on low, medium, and high density scenes.
-2. Capture DOM node counts and console logs for each dataset; store results in `/documentation/benchmarks/` for regression tracking.
-3. Validate rendering parity manually on representative workspaces (geometry-heavy, function-heavy, mixed shapes).
+The legacy renderer pathways have been removed. Canvas, SVG, and WebGL now run
+exclusively through the optimized plan pipeline. This document tracks rollout
+gating items, regression toggles, and benchmark expectations.
 
-## Phase 1 – Canvas 2D Shadow Mode
-1. Instantiate both SVG and Canvas 2D renderers simultaneously; keep Canvas 2D hidden but feed it the same draw calls to catch runtime errors early.
-2. Extend harness to compare frame times between the two renderers per scene, flagging >10% regressions.
-3. Add unit coverage that ensures `create_renderer("canvas2d")` returns a functioning instance in Brython (mocking document/canvas APIs with `SimpleMock`).
+## Current Status
 
-## Phase 2 – Feature Flag Exposure
-1. Ship renderer selector UI for internal users (localStorage flag). Default remains SVG.
-2. Define smoke tests:
-   - Create/draw/delete each drawable type
-   - Zoom/pan loop
-   - Undo/redo cycles
-3. Collect feedback on text clarity, anti-aliasing, and performance; iterate on Canvas 2D handlers before enabling default use.
+- `Canvas2DRenderer` is the default renderer instantiated by `Canvas`.
+- `SvgRenderer` and `WebGLRenderer` remain available via
+  `rendering.factory.create_renderer(...)` for targeted scenarios.
+- Optimized telemetry is enforced by `TestRendererPerformance`.
 
-## Phase 3 – Default Swap
-1. Switch default to Canvas 2D once smoke tests pass and harness shows consistent wins.
-2. Keep SVG toggleable for one release cycle to provide escape hatch.
-3. Automate harness execution via browser-driven regression job to detect future slowdowns.
+## Regression Toggles
 
-## Phase 4 – WebGL Opt-In (Optional)
-1. Stabilise WebGL renderer with batching and text overlay allowance.
-2. Limit to power users via explicit flag; collect telemetry with harness (points/segments heavy scenes) to assess benefits.
-3. Decide on long-term roadmap: either keep WebGL experimental or graduate to default once parity achieved.
+- **Renderer selection**: construct `Canvas(width, height, renderer=create_renderer("svg"))`
+  (or `"webgl"`) to investigate issues in an alternative backend.
+- **Offscreen staging flags**:
+  - `window.MatHudSvgOffscreen` / `localStorage["mathud.svg.offscreen"]`
+  - `window.MatHudCanvas2DOffscreen` / `localStorage["mathud.canvas2d.offscreen"]`
+
+Leave these toggles documented for customer support and incident response.
+
+## Smoke Checklist
+
+1. Create and delete each drawable type (points, segments, polygons, angles,
+   colored areas, functions).
+2. Exercise pan/zoom loops and verify telemetry plan counts remain steady.
+3. Confirm screen-space primitives behave correctly:
+   - Point labels remain offset by a constant screen radius.
+   - Vector arrowheads keep their tip size.
+   - Angle arcs and labels stay anchored to the vertex.
+4. Run undo/redo cycles on mixed scenes.
+5. Drain telemetry and confirm `plan_miss_count == 0`.
+5. Capture screenshots for accessibility/visual regressions (text clarity,
+   anti-aliasing).
+
+## Benchmark Expectations
+
+- Baseline workload results are recorded in
+  `documentation/rendering/performance_baseline.md`.
+- Refresh benchmarks with:
+
+  ```python
+  from renderer_performance_tests import run_renderer_performance
+
+  canvas2d = run_renderer_performance(iterations=2)
+  svg = run_renderer_performance(iterations=2, renderer_name="svg")
+  ```
+
+- Watch for increases in `plan_build_avg`, DOM node counts, or adapter event
+  spikes. Any non-zero `plan_miss_count` is a regression.
+
+## Rollout Steps
+
+1. **Validation**  
+   - Keep the client test suite green (`TestRendererPerformance`,
+     `TestOptimizedRendererParity`, geometry coverage).
+   - Perform the smoke checklist on representative workspaces (geometry-heavy,
+     function-heavy, mixed).
+
+2. **Communication**  
+   - Publish the updated baselines and telemetry snapshot.
+   - Circulate fallback instructions (`create_renderer("svg")`, offscreen
+     toggles) to support teams.
+
+3. **Monitoring**  
+   - Add renderer telemetry to the release dashboard (plan counts, adapter
+     events).
+   - Schedule weekly benchmark refreshes until the release stabilises.
+
+4. **Post-Rollout**  
+   - Remove references to the legacy pipeline from product documentation.
+   - Review WebGL experimental status once Canvas2D/SVG metrics stay within
+     guardrails for two consecutive releases.
 

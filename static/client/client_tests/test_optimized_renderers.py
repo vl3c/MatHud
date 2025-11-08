@@ -74,9 +74,16 @@ class RecordingPrimitives(SimpleMock, RendererPrimitives):
     def stroke_circle(self, center, radius, stroke):
         self._record("stroke_circle", _normalize_point(center), float(radius), _serialize_stroke(stroke))
 
-    def fill_circle(self, center, radius, fill, stroke=None):
+    def fill_circle(self, center, radius, fill, stroke=None, **kwargs):
         stroke_serialized = _serialize_stroke(stroke) if stroke else None
-        self._record("fill_circle", _normalize_point(center), float(radius), _serialize_fill(fill), stroke_serialized)
+        self._record(
+            "fill_circle",
+            _normalize_point(center),
+            float(radius),
+            _serialize_fill(fill),
+            stroke_serialized,
+            screen_space=bool(kwargs.get("screen_space")),
+        )
 
     def stroke_ellipse(self, center, radius_x, radius_y, rotation_rad, stroke):
         self._record(
@@ -88,17 +95,24 @@ class RecordingPrimitives(SimpleMock, RendererPrimitives):
             _serialize_stroke(stroke),
         )
 
-    def fill_polygon(self, points, fill, stroke=None):
+    def fill_polygon(self, points, fill, stroke=None, **kwargs):
         normalized = tuple(_normalize_point(pt) for pt in points)
         stroke_serialized = _serialize_stroke(stroke) if stroke else None
-        self._record("fill_polygon", normalized, _serialize_fill(fill), stroke_serialized)
+        self._record(
+            "fill_polygon",
+            normalized,
+            _serialize_fill(fill),
+            stroke_serialized,
+            screen_space=bool(kwargs.get("screen_space")),
+            metadata=kwargs.get("metadata"),
+        )
 
     def fill_joined_area(self, forward, reverse, fill):
         forward_norm = tuple(_normalize_point(pt) for pt in forward)
         reverse_norm = tuple(_normalize_point(pt) for pt in reverse)
         self._record("fill_joined_area", forward_norm, reverse_norm, _serialize_fill(fill))
 
-    def stroke_arc(self, center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class=None):
+    def stroke_arc(self, center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class=None, **kwargs):
         self._record(
             "stroke_arc",
             _normalize_point(center),
@@ -108,9 +122,11 @@ class RecordingPrimitives(SimpleMock, RendererPrimitives):
             bool(sweep_clockwise),
             _serialize_stroke(stroke),
             css_class,
+            screen_space=bool(kwargs.get("screen_space")),
+            metadata=kwargs.get("metadata"),
         )
 
-    def draw_text(self, text, position, font, color, alignment, style_overrides=None):
+    def draw_text(self, text, position, font, color, alignment, style_overrides=None, **kwargs):
         self._record(
             "draw_text",
             text,
@@ -119,6 +135,8 @@ class RecordingPrimitives(SimpleMock, RendererPrimitives):
             color,
             _serialize_alignment(alignment),
             _serialize_style_overrides(style_overrides),
+            screen_space=bool(kwargs.get("screen_space")),
+            metadata=kwargs.get("metadata"),
         )
 
     def clear_surface(self) -> None:
@@ -130,6 +148,12 @@ class RecordingPrimitives(SimpleMock, RendererPrimitives):
     def execute_optimized(self, command) -> None:
         handler = getattr(self, command.op)
         handler(*command.args, **command.kwargs)
+
+    def begin_shape(self) -> None:
+        self._record("begin_shape")
+
+    def end_shape(self) -> None:
+        self._record("end_shape")
 
 
 HELPERS = {
@@ -148,9 +172,9 @@ class TestOptimizedRendererParity(unittest.TestCase):
         class_name = drawable.get_class_name() if hasattr(drawable, "get_class_name") else drawable.__class__.__name__
         helper = HELPERS[class_name]
 
-        legacy_primitives = RecordingPrimitives()
-        helper(legacy_primitives, drawable, self.mapper, self.style)
-        legacy_ops = legacy_primitives.operations
+        baseline_primitives = RecordingPrimitives()
+        helper(baseline_primitives, drawable, self.mapper, self.style)
+        baseline_ops = baseline_primitives.operations
 
         plan = build_plan_for_drawable(drawable, self.mapper, self.style)
         self.assertIsNotNone(plan)
@@ -158,19 +182,19 @@ class TestOptimizedRendererParity(unittest.TestCase):
         plan.apply(optimized_primitives)
         optimized_ops = optimized_primitives.operations
 
-        self.assertEqual(optimized_ops, legacy_ops)
+        self.assertEqual(optimized_ops, baseline_ops)
 
-    def test_point_matches_legacy(self) -> None:
+    def test_point_matches_baseline(self) -> None:
         point = Point(2.5, -1.75, name="P")
         self._assert_drawable_parity(point)
 
-    def test_segment_matches_legacy(self) -> None:
+    def test_segment_matches_baseline(self) -> None:
         p1 = Point(-5.0, 3.0, name="A")
         p2 = Point(4.0, -2.0, name="B")
         segment = Segment(p1, p2)
         self._assert_drawable_parity(segment)
 
-    def test_circle_matches_legacy(self) -> None:
+    def test_circle_matches_baseline(self) -> None:
         center = Point(0.0, 0.0, name="O")
         circle = Circle(center, radius=6.5)
         self._assert_drawable_parity(circle)
@@ -197,18 +221,18 @@ class TestOptimizedRendererParity(unittest.TestCase):
         )
         self.assertFalse(plan.is_visible(viewport_width, viewport_height))
 
-    def test_cartesian_plan_matches_legacy(self) -> None:
+    def test_cartesian_plan_matches_baseline(self) -> None:
         cartesian = Cartesian2Axis(self.mapper)
-        legacy_primitives = RecordingPrimitives()
-        shared.render_cartesian_helper(legacy_primitives, cartesian, self.mapper, self.style)
-        legacy_ops = legacy_primitives.operations
+        baseline_primitives = RecordingPrimitives()
+        shared.render_cartesian_helper(baseline_primitives, cartesian, self.mapper, self.style)
+        baseline_ops = baseline_primitives.operations
 
         plan = build_plan_for_cartesian(cartesian, self.mapper, self.style)
         optimized_primitives = RecordingPrimitives()
         plan.apply(optimized_primitives)
         optimized_ops = optimized_primitives.operations
 
-        self.assertEqual(optimized_ops, legacy_ops)
+        self.assertEqual(optimized_ops, baseline_ops)
 
 
 if __name__ == "__main__":

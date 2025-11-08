@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Dict
 
 from rendering.shared_drawable_renderers import (
     FillStyle,
@@ -35,6 +35,8 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
         radius: float,
         fill: FillStyle,
         stroke: Optional[StrokeStyle] = None,
+        *,
+        screen_space: bool = False,
     ) -> None:
         try:
             size = float(radius) * 2.0
@@ -63,6 +65,9 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
         points: List[Point2D],
         fill: FillStyle,
         stroke: Optional[StrokeStyle] = None,
+        *,
+        screen_space: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         if len(points) < 2:
             return
@@ -96,6 +101,9 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
         sweep_clockwise: bool,
         stroke: StrokeStyle,
         css_class: Optional[str] = None,
+        *,
+        screen_space: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         samples = self._sample_arc(center, radius, start_angle_rad, end_angle_rad, sweep_clockwise)
         self.stroke_polyline(samples, stroke)
@@ -107,6 +115,9 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
         font: FontStyle,
         color: str,
         alignment: TextAlignment,
+        *,
+        screen_space: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         # Text rendering is not supported in the current WebGL pipeline; no-op.
         return None

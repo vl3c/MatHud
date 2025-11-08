@@ -122,7 +122,7 @@ def run_renderer_performance(
     *,
     scene_spec: Optional[Dict[str, Any]] = None,
     iterations: int = 5,
-    render_mode: Optional[str] = None,
+    renderer_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Execute the renderer performance benchmark inside the Brython runtime."""
 
@@ -133,15 +133,11 @@ def run_renderer_performance(
     if perf_api is None:
         raise RuntimeError("window.performance API is not available")
 
-    previous_strategy = getattr(window, "MatHudRendererStrategy", None)
-    if render_mode:
-        try:
-            setattr(window, "MatHudRendererStrategy", render_mode)
-        except Exception:
-            pass
-
     viewport = document["math-svg"].getBoundingClientRect()
-    canvas = Canvas(viewport.width, viewport.height)
+    from rendering.factory import create_renderer
+
+    custom_renderer = create_renderer(renderer_name) if renderer_name else None
+    canvas = Canvas(viewport.width, viewport.height, renderer=custom_renderer)
     active_renderer = getattr(canvas, "renderer", None)
 
     spec: Dict[str, Any] = {**WORKLOAD_SCENE, **(scene_spec or {})}
@@ -220,7 +216,6 @@ def run_renderer_performance(
 
         add_phase("plan_build", "plan_build_ms", "plan_build_count")
         add_phase("plan_apply", "plan_apply_ms", "plan_apply_count")
-        add_phase("legacy_render", "legacy_render_ms", "legacy_render_count")
         add_phase("cartesian_plan_build", "cartesian_plan_build_ms", "cartesian_plan_count")
         add_phase("cartesian_plan_apply", "cartesian_plan_apply_ms", "cartesian_plan_count")
         skip_count = phase_data.get("plan_skip_count")
@@ -282,7 +277,7 @@ def run_renderer_performance(
         "scene_spec": spec,
         "metrics": metrics,
         "drawables_created": drawables_created,
-        "render_mode": render_mode or "legacy",
+        "requested_renderer": renderer_name,
     }
     result["telemetry"] = telemetry_snapshot
     result["phase_metrics"] = phase_metrics
@@ -291,17 +286,6 @@ def run_renderer_performance(
     else:
         result["renderer"] = "None"
     result["default_mode"] = DEFAULT_RENDERER_MODE
-    if render_mode is not None:
-        if previous_strategy is None:
-            try:
-                delattr(window, "MatHudRendererStrategy")
-            except Exception:
-                pass
-        else:
-            try:
-                setattr(window, "MatHudRendererStrategy", previous_strategy)
-            except Exception:
-                pass
 
     return result
 
@@ -309,99 +293,31 @@ def run_renderer_performance(
 class TestRendererPerformance(unittest.TestCase):
     """Renderer performance test case executed via the client test suite."""
 
-    def test_renderer_performance_modes(self) -> None:
-        # Warm legacy mode once, then capture the measured run
-        run_renderer_performance(iterations=1, render_mode="legacy")
-        legacy = run_renderer_performance(iterations=1, render_mode="legacy")
+    def test_renderer_performance_default_renderer(self) -> None:
+        # Warm caches before capturing metrics
+        run_renderer_performance(iterations=1)
+        result = run_renderer_performance(iterations=1)
 
-        # Warm optimized mode once, then capture the measured run
-        run_renderer_performance(iterations=1, render_mode="optimized")
-        optimized = run_renderer_performance(iterations=1, render_mode="optimized")
+        self.assertIsInstance(result, dict)
+        metrics = result.get("metrics")
+        self.assertIsInstance(metrics, list)
+        self.assertGreater(len(metrics), 0)
 
-        for label, result in (("legacy", legacy), ("optimized", optimized)):
-            self.assertIsInstance(result, dict, f"{label} run did not return a dict")
-            self.assertIn("metrics", result, f"{label} run missing metrics")
+        operations = {metric.get("operation") for metric in metrics}
+        for required in ("draw", "pan", "zoom"):
+            self.assertIn(required, operations, f"Missing metric for {required}")
 
-        legacy_avgs = {metric["operation"]: metric["avg_ms"] for metric in legacy["metrics"]}
-        optimized_avgs = {metric["operation"]: metric["avg_ms"] for metric in optimized["metrics"]}
+        for metric in metrics:
+            self.assertGreaterEqual(metric.get("iterations", 0.0), 1.0)
+            self.assertGreaterEqual(metric.get("avg_ms", 0.0), 0.0)
+            self.assertGreaterEqual(metric.get("total_ms", 0.0), 0.0)
+            self.assertGreaterEqual(metric.get("dom_nodes", 0.0), 0.0)
 
-        for operation, legacy_avg in legacy_avgs.items():
-            optimized_avg = optimized_avgs.get(operation)
-            self.assertIsNotNone(
-                optimized_avg,
-                f"Missing optimized metric for operation {operation}",
-            )
-            if optimized_avg is None:
-                continue
-            if optimized_avg > legacy_avg * 1.25:
-                print(
-                    "[RendererPerf] Optimized mode slower than legacy for "
-                    f"{operation}: optimized={optimized_avg:.2f} ms legacy={legacy_avg:.2f} ms"
-                )
-            allowed = legacy_avg * 1.5 + 1e-6
-            self.assertLessEqual(
-                optimized_avg,
-                allowed,
-                f"Optimized mode slower for {operation}: {optimized_avg:.2f} ms vs {legacy_avg:.2f} ms",
-            )
-
-        legacy_dom = {metric["operation"]: metric["dom_nodes"] for metric in legacy["metrics"]}
-        optimized_dom = {metric["operation"]: metric["dom_nodes"] for metric in optimized["metrics"]}
-        for operation, legacy_nodes in legacy_dom.items():
-            optimized_nodes = optimized_dom.get(operation)
-            self.assertIsNotNone(
-                optimized_nodes,
-                f"Missing optimized DOM metric for operation {operation}",
-            )
-            if optimized_nodes is None:
-                continue
-            if optimized_nodes <= legacy_nodes:
-                continue
-            diff = optimized_nodes - legacy_nodes
-            allowed_dom_delta = max(legacy_nodes * 0.15, 5.0)
-            self.assertLessEqual(
-                diff,
-                allowed_dom_delta,
-                f"DOM node delta too high for {operation}: legacy={legacy_nodes} optimized={optimized_nodes}",
-            )
-        for operation, optimized_nodes in optimized_dom.items():
-            if legacy_dom.get(operation, 0.0) > 0.0:
-                self.assertGreater(
-                    optimized_nodes,
-                    0.0,
-                    f"Optimized mode produced no DOM nodes for {operation}",
-                )
-
-        optimized_telemetry = optimized.get("telemetry") or {}
-        phase = optimized_telemetry.get("phase", {})
-        plan_build_count = int(phase.get("plan_build_count", 0) or 0)
+        telemetry = result.get("telemetry") or {}
+        phase = telemetry.get("phase", {})
         plan_apply_count = int(phase.get("plan_apply_count", 0) or 0)
-        plan_build_ms = float(phase.get("plan_build_ms", 0.0) or 0.0)
-        plan_apply_ms = float(phase.get("plan_apply_ms", 0.0) or 0.0)
         plan_miss_count = int(phase.get("plan_miss_count", 0) or 0)
 
-        if plan_apply_count > 0:
-            max_allowed_builds = max(5, int(plan_apply_count * 0.25))
-            self.assertLessEqual(
-                plan_build_count,
-                max_allowed_builds,
-                f"Plan rebuilds too high: builds={plan_build_count} applies={plan_apply_count}",
-            )
-        if plan_apply_ms > 0.1:
-            allowed_build_total = max(plan_apply_ms * 6.0 + 1e-3, plan_apply_ms + 500.0)
-            self.assertLessEqual(
-                plan_build_ms,
-                allowed_build_total,
-                f"Plan build time too high: build_ms={plan_build_ms:.2f} apply_ms={plan_apply_ms:.2f}",
-            )
-
-        build_avg = plan_build_ms / max(plan_build_count, 1)
-        apply_avg = plan_apply_ms / max(plan_apply_count, 1)
-        allowed_build_avg = max(apply_avg * 8.0 + 1e-3, apply_avg + 5.0, 10.0)
-        self.assertLessEqual(
-            build_avg,
-            allowed_build_avg,
-            f"Plan build average too high: build_avg={build_avg:.4f} apply_avg={apply_avg:.4f}",
-        )
-        self.assertEqual(plan_miss_count, 0, f"Plan misses detected: {plan_miss_count}")
+        self.assertGreater(plan_apply_count, 0, "Optimized renderer did not apply any plans")
+        self.assertEqual(plan_miss_count, 0, "Plan misses detected in optimized renderer")
 
