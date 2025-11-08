@@ -148,6 +148,17 @@ Notes:
 2. DOM nodes increased to 1 086 because cloned offscreen children accumulate; additional pruning is required before promoting the optimized path.  
 3. Plan build counts now align with frame count (one cartesian rebuild per visible redraw plus drawable plans), but cartesian plan apply remains the dominant cost at ~396 ms; next tuning steps should focus on pruning cartesian command lists and tightening visibility checks.
 
+### SVG (2025-11-09 – transform reuse & DOM recycling)
+
+- Scene / iterations: baseline workload, warm-up + measured pass
+- Legacy DOM nodes: 362  
+- Optimized DOM nodes: 258 (draw), 258 after pan/zoom
+
+| Mode      | Draw Avg (ms) | Pan Avg (ms) | Zoom Avg (ms) | DOM Nodes |
+|-----------|---------------|--------------|---------------|-----------|
+| Legacy    | 192.00        | 195.50       | 195.50        | 362       |
+| Optimized | 78.00         | 84.00        | 90.00         | 258       |
+
 -----------------------------------------------------------------------------------------------------
 
 ## Canvas2DRenderer (telemetry snapshot – optimized instrumentation)
