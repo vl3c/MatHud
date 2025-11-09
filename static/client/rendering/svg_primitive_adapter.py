@@ -276,6 +276,49 @@ class SvgPrimitiveAdapter(RendererPrimitives):
             except Exception:
                 pass
 
+    def push_group_to_back(self, plan_key: str) -> None:
+        group = self._groups.get(plan_key)
+        if group is None:
+            return
+        surface = self._surface
+        if surface is None:
+            return
+        if getattr(group, "parentNode", None) is not surface:
+            self._ensure_parent(group, surface)
+        next_node = getattr(surface, "firstChild", None)
+        insert_before = None
+        last_defs = None
+        while next_node is not None:
+            if next_node is group:
+                next_node = getattr(next_node, "nextSibling", None)
+                continue
+            tag_name = getattr(next_node, "tagName", None)
+            if isinstance(tag_name, str) and tag_name.lower() == "defs":
+                last_defs = next_node
+                next_node = getattr(next_node, "nextSibling", None)
+                continue
+            insert_before = next_node
+            break
+        if insert_before is None:
+            if last_defs is not None:
+                insert_before = getattr(last_defs, "nextSibling", None)
+            if insert_before is None:
+                return
+        self._detach_element(group)
+        if hasattr(surface, "insertBefore"):
+            try:
+                surface.insertBefore(group, insert_before)
+            except Exception:
+                try:
+                    surface <= group
+                except Exception:
+                    pass
+        else:
+            try:
+                surface <= group
+            except Exception:
+                pass
+
     def clear_group(self, plan_key: str) -> None:
         group = self._groups.get(plan_key)
         if group is None:

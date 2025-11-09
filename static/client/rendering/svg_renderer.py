@@ -374,6 +374,8 @@ class SvgRenderer(RendererProtocol):
             push_to_back(plan_key)
         apply_start = self._telemetry.mark_time()
         plan.apply(self._shared_primitives)
+        if callable(push_to_back) and plan_key:
+            push_to_back(plan_key)
         apply_elapsed = self._telemetry.elapsed_since(apply_start)
         self._telemetry.record_plan_apply(drawable_name, apply_elapsed, cartesian=True)
         if supports_transform:
