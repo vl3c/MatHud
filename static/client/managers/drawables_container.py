@@ -200,6 +200,11 @@ class DrawablesContainer:
     def Functions(self) -> List["Drawable"]:
         """Get all Function objects."""
         return self.get_by_class_name('Function')
+
+    @property
+    def Labels(self) -> List["Drawable"]:
+        """Get all Label objects."""
+        return self.get_by_class_name('Label')
         
     @property
     def ColoredAreas(self) -> List["Drawable"]:

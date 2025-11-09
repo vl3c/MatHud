@@ -297,15 +297,17 @@ def register_routes(app: MatHudFlask) -> None:
                     else:
                         yield json.dumps(event) + "\n"
             except Exception as exc:
+                print(f"[Routes /send_message] Streaming exception: {exc}")
                 error_payload: StreamEventDict = {
                     "type": "final",
-                    "ai_message": f"I encountered an error processing your request: {exc}",
+                    "ai_message": "I encountered an error processing your request. Please try again.",
                     "ai_tool_calls": [],
                     "finish_reason": "error",
                 }
                 try:
                     yield json.dumps(error_payload) + "\n"
                 except Exception:
+                    print("[Routes /send_message] Failed to send detailed error payload; falling back.")
                     fallback_payload: StreamEventDict = {
                         "type": "final",
                         "ai_message": "I encountered an error processing your request.",

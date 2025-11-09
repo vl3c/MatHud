@@ -21,6 +21,7 @@ from .test_function import TestFunction
 from .test_functions_bounded_colored_area import TestFunctionsBoundedColoredArea
 from .test_function_segment_bounded_colored_area import TestFunctionSegmentBoundedColoredArea
 from .test_linear_algebra_utils import TestLinearAlgebraUtils
+from .test_label import TestLabel
 from .test_segments_bounded_colored_area import TestSegmentsBoundedColoredArea
 from .test_function_calling import TestProcessFunctionCalls
 from .test_math_functions import TestMathFunctions
@@ -87,6 +88,7 @@ class Tests:
             TestCoordinateMapper,
             TestExpressionValidator,
             TestProcessFunctionCalls,
+            TestLabel,
             TestCustomDrawableNames,
             TestThrottle,
             TestWindowMocks,

@@ -24,7 +24,7 @@ Leave these toggles documented for customer support and incident response.
 ## Smoke Checklist
 
 1. Create and delete each drawable type (points, segments, polygons, angles,
-   colored areas, functions).
+   colored areas, functions, labels).
 2. Exercise pan/zoom loops and verify telemetry plan counts remain steady.
 3. Confirm screen-space primitives behave correctly:
    - Point labels remain offset by a constant screen radius.

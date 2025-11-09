@@ -21,7 +21,12 @@ from __future__ import annotations
 default_point_size: int = 2
 default_color: str = "black"
 default_font_size: int = 16
-point_label_font_size: float = default_font_size * 5/8  # 5/8 ratio for readable point labels
+default_font_family: str = "Inter, sans-serif"
+point_label_font_size: float = default_font_size * 5 / 8  # 5/8 ratio for readable point labels
+default_label_font_size: float = default_font_size * 0.875
+label_text_max_length: int = 160
+label_line_wrap_threshold: int = 40
+default_label_rotation_degrees: float = 0.0
 successful_call_message: str = "Call successful!"
 
 # ===== USER INTERACTION CONSTANTS =====
@@ -36,7 +41,7 @@ DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR: float = 1.8  # Text positioning relative t
 
 # ===== ZOOM AND NAVIGATION CONSTANTS =====
 # Scaling factors for canvas zoom operations
-zoom_in_scale_factor: float = 1.1   # 10% increase per zoom in action
+zoom_in_scale_factor: float = 1.1  # 10% increase per zoom in action
 zoom_out_scale_factor: float = 0.9  # 10% decrease per zoom out action
 
 # ===== RENDERER SELECTION =====

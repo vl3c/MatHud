@@ -212,6 +212,12 @@ class Canvas:
                 self.renderer.register_segments_bounded_colored_area(_SBCA)
         except Exception:
             pass
+        try:
+            from drawables.label import Label as _Label
+            if hasattr(self.renderer, 'register_label'):
+                self.renderer.register_label(_Label)
+        except Exception:
+            pass
 
     def draw(self, apply_zoom: bool = False) -> None:
         if not self.draw_enabled:
@@ -422,13 +428,43 @@ class Canvas:
         """Get a point by its name"""
         return self.drawable_manager.get_point_by_name(name)
 
+    def get_label_by_name(self, name: str) -> Optional["Drawable"]:
+        """Get a label by its name."""
+        return cast(Optional["Drawable"], self.drawable_manager.get_label_by_name(name))
+
     def create_point(self, x: float, y: float, name: str = "", extra_graphics: bool = True) -> Point:
         """Create a point at the specified coordinates"""
         return self.drawable_manager.create_point(x, y, name, extra_graphics)
 
+    def create_label(
+        self,
+        x: float,
+        y: float,
+        text: str,
+        *,
+        name: str = "",
+        color: Optional[str] = None,
+        font_size: Optional[float] = None,
+        rotation_degrees: Optional[float] = None,
+    ) -> "Drawable":
+        """Create a label at the specified coordinates."""
+        return self.drawable_manager.create_label(
+            x,
+            y,
+            text,
+            name=name,
+            color=color,
+            font_size=font_size,
+            rotation_degrees=rotation_degrees,
+        )
+
     def delete_point(self, x: float, y: float) -> bool:
         """Delete a point at the specified coordinates"""
         return bool(self.drawable_manager.delete_point(x, y))
+
+    def delete_label(self, name: str) -> bool:
+        """Delete a label by its name."""
+        return bool(self.drawable_manager.delete_label(name))
 
     def delete_point_by_name(self, name: str) -> bool:
         """Delete a point by its name"""

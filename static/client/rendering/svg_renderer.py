@@ -201,6 +201,7 @@ class SvgRenderer(RendererProtocol):
             "SegmentsBoundedColoredArea",
             self._render_segments_bounded_colored_area,
         )
+        self._register_shape("drawables.label", "Label", self._render_label)
 
     def _register_shape(self, module_path: str, class_name: str, handler: Callable[[Any, Any], None]) -> None:
         try:
@@ -402,6 +403,13 @@ class SvgRenderer(RendererProtocol):
 
     def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
         self._render_drawable(area, coordinate_mapper)
+
+    # ----------------------- Label -----------------------
+    def register_label(self, label_cls: type) -> None:
+        self.register(label_cls, self._render_label)
+
+    def _render_label(self, label: Any, coordinate_mapper: Any) -> None:
+        self._render_drawable(label, coordinate_mapper)
 
     def _render_drawable(self, drawable: Any, coordinate_mapper: Any) -> None:
         drawable_name = self._resolve_drawable_name(drawable)

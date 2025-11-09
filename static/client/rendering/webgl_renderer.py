@@ -82,6 +82,11 @@ class WebGLRenderer(RendererProtocol):
             self.register(CircleDrawable, self._render_circle)
         except Exception:
             pass
+        try:
+            from drawables.label import Label as LabelDrawable
+            self.register(LabelDrawable, self._render_label)
+        except Exception:
+            pass
 
     def begin_frame(self) -> None:
         self._shared_primitives.begin_frame()
@@ -100,6 +105,9 @@ class WebGLRenderer(RendererProtocol):
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
         self._render_drawable(circle, coordinate_mapper)
+
+    def _render_label(self, label: Any, coordinate_mapper: Any) -> None:
+        self._render_drawable(label, coordinate_mapper)
 
     def _render_drawable(self, drawable: Any, coordinate_mapper: Any) -> None:
         plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style, supports_transform=False)

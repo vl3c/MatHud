@@ -51,7 +51,8 @@ optimized renderer behaviour.
   Point markers, vector arrowheads, and angle arcs/labels stay visually stable
   as you zoom. Plans record math-space anchors and recompute screen offsets on
   every map update, preventing oversized tips or drifting labels after scale
-  changes.
+  changes. Text labels are included in this group, keeping line wrapping,
+  rotation, and color consistent across renderers.
 
 ## Cache Invalidation
 

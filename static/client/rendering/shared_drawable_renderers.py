@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import math
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
+from constants import default_font_family
 from utils.math_utils import MathUtils
 
 Point2D = tuple
@@ -189,7 +190,8 @@ def render_point_helper(primitives, point, coordinate_mapper, style):
                     font_size = int(font_size_float)
                 else:
                     font_size = font_size_float
-            font = FontStyle(family="Inter, sans-serif", size=font_size)
+            font_family = style.get("point_label_font_family", style.get("font_family", default_font_family))
+            font = FontStyle(family=font_family, size=font_size)
             label_metadata = {
                 "point_label": {
                     "math_position": (float(getattr(point, "x", 0.0)), float(getattr(point, "y", 0.0))),
@@ -441,6 +443,76 @@ def render_vector_helper(primitives, vector, coordinate_mapper, style):
             end_shape()
 
 
+def render_label_helper(primitives, label, coordinate_mapper, style):
+    position = getattr(label, "position", None)
+    if position is None:
+        return
+    try:
+        screen_point = coordinate_mapper.math_to_screen(position.x, position.y)  # type: ignore[attr-defined]
+    except Exception:
+        return
+    if not screen_point:
+        return
+    screen_x, screen_y = screen_point
+
+    raw_font_size = getattr(label, "font_size", style.get("label_font_size", 14))
+    try:
+        font_size_value = float(raw_font_size)
+    except Exception:
+        fallback = style.get("label_font_size", 14)
+        if isinstance(fallback, (int, float)):
+            font_size_value = float(fallback)
+        else:
+            font_size_value = 14.0
+    if math.isfinite(font_size_value) and font_size_value.is_integer():
+        font_size_final: float | int = int(font_size_value)
+    else:
+        font_size_final = font_size_value
+
+    font_family = style.get("label_font_family", style.get("font_family", default_font_family))
+    font = FontStyle(family=font_family, size=font_size_final)
+    color = str(getattr(label, "color", style.get("label_text_color", "#000")))
+    alignment = TextAlignment(horizontal="left", vertical="alphabetic")
+
+    try:
+        lines = list(getattr(label, "lines", []))
+    except Exception:
+        lines = []
+    if not lines:
+        text_value = str(getattr(label, "text", ""))
+        lines = text_value.split("\n") if text_value else [""]
+
+    size_numeric = font.size if isinstance(font.size, (int, float)) else font_size_value
+    line_height = float(size_numeric) * 1.2
+
+    try:
+        rotation_degrees = float(getattr(label, "rotation_degrees", 0.0))
+    except Exception:
+        rotation_degrees = 0.0
+    if not math.isfinite(rotation_degrees):
+        rotation_degrees = 0.0
+
+    for index, line in enumerate(lines):
+        current_text = str(line)
+        offset_y = index * line_height
+        metadata = {
+            "label": {
+                "line_index": index,
+                "math_position": (position.x, position.y),
+                "screen_offset": (0.0, float(offset_y)),
+                "rotation_degrees": rotation_degrees,
+            }
+        }
+        primitives.draw_text(
+            current_text,
+            (screen_x, screen_y + offset_y),
+            font,
+            color,
+            alignment,
+            metadata=metadata,
+        )
+
+
 def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
     try:
         vx, vy = coordinate_mapper.math_to_screen(angle_obj.vertex_point.x, angle_obj.vertex_point.y)  # type: ignore[attr-defined]
@@ -484,7 +556,8 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
             font_size = int(font_size_float)
         else:
             font_size = font_size_float
-    font = FontStyle(family="Inter, sans-serif", size=font_size)
+    font_family = style.get("angle_label_font_family", style.get("font_family", default_font_family))
+    font = FontStyle(family=font_family, size=font_size)
     start_angle = math.atan2(p1y - vy, p1x - vx)
     sweep_cw = params.get("final_sweep_flag", "0") == "1"
     delta = math.radians(display_degrees)
@@ -604,7 +677,8 @@ def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
         tick_font_float = 8.0
     if not math.isfinite(tick_font_float):
         tick_font_float = 8.0
-    font = FontStyle(family="Inter, sans-serif", size=tick_font_raw)
+    font_family = style.get("cartesian_font_family", style.get("font_family", default_font_family))
+    font = FontStyle(family=font_family, size=tick_font_raw)
     label_alignment = TextAlignment(horizontal="left", vertical="alphabetic")
 
     axis_stroke = StrokeStyle(color=axis_color, width=1)
@@ -731,7 +805,8 @@ def render_function_helper(primitives, func, coordinate_mapper, style):
         first_point = screen_paths[0][0]
         label_offset_x = (1 + len(func.name)) * font_size / 2.0
         position = (first_point[0] - label_offset_x, max(first_point[1], font_size))
-        font = FontStyle(family="Inter, sans-serif", size=font_size)
+        font_family = style.get("function_label_font_family", style.get("font_family", default_font_family))
+        font = FontStyle(family=font_family, size=font_size)
         primitives.draw_text(
             func.name,
             position,

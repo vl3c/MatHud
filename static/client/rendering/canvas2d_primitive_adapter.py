@@ -282,7 +282,24 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         if alignment.vertical and alignment.vertical != self._text_baseline:
             self.ctx.textBaseline = alignment.vertical
             self._text_baseline = alignment.vertical
-        self.ctx.fillText(text, position[0], position[1])
+        rotation_rad = 0.0
+        if isinstance(metadata, dict):
+            label_meta = metadata.get("label")
+            if isinstance(label_meta, dict):
+                try:
+                    rotation_deg = float(label_meta.get("rotation_degrees", 0.0))
+                except Exception:
+                    rotation_deg = 0.0
+                if math.isfinite(rotation_deg) and rotation_deg != 0.0:
+                    rotation_rad = math.radians(rotation_deg)
+        if rotation_rad:
+            self.ctx.save()
+            self.ctx.translate(position[0], position[1])
+            self.ctx.rotate(-rotation_rad)
+            self.ctx.fillText(text, 0, 0)
+            self.ctx.restore()
+        else:
+            self.ctx.fillText(text, position[0], position[1])
         self._record_event("text_draw_calls")
 
     def _resolve_font_string(self, font: FontStyle) -> str:

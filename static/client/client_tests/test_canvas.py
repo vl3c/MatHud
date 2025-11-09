@@ -4,6 +4,7 @@ import unittest
 from random import randint
 from typing import Any, Dict, List, cast
 import re
+import math
 
 from canvas import Canvas
 from expression_validator import ExpressionValidator
@@ -397,6 +398,30 @@ class TestCanvas(unittest.TestCase):
         # Delete the point and verify it was removed
         self.assertTrue(self.canvas.delete_point_by_name("A"))
         self.assertIsNone(self.canvas.get_point_by_name("A"))
+
+    def test_create_label(self) -> None:
+        label = self.canvas.create_label(12.5, -4.0, "Test Label", name="Label1", color="red", font_size=18.0)
+        self.assertIsNotNone(label)
+        self.assertEqual(label.text, "Test Label")
+        self.assertEqual(label.color, "red")
+        self.assertTrue(math.isclose(label.font_size, 18.0))
+        labels = self.canvas.get_drawables_by_class_name("Label")
+        self.assertIn(label, labels)
+        self.assertIs(self.canvas.get_label_by_name("Label1"), label)
+
+    def test_delete_label(self) -> None:
+        self.canvas.create_label(1.0, 2.0, "Delete Me", name="LabelDelete")
+        self.assertIsNotNone(self.canvas.get_label_by_name("LabelDelete"))
+        deleted = self.canvas.delete_label("LabelDelete")
+        self.assertTrue(deleted)
+        self.assertIsNone(self.canvas.get_label_by_name("LabelDelete"))
+        self.assertEqual(self.canvas.get_drawables_by_class_name("Label"), [])
+
+    def test_delete_label_nonexistent(self) -> None:
+        self.assertFalse(self.canvas.delete_label("DoesNotExist"))
+        self.canvas.create_label(0.0, 0.0, "Still Here", name="LabelExists")
+        self.assertFalse(self.canvas.delete_label("OtherName"))
+        self.assertIsNotNone(self.canvas.get_label_by_name("LabelExists"))
 
     def test_is_point_within_canvas_visible_area(self) -> None:
         self.assertTrue(self.canvas.is_point_within_canvas_visible_area(250, 250))

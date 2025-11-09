@@ -188,6 +188,30 @@ class TestRunner:
                 }
             },
             {
+                "function_name": "create_label",
+                "arguments": {
+                    "x": -120,
+                    "y": 180,
+                    "text": "Left Label",
+                    "name": "LabelLeft",
+                    "color": "purple",
+                    "font_size": 18,
+                    "rotation_degrees": 15.0,
+                },
+            },
+            {
+                "function_name": "create_label",
+                "arguments": {
+                    "x": 70.2,
+                    "y": -146.0,
+                    "text": "Right Label with\nMultiple Lines",
+                    "name": "LabelRight",
+                    "color": "teal",
+                    "font_size": 14,
+                    "rotation_degrees": -10.0,
+                },
+            },
+            {
                 "function_name": "clear_canvas",
                 "arguments": {}
             },

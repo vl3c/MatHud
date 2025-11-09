@@ -261,6 +261,11 @@ class Canvas2DRenderer(RendererProtocol):
             self.register(SegmentsAreaDrawable, self._render_segments_bounded_colored_area)
         except Exception:
             pass
+        try:
+            from drawables.label import Label as LabelDrawable
+            self.register(LabelDrawable, self._render_label)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Handlers
@@ -291,6 +296,9 @@ class Canvas2DRenderer(RendererProtocol):
 
     def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
         self._render_drawable(area, coordinate_mapper)
+
+    def _render_label(self, label: Any, coordinate_mapper: Any) -> None:
+        self._render_drawable(label, coordinate_mapper)
 
     def _ensure_canvas(self, canvas_id: str):
         canvas_el = document.getElementById(canvas_id)

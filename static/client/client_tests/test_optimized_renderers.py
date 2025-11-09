@@ -62,6 +62,8 @@ class RecordingPrimitives(SimpleMock, RendererPrimitives):
         self.operations: list[tuple[str, tuple, dict]] = []
 
     def _record(self, op: str, *args, **kwargs) -> None:
+        if "metadata" in kwargs and kwargs["metadata"] is None:
+            kwargs["metadata"] = {}
         self.operations.append((op, args, kwargs))
 
     def stroke_line(self, start, end, stroke, *, include_width=True):
@@ -165,6 +167,7 @@ HELPERS = {
 
 class TestOptimizedRendererParity(unittest.TestCase):
     def setUp(self) -> None:
+        self.maxDiff = None
         self.mapper = CoordinateMapper(640, 480)
         self.style = get_renderer_style()
 

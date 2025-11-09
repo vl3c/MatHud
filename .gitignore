@@ -31,3 +31,4 @@ workspaces/
 diagrams/generated_png/
 diagrams/generated_svg/
 documentation/metrics/detailed_project_metrics.txt
+static/_client_constants_runtime.py

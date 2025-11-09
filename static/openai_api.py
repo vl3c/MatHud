@@ -461,7 +461,8 @@ class OpenAIChatCompletionsAPI:
                     finish_reason = getattr(choice, "finish_reason", None)
                     break
 
-        except Exception:
+        except Exception as exc:
+            print(f"[OpenAI API] Streaming exception: {exc}")
             yield {"type": "token", "text": "\n"}
             yield {
                 "type": "final",

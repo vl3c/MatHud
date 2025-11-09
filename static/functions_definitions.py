@@ -21,6 +21,16 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from importlib import import_module
+
+from static.constants_sync import SERVER_CONSTANTS_MODULE, ensure_client_constants_available
+
+ensure_client_constants_available()
+_client_constants = import_module(SERVER_CONSTANTS_MODULE)
+
+LABEL_TEXT_MAX_LENGTH: int = getattr(_client_constants, "label_text_max_length", 160)
+LABEL_LINE_WRAP_THRESHOLD: int = getattr(_client_constants, "label_line_wrap_threshold", 40)
+
 
 FunctionDefinition = Dict[str, Any]
 
@@ -546,6 +556,80 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "name": {
                                 "type": "string",
                                 "description": "The name of the ellipse"
+                            }
+                        },
+                        "required": ["name"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "create_label",
+                        "description": (
+                            "Creates a text label anchored at a math-space coordinate "
+                            f"(max {LABEL_TEXT_MAX_LENGTH} chars, wraps every {LABEL_LINE_WRAP_THRESHOLD} chars)"
+                        ),
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "x": {
+                                "type": "number",
+                                "description": "Math-space X coordinate for the label anchor"
+                            },
+                            "y": {
+                                "type": "number",
+                                "description": "Math-space Y coordinate for the label anchor"
+                            },
+                            "text": {
+                                "type": "string",
+                                "description": "Label text content; lines wrap after 40 characters",
+                                "maxLength": 160
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional label name used for later updates"
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional CSS color for the label text"
+                            },
+                            "font_size": {
+                                "type": ["number", "null"],
+                                "description": "Optional font size in pixels"
+                            },
+                            "rotation_degrees": {
+                                "type": ["number", "null"],
+                                "description": "Optional angle in degrees to rotate the label text"
+                            }
+                        },
+                        "required": [
+                            "x",
+                            "y",
+                            "text",
+                            "name",
+                            "color",
+                            "font_size",
+                            "rotation_degrees",
+                        ],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "delete_label",
+                    "description": "Deletes an existing label by name",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the label to delete"
                             }
                         },
                         "required": ["name"],

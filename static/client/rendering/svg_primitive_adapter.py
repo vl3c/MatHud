@@ -695,6 +695,19 @@ class SvgPrimitiveAdapter(RendererPrimitives):
             for key, value in style_overrides.items():
                 elem.style[key] = value
         
+        if isinstance(metadata, dict):
+            label_meta = metadata.get("label")
+            if isinstance(label_meta, dict):
+                try:
+                    rotation_deg = float(label_meta.get("rotation_degrees", 0.0))
+                except Exception:
+                    rotation_deg = 0.0
+                if math.isfinite(rotation_deg) and rotation_deg != 0.0:
+                    elem.setAttribute(
+                        "transform",
+                        f"rotate({-rotation_deg} {position[0]} {position[1]})",
+                    )
+        
         self._surface <= elem
 
     def clear_surface(self) -> None:

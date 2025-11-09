@@ -302,7 +302,18 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
             base_screen = _math_to_screen_point(math_position, new_state)
             new_position = (base_screen[0] + offset_x, base_screen[1] + offset_y)
         else:
-            new_position = _math_to_screen_point(_screen_to_math_point(position, old_state), new_state)
+            label_meta = metadata.get("label") if isinstance(metadata, dict) else None
+            if label_meta:
+                math_position = tuple(label_meta.get("math_position", (0.0, 0.0)))
+                screen_offset = label_meta.get("screen_offset", (0.0, 0.0))
+                if isinstance(screen_offset, (list, tuple)) and len(screen_offset) == 2:
+                    offset_x, offset_y = float(screen_offset[0]), float(screen_offset[1])
+                else:
+                    offset_x = offset_y = 0.0
+                base_screen = _math_to_screen_point(math_position, new_state)
+                new_position = (base_screen[0] + offset_x, base_screen[1] + offset_y)
+            else:
+                new_position = _math_to_screen_point(_screen_to_math_point(position, old_state), new_state)
         command.args = (text, new_position, font, color, alignment)
         command.meta["geometry"] = _quantize_geometry((new_position,))
         return
@@ -764,6 +775,7 @@ _HELPERS: Dict[str, Any] = {
     "FunctionsBoundedColoredArea": shared.render_functions_bounded_area_helper,
     "FunctionSegmentBoundedColoredArea": shared.render_function_segment_area_helper,
     "SegmentsBoundedColoredArea": shared.render_segments_bounded_area_helper,
+    "Label": shared.render_label_helper,
 }
 
 

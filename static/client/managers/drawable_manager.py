@@ -42,7 +42,7 @@ Integration Points:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Optional, cast
+from typing import TYPE_CHECKING, List, Optional, cast
 
 from geometry import Point
 from managers.point_manager import PointManager
@@ -59,6 +59,7 @@ from name_generator.drawable import DrawableNameGenerator
 from managers.drawable_dependency_manager import DrawableDependencyManager
 from managers.drawables_container import DrawablesContainer
 from managers.angle_manager import AngleManager
+from managers.label_manager import LabelManager
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -154,6 +155,10 @@ class DrawableManager:
             canvas, self.drawables, self.name_generator, self.dependency_manager,
             self.point_manager, self.segment_manager, self.proxy
         )
+
+        self.label_manager: LabelManager = LabelManager(
+            canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
+        )
         
         # No need for the loop that sets drawable_manager anymore
         # The proxy handles forwarding calls to the appropriate managers
@@ -173,6 +178,36 @@ class DrawableManager:
     def get_point_by_name(self, name: str) -> Optional["Point"]:
         """Get a point by its name"""
         return self.point_manager.get_point_by_name(name)
+
+    def get_label_by_name(self, name: str) -> Optional["Drawable"]:
+        """Get a label by its name."""
+        return self.label_manager.get_label_by_name(name)
+
+    def create_label(
+        self,
+        x: float,
+        y: float,
+        text: str,
+        *,
+        name: str = "",
+        color: Optional[str] = None,
+        font_size: Optional[float] = None,
+        rotation_degrees: Optional[float] = None,
+    ) -> "Drawable":
+        """Create a label with the specified properties."""
+        return self.label_manager.create_label(
+            x,
+            y,
+            text,
+            name=name,
+            color=color,
+            font_size=font_size,
+            rotation_degrees=rotation_degrees,
+        )
+
+    def delete_label(self, name: str) -> bool:
+        """Delete a label by its name."""
+        return bool(self.label_manager.delete_label(name))
         
     def create_point(self, x: float, y: float, name: str = "", extra_graphics: bool = True) -> "Point":
         """Create a new point at the specified coordinates"""
