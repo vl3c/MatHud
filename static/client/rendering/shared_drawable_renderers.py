@@ -669,6 +669,7 @@ def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
     if not math.isfinite(tick_size):
         tick_size = 3.0
     tick_size = max(tick_size, 0.0)
+    mid_tick_size = max(tick_size * 0.5, 0.0)
 
     tick_font_raw = style.get("cartesian_tick_font_size", 8)
     try:
@@ -728,6 +729,16 @@ def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
                     label_alignment,
                 )
 
+        def draw_mid_tick_x(x_pos: float) -> None:
+            if mid_tick_size <= 0.0:
+                return
+            primitives.stroke_line((x_pos, oy - mid_tick_size), (x_pos, oy + mid_tick_size), tick_stroke)
+
+        def draw_mid_tick_y(y_pos: float) -> None:
+            if mid_tick_size <= 0.0:
+                return
+            primitives.stroke_line((ox - mid_tick_size, y_pos), (ox + mid_tick_size, y_pos), tick_stroke)
+
         def draw_grid_line_x(x_pos: float) -> None:
             primitives.stroke_line((x_pos, 0.0), (x_pos, height_px), grid_stroke)
 
@@ -738,24 +749,36 @@ def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
         while x <= width_px:
             draw_grid_line_x(x)
             draw_tick_x(x)
+            mid_x = x + display_tick * 0.5
+            if mid_x <= width_px:
+                draw_mid_tick_x(mid_x)
             x += display_tick
 
         x = ox - display_tick
         while x >= 0.0:
             draw_grid_line_x(x)
             draw_tick_x(x)
+            mid_x = x + display_tick * 0.5
+            if mid_x >= 0.0:
+                draw_mid_tick_x(mid_x)
             x -= display_tick
 
         y = oy
         while y <= height_px:
             draw_grid_line_y(y)
             draw_tick_y(y)
+            mid_y = y + display_tick * 0.5
+            if mid_y <= height_px:
+                draw_mid_tick_y(mid_y)
             y += display_tick
 
         y = oy - display_tick
         while y >= 0.0:
             draw_grid_line_y(y)
             draw_tick_y(y)
+            mid_y = y + display_tick * 0.5
+            if mid_y >= 0.0:
+                draw_mid_tick_y(mid_y)
             y -= display_tick
     finally:
         if managing_shape:
