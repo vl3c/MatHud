@@ -251,15 +251,11 @@ class Canvas:
             for drawable in self.drawable_manager.get_drawables():
                 if apply_zoom and hasattr(drawable, '_invalidate_cache_on_zoom'):
                     drawable._invalidate_cache_on_zoom()
-                rendered = False
                 if renderer is not None:
                     try:
-                        if self._is_drawable_visible(drawable):
-                            rendered = renderer.render(drawable, self.coordinate_mapper)
-                        else:
-                            rendered = True
+                        renderer.render(drawable, self.coordinate_mapper)
                     except Exception:
-                        rendered = False
+                        pass
         finally:
             if callable(renderer_end):
                 try:

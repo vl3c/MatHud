@@ -363,6 +363,10 @@ class SvgRenderer(RendererProtocol):
                 set_transform(plan_key, transform)
         self._cartesian_rendered_this_frame = True
         if not plan.is_visible(width, height):
+            if plan_key:
+                clear_group = getattr(self._shared_primitives, "clear_group", None)
+                if callable(clear_group):
+                    clear_group(plan_key)
             self._telemetry.record_plan_skip(drawable_name)
             return
         if needs_apply and plan_key:
@@ -465,7 +469,11 @@ class SvgRenderer(RendererProtocol):
             if callable(set_transform):
                 set_transform(plan_key, transform)
         width, height = self._get_surface_dimensions()
-        if not plan.is_visible(width, height):
+        if not plan.is_visible(width, height, margin=0.0):
+            if plan_key:
+                clear_group = getattr(self._shared_primitives, "clear_group", None)
+                if callable(clear_group):
+                    clear_group(plan_key)
             self._telemetry.record_plan_skip(drawable_name)
             return
         usage_counts = getattr(plan, "get_usage_counts", lambda: {})()

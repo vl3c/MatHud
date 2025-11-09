@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from browser import document, svg
 
@@ -27,10 +27,28 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         self._groups: Dict[str, Any] = {}
         self._staged_fragment: Optional[Any] = None
         self._telemetry: Optional[Any] = telemetry
+        self._configured_surfaces: Set[str] = set()
 
     @property
     def _surface(self) -> Any:
-        return document[self.surface_id]
+        surface = document[self.surface_id]
+        if surface is not None and self.surface_id not in self._configured_surfaces:
+            self._configure_surface(surface)
+            self._configured_surfaces.add(self.surface_id)
+        return surface
+
+    def _configure_surface(self, surface: Any) -> None:
+        try:
+            surface.attrs["overflow"] = "hidden"
+        except Exception:
+            try:
+                surface.setAttribute("overflow", "hidden")
+            except Exception:
+                pass
+        try:
+            surface.style["overflow"] = "hidden"
+        except Exception:
+            pass
 
     def set_telemetry(self, telemetry: Any) -> None:
         self._telemetry = telemetry
