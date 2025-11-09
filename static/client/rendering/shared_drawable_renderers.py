@@ -684,6 +684,18 @@ def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
 
     axis_stroke = StrokeStyle(color=axis_color, width=1)
     grid_stroke = StrokeStyle(color=grid_color, width=1)
+    minor_grid_color = str(style.get("cartesian_minor_grid_color", grid_color))
+    minor_grid_width_raw = style.get("cartesian_minor_grid_width", 0.5)
+    try:
+        minor_grid_width = float(minor_grid_width_raw)
+    except Exception:
+        minor_grid_width = 0.5
+    if not math.isfinite(minor_grid_width):
+        minor_grid_width = 0.5
+    minor_grid_width = max(minor_grid_width, 0.0)
+    minor_grid_stroke = (
+        StrokeStyle(color=minor_grid_color, width=minor_grid_width) if minor_grid_width > 0.0 else None
+    )
     tick_stroke = StrokeStyle(color=axis_color, width=1)
 
     begin_shape = getattr(primitives, "begin_shape", None)
@@ -745,12 +757,23 @@ def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
         def draw_grid_line_y(y_pos: float) -> None:
             primitives.stroke_line((0.0, y_pos), (width_px, y_pos), grid_stroke)
 
+        def draw_minor_grid_line_x(x_pos: float) -> None:
+            if minor_grid_stroke is None:
+                return
+            primitives.stroke_line((x_pos, 0.0), (x_pos, height_px), minor_grid_stroke)
+
+        def draw_minor_grid_line_y(y_pos: float) -> None:
+            if minor_grid_stroke is None:
+                return
+            primitives.stroke_line((0.0, y_pos), (width_px, y_pos), minor_grid_stroke)
+
         x = ox
         while x <= width_px:
             draw_grid_line_x(x)
             draw_tick_x(x)
             mid_x = x + display_tick * 0.5
             if mid_x <= width_px:
+                draw_minor_grid_line_x(mid_x)
                 draw_mid_tick_x(mid_x)
             x += display_tick
 
@@ -760,6 +783,7 @@ def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
             draw_tick_x(x)
             mid_x = x + display_tick * 0.5
             if mid_x >= 0.0:
+                draw_minor_grid_line_x(mid_x)
                 draw_mid_tick_x(mid_x)
             x -= display_tick
 
@@ -769,6 +793,7 @@ def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
             draw_tick_y(y)
             mid_y = y + display_tick * 0.5
             if mid_y <= height_px:
+                draw_minor_grid_line_y(mid_y)
                 draw_mid_tick_y(mid_y)
             y += display_tick
 
@@ -778,6 +803,7 @@ def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
             draw_tick_y(y)
             mid_y = y + display_tick * 0.5
             if mid_y >= 0.0:
+                draw_minor_grid_line_y(mid_y)
                 draw_mid_tick_y(mid_y)
             y -= display_tick
     finally:
