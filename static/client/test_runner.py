@@ -269,28 +269,36 @@ class TestRunner:
         """Run unit tests for the graphics and function capabilities."""
         # Reset internal test results
         self._reset_internal_results()
+
+        client_results: Optional[Dict[str, Any]] = None
+        client_error_message: Optional[str] = None
+        client_import_error: bool = False
+
+        try:
+            # Run the client-side main tests first
+            client_results = self._run_client_tests()
+            print("[TestRunner] Client tests completed successfully.")
+        except ImportError:
+            print("[TestRunner] client_tests module not available - skipping additional tests.")
+            client_import_error = True
+        except Exception as e:
+            print(f"[TestRunner] Error running client tests: {repr(e)}")
+            traceback.print_exc()
+            client_error_message = str(e)
         
-        # Run the class unit tests
         print("Running graphics and function tests...")
         self._test_graphics_drawing()
         self._test_undoable_functions()
 
-        try:
-            # Run the client-side main tests
-            client_results: Dict[str, Any] = self._run_client_tests()
-            print("[TestRunner] Client tests completed successfully.")
-            
-            # Set test results by merging client and internal results
+        if client_results is not None:
             self.test_results = self._merge_test_results(client_results)
-            
-        except ImportError:
-            print("[TestRunner] client_tests module not available - skipping additional tests.")
+        elif client_error_message is not None:
+            self.test_results = self._create_results_with_client_error(client_error_message)
+        elif client_import_error:
             self.test_results = self._create_results_from_internal_only()
-        except Exception as e:
-            print(f"[TestRunner] Error running client tests: {repr(e)}")
-            traceback.print_exc()
-            self.test_results = self._create_results_with_client_error(str(e))
-            
+        else:
+            self.test_results = self._create_results_from_internal_only()
+
         return self.test_results
         
     def _run_client_tests(self) -> Dict[str, Any]:
