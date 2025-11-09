@@ -6,7 +6,7 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 
 ## Features
 
-- Interactive SVG-based drawing canvas
+- Interactive drawing canvas with switchable renderers (`svg`, `canvas2d`, and experimental incomplete `webgl`)
 - AI-powered mathematical assistant
 - Real-time geometric visualization and analysis
 - Support for mathematical expressions and calculations
@@ -20,13 +20,13 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 
 MatHud is a client-server web application with the following key architectural components:
 
--   **Frontend**: The user interface is built primarily with HTML and utilizes Brython (a Python implementation for browsers). This allows for Python-based scripting on the client-side to manage the interactive SVG drawing canvas, handle user input, and communicate with the backend server. Frontend rendering is driven by a dedicated renderer that converts math-space models to screen-space SVG.
+-   **Frontend**: The user interface is built primarily with HTML and utilizes Brython (a Python implementation for browsers). This allows for Python-based scripting on the client-side to manage the interactive drawing canvas, handle user input, and communicate with the backend server. Frontend rendering is driven by a dedicated renderer that converts math-space models to screen-space.
 -   **Backend**: A Python Flask server forms the backend. It processes requests from the client, manages application logic (including interactions with the OpenAI API), and handles the persistence of workspace data (saving and loading mathematical sessions).
 -   **AI Integration**: The application integrates with the OpenAI API to provide AI-powered mathematical assistance. This includes natural language understanding, problem-solving capabilities, and the ability to execute defined functions (tools) based on user queries.
--   **Vision Processing (Server-Side)**: For tasks requiring visual understanding of the canvas, the backend employs Selenium WebDriver. It launches a headless browser instance to render the SVG content sent from the client, captures a PNG image of the canvas, and then forwards this image to a vision-capable AI model via the OpenAI API.
+-   **Vision Processing (Server-Side)**: For tasks requiring visual understanding of the canvas, the backend employs Selenium WebDriver. It launches a headless browser instance to render the content sent from the client, captures a PNG image of the canvas, and then forwards this image to a vision-capable AI model via the OpenAI API.
 -   **Core Functionality Modules**: The application is structured with modules for:
     -   Mathematical calculations and expression evaluation. Symbolic operations (calculus, equation solving) are primarily handled client-side via Brython interfacing with JavaScript libraries like `nerdamer.js` (for symbolic algebra) and `math.js` (for expression evaluation).
-    -   Math-only geometric models (no screen-space state) managed by specialized managers; a `CoordinateMapper` centralizes zoom/pan and math-to-screen conversion; an `SvgRenderer` performs all drawing.
+    -   Math-only geometric models (no screen-space state) managed by specialized managers; a `CoordinateMapper` centralized zoom/pan and math-to-screen conversion; renderers (`svg`, `canvas2d`, experimental incomplete `webgl`) perform all drawing.
     -   Client-side and server-side workspace management for saving and loading user sessions.
 
 ## Installation
