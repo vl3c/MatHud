@@ -139,6 +139,10 @@ def run_renderer_performance(
     custom_renderer = create_renderer(renderer_name) if renderer_name else None
     canvas = Canvas(viewport.width, viewport.height, renderer=custom_renderer)
     active_renderer = getattr(canvas, "renderer", None)
+    renderer_label = "None"
+    if active_renderer is not None:
+        renderer_class = getattr(active_renderer, "__class__", type(active_renderer))
+        renderer_label = getattr(renderer_class, "__name__", str(renderer_class))
 
     spec: Dict[str, Any] = {**WORKLOAD_SCENE, **(scene_spec or {})}
 
@@ -187,6 +191,8 @@ def run_renderer_performance(
                 telemetry_snapshot = drain_telemetry()
             except Exception:
                 telemetry_snapshot = None
+            if isinstance(telemetry_snapshot, dict):
+                telemetry_snapshot["renderer_name"] = renderer_label
 
     phase_metrics: List[Dict[str, Any]] = []
     if telemetry_snapshot:
@@ -236,6 +242,7 @@ def run_renderer_performance(
     console = getattr(window, "console", None)
     if console is not None:
         console.groupCollapsed("[RendererPerf] Baseline Results")
+        console.log(f"[RendererPerf] renderer={renderer_label}")
         for metric in metrics:
             console.log(
                 f"[RendererPerf] {metric['operation']}: avg={metric['avg_ms']:.2f} ms "
@@ -243,7 +250,7 @@ def run_renderer_performance(
             )
         console.log(f"[RendererPerf] Scene spec: {spec}")
         if telemetry_snapshot:
-            console.groupCollapsed("[RendererPerf] Canvas2D Telemetry")
+            console.groupCollapsed(f"[RendererPerf] {renderer_label} Telemetry")
             frames = telemetry_snapshot.get("frames")
             if frames is not None:
                 console.log(f"[RendererPerf] frames={frames}")
@@ -281,10 +288,7 @@ def run_renderer_performance(
     }
     result["telemetry"] = telemetry_snapshot
     result["phase_metrics"] = phase_metrics
-    if active_renderer is not None:
-        result["renderer"] = getattr(active_renderer, "__class__", type(active_renderer)).__name__
-    else:
-        result["renderer"] = "None"
+    result["renderer"] = renderer_label
     result["default_mode"] = DEFAULT_RENDERER_MODE
 
     return result
@@ -293,7 +297,7 @@ def run_renderer_performance(
 class TestRendererPerformance(unittest.TestCase):
     """Renderer performance test case executed via the client test suite."""
 
-    def test_renderer_performance_default_renderer(self) -> None:
+    def test_renderer_performance(self) -> None:
         # Warm caches before capturing metrics
         run_renderer_performance(iterations=1)
         result = run_renderer_performance(iterations=1)
