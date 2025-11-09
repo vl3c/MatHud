@@ -144,10 +144,21 @@ class TestCartesian2Axis(unittest.TestCase):
 
     def test_state_retrieval(self) -> None:
         state = self.cartesian_system.get_state()
-        expected_keys = ["Cartesian_System_Visibility"]
-        # Test the state retrieval
-        self.assertTrue(all(key in state for key in expected_keys))
+        expected_keys = {
+            "Cartesian_System_Visibility",
+            "current_tick_spacing",
+            "default_tick_spacing",
+            "current_tick_spacing_repr",
+            "min_tick_spacing",
+        }
+        self.assertTrue(expected_keys.issubset(state.keys()))
         self.assertTrue(isinstance(state["Cartesian_System_Visibility"], dict))
+        self.assertTrue(isinstance(state["current_tick_spacing"], float))
+        self.assertTrue(isinstance(state["default_tick_spacing"], float))
+        self.assertTrue(isinstance(state["current_tick_spacing_repr"], str))
+        expected_repr = format(self.cartesian_system.current_tick_spacing, ".12g")
+        self.assertEqual(state["current_tick_spacing_repr"], expected_repr)
+        self.assertTrue(isinstance(state["min_tick_spacing"], float))
 
     def test_get_axis_helpers(self) -> None:
         # Test the axis helper methods we added during refactoring
@@ -252,6 +263,61 @@ class TestCartesian2Axis(unittest.TestCase):
         spacing2 = self.cartesian_system.current_tick_spacing
         self.assertLessEqual(spacing1, 1.0)
         self.assertLess(spacing2, 1.0)
+
+    def test_zoom_in_progresses_by_halving(self) -> None:
+        # Once spacing reaches the small-scale regime, it should halve stepwise as zoom increases
+        self.cartesian_system.current_tick_spacing = 1.0
+        for scale, expected in ((100, 0.5), (200, 0.25), (400, 0.125)):
+            self.canvas.scale_factor = scale
+            self.coordinate_mapper.sync_from_canvas(self.canvas)
+            self.cartesian_system._invalidate_cache_on_zoom()
+            self.assertAlmostEqual(self.cartesian_system.current_tick_spacing, expected, places=6)
+
+    def test_zoom_in_halving_triggers_on_equal_ratio(self) -> None:
+        # When proposed spacing equals the trigger threshold we should still halve
+        self.cartesian_system.current_tick_spacing = 0.125
+        self.canvas.scale_factor = 400  # produces proposed spacing of 0.1
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        self.cartesian_system._invalidate_cache_on_zoom()
+        self.assertAlmostEqual(self.cartesian_system.current_tick_spacing, 0.0625, places=6)
+
+    def test_zoom_in_refines_below_point_one(self) -> None:
+        # Ensure that once spacing reaches 0.1, additional zoom halves it as needed
+        self.canvas.scale_factor = 400
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        self.cartesian_system._invalidate_cache_on_zoom()
+        spacing_initial = self.cartesian_system.current_tick_spacing
+        self.assertAlmostEqual(spacing_initial, 0.1, places=6)
+
+        self.canvas.scale_factor = 900
+        self.coordinate_mapper.sync_from_canvas(self.canvas)
+        self.cartesian_system._invalidate_cache_on_zoom()
+        spacing_refined = self.cartesian_system.current_tick_spacing
+        self.assertLess(spacing_refined, spacing_initial)
+        self.assertAlmostEqual(spacing_refined, 0.05, places=6)
+
+    def test_zoom_in_handles_extremely_small_spacing(self) -> None:
+        self.cartesian_system.current_tick_spacing = 1e-2
+        for scale, expected in ((8_000, 5e-3), (32_000, 2.5e-3), (64_000, 1.25e-3)):
+            self.canvas.scale_factor = scale
+            self.coordinate_mapper.sync_from_canvas(self.canvas)
+            self.cartesian_system._invalidate_cache_on_zoom()
+            self.assertAlmostEqual(self.cartesian_system.current_tick_spacing, expected, places=9)
+
+    def test_can_zoom_in_further_respects_min_spacing(self) -> None:
+        min_spacing = self.cartesian_system.min_tick_spacing
+        self.cartesian_system.current_tick_spacing = min_spacing * 1.5
+        self.assertTrue(self.cartesian_system.can_zoom_in_further())
+        self.cartesian_system.current_tick_spacing = min_spacing
+        self.assertFalse(self.cartesian_system.can_zoom_in_further())
+
+    def test_zoom_out_handles_extremely_large_spacing(self) -> None:
+        self.cartesian_system.current_tick_spacing = 1e3
+        for scale, expected in ((0.02, 2e3), (0.01, 5e3), (0.005, 1e4)):
+            self.canvas.scale_factor = scale
+            self.coordinate_mapper.sync_from_canvas(self.canvas)
+            self.cartesian_system._invalidate_cache_on_zoom()
+            self.assertAlmostEqual(self.cartesian_system.current_tick_spacing, expected, places=6)
 
     def test_zoom_out_does_not_get_stuck_at_10000(self) -> None:
         # Start at spacing ~10000 and verify further zoom-out increases it beyond 10000

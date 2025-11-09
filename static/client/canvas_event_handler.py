@@ -216,6 +216,17 @@ class CanvasEventHandler:
             zp = Position(self.canvas.width / 2, self.canvas.height / 2)
             self.canvas.zoom_point = zp
 
+        # Prevent zoom-in when cartesian grid reached minimum resolution
+        cartesian = getattr(self.canvas, "cartesian2axis", None)
+        if zoom_factor > 1.0 and cartesian is not None:
+            can_zoom = getattr(cartesian, "can_zoom_in_further", None)
+            if callable(can_zoom):
+                try:
+                    if not can_zoom():
+                        return
+                except Exception:
+                    return
+
         # Compute math coords under cursor before scaling
         pre_mx: float
         pre_my: float

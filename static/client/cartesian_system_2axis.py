@@ -81,6 +81,13 @@ class Cartesian2Axis(Drawable):
         self.tick_label_color: str = "grey"
         self.tick_label_font_size: int = 8
         self.grid_color: str = "lightgrey"
+        self.halving_enforcement_threshold: float = 1.0
+        self.halving_first_trigger_ratio: float = 0.8
+        self.halving_repeat_trigger_ratio: float = 0.4
+        self.doubling_first_trigger_ratio: float = 1.25
+        self.doubling_repeat_trigger_ratio: float = 2.5
+        self.max_progression_steps: int = 8
+        self.min_tick_spacing: float = 1e-6
         super().__init__(name=self.name, color=color)
 
     # Canvas removed; mapper is the single source of truth
@@ -163,12 +170,108 @@ class Cartesian2Axis(Drawable):
         proposed_tick_spacing: float = self._calculate_tick_spacing()
         # Apply directly to keep ticks consistent with zoom (no dependency on zoom_direction)
         if proposed_tick_spacing and proposed_tick_spacing > 0:
-            self.current_tick_spacing = proposed_tick_spacing
+            previous_spacing = self.current_tick_spacing
+            adjusted_spacing = self._adjust_spacing_for_zoom(previous_spacing, proposed_tick_spacing)
+            if adjusted_spacing > 0:
+                self.current_tick_spacing = adjusted_spacing
+
+    def _normalize_spacing(self, value: float) -> float:
+        try:
+            normalized = float(value)
+        except Exception:
+            return -1.0
+        if not math.isfinite(normalized):
+            return -1.0
+        return normalized
+
+    def _adjust_spacing_for_zoom(self, previous_spacing: float, proposed_spacing: float) -> float:
+        previous = self._normalize_spacing(previous_spacing)
+        proposed = self._normalize_spacing(proposed_spacing)
+        if proposed <= 0:
+            return previous if previous > 0 else 1.0
+        if previous <= 0:
+            return proposed
+
+        threshold = self.halving_enforcement_threshold
+        if previous <= threshold:
+            return self._progress_spacing(previous, proposed)
+        return proposed
+
+    def _progress_spacing(self, current_spacing: float, proposed_spacing: float) -> float:
+        spacing = current_spacing
+        proposed = proposed_spacing
+        if proposed <= 0:
+            return max(spacing, self.min_tick_spacing)
+
+        ratio_first = self.halving_first_trigger_ratio
+        ratio_repeat = self.halving_repeat_trigger_ratio
+        ratio_first = min(max(ratio_first, 0.0), 1.0)
+        ratio_repeat = min(max(ratio_repeat, 0.0), 1.0)
+
+        steps = 0
+        if proposed < spacing:
+            while spacing > self.min_tick_spacing and steps < self.max_progression_steps:
+                trigger = ratio_first if steps == 0 else ratio_repeat
+                if trigger <= 0:
+                    break
+                if proposed <= spacing * trigger:
+                    spacing *= 0.5
+                    steps += 1
+                else:
+                    break
+            return max(spacing, self.min_tick_spacing)
+
+        if proposed > spacing:
+            up_first = self.doubling_first_trigger_ratio
+            up_repeat = self.doubling_repeat_trigger_ratio
+            if up_first <= 1.0:
+                up_first = 1.25
+            if up_repeat <= 1.0:
+                up_repeat = 2.5
+            while steps < self.max_progression_steps:
+                trigger = up_first if steps == 0 else up_repeat
+                if proposed > spacing * trigger:
+                    spacing *= 2.0
+                    steps += 1
+                    if spacing >= self.halving_enforcement_threshold:
+                        break
+                else:
+                    break
+            return spacing
+
+        return spacing
+
+    def can_zoom_in_further(self) -> bool:
+        """Determine if additional zoom-in should be allowed based on minimum spacing."""
+        try:
+            spacing = float(self.current_tick_spacing)
+            min_spacing = float(self.min_tick_spacing)
+        except Exception:
+            return True
+        if not math.isfinite(spacing) or spacing <= 0:
+            return True
+        if not math.isfinite(min_spacing) or min_spacing <= 0:
+            return True
+        tolerance = max(min_spacing * 1e-6, 1e-15)
+        limit = min_spacing + tolerance
+        return spacing > limit
 
     def get_state(self) -> Dict[str, Any]:
         """Serialize coordinate system state for persistence."""
-        state: Dict[str, Any] = {"Cartesian_System_Visibility": {"left_bound": int(self.get_visible_left_bound()), "right_bound": int(self.get_visible_right_bound()), "top_bound": int(self.get_visible_top_bound()), "bottom_bound": int(self.get_visible_bottom_bound())}}
-        return state
+        visibility = {
+            "left_bound": float(self.get_visible_left_bound()),
+            "right_bound": float(self.get_visible_right_bound()),
+            "top_bound": float(self.get_visible_top_bound()),
+            "bottom_bound": float(self.get_visible_bottom_bound()),
+        }
+        spacing_str = format(self.current_tick_spacing, ".12g")
+        return {
+            "Cartesian_System_Visibility": visibility,
+            "current_tick_spacing": float(self.current_tick_spacing),
+            "default_tick_spacing": float(self.default_tick_spacing),
+            "current_tick_spacing_repr": spacing_str,
+            "min_tick_spacing": float(self.min_tick_spacing),
+        }
 
     def _get_axis_origin(self, axis: str) -> float:
         """Get the origin position for the specified axis"""
