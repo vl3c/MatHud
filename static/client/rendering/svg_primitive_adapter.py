@@ -491,6 +491,9 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         if font_cache.get("size") != font_size_str:
             elem.setAttribute("font-size", font_size_str)
             font_cache["size"] = font_size_str
+        if font.family and font_cache.get("family") != font.family:
+            elem.setAttribute("font-family", font.family)
+            font_cache["family"] = font.family
         if font.weight:
             if font_cache.get("weight") != font.weight:
                 elem.setAttribute("font-weight", font.weight)
@@ -498,34 +501,30 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         elif font_cache.get("weight"):
             self._set_attribute(elem, cache, "font-weight", None)
             font_cache["weight"] = None
-        horizontal = alignment.horizontal
-        if horizontal == "center":
-            horizontal_anchor = "middle"
-        else:
-            horizontal_anchor = horizontal if horizontal else None
-        style_cache = cache.setdefault("text_style", {})
-        if horizontal_anchor:
-            if style_cache.get("text-anchor") != horizontal_anchor:
-                elem.style["text-anchor"] = horizontal_anchor
-                style_cache["text-anchor"] = horizontal_anchor
-        elif style_cache.get("text-anchor"):
-            try:
-                del elem.style["text-anchor"]
-            except Exception:
-                pass
-            style_cache["text-anchor"] = None
-        vertical = alignment.vertical
-        if vertical and vertical != "alphabetic":
-            if style_cache.get("dominant-baseline") != vertical:
-                elem.style["dominant-baseline"] = vertical
-                style_cache["dominant-baseline"] = vertical
-        elif style_cache.get("dominant-baseline"):
-            try:
-                del elem.style["dominant-baseline"]
-            except Exception:
-                pass
-            style_cache["dominant-baseline"] = None
+        horizontal = alignment.horizontal or "left"
+        anchor_map = {"left": "start", "center": "middle", "right": "end"}
+        svg_anchor = anchor_map.get(horizontal, horizontal)
+        self._set_attribute(elem, cache, "text-anchor", svg_anchor)
+        vertical = alignment.vertical or "alphabetic"
+        self._set_attribute(elem, cache, "dominant-baseline", vertical)
         self._apply_style_overrides(elem, cache, style_overrides)
+        metadata = command.kwargs.get("metadata")
+        if isinstance(metadata, dict):
+            label_meta = metadata.get("label")
+            if isinstance(label_meta, dict):
+                try:
+                    rotation_deg = float(label_meta.get("rotation_degrees", 0.0))
+                except Exception:
+                    rotation_deg = 0.0
+                if math.isfinite(rotation_deg) and rotation_deg != 0.0:
+                    transform_value = f"rotate({-rotation_deg} {self._format_number(position[0])} {self._format_number(position[1])})"
+                    self._set_attribute(elem, cache, "transform", transform_value)
+                else:
+                    self._set_attribute(elem, cache, "transform", None)
+            else:
+                self._set_attribute(elem, cache, "transform", None)
+        else:
+            self._set_attribute(elem, cache, "transform", None)
 
     def _stroke_kwargs(self, stroke: StrokeStyle, include_width: bool = True) -> dict[str, str]:
         kwargs: dict[str, str] = {"stroke": stroke.color}
@@ -679,22 +678,23 @@ class SvgPrimitiveAdapter(RendererPrimitives):
     ) -> None:
         elem = svg.text(text, x=str(position[0]), y=str(position[1]), fill=color)
         elem.setAttribute("font-size", str(font.size))
+        elem.setAttribute("font-family", font.family)
         if font.weight:
             elem.setAttribute("font-weight", font.weight)
         
-        horizontal_anchor = alignment.horizontal
-        if horizontal_anchor == "center":
-            horizontal_anchor = "middle"
-        
-        if horizontal_anchor and horizontal_anchor != "left":
-            elem.style["text-anchor"] = horizontal_anchor
-        if alignment.vertical and alignment.vertical != "alphabetic":
-            elem.style["dominant-baseline"] = alignment.vertical
+        horizontal_anchor = alignment.horizontal or "left"
+        anchor_map = {"left": "start", "center": "middle", "right": "end"}
+        svg_anchor = anchor_map.get(horizontal_anchor, horizontal_anchor)
+        elem.setAttribute("text-anchor", svg_anchor)
+
+        vertical_anchor = alignment.vertical or "alphabetic"
+        elem.setAttribute("dominant-baseline", vertical_anchor)
 
         if style_overrides:
             for key, value in style_overrides.items():
                 elem.style[key] = value
         
+        transform_value = None
         if isinstance(metadata, dict):
             label_meta = metadata.get("label")
             if isinstance(label_meta, dict):
@@ -703,11 +703,15 @@ class SvgPrimitiveAdapter(RendererPrimitives):
                 except Exception:
                     rotation_deg = 0.0
                 if math.isfinite(rotation_deg) and rotation_deg != 0.0:
-                    elem.setAttribute(
-                        "transform",
-                        f"rotate({-rotation_deg} {position[0]} {position[1]})",
-                    )
-        
+                    transform_value = f"rotate({-rotation_deg} {position[0]} {position[1]})"
+        if transform_value:
+            elem.setAttribute("transform", transform_value)
+        else:
+            try:
+                elem.removeAttribute("transform")
+            except Exception:
+                pass
+
         self._surface <= elem
 
     def clear_surface(self) -> None:

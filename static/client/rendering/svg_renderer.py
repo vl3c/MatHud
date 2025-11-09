@@ -369,6 +369,9 @@ class SvgRenderer(RendererProtocol):
             clear_group = getattr(self._shared_primitives, "clear_group", None)
             if callable(clear_group):
                 clear_group(plan_key)
+        push_to_back = getattr(self._shared_primitives, "push_group_to_back", None)
+        if callable(push_to_back) and plan_key:
+            push_to_back(plan_key)
         apply_start = self._telemetry.mark_time()
         plan.apply(self._shared_primitives)
         apply_elapsed = self._telemetry.elapsed_since(apply_start)
