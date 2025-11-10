@@ -79,6 +79,9 @@ class LabelManager:
             rotation_degrees=rotation_degrees,
         )
         label.canvas = self.canvas
+        mapper = getattr(self.canvas, "coordinate_mapper", None)
+        scale_factor = getattr(mapper, "scale_factor", None) if mapper is not None else None
+        label.update_reference_scale(scale_factor)
         self.drawables.add(label)
         if self.canvas.draw_enabled:
             self.canvas.draw()

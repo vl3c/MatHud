@@ -4,7 +4,50 @@ import math
 
 from typing import Any, Dict, Optional
 
-from constants import default_font_family
+from constants import default_font_family, label_min_screen_font_px, label_vanish_threshold_px
+def _coerce_font_size(candidate: Any, fallback: Any, default_value: float = 14.0) -> float:
+    try:
+        value = float(candidate)
+    except Exception:
+        value = None
+    if value is not None and math.isfinite(value) and value > 0:
+        return value
+    if isinstance(fallback, (int, float)):
+        fallback_value = float(fallback)
+        if math.isfinite(fallback_value) and fallback_value > 0:
+            return fallback_value
+    return float(default_value)
+
+
+def _compute_zoom_adjusted_font_size(base_size: float, label: Any, coordinate_mapper: Any) -> float:
+    reference_scale = getattr(label, "reference_scale_factor", None)
+    try:
+        reference_scale_value = float(reference_scale)
+    except Exception:
+        reference_scale_value = 1.0
+    if not math.isfinite(reference_scale_value) or reference_scale_value <= 0:
+        reference_scale_value = 1.0
+
+    current_scale = getattr(coordinate_mapper, "scale_factor", 1.0)
+    try:
+        current_scale_value = float(current_scale)
+    except Exception:
+        current_scale_value = 1.0
+    if not math.isfinite(current_scale_value) or current_scale_value <= 0:
+        current_scale_value = 1.0
+
+    ratio = current_scale_value / reference_scale_value if reference_scale_value else 1.0
+    if not math.isfinite(ratio) or ratio <= 0:
+        ratio = 1.0
+
+    if ratio >= 1.0:
+        return base_size
+
+    scaled = base_size * ratio
+    if scaled <= label_vanish_threshold_px:
+        return 0.0
+    return max(scaled, label_min_screen_font_px)
+
 from utils.math_utils import MathUtils
 
 Point2D = tuple
@@ -456,18 +499,16 @@ def render_label_helper(primitives, label, coordinate_mapper, style):
     screen_x, screen_y = screen_point
 
     raw_font_size = getattr(label, "font_size", style.get("label_font_size", 14))
-    try:
-        font_size_value = float(raw_font_size)
-    except Exception:
-        fallback = style.get("label_font_size", 14)
-        if isinstance(fallback, (int, float)):
-            font_size_value = float(fallback)
-        else:
-            font_size_value = 14.0
-    if math.isfinite(font_size_value) and font_size_value.is_integer():
-        font_size_final: float | int = int(font_size_value)
+    fallback_font = style.get("label_font_size", 14)
+    base_font_size = _coerce_font_size(raw_font_size, fallback_font)
+    effective_font_size = _compute_zoom_adjusted_font_size(base_font_size, label, coordinate_mapper)
+    if effective_font_size <= 0:
+        return
+
+    if math.isfinite(effective_font_size) and effective_font_size.is_integer():
+        font_size_final: float | int = int(effective_font_size)
     else:
-        font_size_final = font_size_value
+        font_size_final = effective_font_size
 
     font_family = style.get("label_font_family", style.get("font_family", default_font_family))
     font = FontStyle(family=font_family, size=font_size_final)
@@ -482,7 +523,7 @@ def render_label_helper(primitives, label, coordinate_mapper, style):
         text_value = str(getattr(label, "text", ""))
         lines = text_value.split("\n") if text_value else [""]
 
-    size_numeric = font.size if isinstance(font.size, (int, float)) else font_size_value
+    size_numeric = font.size if isinstance(font.size, (int, float)) else effective_font_size
     line_height = float(size_numeric) * 1.2
 
     try:
@@ -501,6 +542,10 @@ def render_label_helper(primitives, label, coordinate_mapper, style):
                 "math_position": (position.x, position.y),
                 "screen_offset": (0.0, float(offset_y)),
                 "rotation_degrees": rotation_degrees,
+                "reference_scale_factor": getattr(label, "reference_scale_factor", 1.0),
+                "base_font_size": base_font_size,
+                "min_font_size": label_min_screen_font_px,
+                "vanish_threshold_px": label_vanish_threshold_px,
             }
         }
         primitives.draw_text(

@@ -4,10 +4,18 @@ import math
 import unittest
 from typing import Any, Tuple
 
-from constants import label_line_wrap_threshold, label_text_max_length
+from constants import (
+    label_line_wrap_threshold,
+    label_min_screen_font_px,
+    label_text_max_length,
+    label_vanish_threshold_px,
+)
 from drawables.label import Label
 from managers.drawables_container import DrawablesContainer
 from managers.label_manager import LabelManager
+from coordinate_mapper import CoordinateMapper
+from rendering.optimized_drawable_renderers import build_plan_for_drawable, _capture_map_state
+from rendering.style_manager import get_renderer_style
 from rendering.shared_drawable_renderers import render_label_helper
 from .simple_mock import SimpleMock
 
@@ -115,4 +123,105 @@ class TestLabel(unittest.TestCase):
         label = Label(0.0, 0.0, long_word)
         self.assertTrue(all(len(line) <= label_line_wrap_threshold for line in label.lines))
         self.assertEqual("".join(label.lines), label.text)
+
+    def test_render_label_helper_scales_font_when_zoomed_out(self) -> None:
+        label = Label(0.0, 0.0, "scaled label", font_size=20.0)
+        label.update_reference_scale(2.0)
+
+        primitives = SimpleMock()
+        draw_text_mock = SimpleMock()
+        primitives.draw_text = draw_text_mock
+        mapper = SimpleMock(math_to_screen=lambda x, y: (x, y), scale_factor=1.0)
+        style = {"label_font_size": 12, "label_text_color": "#abcdef"}
+
+        render_label_helper(primitives, label, mapper, style)
+
+        self.assertTrue(draw_text_mock.calls, "Expected label text to be drawn at least once")
+        font_arg = draw_text_mock.calls[0][0][2]
+        self.assertTrue(isinstance(font_arg.size, (int, float)))
+        self.assertEqual(font_arg.size, 10)
+
+    def test_render_label_helper_skips_when_below_visibility_threshold(self) -> None:
+        label = Label(0.0, 0.0, "tiny label", font_size=10.0)
+        label.update_reference_scale(1.0)
+
+        primitives = SimpleMock()
+        draw_text_mock = SimpleMock()
+        primitives.draw_text = draw_text_mock
+        vanish_scale = label_vanish_threshold_px / (label.font_size * 2.0)
+        mapper = SimpleMock(math_to_screen=lambda x, y: (x, y), scale_factor=vanish_scale)
+        style = {"label_font_size": 12, "label_text_color": "#abcdef"}
+
+        render_label_helper(primitives, label, mapper, style)
+
+        self.assertFalse(draw_text_mock.calls, "Expected label to be skipped when size falls below threshold")
+
+    def test_label_plan_reprojects_font_size_on_zoom_out(self) -> None:
+        label = Label(0.0, 0.0, "plan label", font_size=24.0)
+        label.update_reference_scale(1.0)
+
+        mapper = CoordinateMapper(800, 600)
+        style = get_renderer_style()
+
+        plan = build_plan_for_drawable(label, mapper, style, supports_transform=False)
+        self.assertIsNotNone(plan)
+        if plan is None or not plan.commands:
+            self.fail("Optimized plan did not produce any commands for label")
+
+        initial_font = plan.commands[0].args[2]
+        initial_size = float(getattr(initial_font, "size", 0.0))
+        self.assertTrue(math.isclose(initial_size, 24.0))
+
+        mapper.scale_factor = 0.4
+        new_state = _capture_map_state(mapper)
+        plan.update_map_state(new_state)
+
+        updated_font = plan.commands[0].args[2]
+        updated_size = float(getattr(updated_font, "size", 0.0))
+        expected_size = max(24.0 * 0.4, label_min_screen_font_px)
+        self.assertTrue(updated_size <= initial_size)
+        self.assertTrue(
+            math.isclose(updated_size, expected_size),
+            msg=f"Expected reprojected font size {expected_size}, got {updated_size}",
+        )
+
+        mapper.scale_factor = label_vanish_threshold_px / (label.font_size * 2.0)
+        far_state = _capture_map_state(mapper)
+        plan.update_map_state(far_state)
+
+        far_font = plan.commands[0].args[2]
+        far_size = float(getattr(far_font, "size", 0.0))
+        self.assertEqual(far_size, 0.0)
+
+    def test_label_plan_spacing_scales_with_font(self) -> None:
+        label = Label(0.0, 0.0, "first line\nsecond line", font_size=20.0)
+        label.update_reference_scale(1.0)
+
+        mapper = CoordinateMapper(800, 600)
+        style = get_renderer_style()
+
+        plan = build_plan_for_drawable(label, mapper, style, supports_transform=False)
+        self.assertIsNotNone(plan)
+        if plan is None:
+            self.fail("Optimized plan did not produce any commands for multi-line label")
+
+        draw_commands = [cmd for cmd in plan.commands if cmd.op == "draw_text"]
+        self.assertGreaterEqual(len(draw_commands), 2)
+
+        initial_positions = [cmd.args[1][1] for cmd in draw_commands[:2]]
+        initial_spacing = initial_positions[1] - initial_positions[0]
+        self.assertTrue(initial_spacing > 0)
+
+        mapper.scale_factor = 0.5
+        updated_state = _capture_map_state(mapper)
+        plan.update_map_state(updated_state)
+
+        updated_positions = [cmd.args[1][1] for cmd in draw_commands[:2]]
+        updated_spacing = updated_positions[1] - updated_positions[0]
+        expected_spacing = initial_spacing * 0.5
+
+        self.assertTrue(
+            math.isclose(updated_spacing, expected_spacing, rel_tol=1e-6, abs_tol=1e-6),
+            msg=f"Expected spacing {expected_spacing}, got {updated_spacing}",
+        )
 

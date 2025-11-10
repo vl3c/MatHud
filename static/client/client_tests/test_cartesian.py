@@ -151,7 +151,11 @@ class TestCartesian2Axis(unittest.TestCase):
             "current_tick_spacing_repr",
             "min_tick_spacing",
         }
-        self.assertTrue(expected_keys.issubset(state.keys()))
+        missing = expected_keys.difference(state.keys())
+        self.assertTrue(
+            not missing,
+            msg=f"Missing keys: {sorted(missing)}; state keys: {sorted(state.keys())}; state: {state}",
+        )
         self.assertTrue(isinstance(state["Cartesian_System_Visibility"], dict))
         self.assertTrue(isinstance(state["current_tick_spacing"], float))
         self.assertTrue(isinstance(state["default_tick_spacing"], float))

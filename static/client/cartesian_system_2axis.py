@@ -136,6 +136,16 @@ class Cartesian2Axis(Drawable):
         """No-op: rendering handled via renderer."""
         return
 
+    @staticmethod
+    def _safe_float(value: Any, default: float = 0.0) -> float:
+        try:
+            numeric = float(value)
+        except Exception:
+            return float(default)
+        if not math.isfinite(numeric):
+            return float(default)
+        return numeric
+
     def _should_continue_drawing(self, position: float, boundary: float, direction: int) -> bool:
         return (direction == 1 and position < boundary) or (direction == -1 and position > 0)
 
@@ -258,19 +268,31 @@ class Cartesian2Axis(Drawable):
 
     def get_state(self) -> Dict[str, Any]:
         """Serialize coordinate system state for persistence."""
-        visibility = {
-            "left_bound": float(self.get_visible_left_bound()),
-            "right_bound": float(self.get_visible_right_bound()),
-            "top_bound": float(self.get_visible_top_bound()),
-            "bottom_bound": float(self.get_visible_bottom_bound()),
-        }
-        spacing_str = format(self.current_tick_spacing, ".12g")
+        try:
+            visibility = {
+                "left_bound": self._safe_float(self.get_visible_left_bound(), -self.width / 2.0),
+                "right_bound": self._safe_float(self.get_visible_right_bound(), self.width / 2.0),
+                "top_bound": self._safe_float(self.get_visible_top_bound(), self.height / 2.0),
+                "bottom_bound": self._safe_float(self.get_visible_bottom_bound(), -self.height / 2.0),
+            }
+        except Exception:
+            visibility = {
+                "left_bound": -self.width / 2.0,
+                "right_bound": self.width / 2.0,
+                "top_bound": self.height / 2.0,
+                "bottom_bound": -self.height / 2.0,
+            }
+
+        current_spacing = self._safe_float(self.current_tick_spacing, self.default_tick_spacing)
+        default_spacing = self._safe_float(self.default_tick_spacing, 100.0)
+        min_spacing = self._safe_float(self.min_tick_spacing, 0.0)
+        spacing_str = format(current_spacing, ".12g")
         return {
             "Cartesian_System_Visibility": visibility,
-            "current_tick_spacing": float(self.current_tick_spacing),
-            "default_tick_spacing": float(self.default_tick_spacing),
+            "current_tick_spacing": current_spacing,
+            "default_tick_spacing": default_spacing,
             "current_tick_spacing_repr": spacing_str,
-            "min_tick_spacing": float(self.min_tick_spacing),
+            "min_tick_spacing": min_spacing,
         }
 
     def _get_axis_origin(self, axis: str) -> float:

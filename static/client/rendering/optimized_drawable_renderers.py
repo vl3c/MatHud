@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from constants import label_min_screen_font_px, label_vanish_threshold_px
 from rendering import shared_drawable_renderers as shared
 from rendering.shared_drawable_renderers import RendererPrimitives
 
@@ -311,7 +312,44 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
                 else:
                     offset_x = offset_y = 0.0
                 base_screen = _math_to_screen_point(math_position, new_state)
+                base_font_size = float(label_meta.get("base_font_size", getattr(font, "size", 14.0)) or 14.0)
+                reference_scale = float(label_meta.get("reference_scale_factor", 1.0) or 1.0)
+                min_font_size = float(label_meta.get("min_font_size", label_min_screen_font_px) or label_min_screen_font_px)
+                vanish_threshold = float(
+                    label_meta.get("vanish_threshold_px", label_vanish_threshold_px) or label_vanish_threshold_px
+                )
+                current_scale = float(new_state.get("scale", 1.0) or 1.0)
+                if not math.isfinite(reference_scale) or reference_scale <= 0:
+                    reference_scale = 1.0
+                if not math.isfinite(current_scale) or current_scale <= 0:
+                    current_scale = 1.0
+                ratio = current_scale / reference_scale if reference_scale else 1.0
+                if not math.isfinite(ratio) or ratio <= 0:
+                    ratio = 1.0
+                if ratio >= 1.0:
+                    new_font_size = base_font_size
+                else:
+                    scaled = base_font_size * ratio
+                    if scaled <= vanish_threshold:
+                        new_font_size = 0.0
+                    else:
+                        new_font_size = max(scaled, min_font_size)
+                if base_font_size > 0 and new_font_size > 0:
+                    offset_scale = new_font_size / base_font_size
+                elif new_font_size <= 0:
+                    offset_scale = 0.0
+                else:
+                    offset_scale = 1.0
+                offset_x *= offset_scale
+                offset_y *= offset_scale
                 new_position = (base_screen[0] + offset_x, base_screen[1] + offset_y)
+                existing_size = getattr(font, "size", None)
+                try:
+                    existing_size_float = float(existing_size)
+                except Exception:
+                    existing_size_float = None
+                if existing_size_float is None or abs(existing_size_float - new_font_size) > 1e-6:
+                    font = shared.FontStyle(getattr(font, "family", None), new_font_size, getattr(font, "weight", None))
             else:
                 new_position = _math_to_screen_point(_screen_to_math_point(position, old_state), new_state)
         command.args = (text, new_position, font, color, alignment)

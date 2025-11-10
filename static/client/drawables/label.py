@@ -36,6 +36,7 @@ class Label(Drawable):
         color: Optional[str] = None,
         font_size: Optional[float] = None,
         rotation_degrees: Optional[float] = None,
+        reference_scale_factor: Optional[float] = None,
     ) -> None:
         self._position: Position = Position(float(x), float(y))
         super().__init__(name=name, color=color or default_color)
@@ -47,6 +48,7 @@ class Label(Drawable):
             if rotation_degrees is not None
             else float(default_label_rotation_degrees)
         )
+        self._reference_scale_factor: float = self._normalize_reference_scale(reference_scale_factor)
         self.set_text(text)
 
     def get_class_name(self) -> str:
@@ -81,6 +83,7 @@ class Label(Drawable):
         if numeric <= 0:
             raise ValueError("Label font size must be positive")
         self._font_size = numeric
+        self._capture_current_scale_as_reference()
 
     @property
     def rotation_degrees(self) -> float:
@@ -110,6 +113,7 @@ class Label(Drawable):
                 "color": self.color,
                 "font_size": self._font_size,
                 "rotation_degrees": self._rotation_degrees,
+                "reference_scale_factor": self._reference_scale_factor,
             },
         }
 
@@ -124,6 +128,7 @@ class Label(Drawable):
             color=self.color,
             font_size=self._font_size,
             rotation_degrees=self._rotation_degrees,
+            reference_scale_factor=self._reference_scale_factor,
         )
         memo[id(self)] = clone
         return clone
@@ -172,4 +177,31 @@ class Label(Drawable):
             segments.append(chunk[start:end])
             start = end
         return segments
+
+    @property
+    def reference_scale_factor(self) -> float:
+        return self._reference_scale_factor
+
+    def update_reference_scale(self, reference_scale_factor: Optional[float]) -> None:
+        self._reference_scale_factor = self._normalize_reference_scale(reference_scale_factor)
+
+    def _capture_current_scale_as_reference(self) -> None:
+        canvas = getattr(self, "canvas", None)
+        scale: Optional[float] = None
+        if canvas is not None:
+            mapper = getattr(canvas, "coordinate_mapper", None)
+            if mapper is not None:
+                scale_value = getattr(mapper, "scale_factor", None)
+                if isinstance(scale_value, (int, float)):
+                    scale = float(scale_value)
+        self._reference_scale_factor = self._normalize_reference_scale(scale)
+
+    def _normalize_reference_scale(self, value: Optional[float]) -> float:
+        try:
+            numeric = float(value) if value is not None else 1.0
+        except (TypeError, ValueError):
+            return 1.0
+        if not math.isfinite(numeric) or numeric <= 0:
+            return 1.0
+        return numeric
 
