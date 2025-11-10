@@ -578,12 +578,29 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
     if not params:
         return
 
+    arc_radius = float(params["arc_radius_on_screen"])
+    # Compute screen-space distances to maintain arc within shortest segment when zoomed out
+    try:
+        arm1_length = math.hypot(p1x - vx, p1y - vy)
+        arm2_length = math.hypot(p2x - vx, p2y - vy)
+        min_arm_length = min(arm1_length, arm2_length)
+    except Exception:
+        min_arm_length = arc_radius
+    clamped_radius = arc_radius if min_arm_length <= 0 else min(arc_radius, min_arm_length)
+    try:
+        mapper_scale = float(getattr(coordinate_mapper, "scale_factor", 1.0) or 1.0)
+    except Exception:
+        mapper_scale = 1.0
+    if mapper_scale <= 0:
+        mapper_scale = 1.0
+    min_arm_length_math = min_arm_length / mapper_scale if min_arm_length > 0 else 0.0
+
     display_degrees = getattr(angle_obj, "angle_degrees", None)
     if display_degrees is None:
         return
     color = str(getattr(angle_obj, "color", style.get("angle_color", "#000")))
     stroke = StrokeStyle(color=color, width=float(style.get("angle_stroke_width", 1) or 1))
-    text_radius = params["arc_radius_on_screen"] * float(style.get("angle_text_arc_radius_factor", 1.8))
+    text_radius = clamped_radius * float(style.get("angle_text_arc_radius_factor", 1.8))
     display_angle_rad = math.radians(display_degrees)
     text_delta = display_angle_rad / 2.0
     if params.get("final_sweep_flag", "0") == "0":
@@ -593,16 +610,21 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
     ty = vy + text_radius * math.sin(text_angle)
     font_size_value = style.get("angle_label_font_size", 12)
     try:
-        font_size_float = float(font_size_value)
+        base_font_size = float(font_size_value)
     except Exception:
-        font_size = font_size_value
-    else:
-        if math.isfinite(font_size_float) and font_size_float.is_integer():
-            font_size = int(font_size_float)
-        else:
-            font_size = font_size_float
+        base_font_size = 12.0
+    if not math.isfinite(base_font_size) or base_font_size <= 0:
+        base_font_size = 12.0
     font_family = style.get("angle_label_font_family", style.get("font_family", default_font_family))
-    font = FontStyle(family=font_family, size=font_size)
+    ratio = 1.0
+    if arc_radius > 0:
+        ratio = clamped_radius / arc_radius
+    ratio = max(min(ratio, 1.0), 0.0)
+    effective_font_size = base_font_size * ratio
+    if effective_font_size < label_min_screen_font_px:
+        effective_font_size = label_min_screen_font_px
+    font = FontStyle(family=font_family, size=effective_font_size)
+    should_draw_label = clamped_radius > 0 and effective_font_size > 0
     start_angle = math.atan2(p1y - vy, p1x - vx)
     sweep_cw = params.get("final_sweep_flag", "0") == "1"
     delta = math.radians(display_degrees)
@@ -620,15 +642,20 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
                 "vertex_math": (getattr(angle_obj.vertex_point, "x", 0.0), getattr(angle_obj.vertex_point, "y", 0.0)),
                 "arm1_math": (getattr(angle_obj.arm1_point, "x", 0.0), getattr(angle_obj.arm1_point, "y", 0.0)),
                 "arm2_math": (getattr(angle_obj.arm2_point, "x", 0.0), getattr(angle_obj.arm2_point, "y", 0.0)),
-                "arc_radius_on_screen": float(params["arc_radius_on_screen"]),
+                "arc_radius_on_screen": arc_radius,
+                "clamped_arc_radius_on_screen": clamped_radius,
+                "min_arm_length_on_screen": min_arm_length,
+                "min_arm_length_in_math": min_arm_length_math,
                 "display_degrees": float(display_degrees),
                 "final_sweep_flag": params.get("final_sweep_flag", "0"),
                 "text_radius_factor": float(style.get("angle_text_arc_radius_factor", 1.8)),
+                "base_font_size": base_font_size,
+                "min_font_size": label_min_screen_font_px,
             }
         }
         primitives.stroke_arc(
             (vx, vy),
-            float(params["arc_radius_on_screen"]),
+            clamped_radius,
             float(start_angle),
             float(end_angle),
             sweep_cw,
@@ -640,15 +667,16 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
     finally:
         if managing_shape:
             end_shape()
-    primitives.draw_text(
-        f"{display_degrees:.1f}°",
-        (tx, ty),
-        font,
-        color,
-        TextAlignment(horizontal="center", vertical="middle"),
-        screen_space=True,
-        metadata=angle_metadata,
-    )
+    if should_draw_label:
+        primitives.draw_text(
+            f"{display_degrees:.1f}°",
+            (tx, ty),
+            font,
+            color,
+            TextAlignment(horizontal="center", vertical="middle"),
+            screen_space=True,
+            metadata=angle_metadata,
+        )
 
 
 def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):

@@ -243,9 +243,20 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
             vertex_math = tuple(angle_meta.get("vertex_math", (0.0, 0.0)))
             arm1_math = tuple(angle_meta.get("arm1_math", (0.0, 0.0)))
             arm2_math = tuple(angle_meta.get("arm2_math", (0.0, 0.0)))
-            radius_screen = float(angle_meta.get("arc_radius_on_screen", radius))
+            base_radius_screen = float(angle_meta.get("clamped_arc_radius_on_screen", angle_meta.get("arc_radius_on_screen", radius)))
+            min_arm_math = float(angle_meta.get("min_arm_length_in_math", base_radius_screen))
             display_degrees = float(angle_meta.get("display_degrees", 0.0))
             sweep_flag = str(angle_meta.get("final_sweep_flag", "0"))
+            base_scale = float(old_state.get("scale", 1.0) or 1.0)
+            if base_scale <= 0:
+                base_scale = 1.0
+            new_scale = float(new_state.get("scale", 1.0) or 1.0)
+            if new_scale <= 0:
+                new_scale = 1.0
+            radius_math = base_radius_screen / base_scale if base_scale > 0 else base_radius_screen
+            new_radius = radius_math * new_scale
+            max_radius = min_arm_math * new_scale
+            radius_screen = min(new_radius, max_radius) if max_radius > 0 else new_radius
             vertex_screen = _math_to_screen_point(vertex_math, new_state)
             arm1_screen = _math_to_screen_point(arm1_math, new_state)
             arm2_screen = _math_to_screen_point(arm2_math, new_state)
@@ -277,10 +288,22 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
             vertex_math = tuple(angle_meta.get("vertex_math", (0.0, 0.0)))
             arm1_math = tuple(angle_meta.get("arm1_math", (0.0, 0.0)))
             arm2_math = tuple(angle_meta.get("arm2_math", (0.0, 0.0)))
-            radius_screen = float(angle_meta.get("arc_radius_on_screen", 0.0))
+            base_radius_screen = float(angle_meta.get("clamped_arc_radius_on_screen", angle_meta.get("arc_radius_on_screen", 0.0)))
+            style_radius_screen = float(angle_meta.get("arc_radius_on_screen", base_radius_screen))
+            min_arm_math = float(angle_meta.get("min_arm_length_in_math", base_radius_screen))
             text_factor = float(angle_meta.get("text_radius_factor", 1.8))
             display_degrees = float(angle_meta.get("display_degrees", 0.0))
             sweep_flag = str(angle_meta.get("final_sweep_flag", "0"))
+            base_scale = float(old_state.get("scale", 1.0) or 1.0)
+            if base_scale <= 0:
+                base_scale = 1.0
+            new_scale = float(new_state.get("scale", 1.0) or 1.0)
+            if new_scale <= 0:
+                new_scale = 1.0
+            radius_math = base_radius_screen / base_scale if base_scale > 0 else base_radius_screen
+            new_radius = radius_math * new_scale
+            max_radius = min_arm_math * new_scale
+            radius_screen = min(new_radius, max_radius) if max_radius > 0 else new_radius
             vertex_screen = _math_to_screen_point(vertex_math, new_state)
             arm1_screen = _math_to_screen_point(arm1_math, new_state)
             arm2_screen = _math_to_screen_point(arm2_math, new_state)
@@ -293,6 +316,17 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
             tx = vertex_screen[0] + text_radius * math.cos(text_angle)
             ty = vertex_screen[1] - text_radius * math.sin(text_angle)
             new_position = (tx, ty)
+            base_font_size = float(angle_meta.get("base_font_size", getattr(font, "size", 12.0)) or 12.0)
+            if not math.isfinite(base_font_size) or base_font_size <= 0:
+                base_font_size = 12.0
+            min_font_size = float(angle_meta.get("min_font_size", label_min_screen_font_px) or label_min_screen_font_px)
+            ratio_font = 1.0
+            if style_radius_screen > 0:
+                ratio_font = max(min(radius_screen / style_radius_screen, 1.0), 0.0)
+            new_font_size = base_font_size * ratio_font
+            if new_font_size < min_font_size:
+                new_font_size = min_font_size
+            font = shared.FontStyle(getattr(font, "family", None), new_font_size, getattr(font, "weight", None))
         elif point_meta:
             math_position = tuple(point_meta.get("math_position", (0.0, 0.0)))
             screen_offset = point_meta.get("screen_offset", (0.0, 0.0))

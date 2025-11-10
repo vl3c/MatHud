@@ -3,13 +3,18 @@ from __future__ import annotations
 import unittest
 from copy import deepcopy
 from typing import Any, Dict
+import math
 
+from constants import label_min_screen_font_px
 from drawables.angle import Angle
 from managers.angle_manager import AngleManager
 from .simple_mock import SimpleMock
 from name_generator.drawable import DrawableNameGenerator
 from coordinate_mapper import CoordinateMapper
 from geometry import Position
+from rendering import shared_drawable_renderers as shared
+from rendering.optimized_drawable_renderers import build_plan_for_drawable, _capture_map_state
+from rendering.style_manager import get_renderer_style
 
 class TestAngle(unittest.TestCase):
     def setUp(self) -> None:
@@ -523,6 +528,99 @@ class TestAngle(unittest.TestCase):
         # Verify angle was deleted
         self.assertEqual(len(angles_list), 0)
         self.assertNotIn(angle, angles_list)
+
+    def test_render_angle_helper_clamps_arc_radius(self) -> None:
+        mapper = SimpleMock(math_to_screen=lambda x, y: (x, y))
+        vertex = SimpleMock(x=0.0, y=0.0, name="V")
+        arm_long = SimpleMock(x=5.0, y=0.0, name="A")
+        arm_short = SimpleMock(x=2.0, y=2.0, name="B")
+        segment1 = SimpleMock(point1=vertex, point2=arm_long, name="VA")
+        segment2 = SimpleMock(point1=vertex, point2=arm_short, name="VB")
+
+        angle = Angle(segment1, segment2)
+
+        primitives = SimpleMock()
+        primitives.begin_shape = SimpleMock()
+        primitives.end_shape = SimpleMock()
+        stroke_arc_mock = SimpleMock()
+        primitives.stroke_arc = stroke_arc_mock
+        primitives.draw_text = SimpleMock()
+
+        style = {
+            "angle_arc_radius": 100.0,
+            "angle_text_arc_radius_factor": 1.8,
+            "angle_label_font_size": 12,
+        }
+
+        shared.render_angle_helper(primitives, angle, mapper, style)
+
+        self.assertTrue(stroke_arc_mock.calls, "Expected angle arc to be drawn")
+        first_call_args = stroke_arc_mock.calls[0][0]
+        clamped_radius = float(first_call_args[1])
+        shortest_arm = min(math.hypot(5.0, 0.0), math.hypot(2.0, 2.0))
+        expected_radius = min(style["angle_arc_radius"], shortest_arm)
+        self.assertTrue(
+            math.isclose(clamped_radius, expected_radius, rel_tol=1e-6),
+            msg=f"Expected radius {expected_radius}, got {clamped_radius}",
+        )
+
+    def test_angle_plan_reprojects_with_clamped_radius(self) -> None:
+        mapper = CoordinateMapper(800, 600)
+
+        vertex = SimpleMock(x=0.0, y=0.0, name="V")
+        arm_long = SimpleMock(x=5.0, y=0.0, name="A")
+        arm_short = SimpleMock(x=2.0, y=2.0, name="B")
+        segment1 = SimpleMock(point1=vertex, point2=arm_long, name="VA")
+        segment2 = SimpleMock(point1=vertex, point2=arm_short, name="VB")
+
+        angle = Angle(segment1, segment2)
+        style = get_renderer_style()
+
+        plan = build_plan_for_drawable(angle, mapper, style, supports_transform=False)
+        self.assertIsNotNone(plan)
+        if plan is None:
+            self.fail("Optimized plan not generated for angle")
+
+        arc_commands = [cmd for cmd in plan.commands if cmd.op == "stroke_arc"]
+        self.assertTrue(arc_commands, "Expected stroke_arc command in plan")
+
+        initial_radius = float(arc_commands[0].args[1])
+        shortest_arm = min(math.hypot(5.0, 0.0), math.hypot(2.0, 2.0))
+        expected_initial = min(style.get("angle_arc_radius", 15.0), shortest_arm)
+        self.assertTrue(
+            math.isclose(initial_radius, expected_initial, rel_tol=1e-6),
+            msg=f"Expected initial radius {expected_initial}, got {initial_radius}",
+        )
+
+        text_commands = [cmd for cmd in plan.commands if cmd.op == "draw_text"]
+        self.assertTrue(text_commands, "Expected draw_text command in plan")
+        initial_font_size = float(text_commands[0].args[2].size)
+        base_font_size = float(style.get("angle_label_font_size", 12.0))
+        style_radius = float(style.get("angle_arc_radius", 15.0))
+        expected_initial_font = max(base_font_size * min(initial_radius / style_radius, 1.0), label_min_screen_font_px)
+        self.assertTrue(
+            math.isclose(initial_font_size, expected_initial_font, rel_tol=1e-6),
+            msg=f"Expected initial font {expected_initial_font}, got {initial_font_size}",
+        )
+
+        mapper.scale_factor = 0.2
+        new_state = _capture_map_state(mapper)
+        plan.update_map_state(new_state)
+
+        updated_radius = float(arc_commands[0].args[1])
+        scaled_shortest = shortest_arm * mapper.scale_factor
+        self.assertLessEqual(updated_radius, initial_radius + 1e-6)
+        self.assertLessEqual(updated_radius, scaled_shortest + 1e-6)
+
+        updated_font_size = float(text_commands[0].args[2].size)
+        expected_updated_font = max(
+            base_font_size * min(updated_radius / style_radius, 1.0),
+            label_min_screen_font_px,
+        )
+        self.assertTrue(
+            math.isclose(updated_font_size, expected_updated_font, rel_tol=1e-5),
+            msg=f"Expected updated font {expected_updated_font}, got {updated_font_size}",
+        )
 
     def _add_dependency(self, dependencies_dict: Dict[Any, list[Any]], child: Any, parent: Any) -> None:
         """Helper method to add a dependency relationship."""
