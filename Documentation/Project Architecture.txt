@@ -44,6 +44,19 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Angle arcs correct in SVG y-down space; styling centralized in renderer
 - Undo/Redo and Workspace Management unchanged; state serialization via `get_state()` on models
 
+## Rendering Architecture
+1. Renderer selection uses `static/client/rendering/factory.create_renderer`, which builds a preference chain (`canvas2d`, `svg`, `webgl`) and instantiates the first backend that succeeds. The factory short-circuits when the caller passes a preferred mode and suppresses constructor failures so the next option can be tried.
+2. `SvgRenderer` maintains two plan caches: a dedicated `_cartesian_cache` for the main axis grid and `_plan_cache` for drawable-specific plans. Each entry tracks a signature, usage counts, and plan keys so `_prune_unused_plan_entries` can drop DOM groups that were not touched during the frame. Screen-space plans are marked dirty via `_mark_screen_space_plan_dirty` to keep sprites accurate after zoom.
+3. `Canvas2DRenderer` mirrors the caching strategy but targets a Canvas 2D context. It lazily recreates plans once signatures change, records telemetry for plan builds, and optionally composites through an offscreen canvas (`_use_layer_compositing`). When compositing is enabled, `_flush_offscreen_to_main` copies the offscreen buffer back to the main canvas between frames.
+4. `WebGLRenderer` prepares a WebGL program once, normalizes colors with `_parse_color` (hex and `rgba` support), uploads vertex buffers, and drives primitives through `WebGLPrimitiveAdapter`. The renderer keeps math-space plan objects but gates them with `_should_apply_plan` to skip invisible work before issuing GPU calls.
+5. Shared drawing helpers live in `rendering/shared_drawable_renderers.py`. Utilities like `render_point_helper` coordinate metadata emission for labels and delegate actual drawing to the primitive adapters. `style_manager.get_renderer_style()` returns cloned dictionaries so callers cannot mutate global defaults.
+6. Primitive adapters (`canvas2d_primitive_adapter.py`, `webgl_primitive_adapter.py`, `svg_primitive_adapter.py`) translate `OptimizedPrimitivePlan` commands into backend-specific APIs. Canvas2D batches polygon fills and flushes before strokes, SVG re-parents reserved elements to active groups, and WebGL converts strokes into line-strip draw calls backed by parsed colors.
+7. `optimized_drawable_renderers.py` owns the `OptimizedPrimitivePlan` type used by every renderer. Plans store map-state metadata, know when they need to be reapplied, expose usage counts for pooling, and can reproject commands when the coordinate mapper changes.
+8. DOM surfaces are layered as WebGL (background), Canvas2D (middle), and SVG (foreground) inside `#math-container`, with inactive surfaces kept `pointer-events: none`. Labels remain on SVG to guarantee text clarity across backends.
+9. Runtime selection checks explicit arguments, `window.MatHudRenderer`, and `localStorage['mathud.renderer']` before falling back to SVG; helper `window.setMatHudRenderer(mode)` can persist the choice for development toggling.
+10. Feature flags remain available for diagnostics: `window.MatHudSvgOffscreen` (or `localStorage["mathud.svg.offscreen"]`) toggles SVG offscreen staging, and `window.MatHudCanvas2DOffscreen` (or `localStorage["mathud.canvas2d.offscreen"]`) enables Canvas2D layer compositing.
+11. Renderers expose `begin_frame`, `end_frame`, `peek_telemetry`, and `drain_telemetry` hooks so automated tests and performance harnesses can capture plan build/apply timings, skip counts, adapter events, and maximum batch depth.
+
 ## Multi-Step Calculations
 - Expressions: evaluate mathematical expressions and functions
 - Step-by-Step Problem Solving: break down complex problems
@@ -256,7 +269,9 @@ server_tests/
 - **Manager Pattern**: Specialized managers for each geometric shape type with centralized coordination
 - **Error Handling**: Comprehensive try-catch blocks throughout client-side code
 - **Testing**: Dual testing system with server-side pytest and client-side Brython unittest
+- **Renderer Logic Tests**: `server_tests/client_renderer/` houses pytest suites that exercise plan caching, factory fallbacks, helper metadata, and color normalization using lightweight browser stubs. The harness runs through `run_server_tests.py`, which now injects `static/client` into `PYTHONPATH` so the renderer modules and shared utilities import correctly during server-side runs.
 - **Vision System**: Server-side Selenium WebDriver captures canvas screenshots for AI vision analysis
+- **Renderer Performance Harness**: `static/client/performance/renderer_performance.py` builds a deterministic workload (points, segments, vectors, polygons, circles, ellipses, sample functions), times draw/pan/zoom loops with `window.performance.now()`, and reports DOM node counts. Run it from the browser console via `from performance.renderer_performance import run_renderer_performance; run_renderer_performance(iterations=2)` (optionally pass `renderer_name="svg"` or `cleanup=False`). Baseline from 2025-11-08/09 recorded Canvas2D averages (draw 71 ms, pan 155.5 ms, zoom 160 ms) and SVG averages (draw 78 ms, pan 84 ms, zoom 90 ms) for regression tracking.
 
 ---
 
@@ -428,45 +443,4 @@ server_tests/
    a. User requests save (e.g., via AI prompt "save workspace my_work").
    b. AI responds with a tool call: `{"function_name": "save_workspace", "arguments": {"name": "my_work"}}`.
    c. Client `AIInterface` processes this via `ProcessFunctionCalls.get_results`.
-   d. `ProcessFunctionCalls` calls the registered `save_workspace` function, which is a method of the client-side `WorkspaceManager` instance.
-   e. Client `WorkspaceManager.save_workspace(name="my_work")`:
-      i. Gets current canvas state: `self.canvas.get_canvas_state()`.
-      ii. Makes a **synchronous** AJAX POST to `/save_workspace` Flask endpoint with `{"state": <canvas_state>, "name": "my_work"}`.
-   f. Server (`static/routes.py` - `/save_workspace`):
-      i. Calls server-side `WorkspaceManager.save_workspace(state, name)`.
-      ii. Server `WorkspaceManager` creates JSON file (e.g., `workspaces/my_work.json`) with state and metadata (timestamp).
-      iii. Returns success/error status to client.
-   g. Client `WorkspaceManager` method returns result string (e.g., "Workspace 'my_work' saved.").
-   h. This result becomes part of `tool_call_results` sent back to AI.
-2. **Load Workspace**:
-   a. User requests load (e.g., "load workspace my_work").
-   b. Tool call: `{"function_name": "load_workspace", "arguments": {"name": "my_work"}}`.
-   c. Client `ProcessFunctionCalls` calls client `WorkspaceManager.load_workspace(name="my_work")`.
-   d. Client `WorkspaceManager.load_workspace()`:
-      i. Makes **synchronous** AJAX GET to `/load_workspace?name=my_work`.
-   e. Server (`static/routes.py` - `/load_workspace`):
-      i. Calls server-side `WorkspaceManager.load_workspace(name)`.
-      ii. Server `WorkspaceManager` reads `workspaces/my_work.json`, extracts state.
-      iii. Returns `{"state": <canvas_state>}` to client.
-   f. Client `WorkspaceManager` receives state. Calls `self._restore_workspace_state(state)`:
-      i. Clears current canvas.
-      ii. Recreates drawables (points, segments etc.) using `Canvas` methods, which in turn use `DrawableManager` and its sub-managers.
-      iii. Restores computations to `Canvas`.
-   g. Returns result string (e.g., "Workspace 'my_work' loaded.").
-3. **List Workspaces**:
-   a. Tool call: `{"function_name": "list_workspaces", "arguments": {}}`.
-   b. Client `ProcessFunctionCalls` calls client `WorkspaceManager.list_workspaces()`.
-   c. Client `WorkspaceManager` makes **synchronous** AJAX GET to `/list_workspaces`.
-   d. Server (`static/routes.py` - `/list_workspaces`):
-      i. Calls server-side `WorkspaceManager.list_workspaces()`.
-      ii. Returns list of workspace names.
-   e. Client `WorkspaceManager` returns comma-separated string of names.
-4. **Delete Workspace**:
-   a. Tool call: `{"function_name": "delete_workspace", "arguments": {"name": "my_work"}}`.
-   b. Client `ProcessFunctionCalls` calls client `WorkspaceManager.delete_workspace(name="my_work")`.
-   c. Client `WorkspaceManager` makes **synchronous** AJAX GET to `/delete_workspace?name=my_work`.
-   d. Server (`static/routes.py` - `/delete_workspace`):
-      i. Calls server-side `WorkspaceManager.delete_workspace(name)`.
-      ii. Server `WorkspaceManager` deletes file.
-      iii. Returns success/error.
-   e. Client `WorkspaceManager` returns result string.
+   d. `

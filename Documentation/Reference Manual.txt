@@ -24,50 +24,6 @@ This document contains comprehensive documentation extracted from all files in t
 ## Table of Contents
 
 ### Core Application Files
-#### Renderer (`rendering/svg_renderer.py`)
-
-```
-SVG renderer for MatHud using Brython's browser.svg.
-
-Registry-based dispatch: the renderer maintains a mapping from model classes
-to handler methods. This keeps models strictly math-space and renderer-agnostic.
-
-Initially only provides clear() and a minimal registry without handlers. Shapes
-will be added incrementally (Point first), ensuring non-breaking integration.
-```
-
-Key points:
-- Centralizes style and drawing (points, segments, circles, ellipses, vectors, angles, functions, colored areas, cartesian grid)
-- Uses `CoordinateMapper` for all math-to-screen conversions
-- Handlers registered per model class; models remain canvas-free
-
-#### Renderables
-
-`rendering/function_renderable.py`
-```
-Function renderable: computes function polylines in math or screen space.
-
-This class extracts the sampling, discontinuity handling, and asymptote logic
-from the math model (`drawables.function.Function`) so that the model remains
-math-only and the renderer consumes a clean representation.
-```
-
-`rendering/functions_area_renderable.py`
-```
-Renderable for FunctionsBoundedColoredArea producing a screen-space ClosedArea.
-```
-
-`rendering/function_segment_area_renderable.py`
-```
-Renderable for FunctionSegmentBoundedColoredArea producing a screen-space ClosedArea.
-```
-
-`rendering/segments_area_renderable.py`
-```
-Renderable for SegmentsBoundedColoredArea producing a screen-space ClosedArea.
-
-This keeps math models pure and provides renderer-agnostic geometry.
-```
 1. Flask entry point (`app.py`)
 2. Brython entry point (`main.py`)
 3. Canvas System (`canvas.py`)
@@ -158,6 +114,7 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 ### Testing and Quality Assurance
 1. Client-Side Testing (`client_tests/` and `test_runner.py`)
 2. Server-Side Testing (`server_tests/` and `run_server_tests.py`)
+3. Renderer Performance Harness (`static/client/performance/renderer_performance.py`): deterministic workload runner invoked from the browser console to record draw/pan/zoom timings, DOM node counts, and telemetry. Baseline captures from 2025-11-08/09 report Canvas2D averages (draw 71 ms, pan 155.5 ms, zoom 160 ms) and SVG averages (draw 78 ms, pan 84 ms, zoom 90 ms) using `run_renderer_performance(iterations=2)`.
 
 ---
 
@@ -3663,6 +3620,121 @@ dictionaries that can be sent to the client-side function processing system.
 - `jsonify_tool_call(tool_call)`: Convert single tool call into JSON-serializable dictionary (static method)
 - `jsonify_tool_calls(tool_calls)`: Convert list of tool calls into simplified format (static method)
 
+
+### Rendering Modules
+
+The rendering stack converts math-space drawables into Canvas2D, SVG, or WebGL output while keeping models renderer-agnostic.
+
+#### Renderer Factory (`rendering/factory.py`)
+
+```
+Factory responsible for choosing and instantiating renderer backends.
+
+Preference chain defaults to Canvas2D -> SVG -> WebGL. A caller-specified
+`preferred` string is honored first, and the factory falls back when a
+constructor raises or returns `None`. Helper `_build_preference_chain`
+avoids duplicates, `_attempt_renderer` wraps instantiation with error
+suppression, and `_safe_instantiate` guards against constructors that yield
+`None`.
+```
+
+Key points:
+1. Renderer modules (`rendering.canvas2d_renderer`, `rendering.svg_renderer`, `rendering.webgl_renderer`) load lazily so environments without WebGL can still construct other backends.
+2. Each constructor returns an object implementing `RendererProtocol`; the factory does not mutate state beyond instantiation.
+
+#### SVG Renderer (`rendering/svg_renderer.py`)
+
+```
+SVG-based renderer with rich plan caching and telemetry. Maintains separate
+paths for cartesian grids and drawable groups, and reuses DOM nodes via
+`SvgPrimitiveAdapter` pooling.
+```
+
+Highlights:
+1. `_resolve_cartesian_plan` caches the most recent `OptimizedPrimitivePlan` per cartesian signature, evicting the previous group when a rebuild is required.
+2. `_resolve_drawable_plan_context` manages per-drawable cache entries keyed by plan signature and drawable identity; stale entries are pruned by `_prune_unused_plan_entries` after each frame.
+3. `_mark_screen_space_plan_dirty` keeps screen-space plans fresh across zoom operations, while telemetry hooks record apply/skip metrics.
+4. Feature toggles `window.MatHudSvgOffscreen` and `localStorage["mathud.svg.offscreen"]` enable optional offscreen staging without changing the optimized path.
+
+#### Canvas2D Renderer (`rendering/canvas2d_renderer.py`)
+
+```
+Primary renderer targeting the Canvas 2D API. Mirrors SVG's plan caching and
+optionally composites via an offscreen canvas.
+```
+
+Highlights:
+1. `_resolve_cartesian_plan` and `_resolve_drawable_plan` reuse cached `OptimizedPrimitivePlan` instances when signatures match, recording telemetry whenever a rebuild occurs.
+2. `_initialize_layer_state` toggles offscreen compositing based on `window.MatHudCanvas2DOffscreen` or `localStorage["mathud.canvas2d.offscreen"]`.
+3. `_flush_offscreen_to_main` copies the offscreen buffer back to the primary surface, while `begin_frame`/`end_frame` and telemetry accessors expose layer metrics.
+
+#### WebGL Renderer (`rendering/webgl_renderer.py`)
+
+```
+Experimental renderer that targets WebGL through Brython's browser APIs.
+Initializes shaders once, uploads geometry per draw call, and delegates
+primitive operations to `WebGLPrimitiveAdapter`.
+```
+
+Highlights:
+1. `_prepare_canvas_and_context` ensures the canvas element exists and retrieves the WebGL context, raising when unavailable.
+2. `_parse_color` canonicalizes style strings via a scratch 2D canvas; `_parse_rgb_color` normalizes alpha values above 1 by dividing by 255.
+3. `_prepare_vertices` maps math coordinates to normalized device coordinates before issuing GPU draw calls, while `_should_apply_plan` skips invisible work.
+
+#### Renderables (`rendering/function_renderable.py`, etc.)
+
+```
+Function and area renderables convert math models into `OptimizedPrimitivePlan`
+command lists so renderers consume screen-ready geometry.
+```
+
+Modules include `function_renderable.py`, `functions_area_renderable.py`, `function_segment_area_renderable.py`, and `segments_area_renderable.py`, each isolating sampling logic from math models.
+
+#### Shared Drawable Renderers (`rendering/shared_drawable_renderers.py`)
+
+```
+Collection of helper functions that translate math-space drawables into
+primitive commands shared across all backends.
+```
+
+Highlights:
+1. `render_point_helper` emits circle primitives and label metadata describing math and screen positions.
+2. `_compute_zoom_adjusted_font_size` clamps label font size based on mapper scale, hiding labels when they shrink below `label_vanish_threshold_px`.
+3. Stroke/fill helpers centralize style coercion so adapters receive consistent instructions.
+
+#### Style Manager (`rendering/style_manager.py`)
+
+```
+Provides renderer style dictionaries detached from the global defaults.
+
+`get_renderer_style()` clones the internal base style before applying any
+overrides, protecting shared state across renderers.
+```
+
+Key points:
+1. `_clone_base_style` performs shallow copies for nested dict entries so modifying a returned style never mutates `_BASE_STYLE`.
+2. `get_default_style_value` exposes canonical values for tests and callers.
+
+#### Primitive Adapters
+
+- **Canvas2D (`rendering/canvas2d_primitive_adapter.py`)**: Prepares fill and stroke batches, flushes polygons before line work, and reuses cached text brush settings.
+- **WebGL (`rendering/webgl_primitive_adapter.py`)**: Converts stroke metadata into parsed colors and delegates to renderer `_draw_points`, `_draw_lines`, and `_draw_line_strip` helpers.
+- **SVG (`rendering/svg_primitive_adapter.py`)**: Manages DOM pooling and re-parenting so cached plans can reuse existing nodes (see module for details).
+
+#### Renderer Test Suites (`server_tests/client_renderer/`)
+
+```
+Pytest-based regression tests that exercise renderer logic under CPython using
+lightweight browser stubs installed in `server_tests.client_renderer.__init__`.
+```
+
+Coverage highlights:
+1. `test_renderer_factory_plan.py` validates factory fallback ordering and preferred renderer short-circuiting.
+2. `test_webgl_renderer_plan.py` checks invisible-plan gating and RGBA alpha normalization in `_parse_color`.
+3. `test_svg_renderer_plan.py` covers cartesian plan cache reuse and stale plan pruning.
+4. `test_canvas2d_renderer_plan.py` focuses on cartesian plan signature changes and offscreen compositing flush behavior.
+5. `test_renderer_support_plan.py` verifies shared helper metadata, `_map_state_equal` tolerance, style cloning, and `ClosedArea` defaults.
+
 ### Testing and Quality Assurance
 
 MatHud implements a comprehensive dual-sided testing architecture that mirrors the application's client-server structure. The testing system ensures reliability across both the browser-based mathematical visualization components and the server-side AI integration services.
@@ -3686,11 +3758,6 @@ The server-side testing uses pytest and focuses on Flask application components 
 - Testing WebDriver vision system functionality
 - Ensuring proper error handling and response formatting
 
-The server tests are organized in the `server_tests/` directory and include mock objects for isolated testing of individual components without external dependencies.
+In addition to server-specific suites, the runner also executes CPython-based regression tests for client renderer classes located in `server_tests/client_renderer/`, using lightweight browser stubs to exercise `static/client` code directly from pytest.
 
-#### Integrated Testing Approach
-The dual testing architecture ensures complete coverage of the mathematical visualization system:
-- **Client tests** validate mathematical accuracy and geometric operations
-- **Server tests** verify API reliability and data persistence
-- **Cross-system validation** through AI interface testing bridges both environments
-- **Real-time testing** capabilities allow the AI to self-validate operations during user interactions
+The server tests are organized in the `server_tests/`
