@@ -61,8 +61,12 @@ _BASE_STYLE: Dict[str, Any] = {
 }
 
 
+def _clone_base_style() -> Dict[str, Any]:
+    return _BASE_STYLE.copy()
+
+
 def get_renderer_style(overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    style = _BASE_STYLE.copy()
+    style = _clone_base_style()
     if overrides:
         style.update(overrides)
     return style

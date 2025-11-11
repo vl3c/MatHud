@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 from browser import document, html, window, console
 
@@ -17,27 +17,10 @@ class WebGLRenderer(RendererProtocol):
     """Experimental renderer backed by WebGL that delegates shape drawing to primitives."""
 
     def __init__(self, canvas_id: str = "math-webgl") -> None:
-        self.canvas_el = self._ensure_canvas(canvas_id)
-        self.gl = self.canvas_el.getContext("webgl")
-        if self.gl is None:
-            raise RuntimeError("WebGL context unavailable")
-
+        self.gl = self._prepare_canvas_and_context(canvas_id)
         self.style: Dict[str, Any] = get_renderer_style()
-
-        self._program = self._create_program()
-        self.gl.useProgram(self._program)
-        self._position_attrib = self.gl.getAttribLocation(self._program, "a_position")
-        self._color_uniform = self.gl.getUniformLocation(self._program, "u_color")
-        self._point_size_uniform = self.gl.getUniformLocation(self._program, "u_point_size")
-
-        self._buffer = self.gl.createBuffer()
-        self.gl.bindBuffer(self.gl.ARRAY_BUFFER, self._buffer)
-        self.gl.enableVertexAttribArray(self._position_attrib)
-        self.gl.vertexAttribPointer(self._position_attrib, 2, self.gl.FLOAT, False, 0, 0)
-
-        self.gl.clearColor(0.0, 0.0, 0.0, 0.0)
-        self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
-        self.register_default_drawables()
+        self._initialize_program_state()
+        self._initialize_handler_registry()
         self._shared_primitives: WebGLPrimitiveAdapter = WebGLPrimitiveAdapter(self)
 
     def clear(self) -> None:
@@ -52,14 +35,11 @@ class WebGLRenderer(RendererProtocol):
         return True
 
     def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
-        width = self.canvas_el.width
-        height = self.canvas_el.height
-        cartesian.width = width
-        cartesian.height = height
-        plan = build_plan_for_cartesian(cartesian, coordinate_mapper, self.style, supports_transform=False)
+        width, height = self._prepare_cartesian_dimensions(cartesian)
+        plan = self._build_cartesian_plan(cartesian, coordinate_mapper)
         if plan is None:
             return
-        if not plan.is_visible(width, height):
+        if not self._should_apply_plan(plan, width, height):
             return
         plan.apply(self._shared_primitives)
 
@@ -110,10 +90,10 @@ class WebGLRenderer(RendererProtocol):
         self._render_drawable(label, coordinate_mapper)
 
     def _render_drawable(self, drawable: Any, coordinate_mapper: Any) -> None:
-        plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style, supports_transform=False)
+        plan = self._resolve_drawable_plan(drawable, coordinate_mapper)
         if plan is None:
             return
-        if not plan.is_visible(self.canvas_el.width, self.canvas_el.height):
+        if not self._should_apply_plan(plan, self.canvas_el.width, self.canvas_el.height):
             return
         plan.apply(self._shared_primitives)
 
@@ -121,45 +101,27 @@ class WebGLRenderer(RendererProtocol):
     # Drawing helpers
 
     def _draw_points(self, points: Sequence[Tuple[float, float]], color: Tuple[float, float, float, float], size: float) -> None:
-        self.gl.useProgram(self._program)
-        self.gl.bindBuffer(self.gl.ARRAY_BUFFER, self._buffer)
-        self.gl.enableVertexAttribArray(self._position_attrib)
-        self.gl.vertexAttribPointer(self._position_attrib, 2, self.gl.FLOAT, False, 0, 0)
-        ndc = [self._to_ndc(x, y) for x, y in points]
-        flat = [coord for vertex in ndc for coord in vertex]
-        color_vec = window.Float32Array.new(color)
-        self.gl.uniform4fv(self._color_uniform, color_vec)
-        self.gl.uniform1f(self._point_size_uniform, float(size))
-        buffer_data = window.Float32Array.new(flat)
-        self.gl.bufferData(self.gl.ARRAY_BUFFER, buffer_data, self.gl.STATIC_DRAW)
+        self._use_program_for_draw()
+        flat = self._prepare_vertices(points)
+        self._set_color_uniform(color)
+        self._set_point_size_uniform(float(size))
+        self._upload_vertices(flat)
         self.gl.drawArrays(self.gl.POINTS, 0, len(points))
 
     def _draw_lines(self, points: Sequence[Tuple[float, float]], color: Tuple[float, float, float, float]) -> None:
-        self.gl.useProgram(self._program)
-        self.gl.bindBuffer(self.gl.ARRAY_BUFFER, self._buffer)
-        self.gl.enableVertexAttribArray(self._position_attrib)
-        self.gl.vertexAttribPointer(self._position_attrib, 2, self.gl.FLOAT, False, 0, 0)
-        ndc = [self._to_ndc(x, y) for x, y in points]
-        flat = [coord for vertex in ndc for coord in vertex]
-        color_vec = window.Float32Array.new(color)
-        self.gl.uniform4fv(self._color_uniform, color_vec)
-        self.gl.uniform1f(self._point_size_uniform, 1.0)
-        buffer_data = window.Float32Array.new(flat)
-        self.gl.bufferData(self.gl.ARRAY_BUFFER, buffer_data, self.gl.STATIC_DRAW)
+        self._use_program_for_draw()
+        flat = self._prepare_vertices(points)
+        self._set_color_uniform(color)
+        self._set_point_size_uniform(1.0)
+        self._upload_vertices(flat)
         self.gl.drawArrays(self.gl.LINES, 0, len(points))
 
     def _draw_line_strip(self, points: Sequence[Tuple[float, float]], color: Tuple[float, float, float, float]) -> None:
-        self.gl.useProgram(self._program)
-        self.gl.bindBuffer(self.gl.ARRAY_BUFFER, self._buffer)
-        self.gl.enableVertexAttribArray(self._position_attrib)
-        self.gl.vertexAttribPointer(self._position_attrib, 2, self.gl.FLOAT, False, 0, 0)
-        ndc = [self._to_ndc(x, y) for x, y in points]
-        flat = [coord for vertex in ndc for coord in vertex]
-        color_vec = window.Float32Array.new(color)
-        self.gl.uniform4fv(self._color_uniform, color_vec)
-        self.gl.uniform1f(self._point_size_uniform, 1.0)
-        buffer_data = window.Float32Array.new(flat)
-        self.gl.bufferData(self.gl.ARRAY_BUFFER, buffer_data, self.gl.STATIC_DRAW)
+        self._use_program_for_draw()
+        flat = self._prepare_vertices(points)
+        self._set_color_uniform(color)
+        self._set_point_size_uniform(1.0)
+        self._upload_vertices(flat)
         self.gl.drawArrays(self.gl.LINE_STRIP, 0, len(points))
 
     # ------------------------------------------------------------------
@@ -173,47 +135,23 @@ class WebGLRenderer(RendererProtocol):
         return ndc_x, ndc_y
 
     def _parse_color(self, color: str) -> Tuple[float, float, float, float]:
-        ctx = getattr(self, "_scratch_ctx", None)
-        if ctx is None:
-            scratch_canvas = html.CANVAS()
-            ctx = scratch_canvas.getContext("2d")
-            ctx.fillStyle = color
-            self._scratch_ctx = ctx
+        ctx = self._ensure_scratch_context(color)
         ctx.fillStyle = color
         computed = ctx.fillStyle
-        if computed.startswith("#") and len(computed) == 7:
-            r = int(computed[1:3], 16) / 255.0
-            g = int(computed[3:5], 16) / 255.0
-            b = int(computed[5:7], 16) / 255.0
-            return r, g, b, 1.0
-        if computed.startswith("rgb"):
-            inside = computed[computed.index("(") + 1 : computed.rindex(")")]
-            parts = [part.strip() for part in inside.split(",")]
-            if len(parts) >= 3:
-                try:
-                    r = float(parts[0]) / 255.0
-                    g = float(parts[1]) / 255.0
-                    b = float(parts[2]) / 255.0
-                    a = float(parts[3]) if len(parts) > 3 else 1.0
-                    if a > 1.0:
-                        a /= 255.0
-                    return r, g, b, a
-                except Exception:
-                    pass
+        hex_color = self._parse_hex_color(computed)
+        if hex_color is not None:
+            return hex_color
+        rgb_color = self._parse_rgb_color(computed)
+        if rgb_color is not None:
+            return rgb_color
         return 1.0, 1.0, 1.0, 1.0
 
     def _resize_viewport(self) -> None:
         container = getattr(self.canvas_el, "parentElement", None)
-        rect = container.getBoundingClientRect() if hasattr(container, "getBoundingClientRect") else None
-        if rect:
-            pixel_width = int(rect.width)
-            pixel_height = int(rect.height)
-            self.canvas_el.width = pixel_width
-            self.canvas_el.height = pixel_height
-            self.canvas_el.attrs["width"] = pixel_width
-            self.canvas_el.attrs["height"] = pixel_height
-        self.canvas_el.style.width = f"{int(self.canvas_el.width)}px"
-        self.canvas_el.style.height = f"{int(self.canvas_el.height)}px"
+        rect = self._read_container_rect(container)
+        if rect is not None:
+            self._apply_canvas_dimensions(rect.width, rect.height)
+        self._apply_canvas_size_styles()
         self.gl.viewport(0, 0, self.canvas_el.width, self.canvas_el.height)
 
     def _create_program(self):
@@ -251,23 +189,155 @@ class WebGLRenderer(RendererProtocol):
         return shader
 
     def _ensure_canvas(self, canvas_id: str):
-        canvas_el = document.getElementById(canvas_id)
-        if canvas_el is None:
-            canvas_el = html.CANVAS(id=canvas_id)
-            container = document.getElementById("math-container")
-            if container is None:
-                document <= canvas_el
-            else:
-                container <= canvas_el
+        canvas_el = self._obtain_canvas_element(canvas_id)
         container = getattr(canvas_el, "parentElement", None)
-        rect = container.getBoundingClientRect() if hasattr(container, "getBoundingClientRect") else None
-        if rect:
-            pixel_width = int(rect.width)
-            pixel_height = int(rect.height)
-            canvas_el.width = pixel_width
-            canvas_el.height = pixel_height
-            canvas_el.attrs["width"] = pixel_width
-            canvas_el.attrs["height"] = pixel_height
+        rect = self._read_container_rect(container)
+        if rect is not None:
+            self._apply_canvas_rect(canvas_el, rect.width, rect.height)
+        self._apply_canvas_style_defaults(canvas_el)
+        return canvas_el
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _prepare_canvas_and_context(self, canvas_id: str):
+        self.canvas_el = self._ensure_canvas(canvas_id)
+        gl = self.canvas_el.getContext("webgl")
+        if gl is None:
+            raise RuntimeError("WebGL context unavailable")
+        return gl
+
+    def _initialize_program_state(self) -> None:
+        self._program = self._create_program()
+        self.gl.useProgram(self._program)
+        self._position_attrib = self.gl.getAttribLocation(self._program, "a_position")
+        self._color_uniform = self.gl.getUniformLocation(self._program, "u_color")
+        self._point_size_uniform = self.gl.getUniformLocation(self._program, "u_point_size")
+
+        self._buffer = self.gl.createBuffer()
+        self.gl.bindBuffer(self.gl.ARRAY_BUFFER, self._buffer)
+        self.gl.enableVertexAttribArray(self._position_attrib)
+        self.gl.vertexAttribPointer(self._position_attrib, 2, self.gl.FLOAT, False, 0, 0)
+        self.gl.clearColor(0.0, 0.0, 0.0, 0.0)
+
+    def _initialize_handler_registry(self) -> None:
+        self._handlers_by_type = {}
+        self.register_default_drawables()
+
+    def _prepare_cartesian_dimensions(self, cartesian: Any) -> Tuple[int, int]:
+        width = self.canvas_el.width
+        height = self.canvas_el.height
+        cartesian.width = width
+        cartesian.height = height
+        return width, height
+
+    def _build_cartesian_plan(self, cartesian: Any, coordinate_mapper: Any):
+        return build_plan_for_cartesian(cartesian, coordinate_mapper, self.style, supports_transform=False)
+
+    def _resolve_drawable_plan(self, drawable: Any, coordinate_mapper: Any):
+        return build_plan_for_drawable(drawable, coordinate_mapper, self.style, supports_transform=False)
+
+    def _should_apply_plan(self, plan: Any, width: int, height: int) -> bool:
+        return bool(plan.is_visible(width, height))
+
+    def _use_program_for_draw(self) -> None:
+        self.gl.useProgram(self._program)
+        self.gl.bindBuffer(self.gl.ARRAY_BUFFER, self._buffer)
+        self.gl.enableVertexAttribArray(self._position_attrib)
+        self.gl.vertexAttribPointer(self._position_attrib, 2, self.gl.FLOAT, False, 0, 0)
+
+    def _prepare_vertices(self, points: Sequence[Tuple[float, float]]) -> list[float]:
+        ndc = [self._to_ndc(x, y) for x, y in points]
+        return [coord for vertex in ndc for coord in vertex]
+
+    def _set_color_uniform(self, color: Tuple[float, float, float, float]) -> None:
+        color_vec = window.Float32Array.new(color)
+        self.gl.uniform4fv(self._color_uniform, color_vec)
+
+    def _set_point_size_uniform(self, size: float) -> None:
+        self.gl.uniform1f(self._point_size_uniform, size)
+
+    def _upload_vertices(self, flat: Sequence[float]) -> None:
+        buffer_data = window.Float32Array.new(flat)
+        self.gl.bufferData(self.gl.ARRAY_BUFFER, buffer_data, self.gl.STATIC_DRAW)
+
+    def _ensure_scratch_context(self, color: str):
+        ctx = getattr(self, "_scratch_ctx", None)
+        if ctx is None:
+            scratch_canvas = html.CANVAS()
+            ctx = scratch_canvas.getContext("2d")
+            ctx.fillStyle = color
+            self._scratch_ctx = ctx
+        return ctx
+
+    def _parse_hex_color(self, computed: str) -> Optional[Tuple[float, float, float, float]]:
+        if computed.startswith("#") and len(computed) == 7:
+            r = int(computed[1:3], 16) / 255.0
+            g = int(computed[3:5], 16) / 255.0
+            b = int(computed[5:7], 16) / 255.0
+            return r, g, b, 1.0
+        return None
+
+    def _parse_rgb_color(self, computed: str) -> Optional[Tuple[float, float, float, float]]:
+        if not computed.startswith("rgb"):
+            return None
+        inside = computed[computed.index("(") + 1 : computed.rindex(")")]
+        parts = [part.strip() for part in inside.split(",")]
+        if len(parts) < 3:
+            return None
+        try:
+            r = float(parts[0]) / 255.0
+            g = float(parts[1]) / 255.0
+            b = float(parts[2]) / 255.0
+            a = float(parts[3]) if len(parts) > 3 else 1.0
+            if a > 1.0:
+                a /= 255.0
+            return r, g, b, a
+        except Exception:
+            return None
+
+    def _read_container_rect(self, container: Any):
+        if container is None or not hasattr(container, "getBoundingClientRect"):
+            return None
+        try:
+            return container.getBoundingClientRect()
+        except Exception:
+            return None
+
+    def _apply_canvas_dimensions(self, width: float, height: float) -> None:
+        pixel_width = int(width)
+        pixel_height = int(height)
+        self.canvas_el.width = pixel_width
+        self.canvas_el.height = pixel_height
+        self.canvas_el.attrs["width"] = pixel_width
+        self.canvas_el.attrs["height"] = pixel_height
+
+    def _apply_canvas_size_styles(self) -> None:
+        self.canvas_el.style.width = f"{int(self.canvas_el.width)}px"
+        self.canvas_el.style.height = f"{int(self.canvas_el.height)}px"
+
+    def _obtain_canvas_element(self, canvas_id: str):
+        canvas_el = document.getElementById(canvas_id)
+        if canvas_el is not None:
+            return canvas_el
+        canvas_el = html.CANVAS(id=canvas_id)
+        container = document.getElementById("math-container")
+        if container is None:
+            document <= canvas_el
+        else:
+            container <= canvas_el
+        return canvas_el
+
+    def _apply_canvas_rect(self, canvas_el: Any, width: float, height: float) -> None:
+        pixel_width = int(width)
+        pixel_height = int(height)
+        canvas_el.width = pixel_width
+        canvas_el.height = pixel_height
+        canvas_el.attrs["width"] = pixel_width
+        canvas_el.attrs["height"] = pixel_height
+
+    def _apply_canvas_style_defaults(self, canvas_el: Any) -> None:
         canvas_el.style.width = f"{int(canvas_el.width)}px"
         canvas_el.style.height = f"{int(canvas_el.height)}px"
         canvas_el.style.position = "absolute"
@@ -276,6 +346,5 @@ class WebGLRenderer(RendererProtocol):
         canvas_el.style.pointerEvents = "none"
         canvas_el.style.display = "block"
         canvas_el.style.zIndex = "20"
-        return canvas_el
 
 

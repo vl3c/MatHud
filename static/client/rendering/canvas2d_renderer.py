@@ -135,22 +135,16 @@ class Canvas2DRenderer(RendererProtocol):
     """Experimental renderer backed by the Canvas 2D API using shared primitives."""
 
     def __init__(self, canvas_id: str = "math-canvas-2d") -> None:
-        self.canvas_el = self._ensure_canvas(canvas_id)
-        self.ctx = self.canvas_el.getContext("2d")
-        if self.ctx is None:
-            raise RuntimeError("Canvas 2D context unavailable")
+        self.canvas_el, self.ctx = self._initialize_canvas_context(canvas_id)
         self.style: Dict[str, Any] = get_renderer_style()
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self._telemetry = Canvas2DTelemetry()
-        self._use_layer_compositing: bool = self._should_use_layer_compositing()
-        self._offscreen_canvas = self._create_offscreen_canvas() if self._use_layer_compositing else None
-        target_canvas = self._offscreen_canvas or self.canvas_el
+        target_canvas = self._initialize_layer_state()
         self._shared_primitives: Canvas2DPrimitiveAdapter = Canvas2DPrimitiveAdapter(
             target_canvas, telemetry=self._telemetry
         )
         self.register_default_drawables()
-        self._plan_cache: Dict[str, Dict[str, Any]] = {}
-        self._cartesian_cache: Optional[Dict[str, Any]] = None
+        self._initialize_plan_caches()
 
     def clear(self) -> None:
         width = self.canvas_el.width
@@ -170,31 +164,15 @@ class Canvas2DRenderer(RendererProtocol):
         self._sync_offscreen_size()
         width = self.canvas_el.width
         height = self.canvas_el.height
-        cartesian.width = width
-        cartesian.height = height
+        self._assign_cartesian_dimensions(cartesian, width, height)
         drawable_name = "Cartesian2Axis"
         map_state = self._capture_map_state(coordinate_mapper)
         signature = self._compute_drawable_signature(cartesian)
-        plan_entry = self._cartesian_cache
-        plan: Optional[OptimizedPrimitivePlan] = None
-        if (
-            plan_entry is not None
-            and plan_entry.get("signature") == signature
-            and isinstance(plan_entry.get("plan"), OptimizedPrimitivePlan)
-        ):
-            plan = plan_entry["plan"]
-            plan.update_map_state(map_state)
-        else:
-            build_start = self._telemetry.mark_time()
-            plan = build_plan_for_cartesian(cartesian, coordinate_mapper, self.style, supports_transform=False)
-            build_elapsed = self._telemetry.elapsed_since(build_start)
-            self._telemetry.record_plan_build(drawable_name, build_elapsed, cartesian=True)
-            if plan is None:
-                self._telemetry.record_plan_miss(drawable_name)
-                self._cartesian_cache = None
-                return
-            plan.update_map_state(map_state)
-            self._cartesian_cache = {"plan": plan, "signature": signature}
+        plan = self._resolve_cartesian_plan(
+            cartesian, coordinate_mapper, map_state, signature, drawable_name
+        )
+        if plan is None:
+            return
         apply_start = self._telemetry.mark_time()
         if not plan.is_visible(width, height):
             self._telemetry.record_plan_skip(drawable_name)
@@ -348,28 +326,11 @@ class Canvas2DRenderer(RendererProtocol):
         map_state = self._capture_map_state(coordinate_mapper)
         signature = self._compute_drawable_signature(drawable)
         cache_key = self._plan_cache_key(drawable, drawable_name)
-        cached_entry = self._plan_cache.get(cache_key)
-        plan: Optional[OptimizedPrimitivePlan] = None
-        if (
-            cached_entry is not None
-            and cached_entry.get("signature") == signature
-            and isinstance(cached_entry.get("plan"), OptimizedPrimitivePlan)
-        ):
-            plan = cached_entry["plan"]
-            plan.update_map_state(map_state)
-        else:
-            build_start = self._telemetry.mark_time()
-            plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style, supports_transform=False)
-            build_elapsed = self._telemetry.elapsed_since(build_start)
-            if plan is not None:
-                self._telemetry.record_plan_build(drawable_name, build_elapsed)
-                plan.update_map_state(map_state)
-                if signature is not None:
-                    self._plan_cache[cache_key] = {"plan": plan, "signature": signature}
-            else:
-                self._telemetry.record_plan_miss(drawable_name)
-                self._plan_cache.pop(cache_key, None)
-                return
+        plan = self._resolve_drawable_plan(
+            drawable, coordinate_mapper, map_state, signature, drawable_name, cache_key
+        )
+        if plan is None:
+            return
         apply_start = self._telemetry.mark_time()
         if not plan.is_visible(self.canvas_el.width, self.canvas_el.height):
             self._telemetry.record_plan_skip(drawable_name)
@@ -496,5 +457,86 @@ class Canvas2DRenderer(RendererProtocol):
                     self.ctx.putImageData(image, 0, 0)
             except Exception:
                 pass
+
+    def _initialize_canvas_context(self, canvas_id: str) -> Tuple[Any, Any]:
+        canvas_el = self._ensure_canvas(canvas_id)
+        ctx = canvas_el.getContext("2d")
+        if ctx is None:
+            raise RuntimeError("Canvas 2D context unavailable")
+        return canvas_el, ctx
+
+    def _initialize_layer_state(self) -> Any:
+        self._use_layer_compositing = self._should_use_layer_compositing()
+        self._offscreen_canvas = self._create_offscreen_canvas() if self._use_layer_compositing else None
+        return self._offscreen_canvas or self.canvas_el
+
+    def _initialize_plan_caches(self) -> None:
+        self._plan_cache = {}
+        self._cartesian_cache = None
+
+    def _assign_cartesian_dimensions(self, cartesian: Any, width: int, height: int) -> None:
+        cartesian.width = width
+        cartesian.height = height
+
+    def _resolve_cartesian_plan(
+        self,
+        cartesian: Any,
+        coordinate_mapper: Any,
+        map_state: Dict[str, float],
+        signature: Optional[Any],
+        drawable_name: str,
+    ) -> Optional[OptimizedPrimitivePlan]:
+        plan_entry = self._cartesian_cache
+        if self._is_cached_plan_valid(plan_entry, signature):
+            plan = plan_entry["plan"]
+            plan.update_map_state(map_state)
+            return plan
+        build_start = self._telemetry.mark_time()
+        plan = build_plan_for_cartesian(cartesian, coordinate_mapper, self.style, supports_transform=False)
+        build_elapsed = self._telemetry.elapsed_since(build_start)
+        self._telemetry.record_plan_build(drawable_name, build_elapsed, cartesian=True)
+        if plan is None:
+            self._telemetry.record_plan_miss(drawable_name)
+            self._cartesian_cache = None
+            return None
+        plan.update_map_state(map_state)
+        self._cartesian_cache = {"plan": plan, "signature": signature}
+        return plan
+
+    def _resolve_drawable_plan(
+        self,
+        drawable: Any,
+        coordinate_mapper: Any,
+        map_state: Dict[str, float],
+        signature: Optional[Any],
+        drawable_name: str,
+        cache_key: str,
+    ) -> Optional[OptimizedPrimitivePlan]:
+        cached_entry = self._plan_cache.get(cache_key)
+        if self._is_cached_plan_valid(cached_entry, signature):
+            plan = cached_entry["plan"]
+            plan.update_map_state(map_state)
+            return plan
+        build_start = self._telemetry.mark_time()
+        plan = build_plan_for_drawable(drawable, coordinate_mapper, self.style, supports_transform=False)
+        build_elapsed = self._telemetry.elapsed_since(build_start)
+        if plan is not None:
+            self._telemetry.record_plan_build(drawable_name, build_elapsed)
+            plan.update_map_state(map_state)
+            if signature is not None:
+                self._plan_cache[cache_key] = {"plan": plan, "signature": signature}
+            return plan
+        self._telemetry.record_plan_miss(drawable_name)
+        self._plan_cache.pop(cache_key, None)
+        return None
+
+    def _is_cached_plan_valid(
+        self, cache_entry: Optional[Dict[str, Any]], signature: Optional[Any]
+    ) -> bool:
+        return bool(
+            cache_entry
+            and cache_entry.get("signature") == signature
+            and isinstance(cache_entry.get("plan"), OptimizedPrimitivePlan)
+        )
 
 

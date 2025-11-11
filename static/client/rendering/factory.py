@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, TypeVar
+from typing import Callable, Optional, TypeVar
 
 RendererType = TypeVar("RendererType")
 
@@ -19,43 +19,52 @@ Canvas2DRenderer = _load_renderer("rendering.canvas2d_renderer", "Canvas2DRender
 WebGLRenderer = _load_renderer("rendering.webgl_renderer", "WebGLRenderer")
 
 
+def _build_preference_chain(preferred: Optional[str]) -> list[str]:
+    chain: list[str] = []
+    if preferred:
+        chain.append(preferred)
+    default_order = ["canvas2d", "svg", "webgl"]
+    for fallback in default_order:
+        if fallback not in chain:
+            chain.append(fallback)
+    return chain
+
+
+def _safe_instantiate(
+    factory: Callable[[], Optional[RendererProtocol]], *, error_message: str
+) -> RendererProtocol:
+    renderer = factory()
+    if renderer is None:
+        raise RuntimeError(error_message)
+    return renderer
+
+
+def _attempt_renderer(mode: str) -> Optional[RendererProtocol]:
+    if mode == "canvas2d" and Canvas2DRenderer is not None:
+        try:
+            return _safe_instantiate(Canvas2DRenderer, error_message="Canvas2DRenderer returned None")
+        except Exception:
+            return None
+    if mode == "svg" and SvgRenderer is not None:
+        try:
+            return _safe_instantiate(SvgRenderer, error_message="SvgRenderer returned None")
+        except Exception:
+            return None
+    if mode == "webgl" and WebGLRenderer is not None:
+        try:
+            return _safe_instantiate(WebGLRenderer, error_message="WebGLRenderer returned None")
+        except Exception:
+            return None
+    return None
+
+
 def create_renderer(preferred: Optional[str] = None) -> Optional[RendererProtocol]:
     """Instantiate a renderer based on preference and environment support."""
 
-    preference_chain: list[str] = []
-
-    if preferred:
-        preference_chain.append(preferred)
-
-    default_order = ["canvas2d", "svg", "webgl"]
-    for fallback in default_order:
-        if fallback not in preference_chain:
-            preference_chain.append(fallback)
+    preference_chain = _build_preference_chain(preferred)
 
     for mode in preference_chain:
-        if mode == "canvas2d" and Canvas2DRenderer is not None:
-            try:
-                renderer = Canvas2DRenderer()
-                if renderer is None:
-                    raise RuntimeError("Canvas2DRenderer returned None")
-                return renderer
-            except Exception:
-                continue
-        if mode == "svg" and SvgRenderer is not None:
-            try:
-                renderer = SvgRenderer()
-                if renderer is None:
-                    raise RuntimeError("SvgRenderer returned None")
-                return renderer
-            except Exception:
-                continue
-        if mode == "webgl" and WebGLRenderer is not None:
-            try:
-                renderer = WebGLRenderer()
-                if renderer is None:
-                    raise RuntimeError("WebGLRenderer returned None")
-                return renderer
-            except Exception:
-                continue
-
+        renderer = _attempt_renderer(mode)
+        if renderer is not None:
+            return renderer
     return None

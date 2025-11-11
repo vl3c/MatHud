@@ -86,6 +86,41 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         except Exception:
             return f"{num}px"
 
+    def _prepare_stroke(self, stroke: StrokeStyle, *, include_width: bool = True) -> None:
+        self._flush_polygon_batch()
+        self._apply_stroke_style(stroke, include_width=include_width)
+
+    def _prepare_fill(self, fill: FillStyle) -> None:
+        self._flush_polygon_batch()
+        self._apply_fill_style(fill)
+
+    def _begin_path(self) -> None:
+        self.ctx.beginPath()
+        self._record_event("begin_path_calls")
+
+    def _stroke_path(self) -> None:
+        self.ctx.stroke()
+        self._record_event("stroke_calls")
+
+    def _fill_path(self) -> None:
+        self.ctx.fill()
+        self._record_event("fill_calls")
+
+    def _ensure_text_brush(self, color: str, font: FontStyle, alignment: TextAlignment) -> None:
+        if color != self._text_color:
+            self.ctx.fillStyle = color
+            self._text_color = color
+        font_string = self._resolve_font_string(font)
+        if font_string != self._font_state["font"]:
+            self.ctx.font = font_string
+            self._font_state["font"] = font_string
+        if alignment.horizontal and alignment.horizontal != self._text_align:
+            self.ctx.textAlign = alignment.horizontal
+            self._text_align = alignment.horizontal
+        if alignment.vertical and alignment.vertical != self._text_baseline:
+            self.ctx.textBaseline = alignment.vertical
+            self._text_baseline = alignment.vertical
+
     def begin_shape(self) -> None:
         self._shape_depth += 1
         self._record_event("begin_shape_calls")
@@ -138,37 +173,28 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
             self._pending_alpha_reset = True
 
     def stroke_line(self, start: Point2D, end: Point2D, stroke: StrokeStyle, *, include_width: bool = True) -> None:
-        self._flush_polygon_batch()
-        self._apply_stroke_style(stroke, include_width=include_width)
-        self.ctx.beginPath()
-        self._record_event("begin_path_calls")
+        self._prepare_stroke(stroke, include_width=include_width)
+        self._begin_path()
         self.ctx.moveTo(start[0], start[1])
         self.ctx.lineTo(end[0], end[1])
-        self.ctx.stroke()
-        self._record_event("stroke_calls")
+        self._stroke_path()
 
     def stroke_polyline(self, points: List[Point2D], stroke: StrokeStyle) -> None:
         if len(points) < 2:
             return
-        self._flush_polygon_batch()
-        self._apply_stroke_style(stroke)
-        self.ctx.beginPath()
-        self._record_event("begin_path_calls")
+        self._prepare_stroke(stroke)
+        self._begin_path()
         self.ctx.moveTo(points[0][0], points[0][1])
         for x, y in points[1:]:
             self.ctx.lineTo(x, y)
-        self.ctx.stroke()
-        self._record_event("stroke_calls")
+        self._stroke_path()
 
     def stroke_circle(self, center: Point2D, radius: float, stroke: StrokeStyle) -> None:
-        self._flush_polygon_batch()
-        self._apply_stroke_style(stroke)
-        self.ctx.beginPath()
-        self._record_event("begin_path_calls")
+        self._prepare_stroke(stroke)
+        self._begin_path()
         coerced_radius = self._coerce_number(radius)
         self.ctx.arc(center[0], center[1], coerced_radius, 0, 2 * math.pi)
-        self.ctx.stroke()
-        self._record_event("stroke_calls")
+        self._stroke_path()
 
     def fill_circle(
         self,
@@ -179,18 +205,14 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         *,
         screen_space: bool = False,
     ) -> None:
-        self._flush_polygon_batch()
-        self._apply_fill_style(fill)
-        self.ctx.beginPath()
-        self._record_event("begin_path_calls")
+        self._prepare_fill(fill)
+        self._begin_path()
         coerced_radius = self._coerce_number(radius)
         self.ctx.arc(center[0], center[1], coerced_radius, 0, 2 * math.pi)
-        self.ctx.fill()
-        self._record_event("fill_calls")
+        self._fill_path()
         if stroke:
             self._apply_stroke_style(stroke)
-            self.ctx.stroke()
-            self._record_event("stroke_calls")
+            self._stroke_path()
         self._reset_alpha_if_needed()
 
     def stroke_ellipse(
@@ -201,15 +223,12 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         rotation_rad: float,
         stroke: StrokeStyle,
     ) -> None:
-        self._flush_polygon_batch()
-        self._apply_stroke_style(stroke)
-        self.ctx.beginPath()
-        self._record_event("begin_path_calls")
+        self._prepare_stroke(stroke)
+        self._begin_path()
         rx = self._coerce_number(radius_x)
         ry = self._coerce_number(radius_y)
         self.ctx.ellipse(center[0], center[1], rx, ry, rotation_rad, 0, 2 * math.pi)
-        self.ctx.stroke()
-        self._record_event("stroke_calls")
+        self._stroke_path()
 
     def fill_polygon(
         self,
@@ -249,12 +268,10 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._apply_stroke_style(stroke)
-        self.ctx.beginPath()
-        self._record_event("begin_path_calls")
+        self._begin_path()
         coerced_radius = self._coerce_number(radius)
         self.ctx.arc(center[0], center[1], coerced_radius, start_angle_rad, end_angle_rad, not sweep_clockwise)
-        self.ctx.stroke()
-        self._record_event("stroke_calls")
+        self._stroke_path()
 
     def draw_text(
         self,
@@ -269,19 +286,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._flush_polygon_batch()
-        if color != self._text_color:
-            self.ctx.fillStyle = color
-            self._text_color = color
-        font_string = self._resolve_font_string(font)
-        if font_string != self._font_state["font"]:
-            self.ctx.font = font_string
-            self._font_state["font"] = font_string
-        if alignment.horizontal and alignment.horizontal != self._text_align:
-            self.ctx.textAlign = alignment.horizontal
-            self._text_align = alignment.horizontal
-        if alignment.vertical and alignment.vertical != self._text_baseline:
-            self.ctx.textBaseline = alignment.vertical
-            self._text_baseline = alignment.vertical
+        self._ensure_text_brush(color, font, alignment)
         rotation_rad = 0.0
         if isinstance(metadata, dict):
             label_meta = metadata.get("label")

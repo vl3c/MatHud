@@ -19,15 +19,19 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
     def __init__(self, renderer: Any) -> None:
         self.renderer = renderer
 
+    def _draw_line_strip_with_stroke(self, points: List[Point2D], stroke: StrokeStyle) -> None:
+        color = self.renderer._parse_color(stroke.color)
+        self.renderer._draw_line_strip(points, color)
+
     def stroke_line(self, start: Point2D, end: Point2D, stroke: StrokeStyle, *, include_width: bool = True) -> None:
         self.renderer._draw_lines([start, end], self.renderer._parse_color(stroke.color))
 
     def stroke_polyline(self, points: List[Point2D], stroke: StrokeStyle) -> None:
-        self.renderer._draw_line_strip(points, self.renderer._parse_color(stroke.color))
+        self._draw_line_strip_with_stroke(points, stroke)
 
     def stroke_circle(self, center: Point2D, radius: float, stroke: StrokeStyle) -> None:
         samples = self._sample_circle(center, radius)
-        self.stroke_polyline(samples, stroke)
+        self._draw_line_strip_with_stroke(samples, stroke)
 
     def fill_circle(
         self,
@@ -58,7 +62,7 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
         stroke: StrokeStyle,
     ) -> None:
         samples = self._sample_ellipse(center, radius_x, radius_y, rotation_rad)
-        self.stroke_polyline(samples, stroke)
+        self._draw_line_strip_with_stroke(samples, stroke)
 
     def fill_polygon(
         self,
@@ -106,7 +110,7 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         samples = self._sample_arc(center, radius, start_angle_rad, end_angle_rad, sweep_clockwise)
-        self.stroke_polyline(samples, stroke)
+        self._draw_line_strip_with_stroke(samples, stroke)
 
     def draw_text(
         self,
