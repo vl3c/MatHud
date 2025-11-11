@@ -38,6 +38,7 @@ from .test_function_bounded_colored_area_integration import TestFunctionBoundedC
 from .renderer_performance_tests import TestRendererPerformance
 from .test_optimized_renderers import TestOptimizedRendererParity
 from .test_renderer_primitives import TestRendererPrimitives
+from .test_renderer_logic import TestRendererLogic
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
@@ -67,6 +68,7 @@ class Tests:
             TestOptimizedRendererParity,
             TestRendererPerformance,
             TestRendererPrimitives,
+            TestRendererLogic,
             TestMathFunctions,
             TestDrawableNameGenerator,
             TestPosition,
