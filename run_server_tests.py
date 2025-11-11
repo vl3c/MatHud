@@ -25,6 +25,7 @@ import os
 import subprocess
 import sys
 import platform
+from pathlib import Path
 
 
 def run_tests() -> int:
@@ -101,11 +102,23 @@ def run_tests() -> int:
     
     # Build the command
     cmd: list[str] = [python_cmd, "-m", "pytest", test_path, "-v"] + extra_args
-    
+
+    env = os.environ.copy()
+    client_root = Path(__file__).resolve().parent / "static" / "client"
+    if client_root.exists():
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        path_sep = ";" if is_windows else ":"
+        client_root_str = str(client_root)
+        if existing_pythonpath:
+            if client_root_str not in existing_pythonpath.split(path_sep):
+                env["PYTHONPATH"] = f"{client_root_str}{path_sep}{existing_pythonpath}"
+        else:
+            env["PYTHONPATH"] = client_root_str
+
     print(f"Running tests: {' '.join(cmd)}")
     
     # Run the command
-    result = subprocess.run(cmd)
+    result = subprocess.run(cmd, env=env)
     
     # Return the exit code
     return result.returncode
