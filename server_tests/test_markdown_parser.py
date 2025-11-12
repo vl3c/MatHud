@@ -1,4 +1,9 @@
+from __future__ import annotations
+
+from server_tests import python_path_setup  # noqa: F401
+
 import unittest
+
 from markdown_parser import MarkdownParser
 
 

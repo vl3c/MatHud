@@ -1,5 +1,10 @@
+from __future__ import annotations
+
+from server_tests import python_path_setup  # noqa: F401
+
 import unittest
-from geometry import Position
+
+from drawables.position import Position
 
 
 class TestPosition(unittest.TestCase):

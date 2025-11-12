@@ -12,10 +12,15 @@ Tests all coordinate transformation functionality including:
 
 from __future__ import annotations
 
+from server_tests import python_path_setup  # noqa: F401
+
 import unittest
+from types import SimpleNamespace
+
 from coordinate_mapper import CoordinateMapper
 from drawables.position import Position
-from client_tests.simple_mock import SimpleMock
+
+SimpleMock = SimpleNamespace
 
 
 class TestCoordinateMapper(unittest.TestCase):
