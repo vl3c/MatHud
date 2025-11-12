@@ -39,6 +39,30 @@ from .renderer_performance_tests import TestRendererPerformance
 from .test_optimized_renderers import TestOptimizedRendererParity
 from .test_renderer_primitives import TestRendererPrimitives
 from .test_renderer_logic import TestRendererLogic
+from .test_drawable_renderers import (
+    TestVectorRenderer,
+    TestAngleRenderer,
+    TestTriangleRenderer,
+    TestRectangleRenderer,
+    TestEllipseRenderer,
+    TestLabelRenderer,
+    TestRendererEdgeCases as TestDrawableRendererEdgeCases,
+)
+from .test_function_renderables import (
+    TestFunctionRenderable,
+    TestFunctionsBoundedAreaRenderable,
+    TestSegmentsBoundedAreaRenderable,
+    TestRenderableEdgeCases,
+)
+from .test_renderer_edge_cases import (
+    TestPointEdgeCases,
+    TestSegmentEdgeCases,
+    TestCircleEdgeCases,
+    TestVectorEdgeCases,
+    TestEllipseEdgeCases,
+    TestLabelEdgeCases,
+    TestCartesianEdgeCases,
+)
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
@@ -69,6 +93,24 @@ class Tests:
             TestRendererPerformance,
             TestRendererPrimitives,
             TestRendererLogic,
+            TestVectorRenderer,
+            TestAngleRenderer,
+            TestTriangleRenderer,
+            TestRectangleRenderer,
+            TestEllipseRenderer,
+            TestLabelRenderer,
+            TestDrawableRendererEdgeCases,
+            TestFunctionRenderable,
+            TestFunctionsBoundedAreaRenderable,
+            TestSegmentsBoundedAreaRenderable,
+            TestRenderableEdgeCases,
+            TestPointEdgeCases,
+            TestSegmentEdgeCases,
+            TestCircleEdgeCases,
+            TestVectorEdgeCases,
+            TestEllipseEdgeCases,
+            TestLabelEdgeCases,
+            TestCartesianEdgeCases,
             TestMathFunctions,
             TestDrawableNameGenerator,
             TestPosition,

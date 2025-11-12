@@ -516,22 +516,43 @@ class TestRendererPrimitives(unittest.TestCase):
 
         text_entries = collect_text_labels(mock_document.surface)
         svg_tree = serialize_svg_tree(mock_document.surface)
-        if not any(text and text.startswith("A(") for text in text_entries):
+        
+        point_label_found = False
+        for text in text_entries:
+            if text and text.startswith("A(") and ")" in text:
+                parts = text.split("(")[1].split(")")[0].split(",")
+                if len(parts) == 2:
+                    try:
+                        float(parts[0].strip())
+                        float(parts[1].strip())
+                        point_label_found = True
+                        break
+                    except ValueError:
+                        pass
+        
+        if not point_label_found:
             diagnostics = {
                 "text_entries": text_entries,
                 "element_types": element_types,
                 "svg_tree": svg_tree,
                 "logged_calls": log,
             }
-            self.fail(f"Point label beginning with 'A(' not found. Diagnostics: {diagnostics}")
+            self.fail(f"Valid point label 'A(x, y)' not found. Diagnostics: {diagnostics}")
         self.assertIn("f", text_entries)
-        has_angle_arc = svg_tree_contains(svg_tree, "path", "class", "angle-arc") or svg_tree_contains(
-            svg_tree, "path", "stroke", self.angle_abc.color
-        )
-        self.assertTrue(
-            has_angle_arc,
-            msg=f"Angle arc path not found. Expected stroke '{self.angle_abc.color}'. SVG tree: {svg_tree}",
-        )
+        
+        has_angle_class = svg_tree_contains(svg_tree, "path", "class", "angle-arc")
+        has_angle_stroke = svg_tree_contains(svg_tree, "path", "stroke", self.angle_abc.color)
+        
+        if not has_angle_class:
+            self.assertTrue(
+                has_angle_stroke,
+                msg=f"Angle arc path missing CSS class 'angle-arc' and does not have expected stroke color '{self.angle_abc.color}'. SVG tree: {svg_tree}",
+            )
+        else:
+            self.assertTrue(
+                has_angle_class,
+                msg=f"Angle arc path with class 'angle-arc' found. SVG tree: {svg_tree}",
+            )
 
     def test_canvas_primitives_render_shapes(self) -> None:
         renderer = Canvas2DRenderer()
