@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from server_tests import python_path_setup  # noqa: F401
+
 import sys
-from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 def _install_browser_stub() -> None:
@@ -96,10 +97,5 @@ def _install_browser_stub() -> None:
     sys.modules["browser"] = browser
 
 _install_browser_stub()
-
-_CLIENT_ROOT = Path(__file__).resolve().parents[2] / "static" / "client"
-_CLIENT_ROOT_STR = str(_CLIENT_ROOT)
-if _CLIENT_ROOT.exists() and _CLIENT_ROOT_STR not in sys.path:
-    sys.path.insert(0, _CLIENT_ROOT_STR)
 
 __all__: list[str] = []

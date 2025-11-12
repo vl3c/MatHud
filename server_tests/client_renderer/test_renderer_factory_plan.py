@@ -1,12 +1,6 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-CLIENT_ROOT = Path(__file__).resolve().parents[2] / "static" / "client"
-CLIENT_ROOT_STR = str(CLIENT_ROOT)
-if CLIENT_ROOT.exists() and CLIENT_ROOT_STR not in sys.path:
-    sys.path.insert(0, CLIENT_ROOT_STR)
+from server_tests import python_path_setup  # noqa: F401
 
 import importlib
 import unittest
