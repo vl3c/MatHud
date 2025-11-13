@@ -6,15 +6,15 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 
 ## Features
 
-- Interactive drawing canvas with switchable renderers (`svg`, `canvas2d`, and experimental incomplete `webgl`)
 - AI-powered mathematical assistant
 - Real-time geometric visualization and analysis
 - Support for mathematical expressions and calculations
 - Built-in linear algebra evaluation for vectors and matrices
-- Visual problem-solving with multimodal AI
 - Real-world problem analysis and modeling
+- Visual problem-solving with multimodal AI
 - Workspace management for saving and loading states
 - Comprehensive chat interface with rich markdown support and LaTeX mathematical notation rendering
+- Interactive drawing canvas with switchable renderers (`svg`, `canvas2d`, and experimental incomplete `webgl`)
 
 ## Architecture Overview
 
