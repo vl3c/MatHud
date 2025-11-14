@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import unittest
-from typing import Any, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 from constants import (
     label_line_wrap_threshold,
@@ -17,17 +17,47 @@ from coordinate_mapper import CoordinateMapper
 from rendering.optimized_drawable_renderers import build_plan_for_drawable, _capture_map_state
 from rendering.style_manager import get_renderer_style
 from rendering.shared_drawable_renderers import render_label_helper
+from name_generator.drawable import DrawableNameGenerator
 from .simple_mock import SimpleMock
 
 
 class TestLabel(unittest.TestCase):
-    def _make_label_manager(self) -> tuple[LabelManager, DrawablesContainer, SimpleMock]:
+    def _make_label_manager(
+        self,
+        name_generator_factory: Optional[Callable[[Any], Any]] = None,
+    ) -> tuple[LabelManager, DrawablesContainer, SimpleMock]:
         canvas = SimpleMock(draw_enabled=True)
         canvas.draw = SimpleMock()
         canvas.undo_redo_manager = SimpleMock()
         canvas.undo_redo_manager.archive = SimpleMock()
         container = DrawablesContainer()
-        name_generator = SimpleMock()
+
+        def get_drawables_by_class_name(class_name: str) -> list[Any]:
+            if class_name == "Label":
+                return container.Labels
+            return []
+
+        canvas.get_drawables_by_class_name = get_drawables_by_class_name
+
+        if name_generator_factory is None:
+            def default_generator(preferred: Optional[str]) -> str:
+                if isinstance(preferred, str):
+                    trimmed = preferred.strip()
+                    if trimmed:
+                        return trimmed
+                base = "label_auto"
+                existing = {label.name for label in container.Labels}
+                candidate = base
+                suffix = 1
+                while candidate in existing:
+                    candidate = f"{base}_{suffix}"
+                    suffix += 1
+                return candidate
+
+            name_generator = SimpleMock(generate_label_name=default_generator)
+        else:
+            name_generator = name_generator_factory(canvas)
+
         dependency_manager = SimpleMock()
         proxy = SimpleMock()
         manager = LabelManager(canvas, container, name_generator, dependency_manager, proxy)
@@ -61,7 +91,9 @@ class TestLabel(unittest.TestCase):
         canvas.undo_redo_manager.archive = record_archive
 
         container = DrawablesContainer()
-        name_generator = SimpleMock()
+        name_generator = SimpleMock(
+            generate_label_name=lambda preferred: (preferred.strip() if isinstance(preferred, str) and preferred.strip() else "demo_label")
+        )
         dependency_manager = SimpleMock()
         proxy = SimpleMock()
         manager = LabelManager(canvas, container, name_generator, dependency_manager, proxy)
@@ -78,6 +110,29 @@ class TestLabel(unittest.TestCase):
         self.assertFalse(container.Labels)
         self.assertEqual(len(draw_calls), 2)
         self.assertEqual(len(undo_calls), 2)
+
+    def test_label_name_generator_produces_letter_sequence(self) -> None:
+        manager, _, _ = self._make_label_manager(
+            name_generator_factory=lambda canvas: DrawableNameGenerator(canvas)
+        )
+        label_one = manager.create_label(0.0, 0.0, "auto")
+        label_two = manager.create_label(1.0, 1.0, "auto2")
+        label_three = manager.create_label(2.0, 2.0, "auto3")
+
+        self.assertEqual(label_one.name, "label_A")
+        self.assertEqual(label_two.name, "label_B")
+        self.assertEqual(label_three.name, "label_C")
+
+    def test_label_name_generator_handles_duplicate_preferred_names(self) -> None:
+        manager, _, _ = self._make_label_manager(
+            name_generator_factory=lambda canvas: DrawableNameGenerator(canvas)
+        )
+
+        custom_one = manager.create_label(0.0, 0.0, "auto", name="CustomLabel")
+        custom_two = manager.create_label(1.0, 1.0, "auto", name="CustomLabel")
+
+        self.assertEqual(custom_one.name, "CustomLabel")
+        self.assertEqual(custom_two.name, "CustomLabel_1")
 
     def test_update_label_allows_multiple_properties(self) -> None:
         manager, container, canvas = self._make_label_manager()

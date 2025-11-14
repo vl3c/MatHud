@@ -24,6 +24,9 @@ if TYPE_CHECKING:
     from canvas import Canvas
 
 
+ALPHABET: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
 class NameGenerator:
     """Base class for name generation systems with common utilities.
     
@@ -66,6 +69,6 @@ class NameGenerator:
         """
         if not name:
             return ""
-        pattern: str = r"[a-zA-Z0-9'\(\)]+"
+        pattern: str = r"[a-zA-Z0-9_'\(\)]+"
         matches: List[str] = re.findall(pattern, name)
         return ''.join(matches) 

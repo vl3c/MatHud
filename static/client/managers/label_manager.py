@@ -70,13 +70,14 @@ class LabelManager:
     ) -> Label:
         self.canvas.undo_redo_manager.archive()
         sanitized_name = name.strip() if isinstance(name, str) else ""
+        resolved_name = self.name_generator.generate_label_name(sanitized_name or None)
         resolved_color = str(color) if color else default_color
         resolved_font_size = float(font_size) if font_size is not None else float(default_label_font_size)
         label = Label(
             x,
             y,
             text,
-            name=sanitized_name,
+            name=resolved_name,
             color=resolved_color,
             font_size=resolved_font_size,
             rotation_degrees=rotation_degrees,

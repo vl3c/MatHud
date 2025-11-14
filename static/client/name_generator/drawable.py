@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from .point import PointNameGenerator
 from .function import FunctionNameGenerator
+from .label import LabelNameGenerator
 
 
 class DrawableNameGenerator:
@@ -48,12 +49,14 @@ class DrawableNameGenerator:
         # Initialize specialized generators
         self.point_generator: PointNameGenerator = PointNameGenerator(canvas)
         self.function_generator: FunctionNameGenerator = FunctionNameGenerator(canvas)
+        self.label_generator: LabelNameGenerator = LabelNameGenerator(canvas)
     
     def reset_state(self) -> None:
         """Reset the state of all specialized name generators."""
         self.point_generator.reset_state()
         self.function_generator.reset_state() # Assuming FunctionNameGenerator might also have state
-        # Add resets for other generators if they exist and have state
+        if hasattr(self.label_generator, "reset_state"):
+            self.label_generator.reset_state()
     
     def print_names(self) -> None:
         """Print all drawable names by category for debugging."""
@@ -159,6 +162,10 @@ class DrawableNameGenerator:
             str: Unique function name
         """
         return self.function_generator.generate_function_name(preferred_name)
+
+    def generate_label_name(self, preferred_name: Optional[str]) -> str:
+        """Generate a unique label name, using preferred_name when provided."""
+        return self.label_generator.generate_label_name(preferred_name)
 
     def _is_valid_point_list(self, points: List[str]) -> bool:
         """Helper to check if a list of points is valid for angle name generation.

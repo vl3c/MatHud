@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 import re
-from .base import NameGenerator
+from .base import ALPHABET, NameGenerator
 
 
 class PointNameGenerator(NameGenerator):
@@ -116,10 +116,9 @@ class PointNameGenerator(NameGenerator):
         Returns:
             str: Unique point name following alphabetical progression
         """
-        alphabet: str = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
         point_names: List[str] = self.get_drawable_names('Point')
         
-        return self._find_available_name_from_alphabet(alphabet, point_names)
+        return self._find_available_name_from_alphabet(ALPHABET, point_names)
     
     def _find_available_name_from_alphabet(self, alphabet: str, existing_names: List[str]) -> str:
         """Find an available name from an alphabet, adding apostrophes as needed.
