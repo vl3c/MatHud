@@ -190,6 +190,41 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "update_point",
+                    "description": "Updates the name, color, or position of a solitary point without recreating it. Provide at least one property to change.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "point_name": {
+                                "type": "string",
+                                "description": "Existing name of the point to edit"
+                            },
+                            "new_name": {
+                                "type": ["string", "null"],
+                                "description": "Optional new name for the point"
+                            },
+                            "new_x": {
+                                "type": ["number", "null"],
+                                "description": "Optional new x-coordinate (requires new_y)"
+                            },
+                            "new_y": {
+                                "type": ["number", "null"],
+                                "description": "Optional new y-coordinate (requires new_x)"
+                            },
+                            "new_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional new display color for the point"
+                            }
+                        },
+                        "required": ["point_name", "new_name", "new_x", "new_y", "new_color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "create_segment",
                     "description": "Creates and draws a segment at the given coordinates for two points. If a name is provided, the first two available letters from that name will be used to name the endpoints.",
                     "strict": True,

@@ -77,6 +77,19 @@ class Point(Drawable):
         self.x += x_offset
         self.y += y_offset
 
+    def update_position(self, x: float, y: float) -> None:
+        """Update both coordinates at once to keep math-space state consistent."""
+        self.x = float(x)
+        self.y = float(y)
+
+    def update_color(self, color: str) -> None:
+        """Update the visual color metadata for the point."""
+        self.color = color
+
+    def update_name(self, name: str) -> None:
+        """Rename the point using the Drawable base property."""
+        self.name = name
+
     def rotate(self, angle: float) -> None:
         pass
 

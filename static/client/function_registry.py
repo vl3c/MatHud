@@ -61,6 +61,7 @@ class FunctionRegistry:
             # ===== POINT OPERATIONS =====
             "create_point": canvas.create_point,
             "delete_point": canvas.delete_point,
+            "update_point": canvas.update_point,
             
             # ===== SEGMENT OPERATIONS =====
             "create_segment": canvas.create_segment,
@@ -156,6 +157,7 @@ class FunctionRegistry:
             # Point operations
             "create_point",
             "delete_point",
+            "update_point",
             
             # Segment operations
             "create_segment",

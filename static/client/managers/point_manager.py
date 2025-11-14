@@ -34,11 +34,12 @@ Error Handling:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional, cast
+from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from drawables.point import Point
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
+from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
@@ -81,6 +82,7 @@ class PointManager:
         self.name_generator: "DrawableNameGenerator" = name_generator
         self.dependency_manager: "DrawableDependencyManager" = dependency_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
+        self.point_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Point")
         
     def get_point(self, x: float, y: float) -> Optional[Point]:
         """
@@ -302,3 +304,130 @@ class PointManager:
             if MathUtils.point_matches_coordinates(ellipse.center, x, y):
                 # Use the proxy to call delete_ellipse
                 self.drawable_manager.delete_ellipse(ellipse.name) 
+
+    def _is_point_solitary(self, point: Point) -> bool:
+        """Return True when the point has no dependency relationships."""
+        parents = set()
+        children = set()
+
+        if hasattr(self.dependency_manager, "get_parents"):
+            parents = cast(set, self.dependency_manager.get_parents(point))
+        if hasattr(self.dependency_manager, "get_children"):
+            children = cast(set, self.dependency_manager.get_children(point))
+
+        return not parents and not children
+
+    def _validate_point_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
+        """Ensure every requested field is allowed by the policy definition."""
+        if not self.point_edit_policy:
+            raise ValueError("Edit policy for points is not configured.")
+
+        validated_rules: Dict[str, EditRule] = {}
+        for field in requested_fields:
+            rule = self.point_edit_policy.get_rule(field)
+            if not rule:
+                raise ValueError(f"Editing field '{field}' is not permitted for points.")
+            validated_rules[field] = rule
+
+        return validated_rules
+
+    def update_point(
+        self,
+        point_name: str,
+        new_name: Optional[str] = None,
+        new_x: Optional[float] = None,
+        new_y: Optional[float] = None,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update selectable properties of a solitary point."""
+        point = self.get_point_by_name(point_name)
+        if not point:
+            raise ValueError(f"Point '{point_name}' was not found.")
+
+        pending_fields: Dict[str, str] = {}
+        if new_name is not None:
+            pending_fields["name"] = new_name
+        if new_color is not None:
+            pending_fields["color"] = new_color
+        if new_x is not None or new_y is not None:
+            if new_x is None or new_y is None:
+                raise ValueError("Updating a point position requires both x and y coordinates.")
+            pending_fields["position"] = "position"
+
+        if not pending_fields:
+            raise ValueError("Provide at least one property to update.")
+
+        rules = self._validate_point_policy(list(pending_fields.keys()))
+        if any(rule.requires_solitary for rule in rules.values()):
+            if not self._is_point_solitary(point):
+                raise ValueError(
+                    f"Point '{point_name}' is referenced by other drawables and cannot be edited in place."
+                )
+
+        filtered_name = self._compute_updated_name(point, pending_fields)
+        new_coordinates = self._compute_updated_coordinates(point, pending_fields, new_x, new_y)
+        self._validate_color_request(pending_fields, new_color)
+
+        # Archive once the payload has been validated
+        self.canvas.undo_redo_manager.archive()
+
+        if filtered_name is not None:
+            point.update_name(filtered_name)
+
+        if new_coordinates is not None:
+            x_val, y_val = new_coordinates
+            point.update_position(x_val, y_val)
+
+        if "color" in pending_fields and new_color is not None:
+            point.update_color(str(new_color))
+
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+
+        return True
+
+    def _compute_updated_name(
+        self, original_point: Point, pending_fields: Dict[str, str]
+    ) -> Optional[str]:
+        if "name" not in pending_fields:
+            return None
+
+        candidate = pending_fields["name"]
+        filtered_candidate = (
+            self.name_generator.filter_string(candidate)
+            if hasattr(self.name_generator, "filter_string")
+            else candidate
+        )
+        filtered_candidate = filtered_candidate.strip()
+        if not filtered_candidate:
+            raise ValueError("Point name cannot be empty.")
+
+        existing_point = self.get_point_by_name(filtered_candidate)
+        if existing_point and existing_point is not original_point:
+            raise ValueError(f"Another point named '{filtered_candidate}' already exists.")
+
+        return filtered_candidate
+
+    def _compute_updated_coordinates(
+        self,
+        original_point: Point,
+        pending_fields: Dict[str, str],
+        new_x: Optional[float],
+        new_y: Optional[float],
+    ) -> Optional[tuple[float, float]]:
+        if "position" not in pending_fields:
+            return None
+
+        x_val = float(cast(float, new_x))
+        y_val = float(cast(float, new_y))
+        coordinate_conflict = self.get_point(x_val, y_val)
+        if coordinate_conflict and coordinate_conflict is not original_point:
+            raise ValueError(f"Another point already exists at ({x_val}, {y_val}).")
+
+        return (x_val, y_val)
+
+    def _validate_color_request(
+        self, pending_fields: Dict[str, str], new_color: Optional[str]
+    ) -> None:
+        if "color" in pending_fields and (new_color is None or not str(new_color).strip()):
+            raise ValueError("Point color cannot be empty.")

@@ -466,6 +466,25 @@ class Canvas:
         """Delete a point by its name"""
         return bool(self.drawable_manager.delete_point_by_name(name))
 
+    def update_point(
+        self,
+        point_name: str,
+        new_name: Optional[str] = None,
+        new_x: Optional[float] = None,
+        new_y: Optional[float] = None,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update properties of a solitary point."""
+        return bool(
+            self.drawable_manager.point_manager.update_point(
+                point_name,
+                new_name=new_name,
+                new_x=new_x,
+                new_y=new_y,
+                new_color=new_color,
+            )
+        )
+
     def is_point_within_canvas_visible_area(self, x: float, y: float) -> bool:
         """Check if a point is within the visible area of the canvas"""
         return (0 <= x <= self.width) and (0 <= y <= self.height)
