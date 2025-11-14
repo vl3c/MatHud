@@ -1268,8 +1268,8 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
-                    "name": "update_angle_properties",
-                    "description": "Updates properties of an existing angle, such as its color.",
+                    "name": "update_angle",
+                    "description": "Updates editable properties of an existing angle (currently just its color).",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -1280,7 +1280,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             },
                             "new_color": {
                                 "type": [ "string", "null" ],
-                                "description": "The new color for the angle. If null, the color is not changed."
+                                "description": "The new color for the angle. Provide null to leave unchanged."
                             }
                         },
                         "required": ["name", "new_color"],

@@ -342,3 +342,7 @@ class Angle(Drawable):
         # The Drawable base class reset calls _initialize.
         # update_points_based_on_segments also calls _initialize and ensures points are current.
         self.update_points_based_on_segments() 
+
+    def update_color(self, color: str) -> None:
+        """Update the visual color metadata for the angle."""
+        self.color = color

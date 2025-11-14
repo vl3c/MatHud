@@ -395,6 +395,6 @@ class DrawableManager:
         """Removes an angle by its name."""
         return bool(self.angle_manager.delete_angle(name))
 
-    def update_angle_properties(self, name: str, new_label: Optional[str] = None, new_color: Optional[str] = None) -> bool:
-        """Updates the label and/or color of an existing angle."""
-        return bool(self.angle_manager.update_angle_properties(name, new_label, new_color)) 
+    def update_angle(self, name: str, new_color: Optional[str] = None) -> bool:
+        """Updates editable properties of an existing angle (currently color)."""
+        return bool(self.angle_manager.update_angle(name, new_color=new_color))

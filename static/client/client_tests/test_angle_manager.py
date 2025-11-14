@@ -209,3 +209,36 @@ class TestAngleManager(unittest.TestCase):
         self.assertIsNone(self.angle_manager.get_angle_by_points(None, B_obj, B_obj))
         self.assertIsNone(self.angle_manager.get_angle_by_points(A_obj, None, B_obj))
         self.assertIsNone(self.angle_manager.get_angle_by_points(A_obj, B_obj, None))
+
+    def test_update_angle_changes_color_and_draws(self) -> None:
+        angle = SimpleMock(
+            name="angle_ABC",
+            color="#ff0000",
+            remove_svg_elements=MagicMock(),
+        )
+        angle.update_color = MagicMock(side_effect=lambda color: setattr(angle, "color", color))
+        self.drawables_container_mock.Angles.append(angle)
+
+        result = self.angle_manager.update_angle("angle_ABC", new_color="#00ff00")
+
+        self.assertTrue(result)
+        self.assertEqual(angle.color, "#00ff00")
+        angle.remove_svg_elements.assert_called()
+        self.canvas_mock.undo_redo_manager.archive.assert_called()
+        self.canvas_mock.draw.assert_called()
+
+    def test_update_angle_rejects_empty_color(self) -> None:
+        angle = SimpleMock(
+            name="angle_DEF",
+            color="#ff0000",
+            remove_svg_elements=MagicMock(),
+        )
+        angle.update_color = MagicMock(side_effect=lambda color: setattr(angle, "color", color))
+        self.drawables_container_mock.Angles.append(angle)
+
+        with self.assertRaises(ValueError):
+            self.angle_manager.update_angle("angle_DEF", new_color="  ")
+
+    def test_update_angle_raises_when_not_found(self) -> None:
+        with self.assertRaises(ValueError):
+            self.angle_manager.update_angle("missing_angle", new_color="#123456")

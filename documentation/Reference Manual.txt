@@ -1719,7 +1719,7 @@ This class coordinates specialized managers for each drawable type:
 - `create_drawables_from_new_connections()`: Create drawables from new connections
 - `create_angle(vx, vy, p1x, p1y, p2x, p2y, label=None, color=None, angle_name=None)`: Create an angle by points
 - `delete_angle(name)`: Delete an angle by name
-- `update_angle_properties(name, new_label=None, new_color=None)`: Update angle properties
+- `update_angle(name, new_color=None)`: Update angle properties
 
 #### Drawable Manager Proxy (`managers/drawable_manager_proxy.py`)
 
@@ -2508,7 +2508,7 @@ This class is responsible for:
 - `create_drawables_from_new_connections()`: Create drawables from new connections
 - `create_angle(vx, vy, p1x, p1y, p2x, p2y, label=None, color=None, angle_name=None)`: Create an angle by points
 - `delete_angle(name)`: Delete an angle by name
-- `update_angle_properties(name, new_label=None, new_color=None)`: Update angle properties
+- `update_angle(name, new_color=None)`: Update angle properties
 
 #### Angle Manager (`managers/angle_manager.py`)
 
@@ -2572,7 +2572,7 @@ This class is responsible for:
 - `get_angle_by_segments(segment1, segment2, is_reflex_filter=None)`: Retrieves an Angle by its two defining Segment objects
 - `get_angle_by_points(vertex_point, arm1_point, arm2_point, is_reflex_filter=None)`: Retrieves an Angle by its three defining Point objects
 - `delete_angle(angle_name)`: Delete an angle by name with dependency cleanup
-- `update_angle_properties(angle_name, new_color=None)`: Update angle properties like color
+- `update_angle(angle_name, new_color=None)`: Update angle properties like color
 - `handle_segment_updated(updated_segment_name)`: Handle updates when constituent segments change
 - `handle_segment_removed(removed_segment_name)`: Handle cleanup when constituent segments are deleted
 - `load_angles(angles_data)`: Load angles from state data for workspace restoration

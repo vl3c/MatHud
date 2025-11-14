@@ -129,7 +129,7 @@ class FunctionRegistry:
             # ===== ANGLE OPERATIONS =====
             "create_angle": canvas.create_angle,
             "delete_angle": canvas.delete_angle,
-            "update_angle_properties": canvas.update_angle_properties,
+            "update_angle": canvas.update_angle,
         }
 
         # Add testing functions if ai_interface is provided
@@ -202,5 +202,5 @@ class FunctionRegistry:
             # Angle operations
             "create_angle",
             "delete_angle",
-            "update_angle_properties"
+            "update_angle"
         ) 

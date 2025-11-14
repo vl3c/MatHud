@@ -48,6 +48,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 from drawables.angle import Angle
 from drawables.point import Point
 from drawables.segment import Segment
+from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
@@ -97,6 +98,7 @@ class AngleManager:
         self.point_manager: "PointManager" = point_manager
         self.segment_manager: "SegmentManager" = segment_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
+        self.angle_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Angle")
 
     def create_angle(
         self,
@@ -364,39 +366,89 @@ class AngleManager:
             
         return True
 
-    def update_angle_properties(self, angle_name: str, new_color: Optional[str] = None) -> bool:
+    def update_angle(
+        self,
+        angle_name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
         """
-        Updates the properties (color) of an existing angle.
+        Update editable properties of an existing angle based on the policy catalog.
 
         Args:
-            angle_name: The name of the angle to update.
-            new_color: The new color for the angle. If None, color is not changed.
-
-        Returns:
-            True if the angle was found and updated, False otherwise.
+            angle_name: Name of the angle to edit.
+            new_color: Optional CSS color for the arc.
         """
+        angle = self._get_angle_or_raise(angle_name)
+        pending_fields = self._collect_angle_requested_fields(new_color)
+        self._validate_angle_policy(list(pending_fields.keys()))
+        self._validate_color_request(pending_fields, new_color)
+
         self.canvas.undo_redo_manager.archive()
-        angle_to_update = self.get_angle_by_name(angle_name)
+        self._apply_angle_updates(angle, pending_fields, new_color)
 
-        if not angle_to_update:
-            # print(f"AngleManager: Angle '{angle_name}' not found for update.")
-            return False
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
 
-        updated: bool = False
-        if new_color is not None and hasattr(angle_to_update, 'color'):
-            angle_to_update.color = new_color
-            updated = True
+        return True
 
-        if updated:
-            # The Angle's draw method should handle re-rendering with new properties.
-            # A general canvas draw will trigger this.
-            if hasattr(angle_to_update, 'remove_svg_elements') and callable(angle_to_update.remove_svg_elements):
-                 angle_to_update.remove_svg_elements() # Remove old before redrawing with new properties
-            
-            if self.canvas.draw_enabled:
-                self.canvas.draw() # This should cause angle_to_update.draw() to be called.
-        
-        return True # Returns True if angle found, even if no properties changed
+    def _get_angle_or_raise(self, angle_name: str) -> Angle:
+        angle = self.get_angle_by_name(angle_name)
+        if not angle:
+            raise ValueError(f"Angle '{angle_name}' was not found.")
+        return angle
+
+    def _collect_angle_requested_fields(
+        self,
+        new_color: Optional[str],
+    ) -> Dict[str, str]:
+        pending_fields: Dict[str, str] = {}
+        if new_color is not None:
+            pending_fields["color"] = new_color
+
+        if not pending_fields:
+            raise ValueError("Provide at least one property to update.")
+
+        return pending_fields
+
+    def _validate_angle_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
+        if not self.angle_edit_policy:
+            raise ValueError("Edit policy for angles is not configured.")
+
+        validated_rules: Dict[str, EditRule] = {}
+        for field in requested_fields:
+            rule = self.angle_edit_policy.get_rule(field)
+            if not rule:
+                raise ValueError(f"Editing field '{field}' is not permitted for angles.")
+            validated_rules[field] = rule
+
+        return validated_rules
+
+    def _validate_color_request(
+        self,
+        pending_fields: Dict[str, str],
+        new_color: Optional[str],
+    ) -> None:
+        if "color" in pending_fields and (new_color is None or not str(new_color).strip()):
+            raise ValueError("Angle color cannot be empty.")
+
+    def _apply_angle_updates(
+        self,
+        angle: Angle,
+        pending_fields: Dict[str, str],
+        new_color: Optional[str],
+    ) -> None:
+        if "color" in pending_fields and new_color is not None:
+            if hasattr(angle, "update_color") and callable(getattr(angle, "update_color")):
+                angle.update_color(str(new_color))
+            else:
+                angle.color = str(new_color)
+
+        remover = getattr(angle, "remove_svg_elements", None)
+        if callable(remover):
+            try:
+                remover()
+            except Exception:
+                pass
 
     def handle_segment_updated(self, updated_segment_name: str) -> None:
         """

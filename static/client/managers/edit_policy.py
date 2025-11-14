@@ -66,8 +66,20 @@ POINT_EDIT_POLICY = DrawableEditPolicy(
     },
 )
 
+ANGLE_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="Angle",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Update the arc color for an angle without recreating it.",
+        ),
+    },
+)
+
 DRAWABLE_EDIT_POLICIES: Dict[str, DrawableEditPolicy] = {
     POINT_EDIT_POLICY.drawable_type: POINT_EDIT_POLICY,
+    ANGLE_EDIT_POLICY.drawable_type: ANGLE_EDIT_POLICY,
 }
 
 

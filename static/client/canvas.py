@@ -765,10 +765,10 @@ class Canvas:
             return bool(self.drawable_manager.angle_manager.delete_angle(name))
         return False
 
-    def update_angle_properties(self, name: str, new_color: Optional[str] = None) -> bool:
-        """Update properties of an angle via AngleManager."""
+    def update_angle(self, name: str, new_color: Optional[str] = None) -> bool:
+        """Update editable angle properties via AngleManager."""
         if self.drawable_manager.angle_manager:
-            return bool(self.drawable_manager.angle_manager.update_angle_properties(
+            return bool(self.drawable_manager.angle_manager.update_angle(
                 name, new_color=new_color
             ))
         return False
