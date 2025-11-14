@@ -63,9 +63,7 @@ class Label(Drawable):
         return self._text
 
     def set_text(self, value: str) -> None:
-        normalized = self._normalize_text(value)
-        if len(normalized) > label_text_max_length:
-            raise ValueError(f"Label text exceeds maximum length of {label_text_max_length} characters")
+        normalized = self.validate_text(value)
         self._text = normalized
         self._lines = self._wrap_text(normalized)
 
@@ -133,9 +131,18 @@ class Label(Drawable):
         memo[id(self)] = clone
         return clone
 
-    def _normalize_text(self, text: str) -> str:
+    @staticmethod
+    def _normalize_text(text: str) -> str:
         cleaned = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
         return cleaned.strip()
+
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        """Normalize and validate label text without mutating state."""
+        normalized = cls._normalize_text(value)
+        if len(normalized) > label_text_max_length:
+            raise ValueError(f"Label text exceeds maximum length of {label_text_max_length} characters")
+        return normalized
 
     def _wrap_text(self, text: str) -> List[str]:
         if not text:
@@ -205,3 +212,23 @@ class Label(Drawable):
             return 1.0
         return numeric
 
+    def update_position(self, x: float, y: float) -> None:
+        """Update the anchor position of the label."""
+        self._position.x = float(x)
+        self._position.y = float(y)
+
+    def update_color(self, color: str) -> None:
+        """Update the label color metadata."""
+        self.color = str(color)
+
+    def update_text(self, value: str) -> None:
+        """Update the label text content with validation."""
+        self.set_text(value)
+
+    def update_font_size(self, font_size: float) -> None:
+        """Update the label font size."""
+        self.font_size = float(font_size)
+
+    def update_rotation(self, rotation_degrees: float) -> None:
+        """Update the label rotation in degrees."""
+        self.rotation_degrees = float(rotation_degrees)

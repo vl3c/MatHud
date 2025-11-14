@@ -675,6 +675,57 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "update_label",
+                    "description": "Updates editable properties of an existing label (text, color, position, font size, rotation). Provide null for fields that should remain unchanged.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Existing name of the label to edit"
+                            },
+                            "new_text": {
+                                "type": ["string", "null"],
+                                "description": "Optional replacement text for the label"
+                            },
+                            "new_x": {
+                                "type": ["number", "null"],
+                                "description": "Optional new x-coordinate (requires new_y)"
+                            },
+                            "new_y": {
+                                "type": ["number", "null"],
+                                "description": "Optional new y-coordinate (requires new_x)"
+                            },
+                            "new_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional new text color"
+                            },
+                            "new_font_size": {
+                                "type": ["number", "null"],
+                                "description": "Optional new font size in math-space units"
+                            },
+                            "new_rotation_degrees": {
+                                "type": ["number", "null"],
+                                "description": "Optional rotation angle in degrees"
+                            }
+                        },
+                        "required": [
+                            "name",
+                            "new_text",
+                            "new_x",
+                            "new_y",
+                            "new_color",
+                            "new_font_size",
+                            "new_rotation_degrees"
+                        ],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "draw_function",
                     "description": "Plots the given mathematical function on the canvas between the specified left and right bounds.",
                     "strict": True,

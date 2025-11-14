@@ -208,6 +208,29 @@ class DrawableManager:
     def delete_label(self, name: str) -> bool:
         """Delete a label by its name."""
         return bool(self.label_manager.delete_label(name))
+    
+    def update_label(
+        self,
+        name: str,
+        new_text: Optional[str] = None,
+        new_x: Optional[float] = None,
+        new_y: Optional[float] = None,
+        new_color: Optional[str] = None,
+        new_font_size: Optional[float] = None,
+        new_rotation_degrees: Optional[float] = None,
+    ) -> bool:
+        """Update editable properties of a label."""
+        return bool(
+            self.label_manager.update_label(
+                name,
+                new_text=new_text,
+                new_x=new_x,
+                new_y=new_y,
+                new_color=new_color,
+                new_font_size=new_font_size,
+                new_rotation_degrees=new_rotation_degrees,
+            )
+        )
         
     def create_point(self, x: float, y: float, name: str = "", extra_graphics: bool = True) -> "Point":
         """Create a new point at the specified coordinates"""

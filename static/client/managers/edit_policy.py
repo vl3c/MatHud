@@ -77,9 +77,42 @@ ANGLE_EDIT_POLICY = DrawableEditPolicy(
     },
 )
 
+LABEL_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="Label",
+    rules={
+        "text": EditRule(
+            field="text",
+            category="content",
+            description="Update the label text while preserving wrapping constraints.",
+        ),
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Adjust the label text color.",
+        ),
+        "position": EditRule(
+            field="position",
+            category="local_geometry",
+            requires_complete_coordinate_pair=True,
+            description="Move the label anchor to a new (x, y) position.",
+        ),
+        "font_size": EditRule(
+            field="font_size",
+            category="style",
+            description="Change the label font size.",
+        ),
+        "rotation": EditRule(
+            field="rotation",
+            category="local_geometry",
+            description="Rotate the label text by a specified degree value.",
+        ),
+    },
+)
+
 DRAWABLE_EDIT_POLICIES: Dict[str, DrawableEditPolicy] = {
     POINT_EDIT_POLICY.drawable_type: POINT_EDIT_POLICY,
     ANGLE_EDIT_POLICY.drawable_type: ANGLE_EDIT_POLICY,
+    LABEL_EDIT_POLICY.drawable_type: LABEL_EDIT_POLICY,
 }
 
 

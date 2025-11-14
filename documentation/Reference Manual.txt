@@ -1710,6 +1710,9 @@ This class coordinates specialized managers for each drawable type:
 - `get_rectangle_by_name(name)`: Get a rectangle by its name
 - `create_rectangle(px, py, opposite_px, opposite_py, name="", extra_graphics=True)`: Create a rectangle with specified diagonal points
 - `delete_rectangle(name)`: Delete a rectangle by its name
+- `create_label(x, y, text, name="", color=None, font_size=None, rotation_degrees=None)`: Create a label anchored at math-space coordinates
+- `delete_label(name)`: Delete a label by its name
+- `update_label(name, new_text=None, new_x=None, new_y=None, new_color=None, new_font_size=None, new_rotation_degrees=None)`: Update label text, style, or position
 - `create_colored_area(drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3)`: Creates a colored area between objects
 - `delete_colored_area(name)`: Delete a colored area by its name
 - `delete_colored_areas_for_function(func)`: Delete colored areas for a function

@@ -90,6 +90,7 @@ class FunctionRegistry:
             # ===== LABEL OPERATIONS =====
             "create_label": canvas.create_label,
             "delete_label": canvas.delete_label,
+            "update_label": canvas.update_label,
             
             # ===== FUNCTION PLOTTING =====
             "draw_function": canvas.draw_function,
@@ -186,6 +187,7 @@ class FunctionRegistry:
             # Label operations
             "create_label",
             "delete_label",
+            "update_label",
             
             # Function operations
             "draw_function",

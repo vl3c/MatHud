@@ -21,6 +21,18 @@ from .simple_mock import SimpleMock
 
 
 class TestLabel(unittest.TestCase):
+    def _make_label_manager(self) -> tuple[LabelManager, DrawablesContainer, SimpleMock]:
+        canvas = SimpleMock(draw_enabled=True)
+        canvas.draw = SimpleMock()
+        canvas.undo_redo_manager = SimpleMock()
+        canvas.undo_redo_manager.archive = SimpleMock()
+        container = DrawablesContainer()
+        name_generator = SimpleMock()
+        dependency_manager = SimpleMock()
+        proxy = SimpleMock()
+        manager = LabelManager(canvas, container, name_generator, dependency_manager, proxy)
+        return manager, container, canvas
+
     def test_wraps_text_over_threshold(self) -> None:
         long_word = "a" * (label_line_wrap_threshold + 5)
         label = Label(0, 0, f"intro {long_word}")
@@ -66,6 +78,62 @@ class TestLabel(unittest.TestCase):
         self.assertFalse(container.Labels)
         self.assertEqual(len(draw_calls), 2)
         self.assertEqual(len(undo_calls), 2)
+
+    def test_update_label_allows_multiple_properties(self) -> None:
+        manager, container, canvas = self._make_label_manager()
+        label = manager.create_label(1.0, 2.0, "demo", name="lbl", color="#123456", rotation_degrees=15.0)
+
+        result = manager.update_label(
+            "lbl",
+            new_text="updated text",
+            new_x=5.0,
+            new_y=-3.0,
+            new_color="#654321",
+            new_font_size=18.5,
+            new_rotation_degrees=42.0,
+        )
+
+        self.assertTrue(result)
+        self.assertEqual(label.text, "updated text")
+        self.assertTrue(math.isclose(label.position.x, 5.0))
+        self.assertTrue(math.isclose(label.position.y, -3.0))
+        self.assertEqual(label.color, "#654321")
+        self.assertTrue(math.isclose(label.font_size, 18.5))
+        self.assertTrue(math.isclose(label.rotation_degrees, 42.0))
+        self.assertEqual(len(canvas.draw.calls), 2)  # create + update
+        self.assertEqual(len(canvas.undo_redo_manager.archive.calls), 2)
+        self.assertIs(container.Labels[0], label)
+
+    def test_update_label_requires_both_coordinates(self) -> None:
+        manager, _, canvas = self._make_label_manager()
+        manager.create_label(0.0, 0.0, "demo", name="lbl")
+        initial_archives = len(canvas.undo_redo_manager.archive.calls)
+
+        with self.assertRaises(ValueError):
+            manager.update_label("lbl", new_x=5.0)
+
+        self.assertEqual(len(canvas.undo_redo_manager.archive.calls), initial_archives)
+
+    def test_update_label_rejects_empty_color(self) -> None:
+        manager, _, canvas = self._make_label_manager()
+        manager.create_label(0.0, 0.0, "demo", name="lbl")
+        initial_archives = len(canvas.undo_redo_manager.archive.calls)
+
+        with self.assertRaises(ValueError):
+            manager.update_label("lbl", new_color="   ")
+
+        self.assertEqual(len(canvas.undo_redo_manager.archive.calls), initial_archives)
+
+    def test_update_label_rejects_overlong_text(self) -> None:
+        manager, _, canvas = self._make_label_manager()
+        manager.create_label(0.0, 0.0, "demo", name="lbl")
+        initial_archives = len(canvas.undo_redo_manager.archive.calls)
+        overlong_text = "x" * (label_text_max_length + 10)
+
+        with self.assertRaises(ValueError):
+            manager.update_label("lbl", new_text=overlong_text)
+
+        self.assertEqual(len(canvas.undo_redo_manager.archive.calls), initial_archives)
 
     def test_render_label_helper_draws_all_lines(self) -> None:
         label = Label(1.0, 2.0, "line one line two line three", font_size=12, rotation_degrees=30.0)
