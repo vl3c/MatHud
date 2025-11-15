@@ -210,6 +210,11 @@ class Canvas2DRenderer(RendererProtocol):
         except Exception:
             pass
         try:
+            from drawables.ellipse import Ellipse as EllipseDrawable
+            self.register(EllipseDrawable, self._render_ellipse)
+        except Exception:
+            pass
+        try:
             from drawables.vector import Vector as VectorDrawable
             self.register(VectorDrawable, self._render_vector)
         except Exception:
@@ -256,6 +261,9 @@ class Canvas2DRenderer(RendererProtocol):
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
         self._render_drawable(circle, coordinate_mapper)
+
+    def _render_ellipse(self, ellipse: Any, coordinate_mapper: Any) -> None:
+        self._render_drawable(ellipse, coordinate_mapper)
 
     def _render_vector(self, vector: Any, coordinate_mapper: Any) -> None:
         self._render_drawable(vector, coordinate_mapper)
