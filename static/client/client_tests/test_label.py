@@ -39,24 +39,7 @@ class TestLabel(unittest.TestCase):
 
         canvas.get_drawables_by_class_name = get_drawables_by_class_name
 
-        if name_generator_factory is None:
-            def default_generator(preferred: Optional[str]) -> str:
-                if isinstance(preferred, str):
-                    trimmed = preferred.strip()
-                    if trimmed:
-                        return trimmed
-                base = "label_auto"
-                existing = {label.name for label in container.Labels}
-                candidate = base
-                suffix = 1
-                while candidate in existing:
-                    candidate = f"{base}_{suffix}"
-                    suffix += 1
-                return candidate
-
-            name_generator = SimpleMock(generate_label_name=default_generator)
-        else:
-            name_generator = name_generator_factory(canvas)
+        name_generator = name_generator_factory(canvas) if name_generator_factory else DrawableNameGenerator(canvas)
 
         dependency_manager = SimpleMock()
         proxy = SimpleMock()
