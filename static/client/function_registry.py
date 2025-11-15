@@ -71,6 +71,7 @@ class FunctionRegistry:
             # ===== VECTOR OPERATIONS =====
             "create_vector": canvas.create_vector,
             "delete_vector": canvas.delete_vector,
+            "update_vector": canvas.update_vector,
             
             # ===== TRIANGLE OPERATIONS =====
             "create_triangle": canvas.create_triangle,
@@ -169,6 +170,7 @@ class FunctionRegistry:
             # Vector operations
             "create_vector", 
             "delete_vector",
+            "update_vector",
             
             # Triangle operations
             "create_triangle",

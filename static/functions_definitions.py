@@ -376,7 +376,30 @@ FUNCTIONS: List[Dict[str, Any]] = [
                         "additionalProperties": False
                     }
                 }
-            },            
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "update_vector",
+                    "description": "Updates editable properties of an existing vector (currently just color). Provide null for fields that should remain unchanged.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Existing name of the vector to edit"
+                            },
+                            "new_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional new color for the vector"
+                            }
+                        },
+                        "required": ["name", "new_color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
             {
                 "type": "function",
                 "function": {

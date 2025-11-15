@@ -1693,6 +1693,7 @@ This class coordinates specialized managers for each drawable type:
 - `get_vector(origin_x, origin_y, tip_x, tip_y)`: Get a vector by its origin and tip coordinates
 - `create_vector(origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True)`: Create a vector from origin to tip
 - `delete_vector(origin_x, origin_y, tip_x, tip_y)`: Delete a vector by its coordinates
+- `update_vector(name, new_color=None)`: Update a vector's color
 - `get_triangle(x1, y1, x2, y2, x3, y3)`: Get a triangle by its vertex coordinates
 - `create_triangle(x1, y1, x2, y2, x3, y3, name="", extra_graphics=True)`: Create a triangle from three points
 - `delete_triangle(x1, y1, x2, y2, x3, y3)`: Delete a triangle by its vertex coordinates

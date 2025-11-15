@@ -28,6 +28,8 @@ from .test_point import TestPoint
 from .test_rectangle import TestRectangle
 from .test_segment import TestSegment
 from .test_segment_manager import TestSegmentManager
+from .test_vector_manager import TestVectorManager
+from .test_segment_manager import TestSegmentManager
 from .test_triangle import TestTriangle
 from .test_vector import TestVector
 from .test_angle import TestAngle
@@ -113,6 +115,8 @@ class Tests:
             TestDrawableNameGenerator,
             TestPoint,
             TestSegment,
+            TestSegmentManager,
+            TestVectorManager,
             TestSegmentManager,
             TestVector,
             TestTriangle,

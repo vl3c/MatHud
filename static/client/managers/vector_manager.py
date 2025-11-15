@@ -109,6 +109,14 @@ class VectorManager:
                 MathUtils.point_matches_coordinates(vector.tip, x2, y2)):
                 return vector
         return None
+
+    def get_vector_by_name(self, name: str) -> Optional[Vector]:
+        if not name:
+            return None
+        for vector in self.drawables.Vectors:
+            if vector.name == name:
+                return vector
+        return None
         
     def create_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float, name: str = "", extra_graphics: bool = True) -> Vector:
         """
@@ -202,3 +210,27 @@ class VectorManager:
                     
                 return True
         return False 
+
+    def update_vector(
+        self,
+        vector_name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        vector = self.get_vector_by_name(vector_name)
+        if not vector:
+            raise ValueError(f"Vector '{vector_name}' was not found.")
+
+        if new_color is None:
+            raise ValueError("Provide at least one property to update.")
+
+        sanitized_color = str(new_color).strip()
+        if not sanitized_color:
+            raise ValueError("Vector color cannot be empty.")
+
+        self.canvas.undo_redo_manager.archive()
+        vector.update_color(sanitized_color)
+
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+
+        return True

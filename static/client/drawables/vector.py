@@ -100,3 +100,12 @@ class Vector(Drawable):
         if not should_proceed:
             return False, message      
         return True, None 
+
+    def update_color(self, color: str) -> None:
+        """Update the vector color and underlying segment color."""
+        sanitized = str(color)
+        self.color = sanitized
+        if hasattr(self.segment, "update_color"):
+            self.segment.update_color(sanitized)
+        else:
+            self.segment.color = sanitized

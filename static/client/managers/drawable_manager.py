@@ -297,6 +297,19 @@ class DrawableManager:
         """Delete a vector with the specified origin and tip"""
         return bool(self.vector_manager.delete_vector(origin_x, origin_y, tip_x, tip_y))
     
+    def update_vector(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update editable properties of a vector."""
+        return bool(
+            self.vector_manager.update_vector(
+                name,
+                new_color=new_color,
+            )
+        )
+    
     # ------------------- Triangle Methods -------------------
     
     def get_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> Optional["Triangle"]:
