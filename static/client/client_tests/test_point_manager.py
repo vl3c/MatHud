@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from drawables.circle import Circle
+from drawables.ellipse import Ellipse
 from managers.point_manager import PointManager
 from managers.drawables_container import DrawablesContainer
 from managers.drawable_dependency_manager import DrawableDependencyManager
@@ -140,6 +141,26 @@ class TestPointManagerUpdates(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(point.name, "D")
         self.assertEqual(circle.name, "D(5)")
+
+    def test_update_point_rejects_when_point_is_ellipse_center(self) -> None:
+        point = self.point_manager.create_point(0, 0, "E", extra_graphics=False)
+        ellipse = Ellipse(point, radius_x=3.0, radius_y=2.0)
+        ellipse.name = "ellipse_E"
+        self.drawables.add(ellipse)
+
+        with self.assertRaises(ValueError):
+            self.point_manager.update_point("E", new_x=4.0, new_y=5.0)
+
+    def test_update_point_rename_updates_ellipse_name(self) -> None:
+        point = self.point_manager.create_point(0, 0, "E", extra_graphics=False)
+        ellipse = Ellipse(point, radius_x=3.0, radius_y=2.0)
+        self.drawables.add(ellipse)
+
+        result = self.point_manager.update_point("E", new_name="F")
+
+        self.assertTrue(result)
+        self.assertEqual(point.name, "F")
+        self.assertEqual(ellipse.name, "F(3, 2)")
 
     def test_update_point_rejects_combined_edit_when_dependent(self) -> None:
         point = self.point_manager.create_point(0, 0, "A", extra_graphics=False)

@@ -61,8 +61,7 @@ class Ellipse(Drawable):
         self.radius_y: float = radius_y
         self.rotation_angle: float = rotation_angle  # Initialize with provided angle
         self.ellipse_formula: Dict[str, float] = self._calculate_ellipse_algebraic_formula()
-        name: str = f"{self.center.name}({str(self.radius_x)}, {str(self.radius_y)})"
-        super().__init__(name=name, color=color)
+        super().__init__(name=self._generate_default_name(), color=color)
 
     def get_class_name(self) -> str:
         return 'Ellipse'
@@ -113,3 +112,43 @@ class Ellipse(Drawable):
         
         # Return tuple (should_proceed, message) to match interface
         return True, None 
+
+    def update_color(self, color: str) -> None:
+        """Update the ellipse color metadata."""
+        self.color = str(color)
+
+    def update_center_position(self, x: float, y: float) -> None:
+        """Move the ellipse center and refresh cached state."""
+        self.center.update_position(x, y)
+        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
+        self.regenerate_name()
+
+    def update_radius_x(self, radius_x: float) -> None:
+        """Update the horizontal radius."""
+        self.radius_x = float(radius_x)
+        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
+        self.regenerate_name()
+
+    def update_radius_y(self, radius_y: float) -> None:
+        """Update the vertical radius."""
+        self.radius_y = float(radius_y)
+        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
+        self.regenerate_name()
+
+    def update_rotation_angle(self, rotation_angle: float) -> None:
+        """Set the rotation angle directly."""
+        self.rotation_angle = float(rotation_angle) % 360
+        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
+
+    def _generate_default_name(self) -> str:
+        return f"{self.center.name}({self._format_radius(self.radius_x)}, {self._format_radius(self.radius_y)})"
+
+    def _format_radius(self, value: float) -> str:
+        value = float(value)
+        if value.is_integer():
+            return str(int(value))
+        return str(value)
+
+    def regenerate_name(self) -> None:
+        """Refresh the ellipse name from its current center/radii."""
+        self.name = self._generate_default_name()

@@ -32,6 +32,7 @@ from .test_vector_manager import TestVectorManager
 from .test_triangle_manager import TestTriangleManager
 from .test_rectangle_manager import TestRectangleManager
 from .test_circle_manager import TestCircleManager
+from .test_ellipse_manager import TestEllipseManager
 from .test_triangle import TestTriangle
 from .test_vector import TestVector
 from .test_angle import TestAngle
@@ -122,6 +123,7 @@ class Tests:
             TestTriangleManager,
             TestRectangleManager,
             TestCircleManager,
+            TestEllipseManager,
             TestVector,
             TestTriangle,
             TestRectangle,

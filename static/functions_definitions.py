@@ -724,6 +724,49 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "update_ellipse",
+                    "description": "Updates editable properties of an existing ellipse (color, radii, rotation, or center). Provide null for fields that should remain unchanged.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Existing name of the ellipse to edit."
+                            },
+                            "new_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional new color for the ellipse."
+                            },
+                            "new_radius_x": {
+                                "type": ["number", "null"],
+                                "description": "Optional new horizontal radius (requires ellipse to be solitary)."
+                            },
+                            "new_radius_y": {
+                                "type": ["number", "null"],
+                                "description": "Optional new vertical radius (requires ellipse to be solitary)."
+                            },
+                            "new_rotation_angle": {
+                                "type": ["number", "null"],
+                                "description": "Optional new rotation angle in degrees."
+                            },
+                            "new_center_x": {
+                                "type": ["number", "null"],
+                                "description": "Optional new x-coordinate for the center (requires y value when provided)."
+                            },
+                            "new_center_y": {
+                                "type": ["number", "null"],
+                                "description": "Optional new y-coordinate for the center (requires x value when provided)."
+                            }
+                        },
+                        "required": ["name", "new_color", "new_radius_x", "new_radius_y", "new_rotation_angle", "new_center_x", "new_center_y"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "create_label",
                         "description": (
                             "Creates a text label anchored at a math-space coordinate "

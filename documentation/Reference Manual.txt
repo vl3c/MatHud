@@ -1706,10 +1706,9 @@ This class coordinates specialized managers for each drawable type:
 - `create_circle(center_x, center_y, radius, name="", extra_graphics=True)`: Create a circle with specified center and radius
 - `delete_circle(name)`: Delete a circle by its name
 - `update_circle(name, new_color=None, new_center_x=None, new_center_y=None)`: Update a circle's color or move its center (center moves require both coordinates and an isolated center point)
-- `get_ellipse(center_x, center_y, radius_x, radius_y)`: Get an ellipse by its center coordinates and radii
-- `get_ellipse_by_name(name)`: Get an ellipse by its name
 - `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", extra_graphics=True)`: Create an ellipse with specified parameters
 - `delete_ellipse(name)`: Delete an ellipse by its name
+- `update_ellipse(name, new_color=None, new_radius_x=None, new_radius_y=None, new_rotation_angle=None, new_center_x=None, new_center_y=None)`: Update ellipse styling or geometry (solitary ellipses only; center moves require complete coordinate pairs)
 - `get_rectangle_by_diagonal_points(px, py, opposite_px, opposite_py)`: Get a rectangle by two diagonal points
 - `get_rectangle_by_name(name)`: Get a rectangle by its name
 - `create_rectangle(px, py, opposite_px, opposite_py, name="", extra_graphics=True)`: Create a rectangle with specified diagonal points

@@ -404,6 +404,29 @@ class DrawableManager:
         """Delete an ellipse by its name"""
         return bool(self.ellipse_manager.delete_ellipse(name))
     
+    def update_ellipse(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+        new_radius_x: Optional[float] = None,
+        new_radius_y: Optional[float] = None,
+        new_rotation_angle: Optional[float] = None,
+        new_center_x: Optional[float] = None,
+        new_center_y: Optional[float] = None,
+    ) -> bool:
+        """Update editable properties of an ellipse."""
+        return bool(
+            self.ellipse_manager.update_ellipse(
+                name,
+                new_color=new_color,
+                new_radius_x=new_radius_x,
+                new_radius_y=new_radius_y,
+                new_rotation_angle=new_rotation_angle,
+                new_center_x=new_center_x,
+                new_center_y=new_center_y,
+            )
+        )
+    
     # ------------------- Rectangle Methods -------------------
     
     def get_rectangle_by_diagonal_points(self, px: float, py: float, opposite_px: float, opposite_py: float) -> Optional["Rectangle"]:

@@ -91,6 +91,7 @@ class FunctionRegistry:
             # ===== ELLIPSE OPERATIONS =====
             "create_ellipse": canvas.create_ellipse,
             "delete_ellipse": canvas.delete_ellipse,
+            "update_ellipse": canvas.update_ellipse,
 
             # ===== LABEL OPERATIONS =====
             "create_label": canvas.create_label,
@@ -193,6 +194,7 @@ class FunctionRegistry:
             # Ellipse operations
             "create_ellipse",
             "delete_ellipse",
+            "update_ellipse",
 
             # Label operations
             "create_label",

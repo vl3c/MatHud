@@ -686,6 +686,29 @@ class Canvas:
     def delete_ellipse(self, name: str) -> bool:
         """Delete an ellipse by its name"""
         return bool(self.drawable_manager.delete_ellipse(name))
+    
+    def update_ellipse(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+        new_radius_x: Optional[float] = None,
+        new_radius_y: Optional[float] = None,
+        new_rotation_angle: Optional[float] = None,
+        new_center_x: Optional[float] = None,
+        new_center_y: Optional[float] = None,
+    ) -> bool:
+        """Update editable properties of an ellipse."""
+        return bool(
+            self.drawable_manager.update_ellipse(
+                name,
+                new_color=new_color,
+                new_radius_x=new_radius_x,
+                new_radius_y=new_radius_y,
+                new_rotation_angle=new_rotation_angle,
+                new_center_x=new_center_x,
+                new_center_y=new_center_y,
+            )
+        )
 
     def get_function(self, name: str) -> Optional["Drawable"]:
         """Get a function by its name"""
