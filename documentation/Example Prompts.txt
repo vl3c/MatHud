@@ -60,6 +60,7 @@ Delete point A.
 Remove segment DE from the drawing.
 Undo the last action.
 Redo the last undone action.
+Run the tests.
 
 # Workspace Management
 Save the current workspace as 'MyFirstProject'.
