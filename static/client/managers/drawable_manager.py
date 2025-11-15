@@ -269,6 +269,19 @@ class DrawableManager:
     def delete_segment_by_name(self, name: str, delete_children: bool = True, delete_parents: bool = False) -> bool:
         """Delete a segment by its name"""
         return bool(self.segment_manager.delete_segment_by_name(name, delete_children, delete_parents))
+
+    def update_segment(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update editable properties of an existing segment."""
+        return bool(
+            self.segment_manager.update_segment(
+                name,
+                new_color=new_color,
+            )
+        )
     
     # ------------------- Vector Methods -------------------
     

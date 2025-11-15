@@ -95,6 +95,10 @@ class Segment(Drawable):
         self.point2.x += x_offset
         self.point2.y += y_offset
 
+    def update_color(self, color: str) -> None:
+        """Update the segment color metadata."""
+        self.color = str(color)
+
     def _get_midpoint(self) -> Tuple[float, float]:
         """Calculate the midpoint of the segment"""
         x: float = (self.point1.x + self.point2.x) / 2

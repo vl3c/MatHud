@@ -66,6 +66,7 @@ class FunctionRegistry:
             # ===== SEGMENT OPERATIONS =====
             "create_segment": canvas.create_segment,
             "delete_segment": canvas.delete_segment,
+            "update_segment": canvas.update_segment,
             
             # ===== VECTOR OPERATIONS =====
             "create_vector": canvas.create_vector,
@@ -163,6 +164,7 @@ class FunctionRegistry:
             # Segment operations
             "create_segment",
             "delete_segment",
+            "update_segment",
             
             # Vector operations
             "create_vector", 

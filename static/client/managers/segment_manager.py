@@ -36,10 +36,11 @@ State Management:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional, cast
+from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
+from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
@@ -87,6 +88,7 @@ class SegmentManager:
         self.dependency_manager: "DrawableDependencyManager" = dependency_manager
         self.point_manager: "PointManager" = point_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
+        self.segment_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Segment")
         
     def get_segment_by_coordinates(self, x1: float, y1: float, x2: float, y2: float) -> Optional[Segment]:
         """
@@ -267,6 +269,70 @@ class SegmentManager:
         
         result = self.delete_segment(x1, y1, x2, y2, delete_children, delete_parents)
         return result
+
+    def update_segment(
+        self,
+        segment_name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        segment = self._get_segment_or_raise(segment_name)
+        pending_fields = self._collect_segment_requested_fields(new_color)
+        self._validate_segment_policy(list(pending_fields.keys()))
+
+        new_color_value = self._normalize_color_request(pending_fields, new_color)
+
+        self.canvas.undo_redo_manager.archive()
+
+        if new_color_value is not None:
+            segment.update_color(new_color_value)
+
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+
+        return True
+
+    def _get_segment_or_raise(self, segment_name: str) -> Segment:
+        segment = self.get_segment_by_name(segment_name)
+        if not segment:
+            raise ValueError(f"Segment '{segment_name}' was not found.")
+        return segment
+
+    def _collect_segment_requested_fields(
+        self,
+        new_color: Optional[str],
+    ) -> Dict[str, str]:
+        pending_fields: Dict[str, str] = {}
+        if new_color is not None:
+            pending_fields["color"] = "color"
+
+        if not pending_fields:
+            raise ValueError("Provide at least one property to update.")
+        return pending_fields
+
+    def _validate_segment_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
+        if not self.segment_edit_policy:
+            raise ValueError("Edit policy for segments is not configured.")
+
+        validated_rules: Dict[str, EditRule] = {}
+        for field in requested_fields:
+            rule = self.segment_edit_policy.get_rule(field)
+            if not rule:
+                raise ValueError(f"Editing field '{field}' is not permitted for segments.")
+            validated_rules[field] = rule
+        return validated_rules
+
+    def _normalize_color_request(
+        self,
+        pending_fields: Dict[str, str],
+        new_color: Optional[str],
+    ) -> Optional[str]:
+        if "color" not in pending_fields:
+            return None
+        sanitized = str(new_color).strip() if new_color is not None else ""
+        if not sanitized:
+            raise ValueError("Segment color cannot be empty.")
+        return sanitized
+
 
     def _delete_segment_dependencies(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> None:
         """

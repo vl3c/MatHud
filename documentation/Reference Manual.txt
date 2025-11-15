@@ -1689,6 +1689,7 @@ This class coordinates specialized managers for each drawable type:
 - `create_segment(x1, y1, x2, y2, name="", extra_graphics=True)`: Create a new segment between the specified points
 - `delete_segment(x1, y1, x2, y2, delete_children=True, delete_parents=False)`: Delete a segment at the specified coordinates
 - `delete_segment_by_name(name, delete_children=True, delete_parents=False)`: Delete a segment by its name
+- `update_segment(name, new_color=None)`: Update a segment's color
 - `get_vector(origin_x, origin_y, tip_x, tip_y)`: Get a vector by its origin and tip coordinates
 - `create_vector(origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True)`: Create a vector from origin to tip
 - `delete_vector(origin_x, origin_y, tip_x, tip_y)`: Delete a vector by its coordinates

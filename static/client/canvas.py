@@ -536,6 +536,19 @@ class Canvas:
         """Delete a segment by its name"""
         return bool(self.drawable_manager.delete_segment_by_name(name, delete_children, delete_parents))
 
+    def update_segment(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update editable properties of a segment."""
+        return bool(
+            self.drawable_manager.update_segment(
+                name,
+                new_color=new_color,
+            )
+        )
+
     def any_segment_part_visible_in_canvas_area(self, x1: float, y1: float, x2: float, y2: float) -> bool:
         """Check if any part of a segment is visible in the canvas area"""
         intersect_top = MathUtils.segments_intersect(x1, y1, x2, y2, 0, 0, self.width, 0)

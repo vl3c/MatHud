@@ -109,10 +109,22 @@ LABEL_EDIT_POLICY = DrawableEditPolicy(
     },
 )
 
+SEGMENT_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="Segment",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Update the segment color.",
+        ),
+    },
+)
+
 DRAWABLE_EDIT_POLICIES: Dict[str, DrawableEditPolicy] = {
     POINT_EDIT_POLICY.drawable_type: POINT_EDIT_POLICY,
     ANGLE_EDIT_POLICY.drawable_type: ANGLE_EDIT_POLICY,
     LABEL_EDIT_POLICY.drawable_type: LABEL_EDIT_POLICY,
+    SEGMENT_EDIT_POLICY.drawable_type: SEGMENT_EDIT_POLICY,
 }
 
 
