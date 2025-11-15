@@ -291,7 +291,28 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         self.assertIsNotNone(closed_area, "ClosedArea should be produced")
         self.assertGreater(len(closed_area.forward_points), 0)
         self.assertEqual(len(closed_area.reverse_points), 2)
-        expected_reverse = [(self.segment.point2.x, self.segment.point2.y), (self.segment.point1.x, self.segment.point1.y)]
+        self.assertFalse(closed_area.is_screen)
+        expected_reverse = [
+            (self.segment.point2.x, self.segment.point2.y),
+            (self.segment.point1.x, self.segment.point1.y),
+        ]
+        self.assertEqual(closed_area.reverse_points, expected_reverse)
+
+    def test_segment_points_follow_mapper_transformations(self) -> None:
+        """Segment reverse path should honor mapper scale and offset."""
+        area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
+        # Apply non-default mapper transforms
+        self.coordinate_mapper.scale_factor = 1.5
+        self.coordinate_mapper.offset.x = 25
+        self.coordinate_mapper.offset.y = -40
+        renderable = FunctionSegmentAreaRenderable(area, self.coordinate_mapper)
+        closed_area = renderable.build_screen_area(num_points=25)
+        self.assertIsNotNone(closed_area, "ClosedArea should be produced with mapper transforms applied")
+        self.assertFalse(closed_area.is_screen)
+        expected_reverse = [
+            (self.segment.point2.x, self.segment.point2.y),
+            (self.segment.point1.x, self.segment.point1.y),
+        ]
         self.assertEqual(closed_area.reverse_points, expected_reverse)
 
     def test_edge_case_single_point_segment(self) -> None:

@@ -1,5 +1,5 @@
 """
-Renderable for FunctionSegmentBoundedColoredArea producing a screen-space ClosedArea.
+Renderable for FunctionSegmentBoundedColoredArea producing a math-space ClosedArea.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ class FunctionSegmentAreaRenderable:
                 return None
         return None
 
-    def _generate_function_points_screen(self, left_bound: float, right_bound: float, num_points: int) -> List[Tuple[float, float]]:
+    def _generate_function_points_math(self, left_bound: float, right_bound: float, num_points: int) -> List[Tuple[float, float]]:
         if num_points < 2:
             num_points = 2
         dx: float = (right_bound - left_bound) / (num_points - 1) if num_points > 1 else 1.0
@@ -47,10 +47,7 @@ class FunctionSegmentAreaRenderable:
             y_m: Optional[float] = self._eval_function(x_m)
             if y_m is None:
                 continue
-            sx: float
-            sy: float
-            sx, sy = self.mapper.math_to_screen(x_m, y_m)
-            pts.append((sx, sy))
+            pts.append((x_m, y_m))
         return pts
 
     def _segment_reverse_points_math(self) -> Optional[List[Tuple[float, float]]]:
@@ -62,21 +59,20 @@ class FunctionSegmentAreaRenderable:
             return None
         if not hasattr(p2, 'x') or not hasattr(p2, 'y'):
             return None
-        # Return math-space coordinates to satisfy tests
         return [(p2.x, p2.y), (p1.x, p1.y)]
 
     def build_screen_area(self, num_points: int = 100) -> Optional[ClosedArea]:
         left_bound: float
         right_bound: float
         left_bound, right_bound = self._get_bounds()
-        forward: List[Tuple[float, float]] = self._generate_function_points_screen(left_bound, right_bound, num_points)
+        forward: List[Tuple[float, float]] = self._generate_function_points_math(left_bound, right_bound, num_points)
         reverse_points: Optional[List[Tuple[float, float]]] = self._segment_reverse_points_math()
         if not forward or not reverse_points:
             return None
         return ClosedArea(
             forward,
             reverse_points,
-            is_screen=True,
+            is_screen=False,
             color=getattr(self.area, "color", None),
             opacity=getattr(self.area, "opacity", None),
         )
