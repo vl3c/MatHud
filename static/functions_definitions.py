@@ -635,6 +635,37 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "update_circle",
+                    "description": "Updates editable properties of an existing circle (color or center position). Provide null for fields to keep them unchanged.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Existing name of the circle to edit."
+                            },
+                            "new_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional new color for the circle."
+                            },
+                            "new_center_x": {
+                                "type": ["number", "null"],
+                                "description": "Optional new x-coordinate for the circle center (requires y value when provided)."
+                            },
+                            "new_center_y": {
+                                "type": ["number", "null"],
+                                "description": "Optional new y-coordinate for the circle center (requires x value when provided)."
+                            }
+                        },
+                        "required": ["name", "new_color", "new_center_x", "new_center_y"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "create_ellipse",
                     "description": "Creates an ellipse with the specified center point, x-radius, y-radius, and optional rotation angle",
                     "strict": True,

@@ -653,6 +653,23 @@ class Canvas:
     def delete_circle(self, name: str) -> bool:
         """Delete a circle by its name"""
         return bool(self.drawable_manager.delete_circle(name))
+    
+    def update_circle(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+        new_center_x: Optional[float] = None,
+        new_center_y: Optional[float] = None,
+    ) -> bool:
+        """Update editable properties of a circle."""
+        return bool(
+            self.drawable_manager.update_circle(
+                name,
+                new_color=new_color,
+                new_center_x=new_center_x,
+                new_center_y=new_center_y,
+            )
+        )
 
     def get_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float) -> Optional["Drawable"]:
         """Get an ellipse by its center coordinates and radii"""

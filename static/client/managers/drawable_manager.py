@@ -369,6 +369,23 @@ class DrawableManager:
         """Delete a circle by its name"""
         return bool(self.circle_manager.delete_circle(name))
     
+    def update_circle(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+        new_center_x: Optional[float] = None,
+        new_center_y: Optional[float] = None,
+    ) -> bool:
+        """Update editable properties of a circle."""
+        return bool(
+            self.circle_manager.update_circle(
+                name,
+                new_color=new_color,
+                new_center_x=new_center_x,
+                new_center_y=new_center_y,
+            )
+        )
+    
     # ------------------- Ellipse Methods -------------------
     
     def get_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float) -> Optional["Ellipse"]:

@@ -55,8 +55,7 @@ class Circle(Drawable):
         self.center: Point = center_point
         self.radius: float = radius
         self.circle_formula: Dict[str, float] = self._calculate_circle_algebraic_formula()
-        name: str = f"{self.center.name}({str(self.radius)})"
-        super().__init__(name=name, color=color)
+        super().__init__(name=self._generate_default_name(), color=color)
 
     def get_class_name(self) -> str:
         return 'Circle'
@@ -90,3 +89,24 @@ class Circle(Drawable):
 
     def rotate(self, angle: float) -> None:
         pass 
+
+    def _generate_default_name(self) -> str:
+        return f"{self.center.name}({self._format_radius_for_name(self.radius)})"
+
+    def _format_radius_for_name(self, radius: float) -> str:
+        if float(radius).is_integer():
+            return str(int(radius))
+        return str(radius)
+
+    def regenerate_name(self) -> None:
+        """Refresh the circle name based on its center name and radius."""
+        self.name = self._generate_default_name()
+
+    def update_color(self, color: str) -> None:
+        """Update the circle color metadata."""
+        self.color = str(color)
+
+    def update_center_position(self, x: float, y: float) -> None:
+        """Move the center point and refresh the cached circle formula."""
+        self.center.update_position(x, y)
+        self.circle_formula = self._calculate_circle_algebraic_formula()

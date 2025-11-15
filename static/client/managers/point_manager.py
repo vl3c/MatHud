@@ -317,6 +317,45 @@ class PointManager:
 
         return not parents and not children
 
+    def _can_bypass_solitary_rules(
+        self,
+        point: Point,
+        rules: Dict[str, EditRule],
+        pending_fields: Dict[str, str],
+    ) -> bool:
+        if set(pending_fields.keys()) != {"name"}:
+            return False
+
+        if not self._is_point_only_circle_center(point):
+            return False
+
+        return True
+
+    def _is_point_only_circle_center(self, point: Point) -> bool:
+        circles = [
+            circle
+            for circle in getattr(self.drawables, "Circles", [])
+            if getattr(circle, "center", None) is point
+        ]
+        if not circles:
+            return False
+
+        allowed = set(circles)
+
+        parents = set()
+        children = set()
+        if hasattr(self.dependency_manager, "get_parents"):
+            parents = cast(set, self.dependency_manager.get_parents(point))
+        if hasattr(self.dependency_manager, "get_children"):
+            children = cast(set, self.dependency_manager.get_children(point))
+
+        return parents.issubset(allowed) and children.issubset(allowed)
+
+    def _rename_dependent_circles(self, point: Point) -> None:
+        for circle in getattr(self.drawables, "Circles", []):
+            if getattr(circle, "center", None) is point and hasattr(circle, "regenerate_name"):
+                circle.regenerate_name()
+
     def _validate_point_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
         """Ensure every requested field is allowed by the policy definition."""
         if not self.point_edit_policy:
@@ -354,15 +393,21 @@ class PointManager:
                 raise ValueError("Updating a point position requires both x and y coordinates.")
             pending_fields["position"] = "position"
 
+        if "position" in pending_fields and self._point_is_circle_center(point):
+            raise ValueError(
+                f"Point '{point_name}' is the center of a circle and must be moved via update_circle instead."
+            )
+
         if not pending_fields:
             raise ValueError("Provide at least one property to update.")
 
         rules = self._validate_point_policy(list(pending_fields.keys()))
         if any(rule.requires_solitary for rule in rules.values()):
             if not self._is_point_solitary(point):
-                raise ValueError(
-                    f"Point '{point_name}' is referenced by other drawables and cannot be edited in place."
-                )
+                if not self._can_bypass_solitary_rules(point, rules, pending_fields):
+                    raise ValueError(
+                        f"Point '{point_name}' is referenced by other drawables and cannot be edited in place."
+                    )
 
         filtered_name = self._compute_updated_name(point, pending_fields)
         new_coordinates = self._compute_updated_coordinates(point, pending_fields, new_x, new_y)
@@ -373,6 +418,7 @@ class PointManager:
 
         if filtered_name is not None:
             point.update_name(filtered_name)
+            self._rename_dependent_circles(point)
 
         if new_coordinates is not None:
             x_val, y_val = new_coordinates
@@ -385,6 +431,12 @@ class PointManager:
             self.canvas.draw()
 
         return True
+
+    def _point_is_circle_center(self, point: Point) -> bool:
+        for circle in getattr(self.drawables, "Circles", []):
+            if getattr(circle, "center", None) is point:
+                return True
+        return False
 
     def _compute_updated_name(
         self, original_point: Point, pending_fields: Dict[str, str]

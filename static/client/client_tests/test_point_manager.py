@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock
 
+from drawables.circle import Circle
 from managers.point_manager import PointManager
 from managers.drawables_container import DrawablesContainer
 from managers.drawable_dependency_manager import DrawableDependencyManager
@@ -119,6 +120,26 @@ class TestPointManagerUpdates(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             self.point_manager.update_point("A", new_x=1.0, new_y=2.0)
+
+    def test_update_point_rejects_when_point_is_circle_center(self) -> None:
+        point = self.point_manager.create_point(0, 0, "C", extra_graphics=False)
+        circle = Circle(point, radius=5.0)
+        circle.name = "circle_C"
+        self.drawables.add(circle)
+
+        with self.assertRaises(ValueError):
+            self.point_manager.update_point("C", new_x=10.0, new_y=20.0)
+
+    def test_update_point_rename_updates_circle_name(self) -> None:
+        point = self.point_manager.create_point(0, 0, "C", extra_graphics=False)
+        circle = Circle(point, radius=5.0)
+        self.drawables.add(circle)
+
+        result = self.point_manager.update_point("C", new_name="D")
+
+        self.assertTrue(result)
+        self.assertEqual(point.name, "D")
+        self.assertEqual(circle.name, "D(5)")
 
     def test_update_point_rejects_combined_edit_when_dependent(self) -> None:
         point = self.point_manager.create_point(0, 0, "A", extra_graphics=False)

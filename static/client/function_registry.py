@@ -86,6 +86,7 @@ class FunctionRegistry:
             # ===== CIRCLE OPERATIONS =====
             "create_circle": canvas.create_circle,
             "delete_circle": canvas.delete_circle,
+            "update_circle": canvas.update_circle,
             
             # ===== ELLIPSE OPERATIONS =====
             "create_ellipse": canvas.create_ellipse,
@@ -187,6 +188,7 @@ class FunctionRegistry:
             # Circle operations
             "create_circle",
             "delete_circle",
+            "update_circle",
             
             # Ellipse operations
             "create_ellipse",
