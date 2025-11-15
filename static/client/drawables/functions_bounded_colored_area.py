@@ -396,6 +396,14 @@ class FunctionsBoundedColoredArea(ColoredArea):
         })
         return state
 
+    def update_left_bound(self, left_bound: Optional[float]) -> None:
+        """Update the left bound (None resets to default behavior)."""
+        self.left_bound = None if left_bound is None else float(left_bound)
+
+    def update_right_bound(self, right_bound: Optional[float]) -> None:
+        """Update the right bound (None resets to default behavior)."""
+        self.right_bound = None if right_bound is None else float(right_bound)
+
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
         """Create a deep copy for undo/redo functionality."""
         if id(self) in memo:

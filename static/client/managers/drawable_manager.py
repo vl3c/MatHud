@@ -480,9 +480,24 @@ class DrawableManager:
         """Get all colored areas associated with a drawable"""
         return cast(List["Drawable"], self.colored_area_manager.get_colored_areas_for_drawable(drawable))
         
-    def update_colored_area_style(self, name: str, color: Optional[str] = None, opacity: Optional[float] = None) -> bool:
-        """Update the style of a colored area"""
-        return bool(self.colored_area_manager.update_colored_area_style(name, color, opacity))
+    def update_colored_area(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+        new_opacity: Optional[float] = None,
+        new_left_bound: Optional[float] = None,
+        new_right_bound: Optional[float] = None,
+    ) -> bool:
+        """Update editable properties of a colored area."""
+        return bool(
+            self.colored_area_manager.update_colored_area(
+                name,
+                new_color=new_color,
+                new_opacity=new_opacity,
+                new_left_bound=new_left_bound,
+                new_right_bound=new_right_bound,
+            )
+        )
 
     def create_drawables_from_new_connections(self) -> None:
         # Call the method on the TriangleManager

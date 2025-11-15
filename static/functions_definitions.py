@@ -1411,6 +1411,41 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     }
                 }
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "update_colored_area",
+                    "description": "Updates editable properties of an existing colored area (color, opacity, and for function-bounded areas, optional left/right bounds). Provide null for fields that should remain unchanged.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Existing name of the colored area to edit."
+                            },
+                            "new_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional new color for the area."
+                            },
+                            "new_opacity": {
+                                "type": ["number", "null"],
+                                "description": "Optional new opacity between 0 and 1."
+                            },
+                            "new_left_bound": {
+                                "type": ["number", "null"],
+                                "description": "Optional new left bound (functions-bounded areas only)."
+                            },
+                            "new_right_bound": {
+                                "type": ["number", "null"],
+                                "description": "Optional new right bound (functions-bounded areas only)."
+                            }
+                        },
+                        "required": ["name", "new_color", "new_opacity", "new_left_bound", "new_right_bound"],
+                        "additionalProperties": False
+                    }
+                }
+            },
             # START ANGLE FUNCTIONS
             {
                 "type": "function",

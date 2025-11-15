@@ -839,9 +839,24 @@ class Canvas:
         """Gets all colored areas associated with a drawable (function or segment)"""
         return cast(List["Drawable"], self.drawable_manager.get_colored_areas_for_drawable(drawable))
         
-    def update_colored_area_style(self, name: str, color: Optional[str] = None, opacity: Optional[float] = None) -> bool:
-        """Updates the color and/or opacity of a colored area"""
-        return bool(self.drawable_manager.update_colored_area_style(name, color, opacity))
+    def update_colored_area(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+        new_opacity: Optional[float] = None,
+        new_left_bound: Optional[float] = None,
+        new_right_bound: Optional[float] = None,
+    ) -> bool:
+        """Update editable properties of a colored area."""
+        return bool(
+            self.drawable_manager.update_colored_area(
+                name,
+                new_color=new_color,
+                new_opacity=new_opacity,
+                new_left_bound=new_left_bound,
+                new_right_bound=new_right_bound,
+            )
+        )
 
     def _validate_color_and_opacity(self, color: Optional[str], opacity: Optional[float]) -> bool:
         """Validates both color and opacity values"""

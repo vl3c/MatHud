@@ -58,6 +58,14 @@ class ColoredArea(Drawable):
             }
         }
 
+    def update_color(self, color: str) -> None:
+        """Update the area fill color."""
+        self.color = str(color)
+
+    def update_opacity(self, opacity: float) -> None:
+        """Update the area fill opacity."""
+        self.opacity = float(opacity)
+
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
         """
         Base deepcopy implementation. Subclasses should override this and call
@@ -67,4 +75,4 @@ class ColoredArea(Drawable):
             return memo[id(self)]
         
         # This will be overridden by subclasses
-        raise NotImplementedError("Subclasses must implement __deepcopy__") 
+        raise NotImplementedError("Subclasses must implement __deepcopy__")

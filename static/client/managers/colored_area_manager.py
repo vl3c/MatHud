@@ -43,7 +43,7 @@ State Management:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
 from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
@@ -51,6 +51,7 @@ from drawables.function_segment_bounded_colored_area import FunctionSegmentBound
 from drawables.segment import Segment
 from drawables.function import Function
 from utils.style_utils import StyleUtils
+from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
@@ -374,59 +375,161 @@ class ColoredAreaManager:
                     areas.append(area)
                     
         return areas
-        
-    def update_colored_area_style(self, name: str, color: Optional[str] = None, opacity: Optional[float] = None) -> bool:
-        """
-        Updates the color and/or opacity of a colored area
-        
-        Args:
-            name: Name of the colored area to update
-            color: New color (optional)
-            opacity: New opacity (optional)
-            
-        Returns:
-            bool: True if the area was updated, False otherwise
-            
-        Raises:
-            ValueError: If the area doesn't exist or if color/opacity values are invalid
-        """
-        # First find the area
-        area: Optional["Drawable"] = None
-        
-        # Check in all colored area collections
+
+    def _get_colored_area_by_name(self, name: str) -> Optional["Drawable"]:
         collections: List[List["Drawable"]] = [
-            self.drawables.ColoredAreas,
             self.drawables.FunctionsBoundedColoredAreas,
             self.drawables.SegmentsBoundedColoredAreas,
-            self.drawables.FunctionSegmentBoundedColoredAreas
+            self.drawables.FunctionSegmentBoundedColoredAreas,
+            self.drawables.ColoredAreas,
         ]
-        
         for collection in collections:
-            for a in collection:
-                if a.name == name:
-                    area = a
-                    break
-            if area:
-                break
-                
+            for area in collection:
+                if area.name == name:
+                    return area
+        return None
+
+    def update_colored_area(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+        new_opacity: Optional[float] = None,
+        new_left_bound: Optional[float] = None,
+        new_right_bound: Optional[float] = None,
+    ) -> bool:
+        """Update editable properties of a colored area."""
+        area = self._get_colored_area_by_name(name)
         if not area:
             raise ValueError(f"Colored area '{name}' not found")
-        
-        # Archive before update
+
+        pending_fields = self._collect_colored_area_fields(
+            area,
+            new_color,
+            new_opacity,
+            new_left_bound,
+            new_right_bound,
+        )
+
+        policy = self._get_policy_for_area(area)
+        self._validate_policy(policy, list(pending_fields.keys()))
+        self._validate_colored_area_payload(area, pending_fields, new_color, new_opacity, new_left_bound, new_right_bound)
+
         self.canvas.undo_redo_manager.archive()
-            
-        # Validate color and opacity if provided
-        if color is not None:
-            if not StyleUtils.is_valid_css_color(color):
-                raise ValueError(f"Invalid CSS color: {color}")
-            area.color = color
-            
-        if opacity is not None:
-            if not StyleUtils.validate_opacity(opacity):
-                raise ValueError(f"Invalid opacity value: {opacity}. Must be between 0 and 1")
-            area.opacity = opacity
-            
+        self._apply_colored_area_updates(area, pending_fields, new_color, new_opacity, new_left_bound, new_right_bound)
+
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
+
+        return True
+
+    def _collect_colored_area_fields(
+        self,
+        area: "Drawable",
+        new_color: Optional[str],
+        new_opacity: Optional[float],
+        new_left_bound: Optional[float],
+        new_right_bound: Optional[float],
+    ) -> Dict[str, str]:
+        pending_fields: Dict[str, str] = {}
+
+        if new_color is not None:
+            pending_fields["color"] = str(new_color)
+
+        if new_opacity is not None:
+            pending_fields["opacity"] = "opacity"
+
+        supports_bounds = area.get_class_name() == "FunctionsBoundedColoredArea"
+
+        if (new_left_bound is not None or new_right_bound is not None) and not supports_bounds:
+            raise ValueError("Only functions-bounded colored areas support editing left/right bounds.")
+
+        if new_left_bound is not None:
+            pending_fields["left_bound"] = "left_bound"
+
+        if new_right_bound is not None:
+            pending_fields["right_bound"] = "right_bound"
+
+        if not pending_fields:
+            raise ValueError("Provide at least one property to update.")
+
+        return pending_fields
+
+    def _get_policy_for_area(self, area: "Drawable") -> DrawableEditPolicy:
+        area_type = area.get_class_name()
+        policy = get_drawable_edit_policy(area_type)
+        if not policy:
+            raise ValueError(f"Edit policy for {area_type} is not configured.")
+        return policy
+
+    def _validate_policy(self, policy: DrawableEditPolicy, requested_fields: List[str]) -> Dict[str, EditRule]:
+        validated_rules: Dict[str, EditRule] = {}
+        for field in requested_fields:
+            rule = policy.get_rule(field)
+            if not rule:
+                raise ValueError(f"Editing field '{field}' is not permitted for this colored area.")
+            validated_rules[field] = rule
+        return validated_rules
+
+    def _validate_colored_area_payload(
+        self,
+        area: "Drawable",
+        pending_fields: Dict[str, str],
+        new_color: Optional[str],
+        new_opacity: Optional[float],
+        new_left_bound: Optional[float],
+        new_right_bound: Optional[float],
+    ) -> None:
+        if "color" in pending_fields and (new_color is None or not StyleUtils.is_valid_css_color(new_color)):
+            raise ValueError(f"Invalid CSS color: {new_color}")
+
+        if "opacity" in pending_fields:
+            if new_opacity is None or not StyleUtils.validate_opacity(new_opacity):
+                raise ValueError("Opacity must be between 0 and 1.")
+
+        if "left_bound" in pending_fields and new_left_bound is None:
+            raise ValueError("left_bound requires a numeric value.")
+
+        if "right_bound" in pending_fields and new_right_bound is None:
+            raise ValueError("right_bound requires a numeric value.")
+
+        if any(field in pending_fields for field in ("left_bound", "right_bound")):
+            if not hasattr(area, "left_bound") or not hasattr(area, "right_bound"):
+                raise ValueError("Bounds can only be set on functions bounded colored areas.")
+
+            updated_left = area.left_bound
+            updated_right = area.right_bound
+
+            if "left_bound" in pending_fields and new_left_bound is not None:
+                updated_left = float(new_left_bound)
+
+            if "right_bound" in pending_fields and new_right_bound is not None:
+                updated_right = float(new_right_bound)
+
+            if (
+                updated_left is not None
+                and updated_right is not None
+                and updated_left >= updated_right
+            ):
+                raise ValueError("left_bound must be less than right_bound.")
+
+    def _apply_colored_area_updates(
+        self,
+        area: "Drawable",
+        pending_fields: Dict[str, str],
+        new_color: Optional[str],
+        new_opacity: Optional[float],
+        new_left_bound: Optional[float],
+        new_right_bound: Optional[float],
+    ) -> None:
+        if "color" in pending_fields and new_color is not None:
+            area.update_color(str(new_color))
+
+        if "opacity" in pending_fields and new_opacity is not None:
+            area.update_opacity(float(new_opacity))
+
+        if isinstance(area, FunctionsBoundedColoredArea):
+            if "left_bound" in pending_fields and new_left_bound is not None:
+                area.update_left_bound(float(new_left_bound))
+            if "right_bound" in pending_fields and new_right_bound is not None:
+                area.update_right_bound(float(new_right_bound))
         return True 

@@ -1719,10 +1719,10 @@ This class coordinates specialized managers for each drawable type:
 - `update_label(name, new_text=None, new_x=None, new_y=None, new_color=None, new_font_size=None, new_rotation_degrees=None)`: Update label text, style, or position
 - `create_colored_area(drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3)`: Creates a colored area between objects
 - `delete_colored_area(name)`: Delete a colored area by its name
+- `update_colored_area(name, new_color=None, new_opacity=None, new_left_bound=None, new_right_bound=None)`: Update colored area styling; bounds apply to function-bounded areas only
 - `delete_colored_areas_for_function(func)`: Delete colored areas for a function
 - `delete_colored_areas_for_segment(segment)`: Delete colored areas for a segment
 - `get_colored_areas_for_drawable(drawable)`: Get colored areas for a drawable
-- `update_colored_area_style(name, color=None, opacity=None)`: Update colored area style
 - `create_drawables_from_new_connections()`: Create drawables from new connections
 - `create_angle(vx, vy, p1x, p1y, p2x, p2y, label=None, color=None, angle_name=None)`: Create an angle by points
 - `delete_angle(name)`: Delete an angle by name
