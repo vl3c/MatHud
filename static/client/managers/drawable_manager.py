@@ -405,6 +405,19 @@ class DrawableManager:
         """Delete a rectangle by its name"""
         return bool(self.rectangle_manager.delete_rectangle(name))
     
+    def update_rectangle(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update editable properties of a rectangle."""
+        return bool(
+            self.rectangle_manager.update_rectangle(
+                name,
+                new_color=new_color,
+            )
+        )
+    
     # ------------------- Colored Area Methods -------------------
     
     def create_colored_area(self, drawable1_name: str, drawable2_name: Optional[str] = None, left_bound: Optional[float] = None, right_bound: Optional[float] = None, color: str = "lightblue", opacity: float = 0.3) -> "ColoredArea":

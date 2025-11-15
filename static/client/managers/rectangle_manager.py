@@ -43,10 +43,10 @@ State Management:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from drawables.rectangle import Rectangle
-from utils.math_utils import MathUtils
+from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -96,6 +96,7 @@ class RectangleManager:
         self.point_manager: "PointManager" = point_manager
         self.segment_manager: "SegmentManager" = segment_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
+        self.rectangle_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Rectangle")
         
     def get_rectangle_by_diagonal_points(self, px: float, py: float, opposite_px: float, opposite_py: float) -> Optional[Rectangle]:
         """
@@ -260,3 +261,73 @@ class RectangleManager:
             self.canvas.draw()
             
         return True 
+
+    def update_rectangle(
+        self,
+        rectangle_name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        rectangle = self._get_rectangle_or_raise(rectangle_name)
+        pending_fields = self._collect_rectangle_requested_fields(new_color)
+        self._validate_rectangle_policy(list(pending_fields.keys()))
+        self._validate_color_request(pending_fields, new_color)
+
+        self.canvas.undo_redo_manager.archive()
+        self._apply_rectangle_updates(rectangle, pending_fields, new_color)
+
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+
+        return True
+
+    def _get_rectangle_or_raise(self, rectangle_name: str) -> Rectangle:
+        rectangle = self.get_rectangle_by_name(rectangle_name)
+        if not rectangle:
+            raise ValueError(f"Rectangle '{rectangle_name}' was not found.")
+        return rectangle
+
+    def _collect_rectangle_requested_fields(
+        self,
+        new_color: Optional[str],
+    ) -> Dict[str, str]:
+        pending_fields: Dict[str, str] = {}
+        if new_color is not None:
+            pending_fields["color"] = str(new_color)
+
+        if not pending_fields:
+            raise ValueError("Provide at least one property to update.")
+
+        return pending_fields
+
+    def _validate_rectangle_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
+        if not self.rectangle_edit_policy:
+            raise ValueError("Edit policy for rectangles is not configured.")
+
+        validated_rules: Dict[str, EditRule] = {}
+        for field in requested_fields:
+            rule = self.rectangle_edit_policy.get_rule(field)
+            if not rule:
+                raise ValueError(f"Editing field '{field}' is not permitted for rectangles.")
+            validated_rules[field] = rule
+
+        return validated_rules
+
+    def _validate_color_request(
+        self,
+        pending_fields: Dict[str, str],
+        new_color: Optional[str],
+    ) -> None:
+        if "color" in pending_fields and (new_color is None or not str(new_color).strip()):
+            raise ValueError("Rectangle color cannot be empty.")
+
+    def _apply_rectangle_updates(
+        self,
+        rectangle: Rectangle,
+        pending_fields: Dict[str, str],
+        new_color: Optional[str],
+    ) -> None:
+        if "color" in pending_fields and new_color is not None:
+            if hasattr(rectangle, "update_color") and callable(getattr(rectangle, "update_color")):
+                rectangle.update_color(str(new_color))
+            else:
+                rectangle.color = str(new_color)

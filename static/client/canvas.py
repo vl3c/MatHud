@@ -624,6 +624,19 @@ class Canvas:
     def delete_rectangle(self, name: str) -> bool:
         """Delete a rectangle by its name"""
         return bool(self.drawable_manager.delete_rectangle(name))
+    
+    def update_rectangle(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update editable properties of a rectangle."""
+        return bool(
+            self.drawable_manager.update_rectangle(
+                name,
+                new_color=new_color,
+            )
+        )
 
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional["Drawable"]:
         """Get a circle by its center coordinates and radius"""

@@ -562,6 +562,29 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "update_rectangle",
+                    "description": "Updates editable properties of an existing rectangle (currently just color). Provide null for fields that should remain unchanged.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Existing name of the rectangle to edit."
+                            },
+                            "new_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional new color for the rectangle."
+                            }
+                        },
+                        "required": ["name", "new_color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "create_circle",
                     "description": "Creates and draws a circle with the specified center coordinates and radius. If a name is provided, it will be used to reference the circle.",
                     "strict": True,
