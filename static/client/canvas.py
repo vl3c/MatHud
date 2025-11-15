@@ -595,6 +595,19 @@ class Canvas:
     def delete_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> bool:
         """Delete a triangle by its vertex coordinates"""
         return bool(self.drawable_manager.delete_triangle(x1, y1, x2, y2, x3, y3))
+    
+    def update_triangle(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update editable properties of a triangle."""
+        return bool(
+            self.drawable_manager.update_triangle(
+                name,
+                new_color=new_color,
+            )
+        )
 
     def get_rectangle_by_diagonal_points(self, px: float, py: float, opposite_px: float, opposite_py: float) -> Optional["Drawable"]:
         """Get a rectangle by its diagonal points"""

@@ -1697,6 +1697,7 @@ This class coordinates specialized managers for each drawable type:
 - `get_triangle(x1, y1, x2, y2, x3, y3)`: Get a triangle by its vertex coordinates
 - `create_triangle(x1, y1, x2, y2, x3, y3, name="", extra_graphics=True)`: Create a triangle from three points
 - `delete_triangle(x1, y1, x2, y2, x3, y3)`: Delete a triangle by its vertex coordinates
+- `update_triangle(name, new_color=None)`: Update a triangle's color
 - `get_function(name)`: Get a function by its name
 - `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a function on the canvas
 - `delete_function(name)`: Delete a function by its name

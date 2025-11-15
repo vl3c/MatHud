@@ -130,4 +130,14 @@ class Triangle(RotatablePolygon):
             self.segment1.point1, self.segment1.point2,
             self.segment2.point1, self.segment2.point2,
             self.segment3.point1, self.segment3.point2
-        } 
+        }
+
+    def update_color(self, color: str) -> None:
+        """Update the triangle and its edge colors."""
+        sanitized = str(color)
+        self.color = sanitized
+        for segment in (self.segment1, self.segment2, self.segment3):
+            if hasattr(segment, "update_color") and callable(getattr(segment, "update_color")):
+                segment.update_color(sanitized)
+            else:
+                segment.color = sanitized

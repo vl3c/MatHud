@@ -485,6 +485,29 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "update_triangle",
+                    "description": "Updates editable properties of an existing triangle (currently just color). Provide null for fields that should remain unchanged.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Existing name of the triangle to edit."
+                            },
+                            "new_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional new color for the triangle."
+                            }
+                        },
+                        "required": ["name", "new_color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "create_rectangle",
                     "description": "Creates and draws a rectangle at the given coordinates for two diagonal points. If a name is provided, the first four available letters will be used to name the corners.",
                     "strict": True,

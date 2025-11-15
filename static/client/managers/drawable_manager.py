@@ -324,6 +324,19 @@ class DrawableManager:
         """Delete a triangle with the specified vertices"""
         return bool(self.triangle_manager.delete_triangle(x1, y1, x2, y2, x3, y3))
     
+    def update_triangle(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update editable properties of a triangle."""
+        return bool(
+            self.triangle_manager.update_triangle(
+                name,
+                new_color=new_color,
+            )
+        )
+    
     # ------------------- Function Methods -------------------
     
     def get_function(self, name: str) -> Optional["Function"]:
