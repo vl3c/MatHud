@@ -120,11 +120,186 @@ SEGMENT_EDIT_POLICY = DrawableEditPolicy(
     },
 )
 
+VECTOR_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="Vector",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Update the vector stroke color.",
+        ),
+    },
+)
+
+TRIANGLE_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="Triangle",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Adjust the fill or outline color of the triangle.",
+        ),
+    },
+)
+
+RECTANGLE_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="Rectangle",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Adjust the fill or outline color of the rectangle.",
+        ),
+    },
+)
+
+CIRCLE_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="Circle",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Update the circle stroke or fill color.",
+        ),
+        "center": EditRule(
+            field="center",
+            category="global_geometry",
+            requires_solitary=True,
+            requires_complete_coordinate_pair=True,
+            description="Move the circle center to a new math-space coordinate.",
+        ),
+    },
+)
+
+ELLIPSE_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="Ellipse",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Update the ellipse stroke or fill color.",
+        ),
+        "radius_x": EditRule(
+            field="radius_x",
+            category="local_geometry",
+            requires_solitary=True,
+            description="Adjust the horizontal radius for an isolated ellipse.",
+        ),
+        "radius_y": EditRule(
+            field="radius_y",
+            category="local_geometry",
+            requires_solitary=True,
+            description="Adjust the vertical radius for an isolated ellipse.",
+        ),
+        "rotation_angle": EditRule(
+            field="rotation_angle",
+            category="local_geometry",
+            requires_solitary=True,
+            description="Rotate the ellipse around its center.",
+        ),
+        "center": EditRule(
+            field="center",
+            category="global_geometry",
+            requires_solitary=True,
+            requires_complete_coordinate_pair=True,
+            description="Move the ellipse center to a new math-space coordinate.",
+        ),
+    },
+)
+
+FUNCTION_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="Function",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Update the plotted function color.",
+        ),
+        "left_bound": EditRule(
+            field="left_bound",
+            category="range",
+            description="Update the left plotting bound.",
+        ),
+        "right_bound": EditRule(
+            field="right_bound",
+            category="range",
+            description="Update the right plotting bound.",
+        ),
+    },
+)
+
+FUNCTIONS_BOUNDED_COLORED_AREA_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="FunctionsBoundedColoredArea",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Adjust the fill color for the bounded area.",
+        ),
+        "opacity": EditRule(
+            field="opacity",
+            category="style",
+            description="Update the fill opacity between 0 and 1.",
+        ),
+        "left_bound": EditRule(
+            field="left_bound",
+            category="range",
+            description="Update the left bound where the area is evaluated.",
+        ),
+        "right_bound": EditRule(
+            field="right_bound",
+            category="range",
+            description="Update the right bound where the area is evaluated.",
+        ),
+    },
+)
+
+FUNCTION_SEGMENT_BOUNDED_COLORED_AREA_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="FunctionSegmentBoundedColoredArea",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Adjust the fill color for the area.",
+        ),
+        "opacity": EditRule(
+            field="opacity",
+            category="style",
+            description="Update the fill opacity between 0 and 1.",
+        ),
+    },
+)
+
+SEGMENTS_BOUNDED_COLORED_AREA_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="SegmentsBoundedColoredArea",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Adjust the fill color for the area between segments.",
+        ),
+        "opacity": EditRule(
+            field="opacity",
+            category="style",
+            description="Update the fill opacity between 0 and 1.",
+        ),
+    },
+)
+
 DRAWABLE_EDIT_POLICIES: Dict[str, DrawableEditPolicy] = {
     POINT_EDIT_POLICY.drawable_type: POINT_EDIT_POLICY,
     ANGLE_EDIT_POLICY.drawable_type: ANGLE_EDIT_POLICY,
     LABEL_EDIT_POLICY.drawable_type: LABEL_EDIT_POLICY,
     SEGMENT_EDIT_POLICY.drawable_type: SEGMENT_EDIT_POLICY,
+    VECTOR_EDIT_POLICY.drawable_type: VECTOR_EDIT_POLICY,
+    TRIANGLE_EDIT_POLICY.drawable_type: TRIANGLE_EDIT_POLICY,
+    RECTANGLE_EDIT_POLICY.drawable_type: RECTANGLE_EDIT_POLICY,
+    CIRCLE_EDIT_POLICY.drawable_type: CIRCLE_EDIT_POLICY,
+    ELLIPSE_EDIT_POLICY.drawable_type: ELLIPSE_EDIT_POLICY,
+    FUNCTION_EDIT_POLICY.drawable_type: FUNCTION_EDIT_POLICY,
+    FUNCTIONS_BOUNDED_COLORED_AREA_EDIT_POLICY.drawable_type: FUNCTIONS_BOUNDED_COLORED_AREA_EDIT_POLICY,
+    FUNCTION_SEGMENT_BOUNDED_COLORED_AREA_EDIT_POLICY.drawable_type: FUNCTION_SEGMENT_BOUNDED_COLORED_AREA_EDIT_POLICY,
+    SEGMENTS_BOUNDED_COLORED_AREA_EDIT_POLICY.drawable_type: SEGMENTS_BOUNDED_COLORED_AREA_EDIT_POLICY,
 }
 
 
