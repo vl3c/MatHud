@@ -317,11 +317,14 @@ class EllipseManager:
         if hasattr(self.dependency_manager, "get_parents"):
             raw_parents = self.dependency_manager.get_parents(ellipse)
             if raw_parents:
-                parents = set(cast(List[object], raw_parents))
+                parents = set(raw_parents)
         if hasattr(self.dependency_manager, "get_children"):
             raw_children = self.dependency_manager.get_children(ellipse)
             if raw_children:
-                children = set(cast(List[object], raw_children))
+                children = set(raw_children)
+
+        parents.discard(ellipse.center)
+
         return not parents and not children
 
     def _is_center_point_exclusive(self, ellipse: Ellipse) -> bool:
@@ -331,11 +334,11 @@ class EllipseManager:
         if hasattr(self.dependency_manager, "get_parents"):
             raw_parents = self.dependency_manager.get_parents(center)
             if raw_parents:
-                parents = set(cast(List[object], raw_parents))
+                parents = set(raw_parents)
         if hasattr(self.dependency_manager, "get_children"):
             raw_children = self.dependency_manager.get_children(center)
             if raw_children:
-                children = set(cast(List[object], raw_children))
+                children = set(raw_children)
 
         parents.discard(ellipse)
         children.discard(ellipse)

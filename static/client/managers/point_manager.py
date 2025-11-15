@@ -351,10 +351,13 @@ class PointManager:
 
         return parents.issubset(allowed) and children.issubset(allowed)
 
-    def _rename_dependent_circles(self, point: Point) -> None:
+    def _rename_dependent_rotational_drawables(self, point: Point) -> None:
         for circle in getattr(self.drawables, "Circles", []):
             if getattr(circle, "center", None) is point and hasattr(circle, "regenerate_name"):
                 circle.regenerate_name()
+        for ellipse in getattr(self.drawables, "Ellipses", []):
+            if getattr(ellipse, "center", None) is point and hasattr(ellipse, "regenerate_name"):
+                ellipse.regenerate_name()
 
     def _validate_point_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
         """Ensure every requested field is allowed by the policy definition."""
@@ -393,9 +396,9 @@ class PointManager:
                 raise ValueError("Updating a point position requires both x and y coordinates.")
             pending_fields["position"] = "position"
 
-        if "position" in pending_fields and self._point_is_circle_center(point):
+        if "position" in pending_fields and self._point_is_locked_center(point):
             raise ValueError(
-                f"Point '{point_name}' is the center of a circle and must be moved via update_circle instead."
+                f"Point '{point_name}' is the center of a circle or ellipse and must be moved via the appropriate update command."
             )
 
         if not pending_fields:
@@ -418,7 +421,7 @@ class PointManager:
 
         if filtered_name is not None:
             point.update_name(filtered_name)
-            self._rename_dependent_circles(point)
+            self._rename_dependent_rotational_drawables(point)
 
         if new_coordinates is not None:
             x_val, y_val = new_coordinates
@@ -432,9 +435,12 @@ class PointManager:
 
         return True
 
-    def _point_is_circle_center(self, point: Point) -> bool:
+    def _point_is_locked_center(self, point: Point) -> bool:
         for circle in getattr(self.drawables, "Circles", []):
             if getattr(circle, "center", None) is point:
+                return True
+        for ellipse in getattr(self.drawables, "Ellipses", []):
+            if getattr(ellipse, "center", None) is point:
                 return True
         return False
 

@@ -49,7 +49,14 @@ class TestEllipseManager(unittest.TestCase):
         return ellipse
 
     def _allow_solitary(self, ellipse: Ellipse) -> None:
-        self.dependency_manager.get_parents = lambda obj: {ellipse} if obj is ellipse.center else set()
+        def get_parents(obj):
+            if obj is ellipse:
+                return {ellipse.center}
+            if obj is ellipse.center:
+                return {ellipse}
+            return set()
+
+        self.dependency_manager.get_parents = get_parents
         self.dependency_manager.get_children = lambda obj: set()
 
     def test_update_ellipse_changes_all_fields(self) -> None:
