@@ -239,6 +239,7 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
         center, radius, start_angle, end_angle, sweep_clockwise, stroke = command.args
         metadata = command.kwargs.get("metadata") or {}
         angle_meta = metadata.get("angle") if isinstance(metadata, dict) else None
+        circle_meta = metadata.get("circle_arc") if isinstance(metadata, dict) else None
         if angle_meta:
             vertex_math = tuple(angle_meta.get("vertex_math", (0.0, 0.0)))
             arm1_math = tuple(angle_meta.get("arm1_math", (0.0, 0.0)))
@@ -268,6 +269,73 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
             end_angle = start_angle + direction * delta
             command.args = (vertex_screen, radius_screen, start_angle, end_angle, sweep_cw, stroke)
             command.meta["geometry"] = _quantize_geometry((vertex_screen, radius_screen))
+        elif circle_meta:
+            center_raw = circle_meta.get("center_math", (0.0, 0.0))
+            point1_raw = circle_meta.get("point1", (0.0, 0.0))
+            point2_raw = circle_meta.get("point2", (0.0, 0.0))
+            try:
+                center_math = (float(center_raw[0]), float(center_raw[1]))
+            except Exception:
+                center_math = (0.0, 0.0)
+            try:
+                point1_math = (float(point1_raw[0]), float(point1_raw[1]))
+            except Exception:
+                point1_math = (0.0, 0.0)
+            try:
+                point2_math = (float(point2_raw[0]), float(point2_raw[1]))
+            except Exception:
+                point2_math = (0.0, 0.0)
+            try:
+                radius_math = float(circle_meta.get("radius_math", radius))
+            except Exception:
+                radius_math = float(radius)
+            use_major = bool(circle_meta.get("use_major_arc", False))
+            stored_cw = bool(circle_meta.get("sweep_clockwise", False))
+
+            new_center = _math_to_screen_point(center_math, new_state)
+            point1_screen = _math_to_screen_point(point1_math, new_state)
+            point2_screen = _math_to_screen_point(point2_math, new_state)
+            start_angle_screen = math.atan2(point1_screen[1] - new_center[1], point1_screen[0] - new_center[0])
+
+            start_angle_math = math.atan2(point1_math[1] - center_math[1], point1_math[0] - center_math[0])
+            target_angle_math = math.atan2(point2_math[1] - center_math[1], point2_math[0] - center_math[0])
+            full_turn = 2 * math.pi
+            delta_ccw_math = (target_angle_math - start_angle_math) % full_turn
+            delta_cw_math = (start_angle_math - target_angle_math) % full_turn
+            minor_is_ccw = delta_ccw_math <= delta_cw_math
+            minor_delta = delta_ccw_math if minor_is_ccw else delta_cw_math
+            major_delta = delta_cw_math if minor_is_ccw else delta_ccw_math
+            sweep_delta = major_delta if use_major else minor_delta
+            try:
+                radius_float = float(radius)
+            except Exception:
+                radius_float = 0.0
+            if sweep_delta <= 0.0:
+                command.args = (new_center, radius_float, start_angle_screen, start_angle_screen, stored_cw, stroke)
+                command.meta["geometry"] = _quantize_geometry((new_center, radius_float))
+                return
+
+            base_scale_old = float(old_state.get("scale", 1.0) or 1.0)
+            if base_scale_old <= 0.0:
+                base_scale_old = 1.0
+            base_scale_new = float(new_state.get("scale", 1.0) or 1.0)
+            if base_scale_new <= 0.0:
+                base_scale_new = 1.0
+            if radius_math > 0.0 and base_scale_old > 0.0:
+                style_scale = radius_float / (radius_math * base_scale_old)
+                new_radius = radius_math * base_scale_new * style_scale
+            elif base_scale_old > 0.0:
+                new_radius = radius_float * (base_scale_new / base_scale_old)
+            else:
+                new_radius = radius_float
+
+            if stored_cw:
+                end_angle_screen = start_angle_screen + sweep_delta
+            else:
+                end_angle_screen = start_angle_screen - sweep_delta
+
+            command.args = (new_center, new_radius, start_angle_screen, end_angle_screen, stored_cw, stroke)
+            command.meta["geometry"] = _quantize_geometry((new_center, new_radius, start_angle_screen, end_angle_screen, stored_cw))
         else:
             new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
             screen_space = bool(command.kwargs.get("screen_space"))
@@ -883,7 +951,7 @@ def build_plan_for_drawable(
             "class_name": class_name,
             "map_state": map_state,
             "screen_bounds": recorder.get_bounds(),
-            "supports_transform": supports_transform,
+            "supports_transform": effective_supports_transform,
             "uses_screen_space": recorder.uses_screen_space(),
             "display_map_state": map_state,
         },
@@ -905,6 +973,7 @@ def build_plan_for_cartesian(
     cached_mapper = _CachedCoordinateMapper(coordinate_mapper)
     shared.render_cartesian_helper(recorder, cartesian, cached_mapper, style)
     map_state = _capture_map_state(coordinate_mapper)
+    effective_supports_transform = supports_transform and not recorder.uses_screen_space()
     plan = OptimizedPrimitivePlan(
         drawable=cartesian,
         commands=list(recorder.commands),
@@ -913,7 +982,7 @@ def build_plan_for_cartesian(
             "class_name": "Cartesian2Axis",
             "map_state": map_state,
             "screen_bounds": recorder.get_bounds(),
-            "supports_transform": supports_transform,
+            "supports_transform": effective_supports_transform,
             "uses_screen_space": recorder.uses_screen_space(),
             "display_map_state": map_state,
         },

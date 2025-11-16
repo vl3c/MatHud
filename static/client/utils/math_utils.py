@@ -232,7 +232,13 @@ class MathUtils:
         dy = float(point.y) - float(center_y)
         distance = math.hypot(dx, dy)
 
-        radius_tol = tolerance or max(MathUtils.EPSILON * max(1.0, abs(float(radius))), 1e-6)
+        if tolerance is not None:
+            radius_tol = float(tolerance)
+        else:
+            radius_value = abs(float(radius))
+            radius_tol = MathUtils.EPSILON * max(1.0, radius_value)
+            radius_tol = max(radius_tol, MathUtils.EPSILON)
+
         if math.isclose(distance, float(radius), abs_tol=radius_tol):
             return
 
@@ -255,7 +261,12 @@ class MathUtils:
         strict: bool = True,
     ) -> bool:
         """Validate that a single point lies on a circle."""
-        tol = tolerance or max(MathUtils.EPSILON * max(1.0, abs(float(radius))), 1e-6)
+        if tolerance is not None:
+            tol = float(tolerance)
+        else:
+            radius_value = abs(float(radius))
+            tol = MathUtils.EPSILON * max(1.0, radius_value)
+            tol = max(tol, MathUtils.EPSILON)
         distance = math.hypot(point.x - float(center_x), point.y - float(center_y))
         if abs(distance - float(radius)) > tol:
             if strict:

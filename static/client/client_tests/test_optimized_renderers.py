@@ -13,6 +13,7 @@ from cartesian_system_2axis import Cartesian2Axis
 from drawables.point import Point
 from drawables.segment import Segment
 from drawables.circle import Circle
+from drawables.circle_arc import CircleArc
 
 
 def _normalize_point(value) -> tuple[float, float]:
@@ -162,6 +163,7 @@ HELPERS = {
     "Point": shared.render_point_helper,
     "Segment": shared.render_segment_helper,
     "Circle": shared.render_circle_helper,
+    "CircleArc": shared.render_circle_arc_helper,
 }
 
 
@@ -202,6 +204,12 @@ class TestOptimizedRendererParity(unittest.TestCase):
         circle = Circle(center, radius=6.5)
         self._assert_drawable_parity(circle)
 
+    def test_circle_arc_matches_baseline(self) -> None:
+        point_a = Point(5.0, 0.0, name="A")
+        point_b = Point(0.0, 5.0, name="B")
+        arc = CircleArc(point_a, point_b, center_x=0.0, center_y=0.0, radius=5.0)
+        self._assert_drawable_parity(arc)
+
     def test_plan_visibility_culling(self) -> None:
         point = Point(0.0, 0.0, name="P_cull")
         plan = build_plan_for_drawable(point, self.mapper, self.style)
@@ -236,6 +244,43 @@ class TestOptimizedRendererParity(unittest.TestCase):
         optimized_ops = optimized_primitives.operations
 
         self.assertEqual(optimized_ops, baseline_ops)
+
+    def test_circle_arc_plan_scales_with_zoom(self) -> None:
+        point_a = Point(5.0, 0.0, name="A")
+        point_b = Point(0.0, 5.0, name="B")
+        arc = CircleArc(point_a, point_b, center_x=0.0, center_y=0.0, radius=5.0)
+        plan = build_plan_for_drawable(arc, self.mapper, self.style)
+        self.assertIsNotNone(plan)
+        if plan is None:
+            return
+        self.assertFalse(plan.supports_transform())
+
+        initial_primitives = RecordingPrimitives()
+        plan.apply(initial_primitives)
+        initial_stroke = [record for record in initial_primitives.operations if record[0] == "stroke_arc"]
+        self.assertEqual(len(initial_stroke), 1)
+        _, initial_args, _ = initial_stroke[0]
+        initial_radius = initial_args[1]
+
+        self.mapper.apply_zoom(2.0)
+        plan.update_map_state(
+            {
+                "scale": self.mapper.scale_factor,
+                "offset_x": self.mapper.offset.x,
+                "offset_y": self.mapper.offset.y,
+                "origin_x": self.mapper.origin.x,
+                "origin_y": self.mapper.origin.y,
+            }
+        )
+
+        zoomed_primitives = RecordingPrimitives()
+        plan.apply(zoomed_primitives)
+        zoomed_stroke = [record for record in zoomed_primitives.operations if record[0] == "stroke_arc"]
+        self.assertEqual(len(zoomed_stroke), 1)
+        _, zoomed_args, _ = zoomed_stroke[0]
+        zoomed_radius = zoomed_args[1]
+
+        self.assertAlmostEqual(zoomed_radius, initial_radius * 2.0, places=6)
 
 
 if __name__ == "__main__":
