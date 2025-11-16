@@ -203,6 +203,47 @@ class MathUtils:
         return float(distance)
 
     @staticmethod
+    def project_point_onto_circle(
+        point: PointLike,
+        center_x: Number,
+        center_y: Number,
+        radius: Number,
+        *,
+        tolerance: Optional[float] = None,
+    ) -> None:
+        """Project a point onto the circumference of a circle defined by a center and radius.
+
+        If the point already lies on the circle (within tolerance) nothing happens. If the point
+        coincides with the center (within tolerance) a ValueError is raised since projection
+        would be undefined. Otherwise, the point is moved along the ray from the center through
+        the point until it lies on the circle.
+
+        Args:
+            point: Point object with mutable x and y attributes.
+            center_x: Circle center x-coordinate.
+            center_y: Circle center y-coordinate.
+            radius: Circle radius (must be positive).
+            tolerance: Optional absolute tolerance override for near-zero comparisons.
+        """
+        if radius is None or float(radius) <= 0:
+            raise ValueError("Circle radius must be a positive number.")
+
+        dx = float(point.x) - float(center_x)
+        dy = float(point.y) - float(center_y)
+        distance = math.hypot(dx, dy)
+        tol = tolerance or max(MathUtils.EPSILON * max(1.0, abs(float(radius))), 1e-6)
+
+        if math.isclose(distance, float(radius), abs_tol=tol):
+            return
+
+        if distance <= tol:
+            raise ValueError("Cannot project a point that coincides with the circle center.")
+
+        scale = float(radius) / distance
+        point.x = float(center_x) + dx * scale
+        point.y = float(center_y) + dy * scale
+
+    @staticmethod
     def get_2D_midpoint(p1: PointLike, p2: PointLike) -> Tuple[float, float]:
         """Calculate the midpoint between two points in 2D space.
         

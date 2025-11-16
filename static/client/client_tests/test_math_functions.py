@@ -82,6 +82,25 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(x, 1)
         self.assertEqual(y, 1)
 
+    def test_project_point_onto_circle(self) -> None:
+        on_circle = SimpleMock(x=3.0, y=4.0)
+        MathUtils.project_point_onto_circle(on_circle, 0.0, 0.0, 5.0)
+        self.assertAlmostEqual(math.hypot(on_circle.x, on_circle.y), 5.0)
+        self.assertAlmostEqual(on_circle.x, 3.0)
+        self.assertAlmostEqual(on_circle.y, 4.0)
+
+        inside_point = SimpleMock(x=1.0, y=1.0)
+        MathUtils.project_point_onto_circle(inside_point, 0.0, 0.0, 5.0)
+        self.assertAlmostEqual(math.hypot(inside_point.x, inside_point.y), 5.0, places=7)
+        self.assertGreater(inside_point.x, 0.0)
+        self.assertGreater(inside_point.y, 0.0)
+
+        with self.assertRaises(ValueError):
+            MathUtils.project_point_onto_circle(SimpleMock(x=0.0, y=0.0), 0.0, 0.0, 5.0)
+
+        with self.assertRaises(ValueError):
+            MathUtils.project_point_onto_circle(SimpleMock(x=1.0, y=1.0), 0.0, 0.0, 0.0)
+
     def test_is_point_on_segment(self) -> None:
         # Basic tests
         self.assertTrue(MathUtils.is_point_on_segment(1, 1, 0, 0, 2, 2))
