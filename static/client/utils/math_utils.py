@@ -244,6 +244,25 @@ class MathUtils:
         point.y = float(center_y) + dy * scale
 
     @staticmethod
+    def point_on_circle(
+        point: PointLike,
+        *,
+        center_x: Number,
+        center_y: Number,
+        radius: Number,
+        tolerance: Optional[float] = None,
+        strict: bool = True,
+    ) -> bool:
+        """Validate that a single point lies on a circle."""
+        tol = tolerance or max(MathUtils.EPSILON * max(1.0, abs(float(radius))), 1e-6)
+        distance = math.hypot(point.x - float(center_x), point.y - float(center_y))
+        if abs(distance - float(radius)) > tol:
+            if strict:
+                raise ValueError(f"Point '{getattr(point, 'name', '')}' is not on the expected circle.")
+            return False
+        return True
+
+    @staticmethod
     def get_2D_midpoint(p1: PointLike, p2: PointLike) -> Tuple[float, float]:
         """Calculate the midpoint between two points in 2D space.
         

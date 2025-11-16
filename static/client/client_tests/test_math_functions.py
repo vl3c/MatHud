@@ -101,6 +101,36 @@ class TestMathFunctions(unittest.TestCase):
         with self.assertRaises(ValueError):
             MathUtils.project_point_onto_circle(SimpleMock(x=1.0, y=1.0), 0.0, 0.0, 0.0)
 
+    def test_point_on_circle(self) -> None:
+        point = SimpleMock(x=3.0, y=4.0, name="P")
+        self.assertTrue(
+            MathUtils.point_on_circle(
+                point,
+                center_x=0.0,
+                center_y=0.0,
+                radius=5.0,
+            )
+        )
+
+        off_point = SimpleMock(x=0.0, y=0.0, name="Q")
+        with self.assertRaises(ValueError):
+            MathUtils.point_on_circle(
+                off_point,
+                center_x=0.0,
+                center_y=0.0,
+                radius=5.0,
+            )
+
+        self.assertFalse(
+            MathUtils.point_on_circle(
+                off_point,
+                center_x=0.0,
+                center_y=0.0,
+                radius=5.0,
+                strict=False,
+            )
+        )
+
     def test_is_point_on_segment(self) -> None:
         # Basic tests
         self.assertTrue(MathUtils.is_point_on_segment(1, 1, 0, 0, 2, 2))
