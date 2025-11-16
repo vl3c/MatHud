@@ -20,6 +20,7 @@ This checklist documents the workflow for introducing a new drawable type to Mat
 2. Implement a dedicated manager in `static/client/managers/` for create/delete/retrieve operations.
 3. Register the manager within `DrawableManager` and expose delegating methods.
 4. Add undo/redo archiving in manager methods before mutating state.
+5. When a drawable depends optionally on a parent (for example, circle arcs that can reference an existing circle or stand alone), update dependency cleanup paths so removing either the parent shape or a shared point also removes the child drawable.
 
 ## 4. Wire the Canvas API
 1. Register the drawable when the canvas configures renderers (`Canvas._register_renderer_handlers`).
