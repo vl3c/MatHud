@@ -351,6 +351,23 @@ class DrawableManager:
         """Delete a function by its name"""
         return bool(self.function_manager.delete_function(name))
     
+    def update_function(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+        new_left_bound: Optional[float] = None,
+        new_right_bound: Optional[float] = None,
+    ) -> bool:
+        """Update editable properties of a function."""
+        return bool(
+            self.function_manager.update_function(
+                name,
+                new_color=new_color,
+                new_left_bound=new_left_bound,
+                new_right_bound=new_right_bound,
+            )
+        )
+    
     # ------------------- Circle Methods -------------------
     
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional["Circle"]:

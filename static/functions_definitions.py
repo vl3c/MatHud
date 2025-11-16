@@ -942,6 +942,37 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "update_function",
+                    "description": "Updates editable properties of an existing plotted function (color and/or bounds). Provide null for fields to leave them unchanged.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Existing name of the function to edit."
+                            },
+                            "new_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional new color for the function plot."
+                            },
+                            "new_left_bound": {
+                                "type": ["number", "null"],
+                                "description": "Optional new left plotting bound."
+                            },
+                            "new_right_bound": {
+                                "type": ["number", "null"],
+                                "description": "Optional new right plotting bound."
+                            }
+                        },
+                        "required": ["name", "new_color", "new_left_bound", "new_right_bound"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "evaluate_expression",
                     "description": "Evaluates a mathematical expression provided as a string and returns the numerical result. The expression can include variables like x, y; constants like e, pi; mathematical operations and functions like sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pi, e, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, mean, median, mode, stdev, variance, random, randint.",
                     "parameters": {

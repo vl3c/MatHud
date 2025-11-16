@@ -122,6 +122,18 @@ class Function(Drawable):
     def rotate(self, angle: float) -> None:
         pass 
 
+    def update_color(self, color: str) -> None:
+        """Update the function color metadata."""
+        self.color = str(color)
+
+    def update_left_bound(self, left_bound: Optional[float]) -> None:
+        """Update the left bound (None clears the bound)."""
+        self.left_bound = None if left_bound is None else float(left_bound)
+
+    def update_right_bound(self, right_bound: Optional[float]) -> None:
+        """Update the right bound (None clears the bound)."""
+        self.right_bound = None if right_bound is None else float(right_bound)
+
     def _calculate_asymptotes_and_discontinuities(self) -> None:
         """Calculate vertical and horizontal asymptotes and point discontinuities of the function"""
         from utils.math_utils import MathUtils

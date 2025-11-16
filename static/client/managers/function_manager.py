@@ -43,10 +43,11 @@ State Management:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from drawables.function import Function
 from expression_validator import ExpressionValidator
+from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -81,6 +82,7 @@ class FunctionManager:
         self.name_generator: "DrawableNameGenerator" = name_generator
         self.dependency_manager: "DrawableDependencyManager" = dependency_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
+        self.function_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Function")
         
     def get_function(self, name: str) -> Optional[Function]:
         """
@@ -186,3 +188,105 @@ class FunctionManager:
             self.canvas.draw()
             
         return True 
+
+    def update_function(
+        self,
+        function_name: str,
+        new_color: Optional[str] = None,
+        new_left_bound: Optional[float] = None,
+        new_right_bound: Optional[float] = None,
+    ) -> bool:
+        function = self.get_function(function_name)
+        if not function:
+            raise ValueError(f"Function '{function_name}' was not found.")
+
+        pending_fields = self._collect_function_fields(new_color, new_left_bound, new_right_bound)
+        self._validate_function_policy(list(pending_fields.keys()))
+        self._validate_function_payload(function, pending_fields, new_color, new_left_bound, new_right_bound)
+
+        self.canvas.undo_redo_manager.archive()
+        self._apply_function_updates(function, pending_fields, new_color, new_left_bound, new_right_bound)
+
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+
+        return True
+
+    def _collect_function_fields(
+        self,
+        new_color: Optional[str],
+        new_left_bound: Optional[float],
+        new_right_bound: Optional[float],
+    ) -> Dict[str, str]:
+        pending_fields: Dict[str, str] = {}
+
+        if new_color is not None:
+            pending_fields["color"] = "color"
+
+        if new_left_bound is not None:
+            pending_fields["left_bound"] = "left_bound"
+
+        if new_right_bound is not None:
+            pending_fields["right_bound"] = "right_bound"
+
+        if not pending_fields:
+            raise ValueError("Provide at least one property to update.")
+
+        return pending_fields
+
+    def _validate_function_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
+        if not self.function_edit_policy:
+            raise ValueError("Edit policy for functions is not configured.")
+
+        validated_rules: Dict[str, EditRule] = {}
+        for field in requested_fields:
+            rule = self.function_edit_policy.get_rule(field)
+            if not rule:
+                raise ValueError(f"Editing field '{field}' is not permitted for functions.")
+            validated_rules[field] = rule
+
+        return validated_rules
+
+    def _validate_function_payload(
+        self,
+        function: Function,
+        pending_fields: Dict[str, str],
+        new_color: Optional[str],
+        new_left_bound: Optional[float],
+        new_right_bound: Optional[float],
+    ) -> None:
+        if "color" in pending_fields and (new_color is None or not str(new_color).strip()):
+            raise ValueError("Function color cannot be empty.")
+
+        updated_left = function.left_bound
+        updated_right = function.right_bound
+
+        if "left_bound" in pending_fields:
+            if new_left_bound is None:
+                raise ValueError("Function left_bound requires a numeric value.")
+            updated_left = float(new_left_bound)
+
+        if "right_bound" in pending_fields:
+            if new_right_bound is None:
+                raise ValueError("Function right_bound requires a numeric value.")
+            updated_right = float(new_right_bound)
+
+        if updated_left is not None and updated_right is not None and updated_left >= updated_right:
+            raise ValueError("left_bound must be less than right_bound.")
+
+    def _apply_function_updates(
+        self,
+        function: Function,
+        pending_fields: Dict[str, str],
+        new_color: Optional[str],
+        new_left_bound: Optional[float],
+        new_right_bound: Optional[float],
+    ) -> None:
+        if "color" in pending_fields and new_color is not None:
+            function.update_color(str(new_color))
+
+        if "left_bound" in pending_fields and new_left_bound is not None:
+            function.update_left_bound(float(new_left_bound))
+
+        if "right_bound" in pending_fields and new_right_bound is not None:
+            function.update_right_bound(float(new_right_bound))

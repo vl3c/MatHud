@@ -101,6 +101,7 @@ class FunctionRegistry:
             # ===== FUNCTION PLOTTING =====
             "draw_function": canvas.draw_function,
             "delete_function": canvas.delete_function,
+            "update_function": canvas.update_function,
             
             # ===== OBJECT TRANSFORMATIONS =====
             "translate_object": canvas.translate_object,
@@ -205,6 +206,7 @@ class FunctionRegistry:
             # Function operations
             "draw_function",
             "delete_function",
+            "update_function",
             
             # Object transformations
             "translate_object",

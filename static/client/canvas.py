@@ -721,6 +721,23 @@ class Canvas:
     def delete_function(self, name: str) -> bool:
         """Delete a function by its name"""
         return bool(self.drawable_manager.delete_function(name))
+    
+    def update_function(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+        new_left_bound: Optional[float] = None,
+        new_right_bound: Optional[float] = None,
+    ) -> bool:
+        """Update editable properties of a plotted function."""
+        return bool(
+            self.drawable_manager.update_function(
+                name,
+                new_color=new_color,
+                new_left_bound=new_left_bound,
+                new_right_bound=new_right_bound,
+            )
+        )
 
     def translate_object(self, name: str, x_offset: float, y_offset: float) -> bool:
         """Translates a drawable object by the specified offset"""

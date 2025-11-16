@@ -1701,6 +1701,7 @@ This class coordinates specialized managers for each drawable type:
 - `get_function(name)`: Get a function by its name
 - `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a function on the canvas
 - `delete_function(name)`: Delete a function by its name
+- `update_function(name, new_color=None, new_left_bound=None, new_right_bound=None)`: Update a function's color or bounds
 - `get_circle(center_x, center_y, radius)`: Get a circle by its center coordinates and radius
 - `get_circle_by_name(name)`: Get a circle by its name
 - `create_circle(center_x, center_y, radius, name="", extra_graphics=True)`: Create a circle with specified center and radius
