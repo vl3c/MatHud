@@ -231,12 +231,13 @@ class MathUtils:
         dx = float(point.x) - float(center_x)
         dy = float(point.y) - float(center_y)
         distance = math.hypot(dx, dy)
-        tol = tolerance or max(MathUtils.EPSILON * max(1.0, abs(float(radius))), 1e-6)
 
-        if math.isclose(distance, float(radius), abs_tol=tol):
+        radius_tol = tolerance or max(MathUtils.EPSILON * max(1.0, abs(float(radius))), 1e-6)
+        if math.isclose(distance, float(radius), abs_tol=radius_tol):
             return
 
-        if distance <= tol:
+        center_tol = max(MathUtils.EPSILON, 1e-12)
+        if distance <= center_tol:
             raise ValueError("Cannot project a point that coincides with the circle center.")
 
         scale = float(radius) / distance
