@@ -409,6 +409,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
             ('Triangle', self._create_mock_drawable("TestTriangle", "Triangle")),
             ('Rectangle', self._create_mock_drawable("TestRectangle", "Rectangle")),
             ('Circle', self._create_mock_drawable("TestCircle", "Circle")),
+            ('CircleArc', self._create_mock_drawable("TestCircleArc", "CircleArc")),
             ('Ellipse', self._create_mock_drawable("TestEllipse", "Ellipse")),
             ('Function', self._create_mock_drawable("TestFunction", "Function")),
             ('Angle', self._create_mock_drawable("TestAngle", "Angle")),

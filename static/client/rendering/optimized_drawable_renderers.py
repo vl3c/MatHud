@@ -838,6 +838,7 @@ _HELPERS: Dict[str, Any] = {
     "Point": shared.render_point_helper,
     "Segment": shared.render_segment_helper,
     "Circle": shared.render_circle_helper,
+    "CircleArc": shared.render_circle_arc_helper,
     "Ellipse": shared.render_ellipse_helper,
     "Vector": shared.render_vector_helper,
     "Angle": shared.render_angle_helper,

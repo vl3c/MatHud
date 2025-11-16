@@ -171,6 +171,22 @@ CIRCLE_EDIT_POLICY = DrawableEditPolicy(
     },
 )
 
+CIRCLE_ARC_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="CircleArc",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Update the circle arc stroke color.",
+        ),
+        "use_major_arc": EditRule(
+            field="use_major_arc",
+            category="style",
+            description="Toggle whether the arc displays the major or minor sweep.",
+        ),
+    },
+)
+
 ELLIPSE_EDIT_POLICY = DrawableEditPolicy(
     drawable_type="Ellipse",
     rules={
@@ -295,6 +311,7 @@ DRAWABLE_EDIT_POLICIES: Dict[str, DrawableEditPolicy] = {
     TRIANGLE_EDIT_POLICY.drawable_type: TRIANGLE_EDIT_POLICY,
     RECTANGLE_EDIT_POLICY.drawable_type: RECTANGLE_EDIT_POLICY,
     CIRCLE_EDIT_POLICY.drawable_type: CIRCLE_EDIT_POLICY,
+    CIRCLE_ARC_EDIT_POLICY.drawable_type: CIRCLE_ARC_EDIT_POLICY,
     ELLIPSE_EDIT_POLICY.drawable_type: ELLIPSE_EDIT_POLICY,
     FUNCTION_EDIT_POLICY.drawable_type: FUNCTION_EDIT_POLICY,
     FUNCTIONS_BOUNDED_COLORED_AREA_EDIT_POLICY.drawable_type: FUNCTIONS_BOUNDED_COLORED_AREA_EDIT_POLICY,

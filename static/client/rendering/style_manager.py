@@ -10,6 +10,9 @@ from constants import (
     point_label_font_size,
     DEFAULT_ANGLE_ARC_SCREEN_RADIUS,
     DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR,
+    DEFAULT_CIRCLE_ARC_COLOR,
+    DEFAULT_CIRCLE_ARC_STROKE_WIDTH,
+    DEFAULT_CIRCLE_ARC_RADIUS_SCALE,
 )
 
 
@@ -40,6 +43,10 @@ _BASE_STYLE: Dict[str, Any] = {
     "angle_label_font_size": point_label_font_size,
     "angle_text_arc_radius_factor": DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR,
     "angle_label_font_family": default_font_family,
+
+    "circle_arc_color": DEFAULT_CIRCLE_ARC_COLOR,
+    "circle_arc_stroke_width": DEFAULT_CIRCLE_ARC_STROKE_WIDTH,
+    "circle_arc_radius_scale": DEFAULT_CIRCLE_ARC_RADIUS_SCALE,
 
     "function_color": default_color,
     "function_stroke_width": 1,

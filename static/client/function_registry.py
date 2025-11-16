@@ -87,6 +87,11 @@ class FunctionRegistry:
             "create_circle": canvas.create_circle,
             "delete_circle": canvas.delete_circle,
             "update_circle": canvas.update_circle,
+
+            # ===== CIRCLE ARC OPERATIONS =====
+            "create_circle_arc": canvas.create_circle_arc,
+            "delete_circle_arc": canvas.delete_circle_arc,
+            "update_circle_arc": canvas.update_circle_arc,
             
             # ===== ELLIPSE OPERATIONS =====
             "create_ellipse": canvas.create_ellipse,
@@ -192,6 +197,11 @@ class FunctionRegistry:
             "create_circle",
             "delete_circle",
             "update_circle",
+
+            # Circle arc operations
+            "create_circle_arc",
+            "delete_circle_arc",
+            "update_circle_arc",
             
             # Ellipse operations
             "create_ellipse",

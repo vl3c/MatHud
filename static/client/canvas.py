@@ -218,6 +218,12 @@ class Canvas:
                 self.renderer.register_label(_Label)
         except Exception:
             pass
+        try:
+            from drawables.circle_arc import CircleArc as _CircleArc
+            if hasattr(self.renderer, 'register_circle_arc'):
+                self.renderer.register_circle_arc(_CircleArc)
+        except Exception:
+            pass
 
     def draw(self, apply_zoom: bool = False) -> None:
         if not self.draw_enabled:
@@ -918,6 +924,90 @@ class Canvas:
             return bool(self.drawable_manager.angle_manager.update_angle(
                 name, new_color=new_color
             ))
+        return False
+
+    # ------------------- Circle Arc Methods -------------------
+
+    def create_circle_arc(
+        self,
+        point1_x: Optional[float] = None,
+        point1_y: Optional[float] = None,
+        point2_x: Optional[float] = None,
+        point2_y: Optional[float] = None,
+        *,
+        point1_name: Optional[str] = None,
+        point2_name: Optional[str] = None,
+        point3_x: Optional[float] = None,
+        point3_y: Optional[float] = None,
+        point3_name: Optional[str] = None,
+        center_point_choice: Optional[str] = None,
+        circle_name: Optional[str] = None,
+        center_x: Optional[float] = None,
+        center_y: Optional[float] = None,
+        radius: Optional[float] = None,
+        arc_name: Optional[str] = None,
+        color: Optional[str] = None,
+        use_major_arc: bool = False,
+        extra_graphics: bool = True,
+    ) -> Optional["Drawable"]:
+        """Create a circle arc drawable via ArcManager."""
+        if self.drawable_manager.arc_manager:
+            return self.drawable_manager.arc_manager.create_circle_arc(
+                point1_x=point1_x,
+                point1_y=point1_y,
+                point2_x=point2_x,
+                point2_y=point2_y,
+                point1_name=point1_name,
+                point2_name=point2_name,
+                point3_x=point3_x,
+                point3_y=point3_y,
+                point3_name=point3_name,
+                center_point_choice=center_point_choice,
+                circle_name=circle_name,
+                center_x=center_x,
+                center_y=center_y,
+                radius=radius,
+                arc_name=arc_name,
+                color=color,
+                use_major_arc=use_major_arc,
+                extra_graphics=extra_graphics,
+            )
+        return None
+
+    def delete_circle_arc(self, name: str) -> bool:
+        """Delete a circle arc via ArcManager."""
+        if self.drawable_manager.arc_manager:
+            return bool(self.drawable_manager.arc_manager.delete_circle_arc(name))
+        return False
+
+    def update_circle_arc(
+        self,
+        name: str,
+        *,
+        new_color: Optional[str] = None,
+        use_major_arc: Optional[bool] = None,
+        point1_name: Optional[str] = None,
+        point1_x: Optional[float] = None,
+        point1_y: Optional[float] = None,
+        point2_name: Optional[str] = None,
+        point2_x: Optional[float] = None,
+        point2_y: Optional[float] = None,
+    ) -> bool:
+        """Update editable circle arc properties."""
+        if self.drawable_manager.arc_manager:
+            return bool(
+                self.drawable_manager.arc_manager.update_circle_arc(
+                    name,
+                    new_color=new_color,
+                    use_major_arc=use_major_arc,
+                    point1_name=point1_name,
+                    point1_x=point1_x,
+                    point1_y=point1_y,
+                    point2_name=point2_name,
+                    point2_x=point2_x,
+                    point2_y=point2_y,
+                )
+            )
         return False
 
     # Property delegations to CoordinateMapper for backward compatibility

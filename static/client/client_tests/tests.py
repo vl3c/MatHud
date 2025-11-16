@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Tuple, Type, cast
 from .test_canvas import TestCanvas
 from .test_cartesian import TestCartesian2Axis
 from .test_circle import TestCircle
+from .test_circle_arc import TestCircleArc
 from .test_custom_drawable_names import TestCustomDrawableNames
 from .test_drawable_dependency_manager import TestDrawableDependencyManager
 from .test_drawable_name_generator import TestDrawableNameGenerator
@@ -39,6 +40,7 @@ from .test_triangle import TestTriangle
 from .test_vector import TestVector
 from .test_angle import TestAngle
 from .test_angle_manager import TestAngleManager
+from .test_arc_manager import TestArcManager
 from .test_function_bounded_colored_area_integration import TestFunctionBoundedColoredAreaIntegration
 from .renderer_performance_tests import TestRendererPerformance
 from .test_optimized_renderers import TestOptimizedRendererParity
@@ -132,8 +134,10 @@ class Tests:
             TestTriangle,
             TestRectangle,
             TestCircle,
+            TestCircleArc,
             TestAngle,
             TestAngleManager,
+            TestArcManager,
             TestEllipse,
             TestFunction,
             TestFunctionsBoundedColoredArea,

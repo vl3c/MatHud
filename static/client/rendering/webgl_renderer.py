@@ -63,6 +63,11 @@ class WebGLRenderer(RendererProtocol):
         except Exception:
             pass
         try:
+            from drawables.circle_arc import CircleArc as CircleArcDrawable
+            self.register(CircleArcDrawable, self._render_circle_arc)
+        except Exception:
+            pass
+        try:
             from drawables.label import Label as LabelDrawable
             self.register(LabelDrawable, self._render_label)
         except Exception:
@@ -85,6 +90,12 @@ class WebGLRenderer(RendererProtocol):
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
         self._render_drawable(circle, coordinate_mapper)
+
+    def register_circle_arc(self, arc_cls: type) -> None:
+        self.register(arc_cls, self._render_circle_arc)
+
+    def _render_circle_arc(self, circle_arc: Any, coordinate_mapper: Any) -> None:
+        self._render_drawable(circle_arc, coordinate_mapper)
 
     def _render_label(self, label: Any, coordinate_mapper: Any) -> None:
         self._render_drawable(label, coordinate_mapper)

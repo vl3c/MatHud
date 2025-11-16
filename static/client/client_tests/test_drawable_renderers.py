@@ -12,6 +12,8 @@ from drawables.triangle import Triangle
 from drawables.rectangle import Rectangle
 from drawables.ellipse import Ellipse
 from drawables.label import Label
+from drawables.circle_arc import CircleArc
+from drawables.circle import Circle
 
 from rendering import shared_drawable_renderers as shared
 
@@ -164,6 +166,61 @@ class TestAngleRenderer(unittest.TestCase):
         self.assertIn("end", self.primitives.shapes)
 
 
+class TestCircleArcRenderer(unittest.TestCase):
+    def setUp(self) -> None:
+        self.mapper = CoordinateMapper(640, 480)
+        self.primitives = RecordingPrimitives()
+        self.style = {
+            "circle_arc_color": "#00AAFF",
+            "circle_arc_stroke_width": 2,
+            "circle_arc_radius_scale": 1.0,
+        }
+
+    def test_circle_arc_draws_stroke_arc(self) -> None:
+        center_point = Point(0, 0, name="O")
+        circle = Circle(center_point, radius=5)
+        point_a = Point(5, 0, name="A")
+        point_b = Point(0, 5, name="B")
+        arc = CircleArc(point_a, point_b, center_x=0, center_y=0, radius=5, circle=circle)
+
+        shared.render_circle_arc_helper(self.primitives, arc, self.mapper, self.style)
+        stroke_calls = [call for call in self.primitives.calls if call[0] == "stroke_arc"]
+        self.assertEqual(len(stroke_calls), 1)
+
+    def test_circle_arc_respects_major_flag(self) -> None:
+        point_a = Point(5, 0, name="A")
+        point_b = Point(-5, 0, name="B")
+        arc = CircleArc(point_a, point_b, center_x=0, center_y=0, radius=5, use_major_arc=True)
+
+        shared.render_circle_arc_helper(self.primitives, arc, self.mapper, self.style)
+        stroke_calls = [call for call in self.primitives.calls if call[0] == "stroke_arc"]
+        self.assertEqual(len(stroke_calls), 1)
+
+    def test_circle_arc_minor_sweep_uses_counterclockwise_path(self) -> None:
+        point_a = Point(5, 0, name="A")
+        point_b = Point(0, 5, name="B")
+        arc = CircleArc(point_a, point_b, center_x=0, center_y=0, radius=5)
+
+        shared.render_circle_arc_helper(self.primitives, arc, self.mapper, self.style)
+        stroke_call = next(call for call in self.primitives.calls if call[0] == "stroke_arc")
+        _, args, _ = stroke_call
+        _, _, start_angle, end_angle, sweep_clockwise, *_ = args
+        self.assertFalse(sweep_clockwise)
+        delta = abs(end_angle - start_angle)
+        self.assertTrue(math.isclose(delta, math.pi / 2, rel_tol=1e-6))
+
+    def test_circle_arc_major_sweep_goes_clockwise(self) -> None:
+        point_a = Point(5, 0, name="A")
+        point_b = Point(0, 5, name="B")
+        arc = CircleArc(point_a, point_b, center_x=0, center_y=0, radius=5, use_major_arc=True)
+
+        shared.render_circle_arc_helper(self.primitives, arc, self.mapper, self.style)
+        stroke_call = next(call for call in self.primitives.calls if call[0] == "stroke_arc")
+        _, args, _ = stroke_call
+        _, _, start_angle, end_angle, sweep_clockwise, *_ = args
+        self.assertTrue(sweep_clockwise)
+        delta = abs(end_angle - start_angle)
+        self.assertTrue(math.isclose(delta, 3 * math.pi / 2, rel_tol=1e-6))
 class TestTriangleRenderer(unittest.TestCase):
     def setUp(self) -> None:
         self.mapper = CoordinateMapper(640, 480)

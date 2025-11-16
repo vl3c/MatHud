@@ -145,3 +145,29 @@ class TestDrawablesContainer(unittest.TestCase):
         self.assertTrue("Point" in self.container, "Container should contain Point")
         self.assertTrue("Segment" in self.container, "Container should contain Segment")
         self.assertFalse("Circle" in self.container, "Container should not contain Circle") 
+
+    def test_circle_arc_property_and_layering(self) -> None:
+        """Ensure circle arcs are exposed via property and render above circles."""
+        circle_arc = SimpleMock(
+            get_class_name=SimpleMock(return_value="CircleArc"),
+            name="ArcAB",
+        )
+        circle = SimpleMock(
+            get_class_name=SimpleMock(return_value="Circle"),
+            name="Circle1",
+        )
+        segment = SimpleMock(
+            get_class_name=SimpleMock(return_value="Segment"),
+            name="Segment1",
+        )
+
+        self.container.add(segment)
+        self.container.add(circle)
+        self.container.add(circle_arc)
+
+        self.assertEqual(len(self.container.CircleArcs), 1)
+        self.assertIs(self.container.CircleArcs[0], circle_arc)
+
+        ordered = self.container.get_all_with_layering()
+        self.assertEqual(ordered[-1], circle_arc)
+        self.assertTrue(ordered.index(circle) < ordered.index(circle_arc))

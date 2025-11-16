@@ -41,6 +41,11 @@ DEFAULT_ANGLE_COLOR: str = "blue"
 DEFAULT_ANGLE_ARC_SCREEN_RADIUS: int = 15  # Arc radius in pixels for angle indicators
 DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR: float = 1.8  # Text positioning relative to arc radius
 
+# ===== CIRCLE ARC VISUALIZATION CONSTANTS =====
+DEFAULT_CIRCLE_ARC_COLOR: str = default_color
+DEFAULT_CIRCLE_ARC_STROKE_WIDTH: float = 2.0
+DEFAULT_CIRCLE_ARC_RADIUS_SCALE: float = 1.0
+
 # ===== ZOOM AND NAVIGATION CONSTANTS =====
 # Scaling factors for canvas zoom operations
 zoom_in_scale_factor: float = 1.1  # 10% increase per zoom in action

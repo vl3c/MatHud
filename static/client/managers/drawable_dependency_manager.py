@@ -81,6 +81,7 @@ class DrawableDependencyManager:
             'Circle': ['Point'],
             'Ellipse': ['Point'],
             'Angle': ['Segment', 'Point'],
+            'CircleArc': ['Point', 'Circle'],
             'Function': [],
             'ColoredArea': ['Function', 'Segment'],
             'SegmentsBoundedColoredArea': ['Segment'],
@@ -441,6 +442,17 @@ class DrawableDependencyManager:
             if hasattr(drawable, 'arm2_point') and drawable.arm2_point:
                 dependencies.append(drawable.arm2_point)
                 self.register_dependency(drawable, drawable.arm2_point)
+
+        elif class_name == 'CircleArc':
+            if hasattr(drawable, 'point1') and drawable.point1:
+                dependencies.append(drawable.point1)
+                self.register_dependency(drawable, drawable.point1)
+            if hasattr(drawable, 'point2') and drawable.point2:
+                dependencies.append(drawable.point2)
+                self.register_dependency(drawable, drawable.point2)
+            if hasattr(drawable, 'circle') and drawable.circle:
+                dependencies.append(drawable.circle)
+                self.register_dependency(drawable, drawable.circle)
                 
         elif class_name == 'ColoredArea':
             # Base ColoredArea type

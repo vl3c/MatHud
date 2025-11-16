@@ -60,6 +60,7 @@ from managers.drawable_dependency_manager import DrawableDependencyManager
 from managers.drawables_container import DrawablesContainer
 from managers.angle_manager import AngleManager
 from managers.label_manager import LabelManager
+from managers.arc_manager import ArcManager
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -158,6 +159,15 @@ class DrawableManager:
 
         self.label_manager: LabelManager = LabelManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
+        )
+
+        self.arc_manager: ArcManager = ArcManager(
+            canvas,
+            self.drawables,
+            self.name_generator,
+            self.dependency_manager,
+            self.point_manager,
+            self.proxy,
         )
         
         # No need for the loop that sets drawable_manager anymore
@@ -545,3 +555,69 @@ class DrawableManager:
     def update_angle(self, name: str, new_color: Optional[str] = None) -> bool:
         """Updates editable properties of an existing angle (currently color)."""
         return bool(self.angle_manager.update_angle(name, new_color=new_color))
+
+    # ------------------- Circle Arc Methods -------------------
+
+    def create_circle_arc(
+        self,
+        point1_x: Optional[float] = None,
+        point1_y: Optional[float] = None,
+        point2_x: Optional[float] = None,
+        point2_y: Optional[float] = None,
+        *,
+        point1_name: Optional[str] = None,
+        point2_name: Optional[str] = None,
+        point3_x: Optional[float] = None,
+        point3_y: Optional[float] = None,
+        point3_name: Optional[str] = None,
+        center_point_choice: Optional[str] = None,
+        circle_name: Optional[str] = None,
+        center_x: Optional[float] = None,
+        center_y: Optional[float] = None,
+        radius: Optional[float] = None,
+        arc_name: Optional[str] = None,
+        color: Optional[str] = None,
+        use_major_arc: bool = False,
+        extra_graphics: bool = True,
+    ):
+        """Create a circle arc drawable."""
+        return self.arc_manager.create_circle_arc(
+            point1_x=point1_x,
+            point1_y=point1_y,
+            point2_x=point2_x,
+            point2_y=point2_y,
+            point1_name=point1_name,
+            point2_name=point2_name,
+            point3_x=point3_x,
+            point3_y=point3_y,
+            point3_name=point3_name,
+            center_point_choice=center_point_choice,
+            circle_name=circle_name,
+            center_x=center_x,
+            center_y=center_y,
+            radius=radius,
+            arc_name=arc_name,
+            color=color,
+            use_major_arc=use_major_arc,
+            extra_graphics=extra_graphics,
+        )
+
+    def delete_circle_arc(self, name: str) -> bool:
+        """Delete a circle arc by name."""
+        return bool(self.arc_manager.delete_circle_arc(name))
+
+    def update_circle_arc(
+        self,
+        name: str,
+        *,
+        new_color: Optional[str] = None,
+        use_major_arc: Optional[bool] = None,
+    ) -> bool:
+        """Update editable properties of an existing circle arc."""
+        return bool(
+            self.arc_manager.update_circle_arc(
+                name,
+                new_color=new_color,
+                use_major_arc=use_major_arc,
+            )
+        )

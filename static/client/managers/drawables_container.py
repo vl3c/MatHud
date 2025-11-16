@@ -142,7 +142,26 @@ class DrawablesContainer:
         Returns:
             list: All drawables with colored areas first for proper z-ordering
         """
-        return self.get_colored_areas() + self.get_non_colored_areas()
+        colored = self.get_colored_areas()
+        others = self.get_non_colored_areas()
+        circles: List["Drawable"] = []
+        circle_arcs: List["Drawable"] = []
+        remaining: List["Drawable"] = []
+
+        for drawable in others:
+            class_name = (
+                drawable.get_class_name()
+                if hasattr(drawable, "get_class_name")
+                else drawable.__class__.__name__
+            )
+            if class_name == "Circle":
+                circles.append(drawable)
+            elif class_name == "CircleArc":
+                circle_arcs.append(drawable)
+            else:
+                remaining.append(drawable)
+
+        return colored + remaining + circles + circle_arcs
         
     def clear(self) -> None:
         """Remove all drawables from the container."""
@@ -220,6 +239,11 @@ class DrawablesContainer:
     def Angles(self) -> List["Drawable"]:
         """Get all Angle objects."""
         return self.get_by_class_name('Angle')
+
+    @property
+    def CircleArcs(self) -> List["Drawable"]:
+        """Get all CircleArc objects."""
+        return self.get_by_class_name('CircleArc')
         
     @property
     def SegmentsBoundedColoredAreas(self) -> List["Drawable"]:

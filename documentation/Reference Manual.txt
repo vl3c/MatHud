@@ -255,6 +255,9 @@ Attributes:
 - `create_triangle(x1, y1, x2, y2, x3, y3, name="", extra_graphics=True)`: Create a triangle from three points
 - `create_rectangle(px, py, opposite_px, opposite_py, name="", extra_graphics=True)`: Create a rectangle from diagonal points
 - `create_circle(center_x, center_y, radius, name="", extra_graphics=True)`: Create a circle with specified center and radius
+- `create_circle_arc(point1_x, point1_y, point2_x, point2_y, point3_x=None, point3_y=None, center_point_choice=None, circle_name=None, center_x=None, center_y=None, radius=None, arc_name=None, use_major_arc=False, extra_graphics=True)`: Create a circle arc between two points. When supplying explicit center/radius values or referencing an existing circle, all provided endpoints (new or existing) are projected onto that circle before the arc is created. Alternatively, provide three points plus `center_point_choice` (point1/point2/point3) to treat that point as the center and derive the circle automatically.
+- `delete_circle_arc(name)`: Remove a circle arc by name without deleting its endpoints.
+- `update_circle_arc(name, new_color=None, use_major_arc=None)`: Update arc styling or switch between the minor and major arc sweep.
 - `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", extra_graphics=True)`: Create an ellipse with specified parameters
 - `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a mathematical function on the canvas
 - `zoom_to_bounds(left_bound, right_bound, top_bound, bottom_bound)`: Fit the viewport so the specified math-space rectangle is entirely visible while preserving aspect ratio

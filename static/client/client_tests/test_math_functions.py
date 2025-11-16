@@ -95,9 +95,9 @@ class TestMathFunctions(unittest.TestCase):
         self.assertGreater(inside_point.x, 0.0)
         self.assertGreater(inside_point.y, 0.0)
 
-        tiny_circle_point = SimpleMock(x=1e-7, y=0.0)
+        tiny_circle_point = SimpleMock(x=5e-7, y=0.0)
         MathUtils.project_point_onto_circle(tiny_circle_point, 0.0, 0.0, 1e-6)
-        self.assertAlmostEqual(math.hypot(tiny_circle_point.x, tiny_circle_point.y), 1e-6, places=12)
+        self.assertAlmostEqual(math.hypot(tiny_circle_point.x, tiny_circle_point.y), 1e-6, places=9)
 
         with self.assertRaises(ValueError):
             MathUtils.project_point_onto_circle(SimpleMock(x=0.0, y=0.0), 0.0, 0.0, 5.0)

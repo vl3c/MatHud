@@ -30,6 +30,11 @@ _client_constants = import_module(SERVER_CONSTANTS_MODULE)
 
 LABEL_TEXT_MAX_LENGTH: int = getattr(_client_constants, "label_text_max_length", 160)
 LABEL_LINE_WRAP_THRESHOLD: int = getattr(_client_constants, "label_line_wrap_threshold", 40)
+DEFAULT_CIRCLE_ARC_COLOR: str = getattr(
+    _client_constants,
+    "DEFAULT_CIRCLE_ARC_COLOR",
+    getattr(_client_constants, "default_color", "black"),
+)
 
 
 FunctionDefinition = Dict[str, Any]
@@ -659,6 +664,94 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             }
                         },
                         "required": ["name", "new_color", "new_center_x", "new_center_y"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "create_circle_arc",
+                    "description": "Creates a circle arc between two points. When explicit center/radius data is supplied or an existing circle is referenced, all provided endpoints are projected onto that circle along their originating rays. Alternatively, provide three points plus 'center_point_choice' to indicate which point represents the center; the remaining two points define the arc and are projected onto the derived circle.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "point1_x": {"type": "number", "description": "Reference X coordinate for the first arc point (snapped to the circle when center/radius are provided)"},
+                            "point1_y": {"type": "number", "description": "Reference Y coordinate for the first arc point (snapped to the circle when center/radius are provided)"},
+                            "point2_x": {"type": "number", "description": "Reference X coordinate for the second arc point (snapped to the circle when center/radius are provided)"},
+                            "point2_y": {"type": "number", "description": "Reference Y coordinate for the second arc point (snapped to the circle when center/radius are provided)"},
+                            "point1_name": {"type": ["string", "null"], "description": "Optional name for the first arc point"},
+                            "point2_name": {"type": ["string", "null"], "description": "Optional name for the second arc point"},
+                            "point3_x": {"type": ["number", "null"], "description": "Optional reference X coordinate for a third point when deriving the circle from three points"},
+                            "point3_y": {"type": ["number", "null"], "description": "Optional reference Y coordinate for a third point when deriving the circle from three points"},
+                            "point3_name": {"type": ["string", "null"], "description": "Optional name for the third point (used when deriving the circle from three points)"},
+                            "center_point_choice": {"type": ["string", "null"], "description": "Optional selector ('point1', 'point2', or 'point3') indicating which provided point should be treated as the circle center"},
+                            "circle_name": {"type": ["string", "null"], "description": "Existing circle to attach the arc to"},
+                            "center_x": {"type": ["number", "null"], "description": "Circle center x-coordinate when defining a standalone arc"},
+                            "center_y": {"type": ["number", "null"], "description": "Circle center y-coordinate when defining a standalone arc"},
+                            "radius": {"type": ["number", "null"], "description": "Circle radius when defining a standalone arc"},
+                            "use_major_arc": {"type": "boolean", "description": "True to draw the major arc, False for the minor arc"},
+                            "arc_name": {"type": ["string", "null"], "description": "Optional custom arc name"},
+                            "color": {"type": ["string", "null"], "description": f"Optional CSS color for the arc (defaults to {DEFAULT_CIRCLE_ARC_COLOR})"}
+                        },
+                        "required": [
+                            "point1_x",
+                            "point1_y",
+                            "point2_x",
+                            "point2_y",
+                            "point1_name",
+                            "point2_name",
+                            "point3_x",
+                            "point3_y",
+                            "point3_name",
+                            "center_point_choice",
+                            "circle_name",
+                            "center_x",
+                            "center_y",
+                            "radius",
+                            "use_major_arc",
+                            "arc_name",
+                            "color",
+                        ],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "delete_circle_arc",
+                    "description": "Deletes a circle arc by name.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Name of the circle arc to delete"}
+                        },
+                        "required": ["name"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "update_circle_arc",
+                    "description": "Updates editable properties of an existing circle arc (color or major/minor toggle). Provide null for fields to keep them unchanged.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Existing name of the arc to edit"},
+                            "new_color": {"type": ["string", "null"], "description": "Optional new color for the arc"},
+                            "use_major_arc": {"type": ["boolean", "null"], "description": "Set to true for the major arc, false for the minor arc"}
+                        },
+                        "required": [
+                            "name",
+                            "new_color",
+                            "use_major_arc"
+                        ],
                         "additionalProperties": False
                     }
                 }

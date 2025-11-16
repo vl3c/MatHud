@@ -191,6 +191,9 @@ class CircleManager:
             
         # Archive before deletion
         self.canvas.undo_redo_manager.archive()
+
+        if hasattr(self.drawable_manager, "arc_manager") and self.drawable_manager.arc_manager:
+            self.drawable_manager.arc_manager.handle_circle_removed(name)
         
         # Remove from drawables
         self.drawables.remove(circle)

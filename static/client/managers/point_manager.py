@@ -233,13 +233,22 @@ class PointManager:
         
         # Handle deletion of dependent objects using the dependency manager
         if point_to_delete:
-            # Get all children (including angles) that depend on this point
+            # Get all children (including angles and circle arcs) that depend on this point
             dependent_children = self.dependency_manager.get_children(point_to_delete)
             for child in cast(List["Drawable"], list(dependent_children)):
-                if hasattr(child, 'get_class_name') and child.get_class_name() == 'Angle':
+                if hasattr(child, 'get_class_name'):
+                    class_name = child.get_class_name()
+                else:
+                    class_name = child.__class__.__name__
+
+                if class_name == 'Angle':
                     print(f"PointManager: Point at ({x}, {y}) is being deleted. Removing dependent angle '{child.name}'.")
                     if hasattr(self.drawable_manager, 'angle_manager') and self.drawable_manager.angle_manager:
                         self.drawable_manager.angle_manager.delete_angle(child.name)
+                if class_name == 'CircleArc':
+                    print(f"PointManager: Point at ({x}, {y}) is being deleted. Removing dependent circle arc '{child.name}'.")
+                    if hasattr(self.drawable_manager, 'arc_manager') and self.drawable_manager.arc_manager:
+                        self.drawable_manager.arc_manager.delete_circle_arc(child.name)
         
         # Delete the segments that contain the point
         rectangles = self.drawables.Rectangles

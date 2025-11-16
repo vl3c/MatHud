@@ -169,6 +169,7 @@ class SvgRenderer(RendererProtocol):
         self._register_shape("drawables.point", "Point", self._render_point)
         self._register_shape("drawables.segment", "Segment", self._render_segment)
         self._register_shape("drawables.circle", "Circle", self._render_circle)
+        self._register_shape("drawables.circle_arc", "CircleArc", self._render_circle_arc)
         self._register_shape("drawables.ellipse", "Ellipse", self._render_ellipse)
         self._register_shape("drawables.vector", "Vector", self._render_vector)
         self._register_shape("drawables.angle", "Angle", self._render_angle)
@@ -258,6 +259,12 @@ class SvgRenderer(RendererProtocol):
 
     def _render_circle(self, circle: Any, coordinate_mapper: Any) -> None:
         self._render_drawable(circle, coordinate_mapper)
+
+    def register_circle_arc(self, arc_cls: type) -> None:
+        self.register(arc_cls, self._render_circle_arc)
+
+    def _render_circle_arc(self, arc: Any, coordinate_mapper: Any) -> None:
+        self._render_drawable(arc, coordinate_mapper)
 
     # ----------------------- Ellipse -----------------------
     def register_ellipse(self, ellipse_cls: type) -> None:

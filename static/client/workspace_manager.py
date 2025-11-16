@@ -496,6 +496,45 @@ class WorkspaceManager:
         else:
             print("Warning: Angle manager not available for loading angles")
 
+    def _create_circle_arcs(self, state: Dict[str, Any]) -> None:
+        """Create circle arcs from workspace state."""
+        arcs_data = state.get("CircleArcs")
+        if not arcs_data:
+            return
+
+        for arc_state in arcs_data:
+            args = arc_state.get("args", {})
+            point1_name = args.get("point1_name")
+            point2_name = args.get("point2_name")
+            point1 = self.canvas.get_point_by_name(point1_name) if point1_name else None
+            point2 = self.canvas.get_point_by_name(point2_name) if point2_name else None
+            if not point1 or not point2:
+                continue
+
+            try:
+                self.canvas.create_circle_arc(
+                    point1_x=point1.x,
+                    point1_y=point1.y,
+                    point2_x=point2.x,
+                    point2_y=point2.y,
+                    point1_name=point1.name,
+                    point2_name=point2.name,
+                    point3_x=None,
+                    point3_y=None,
+                    point3_name=None,
+                    center_point_choice=None,
+                    circle_name=args.get("circle_name"),
+                    center_x=args.get("center_x"),
+                    center_y=args.get("center_y"),
+                    radius=args.get("radius"),
+                    arc_name=arc_state.get("name"),
+                    color=args.get("color"),
+                    use_major_arc=args.get("use_major_arc", False),
+                    extra_graphics=False,
+                )
+            except Exception as exc:
+                print(f"Warning: Could not restore circle arc '{arc_state.get('name', '')}': {exc}")
+
     def _restore_computations(self, state: Dict[str, Any]) -> None:
         """Restore computations from workspace state."""
         if "computations" not in state:
@@ -528,6 +567,7 @@ class WorkspaceManager:
         self._create_triangles(state)
         self._create_rectangles(state)
         self._create_circles(state)
+        self._create_circle_arcs(state)
         self._create_ellipses(state)
         self._create_functions(state)
         # Create colored areas after functions since they may depend on functions
