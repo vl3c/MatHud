@@ -67,7 +67,7 @@ class ArchitectureDiagramGenerator:
             folders_to_clean.append(self.svg_dir)
         
         if not folders_to_clean:
-            print("  ℹ No existing generated folders found - starting fresh")
+            print("Info: No existing generated folders found - starting fresh")
             return
         
         total_deleted_files = 0
@@ -102,12 +102,12 @@ class ArchitectureDiagramGenerator:
                 print(f"  + Cleaned {folder.name}: {folder_files} files, {folder_dirs} directories")
                 
             except PermissionError as e:
-                print(f"  ❌ Permission denied cleaning {folder.name}: {e}")
-                print(f"     Please close any programs using files in {folder.name}")
+                print(f"Permission denied cleaning {folder.name}: {e}")
+                print(f"Please close any programs using files in {folder.name}")
             except FileNotFoundError:
-                print(f"  ℹ Folder {folder.name} not found - skipping")
+                print(f"Info: Folder {folder.name} not found - skipping")
             except Exception as e:
-                print(f"  ⚠ Could not clean {folder.name}: {e}")
+                print(f"Could not clean {folder.name}: {e}")
         
         if total_deleted_files > 0 or total_deleted_dirs > 0:
             print(f"Cleanup complete: {total_deleted_files} files and {total_deleted_dirs} directories removed")
@@ -246,7 +246,7 @@ class ArchitectureDiagramGenerator:
                     post_process_svg_fonts(output_dir / f'system_overview.{fmt}')
             
         except Exception as e:
-            print(f"  ✗ System overview diagram failed: {e}")
+            print(f"System overview diagram failed: {e}")
     
     def generate_ai_integration_diagram(self) -> None:
         """Generate AI integration flow diagram."""
@@ -345,7 +345,7 @@ class ArchitectureDiagramGenerator:
                     post_process_svg_fonts(output_dir / f'ai_integration.{fmt}')
             
         except Exception as e:
-            print(f"  ✗ AI integration diagram failed: {e}")
+            print(f"AI integration diagram failed: {e}")
     
     def generate_webdriver_flow_diagram(self) -> None:
         """Generate WebDriver vision capture workflow diagram."""
@@ -438,7 +438,7 @@ class ArchitectureDiagramGenerator:
                     post_process_svg_fonts(output_dir / f'webdriver_flow.{fmt}')
             
         except Exception as e:
-            print(f"  ✗ WebDriver flow diagram failed: {e}")
+            print(f"WebDriver flow diagram failed: {e}")
     
     def generate_data_flow_diagram(self) -> None:
         """Generate end-to-end data flow diagram."""
@@ -531,7 +531,7 @@ class ArchitectureDiagramGenerator:
                     post_process_svg_fonts(output_dir / f'data_flow.{fmt}')
             
         except Exception as e:
-            print(f"  ✗ Data flow diagram failed: {e}")
+            print(f"Data flow diagram failed: {e}")
 
     def generate_manager_architecture_diagram(self) -> None:
         """Generate detailed manager pattern architecture diagram."""
@@ -646,7 +646,7 @@ class ArchitectureDiagramGenerator:
                     post_process_svg_fonts(output_dir / f'manager_architecture.{fmt}')
             
         except Exception as e:
-            print(f"  ✗ Manager architecture diagram failed: {e}")
+            print(f"Manager architecture diagram failed: {e}")
 
     def generate_all_architecture_diagrams(self, clean_first: bool = True) -> None:
         """Generate all architecture diagrams."""
@@ -690,11 +690,11 @@ class ArchitectureDiagramGenerator:
             print(f"   SVG files: {self.svg_dir / 'architecture'}")
             
         except ImportError as e:
-            print(f"  ❌ Missing diagrams library: {e}")
-            print("     💡 Install with: pip install diagrams")
+            print(f"Missing diagrams library: {e}")
+            print("Install with: pip install diagrams")
         except Exception as e:
-            print(f"  ❌ Error generating architecture diagrams: {e}")
-            print(f"     💡 Check that Graphviz is properly installed and accessible")
+            print(f"Error generating architecture diagrams: {e}")
+            print("Check that Graphviz is properly installed and accessible")
 
 
 def main() -> None:

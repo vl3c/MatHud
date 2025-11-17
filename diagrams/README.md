@@ -2,7 +2,7 @@
 
 This directory contains the diagram generation system for the MatHud project, organized for better maintainability and separation of concerns.
 
-## 📁 Directory Structure
+## Directory Structure
 
 ```
 diagrams/
@@ -17,7 +17,7 @@ diagrams/
 └── README.md                    # This file
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### From Root Directory (Recommended)
 ```bash
@@ -42,7 +42,7 @@ python setup_diagram_tools.py
 python generate_diagrams.py
 ```
 
-## ⚙️ System Setup Requirements
+## System Setup Requirements
 
 ### 1. Install Graphviz (System Package)
 
@@ -115,7 +115,7 @@ pip install -r diagrams/diagram_requirements.txt
 
 **Note:** The system now includes automatic SVG-to-PNG conversion for custom diagrams using `cairosvg`. If cairosvg is not available, it will fallback to using the `dot` command from Graphviz.
 
-### 🚨 Troubleshooting
+### Troubleshooting
 
 **Problem:** `dot is not available` error
 
@@ -125,9 +125,9 @@ pip install -r diagrams/diagram_requirements.txt
 3. **Manual PATH check:** Run `$env:PATH -split ';' | Select-String "Graphviz"` (PowerShell)
 4. **Re-run setup:** `python diagrams/scripts/setup_diagram_tools.py`
 
-## 📊 Generated Diagrams
+## Generated Diagrams
 
-✅ **Currently Working:**
+**Currently Working:**
 - **Class Diagrams** (`classes_*.png/svg`) - UML class relationships
   - `classes_MatHud_AllClasses.*` (33KB SVG, 284KB PNG) - Complete project overview
   - `packages_MatHud_AllClasses.*` (2.9KB SVG, 3.6KB PNG) - Package structure
@@ -149,18 +149,18 @@ pip install -r diagrams/diagram_requirements.txt
   - `dependencies_static.svg` (624B) - Static module dependencies
 - **Call Graph** - Runtime execution flow (manual generation)
 
-## 🛠️ Tools Used
+## Tools Used
 
 | Tool | Purpose | Status |
 |------|---------|--------|
-| **pyreverse** (pylint) | UML class diagrams | ✅ Working |
-| **graphviz** | Diagram rendering | ✅ Working |
-| **pydeps** | Dependency analysis | ✅ Working |
-| **pycallgraph2** | Call graph generation | ✅ Working |
-| **cairosvg** | SVG to PNG conversion | ✅ Working |
-| **diagrams** | Architecture visualization | ⚠️ Optional |
+| **pyreverse** (pylint) | UML class diagrams | Working |
+| **graphviz** | Diagram rendering | Working |
+| **pydeps** | Dependency analysis | Working |
+| **pycallgraph2** | Call graph generation | Working |
+| **cairosvg** | SVG to PNG conversion | Working |
+| **diagrams** | Architecture visualization | Optional |
 
-## 📈 Benefits for MatHud
+## Benefits for MatHud
 
 This system provides:
 
@@ -170,7 +170,7 @@ This system provides:
 4. **Team Communication** - Share visual project understanding
 5. **Maintenance** - Track structural evolution over time
 
-## 🎯 Integration Examples
+## Integration Examples
 
 ### Code Reviews
 Include generated diagrams to explain structural changes:
@@ -193,7 +193,7 @@ Use package diagrams for high-level overviews:
 ![Packages](diagrams/generated_png/packages_MatHud_packages.png)
 ```
 
-## 🔧 Customization
+## Customization
 
 Edit `scripts/generate_diagrams.py` to:
 - Add new modules to analyze
@@ -201,19 +201,19 @@ Edit `scripts/generate_diagrams.py` to:
 - Adjust diagram styling
 - Focus on specific components
 
-## 📚 Documentation
+## Documentation
 
 - **WORKFLOW_SUMMARY.md** - Quick reference and best practices
 - **diagram_requirements.txt** - Python package dependencies
 
-## 🎉 Success!
+## Success!
 
 Your MatHud project now has visual documentation tools that:
-- ✅ Generate comprehensive diagrams on demand
-- ✅ Provide multiple visualization formats
-- ✅ Support team collaboration
-- ✅ Integrate with development workflow
-- ✅ Maintain consistency across platforms
+- Generate comprehensive diagrams on demand
+- Provide multiple visualization formats
+- Support team collaboration
+- Integrate with development workflow
+- Maintain consistency across platforms
 
 ---
 

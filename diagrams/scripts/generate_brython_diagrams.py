@@ -231,7 +231,7 @@ class BrythonDiagramGenerator:
                         self._process_svg_font_and_count(output_dir / f'classes_brython_core_classes.{fmt}')
                         
                 except subprocess.CalledProcessError as e:
-                    print(f"  ✗ Error generating core system diagram: {e.stderr}")
+                    print(f"Error generating core system diagram: {e.stderr}")
 
         # Individual core component diagrams
         important_core_modules: List[Tuple[str, str]] = [
@@ -265,7 +265,7 @@ class BrythonDiagramGenerator:
                             self._process_svg_font_and_count(output_dir / f'classes_{diagram_name}.{fmt}')
                             
                     except subprocess.CalledProcessError as e:
-                        print(f"  ✗ Error generating {diagram_name} diagram: {e.stderr}")
+                        print(f"Error generating {diagram_name} diagram: {e.stderr}")
 
     def generate_drawable_system_diagrams(self) -> None:
         """Generate diagrams for the drawable class hierarchy."""
@@ -341,7 +341,7 @@ class BrythonDiagramGenerator:
                             self._process_svg_font_and_count(output_dir / f'classes_{diagram_name}.{fmt}')
                             
                     except subprocess.CalledProcessError as e:
-                        print(f"  ✗ Error generating {diagram_name} diagram: {e.stderr}")
+                        print(f"Error generating {diagram_name} diagram: {e.stderr}")
 
     def generate_manager_system_diagrams(self) -> None:
         """Generate diagrams for the manager pattern system."""
@@ -417,7 +417,7 @@ class BrythonDiagramGenerator:
                             self._process_svg_font_and_count(output_dir / f'classes_{diagram_name}.{fmt}')
                             
                     except subprocess.CalledProcessError as e:
-                        print(f"  ✗ Error generating {diagram_name} diagram: {e.stderr}")
+                        print(f"Error generating {diagram_name} diagram: {e.stderr}")
 
     def generate_integration_diagrams(self) -> None:
         """Generate client-server integration flow diagrams."""
@@ -455,7 +455,7 @@ class BrythonDiagramGenerator:
                         self._process_svg_font_and_count(output_dir / f'classes_brython_ajax_communication.{fmt}')
                         
                 except subprocess.CalledProcessError as e:
-                    print(f"  ✗ Error generating AJAX communication diagram: {e.stderr}")
+                    print(f"Error generating AJAX communication diagram: {e.stderr}")
 
         # Function execution pipeline
         execution_files: List[str] = [
@@ -488,7 +488,7 @@ class BrythonDiagramGenerator:
                         self._process_svg_font_and_count(output_dir / f'classes_brython_function_execution_pipeline.{fmt}')
                         
                 except subprocess.CalledProcessError as e:
-                    print(f"  ✗ Error generating function execution pipeline diagram: {e.stderr}")
+                    print(f"Error generating function execution pipeline diagram: {e.stderr}")
 
     def generate_utility_system_diagrams(self) -> None:
         """Generate diagrams for utility systems."""
@@ -522,7 +522,7 @@ class BrythonDiagramGenerator:
                         self._process_svg_font_and_count(output_dir / f'classes_brython_expression_system.{fmt}')
                         
                 except subprocess.CalledProcessError as e:
-                    print(f"  ✗ Error generating expression system diagram: {e.stderr}")
+                    print(f"Error generating expression system diagram: {e.stderr}")
 
         # Content processing utilities
         content_files = [
@@ -551,7 +551,7 @@ class BrythonDiagramGenerator:
                         self._process_svg_font_and_count(output_dir / f'classes_brython_content_processing.{fmt}')
                         
                 except subprocess.CalledProcessError as e:
-                    print(f"  ✗ Error generating content processing diagram: {e.stderr}")
+                    print(f"Error generating content processing diagram: {e.stderr}")
 
         # Name generator and utility modules
         utils_dir = self.brython_source_dir / "utils"
@@ -578,7 +578,7 @@ class BrythonDiagramGenerator:
                             self._process_svg_font_and_count(output_dir / f'classes_brython_utils.{fmt}')
                             
                     except subprocess.CalledProcessError as e:
-                        print(f"  ✗ Error generating utils system diagram: {e.stderr}")
+                        print(f"Error generating utils system diagram: {e.stderr}")
 
         if name_gen_dir.exists():
             for fmt in self.formats:
@@ -599,7 +599,7 @@ class BrythonDiagramGenerator:
                         self._process_svg_font_and_count(output_dir / f'classes_brython_name_generator.{fmt}')
                         
                 except subprocess.CalledProcessError as e:
-                    print(f"  ✗ Error generating name generator diagram: {e.stderr}")
+                    print(f"Error generating name generator diagram: {e.stderr}")
 
     def generate_testing_diagrams(self) -> None:
         """Generate diagrams for the testing framework."""
@@ -628,7 +628,7 @@ class BrythonDiagramGenerator:
                         self._process_svg_font_and_count(output_dir / f'classes_brython_test_framework.{fmt}')
                         
                 except subprocess.CalledProcessError as e:
-                    print(f"  ✗ Error generating test framework diagram: {e.stderr}")
+                    print(f"Error generating test framework diagram: {e.stderr}")
 
         # Test runner system
         if test_runner_file.exists():
@@ -650,7 +650,7 @@ class BrythonDiagramGenerator:
                         self._process_svg_font_and_count(output_dir / f'classes_brython_test_runner.{fmt}')
                         
                 except subprocess.CalledProcessError as e:
-                    print(f"  ✗ Error generating test runner diagram: {e.stderr}")
+                    print(f"Error generating test runner diagram: {e.stderr}")
 
     def generate_package_structure_diagrams(self) -> None:
         """Generate package structure overview diagrams."""
@@ -678,7 +678,7 @@ class BrythonDiagramGenerator:
                     self._process_svg_font_and_count(output_dir / f'packages_brython_complete_system.{fmt}')
                     
             except subprocess.CalledProcessError as e:
-                print(f"  ✗ Error generating complete system diagram: {e.stderr}")
+                print(f"Error generating complete system diagram: {e.stderr}")
 
         # Individual package diagrams
         packages: List[Tuple[str, str]] = [
@@ -711,7 +711,7 @@ class BrythonDiagramGenerator:
                             self._process_svg_font_and_count(output_dir / f'packages_{diagram_name}.{fmt}')
                             
                     except subprocess.CalledProcessError as e:
-                        print(f"  ✗ Error generating {package_name} package diagram: {e.stderr}")
+                        print(f"Error generating {package_name} package diagram: {e.stderr}")
 
     def run(self) -> None:
         """Main execution method."""

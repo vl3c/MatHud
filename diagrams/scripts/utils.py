@@ -57,15 +57,15 @@ def setup_graphviz_path() -> None:
                 subprocess.run(['dot', '-V'], check=True, capture_output=True)
                 print("  + Graphviz dot command is now available")
             except subprocess.CalledProcessError:
-                print("  ⚠ Graphviz found but dot command still not working")
+                print("Warning: Graphviz found but dot command still not working")
         else:
-            print("  ⚠ Graphviz not found in common installation paths")
-            print("    Please install Graphviz or add it to your PATH manually")
-            print("    Install with: winget install graphviz")
-            print("    Or download from: https://graphviz.org/download/")
+            print("Warning: Graphviz not found in common installation paths")
+            print("Please install Graphviz or add it to your PATH manually")
+            print("Install with: winget install graphviz")
+            print("Or download from: https://graphviz.org/download/")
             
     except Exception as e:
-        print(f"  ⚠ Could not setup Graphviz PATH: {e}")
+        print(f"Warning: Could not setup Graphviz PATH: {e}")
 
 
 def setup_font_environment() -> None:

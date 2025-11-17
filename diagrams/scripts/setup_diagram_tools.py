@@ -30,22 +30,22 @@ class DiagramToolsSetup:
         
     def run_command(self, cmd: str, description: str) -> bool:
         """Run a command and handle errors gracefully."""
-        print(f"🔧 {description}...")
+        print(f"{description}...")
         try:
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
-            print(f"   ✓ Success")
+            print(f"    Success")
             return True
         except subprocess.CalledProcessError as e:
-            print(f"   ✗ Failed: {e.stderr.strip()}")
+            print(f"    Failed: {e.stderr.strip()}")
             return False
     
     def install_graphviz_system(self) -> bool:
         """Install system-level Graphviz based on the operating system."""
         if self.system == 'windows':
-            print("📋 For Windows, please manually install Graphviz:")
-            print("   1. Download from: https://graphviz.org/download/")
-            print("   2. Install and add to PATH")
-            print("   3. Or use: winget install graphviz")
+            print("For Windows, please manually install Graphviz:")
+            print("1. Download from: https://graphviz.org/download/")
+            print("2. Install and add to PATH")
+            print("3. Or use: winget install graphviz")
             return True
         elif self.system == 'darwin':  # macOS
             return self.run_command('brew install graphviz', 'Installing Graphviz via Homebrew')
@@ -60,13 +60,13 @@ class DiagramToolsSetup:
             elif subprocess.run(['which', 'pacman'], capture_output=True).returncode == 0:
                 return self.run_command('sudo pacman -S graphviz', 'Installing Graphviz via pacman')
             else:
-                print("⚠️  Please manually install Graphviz for your Linux distribution")
+                print("Please manually install Graphviz for your Linux distribution")
                 return False
         return False
     
     def install_python_packages(self) -> None:
         """Install required Python packages."""
-        print("🐍 Installing Python packages...")
+        print("Installing Python packages...")
         
         # Upgrade pip first
         self.run_command(f'{sys.executable} -m pip install --upgrade pip', 'Upgrading pip')
@@ -78,11 +78,11 @@ class DiagramToolsSetup:
                 f'Installing {package}'
             )
             if not success:
-                print(f"⚠️  Failed to install {package} - you may need to install it manually")
+                print(f"Failed to install {package} - you may need to install it manually")
     
     def verify_installation(self) -> bool:
         """Verify that all tools are properly installed."""
-        print("\n🔍 Verifying installation...")
+        print("\nVerifying installation...")
         
         tools_to_check = [
             ('pyreverse', 'pyreverse --help'),
@@ -94,10 +94,10 @@ class DiagramToolsSetup:
         for tool, cmd in tools_to_check:
             try:
                 result = subprocess.run(cmd.split(), capture_output=True, text=True, check=True)
-                print(f"   ✓ {tool} is available")
+                print(f"    {tool} is available")
                 success_count += 1
             except (subprocess.CalledProcessError, FileNotFoundError):
-                print(f"   ✗ {tool} is not available")
+                print(f"    {tool} is not available")
         
         # Check Python packages
         python_success = 0
@@ -105,30 +105,30 @@ class DiagramToolsSetup:
             try:
                 subprocess.run([sys.executable, '-c', f'import {package}'], 
                              check=True, capture_output=True)
-                print(f"   ✓ Python package {package} is available")
+                print(f"    Python package {package} is available")
                 python_success += 1
             except subprocess.CalledProcessError:
-                print(f"   ✗ Python package {package} is not available")
+                print(f"    Python package {package} is not available")
         
         total_expected = len(tools_to_check) + len(self.python_packages)
         total_success = success_count + python_success
         
-        print(f"\n📊 Installation Summary: {total_success}/{total_expected} tools available")
+        print(f"\nInstallation Summary: {total_success}/{total_expected} tools available")
         
         if total_success == total_expected:
-            print("🎉 All tools installed successfully!")
+            print("All tools installed successfully!")
             return True
         else:
-            print("⚠️  Some tools are missing. Please check the installation instructions above.")
+            print("Some tools are missing. Please check the installation instructions above.")
             return False
     
     def setup(self) -> None:
         """Run the complete setup process."""
-        print("🚀 MatHud Diagram Tools Setup")
+        print("MatHud Diagram Tools Setup")
         print("=" * 50)
         
-        print(f"🖥️  Detected OS: {platform.system()} {platform.release()}")
-        print(f"🐍 Python version: {sys.version}")
+        print(f"Detected OS: {platform.system()} {platform.release()}")
+        print(f"Python version: {sys.version}")
         print()
         
         # Install system dependencies
@@ -147,13 +147,13 @@ class DiagramToolsSetup:
         print()
         
         if success:
-            print("🎯 Setup completed successfully!")
+            print("Setup completed successfully!")
             print("\nNext steps:")
             print("1. Run: python generate_diagrams.py")
             print("2. Check the 'diagrams/' directory for generated files")
             print("3. Customize generate_diagrams.py as needed")
         else:
-            print("❌ Setup completed with some issues.")
+            print("Setup completed with some issues.")
             print("Please resolve the missing dependencies manually.")
         
         print("\n" + "=" * 50)

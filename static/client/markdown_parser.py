@@ -338,7 +338,7 @@ class MarkdownParser:
         # Handle checkboxes
         if stripped.startswith('- [x]'):
             content = stripped[6:]  # Remove '- [x] '
-            checkbox = '<span class="checkbox checked">✓</span>'
+            checkbox = '<span class="checkbox checked">&#10003;</span>'
             return f'<li class="checkbox-item" data-list-type="ul" data-indent="{indent_level}">{checkbox}{content}</li>'
         elif stripped.startswith('- [ ]'):
             content = stripped[6:]  # Remove '- [ ] '

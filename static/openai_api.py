@@ -41,7 +41,7 @@ class OpenAIChatCompletionsAPI:
     and processes tool calls for mathematical operations and canvas manipulation.
     """
     
-    DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. DO NOT try to perform calculations by yourself, use the tools provided instead. Always analyze the canvas state before proceeding. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
+    DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. DO NOT try to perform calculations by yourself, use the tools provided instead. Always analyze the canvas state before proceeding. Never use emoticons or emoji in your responses. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
 
     @staticmethod
     def _initialize_api_key() -> str:
