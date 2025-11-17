@@ -125,7 +125,17 @@ class EllipseManager:
                 return ellipse
         return None
         
-    def create_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float, rotation_angle: float = 0, name: str = "", extra_graphics: bool = True) -> Ellipse:
+    def create_ellipse(
+        self,
+        center_x: float,
+        center_y: float,
+        radius_x: float,
+        radius_y: float,
+        rotation_angle: float = 0,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> Ellipse:
         """
         Create an ellipse with the specified center, radii, and rotation angle.
         
@@ -139,6 +149,7 @@ class EllipseManager:
             radius_y (float): Vertical radius of the ellipse
             rotation_angle (float): Rotation angle in degrees (default: 0)
             name (str): Optional name for the ellipse (default: "")
+            color (str): Optional color for the ellipse
             extra_graphics (bool): Whether to create additional graphics (default: True)
             
         Returns:
@@ -159,7 +170,17 @@ class EllipseManager:
         center = self.point_manager.create_point(center_x, center_y, point_names[0], extra_graphics=False)
             
         # Create the ellipse (math-only)
-        new_ellipse = Ellipse(center, radius_x, radius_y, rotation_angle=rotation_angle)
+        color_value = str(color).strip() if color is not None else ""
+        if color_value:
+            new_ellipse = Ellipse(
+                center,
+                radius_x,
+                radius_y,
+                rotation_angle=rotation_angle,
+                color=color_value,
+            )
+        else:
+            new_ellipse = Ellipse(center, radius_x, radius_y, rotation_angle=rotation_angle)
         
         # Add to drawables
         self.drawables.add(new_ellipse)

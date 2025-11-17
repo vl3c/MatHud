@@ -159,12 +159,16 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "type": "number",
                                 "description": "The Y coordinate of the point"
                             },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the point"
+                            },
                             "name": {
                                 "type": ["string", "null"],
                                 "description": "Optional name for the point. If provided, the first available letter from this name will be used."
                             }
                         },
-                        "required": ["x", "y", "name"],
+                        "required": ["x", "y", "color", "name"],
                         "additionalProperties": False
                     }
                 }
@@ -252,12 +256,16 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "type": "number",
                                 "description": "The Y coordinate of the second point"
                             },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the segment"
+                            },
                             "name": {
                                 "type": ["string", "null"],
                                 "description": "Optional name for the segment. If provided, the first two available letters will be used to name the endpoints."
                             }
                         },
-                        "required": ["x1", "y1", "x2", "y2", "name"],
+                        "required": ["x1", "y1", "x2", "y2", "color", "name"],
                         "additionalProperties": False
                     }
                 }
@@ -341,12 +349,16 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "type": "number",
                                 "description": "The Y coordinate of the tip point"
                             },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the vector"
+                            },
                             "name": {
                                 "type": ["string", "null"],
                                 "description": "Optional name for the vector. If provided, the first two available letters will be used to name the origin and tip points."
                             }
                         },
-                        "required": ["origin_x", "origin_y", "tip_x", "tip_y", "name"],
+                        "required": ["origin_x", "origin_y", "tip_x", "tip_y", "color", "name"],
                         "additionalProperties": False
                     }
                 }
@@ -438,12 +450,16 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "type": "number",
                                 "description": "The Y coordinate of the third point"
                             },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the triangle"
+                            },
                             "name": {
                                 "type": ["string", "null"],
                                 "description": "Optional name for the triangle. If provided, the first three available letters will be used to name the vertices."
                             }
                         },
-                        "required": ["x1", "y1", "x2", "y2", "x3", "y3", "name"],
+                        "required": ["x1", "y1", "x2", "y2", "x3", "y3", "color", "name"],
                         "additionalProperties": False
                     }
                 }
@@ -535,12 +551,16 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "type": "number",
                                 "description": "The Y coordinate of the opposite point"
                             },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the rectangle"
+                            },
                             "name": {
                                 "type": ["string", "null"],
                                 "description": "Optional name for the rectangle. If provided, the first four available letters will be used to name the corners."
                             }
                         },
-                        "required": ["px", "py", "opposite_px", "opposite_py", "name"],
+                        "required": ["px", "py", "opposite_px", "opposite_py", "color", "name"],
                         "additionalProperties": False
                     }
                 }
@@ -789,12 +809,16 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "type": ["number", "null"],
                                 "description": "Optional angle in degrees to rotate the ellipse around its center (default: 0)"
                             },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the ellipse"
+                            },
                             "name": {
                                 "type": ["string", "null"],
                                 "description": "Optional name for the ellipse"
                             }
                         },
-                        "required": ["center_x", "center_y", "radius_x", "radius_y", "rotation_angle", "name"],
+                        "required": ["center_x", "center_y", "radius_x", "radius_y", "rotation_angle", "color", "name"],
                         "additionalProperties": False
                     }
                 }
@@ -1010,9 +1034,13 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "right_bound": {
                                 "type": ["number", "null"],
                                 "description": "The right bound of the interval on which to plot the function."
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the plotted function."
                             }
                         },
-                        "required": ["function_string", "name", "left_bound", "right_bound"],
+                        "required": ["function_string", "name", "left_bound", "right_bound", "color"],
                         "additionalProperties": False
                     }
                 }

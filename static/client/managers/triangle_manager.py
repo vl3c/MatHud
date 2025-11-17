@@ -131,7 +131,18 @@ class TriangleManager:
                 return triangle
         return None
         
-    def create_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float, name: str = "", extra_graphics: bool = True) -> Triangle:
+    def create_triangle(
+        self,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        x3: float,
+        y3: float,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> Triangle:
         """
         Create a triangle from three vertex coordinates.
         
@@ -147,6 +158,7 @@ class TriangleManager:
             x3 (float): x-coordinate of the third vertex
             y3 (float): y-coordinate of the third vertex
             name (str): Optional name for the triangle
+            color (str): Optional color for the triangle
             extra_graphics (bool): Whether to create additional related graphics
             
         Returns:
@@ -171,18 +183,42 @@ class TriangleManager:
         p3 = self.point_manager.create_point(x3, y3, name=point_names[2], extra_graphics=False)
             
         # Create segments using the points
-        s1 = self.segment_manager.create_segment(p1.x, p1.y, 
-                                               p2.x, p2.y, 
-                                               extra_graphics=False)
-        s2 = self.segment_manager.create_segment(p2.x, p2.y, 
-                                               p3.x, p3.y, 
-                                               extra_graphics=False)
-        s3 = self.segment_manager.create_segment(p3.x, p3.y, 
-                                               p1.x, p1.y, 
-                                               extra_graphics=False)
+        segment_color_kwargs: Dict[str, Any] = {}
+        color_value = str(color).strip() if color is not None else ""
+        if color_value:
+            segment_color_kwargs["color"] = color_value
+        s1 = self.segment_manager.create_segment(
+            p1.x,
+            p1.y,
+            p2.x,
+            p2.y,
+            extra_graphics=False,
+            **segment_color_kwargs,
+        )
+        s2 = self.segment_manager.create_segment(
+            p2.x,
+            p2.y,
+            p3.x,
+            p3.y,
+            extra_graphics=False,
+            **segment_color_kwargs,
+        )
+        s3 = self.segment_manager.create_segment(
+            p3.x,
+            p3.y,
+            p1.x,
+            p1.y,
+            extra_graphics=False,
+            **segment_color_kwargs,
+        )
             
         # Create the triangle
-        new_triangle = Triangle(s1, s2, s3)
+        if color_value:
+            new_triangle = Triangle(s1, s2, s3, color=color_value)
+            # Ensure segments reflect the requested color even if they pre-existed
+            new_triangle.update_color(color_value)
+        else:
+            new_triangle = Triangle(s1, s2, s3)
         
         # Add to drawables
         self.drawables.add(new_triangle)

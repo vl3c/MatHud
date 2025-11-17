@@ -435,9 +435,22 @@ class Canvas:
         """Get a label by its name."""
         return cast(Optional["Drawable"], self.drawable_manager.get_label_by_name(name))
 
-    def create_point(self, x: float, y: float, name: str = "", extra_graphics: bool = True) -> Point:
+    def create_point(
+        self,
+        x: float,
+        y: float,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> Point:
         """Create a point at the specified coordinates"""
-        return self.drawable_manager.create_point(x, y, name, extra_graphics)
+        return self.drawable_manager.create_point(
+            x,
+            y,
+            name,
+            color=color,
+            extra_graphics=extra_graphics,
+        )
 
     def create_label(
         self,
@@ -531,9 +544,26 @@ class Canvas:
         """Get a segment by its endpoint points"""
         return self.drawable_manager.get_segment_by_points(p1, p2)
 
-    def create_segment(self, x1: float, y1: float, x2: float, y2: float, name: str = "", extra_graphics: bool = True) -> "Drawable":
+    def create_segment(
+        self,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> "Drawable":
         """Create a segment between two points"""
-        return self.drawable_manager.create_segment(x1, y1, x2, y2, name, extra_graphics)
+        return self.drawable_manager.create_segment(
+            x1,
+            y1,
+            x2,
+            y2,
+            name,
+            color=color,
+            extra_graphics=extra_graphics,
+        )
 
     def delete_segment(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> bool:
         """Delete a segment by its endpoint coordinates"""
@@ -570,9 +600,26 @@ class Canvas:
         """Get a vector by its origin and tip coordinates"""
         return self.drawable_manager.get_vector(x1, y1, x2, y2)
 
-    def create_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float, name: str = "", extra_graphics: bool = True) -> "Drawable":
+    def create_vector(
+        self,
+        origin_x: float,
+        origin_y: float,
+        tip_x: float,
+        tip_y: float,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> "Drawable":
         """Create a vector from origin to tip"""
-        return self.drawable_manager.create_vector(origin_x, origin_y, tip_x, tip_y, name, extra_graphics)
+        return self.drawable_manager.create_vector(
+            origin_x,
+            origin_y,
+            tip_x,
+            tip_y,
+            name,
+            color=color,
+            extra_graphics=extra_graphics,
+        )
 
     def delete_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float) -> bool:
         """Delete a vector by its origin and tip coordinates"""
@@ -595,9 +642,30 @@ class Canvas:
         """Get a triangle by its vertex coordinates"""
         return self.drawable_manager.get_triangle(x1, y1, x2, y2, x3, y3)
 
-    def create_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float, name: str = "", extra_graphics: bool = True) -> "Drawable":
+    def create_triangle(
+        self,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        x3: float,
+        y3: float,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> "Drawable":
         """Create a triangle with the specified vertices"""
-        return self.drawable_manager.create_triangle(x1, y1, x2, y2, x3, y3, name, extra_graphics)
+        return self.drawable_manager.create_triangle(
+            x1,
+            y1,
+            x2,
+            y2,
+            x3,
+            y3,
+            name,
+            color=color,
+            extra_graphics=extra_graphics,
+        )
 
     def delete_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> bool:
         """Delete a triangle by its vertex coordinates"""
@@ -624,9 +692,26 @@ class Canvas:
         """Get a rectangle by its name"""
         return self.drawable_manager.get_rectangle_by_name(name)
 
-    def create_rectangle(self, px: float, py: float, opposite_px: float, opposite_py: float, name: str = "", extra_graphics: bool = True) -> "Drawable":
+    def create_rectangle(
+        self,
+        px: float,
+        py: float,
+        opposite_px: float,
+        opposite_py: float,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> "Drawable":
         """Create a rectangle with the specified diagonal points"""
-        return self.drawable_manager.create_rectangle(px, py, opposite_px, opposite_py, name, extra_graphics)
+        return self.drawable_manager.create_rectangle(
+            px,
+            py,
+            opposite_px,
+            opposite_py,
+            name,
+            color=color,
+            extra_graphics=extra_graphics,
+        )
 
     def delete_rectangle(self, name: str) -> bool:
         """Delete a rectangle by its name"""
@@ -701,9 +786,28 @@ class Canvas:
         """Get an ellipse by its name"""
         return self.drawable_manager.get_ellipse_by_name(name)
 
-    def create_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float, rotation_angle: float = 0, name: str = "", extra_graphics: bool = True) -> "Drawable":
+    def create_ellipse(
+        self,
+        center_x: float,
+        center_y: float,
+        radius_x: float,
+        radius_y: float,
+        rotation_angle: float = 0,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> "Drawable":
         """Create an ellipse with the specified center, radii, and rotation"""
-        return self.drawable_manager.create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle, name, extra_graphics)
+        return self.drawable_manager.create_ellipse(
+            center_x,
+            center_y,
+            radius_x,
+            radius_y,
+            rotation_angle,
+            name,
+            color=color,
+            extra_graphics=extra_graphics,
+        )
 
     def delete_ellipse(self, name: str) -> bool:
         """Delete an ellipse by its name"""
@@ -736,9 +840,22 @@ class Canvas:
         """Get a function by its name"""
         return self.drawable_manager.get_function(name)
 
-    def draw_function(self, function_string: str, name: str, left_bound: Optional[float] = None, right_bound: Optional[float] = None) -> "Drawable":
+    def draw_function(
+        self,
+        function_string: str,
+        name: str,
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
         """Draw a function on the canvas"""
-        return self.drawable_manager.draw_function(function_string, name, left_bound, right_bound)
+        return self.drawable_manager.draw_function(
+            function_string,
+            name,
+            left_bound,
+            right_bound,
+            color=color,
+        )
 
     def delete_function(self, name: str) -> bool:
         """Delete a function by its name"""

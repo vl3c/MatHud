@@ -143,7 +143,16 @@ class SegmentManager:
         """
         return self.get_segment_by_coordinates(p1.x, p1.y, p2.x, p2.y)
         
-    def create_segment(self, x1: float, y1: float, x2: float, y2: float, name: str = "", extra_graphics: bool = True) -> Segment:
+    def create_segment(
+        self,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> Segment:
         """
         Create a new segment between the specified points
         
@@ -151,6 +160,7 @@ class SegmentManager:
             x1, y1: Coordinates of the first endpoint
             x2, y2: Coordinates of the second endpoint
             name: Optional name for the segment
+            color: Optional color for the segment
             extra_graphics: Whether to create additional graphics
             
         Returns:
@@ -174,7 +184,11 @@ class SegmentManager:
         p2 = self.point_manager.create_point(x2, y2, name=point_names[1], extra_graphics=False)
             
         # Create the segment (math-only; renderer uses canvas as needed)
-        segment = Segment(p1, p2)
+        color_value = str(color).strip() if color is not None else ""
+        if color_value:
+            segment = Segment(p1, p2, color=color_value)
+        else:
+            segment = Segment(p1, p2)
         
         # Add to drawables
         self.drawables.add(segment)

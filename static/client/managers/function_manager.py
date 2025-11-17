@@ -43,7 +43,7 @@ State Management:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from drawables.function import Function
 from expression_validator import ExpressionValidator
@@ -102,7 +102,14 @@ class FunctionManager:
                 return function
         return None
         
-    def draw_function(self, function_string: str, name: str, left_bound: Optional[float] = None, right_bound: Optional[float] = None) -> Function:
+    def draw_function(
+        self,
+        function_string: str,
+        name: str,
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
+        color: Optional[str] = None,
+    ) -> Function:
         """
         Draw a function on the canvas.
         
@@ -115,6 +122,7 @@ class FunctionManager:
             name (str): Name identifier for the function
             left_bound (float, optional): Left domain boundary for function evaluation
             right_bound (float, optional): Right domain boundary for function evaluation
+            color (str, optional): Color for the plotted function
             
         Returns:
             Function: The newly created or updated function object
@@ -127,6 +135,7 @@ class FunctionManager:
         
         # Check if the function already exists
         existing_function = self.get_function(name)
+        color_value = str(color).strip() if color is not None else ""
         if existing_function:
             # If it exists, update its expression
             try:
@@ -138,6 +147,9 @@ class FunctionManager:
             existing_function.left_bound = left_bound
             existing_function.right_bound = right_bound
             
+            if color_value:
+                existing_function.update_color(color_value)
+
             if self.canvas.draw_enabled:
                 self.canvas.draw()
             return existing_function
@@ -146,7 +158,14 @@ class FunctionManager:
             name = self.name_generator.generate_function_name(name)
                 
             # Create the function (math-only)
-            new_function = Function(function_string, name=name, left_bound=left_bound, right_bound=right_bound)
+            function_kwargs: Dict[str, Any] = {
+                "name": name,
+                "left_bound": left_bound,
+                "right_bound": right_bound,
+            }
+            if color_value:
+                function_kwargs["color"] = color_value
+            new_function = Function(function_string, **function_kwargs)
             
             # Add to drawables
             self.drawables.add(new_function)

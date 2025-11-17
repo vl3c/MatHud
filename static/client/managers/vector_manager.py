@@ -118,7 +118,16 @@ class VectorManager:
                 return vector
         return None
         
-    def create_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float, name: str = "", extra_graphics: bool = True) -> Vector:
+    def create_vector(
+        self,
+        origin_x: float,
+        origin_y: float,
+        tip_x: float,
+        tip_y: float,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> Vector:
         """
         Create a vector from origin to tip coordinates.
         
@@ -132,6 +141,7 @@ class VectorManager:
             tip_x (float): x-coordinate of the vector tip
             tip_y (float): y-coordinate of the vector tip
             name (str): Optional name for the vector
+            color (str): Optional color for the vector
             extra_graphics (bool): Whether to create additional related graphics
             
         Returns:
@@ -152,7 +162,11 @@ class VectorManager:
         tip = self.point_manager.create_point(tip_x, tip_y, name=point_names[1], extra_graphics=False)
         
         # Create the new vector
-        new_vector = Vector(origin, tip)
+        color_value = str(color).strip() if color is not None else ""
+        if color_value:
+            new_vector = Vector(origin, tip, color=color_value)
+        else:
+            new_vector = Vector(origin, tip)
         
         # Add to drawables
         self.drawables.add(new_vector)

@@ -152,7 +152,16 @@ class RectangleManager:
                 return rectangle
         return None
         
-    def create_rectangle(self, px: float, py: float, opposite_px: float, opposite_py: float, name: str = "", extra_graphics: bool = True) -> Rectangle:
+    def create_rectangle(
+        self,
+        px: float,
+        py: float,
+        opposite_px: float,
+        opposite_py: float,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> Rectangle:
         """
         Create a rectangle with the specified diagonal points.
         
@@ -166,6 +175,7 @@ class RectangleManager:
             opposite_px (float): x-coordinate of the opposite diagonal corner
             opposite_py (float): y-coordinate of the opposite diagonal corner
             name (str): Optional name for the rectangle
+            color (str): Optional color for the rectangle
             extra_graphics (bool): Whether to create additional related graphics
             
         Returns:
@@ -191,21 +201,49 @@ class RectangleManager:
         p4 = self.point_manager.create_point(px, opposite_py, point_names[3], extra_graphics=False)
         
         # Create segments using the points
-        s1 = self.segment_manager.create_segment(p1.x, p1.y, 
-                                              p2.x, p2.y, 
-                                              extra_graphics=False)
-        s2 = self.segment_manager.create_segment(p2.x, p2.y, 
-                                              p3.x, p3.y, 
-                                              extra_graphics=False)
-        s3 = self.segment_manager.create_segment(p3.x, p3.y, 
-                                              p4.x, p4.y, 
-                                              extra_graphics=False)
-        s4 = self.segment_manager.create_segment(p4.x, p4.y, 
-                                              p1.x, p1.y, 
-                                              extra_graphics=False)
+        segment_color_kwargs: Dict[str, Any] = {}
+        color_value = str(color).strip() if color is not None else ""
+        if color_value:
+            segment_color_kwargs["color"] = color_value
+        s1 = self.segment_manager.create_segment(
+            p1.x,
+            p1.y,
+            p2.x,
+            p2.y,
+            extra_graphics=False,
+            **segment_color_kwargs,
+        )
+        s2 = self.segment_manager.create_segment(
+            p2.x,
+            p2.y,
+            p3.x,
+            p3.y,
+            extra_graphics=False,
+            **segment_color_kwargs,
+        )
+        s3 = self.segment_manager.create_segment(
+            p3.x,
+            p3.y,
+            p4.x,
+            p4.y,
+            extra_graphics=False,
+            **segment_color_kwargs,
+        )
+        s4 = self.segment_manager.create_segment(
+            p4.x,
+            p4.y,
+            p1.x,
+            p1.y,
+            extra_graphics=False,
+            **segment_color_kwargs,
+        )
         
         # Create the rectangle
-        new_rectangle = Rectangle(s1, s2, s3, s4)
+        if color_value:
+            new_rectangle = Rectangle(s1, s2, s3, s4, color=color_value)
+            new_rectangle.update_color(color_value)
+        else:
+            new_rectangle = Rectangle(s1, s2, s3, s4)
         
         # Add to drawables
         self.drawables.add(new_rectangle)

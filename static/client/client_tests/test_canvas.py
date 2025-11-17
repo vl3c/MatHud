@@ -780,6 +780,49 @@ class TestCanvas(unittest.TestCase):
         self.assertIsNotNone(circle, "Circle should be created when color is provided.")
         self.assertEqual(circle.color, custom_color, "Circle color should match the provided value.")
 
+    def test_create_point_with_color(self) -> None:
+        custom_color = "#112233"
+        point = self.canvas.create_point(5, 5, color=custom_color)
+        self.assertEqual(point.color, custom_color)
+
+    def test_create_segment_with_color(self) -> None:
+        custom_color = "#445566"
+        segment = self.canvas.create_segment(0, 0, 10, 0, color=custom_color)
+        self.assertEqual(segment.color, custom_color)
+
+    def test_create_vector_with_color(self) -> None:
+        custom_color = "#778899"
+        vector = self.canvas.create_vector(0, 0, 10, 10, color=custom_color)
+        self.assertEqual(vector.color, custom_color)
+        self.assertEqual(vector.segment.color, custom_color)
+
+    def test_create_triangle_with_color(self) -> None:
+        custom_color = "#aa5500"
+        triangle = self.canvas.create_triangle(0, 0, 10, 0, 0, 10, color=custom_color)
+        self.assertEqual(triangle.color, custom_color)
+        self.assertEqual(triangle.segment1.color, custom_color)
+        self.assertEqual(triangle.segment2.color, custom_color)
+        self.assertEqual(triangle.segment3.color, custom_color)
+
+    def test_create_rectangle_with_color(self) -> None:
+        custom_color = "#00ff88"
+        rectangle = self.canvas.create_rectangle(0, 0, 20, 10, color=custom_color)
+        self.assertEqual(rectangle.color, custom_color)
+        self.assertEqual(rectangle.segment1.color, custom_color)
+        self.assertEqual(rectangle.segment2.color, custom_color)
+        self.assertEqual(rectangle.segment3.color, custom_color)
+        self.assertEqual(rectangle.segment4.color, custom_color)
+
+    def test_create_ellipse_with_color(self) -> None:
+        custom_color = "#123456"
+        ellipse = self.canvas.create_ellipse(0, 0, 10, 5, color=custom_color)
+        self.assertEqual(ellipse.color, custom_color)
+
+    def test_draw_function_with_color(self) -> None:
+        custom_color = "#654321"
+        function = self.canvas.draw_function("x", "f_color", color=custom_color)
+        self.assertEqual(function.color, custom_color)
+
     def test_get_circle(self) -> None:
         center_x, center_y, radius = 150, 150, 30
         # Create a circle for this test

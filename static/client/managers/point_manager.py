@@ -120,7 +120,14 @@ class PointManager:
                 return point
         return None
         
-    def create_point(self, x: float, y: float, name: str = "", extra_graphics: bool = True) -> Point:
+    def create_point(
+        self,
+        x: float,
+        y: float,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> Point:
         """
         Create a new point at the specified coordinates
         
@@ -128,6 +135,7 @@ class PointManager:
             x: x-coordinate
             y: y-coordinate
             name: Optional name for the point
+            color: Optional color for the point
             extra_graphics: Whether to create additional graphics (e.g. split segments)
             
         Returns:
@@ -145,7 +153,11 @@ class PointManager:
         name = self.name_generator.generate_point_name(name)
         
         # Create the new point
-        new_point = Point(x=x, y=y, name=name)
+        color_value = str(color).strip() if color is not None else ""
+        if color_value:
+            new_point = Point(x=x, y=y, name=name, color=color_value)
+        else:
+            new_point = Point(x=x, y=y, name=name)
         
         # Add to drawables
         self.drawables.add(new_point)
