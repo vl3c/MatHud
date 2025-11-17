@@ -12,13 +12,15 @@ Dependencies:
 
 from __future__ import annotations
 
+import base64
 import functools
 import hmac
 import json
 import math
+import os
 import time
 from collections.abc import Callable, Iterator
-from typing import Any, Dict, List, TypeVar, Union, cast
+from typing import Any, Dict, List, Optional, TypeVar, Union, cast
 
 from flask import Response, flash, redirect, render_template, request, session, stream_with_context, url_for
 from flask.typing import ResponseReturnValue
@@ -37,6 +39,88 @@ StreamEventDict = Dict[str, JsonValue]
 
 login_attempts: Dict[str, float] = {}
 ToolCallList = List[ProcessedToolCall]
+CANVAS_SNAPSHOT_DIR = "canvas_snapshots"
+CANVAS_SNAPSHOT_PATH = os.path.join(CANVAS_SNAPSHOT_DIR, "canvas.png")
+
+
+def save_canvas_snapshot_from_data_url(data_url: str) -> bool:
+    if not isinstance(data_url, str):
+        return False
+    parts = data_url.split(",", 1)
+    if len(parts) != 2:
+        return False
+    metadata, encoded = parts
+    metadata = metadata.strip().lower()
+    if not metadata.startswith("data:image"):
+        return False
+    try:
+        image_bytes = base64.b64decode(encoded)
+    except Exception as exc:
+        print(f"Failed to decode canvas snapshot: {exc}")
+        return False
+    try:
+        os.makedirs(CANVAS_SNAPSHOT_DIR, exist_ok=True)
+        with open(CANVAS_SNAPSHOT_PATH, "wb") as snapshot_file:
+            snapshot_file.write(image_bytes)
+        return True
+    except Exception as exc:
+        print(f"Failed to write canvas snapshot: {exc}")
+        return False
+
+
+def extract_vision_payload(request_payload: Dict[str, Any]) -> tuple[Optional[Dict[str, Any]], Optional[str], Optional[str]]:
+    svg_state: Optional[Dict[str, Any]] = None
+    canvas_image: Optional[str] = None
+    renderer_mode: Optional[str] = None
+
+    raw_svg_state = request_payload.get('svg_state')
+    if isinstance(raw_svg_state, dict):
+        svg_state = raw_svg_state
+    raw_renderer = request_payload.get('renderer_mode')
+    if isinstance(raw_renderer, str):
+        renderer_mode = raw_renderer
+
+    vision_snapshot = request_payload.get('vision_snapshot')
+    if isinstance(vision_snapshot, dict):
+        snapshot_svg = vision_snapshot.get('svg_state')
+        if isinstance(snapshot_svg, dict):
+            svg_state = snapshot_svg
+        snapshot_renderer = vision_snapshot.get('renderer_mode')
+        if isinstance(snapshot_renderer, str):
+            renderer_mode = snapshot_renderer
+        snapshot_canvas = vision_snapshot.get('canvas_image')
+        if isinstance(snapshot_canvas, str):
+            canvas_image = snapshot_canvas
+
+    return svg_state, canvas_image, renderer_mode
+
+
+def handle_vision_capture(
+    app: MatHudFlask,
+    use_vision: bool,
+    svg_state: Optional[Dict[str, Any]],
+    canvas_image: Optional[str],
+    init_webdriver: Callable[[], ResponseReturnValue],
+) -> None:
+    if not use_vision:
+        return
+    if canvas_image and save_canvas_snapshot_from_data_url(canvas_image):
+        return
+
+    if svg_state is None:
+        return
+
+    if app.webdriver_manager is None:
+        try:
+            init_webdriver()
+        except Exception as exc:
+            print(f"Failed to initialize WebDriver for vision capture: {exc}")
+
+    if app.webdriver_manager is not None:
+        try:
+            app.webdriver_manager.capture_svg_state(cast(SvgState, svg_state))
+        except Exception as exc:
+            print(f"WebDriver capture failed: {exc}")
 
 
 def require_auth(f: F) -> F:
@@ -250,7 +334,7 @@ def register_routes(app: MatHudFlask) -> None:
             )
         message_json: JsonObject = message_json_value
 
-        svg_state = request_payload.get('svg_state')
+        svg_state, canvas_image_data, _ = extract_vision_payload(request_payload)
         use_vision = bool(message_json.get('use_vision', False))
         ai_model_raw = message_json.get('ai_model')
         ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
@@ -260,18 +344,13 @@ def register_routes(app: MatHudFlask) -> None:
 
         app.log_manager.log_user_message(message)
 
-        if use_vision and app.webdriver_manager is None:
-            try:
-                init_webdriver_route()
-            except Exception:
-                pass
-
-        if use_vision and app.webdriver_manager is not None:
-            try:
-                if svg_state is not None and isinstance(svg_state, dict):
-                    app.webdriver_manager.capture_svg_state(cast(SvgState, svg_state))
-            except Exception:
-                pass
+        handle_vision_capture(
+            app,
+            use_vision,
+            svg_state if isinstance(svg_state, dict) else None,
+            canvas_image_data,
+            init_webdriver_route,
+        )
 
         @stream_with_context
         def generate() -> Iterator[str]:
@@ -462,7 +541,7 @@ def register_routes(app: MatHudFlask) -> None:
                 code=400,
             )
 
-        svg_state = request_payload.get('svg_state')
+        svg_state, canvas_image_data, _ = extract_vision_payload(request_payload)
         use_vision = bool(message_json_raw.get('use_vision', False))
         ai_model_raw = message_json_raw.get('ai_model')
         ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
@@ -472,13 +551,13 @@ def register_routes(app: MatHudFlask) -> None:
 
         app.log_manager.log_user_message(message)
 
-        if use_vision and app.webdriver_manager is None:
-            print("WebDriver not found, attempting to initialize...")
-            init_webdriver_route()
-
-        if use_vision and app.webdriver_manager is not None:
-            if svg_state is not None and isinstance(svg_state, dict):
-                app.webdriver_manager.capture_svg_state(cast(SvgState, svg_state))
+        handle_vision_capture(
+            app,
+            use_vision,
+            svg_state if isinstance(svg_state, dict) else None,
+            canvas_image_data,
+            init_webdriver_route,
+        )
 
         try:
             choice = app.ai_api.create_chat_completion(message)

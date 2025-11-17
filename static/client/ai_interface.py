@@ -402,31 +402,77 @@ class AIInterface:
             self._enable_send_controls()
 
     def _create_request_payload(self, prompt: Optional[str], include_svg: bool = True) -> Dict[str, Any]:
-        """Create the JSON payload for the request, optionally including SVG state."""
-        if not include_svg:
-            return {'message': prompt}
-            
-        # Get the SVG element and its content
-        svg_element = document["math-svg"]
-        svg_content = svg_element.outerHTML
-        
-        # Get container dimensions
-        container = document["math-container"]
-        rect = container.getBoundingClientRect()
-        
-        payload = {
-            'message': prompt,
-            'svg_state': {
-                'content': svg_content,
-                'dimensions': {
-                    'width': rect.width,
-                    'height': rect.height
-                },
-                'viewBox': svg_element.getAttribute("viewBox"),
-                'transform': svg_element.getAttribute("transform")
-            }
-        }
+        """Create the JSON payload for the request, optionally including SVG and Canvas2D state."""
+        payload: Dict[str, Any] = {'message': prompt}
+        vision_enabled = self._is_vision_enabled(prompt)
+        renderer_mode = getattr(self.canvas, "renderer_mode", None)
+        if isinstance(renderer_mode, str):
+            payload['renderer_mode'] = renderer_mode
+
+        svg_state_payload: Optional[Dict[str, Any]] = None
+        if include_svg:
+            try:
+                svg_element = document["math-svg"]
+                svg_content = svg_element.outerHTML
+                container = document["math-container"]
+                rect = container.getBoundingClientRect()
+                svg_state_payload = {
+                    'content': svg_content,
+                    'dimensions': {
+                        'width': rect.width,
+                        'height': rect.height
+                    },
+                    'viewBox': svg_element.getAttribute("viewBox"),
+                    'transform': svg_element.getAttribute("transform")
+                }
+                payload['svg_state'] = svg_state_payload
+            except Exception as exc:
+                print(f"Failed to collect SVG state: {exc}")
+
+        if not vision_enabled:
+            return payload
+
+        snapshot: Dict[str, Any] = {}
+        if isinstance(renderer_mode, str):
+            snapshot['renderer_mode'] = renderer_mode
+        if svg_state_payload:
+            snapshot['svg_state'] = svg_state_payload
+
+        if renderer_mode == "canvas2d":
+            canvas_image = self._capture_canvas2d_snapshot()
+            if canvas_image:
+                snapshot['canvas_image'] = canvas_image
+
+        if snapshot:
+            payload['vision_snapshot'] = snapshot
+
         return payload
+
+    def _is_vision_enabled(self, prompt: Optional[str]) -> bool:
+        try:
+            if not prompt:
+                return False
+            parsed = json.loads(prompt)
+            if isinstance(parsed, dict):
+                return bool(parsed.get("use_vision"))
+        except Exception:
+            pass
+        return False
+
+    def _capture_canvas2d_snapshot(self) -> Optional[str]:
+        try:
+            canvas_el = document.getElementById("math-canvas-2d")
+            if canvas_el is None:
+                return None
+            to_data_url = getattr(canvas_el, "toDataURL", None)
+            if not callable(to_data_url):
+                return None
+            data_url = to_data_url("image/png")
+            if isinstance(data_url, str) and data_url:
+                return data_url
+        except Exception as exc:
+            print(f"Failed to capture Canvas2D snapshot: {exc}")
+        return None
 
     def _make_request(self, payload: Dict[str, Any]) -> None:
         """Send an AJAX request with the given payload."""
