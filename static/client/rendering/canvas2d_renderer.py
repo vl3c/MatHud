@@ -137,12 +137,14 @@ class Canvas2DRenderer(RendererProtocol):
     def __init__(self, canvas_id: str = "math-canvas-2d") -> None:
         self.canvas_el, self.ctx = self._initialize_canvas_context(canvas_id)
         self.style: Dict[str, Any] = get_renderer_style()
+        self._background_color: Optional[str] = self.style.get("canvas_background_color")
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self._telemetry = Canvas2DTelemetry()
         target_canvas = self._initialize_layer_state()
         self._shared_primitives: Canvas2DPrimitiveAdapter = Canvas2DPrimitiveAdapter(
             target_canvas, telemetry=self._telemetry
         )
+        self._apply_background()
         self.register_default_drawables()
         self._initialize_plan_caches()
 
@@ -151,6 +153,7 @@ class Canvas2DRenderer(RendererProtocol):
         height = self.canvas_el.height
         self._shared_primitives.clear_surface()
         self.ctx.clearRect(0, 0, width, height)
+        self._apply_background()
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
         handler = self._handlers_by_type.get(type(drawable))
@@ -458,6 +461,7 @@ class Canvas2DRenderer(RendererProtocol):
         target_height = self.canvas_el.height
         if self._offscreen_canvas.width != target_width or self._offscreen_canvas.height != target_height:
             self._shared_primitives.resize_surface(target_width, target_height)
+            self._apply_background()
 
     def _flush_offscreen_to_main(self) -> None:
         if not self._use_layer_compositing or self._offscreen_canvas is None:
@@ -485,6 +489,27 @@ class Canvas2DRenderer(RendererProtocol):
         self._use_layer_compositing = self._should_use_layer_compositing()
         self._offscreen_canvas = self._create_offscreen_canvas() if self._use_layer_compositing else None
         return self._offscreen_canvas or self.canvas_el
+
+    def _apply_background(self) -> None:
+        color = self._background_color
+        if not color:
+            return
+        try:
+            self._shared_primitives.fill_background(color)
+        except Exception:
+            pass
+        try:
+            self.ctx.save()
+            self.ctx.setTransform(1, 0, 0, 1, 0, 0)
+            self.ctx.fillStyle = color
+            self.ctx.fillRect(0, 0, self.canvas_el.width, self.canvas_el.height)
+        except Exception:
+            pass
+        finally:
+            try:
+                self.ctx.restore()
+            except Exception:
+                pass
 
     def _initialize_plan_caches(self) -> None:
         self._plan_cache = {}

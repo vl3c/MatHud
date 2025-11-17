@@ -369,6 +369,22 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self.ctx.clearRect(0, 0, self.canvas_el.width, self.canvas_el.height)
         self._record_event("clear_surface_calls")
 
+    def fill_background(self, color: Optional[str]) -> None:
+        if not color:
+            return
+        try:
+            self.ctx.save()
+            self.ctx.setTransform(1, 0, 0, 1, 0, 0)
+            self.ctx.fillStyle = color
+            self.ctx.fillRect(0, 0, self.canvas_el.width, self.canvas_el.height)
+        except Exception:
+            pass
+        finally:
+            try:
+                self.ctx.restore()
+            except Exception:
+                pass
+
     def resize_surface(self, width: float, height: float) -> None:
         self._flush_polygon_batch()
         self._flush_line_batch()

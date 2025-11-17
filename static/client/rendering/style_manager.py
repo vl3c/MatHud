@@ -65,6 +65,7 @@ _BASE_STYLE: Dict[str, Any] = {
 
     "fill_style": "rgba(0, 0, 0, 0)",
     "font_family": default_font_family,
+    "canvas_background_color": "#ffffff",
 }
 
 
