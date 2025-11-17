@@ -122,7 +122,15 @@ class CircleManager:
                 return circle
         return None
         
-    def create_circle(self, center_x: float, center_y: float, radius: float, name: str = "", extra_graphics: bool = True) -> Circle:
+    def create_circle(
+        self,
+        center_x: float,
+        center_y: float,
+        radius: float,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> Circle:
         """
         Create a circle with the specified center and radius.
         
@@ -134,6 +142,7 @@ class CircleManager:
             center_y (float): Y-coordinate of the circle center
             radius (float): Radius of the circle
             name (str): Optional name for the circle (default: "")
+            color (str): Optional color for the circle
             extra_graphics (bool): Whether to create additional graphics (default: True)
             
         Returns:
@@ -154,7 +163,11 @@ class CircleManager:
         center = self.point_manager.create_point(center_x, center_y, point_names[0], extra_graphics=False)
             
         # Create the circle (math-only)
-        new_circle = Circle(center, radius)
+        color_value = str(color).strip() if color is not None else ""
+        if color_value:
+            new_circle = Circle(center, radius, color=color_value)
+        else:
+            new_circle = Circle(center, radius)
         
         # Add to drawables
         self.drawables.add(new_circle)

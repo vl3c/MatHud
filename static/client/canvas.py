@@ -653,9 +653,24 @@ class Canvas:
         """Get a circle by its name"""
         return self.drawable_manager.get_circle_by_name(name)
 
-    def create_circle(self, center_x: float, center_y: float, radius: float, name: str = "", extra_graphics: bool = True) -> "Drawable":
+    def create_circle(
+        self,
+        center_x: float,
+        center_y: float,
+        radius: float,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> "Drawable":
         """Create a circle with the specified center and radius"""
-        return self.drawable_manager.create_circle(center_x, center_y, radius, name, extra_graphics)
+        return self.drawable_manager.create_circle(
+            center_x,
+            center_y,
+            radius,
+            name,
+            color=color,
+            extra_graphics=extra_graphics,
+        )
 
     def delete_circle(self, name: str) -> bool:
         """Delete a circle by its name"""

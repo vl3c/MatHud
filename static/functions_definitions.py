@@ -608,12 +608,16 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "type": "number",
                                 "description": "The radius of the circle"
                             },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color to assign to the circle"
+                            },
                             "name": {
                                 "type": ["string", "null"],
                                 "description": "Optional name for the circle"
                             }
                         },
-                        "required": ["center_x", "center_y", "radius", "name"],
+                        "required": ["center_x", "center_y", "radius", "color", "name"],
                         "additionalProperties": False
                     }
                 }

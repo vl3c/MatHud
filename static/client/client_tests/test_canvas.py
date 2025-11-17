@@ -773,6 +773,13 @@ class TestCanvas(unittest.TestCase):
         self.assertIsNotNone(new_circle, "Failed to create a new circle.")
         self.assertIn(new_circle, self.canvas.get_drawables_by_class_name('Circle'), "New circle should be in canvas.")
 
+    def test_create_circle_with_color(self) -> None:
+        center_x, center_y, radius = 110, 110, 45
+        custom_color = "#cc5577"
+        circle = self.canvas.create_circle(center_x, center_y, radius, color=custom_color)
+        self.assertIsNotNone(circle, "Circle should be created when color is provided.")
+        self.assertEqual(circle.color, custom_color, "Circle color should match the provided value.")
+
     def test_get_circle(self) -> None:
         center_x, center_y, radius = 150, 150, 30
         # Create a circle for this test
