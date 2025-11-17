@@ -114,6 +114,7 @@ class Canvas:
             self.renderer: Optional[RendererProtocol] = renderer
         else:
             self.renderer = cast(Optional[RendererProtocol], create_renderer(DEFAULT_RENDERER_MODE))
+        self.renderer_mode: str = self._resolve_renderer_mode(self.renderer)
         
         if self.draw_enabled and self.renderer is not None:
             try:
@@ -1070,4 +1071,28 @@ class Canvas:
     def zoom_step(self, value: float) -> None:
         """Set zoom step size - delegates to coordinate_mapper.zoom_step"""
         self.coordinate_mapper.zoom_step = value
+
+    def get_renderer_mode(self) -> str:
+        """Return a lowercase string describing the active renderer backend."""
+        return self.renderer_mode
+
+    def _resolve_renderer_mode(self, renderer: Optional[RendererProtocol]) -> str:
+        if renderer is None:
+            return "none"
+        name = renderer.__class__.__name__.lower()
+        if "canvas2d" in name:
+            return "canvas2d"
+        if "svg" in name:
+            return "svg"
+        if "webgl" in name:
+            return "webgl"
+        module = getattr(renderer, "__module__", "")
+        module_lower = module.lower()
+        if "canvas2d" in module_lower:
+            return "canvas2d"
+        if "svg" in module_lower:
+            return "svg"
+        if "webgl" in module_lower:
+            return "webgl"
+        return "unknown"
 
