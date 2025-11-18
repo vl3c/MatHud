@@ -36,7 +36,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
         # Mock document elements
         self.mock_svg_element = SimpleMock(
             getBoundingClientRect=SimpleMock(return_value=SimpleMock(left=10, top=20)),
-            style=SimpleMock(),
+            style=SimpleMock(touchAction=""),  # Initialize with empty string
             bind=SimpleMock(),
         )
 
@@ -254,8 +254,8 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
 
     def test_touch_action_none_set_in_bind_events(self) -> None:
         """Test that touch-action: none is set when binding events."""
-        # This test verifies that the CSS property is set to prevent default touch behaviors
         # The actual binding happens in bind_events which is called in __init__
+        # Verify that the attribute was set on the style mock
         self.assertEqual(self.mock_svg_element.style.touchAction, "none")
 
     def test_error_handling_in_touch_methods(self) -> None:

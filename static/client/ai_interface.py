@@ -319,14 +319,12 @@ class AIInterface:
             return {}
 
     def _print_user_message_in_chat(self, user_message: str) -> None:
-        """Print a user message to the chat history, clear input field, and scroll to bottom."""
+        """Print a user message to the chat history and scroll to bottom."""
         # Add the user's message to the chat history with markdown support
         message_element = self._create_message_element("User", user_message)
         document["chat-history"] <= message_element
         # Trigger MathJax rendering for new content
         self._render_math()
-        # Clear the input field
-        document["chat-input"].value = ''
         # Scroll the chat history to the bottom
         document["chat-history"].scrollTop = document["chat-history"].scrollHeight
 
@@ -551,6 +549,72 @@ class AIInterface:
         print(f'Prompt for AI: {prompt}')
         self._send_request(prompt)
 
+    def send_user_message(self, message: str) -> None:
+        """Sends a message as if the user typed it."""
+        if self.is_processing or not message.strip():
+            return
+        
+        self._print_user_message_in_chat(message)
+        self._disable_send_controls()
+        self._send_prompt_to_ai(message)
+
+    def run_tests_action(self, event: Any) -> None:
+        """Trigger the test suite directly on the client side (TEMPORARY).
+        
+        See documentation/development/removing_run_tests_button.md for removal instructions.
+        """
+        try:
+            # Disable button to indicate processing
+            run_tests_btn = document["run-tests-button"]
+            run_tests_btn.disabled = True
+            
+            # Notify user we are starting
+            self._print_user_message_in_chat("Run tests (direct execution)")
+            
+            # Execute tests directly
+            # Use setTimeout to allow UI to update (disable button) before heavy processing
+            def execute_tests():
+                try:
+                    results = self.run_tests()
+                    
+                    # Format results to look like an AI response
+                    summary = (
+                        f"### Test Results\n\n"
+                        f"- **Tests Run:** {results.get('tests_run', 0)}\n"
+                        f"- **Failures:** {results.get('failures', 0)}\n"
+                        f"- **Errors:** {results.get('errors', 0)}\n"
+                    )
+                    
+                    if results.get('failing_tests'):
+                        summary += "\n#### Failures:\n"
+                        for fail in results['failing_tests']:
+                            summary += f"- **{fail['test']}**: {fail['error']}\n"
+                    
+                    if results.get('error_tests'):
+                        summary += "\n#### Errors:\n"
+                        for err in results['error_tests']:
+                            summary += f"- **{err['test']}**: {err['error']}\n"
+                    
+                    # Print results to chat as if they came from AI
+                    self._print_ai_message_in_chat(summary)
+                except Exception as e:
+                    error_msg = f"Error running tests directly: {str(e)}"
+                    print(error_msg)
+                    self._print_ai_message_in_chat(error_msg)
+                finally:
+                    # Re-enable button
+                    run_tests_btn.disabled = False
+            
+            # Schedule execution
+            window.setTimeout(execute_tests, 10)
+            
+        except Exception as e:
+            error_msg = f"Error initiating test run: {str(e)}"
+            print(error_msg)
+            self._print_ai_message_in_chat(error_msg)
+            if "run-tests-button" in document:
+                document["run-tests-button"].disabled = False
+
     def interact_with_ai(self, event: Any) -> None:
         # Don't process if we're already handling a request
         if self.is_processing:
@@ -558,12 +622,11 @@ class AIInterface:
             
         # Get the user's message from the input field
         user_message = document["chat-input"].value
-        # Print the user message in chat
-        self._print_user_message_in_chat(user_message)
-        # Disable send controls while processing
-        self._disable_send_controls()
-        # Send the user's message to the AI
-        self._send_prompt_to_ai(user_message)
+        
+        # Clear the input field immediately if we have a message
+        if user_message:
+            document["chat-input"].value = ''
+            self.send_user_message(user_message)
 
     def start_new_conversation(self, event: Any) -> None:
         """Saves the current workspace, resets the canvas and chat, and starts a new backend session."""

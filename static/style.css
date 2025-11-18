@@ -668,6 +668,37 @@ input, select, textarea, button {
     transform: none;
 }
 
+/* TEMPORARY: Run Tests Button Styles (see documentation/development/removing_run_tests_button.md) */
+#run-tests-button {
+    padding: 12px 20px;
+    background: var(--primary-color); /* Changed to blue for visual consistency */
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+#run-tests-button:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+#run-tests-button:active {
+    transform: translateY(0);
+}
+
+#run-tests-button:disabled {
+    background: var(--secondary-color);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+/* END TEMPORARY */
+
 /* ===== RESPONSIVE DESIGN ===== */
 /* Mobile-first responsive breakpoints for tablets and phones */
 
@@ -749,7 +780,8 @@ input, select, textarea, button {
     }
     
     /* Adjust send button for mobile but keep it on the right */
-    #send-button {
+    #send-button,
+    #run-tests-button {
         min-width: 70px; /* Slightly smaller minimum width */
         flex-shrink: 0; /* Prevent shrinking */
         padding: 10px 16px; /* Reduced padding */

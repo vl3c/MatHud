@@ -135,6 +135,13 @@ class CanvasEventHandler:
         """Bind all event handlers with error handling."""
         try:
             document["send-button"].bind("click", self.ai_interface.interact_with_ai)
+            
+            # TEMPORARY: Run Tests Button Binding (see documentation/development/removing_run_tests_button.md)
+            # Safely try to bind the run tests button if it exists and the handler is available
+            run_tests_handler = getattr(self.ai_interface, "run_tests_action", None)
+            if callable(run_tests_handler) and "run-tests-button" in document:
+                document["run-tests-button"].bind("click", run_tests_handler)
+                
             document["chat-input"].bind("keypress", self.check_enter)
             document["math-svg"].bind("wheel", self.handle_wheel)
             document["math-svg"].bind("mousedown", self.handle_mousedown)
