@@ -65,6 +65,358 @@ class TestMathFunctions(unittest.TestCase):
         self.assertTrue(MathUtils.segment_matches_point_names(self.segment, 'B', 'A'))  # Reverse order
         self.assertFalse(MathUtils.segment_matches_point_names(self.segment, 'C', 'D'))  # Incorrect names
 
+    def test_segment_endpoints_helpers(self) -> None:
+        segment = SimpleMock(
+            point1=SimpleMock(x=1.5, y=-2.0),
+            point2=SimpleMock(x=3.25, y=4.75),
+        )
+        self.assertEqual(
+            MathUtils._segment_endpoints(segment),
+            (1.5, -2.0, 3.25, 4.75),
+        )
+        self.assertEqual(
+            MathUtils._segment_endpoints(((0, 0), (5, -3.5))),
+            (0.0, 0.0, 5.0, -3.5),
+        )
+        with self.assertRaises(ValueError):
+            MathUtils._segment_endpoints("invalid")
+
+    def test_normalize_angle_and_arc_sequence(self) -> None:
+        self.assertAlmostEqual(MathUtils._normalize_angle(7 * math.pi), math.pi)
+        self.assertAlmostEqual(MathUtils._normalize_angle(-3 * math.pi / 2), math.pi / 2)
+
+        ccw_angles = MathUtils._arc_angle_sequence(0.0, math.pi / 2, 5)
+        self.assertEqual(len(ccw_angles), 5)
+        self.assertAlmostEqual(ccw_angles[0], 0.0)
+        self.assertAlmostEqual(ccw_angles[-1], math.pi / 2)
+
+        cw_angles = MathUtils._arc_angle_sequence(math.pi / 2, 0.0, 4, clockwise=True)
+        self.assertEqual(len(cw_angles), 4)
+        self.assertAlmostEqual(cw_angles[0], math.pi / 2)
+        self.assertAlmostEqual(cw_angles[-1], MathUtils._normalize_angle(0.0))
+
+    def test_circle_segment_intersections_basic(self) -> None:
+        circle_center = SimpleMock(x=0.0, y=0.0)
+        chord = SimpleMock(
+            point1=SimpleMock(x=-5.0, y=0.0),
+            point2=SimpleMock(x=5.0, y=0.0),
+        )
+        intersections = MathUtils.circle_segment_intersections(
+            circle_center.x,
+            circle_center.y,
+            5.0,
+            chord,
+        )
+        self.assertEqual(len(intersections), 2)
+        xs = sorted(pt["x"] for pt in intersections)
+        ys = [pt["y"] for pt in intersections]
+        self.assertEqual(xs, [-5.0, 5.0])
+        self.assertTrue(all(abs(y) < 1e-9 for y in ys))
+
+    def test_ellipse_segment_intersections_no_rotation(self) -> None:
+        ellipse = SimpleMock(center=SimpleMock(x=0.0, y=0.0), radius_x=4.0, radius_y=2.0, rotation_angle=0.0)
+        segment = SimpleMock(
+            point1=SimpleMock(x=-6.0, y=0.0),
+            point2=SimpleMock(x=6.0, y=0.0),
+        )
+        intersections = MathUtils.ellipse_segment_intersections(
+            ellipse.center.x,
+            ellipse.center.y,
+            ellipse.radius_x,
+            ellipse.radius_y,
+            ellipse.rotation_angle,
+            segment,
+        )
+        self.assertEqual(len(intersections), 2)
+        xs = sorted(pt["x"] for pt in intersections)
+        ys = [pt["y"] for pt in intersections]
+        self.assertAlmostEqual(xs[0], -4.0)
+        self.assertAlmostEqual(xs[1], 4.0)
+        self.assertTrue(all(abs(y) < 1e-9 for y in ys))
+
+    def test_sample_circle_arc_includes_endpoints(self) -> None:
+        samples = MathUtils.sample_circle_arc(
+            0.0,
+            0.0,
+            10.0,
+            0.0,
+            math.pi / 2,
+            num_samples=4,
+        )
+        self.assertEqual(len(samples), 4)
+        self.assertAlmostEqual(samples[0][0], 10.0)
+        self.assertAlmostEqual(samples[-1][0], 0.0, places=6)
+        self.assertGreater(samples[-1][1], 0.0)
+
+    def test_sample_ellipse_arc_respects_rotation(self) -> None:
+        samples = MathUtils.sample_ellipse_arc(
+            0.0,
+            0.0,
+            6.0,
+            3.0,
+            0.0,
+            math.pi / 2,
+            rotation_degrees=30.0,
+            num_samples=3,
+        )
+        self.assertEqual(len(samples), 3)
+        start_point = samples[0]
+        end_point = samples[-1]
+        self.assertNotEqual(start_point[0], 6.0)
+        self.assertNotEqual(start_point[1], 0.0)
+        self.assertGreater(end_point[1], 0.0)
+
+    def test_circle_segment_intersections_additional(self) -> None:
+        circle_center = SimpleMock(x=0.0, y=0.0)
+        tangent = SimpleMock(
+            point1=SimpleMock(x=0.0, y=5.0),
+            point2=SimpleMock(x=10.0, y=5.0),
+        )
+        tangent_hits = MathUtils.circle_segment_intersections(
+            circle_center.x,
+            circle_center.y,
+            5.0,
+            tangent,
+        )
+        self.assertIn(len(tangent_hits), (1, 2))
+        for pt in tangent_hits:
+            self.assertAlmostEqual(pt["x"], 0.0)
+            self.assertAlmostEqual(pt["y"], 5.0)
+
+        outside = SimpleMock(
+            point1=SimpleMock(x=6.0, y=6.0),
+            point2=SimpleMock(x=7.0, y=7.0),
+        )
+        self.assertEqual(
+            MathUtils.circle_segment_intersections(circle_center.x, circle_center.y, 5.0, outside),
+            [],
+        )
+
+        inside = SimpleMock(
+            point1=SimpleMock(x=-1.0, y=0.0),
+            point2=SimpleMock(x=1.0, y=0.0),
+        )
+        intersections = MathUtils.circle_segment_intersections(
+            circle_center.x,
+            circle_center.y,
+            5.0,
+            inside,
+        )
+        self.assertEqual(len(intersections), 0)
+
+        self.assertEqual(
+            MathUtils.circle_segment_intersections(circle_center.x, circle_center.y, 0.0, inside),
+            [],
+        )
+
+    def test_ellipse_segment_intersections_additional(self) -> None:
+        ellipse = SimpleMock(center=SimpleMock(x=0.0, y=0.0), radius_x=5.0, radius_y=3.0, rotation_angle=45.0)
+        tangent = SimpleMock(
+            point1=SimpleMock(x=5.0, y=0.0),
+            point2=SimpleMock(x=5.0, y=5.0),
+        )
+        tangent_hits = MathUtils.ellipse_segment_intersections(
+            ellipse.center.x,
+            ellipse.center.y,
+            ellipse.radius_x,
+            ellipse.radius_y,
+            0.0,
+            tangent,
+        )
+        self.assertIn(len(tangent_hits), (0, 1, 2))
+        for pt in tangent_hits:
+            self.assertAlmostEqual(pt["x"], 5.0, places=6)
+            self.assertGreaterEqual(pt["y"], 0.0)
+
+        outside = SimpleMock(
+            point1=SimpleMock(x=10.0, y=10.0),
+            point2=SimpleMock(x=12.0, y=12.0),
+        )
+        self.assertEqual(
+            MathUtils.ellipse_segment_intersections(
+                ellipse.center.x,
+                ellipse.center.y,
+                ellipse.radius_x,
+                ellipse.radius_y,
+                ellipse.rotation_angle,
+                outside,
+            ),
+            [],
+        )
+
+        self.assertEqual(
+            MathUtils.ellipse_segment_intersections(
+                ellipse.center.x,
+                ellipse.center.y,
+                0.0,
+                ellipse.radius_y,
+                ellipse.rotation_angle,
+                tangent,
+            ),
+            [],
+        )
+
+        vertical = SimpleMock(
+            point1=SimpleMock(x=2.0, y=-10.0),
+            point2=SimpleMock(x=2.0, y=10.0),
+        )
+        vert_hits = MathUtils.ellipse_segment_intersections(
+            ellipse.center.x,
+            ellipse.center.y,
+            ellipse.radius_x,
+            ellipse.radius_y,
+            ellipse.rotation_angle,
+            vertical,
+        )
+        self.assertTrue(len(vert_hits) in (0, 2))
+
+    def test_sample_circle_arc_additional(self) -> None:
+        clockwise = MathUtils.sample_circle_arc(
+            0.0,
+            0.0,
+            5.0,
+            math.pi / 2,
+            -math.pi / 2,
+            num_samples=3,
+            clockwise=True,
+        )
+        self.assertEqual(len(clockwise), 3)
+
+        full_circle = MathUtils.sample_circle_arc(
+            0.0,
+            0.0,
+            5.0,
+            1.0,
+            1.0,
+            num_samples=4,
+        )
+        self.assertEqual(len(full_circle), 4)
+        self.assertAlmostEqual(full_circle[0][0], full_circle[-1][0])
+        self.assertAlmostEqual(full_circle[0][1], full_circle[-1][1])
+
+        minimal = MathUtils.sample_circle_arc(
+            0.0,
+            0.0,
+            5.0,
+            0.0,
+            math.pi,
+            num_samples=1,
+        )
+        self.assertEqual(len(minimal), 2)
+
+        self.assertEqual(
+            MathUtils.sample_circle_arc(0.0, 0.0, 0.0, 0.0, math.pi),
+            [],
+        )
+
+    def test_sample_ellipse_arc_additional(self) -> None:
+        rotated_90 = MathUtils.sample_ellipse_arc(
+            0.0,
+            0.0,
+            4.0,
+            2.0,
+            0.0,
+            math.pi / 2,
+            rotation_degrees=90.0,
+            num_samples=3,
+        )
+        self.assertEqual(len(rotated_90), 3)
+
+        clockwise = MathUtils.sample_ellipse_arc(
+            0.0,
+            0.0,
+            3.0,
+            2.0,
+            math.pi / 2,
+            -math.pi / 2,
+            rotation_degrees=15.0,
+            num_samples=4,
+            clockwise=True,
+        )
+        self.assertEqual(len(clockwise), 4)
+
+        minimal = MathUtils.sample_ellipse_arc(
+            0.0,
+            0.0,
+            3.0,
+            2.0,
+            0.0,
+            math.pi,
+            num_samples=1,
+        )
+        self.assertEqual(len(minimal), 2)
+
+        self.assertEqual(
+            MathUtils.sample_ellipse_arc(0.0, 0.0, 0.0, 2.0, 0.0, math.pi),
+            [],
+        )
+        self.assertEqual(
+            MathUtils.sample_ellipse_arc(0.0, 0.0, 2.0, 0.0, 0.0, math.pi),
+            [],
+        )
+    def test_segment_endpoints_additional_cases(self) -> None:
+        degenerate_segment = SimpleMock(
+            point1=SimpleMock(x=-1.0, y=-1.0),
+            point2=SimpleMock(x=-1.0, y=-1.0),
+        )
+        self.assertEqual(
+            MathUtils._segment_endpoints(degenerate_segment),
+            (-1.0, -1.0, -1.0, -1.0),
+        )
+        mixed_tuple = ((-5, 2.5), (123456789, -987654321.5))
+        self.assertEqual(
+            MathUtils._segment_endpoints(mixed_tuple),
+            (-5.0, 2.5, 123456789.0, -987654321.5),
+        )
+        with self.assertRaises(TypeError):
+            MathUtils._segment_endpoints((0.0, 1.0))
+        invalid_tuple = ((0.0, 0.0), (1.0, 1.0), (2.0, 2.0))
+        with self.assertRaises(ValueError):
+            MathUtils._segment_endpoints(invalid_tuple)
+
+    def test_normalize_angle_edge_cases(self) -> None:
+        self.assertAlmostEqual(MathUtils._normalize_angle(0.0), 0.0)
+        self.assertAlmostEqual(MathUtils._normalize_angle(2 * math.pi), 0.0)
+        self.assertAlmostEqual(MathUtils._normalize_angle(-2 * math.pi), 0.0)
+        self.assertAlmostEqual(
+            MathUtils._normalize_angle(2 * math.pi + 1e-12),
+            1e-12,
+        )
+        huge_angle = 1e6
+        normalized = MathUtils._normalize_angle(huge_angle)
+        self.assertTrue(0.0 <= normalized < 2 * math.pi)
+
+    def test_arc_angle_sequence_additional_cases(self) -> None:
+        minimal = MathUtils._arc_angle_sequence(0.0, math.pi, 1)
+        self.assertEqual(len(minimal), 2)
+        self.assertAlmostEqual(minimal[0], 0.0)
+        self.assertAlmostEqual(minimal[-1], math.pi)
+
+        full_loop = MathUtils._arc_angle_sequence(1.0, 1.0, 4)
+        self.assertEqual(len(full_loop), 4)
+        expected_span = 2 * math.pi / 3
+        for idx in range(1, len(full_loop)):
+            diff = (full_loop[idx] - full_loop[idx - 1]) % (2 * math.pi)
+            self.assertAlmostEqual(diff, expected_span, places=6)
+
+        wrap_ccw = MathUtils._arc_angle_sequence(3 * math.pi / 2, math.pi / 2, 3)
+        self.assertEqual(len(wrap_ccw), 3)
+        self.assertAlmostEqual(wrap_ccw[0], 3 * math.pi / 2)
+        self.assertAlmostEqual(wrap_ccw[-1], math.pi / 2)
+
+        wrap_cw = MathUtils._arc_angle_sequence(
+            math.pi / 6,
+            11 * math.pi / 6,
+            4,
+            clockwise=True,
+        )
+        self.assertEqual(len(wrap_cw), 4)
+        self.assertAlmostEqual(wrap_cw[0], math.pi / 6)
+        self.assertAlmostEqual(wrap_cw[-1], MathUtils._normalize_angle(11 * math.pi / 6))
+        for idx in range(1, len(wrap_cw)):
+            diff = (wrap_cw[idx - 1] - wrap_cw[idx]) % (2 * math.pi)
+            self.assertGreater(diff, 0.0)
+
     def test_segment_has_end_point(self) -> None:
         self.assertTrue(MathUtils.segment_has_end_point(self.segment, 0, 0))
         self.assertTrue(MathUtils.segment_has_end_point(self.segment, 1, 1))

@@ -343,6 +343,239 @@ class MathUtils:
         return abs(cross_product) < threshold
 
     @staticmethod
+    def _segment_endpoints(segment: SegmentLike) -> Tuple[float, float, float, float]:
+        """
+        Normalize different segment representations into endpoint tuples.
+        """
+        if hasattr(segment, "point1") and hasattr(segment, "point2"):
+            return (
+                float(segment.point1.x),
+                float(segment.point1.y),
+                float(segment.point2.x),
+                float(segment.point2.y),
+            )
+        if isinstance(segment, (list, tuple)) and len(segment) == 2:
+            (x1, y1), (x2, y2) = segment
+            return float(x1), float(y1), float(x2), float(y2)
+        raise ValueError("Unsupported segment representation")
+
+    @staticmethod
+    def _normalize_angle(angle: float) -> float:
+        tau = 2 * math.pi
+        return float(angle % tau)
+
+    @staticmethod
+    def _arc_angle_sequence(
+        start_angle: float,
+        end_angle: float,
+        num_samples: int,
+        *,
+        clockwise: bool = False,
+    ) -> List[float]:
+        """
+        Generate a sequence of angles along an arc including both endpoints.
+        """
+        if num_samples < 2:
+            num_samples = 2
+
+        start = MathUtils._normalize_angle(start_angle)
+        end = MathUtils._normalize_angle(end_angle)
+        tau = 2 * math.pi
+
+        if clockwise:
+            span = (start - end) % tau
+            direction = -1.0
+        else:
+            span = (end - start) % tau
+            direction = 1.0
+
+        if span == 0.0:
+            span = tau
+
+        step = span / (num_samples - 1)
+        angles: List[float] = []
+        for idx in range(num_samples):
+            angle = start + direction * step * idx
+            angles.append(MathUtils._normalize_angle(angle))
+        angles[-1] = end
+        return angles
+
+    @staticmethod
+    def circle_segment_intersections(
+        cx: Number,
+        cy: Number,
+        radius: Number,
+        segment: SegmentLike,
+        *,
+        epsilon: float = 1e-9,
+    ) -> List[Dict[str, float]]:
+        """
+        Compute intersection points (if any) between a circle and a segment.
+        Returns a list of dicts with x, y, and angle (radians from positive x-axis).
+        """
+        r = float(radius)
+        if r <= 0:
+            return []
+        x1, y1, x2, y2 = MathUtils._segment_endpoints(segment)
+        dx = x2 - x1
+        dy = y2 - y1
+        fx = x1 - float(cx)
+        fy = y1 - float(cy)
+        a = dx * dx + dy * dy
+        if abs(a) < epsilon:
+            return []
+        b = 2 * (fx * dx + fy * dy)
+        c = fx * fx + fy * fy - r * r
+        discriminant = b * b - 4 * a * c
+        if discriminant < -epsilon:
+            return []
+        discriminant = max(discriminant, 0.0)
+        sqrt_disc = math.sqrt(discriminant)
+        intersections: List[Dict[str, float]] = []
+        for sign in (-1.0, 1.0):
+            t = (-b + sign * sqrt_disc) / (2 * a)
+            if t < -epsilon or t > 1 + epsilon:
+                continue
+            t = min(max(t, 0.0), 1.0)
+            ix = x1 + t * dx
+            iy = y1 + t * dy
+            angle = math.atan2(iy - float(cy), ix - float(cx))
+            intersections.append({"x": ix, "y": iy, "angle": MathUtils._normalize_angle(angle)})
+        return intersections
+
+    @staticmethod
+    def ellipse_segment_intersections(
+        cx: Number,
+        cy: Number,
+        radius_x: Number,
+        radius_y: Number,
+        rotation_degrees: Number,
+        segment: SegmentLike,
+        *,
+        epsilon: float = 1e-9,
+    ) -> List[Dict[str, float]]:
+        """
+        Compute intersection points between an ellipse and a segment.
+        Returns dicts with x, y, and parameter angle (radians on the ellipse).
+        """
+        rx = float(radius_x)
+        ry = float(radius_y)
+        if rx <= 0 or ry <= 0:
+            return []
+        rot_rad = math.radians(float(rotation_degrees))
+        cos_r = math.cos(rot_rad)
+        sin_r = math.sin(rot_rad)
+
+        x1, y1, x2, y2 = MathUtils._segment_endpoints(segment)
+
+        def to_local(px: float, py: float) -> Tuple[float, float]:
+            tx = px - float(cx)
+            ty = py - float(cy)
+            local_x = tx * cos_r + ty * sin_r
+            local_y = -tx * sin_r + ty * cos_r
+            return local_x, local_y
+
+        def to_world(px: float, py: float) -> Tuple[float, float]:
+            world_x = px * cos_r - py * sin_r + float(cx)
+            world_y = px * sin_r + py * cos_r + float(cy)
+            return world_x, world_y
+
+        lx1, ly1 = to_local(x1, y1)
+        lx2, ly2 = to_local(x2, y2)
+
+        dx = lx2 - lx1
+        dy = ly2 - ly1
+        a = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry)
+        b = 2 * ((lx1 * dx) / (rx * rx) + (ly1 * dy) / (ry * ry))
+        c = (lx1 * lx1) / (rx * rx) + (ly1 * ly1) / (ry * ry) - 1
+
+        if abs(a) < epsilon:
+            return []
+
+        discriminant = b * b - 4 * a * c
+        if discriminant < -epsilon:
+            return []
+        discriminant = max(discriminant, 0.0)
+        sqrt_disc = math.sqrt(discriminant)
+
+        intersections: List[Dict[str, float]] = []
+        for sign in (-1.0, 1.0):
+            t = (-b + sign * sqrt_disc) / (2 * a)
+            if t < -epsilon or t > 1 + epsilon:
+                continue
+            t = min(max(t, 0.0), 1.0)
+            local_x = lx1 + t * dx
+            local_y = ly1 + t * dy
+            world_x, world_y = to_world(local_x, local_y)
+            # Parameter angle on the ellipse before scaling
+            theta = math.atan2(local_y / ry, local_x / rx)
+            intersections.append({"x": world_x, "y": world_y, "angle": MathUtils._normalize_angle(theta)})
+        return intersections
+
+    @staticmethod
+    def sample_circle_arc(
+        cx: Number,
+        cy: Number,
+        radius: Number,
+        start_angle: Number,
+        end_angle: Number,
+        *,
+        num_samples: int = 64,
+        clockwise: bool = False,
+    ) -> List[Tuple[float, float]]:
+        """
+        Sample points along a circular arc.
+        """
+        r = float(radius)
+        if r <= 0:
+            return []
+        angles = MathUtils._arc_angle_sequence(float(start_angle), float(end_angle), num_samples, clockwise=clockwise)
+        points: List[Tuple[float, float]] = []
+        for angle in angles:
+            points.append(
+                (
+                    float(cx) + r * math.cos(angle),
+                    float(cy) + r * math.sin(angle),
+                )
+            )
+        return points
+
+    @staticmethod
+    def sample_ellipse_arc(
+        cx: Number,
+        cy: Number,
+        radius_x: Number,
+        radius_y: Number,
+        start_angle: Number,
+        end_angle: Number,
+        *,
+        rotation_degrees: Number = 0.0,
+        num_samples: int = 64,
+        clockwise: bool = False,
+    ) -> List[Tuple[float, float]]:
+        """
+        Sample points along an elliptical arc (respecting rotation).
+        The start and end angles are parameter angles before ellipse rotation.
+        """
+        rx = float(radius_x)
+        ry = float(radius_y)
+        if rx <= 0 or ry <= 0:
+            return []
+
+        rot_rad = math.radians(float(rotation_degrees))
+        cos_r = math.cos(rot_rad)
+        sin_r = math.sin(rot_rad)
+        angles = MathUtils._arc_angle_sequence(float(start_angle), float(end_angle), num_samples, clockwise=clockwise)
+        points: List[Tuple[float, float]] = []
+        for angle in angles:
+            local_x = rx * math.cos(angle)
+            local_y = ry * math.sin(angle)
+            world_x = local_x * cos_r - local_y * sin_r + float(cx)
+            world_y = local_x * sin_r + local_y * cos_r + float(cy)
+            points.append((world_x, world_y))
+        return points
+
+    @staticmethod
     def get_triangle_area(p1: PointLike, p2: PointLike, p3: PointLike) -> float:
         """Calculate the area of a triangle using Heron's formula.
         
