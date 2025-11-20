@@ -80,6 +80,11 @@ class SimpleMock:
         if len(self.calls) != 1:
             raise AssertionError(f"Expected one call, got {len(self.calls)}")
 
+    def assert_called(self) -> None:
+        """Assert the mock was called at least once (any arguments)."""
+        if not self.calls:
+            raise AssertionError("Expected the mock to be called at least once, got 0 calls")
+
     def assert_not_called(self) -> None:
         """Assert the mock was never invoked."""
         if self.calls:
