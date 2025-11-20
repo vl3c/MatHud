@@ -20,6 +20,10 @@ from __future__ import annotations
 # Default appearance settings for canvas elements
 default_point_size: int = 2
 default_color: str = "black"
+default_area_fill_color: str = "lightblue"
+default_area_opacity: float = 0.3
+default_closed_shape_resolution: int = 96
+closed_shape_resolution_minimum: int = 16
 default_font_size: int = 16
 default_font_family: str = "Inter, sans-serif"
 point_label_font_size: float = default_font_size * 5 / 8  # 5/8 ratio for readable point labels

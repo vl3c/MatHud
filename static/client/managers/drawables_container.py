@@ -40,7 +40,7 @@ Access Patterns:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
@@ -199,11 +199,29 @@ class DrawablesContainer:
     def Triangles(self) -> List["Drawable"]:
         """Get all Triangle objects."""
         return self.get_by_class_name('Triangle')
+    
+    def get_triangle_by_name(self, name: str) -> Optional["Drawable"]:
+        """Retrieve a triangle by name."""
+        if not name:
+            return None
+        for triangle in self.Triangles:
+            if getattr(triangle, "name", "") == name:
+                return triangle
+        return None
         
     @property
     def Rectangles(self) -> List["Drawable"]:
         """Get all Rectangle objects."""
         return self.get_by_class_name('Rectangle')
+    
+    def get_rectangle_by_name(self, name: str) -> Optional["Drawable"]:
+        """Retrieve a rectangle by name."""
+        if not name:
+            return None
+        for rectangle in self.Rectangles:
+            if getattr(rectangle, "name", "") == name:
+                return rectangle
+        return None
         
     @property
     def Circles(self) -> List["Drawable"]:
@@ -254,6 +272,11 @@ class DrawablesContainer:
     def FunctionSegmentBoundedColoredAreas(self) -> List["Drawable"]:
         """Get all FunctionSegmentBoundedColoredArea objects."""
         return self.get_by_class_name('FunctionSegmentBoundedColoredArea')
+
+    @property
+    def ClosedShapeColoredAreas(self) -> List["Drawable"]:
+        """Get all ClosedShapeColoredArea objects."""
+        return self.get_by_class_name('ClosedShapeColoredArea')
         
     # Direct dictionary-like access
     def __getitem__(self, key: str) -> List["Drawable"]:

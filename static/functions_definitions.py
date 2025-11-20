@@ -1551,6 +1551,73 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "create_closed_shape_colored_area",
+                    "description": "Fill the interior of a closed shape (triangle, rectangle, polygonal loop, circle, ellipse, or a round shape clipped by a single segment). Provide the relevant identifiers for the shape you want to fill.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "triangle_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of an existing triangle to fill."
+                            },
+                            "rectangle_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of an existing rectangle to fill."
+                            },
+                            "polygon_segment_names": {
+                                "type": ["array", "null"],
+                                "items": {"type": "string"},
+                                "description": "List of segment names that form a closed polygon loop (at least three segments)."
+                            },
+                            "circle_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the circle to fill or to use with a chord segment."
+                            },
+                            "ellipse_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the ellipse to fill or to use with a chord segment."
+                            },
+                            "chord_segment_name": {
+                                "type": ["string", "null"],
+                                "description": "Segment name that serves as the chord/clip when creating a circle or ellipse segment region."
+                            },
+                            "arc_clockwise": {
+                                "type": ["boolean", "null"],
+                                "description": "Set to true to trace the arc clockwise when using a round shape with a chord segment. Default is false (counter-clockwise)."
+                            },
+                            "resolution": {
+                                "type": ["number", "null"],
+                                "description": "Number of samples used to approximate curved boundaries. Defaults to 96."
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the filled area. Default is 'lightblue'."
+                            },
+                            "opacity": {
+                                "type": ["number", "null"],
+                                "description": "Optional opacity between 0 and 1. Default is 0.3."
+                            }
+                        },
+                        "required": [
+                            "triangle_name",
+                            "rectangle_name",
+                            "polygon_segment_names",
+                            "circle_name",
+                            "ellipse_name",
+                            "chord_segment_name",
+                            "arc_clockwise",
+                            "resolution",
+                            "color",
+                            "opacity"
+                        ],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "delete_colored_area",
                     "description": "Deletes a colored area by its name",
                     "strict": True,

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import math
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from constants import default_font_family, label_min_screen_font_px, label_vanish_threshold_px
+
 def _coerce_font_size(candidate: Any, fallback: Any, default_value: float = 14.0) -> float:
     try:
         value = float(candidate)
@@ -186,6 +187,7 @@ class RendererPrimitives:
         if callable(handler):
             handler(*getattr(command, "args", ()), **getattr(command, "kwargs", {}))
 
+from rendering.closed_shape_area_renderable import ClosedShapeAreaRenderable
 from rendering.function_renderable import FunctionRenderable
 from rendering.function_segment_area_renderable import FunctionSegmentAreaRenderable
 from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
@@ -196,7 +198,7 @@ from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
 def render_point_helper(primitives, point, coordinate_mapper, style):
     try:
         sx_sy = coordinate_mapper.math_to_screen(point.x, point.y)  # type: ignore[attr-defined]
-    except Exception as exc:
+    except Exception:
         return
     if not sx_sy:
         return
@@ -1097,6 +1099,14 @@ def render_colored_area_helper(primitives, closed_area, coordinate_mapper, style
     begin_shape = getattr(primitives, "begin_shape", None)
     end_shape = getattr(primitives, "end_shape", None)
     managing_shape = callable(begin_shape) and callable(end_shape)
+
+    if _paths_form_single_loop(forward, reverse):
+        loop_points = list(forward)
+        if not _points_close(loop_points[0], loop_points[-1]):
+            loop_points.append(loop_points[0])
+        primitives.fill_polygon(loop_points, fill)
+        return
+
     if managing_shape:
         begin_shape()
     try:
@@ -1124,6 +1134,31 @@ def render_function_segment_area_helper(primitives, area_model, coordinate_mappe
 def render_segments_bounded_area_helper(primitives, area_model, coordinate_mapper, style):
     area = build_segments_colored_area(area_model, coordinate_mapper)
     render_colored_area_helper(primitives, area, coordinate_mapper, style)
+
+
+def render_closed_shape_area_helper(primitives, area_model, coordinate_mapper, style):
+    model_name = getattr(area_model, "name", "")
+    area = build_closed_shape_colored_area(area_model, coordinate_mapper)
+    if area is None:
+        return
+    render_colored_area_helper(primitives, area, coordinate_mapper, style)
+
+
+def _points_close(p1: Tuple[float, float], p2: Tuple[float, float], tol: float = 1e-9) -> bool:
+    return abs(p1[0] - p2[0]) <= tol and abs(p1[1] - p2[1]) <= tol
+
+
+def _paths_form_single_loop(
+    forward: List[Tuple[float, float]],
+    reverse: List[Tuple[float, float]],
+    tol: float = 1e-9,
+) -> bool:
+    if len(forward) < 3:
+        return False
+    if len(forward) != len(reverse):
+        return False
+    reversed_reverse = list(reversed(reverse))
+    return all(_points_close(f, r, tol) for f, r in zip(forward, reversed_reverse))
 
 
 # ----------------------------------------------------------------------------
@@ -1155,17 +1190,12 @@ def build_segments_colored_area(area_model, coordinate_mapper):
         return None
 
 
-def _approximate_circle(cx, cy, radius, segments=24):
-    if radius <= 0:
-        return []
-    seg = max(int(segments), 8)
-    return [
-        (
-            cx + radius * math.cos(2 * math.pi * i / seg),
-            cy + radius * math.sin(2 * math.pi * i / seg),
-        )
-        for i in range(seg)
-    ]
+def build_closed_shape_colored_area(area_model, coordinate_mapper):
+    try:
+        renderable = ClosedShapeAreaRenderable(area_model, coordinate_mapper)
+        return renderable.build_screen_area()
+    except Exception:
+        return None
 
 
 def _filter_valid_points(points):

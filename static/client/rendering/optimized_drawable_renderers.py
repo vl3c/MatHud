@@ -916,6 +916,7 @@ _HELPERS: Dict[str, Any] = {
     "FunctionsBoundedColoredArea": shared.render_functions_bounded_area_helper,
     "FunctionSegmentBoundedColoredArea": shared.render_function_segment_area_helper,
     "SegmentsBoundedColoredArea": shared.render_segments_bounded_area_helper,
+    "ClosedShapeColoredArea": shared.render_closed_shape_area_helper,
     "Label": shared.render_label_helper,
 }
 

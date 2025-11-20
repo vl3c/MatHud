@@ -45,13 +45,23 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
-from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
-from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
-from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea
-from drawables.segment import Segment
+from constants import (
+    closed_shape_resolution_minimum,
+    default_area_fill_color,
+    default_area_opacity,
+    default_closed_shape_resolution,
+)
+from drawables.closed_shape_colored_area import ClosedShapeColoredArea
+from drawables.circle import Circle
+from drawables.ellipse import Ellipse
 from drawables.function import Function
-from utils.style_utils import StyleUtils
+from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea
+from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
+from drawables.segment import Segment
+from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from utils.geometry_utils import GeometryUtils
+from utils.style_utils import StyleUtils
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
@@ -60,6 +70,8 @@ if TYPE_CHECKING:
     from managers.drawable_dependency_manager import DrawableDependencyManager
     from managers.drawable_manager_proxy import DrawableManagerProxy
     from name_generator.drawable import DrawableNameGenerator
+    from drawables.rectangle import Rectangle
+    from drawables.triangle import Triangle
 
 class ColoredAreaManager:
     """
@@ -101,8 +113,8 @@ class ColoredAreaManager:
         drawable2_name: Optional[str] = None,
         left_bound: Optional[float] = None,
         right_bound: Optional[float] = None,
-        color: str = "lightblue",
-        opacity: float = 0.3,
+        color: str = default_area_fill_color,
+        opacity: float = default_area_opacity,
     ) -> Union[FunctionsBoundedColoredArea, SegmentsBoundedColoredArea, FunctionSegmentBoundedColoredArea]:
         """
         Creates a colored area between two functions, two segments, or a function and a segment.
@@ -146,13 +158,9 @@ class ColoredAreaManager:
             if drawable2 is None:
                 raise ValueError(f"Could not find drawable with name {drawable2_name}")
         
-        if isinstance(drawable1, Segment):
-            if drawable2 is not None and not isinstance(drawable2, Segment):
-                if isinstance(drawable2, (Function, type(None))) or isinstance(drawable2, (int, float)):
-                    # If drawable1 is a segment and drawable2 is a function/None/number, swap them
-                    drawable1, drawable2 = drawable2, drawable1
-                else:
-                    raise ValueError("Invalid combination of arguments")
+        if isinstance(drawable1, Segment) and isinstance(drawable2, Function):
+            # Swap so the function is treated as the primary drawable
+            drawable1, drawable2 = drawable2, drawable1
 
         if isinstance(drawable1, Segment) and (drawable2 is None or isinstance(drawable2, Segment)):
             # Segment-segment or segment-xaxis case
@@ -209,6 +217,113 @@ class ColoredAreaManager:
             self.canvas.draw()
             
         return colored_area
+
+    def create_closed_shape_colored_area(
+        self,
+        *,
+        triangle_name: Optional[str] = None,
+        rectangle_name: Optional[str] = None,
+        polygon_segment_names: Optional[List[str]] = None,
+        circle_name: Optional[str] = None,
+        ellipse_name: Optional[str] = None,
+        chord_segment_name: Optional[str] = None,
+        arc_clockwise: bool = False,
+        resolution: int = default_closed_shape_resolution,
+        color: str = default_area_fill_color,
+        opacity: float = default_area_opacity,
+    ) -> ClosedShapeColoredArea:
+        """
+        Creates a closed-shape colored area from existing triangles, rectangles,
+        polygonal segments, circles, ellipses, or simple round-shape chords.
+        """
+        self.canvas._validate_color_and_opacity(color, opacity)
+        self.canvas.undo_redo_manager.archive()
+
+        shape_type: Optional[str] = None
+        segments: List[Segment] = []
+        circle: Optional[Circle] = None
+        ellipse: Optional[Ellipse] = None
+        chord_segment: Optional[Segment] = None
+
+        if triangle_name:
+            triangle = self.drawable_manager.get_triangle_by_name(triangle_name)
+            if not triangle:
+                raise ValueError(f"Triangle '{triangle_name}' was not found.")
+            segments = [triangle.segment1, triangle.segment2, triangle.segment3]
+            shape_type = "polygon"
+        elif rectangle_name:
+            rectangle = self.drawable_manager.get_rectangle_by_name(rectangle_name)
+            if not rectangle:
+                raise ValueError(f"Rectangle '{rectangle_name}' was not found.")
+            segments = [
+                rectangle.segment1,
+                rectangle.segment2,
+                rectangle.segment3,
+                rectangle.segment4,
+            ]
+            shape_type = "polygon"
+        elif polygon_segment_names:
+            if len(polygon_segment_names) < 3:
+                raise ValueError("At least three segments are required to form a polygon.")
+            for name in polygon_segment_names:
+                segment = self.drawable_manager.get_segment_by_name(name)
+                if not segment:
+                    raise ValueError(f"Segment '{name}' was not found.")
+                segments.append(segment)
+            if not GeometryUtils.segments_form_closed_loop(segments):
+                raise ValueError("Provided segments do not form a closed loop.")
+            shape_type = "polygon"
+        elif circle_name and chord_segment_name:
+            circle = self.drawable_manager.get_circle_by_name(circle_name)
+            chord_segment = self.drawable_manager.get_segment_by_name(chord_segment_name)
+            if not circle or not chord_segment:
+                raise ValueError("Circle or chord segment could not be resolved.")
+            segments = [chord_segment]
+            shape_type = "circle_segment"
+        elif circle_name:
+            circle = self.drawable_manager.get_circle_by_name(circle_name)
+            if not circle:
+                raise ValueError(f"Circle '{circle_name}' was not found.")
+            shape_type = "circle"
+        elif ellipse_name and chord_segment_name:
+            ellipse = self.drawable_manager.get_ellipse_by_name(ellipse_name)
+            chord_segment = self.drawable_manager.get_segment_by_name(chord_segment_name)
+            if not ellipse or not chord_segment:
+                raise ValueError("Ellipse or chord segment could not be resolved.")
+            segments = [chord_segment]
+            shape_type = "ellipse_segment"
+        elif ellipse_name:
+            ellipse = self.drawable_manager.get_ellipse_by_name(ellipse_name)
+            if not ellipse:
+                raise ValueError(f"Ellipse '{ellipse_name}' was not found.")
+            shape_type = "ellipse"
+        else:
+            raise ValueError(
+                "Specify a triangle, rectangle, polygon segments, circle, or ellipse to create a closed shape area."
+            )
+
+        closed_area = ClosedShapeColoredArea(
+            shape_type=shape_type,
+            segments=segments,
+            circle=circle,
+            ellipse=ellipse,
+            chord_segment=chord_segment,
+            arc_clockwise=bool(arc_clockwise),
+            resolution=max(
+                closed_shape_resolution_minimum,
+                int(resolution if resolution is not None else default_closed_shape_resolution),
+            ),
+            color=color,
+            opacity=opacity,
+        )
+
+        self.drawables.add(closed_area)
+        self.dependency_manager.analyze_drawable_for_dependencies(closed_area)
+
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+
+        return closed_area
         
     def delete_colored_area(self, name: str) -> bool:
         """
@@ -225,9 +340,12 @@ class ColoredAreaManager:
         """
         # Find the colored area in all categories
         colored_area: Optional["Drawable"] = None
-        for category_property in [self.drawables.FunctionsBoundedColoredAreas, 
-                                 self.drawables.SegmentsBoundedColoredAreas,
-                                 self.drawables.FunctionSegmentBoundedColoredAreas]:
+        for category_property in [
+            self.drawables.FunctionsBoundedColoredAreas,
+            self.drawables.SegmentsBoundedColoredAreas,
+            self.drawables.FunctionSegmentBoundedColoredAreas,
+            self.drawables.ClosedShapeColoredAreas,
+        ]:
             for area in category_property:
                 if area.name == name:
                     colored_area = area
@@ -324,6 +442,9 @@ class ColoredAreaManager:
         for area in self.drawables.FunctionSegmentBoundedColoredAreas:
             if area.uses_segment(segment):
                 areas_to_delete.append(area)
+        for area in getattr(self.drawables, "ClosedShapeColoredAreas", []):
+            if hasattr(area, "uses_segment") and area.uses_segment(segment):
+                areas_to_delete.append(area)
         
         if areas_to_delete:
             # Archive for undo
@@ -373,6 +494,20 @@ class ColoredAreaManager:
             for area in self.drawables.FunctionSegmentBoundedColoredAreas:
                 if area.uses_segment(drawable):
                     areas.append(area)
+
+            for area in self.drawables.ClosedShapeColoredAreas:
+                if hasattr(area, "uses_segment") and area.uses_segment(drawable):
+                    areas.append(area)
+
+        elif isinstance(drawable, Circle):
+            for area in self.drawables.ClosedShapeColoredAreas:
+                if hasattr(area, "uses_circle") and area.uses_circle(drawable):
+                    areas.append(area)
+
+        elif isinstance(drawable, Ellipse):
+            for area in self.drawables.ClosedShapeColoredAreas:
+                if hasattr(area, "uses_ellipse") and area.uses_ellipse(drawable):
+                    areas.append(area)
                     
         return areas
 
@@ -382,6 +517,7 @@ class ColoredAreaManager:
             self.drawables.SegmentsBoundedColoredAreas,
             self.drawables.FunctionSegmentBoundedColoredAreas,
             self.drawables.ColoredAreas,
+            self.drawables.ClosedShapeColoredAreas,
         ]
         for collection in collections:
             for area in collection:

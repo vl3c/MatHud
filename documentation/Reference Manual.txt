@@ -1573,6 +1573,41 @@ Attributes:
 - `_get_function_y_at_x(x)`: Get y value for a given x from the function
 - `uses_segment(segment)`: Check if this colored area uses a specific segment
 
+#### Closed Shape Colored Area (`drawables/closed_shape_colored_area.py`)
+
+**File Header:**
+```
+MatHud Closed Shape Colored Area
+
+Fills the interior of polygons, circles, ellipses, or round-shape segments.
+```
+
+**Class Documentation:**
+```
+Represents any colored area whose boundaries come from existing closed shapes.
+
+Supports:
+    - `triangle_name` / `rectangle_name` (reuses their stored segments)
+    - `polygon_segment_names` (validated via GeometryUtils closed-loop helpers)
+    - Full `circle_name` / `ellipse_name` fills
+    - `circle_name` + `chord_segment_name` or `ellipse_name` + `chord_segment_name`
+
+Sampling is handled by MathUtils arc helpers, then rendered through ClosedShapeAreaRenderable.
+```
+
+**Key Methods:**
+- `__init__(shape_type, segments=None, circle=None, ellipse=None, chord_segment=None, arc_clockwise=False, resolution=96, color="lightblue", opacity=0.3)`: Capture the geometry references plus rendering resolution.
+- `_generate_name()`: Builds a readable identifier based on the supplied boundary.
+- `uses_segment/uses_circle/uses_ellipse(...)`: Helper predicates for dependency lookups.
+- `get_geometry_spec()`: Returns the math-space references consumed by renderers.
+- `get_state()`: Serializes shape type, referenced names, and sampling config for persistence.
+
+**Creation Entry Point:**
+- `canvas.create_closed_shape_colored_area` / `create_closed_shape_colored_area` tool:
+    - Validates colors/opacities
+    - Resolves drawables through `ColoredAreaManager`
+    - Archives undo state and registers dependencies so removal cascades cleanly
+
 #### Rotatable Polygon (`drawables/rotatable_polygon.py`)
 
 **File Header:**

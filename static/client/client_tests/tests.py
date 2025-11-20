@@ -20,6 +20,7 @@ from .test_expression_validator import TestExpressionValidator
 from .test_function import TestFunction
 from .test_functions_bounded_colored_area import TestFunctionsBoundedColoredArea
 from .test_function_segment_bounded_colored_area import TestFunctionSegmentBoundedColoredArea
+from .test_closed_shape_colored_area import TestClosedShapeColoredArea
 from .test_linear_algebra_utils import TestLinearAlgebraUtils
 from .test_label import TestLabel
 from .test_segments_bounded_colored_area import TestSegmentsBoundedColoredArea
@@ -144,6 +145,7 @@ class Tests:
             TestFunction,
             TestFunctionsBoundedColoredArea,
             TestFunctionSegmentBoundedColoredArea,
+            TestClosedShapeColoredArea,
             TestSegmentsBoundedColoredArea,
             TestCartesian2Axis,
             TestCanvas,

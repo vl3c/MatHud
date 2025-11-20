@@ -146,6 +146,25 @@ class TestRunner:
                 "arguments": {"drawable1_name": "f1", "drawable2_name": "f3", "color": "lightblue", "opacity": 0.3}
             },
             {
+                "function_name": "create_closed_shape_colored_area",
+                "arguments": {
+                    "triangle_name": "ABC",
+                    "color": "salmon",
+                    "opacity": 0.4
+                }
+            },
+            {
+                "function_name": "create_closed_shape_colored_area",
+                "arguments": {
+                    "circle_name": "Circle1",
+                    "chord_segment_name": "AB",
+                    "arc_clockwise": False,
+                    "resolution": 48,
+                    "color": "gold",
+                    "opacity": 0.35
+                }
+            },
+            {
                 "function_name": "create_angle",
                 "arguments": {
                     "vx": 50,

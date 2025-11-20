@@ -1,0 +1,139 @@
+"""
+MatHud Closed Shape Colored Area
+
+Fills the interior of polygons, circles, ellipses, or simple round-shape segments.
+"""
+
+from __future__ import annotations
+
+import copy
+from typing import Any, Dict, List, Optional
+
+from constants import default_area_fill_color, default_area_opacity, default_closed_shape_resolution, closed_shape_resolution_minimum
+from drawables.circle import Circle
+from drawables.colored_area import ColoredArea
+from drawables.ellipse import Ellipse
+from drawables.segment import Segment
+
+
+class ClosedShapeColoredArea(ColoredArea):
+    """
+    Represents a colored area bounded by closed geometric figures.
+    """
+
+    SUPPORTED_SHAPES = {
+        "polygon",
+        "circle",
+        "ellipse",
+        "circle_segment",
+        "ellipse_segment",
+    }
+
+    def __init__(
+        self,
+        *,
+        shape_type: str,
+        segments: Optional[List[Segment]] = None,
+        circle: Optional[Circle] = None,
+        ellipse: Optional[Ellipse] = None,
+        chord_segment: Optional[Segment] = None,
+        arc_clockwise: bool = False,
+        resolution: int = default_closed_shape_resolution,
+        color: str = default_area_fill_color,
+        opacity: float = default_area_opacity,
+        name: Optional[str] = None,
+    ) -> None:
+        if shape_type not in self.SUPPORTED_SHAPES:
+            raise ValueError(f"Unsupported closed shape type '{shape_type}'")
+
+        self.shape_type: str = shape_type
+        self.segments: List[Segment] = list(segments or [])
+        self.circle: Optional[Circle] = circle
+        self.ellipse: Optional[Ellipse] = ellipse
+        self.chord_segment: Optional[Segment] = chord_segment
+        if self.chord_segment:
+            chord_name = getattr(self.chord_segment, "name", None)
+            if all(getattr(segment, "name", None) != chord_name for segment in self.segments):
+                self.segments.append(self.chord_segment)
+        self.arc_clockwise: bool = bool(arc_clockwise)
+        self.resolution: int = max(closed_shape_resolution_minimum, int(resolution))
+
+        generated_name = name or self._generate_name()
+        super().__init__(name=generated_name, color=color, opacity=opacity)
+
+    def _generate_name(self) -> str:
+        if self.shape_type == "polygon" and self.segments:
+            seg_names = "_".join(seg.name for seg in self.segments[:3])
+            return f"closed_polygon_{seg_names}"
+        if self.shape_type.startswith("circle") and self.circle:
+            return f"closed_{self.circle.name}"
+        if self.shape_type.startswith("ellipse") and self.ellipse:
+            return f"closed_{self.ellipse.name}"
+        return f"closed_shape_{self.shape_type}"
+
+    def get_class_name(self) -> str:
+        return "ClosedShapeColoredArea"
+
+    def uses_segment(self, segment: Segment) -> bool:
+        return any(seg.name == segment.name for seg in self.segments)
+
+    def uses_circle(self, circle: Circle) -> bool:
+        return bool(self.circle and self.circle.name == circle.name)
+
+    def uses_ellipse(self, ellipse: Ellipse) -> bool:
+        return bool(self.ellipse and self.ellipse.name == ellipse.name)
+
+    def get_geometry_spec(self) -> Dict[str, Any]:
+        """
+        Provide the raw geometry references for renderables.
+        """
+        return {
+            "shape_type": self.shape_type,
+            "segments": self.segments,
+            "circle": self.circle,
+            "ellipse": self.ellipse,
+            "chord_segment": self.chord_segment,
+            "arc_clockwise": self.arc_clockwise,
+            "resolution": self.resolution,
+        }
+
+    def get_state(self) -> Dict[str, Any]:
+        state = super().get_state()
+        state["args"].update(
+            {
+                "shape_type": self.shape_type,
+                "segments": [segment.name for segment in self.segments],
+                "circle": self.circle.name if self.circle else None,
+                "ellipse": self.ellipse.name if self.ellipse else None,
+                "chord_segment": self.chord_segment.name if self.chord_segment else None,
+                "arc_clockwise": self.arc_clockwise,
+                "resolution": self.resolution,
+            }
+        )
+        return state
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "ClosedShapeColoredArea":
+        if id(self) in memo:
+            return memo[id(self)]
+
+        new_segments = [copy.deepcopy(segment, memo) for segment in self.segments]
+        new_circle = copy.deepcopy(self.circle, memo) if self.circle else None
+        new_ellipse = copy.deepcopy(self.ellipse, memo) if self.ellipse else None
+        new_chord = copy.deepcopy(self.chord_segment, memo) if self.chord_segment else None
+
+        copied = ClosedShapeColoredArea(
+            shape_type=self.shape_type,
+            segments=new_segments,
+            circle=new_circle,
+            ellipse=new_ellipse,
+            chord_segment=new_chord,
+            arc_clockwise=self.arc_clockwise,
+            resolution=self.resolution,
+            color=self.color,
+            opacity=self.opacity,
+            name=self.name,
+        )
+        memo[id(self)] = copied
+        return copied
+
+

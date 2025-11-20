@@ -35,6 +35,11 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
+from constants import (
+    default_area_fill_color,
+    default_area_opacity,
+    default_closed_shape_resolution,
+)
 from geometry import Point
 from cartesian_system_2axis import Cartesian2Axis
 from coordinate_mapper import CoordinateMapper
@@ -975,9 +980,37 @@ class Canvas:
 
         return shared_segments
 
-    def create_colored_area(self, drawable1_name: str, drawable2_name: Optional[str] = None, left_bound: Optional[float] = None, right_bound: Optional[float] = None, color: str = "lightblue", opacity: float = 0.3) -> "Drawable":
-        """Creates a colored area between two functions, two segments, or a function and a segment"""
+    def create_colored_area(self, drawable1_name: str, drawable2_name: Optional[str] = None, left_bound: Optional[float] = None, right_bound: Optional[float] = None, color: str = default_area_fill_color, opacity: float = default_area_opacity) -> "Drawable":
+        """Creates a vertical bounded colored area between two functions, two segments, or a function and a segment"""
         return self.drawable_manager.create_colored_area(drawable1_name, drawable2_name, left_bound, right_bound, color, opacity)
+
+    def create_closed_shape_colored_area(
+        self,
+        *,
+        triangle_name: Optional[str] = None,
+        rectangle_name: Optional[str] = None,
+        polygon_segment_names: Optional[List[str]] = None,
+        circle_name: Optional[str] = None,
+        ellipse_name: Optional[str] = None,
+        chord_segment_name: Optional[str] = None,
+        arc_clockwise: bool = False,
+        resolution: int = default_closed_shape_resolution,
+        color: str = default_area_fill_color,
+        opacity: float = default_area_opacity,
+    ) -> "Drawable":
+        """Creates a closed shape colored area (polygon, circle, ellipse, or round-segment)."""
+        return self.drawable_manager.create_closed_shape_colored_area(
+            triangle_name=triangle_name,
+            rectangle_name=rectangle_name,
+            polygon_segment_names=polygon_segment_names,
+            circle_name=circle_name,
+            ellipse_name=ellipse_name,
+            chord_segment_name=chord_segment_name,
+            arc_clockwise=arc_clockwise,
+            resolution=resolution,
+            color=color,
+            opacity=opacity,
+        )
         
     def delete_colored_area(self, name: str) -> bool:
         """Deletes a colored area with the given name"""

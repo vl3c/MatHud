@@ -191,6 +191,11 @@ class SvgRenderer(RendererProtocol):
             "SegmentsBoundedColoredArea",
             self._render_segments_bounded_colored_area,
         )
+        self._register_shape(
+            "drawables.closed_shape_colored_area",
+            "ClosedShapeColoredArea",
+            self._render_closed_shape_colored_area,
+        )
         self._register_shape("drawables.label", "Label", self._render_label)
 
     def _register_shape(self, module_path: str, class_name: str, handler: Callable[[Any, Any], None]) -> None:
@@ -344,6 +349,13 @@ class SvgRenderer(RendererProtocol):
         self.register(cls, self._render_segments_bounded_colored_area)
 
     def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
+        self._render_drawable(area, coordinate_mapper)
+
+    # ----------------------- Colored Areas: ClosedShapeColoredArea -----------------------
+    def register_closed_shape_colored_area(self, cls: type) -> None:
+        self.register(cls, self._render_closed_shape_colored_area)
+
+    def _render_closed_shape_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
         self._render_drawable(area, coordinate_mapper)
 
     # ----------------------- Label -----------------------

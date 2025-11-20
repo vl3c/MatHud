@@ -45,6 +45,11 @@ import json
 from itertools import permutations
 
 from browser import ajax, document
+from constants import (
+    default_area_fill_color,
+    default_area_opacity,
+    default_closed_shape_resolution,
+)
 from utils.math_utils import MathUtils
 
 if TYPE_CHECKING:
@@ -429,56 +434,86 @@ class WorkspaceManager:
 
     def _create_colored_areas(self, state: Dict[str, Any]) -> None:
         """Create colored areas from workspace state."""
-        # Handle different types of colored areas
-        colored_area_types: List[str] = [
-            "FunctionsBoundedColoredAreas",
-            "SegmentsBoundedColoredAreas", 
-            "FunctionSegmentBoundedColoredAreas",
-            "ColoredAreas"
-        ]
-        
-        for area_type in colored_area_types:
-            if area_type not in state:
-                continue
-                
-            for item_state in state[area_type]:
+        handlers = {
+            "ClosedShapeColoredAreas": self._restore_closed_shape_area,
+            "FunctionsBoundedColoredAreas": self._restore_functions_bounded_area,
+            "SegmentsBoundedColoredAreas": self._restore_generic_colored_area,
+            "FunctionSegmentBoundedColoredAreas": self._restore_generic_colored_area,
+            "ColoredAreas": self._restore_generic_colored_area,
+        }
+
+        for area_type, handler in handlers.items():
+            for item_state in state.get(area_type, []):
                 try:
-                    # Extract parameters based on area type
-                    drawable1_name: Optional[str]
-                    drawable2_name: Optional[str]
-                    if area_type == "FunctionsBoundedColoredAreas":
-                        # Functions bounded colored areas use func1/func2
-                        drawable1_name = item_state["args"]["func1"]
-                        drawable2_name = item_state["args"].get("func2")
-                    else:
-                        # Other types might use different field names
-                        drawable1_name = item_state["args"].get("drawable1_name") or item_state["args"].get("segment1") or item_state["args"].get("func1")
-                        drawable2_name = item_state["args"].get("drawable2_name") or item_state["args"].get("segment2") or item_state["args"].get("func2")
-                    
-                    # Common parameters
-                    left_bound: Optional[float] = item_state["args"].get("left_bound")
-                    right_bound: Optional[float] = item_state["args"].get("right_bound")
-                    color: str = item_state["args"].get("color", "lightblue")
-                    opacity: float = item_state["args"].get("opacity", 0.3)
-                    name: str = item_state.get("name", "")
-                    
-                    # Create the colored area
-                    created_area: Any = self.canvas.create_colored_area(
-                        drawable1_name=drawable1_name,
-                        drawable2_name=drawable2_name,
-                        left_bound=left_bound,
-                        right_bound=right_bound,
-                        color=color,
-                        opacity=opacity
+                    created = handler(item_state)
+                    if created and (name := item_state.get("name")):
+                        created.name = name
+                except Exception as exc:
+                    print(
+                        f"Warning: Could not restore colored area '{item_state.get('name', 'Unnamed')}': {exc}"
                     )
-                    
-                    # Set the name if specified and area was created successfully
-                    if created_area and name:
-                        created_area.name = name
-                        
-                except Exception as e:
-                    print(f"Warning: Could not restore colored area '{item_state.get('name', 'Unnamed')}': {e}")
                     continue
+
+    def _restore_closed_shape_area(self, item_state: Dict[str, Any]):
+        shape_args = item_state.get("args", {})
+        color = shape_args.get("color", default_area_fill_color)
+        opacity = shape_args.get("opacity", default_area_opacity)
+        shape_type = shape_args.get("shape_type")
+
+        polygon_names = None
+        circle_name = shape_args.get("circle")
+        ellipse_name = shape_args.get("ellipse")
+        chord_name = shape_args.get("chord_segment")
+        arc_clockwise = shape_args.get("arc_clockwise", False)
+        resolution = shape_args.get("resolution", default_closed_shape_resolution)
+
+        if shape_type == "polygon":
+            polygon_names = shape_args.get("segments")
+        elif shape_type == "circle":
+            chord_name = None
+        elif shape_type == "ellipse":
+            chord_name = None
+        elif shape_type not in ("circle_segment", "ellipse_segment"):
+            polygon_names = shape_args.get("segments")
+
+        return self.canvas.create_closed_shape_colored_area(
+            polygon_segment_names=polygon_names,
+            circle_name=circle_name,
+            ellipse_name=ellipse_name,
+            chord_segment_name=chord_name,
+            arc_clockwise=arc_clockwise,
+            resolution=resolution,
+            color=color,
+            opacity=opacity,
+        )
+
+    def _restore_functions_bounded_area(self, item_state: Dict[str, Any]):
+        args = item_state.get("args", {})
+        return self.canvas.create_colored_area(
+            drawable1_name=args.get("func1"),
+            drawable2_name=args.get("func2"),
+            left_bound=args.get("left_bound"),
+            right_bound=args.get("right_bound"),
+            color=args.get("color", default_area_fill_color),
+            opacity=args.get("opacity", default_area_opacity),
+        )
+
+    def _restore_generic_colored_area(self, item_state: Dict[str, Any]):
+        args = item_state.get("args", {})
+        drawable1_name = (
+            args.get("drawable1_name") or args.get("segment1") or args.get("func1")
+        )
+        drawable2_name = (
+            args.get("drawable2_name") or args.get("segment2") or args.get("func2")
+        )
+        return self.canvas.create_colored_area(
+            drawable1_name=drawable1_name,
+            drawable2_name=drawable2_name,
+            left_bound=args.get("left_bound"),
+            right_bound=args.get("right_bound"),
+            color=args.get("color", default_area_fill_color),
+            opacity=args.get("opacity", default_area_opacity),
+        )
 
     def _create_angles(self, state: Dict[str, Any]) -> None:
         """Create angles from workspace state."""

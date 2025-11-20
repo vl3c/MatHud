@@ -86,7 +86,8 @@ class DrawableDependencyManager:
             'ColoredArea': ['Function', 'Segment'],
             'SegmentsBoundedColoredArea': ['Segment'],
             'FunctionSegmentBoundedColoredArea': ['Function', 'Segment'],
-            'FunctionsBoundedColoredArea': ['Function']
+            'FunctionsBoundedColoredArea': ['Function'],
+            'ClosedShapeColoredArea': ['Segment', 'Circle', 'Ellipse'],
         }
     
     def _should_skip_point_point_dependency(self, child: "Drawable", parent: "Drawable") -> bool:
@@ -453,6 +454,22 @@ class DrawableDependencyManager:
             if hasattr(drawable, 'circle') and drawable.circle:
                 dependencies.append(drawable.circle)
                 self.register_dependency(drawable, drawable.circle)
+
+        elif class_name == 'ClosedShapeColoredArea':
+            if hasattr(drawable, 'segments'):
+                for segment in drawable.segments:
+                    if segment:
+                        dependencies.append(segment)
+                        self.register_dependency(drawable, segment)
+            if hasattr(drawable, 'circle') and drawable.circle:
+                dependencies.append(drawable.circle)
+                self.register_dependency(drawable, drawable.circle)
+            if hasattr(drawable, 'ellipse') and drawable.ellipse:
+                dependencies.append(drawable.ellipse)
+                self.register_dependency(drawable, drawable.ellipse)
+            if hasattr(drawable, 'chord_segment') and drawable.chord_segment:
+                dependencies.append(drawable.chord_segment)
+                self.register_dependency(drawable, drawable.chord_segment)
                 
         elif class_name == 'ColoredArea':
             # Base ColoredArea type

@@ -44,6 +44,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, List, Optional, cast
 
+from constants import (
+    default_area_fill_color,
+    default_area_opacity,
+    default_closed_shape_resolution,
+)
 from geometry import Point
 from managers.point_manager import PointManager
 from managers.segment_manager import SegmentManager
@@ -61,6 +66,7 @@ from managers.drawables_container import DrawablesContainer
 from managers.angle_manager import AngleManager
 from managers.label_manager import LabelManager
 from managers.arc_manager import ArcManager
+from drawables.closed_shape_colored_area import ClosedShapeColoredArea
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -373,6 +379,10 @@ class DrawableManager:
         """Get a triangle by its vertex coordinates"""
         return self.triangle_manager.get_triangle(x1, y1, x2, y2, x3, y3)
         
+    def get_triangle_by_name(self, name: str) -> Optional["Triangle"]:
+        """Get a triangle by its name"""
+        return self.triangle_manager.get_triangle_by_name(name)
+        
     def create_triangle(
         self,
         x1: float,
@@ -619,9 +629,52 @@ class DrawableManager:
     
     # ------------------- Colored Area Methods -------------------
     
-    def create_colored_area(self, drawable1_name: str, drawable2_name: Optional[str] = None, left_bound: Optional[float] = None, right_bound: Optional[float] = None, color: str = "lightblue", opacity: float = 0.3) -> "ColoredArea":
+    def create_colored_area(
+        self,
+        drawable1_name: str,
+        drawable2_name: Optional[str] = None,
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
+        color: str = default_area_fill_color,
+        opacity: float = default_area_opacity,
+    ) -> "ColoredArea":
         """Create a new colored area between drawables"""
-        return self.colored_area_manager.create_colored_area(drawable1_name, drawable2_name, left_bound, right_bound, color, opacity)
+        return self.colored_area_manager.create_colored_area(
+            drawable1_name,
+            drawable2_name,
+            left_bound,
+            right_bound,
+            color,
+            opacity,
+        )
+
+    def create_closed_shape_colored_area(
+        self,
+        *,
+        triangle_name: Optional[str] = None,
+        rectangle_name: Optional[str] = None,
+        polygon_segment_names: Optional[List[str]] = None,
+        circle_name: Optional[str] = None,
+        ellipse_name: Optional[str] = None,
+        chord_segment_name: Optional[str] = None,
+        arc_clockwise: bool = False,
+        resolution: int = default_closed_shape_resolution,
+        color: str = default_area_fill_color,
+        opacity: float = default_area_opacity,
+    ) -> "ClosedShapeColoredArea":
+        """Create a closed shape colored area."""
+        return self.colored_area_manager.create_closed_shape_colored_area(
+            triangle_name=triangle_name,
+            rectangle_name=rectangle_name,
+            polygon_segment_names=polygon_segment_names,
+            circle_name=circle_name,
+            ellipse_name=ellipse_name,
+            chord_segment_name=chord_segment_name,
+            arc_clockwise=arc_clockwise,
+            resolution=resolution,
+            color=color,
+            opacity=opacity,
+        )
         
     def delete_colored_area(self, name: str) -> bool:
         """Delete a colored area by its name"""

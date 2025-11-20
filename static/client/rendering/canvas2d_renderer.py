@@ -253,6 +253,11 @@ class Canvas2DRenderer(RendererProtocol):
         except Exception:
             pass
         try:
+            from drawables.closed_shape_colored_area import ClosedShapeColoredArea as ClosedShapeAreaDrawable
+            self.register(ClosedShapeAreaDrawable, self._render_closed_shape_colored_area)
+        except Exception:
+            pass
+        try:
             from drawables.label import Label as LabelDrawable
             self.register(LabelDrawable, self._render_label)
         except Exception:
@@ -292,6 +297,9 @@ class Canvas2DRenderer(RendererProtocol):
         self._render_drawable(area, coordinate_mapper)
 
     def _render_segments_bounded_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
+        self._render_drawable(area, coordinate_mapper)
+
+    def _render_closed_shape_colored_area(self, area: Any, coordinate_mapper: Any) -> None:
         self._render_drawable(area, coordinate_mapper)
 
     def _render_label(self, label: Any, coordinate_mapper: Any) -> None:

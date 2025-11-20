@@ -7,6 +7,7 @@ from constants import (
     default_point_size,
     default_font_family,
     default_label_font_size,
+    default_area_fill_color,
     point_label_font_size,
     DEFAULT_ANGLE_ARC_SCREEN_RADIUS,
     DEFAULT_ANGLE_TEXT_ARC_RADIUS_FACTOR,
@@ -53,7 +54,7 @@ _BASE_STYLE: Dict[str, Any] = {
     "function_label_font_size": point_label_font_size,
     "function_label_font_family": default_font_family,
 
-    "area_fill_color": "lightblue",
+    "area_fill_color": default_area_fill_color,
     "area_opacity": 0.3,
 
     "cartesian_axis_color": default_color,

@@ -68,6 +68,26 @@ class WebGLRenderer(RendererProtocol):
         except Exception:
             pass
         try:
+            from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea as FunctionsAreaDrawable
+            self.register(FunctionsAreaDrawable, self._render_drawable)
+        except Exception:
+            pass
+        try:
+            from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea as FunctionSegmentAreaDrawable
+            self.register(FunctionSegmentAreaDrawable, self._render_drawable)
+        except Exception:
+            pass
+        try:
+            from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea as SegmentsAreaDrawable
+            self.register(SegmentsAreaDrawable, self._render_drawable)
+        except Exception:
+            pass
+        try:
+            from drawables.closed_shape_colored_area import ClosedShapeColoredArea as ClosedShapeAreaDrawable
+            self.register(ClosedShapeAreaDrawable, self._render_drawable)
+        except Exception:
+            pass
+        try:
             from drawables.label import Label as LabelDrawable
             self.register(LabelDrawable, self._render_label)
         except Exception:

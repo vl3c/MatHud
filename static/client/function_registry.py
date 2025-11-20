@@ -137,6 +137,7 @@ class FunctionRegistry:
             
             # ===== COLORED AREA OPERATIONS =====
             "create_colored_area": canvas.create_colored_area,
+            "create_closed_shape_colored_area": canvas.create_closed_shape_colored_area,
             "delete_colored_area": canvas.delete_colored_area,
             "update_colored_area": canvas.update_colored_area,
             
@@ -224,6 +225,7 @@ class FunctionRegistry:
             
             # Colored area operations
             "create_colored_area",
+            "create_closed_shape_colored_area",
             "delete_colored_area",
             "update_colored_area",
             
