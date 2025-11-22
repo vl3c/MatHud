@@ -57,6 +57,11 @@ class Polygon(Drawable):
         """Abstract method to be implemented by subclasses to return their vertices"""
         raise NotImplementedError("Subclasses must implement get_vertices()")
 
+    def translate(self, x_offset: float, y_offset: float) -> None:
+        """Translate polygon vertices by the provided offsets."""
+        for point in list(self.get_vertices()):
+            point.translate(x_offset, y_offset)
+
     def rotate(self, angle: float) -> Tuple[bool, Optional[str]]:
         """Rotate the polygon around its center by the given angle in degrees.
         Returns a tuple (should_proceed, message) where:

@@ -113,15 +113,6 @@ class Triangle(Polygon):
         memo[id(self)] = new_triangle
         return new_triangle
 
-    def translate(self, x_offset: float, y_offset: float) -> None:
-        # Translate each unique point only once
-        unique_points: Set[Point] = {self.segment1.point1, self.segment1.point2, self.segment2.point2}
-        
-        for point in unique_points:
-            point.translate(x_offset, y_offset)
-        
-        # No extra init needed
-
     def get_vertices(self) -> Set[Point]:
         """Return the set of unique vertices of the triangle"""
         return {

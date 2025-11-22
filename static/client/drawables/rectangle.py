@@ -115,13 +115,6 @@ class Rectangle(Polygon):
         memo[id(self)] = new_rectangle
         return new_rectangle
 
-    def translate(self, x_offset: float, y_offset: float) -> None:
-        # Translate each unique point only once
-        unique_points: Set[Point] = self.get_vertices()
-        
-        for point in unique_points:
-            point.translate(x_offset, y_offset)
-
     def get_vertices(self) -> Set[Point]:
         """Return the set of unique vertices of the rectangle"""
         return {
