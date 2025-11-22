@@ -69,8 +69,9 @@ class DrawableDependencyManager:
         """Initialize the dependency manager"""
         self.drawable_manager: Optional["DrawableManagerProxy"] = drawable_manager_proxy # Store the proxy
         # Re-add internal state maps needed by other methods
-        self._parents: Dict["Drawable", Set["Drawable"]] = {}
-        self._children: Dict["Drawable", Set["Drawable"]] = {}
+        self._parents: Dict[int, Set[int]] = {}
+        self._children: Dict[int, Set[int]] = {}
+        self._object_lookup: Dict[int, "Drawable"] = {}
         # Type hierarchy - which types depend on which other types
         self._type_hierarchy: Dict[str, List[str]] = {
             'Point': [],
@@ -117,15 +118,19 @@ class DrawableDependencyManager:
         self._verify_get_class_name_method(child, "Child")
         self._verify_get_class_name_method(parent, "Parent")
         
-        # Ensure the objects are in the maps
-        if child not in self._parents:
-            self._parents[child] = set()
-        if parent not in self._children:
-            self._children[parent] = set()
-            
-        # Add the relationship
-        self._parents[child].add(parent)
-        self._children[parent].add(child)
+        child_id = id(child)
+        parent_id = id(parent)
+
+        self._object_lookup[child_id] = child
+        self._object_lookup[parent_id] = parent
+
+        if child_id not in self._parents:
+            self._parents[child_id] = set()
+        if parent_id not in self._children:
+            self._children[parent_id] = set()
+
+        self._parents[child_id].add(parent_id)
+        self._children[parent_id].add(child_id)
     
     def unregister_dependency(self, child: Optional["Drawable"], parent: Optional["Drawable"]) -> None:
         """
@@ -139,11 +144,14 @@ class DrawableDependencyManager:
             # print("Warning: Trying to unregister dependency with None drawable(s).") # Retaining print for now, can be removed if too verbose
             return
 
-        if child in self._parents:
-            self._parents[child].discard(parent)
+        child_id = id(child)
+        parent_id = id(parent)
+
+        if child_id in self._parents:
+            self._parents[child_id].discard(parent_id)
         
-        if parent in self._children:
-            self._children[parent].discard(child)
+        if parent_id in self._children:
+            self._children[parent_id].discard(child_id)
 
     def _verify_get_class_name_method(self, obj: Any, obj_type_name: str) -> None:
         """
@@ -172,7 +180,8 @@ class DrawableDependencyManager:
             print("Warning: Trying to get parents for None drawable")
             return set()
         
-        return self._parents.get(drawable, set())
+        drawable_id = id(drawable)
+        return {self._object_lookup[parent_id] for parent_id in self._parents.get(drawable_id, set()) if parent_id in self._object_lookup}
     
     def get_children(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
@@ -188,7 +197,8 @@ class DrawableDependencyManager:
             print("Warning: Trying to get children for None drawable")
             return set()
         
-        return self._children.get(drawable, set())
+        drawable_id = id(drawable)
+        return {self._object_lookup[child_id] for child_id in self._children.get(drawable_id, set()) if child_id in self._object_lookup}
     
     def get_all_parents(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
@@ -257,20 +267,26 @@ class DrawableDependencyManager:
             drawable: The drawable to remove
         """
         # Remove from children's parents
-        for child in self.get_children(drawable):
-            if drawable in self._parents.get(child, set()):
-                self._parents[child].remove(drawable)
+        drawable_id = id(drawable)
+
+        for child_id in self._children.get(drawable_id, set()).copy():
+            parents = self._parents.get(child_id)
+            if parents and drawable_id in parents:
+                parents.discard(drawable_id)
                 
         # Remove from parents' children
-        for parent in self.get_parents(drawable):
-            if drawable in self._children.get(parent, set()):
-                self._children[parent].remove(drawable)
+        for parent_id in self._parents.get(drawable_id, set()).copy():
+            children = self._children.get(parent_id)
+            if children and drawable_id in children:
+                children.discard(drawable_id)
                 
         # Remove drawable's entries
-        if drawable in self._parents:
-            del self._parents[drawable]
-        if drawable in self._children:
-            del self._children[drawable]
+        if drawable_id in self._parents:
+            del self._parents[drawable_id]
+        if drawable_id in self._children:
+            del self._children[drawable_id]
+        if drawable_id in self._object_lookup:
+            del self._object_lookup[drawable_id]
     
     def update_canvas_references(self, drawable: Optional["Drawable"], canvas: "Canvas") -> None:
         """
