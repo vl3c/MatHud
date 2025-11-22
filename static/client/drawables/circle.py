@@ -86,6 +86,8 @@ class Circle(Drawable):
     def translate(self, x_offset: float, y_offset: float) -> None:
         self.center.x += x_offset
         self.center.y += y_offset
+        self.circle_formula = self._calculate_circle_algebraic_formula()
+        self.regenerate_name()
 
     def rotate(self, angle: float) -> None:
         pass 

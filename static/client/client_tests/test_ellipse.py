@@ -89,10 +89,12 @@ class TestEllipse(unittest.TestCase):
         x, y = self.coordinate_mapper.math_to_screen(self.ellipse.center.x, self.ellipse.center.y)
         self.assertEqual((x, y), (252, 248))
         
+        original_formula = self.ellipse.ellipse_formula
         # Translate by (3, 1) in mathematical coordinates
         self.ellipse.translate(3, 1)
         
         # Center should move from (2,2) to (5,3) in math space -> (255,247) in screen space
         x, y = self.coordinate_mapper.math_to_screen(self.ellipse.center.x, self.ellipse.center.y)
         self.assertEqual((x, y), (255, 247))
+        self.assertNotEqual(original_formula, self.ellipse.ellipse_formula)
 

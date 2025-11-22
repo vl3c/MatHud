@@ -101,6 +101,8 @@ class Ellipse(Drawable):
     def translate(self, x_offset: float, y_offset: float) -> None:
         self.center.x += x_offset
         self.center.y += y_offset
+        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
+        self.regenerate_name()
 
     def rotate(self, angle: float) -> Tuple[bool, Optional[str]]:
         """Rotate the ellipse around its center by the given angle in degrees"""

@@ -68,9 +68,11 @@ class TestCircle(unittest.TestCase):
         x, y = self.coordinate_mapper.math_to_screen(self.circle.center.x, self.circle.center.y)
         self.assertEqual((x, y), (251, 249))
         
+        original_formula = self.circle.circle_formula
         # Translate by (2, 3) in mathematical coordinates
         self.circle.translate(2, 3)
         
         # Center should move from (1,1) to (3,4) in math space -> (253,246) in screen space
         x, y = self.coordinate_mapper.math_to_screen(self.circle.center.x, self.circle.center.y)
         self.assertEqual((x, y), (253, 246))
+        self.assertNotEqual(original_formula, self.circle.circle_formula)
