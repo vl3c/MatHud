@@ -26,17 +26,15 @@ Dependencies:
 
 from __future__ import annotations
 
-from copy import deepcopy
-from typing import Any, Dict, Set, cast
+from typing import Any, Dict, Set
 
 from constants import default_color
-from drawables.drawable import Drawable
 from drawables.point import Point
-from drawables.polygon import Polygon
+from drawables.quadrilateral import Quadrilateral
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
 
-class Rectangle(Polygon):
+class Rectangle(Quadrilateral):
     """Represents a rectangle formed by four connected line segments.
     
     Validates that four segments form a proper rectangle with right angles and
@@ -70,12 +68,7 @@ class Rectangle(Polygon):
                                  segment3.point1.x, segment3.point1.y, 
                                  segment4.point1.x, segment4.point1.y):
             raise ValueError("The quadrilateral formed by the segments is not a rectangle")
-        self.segment1: Segment = segment1
-        self.segment2: Segment = segment2
-        self.segment3: Segment = segment3
-        self.segment4: Segment = segment4
-        name: str = segment1.point1.name + segment1.point2.name + segment2.point2.name + segment3.point2.name
-        super().__init__(name=name, color=color)
+        super().__init__(segment1, segment2, segment3, segment4, color=color)
 
     def get_class_name(self) -> str:
         return 'Rectangle'
@@ -100,36 +93,21 @@ class Rectangle(Polygon):
         ]
         # Convert the list into a set to remove duplicates, then convert it back to a list and sort it
         points_names: list[str] = sorted(list(set(point_names)))
-        state: Dict[str, Any] = {"name": self.name, "args": {"p1": points_names[0], "p2": points_names[1], "p3": points_names[2], "p4": points_names[3]}}
+        state: Dict[str, Any] = {
+            "name": self.name,
+            "args": {"p1": points_names[0], "p2": points_names[1], "p3": points_names[2], "p4": points_names[3]},
+        }
+        quad_flags = self.get_type_flags()
+        if quad_flags:
+            state["types"] = quad_flags
         return state
-
-    def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
-        # Check if the rectangle has already been deep copied
-        if id(self) in memo:
-            return cast(Rectangle, memo[id(self)])
-        new_s1: Segment = deepcopy(self.segment1, memo)
-        new_s2: Segment = deepcopy(self.segment2, memo)
-        new_s3: Segment = deepcopy(self.segment3, memo)
-        new_s4: Segment = deepcopy(self.segment4, memo)
-        new_rectangle: Rectangle = Rectangle(new_s1, new_s2, new_s3, new_s4, color=self.color)
-        memo[id(self)] = new_rectangle
-        return new_rectangle
 
     def get_vertices(self) -> Set[Point]:
         """Return the set of unique vertices of the rectangle"""
-        return {
-            self.segment1.point1, self.segment1.point2,
-            self.segment2.point1, self.segment2.point2,
-            self.segment3.point1, self.segment3.point2,
-            self.segment4.point1, self.segment4.point2
-        }
+        return super().get_vertices()
 
     def update_color(self, color: str) -> None:
         """Update the rectangle and its edge colors."""
         sanitized = str(color)
         self.color = sanitized
-        for segment in (self.segment1, self.segment2, self.segment3, self.segment4):
-            if hasattr(segment, "update_color") and callable(getattr(segment, "update_color")):
-                segment.update_color(sanitized)
-            else:
-                segment.color = sanitized
+        super().update_color(color)

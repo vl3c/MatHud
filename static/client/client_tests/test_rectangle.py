@@ -70,8 +70,11 @@ class TestRectangle(unittest.TestCase):
     def test_get_state(self) -> None:
         state = self.rectangle.get_state()
         # Expected state needs to account for the names of the points, which should be sorted and unique
-        expected_state = {"name": self.rectangle.name, "args": {"p1": "P1", "p2": "P2", "p3": "P3", "p4": "P4"}}
-        self.assertEqual(state, expected_state)
+        expected_args = {"p1": "P1", "p2": "P2", "p3": "P3", "p4": "P4"}
+        self.assertEqual(state["name"], self.rectangle.name)
+        self.assertEqual(state["args"], expected_args)
+        self.assertIn("types", state)
+        self.assertEqual(state["types"], {"square": False, "rectangle": True, "rhombus": False, "irregular": False})
 
     def test_deepcopy(self) -> None:
         rectangle_copy = copy.deepcopy(self.rectangle)
