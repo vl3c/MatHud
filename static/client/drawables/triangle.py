@@ -67,7 +67,7 @@ class Triangle(Polygon):
         self.segment2: Segment = segment2
         self.segment3: Segment = segment3
         self._segments: list[Segment] = [self.segment1, self.segment2, self.segment3]
-        self._type_flags: Dict[str, bool] = self._classify_triangle()
+        self._set_type_flags(self._classify_triangle())
         name: str = self._set_name()
         super().__init__(name=name, color=color)
 
@@ -97,19 +97,19 @@ class Triangle(Polygon):
 
     def get_type_flags(self) -> Dict[str, bool]:
         """Return classification flags describing the triangle."""
-        return dict(self._type_flags)
+        return super().get_type_flags()
 
     def is_equilateral(self) -> bool:
-        return self._type_flags["equilateral"]
+        return self.get_type_flags()["equilateral"]
 
     def is_isosceles(self) -> bool:
-        return self._type_flags["isosceles"]
+        return self.get_type_flags()["isosceles"]
 
     def is_scalene(self) -> bool:
-        return self._type_flags["scalene"]
+        return self.get_type_flags()["scalene"]
 
     def is_right(self) -> bool:
-        return self._type_flags["right"]
+        return self.get_type_flags()["right"]
     
     def get_state(self) -> Dict[str, Any]:
         # Collect all point names into a list
