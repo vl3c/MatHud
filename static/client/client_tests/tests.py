@@ -39,6 +39,7 @@ from .test_ellipse_manager import TestEllipseManager
 from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
 from .test_triangle import TestTriangle
+from .test_quadrilateral import TestQuadrilateral
 from .test_vector import TestVector
 from .test_angle import TestAngle
 from .test_angle_manager import TestAngleManager
@@ -137,6 +138,7 @@ class Tests:
             TestFunctionManager,
             TestVector,
             TestTriangle,
+            TestQuadrilateral,
             TestRectangle,
             TestCircle,
             TestCircleArc,
