@@ -49,6 +49,8 @@ class Quadrilateral(Polygon):
         if abs(area_accumulator) <= 1e-9:
             raise ValueError("Quadrilateral area must be non-zero")
 
+        ordered_points = self._align_points_with_segments(ordered_points, segments)
+
         name = "".join(point.name for point in ordered_points)
 
         self.segment1 = segment1
@@ -60,6 +62,30 @@ class Quadrilateral(Polygon):
         self._set_type_flags(GeometryUtils.quadrilateral_type_flags(self._points))
 
         super().__init__(name=name, color=color)
+
+    def _align_points_with_segments(
+        self,
+        ordered_points: List[Point],
+        segments: List[Segment],
+    ) -> List[Point]:
+        points = list(ordered_points)
+        first_segment = segments[0]
+
+        for start_index, point in enumerate(points):
+            if point is first_segment.point1:
+                points = points[start_index:] + points[:start_index]
+                break
+        else:
+            raise ValueError("Segment1 points not found in quadrilateral ordering")
+
+        if points[1] is not first_segment.point2:
+            points.reverse()
+            for start_index, point in enumerate(points):
+                if point is first_segment.point1:
+                    points = points[start_index:] + points[:start_index]
+                    break
+
+        return points
 
     def get_class_name(self) -> str:
         return "Quadrilateral"
@@ -107,7 +133,7 @@ class Quadrilateral(Polygon):
             return cast(Quadrilateral, memo[id(self)])
 
         new_segments = [deepcopy(segment, memo) for segment in self._segments]
-        new_quad = Quadrilateral(
+        new_quad = self.__class__(
             new_segments[0],
             new_segments[1],
             new_segments[2],
