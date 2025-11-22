@@ -40,6 +40,7 @@ from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
 from .test_triangle import TestTriangle
 from .test_quadrilateral import TestQuadrilateral
+from .test_hexagon import TestHexagon
 from .test_vector import TestVector
 from .test_angle import TestAngle
 from .test_angle_manager import TestAngleManager
@@ -139,6 +140,7 @@ class Tests:
             TestVector,
             TestTriangle,
             TestQuadrilateral,
+            TestHexagon,
             TestRectangle,
             TestCircle,
             TestCircleArc,
