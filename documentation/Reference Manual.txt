@@ -171,7 +171,7 @@ Initializes the browser-based Python environment for mathematical canvas operati
 Sets up the SVG canvas, AI communication interface, and event handling system.
 
 Components Initialized:
-    - Canvas: SVG-based mathematical visualization system
+    - Canvas: mathematical visualization system backed by the renderer factory (Canvas2D by default with SVG/WebGL fallbacks)
     - AIInterface: Communication bridge to backend AI services  
     - CanvasEventHandler: User interaction and input processing
 
@@ -212,12 +212,14 @@ Architecture:
 
 Dependencies:
     - CoordinateMapper: centralized math-to-screen conversion
-    - SvgRenderer: registry-based rendering of math models into SVG
+    - rendering.factory: runtime selection between Canvas2D, SVG, and WebGL renderers
     - geometry: Geometric object definitions (Point, Position, etc.)
     - cartesian_system_2axis: Coordinate grid system
     - utils.*: Mathematical, styling, and geometry utilities
     - managers.*: Specialized management components
 ```
+
+_Note: The legacy docstring refers to an SVG canvas, but the live code delegates drawing to the renderer selected by `rendering.factory.create_renderer` (Canvas2D first, then SVG, then WebGL)._
 
 **Class Documentation:**
 ```

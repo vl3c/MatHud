@@ -1,9 +1,9 @@
 # MatHud - Mathematical Heads-Up Display
 
-MathHud is an interactive mathematical visualization tool that combines a drawing canvas with an AI assistant to help understand and solve real-world mathematical problems. It serves as a heads-up display system for mathematical analysis, allowing users to visualize, analyze, and solve problems in real-time.
+MatHud is an interactive mathematical visualization tool that combines a drawing canvas with an AI assistant to help understand and solve real-world mathematical problems. It serves as a heads-up display system for mathematical analysis, allowing users to visualize, analyze, and solve problems in real-time.
 
 ## Key Features
-- Interactive SVG-based drawing canvas
+- Interactive math-space canvas rendered through Canvas2D, SVG, and an experimental WebGL backend
 - AI-powered mathematical assistant
 - Real-time geometric visualization and analysis
 - Support for mathematical expressions and calculations
@@ -11,7 +11,7 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 - Visual problem-solving with multimodal AI
 - Real-world problem analysis and modeling
 - Workspace management for saving and loading states
-- Rich text chat interface with with comprehensive markdown support and LaTeX mathematical notation rendering
+- Rich text chat interface with comprehensive markdown support and LaTeX mathematical notation rendering
 
 ## Mathematical Functions
 - Basic Arithmetic: addition, subtraction, multiplication, division, exponents, roots
@@ -52,8 +52,8 @@ MathHud is an interactive mathematical visualization tool that combines a drawin
 5. Shared drawing helpers live in `rendering/shared_drawable_renderers.py`. Utilities like `render_point_helper` coordinate metadata emission for labels and delegate actual drawing to the primitive adapters. `style_manager.get_renderer_style()` returns cloned dictionaries so callers cannot mutate global defaults.
 6. Primitive adapters (`canvas2d_primitive_adapter.py`, `webgl_primitive_adapter.py`, `svg_primitive_adapter.py`) translate `OptimizedPrimitivePlan` commands into backend-specific APIs. Canvas2D batches polygon fills and flushes before strokes, SVG re-parents reserved elements to active groups, and WebGL converts strokes into line-strip draw calls backed by parsed colors.
 7. `optimized_drawable_renderers.py` owns the `OptimizedPrimitivePlan` type used by every renderer. Plans store map-state metadata, know when they need to be reapplied, expose usage counts for pooling, and can reproject commands when the coordinate mapper changes.
-8. DOM surfaces are layered as WebGL (background), Canvas2D (middle), and SVG (foreground) inside `#math-container`, with inactive surfaces kept `pointer-events: none`. Labels remain on SVG to guarantee text clarity across backends.
-9. Runtime selection checks explicit arguments, `window.MatHudRenderer`, and `localStorage['mathud.renderer']` before falling back to SVG; helper `window.setMatHudRenderer(mode)` can persist the choice for development toggling.
+8. DOM surfaces are layered as WebGL (highest `z-index` 20), Canvas2D (`z-index` 10), and SVG (base layer) inside `#math-container`, with inactive surfaces kept `pointer-events: none`. Labels remain on SVG to guarantee text clarity across backends.
+9. Runtime selection relies on the preference chain inside `create_renderer`: it first tries Canvas2D, falls back to SVG if Canvas2D fails, and finally attempts WebGL. Constructor errors are caught so the factory can continue down the chain.
 10. Feature flags remain available for diagnostics: `window.MatHudSvgOffscreen` (or `localStorage["mathud.svg.offscreen"]`) toggles SVG offscreen staging, and `window.MatHudCanvas2DOffscreen` (or `localStorage["mathud.canvas2d.offscreen"]`) enables Canvas2D layer compositing.
 11. Renderers expose `begin_frame`, `end_frame`, `peek_telemetry`, and `drain_telemetry` hooks so automated tests and performance harnesses can capture plan build/apply timings, skip counts, adapter events, and maximum batch depth.
 
@@ -114,7 +114,7 @@ MatHud/
 ├── run_server_tests.py                # Server-side test runner script
 ├── .gitignore                         # Git ignore patterns
 ├── LICENSE                            # Project license
-├── Documentation/                     # Project documentation folder
+├── documentation/                     # Project documentation folder
 │   ├── Project Architecture.txt       # Comprehensive technical documentation (this file)
 │   ├── Reference Manual.txt           # Detailed reference manual
 │   ├── Example Prompts.txt            # Sample AI prompts for testing
@@ -251,8 +251,8 @@ server_tests/
 ```
 
 ## Key Configuration Files
-- **`requirements.txt`**: Contains 5 dependencies: openai, flask, python-dotenv, selenium, geckodriver-autoinstaller
-- **`.env`**: Environment variables (OpenAI API key) - created by user in parent directory
+- **`requirements.txt`**: Python dependencies (openai, flask, flask-session, cachelib, python-dotenv, selenium, geckodriver-autoinstaller, requests, types-requests, mypy)
+- **`.env`**: Environment variables (OpenAI API key, auth flags) - create this in the project root
 - **`app.py`**: Main entry point including threaded server startup and graceful shutdown handling
 - **`static/functions_definitions.py`**: Defines 42 AI functions with full JSON schema
 - **`templates/index.html`**: Main HTML template with canvas, chat interface, AI model selector, and vision toggle
