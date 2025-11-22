@@ -19,6 +19,18 @@ class TestClosedShapeColoredArea(unittest.TestCase):
         self.segment_ab = SimpleMock(name="AB", point1=self.point_a, point2=self.point_b)
         self.segment_bc = SimpleMock(name="BC", point1=self.point_b, point2=self.point_c)
         self.segment_ca = SimpleMock(name="CA", point1=self.point_c, point2=self.point_a)
+        self.circle = SimpleMock(
+            name="CircleA",
+            center=SimpleMock(x=1.0, y=1.0),
+            radius=5.0,
+        )
+        self.ellipse = SimpleMock(
+            name="EllipseA",
+            center=SimpleMock(x=3.0, y=4.0),
+            radius_x=6.0,
+            radius_y=2.0,
+            rotation_angle=15.0,
+        )
 
     def test_segments_form_closed_loop(self) -> None:
         segments = [self.segment_ab, self.segment_bc, self.segment_ca]
@@ -93,8 +105,8 @@ class TestClosedShapeColoredArea(unittest.TestCase):
         area = ClosedShapeColoredArea(
             shape_type="polygon",
             segments=[self.segment_ab, self.segment_bc, self.segment_ca],
-            circle=SimpleMock(name="CircleA"),
-            ellipse=SimpleMock(name="EllipseA"),
+            circle=self.circle,
+            ellipse=self.ellipse,
             chord_segment=self.segment_ab,
             arc_clockwise=True,
             resolution=123,
@@ -110,6 +122,27 @@ class TestClosedShapeColoredArea(unittest.TestCase):
         self.assertEqual(args["chord_segment"], "AB")
         self.assertTrue(args["arc_clockwise"])
         self.assertEqual(args["resolution"], 123)
+        snapshot = args["geometry_snapshot"]
+        self.assertIn("polygon_coords", snapshot)
+        self.assertEqual(snapshot["polygon_coords"], [[0.0, 0.0], [2.0, 0.0], [0.0, 2.0]])
+        self.assertEqual(
+            snapshot["circle"],
+            {"center": [1.0, 1.0], "radius": 5.0},
+        )
+        self.assertEqual(
+            snapshot["ellipse"],
+            {
+                "center": [3.0, 4.0],
+                "radius_x": 6.0,
+                "radius_y": 2.0,
+                "rotation": 15.0,
+            },
+        )
+        self.assertEqual(
+            snapshot["chord_endpoints"],
+            [[0.0, 0.0], [2.0, 0.0]],
+        )
+        self.assertIn("segments", snapshot)
 
     def test_uses_helpers(self) -> None:
         area = ClosedShapeColoredArea(

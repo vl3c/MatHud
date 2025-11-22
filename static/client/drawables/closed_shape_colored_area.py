@@ -14,6 +14,7 @@ from drawables.circle import Circle
 from drawables.colored_area import ColoredArea
 from drawables.ellipse import Ellipse
 from drawables.segment import Segment
+from utils.geometry_utils import GeometryUtils
 
 
 class ClosedShapeColoredArea(ColoredArea):
@@ -108,6 +109,7 @@ class ClosedShapeColoredArea(ColoredArea):
                 "chord_segment": self.chord_segment.name if self.chord_segment else None,
                 "arc_clockwise": self.arc_clockwise,
                 "resolution": self.resolution,
+                "geometry_snapshot": self._snapshot_geometry(),
             }
         )
         return state
@@ -135,5 +137,45 @@ class ClosedShapeColoredArea(ColoredArea):
         )
         memo[id(self)] = copied
         return copied
+
+    def _snapshot_geometry(self) -> Dict[str, Any]:
+        snapshot: Dict[str, Any] = {}
+
+        if self.shape_type == "polygon":
+            coords = GeometryUtils.polygon_math_coordinates_from_segments(self.segments) or []
+            snapshot["polygon_coords"] = [[x, y] for x, y in coords]
+        if self.circle and hasattr(self.circle, "center"):
+            center = getattr(self.circle, "center", None)
+            if center and hasattr(center, "x") and hasattr(center, "y"):
+                snapshot["circle"] = {
+                    "center": [float(center.x), float(center.y)],
+                    "radius": float(getattr(self.circle, "radius", 0.0)),
+                }
+        if self.ellipse and hasattr(self.ellipse, "center"):
+            center = getattr(self.ellipse, "center", None)
+            if center and hasattr(center, "x") and hasattr(center, "y"):
+                snapshot["ellipse"] = {
+                    "center": [float(center.x), float(center.y)],
+                    "radius_x": float(getattr(self.ellipse, "radius_x", 0.0)),
+                    "radius_y": float(getattr(self.ellipse, "radius_y", 0.0)),
+                    "rotation": float(getattr(self.ellipse, "rotation_angle", 0.0)),
+                }
+        if self.chord_segment and hasattr(self.chord_segment, "point1") and hasattr(self.chord_segment, "point2"):
+            snapshot["chord_endpoints"] = [
+                [float(self.chord_segment.point1.x), float(self.chord_segment.point1.y)],
+                [float(self.chord_segment.point2.x), float(self.chord_segment.point2.y)],
+            ]
+        if self.segments:
+            snapshot["segments"] = [
+                [
+                    float(getattr(segment.point1, "x", 0.0)),
+                    float(getattr(segment.point1, "y", 0.0)),
+                    float(getattr(segment.point2, "x", 0.0)),
+                    float(getattr(segment.point2, "y", 0.0)),
+                ]
+                for segment in self.segments
+            ]
+
+        return snapshot
 
 
