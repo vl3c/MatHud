@@ -29,7 +29,9 @@ Integration Points:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Iterable, List, Set
+
+from drawables.segment import Segment
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -77,6 +79,14 @@ class TransformationsManager:
         # Archive current state for undo/redo AFTER finding the object but BEFORE modifying it
         self.canvas.undo_redo_manager.archive()
         
+        moved_points: List[Any] = []
+        get_vertices = getattr(drawable, "get_vertices", None)
+        if callable(get_vertices):
+            try:
+                moved_points = list(get_vertices())
+            except Exception:
+                moved_points = []
+
         # Apply translation using the drawable's translate method
         # (All drawable objects should implement this method)
         try:
@@ -85,6 +95,9 @@ class TransformationsManager:
             # Raise an error to be handled by the AI interface
             raise ValueError(f"Error translating drawable: {str(e)}")
             
+        if moved_points:
+            self._refresh_polygon_dependencies(drawable, moved_points)
+
         # If we got here, the translation was successful
         # Redraw the canvas
         if self.canvas.draw_enabled:
@@ -135,3 +148,127 @@ class TransformationsManager:
             self.canvas.draw()
             
         return True 
+
+    def _refresh_polygon_dependencies(self, polygon: Any, points: Iterable[Any]) -> None:
+        dependency_manager = getattr(self.canvas, "dependency_manager", None)
+
+        touched_point_ids: Set[int] = {id(point) for point in points}
+        related_drawables: Set[Any] = set()
+
+        related_drawables |= self._collect_segments_from_polygon(polygon, touched_point_ids)
+        related_drawables |= self._collect_segments_from_canvas(points, touched_point_ids)
+        related_drawables |= self._gather_dependency_children(related_drawables | {polygon}, dependency_manager)
+
+        if not related_drawables:
+            self._invalidate_drawables([polygon])
+            return
+
+        updated = self._refresh_segment_formulas(related_drawables, touched_point_ids)
+        updated.append(polygon)
+        self._invalidate_drawables(updated)
+
+    def _collect_segments_from_polygon(self, polygon: Any, touched_point_ids: Set[int]) -> Set[Segment]:
+        segments: Set[Segment] = set()
+
+        for value in vars(polygon).values():
+            self._harvest_segments(value, touched_point_ids, segments)
+
+        return segments
+
+    def _collect_segments_from_canvas(
+        self,
+        points: Iterable[Any],
+        touched_point_ids: Set[int],
+    ) -> Set[Segment]:
+        segments: Set[Segment] = set()
+        dependency_manager = getattr(self.canvas, "dependency_manager", None)
+
+        if dependency_manager and hasattr(dependency_manager, "get_children"):
+            for point in points:
+                try:
+                    children = dependency_manager.get_children(point)
+                except Exception:
+                    children = set()
+                for child in children or []:
+                    if isinstance(child, Segment) and self._segment_touches_points(child, touched_point_ids):
+                        segments.add(child)
+
+        drawable_manager = getattr(self.canvas, "drawable_manager", None)
+        drawables = getattr(drawable_manager, "drawables", None) if drawable_manager else None
+        if drawables and hasattr(drawables, "Segments"):
+            for segment in getattr(drawables, "Segments", []):
+                if self._segment_touches_points(segment, touched_point_ids):
+                    segments.add(segment)
+
+        return segments
+
+    def _harvest_segments(self, candidate: Any, touched_point_ids: Set[int], segments: Set[Segment]) -> None:
+        if candidate is None:
+            return
+        if isinstance(candidate, Segment) and self._segment_touches_points(candidate, touched_point_ids):
+            segments.add(candidate)
+            return
+        if isinstance(candidate, (list, tuple, set)):
+            for item in candidate:
+                self._harvest_segments(item, touched_point_ids, segments)
+
+    def _segment_touches_points(self, segment: Segment, touched_point_ids: Set[int]) -> bool:
+        try:
+            point1 = segment.point1
+            point2 = segment.point2
+        except Exception:
+            return False
+        return (point1 and id(point1) in touched_point_ids) or (point2 and id(point2) in touched_point_ids)
+
+    def _gather_dependency_children(self, drawables: Set[Any], dependency_manager: Any) -> Set[Any]:
+        if not dependency_manager or not hasattr(dependency_manager, "get_children"):
+            return set()
+
+        collected: Set[Any] = set()
+        queue = list(drawables)
+        visited: Set[Any] = set()
+
+        while queue:
+            current = queue.pop()
+            if current in visited or current is None:
+                continue
+            visited.add(current)
+            try:
+                children = dependency_manager.get_children(current)
+            except Exception:
+                children = set()
+            for child in children or []:
+                if child is None or child in visited or child in collected:
+                    continue
+                collected.add(child)
+                queue.append(child)
+
+        return collected
+
+    def _refresh_segment_formulas(self, drawables: Set[Any], touched_point_ids: Set[int]) -> List[Any]:
+        updated: List[Any] = []
+        for drawable in drawables:
+            if drawable is None:
+                continue
+            class_name_getter = getattr(drawable, "get_class_name", None)
+            class_name = class_name_getter() if callable(class_name_getter) else drawable.__class__.__name__
+            if class_name == "Segment" and self._segment_touches_points(drawable, touched_point_ids):
+                try:
+                    drawable.line_formula = drawable._calculate_line_algebraic_formula()
+                except Exception:
+                    continue
+            updated.append(drawable)
+        return updated
+
+    def _invalidate_drawables(self, drawables: Iterable[Any]) -> None:
+        renderer = getattr(self.canvas, "renderer", None)
+        invalidate = getattr(renderer, "invalidate_drawable_cache", None) if renderer else None
+        if not callable(invalidate):
+            return
+        for drawable in drawables:
+            if drawable is None:
+                continue
+            try:
+                invalidate(drawable)
+            except Exception:
+                continue
