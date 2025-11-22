@@ -29,7 +29,8 @@ Dependencies:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
+import math
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from itertools import combinations
 from .math_utils import MathUtils
@@ -37,6 +38,8 @@ from .math_utils import MathUtils
 if TYPE_CHECKING:
     from drawables.point import Point
     from drawables.segment import Segment
+
+PointLike = Union["Point", Tuple[float, float]]
 
 
 class GeometryUtils:
@@ -201,3 +204,362 @@ class GeometryUtils:
         if not ordered_points:
             return None
         return [(float(point.x), float(point.y)) for point in ordered_points]
+
+    # -------------------------------------------------------------------------
+    # General polygon helpers
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def segments_form_polygon(segments: List["Segment"]) -> bool:
+        """
+        Check whether the provided segments form a simple polygon.
+
+        This reuses the closed-loop validation logic but offers clearer semantics
+        to callers that care specifically about polygon construction.
+        """
+        return GeometryUtils.segments_form_closed_loop(segments)
+
+    @staticmethod
+    def _coerce_point_coordinates(point: PointLike) -> Tuple[float, float]:
+        if hasattr(point, "x") and hasattr(point, "y"):
+            return float(getattr(point, "x")), float(getattr(point, "y"))
+        if isinstance(point, (tuple, list)) and len(point) == 2:
+            return float(point[0]), float(point[1])
+        raise TypeError("Unsupported point representation for polygon analysis.")
+
+    @staticmethod
+    def _points_to_coordinates(points: Sequence[PointLike]) -> List[Tuple[float, float]]:
+        coords: List[Tuple[float, float]] = [GeometryUtils._coerce_point_coordinates(point) for point in points]
+        if len(coords) < 3:
+            raise ValueError("At least three points are required to analyze a polygon.")
+        return coords
+
+    @staticmethod
+    def _polygon_side_lengths(points: Sequence[PointLike]) -> List[float]:
+        coords = GeometryUtils._points_to_coordinates(points)
+        side_lengths: List[float] = []
+        count = len(coords)
+        for idx, (x1, y1) in enumerate(coords):
+            x2, y2 = coords[(idx + 1) % count]
+            side_lengths.append(math.hypot(x2 - x1, y2 - y1))
+        return side_lengths
+
+    @staticmethod
+    def _polygon_internal_angles(points: Sequence[PointLike]) -> List[float]:
+        coords = GeometryUtils._points_to_coordinates(points)
+        count = len(coords)
+        angles: List[float] = []
+        for idx in range(count):
+            x_prev, y_prev = coords[idx - 1]
+            x_curr, y_curr = coords[idx]
+            x_next, y_next = coords[(idx + 1) % count]
+
+            v1x = x_prev - x_curr
+            v1y = y_prev - y_curr
+            v2x = x_next - x_curr
+            v2y = y_next - y_curr
+
+            mag1 = math.hypot(v1x, v1y)
+            mag2 = math.hypot(v2x, v2y)
+            if mag1 == 0.0 or mag2 == 0.0:
+                raise ValueError("Degenerate polygon with overlapping points.")
+
+            dot = v1x * v2x + v1y * v2y
+            cross = v1x * v2y - v1y * v2x
+            angle = math.degrees(math.atan2(abs(cross), dot))
+            angles.append(angle)
+        return angles
+
+    @staticmethod
+    def _comparison_tolerance(reference: float = 1.0, *, override: Optional[float] = None) -> float:
+        if override is not None:
+            return float(override)
+        scale = max(abs(reference), 1.0)
+        return max(MathUtils.EPSILON * scale * 10.0, 1e-6)
+
+    @staticmethod
+    def _is_close(value_a: float, value_b: float, *, tolerance: Optional[float] = None) -> bool:
+        tol = GeometryUtils._comparison_tolerance(reference=max(abs(value_a), abs(value_b), 1.0), override=tolerance)
+        return abs(value_a - value_b) <= tol
+
+    @staticmethod
+    def _all_close(values: Sequence[float], *, tolerance: Optional[float] = None) -> bool:
+        if not values:
+            return True
+        first = values[0]
+        return all(GeometryUtils._is_close(first, value, tolerance=tolerance) for value in values[1:])
+
+    @staticmethod
+    def _has_equal_side_pair(lengths: Sequence[float], *, tolerance: Optional[float] = None) -> bool:
+        for idx, length in enumerate(lengths):
+            for compare_index in range(idx + 1, len(lengths)):
+                if GeometryUtils._is_close(length, lengths[compare_index], tolerance=tolerance):
+                    return True
+        return False
+
+    @staticmethod
+    def _has_right_angle(angles: Sequence[float], *, tolerance: float = 1e-3) -> bool:
+        return any(GeometryUtils._is_close(angle, 90.0, tolerance=tolerance) for angle in angles)
+
+    # -------------------------------------------------------------------------
+    # Triangle classification helpers
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def triangle_type_flags(points: Sequence[PointLike]) -> Dict[str, bool]:
+        if len(points) != 3:
+            raise ValueError("Triangle classification requires exactly three points.")
+        side_lengths = GeometryUtils._polygon_side_lengths(points)
+        angles = GeometryUtils._polygon_internal_angles(points)
+
+        equilateral = GeometryUtils._all_close(side_lengths)
+        isosceles = equilateral or GeometryUtils._has_equal_side_pair(side_lengths)
+        scalene = not GeometryUtils._has_equal_side_pair(side_lengths)
+        right = GeometryUtils._has_right_angle(angles)
+
+        return {
+            "equilateral": equilateral,
+            "isosceles": isosceles,
+            "scalene": scalene,
+            "right": right,
+        }
+
+    @staticmethod
+    def triangle_type_flags_from_segments(segments: List["Segment"]) -> Optional[Dict[str, bool]]:
+        points = GeometryUtils.order_segments_into_loop(segments)
+        if points is None or len(points) != 3:
+            return None
+        return GeometryUtils.triangle_type_flags(points)
+
+    @staticmethod
+    def is_equilateral_triangle(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.triangle_type_flags(points)["equilateral"]
+
+    @staticmethod
+    def is_isosceles_triangle(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.triangle_type_flags(points)["isosceles"]
+
+    @staticmethod
+    def is_scalene_triangle(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.triangle_type_flags(points)["scalene"]
+
+    @staticmethod
+    def is_right_triangle(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.triangle_type_flags(points)["right"]
+
+    @staticmethod
+    def is_equilateral_triangle_from_segments(segments: List["Segment"]) -> bool:
+        flags = GeometryUtils.triangle_type_flags_from_segments(segments)
+        return bool(flags and flags["equilateral"])
+
+    @staticmethod
+    def is_isosceles_triangle_from_segments(segments: List["Segment"]) -> bool:
+        flags = GeometryUtils.triangle_type_flags_from_segments(segments)
+        return bool(flags and flags["isosceles"])
+
+    @staticmethod
+    def is_scalene_triangle_from_segments(segments: List["Segment"]) -> bool:
+        flags = GeometryUtils.triangle_type_flags_from_segments(segments)
+        return bool(flags and flags["scalene"])
+
+    @staticmethod
+    def is_right_triangle_from_segments(segments: List["Segment"]) -> bool:
+        flags = GeometryUtils.triangle_type_flags_from_segments(segments)
+        return bool(flags and flags["right"])
+
+    # -------------------------------------------------------------------------
+    # Quadrilateral classification helpers
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def quadrilateral_type_flags(points: Sequence[PointLike]) -> Dict[str, bool]:
+        if len(points) != 4:
+            raise ValueError("Quadrilateral classification requires exactly four points.")
+        side_lengths = GeometryUtils._polygon_side_lengths(points)
+        angles = GeometryUtils._polygon_internal_angles(points)
+
+        all_sides_equal = GeometryUtils._all_close(side_lengths)
+        opposite_sides_equal = (
+            GeometryUtils._is_close(side_lengths[0], side_lengths[2])
+            and GeometryUtils._is_close(side_lengths[1], side_lengths[3])
+        )
+        right_angles = all(GeometryUtils._is_close(angle, 90.0) for angle in angles)
+
+        square = all_sides_equal and right_angles
+        rectangle = right_angles and opposite_sides_equal
+        rhombus = all_sides_equal
+        irregular = not (square or rectangle or rhombus)
+
+        return {
+            "square": square,
+            "rectangle": rectangle,
+            "rhombus": rhombus,
+            "irregular": irregular,
+        }
+
+    @staticmethod
+    def quadrilateral_type_flags_from_segments(segments: List["Segment"]) -> Optional[Dict[str, bool]]:
+        points = GeometryUtils.order_segments_into_loop(segments)
+        if points is None or len(points) != 4:
+            return None
+        return GeometryUtils.quadrilateral_type_flags(points)
+
+    @staticmethod
+    def is_square(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.quadrilateral_type_flags(points)["square"]
+
+    @staticmethod
+    def is_rectangle(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.quadrilateral_type_flags(points)["rectangle"]
+
+    @staticmethod
+    def is_rhombus(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.quadrilateral_type_flags(points)["rhombus"]
+
+    @staticmethod
+    def is_irregular_quadrilateral(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.quadrilateral_type_flags(points)["irregular"]
+
+    @staticmethod
+    def is_square_from_segments(segments: List["Segment"]) -> bool:
+        flags = GeometryUtils.quadrilateral_type_flags_from_segments(segments)
+        return bool(flags and flags["square"])
+
+    @staticmethod
+    def is_rectangle_from_segments(segments: List["Segment"]) -> bool:
+        flags = GeometryUtils.quadrilateral_type_flags_from_segments(segments)
+        return bool(flags and flags["rectangle"])
+
+    @staticmethod
+    def is_rhombus_from_segments(segments: List["Segment"]) -> bool:
+        flags = GeometryUtils.quadrilateral_type_flags_from_segments(segments)
+        return bool(flags and flags["rhombus"])
+
+    @staticmethod
+    def is_irregular_quadrilateral_from_segments(segments: List["Segment"]) -> bool:
+        flags = GeometryUtils.quadrilateral_type_flags_from_segments(segments)
+        return bool(flags and flags["irregular"])
+
+    # -------------------------------------------------------------------------
+    # General polygon regularity helpers
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def polygon_flags(points: Sequence[PointLike]) -> Dict[str, bool]:
+        side_lengths = GeometryUtils._polygon_side_lengths(points)
+        angles = GeometryUtils._polygon_internal_angles(points)
+        regular = GeometryUtils._all_close(side_lengths) and GeometryUtils._all_close(angles, tolerance=1e-3)
+        return {
+            "regular": regular,
+            "irregular": not regular,
+        }
+
+    @staticmethod
+    def polygon_side_count(points: Sequence[PointLike]) -> int:
+        coords = GeometryUtils._points_to_coordinates(points)
+        return len(coords)
+
+    @staticmethod
+    def polygon_side_count_from_segments(segments: List["Segment"]) -> Optional[int]:
+        points = GeometryUtils.order_segments_into_loop(segments)
+        if points is None:
+            return None
+        return len(points)
+
+    @staticmethod
+    def is_polygon_with_sides(points: Sequence[PointLike], expected_sides: int) -> bool:
+        return GeometryUtils.polygon_side_count(points) == expected_sides
+
+    @staticmethod
+    def is_polygon_with_sides_from_segments(segments: List["Segment"], expected_sides: int) -> bool:
+        side_count = GeometryUtils.polygon_side_count_from_segments(segments)
+        return side_count == expected_sides if side_count is not None else False
+
+    @staticmethod
+    def is_pentagon(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.is_polygon_with_sides(points, 5)
+
+    @staticmethod
+    def is_pentagon_from_segments(segments: List["Segment"]) -> bool:
+        return GeometryUtils.is_polygon_with_sides_from_segments(segments, 5)
+
+    @staticmethod
+    def is_hexagon(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.is_polygon_with_sides(points, 6)
+
+    @staticmethod
+    def is_hexagon_from_segments(segments: List["Segment"]) -> bool:
+        return GeometryUtils.is_polygon_with_sides_from_segments(segments, 6)
+
+    @staticmethod
+    def is_triangle(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.is_polygon_with_sides(points, 3)
+
+    @staticmethod
+    def is_triangle_from_segments(segments: List["Segment"]) -> bool:
+        return GeometryUtils.is_polygon_with_sides_from_segments(segments, 3)
+
+    @staticmethod
+    def is_quadrilateral(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.is_polygon_with_sides(points, 4)
+
+    @staticmethod
+    def is_quadrilateral_from_segments(segments: List["Segment"]) -> bool:
+        return GeometryUtils.is_polygon_with_sides_from_segments(segments, 4)
+
+    @staticmethod
+    def is_heptagon(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.is_polygon_with_sides(points, 7)
+
+    @staticmethod
+    def is_heptagon_from_segments(segments: List["Segment"]) -> bool:
+        return GeometryUtils.is_polygon_with_sides_from_segments(segments, 7)
+
+    @staticmethod
+    def is_octagon(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.is_polygon_with_sides(points, 8)
+
+    @staticmethod
+    def is_octagon_from_segments(segments: List["Segment"]) -> bool:
+        return GeometryUtils.is_polygon_with_sides_from_segments(segments, 8)
+
+    @staticmethod
+    def is_nonagon(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.is_polygon_with_sides(points, 9)
+
+    @staticmethod
+    def is_nonagon_from_segments(segments: List["Segment"]) -> bool:
+        return GeometryUtils.is_polygon_with_sides_from_segments(segments, 9)
+
+    @staticmethod
+    def is_decagon(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.is_polygon_with_sides(points, 10)
+
+    @staticmethod
+    def is_decagon_from_segments(segments: List["Segment"]) -> bool:
+        return GeometryUtils.is_polygon_with_sides_from_segments(segments, 10)
+
+    @staticmethod
+    def polygon_flags_from_segments(segments: List["Segment"]) -> Optional[Dict[str, bool]]:
+        points = GeometryUtils.order_segments_into_loop(segments)
+        if not points:
+            return None
+        return GeometryUtils.polygon_flags(points)
+
+    @staticmethod
+    def is_regular_polygon(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.polygon_flags(points)["regular"]
+
+    @staticmethod
+    def is_irregular_polygon(points: Sequence[PointLike]) -> bool:
+        return GeometryUtils.polygon_flags(points)["irregular"]
+
+    @staticmethod
+    def is_regular_polygon_from_segments(segments: List["Segment"]) -> bool:
+        flags = GeometryUtils.polygon_flags_from_segments(segments)
+        return bool(flags and flags["regular"])
+
+    @staticmethod
+    def is_irregular_polygon_from_segments(segments: List["Segment"]) -> bool:
+        flags = GeometryUtils.polygon_flags_from_segments(segments)
+        return bool(flags and flags["irregular"])
