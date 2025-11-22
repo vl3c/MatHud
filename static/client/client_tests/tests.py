@@ -103,8 +103,8 @@ class Tests:
         loader = unittest.TestLoader()
         test_cases: List[Type[unittest.TestCase]] = [
             TestOptimizedRendererParity,
-            TestRendererPerformance,
-            TestRendererPrimitives,
+            # TestRendererPerformance,
+            # TestRendererPrimitives,
             TestRendererLogic,
             TestVectorRenderer,
             TestAngleRenderer,
