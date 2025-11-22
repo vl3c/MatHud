@@ -59,7 +59,8 @@ class Polygon(Drawable):
 
     def translate(self, x_offset: float, y_offset: float) -> None:
         """Translate polygon vertices by the provided offsets."""
-        for point in list(self.get_vertices()):
+        points = list(self.get_vertices())
+        for point in points:
             point.translate(x_offset, y_offset)
 
     def rotate(self, angle: float) -> Tuple[bool, Optional[str]]:

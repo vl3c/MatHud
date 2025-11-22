@@ -52,7 +52,16 @@ class TestVector(unittest.TestCase):
 
     def test_get_state(self) -> None:
         state = self.vector.get_state()
-        expected_state = {"name": "OT", "args": {"origin": "O", "tip": "T", "line_formula": self.vector.segment.line_formula}}
+        expected_state = {
+            "name": "OT",
+            "args": {
+                "origin": "O",
+                "tip": "T",
+                "line_formula": self.vector.segment.line_formula,
+                "origin_coords": [self.vector.origin.x, self.vector.origin.y],
+                "tip_coords": [self.vector.tip.x, self.vector.tip.y],
+            },
+        }
         self.assertEqual(state, expected_state)
 
     def test_deepcopy(self) -> None:

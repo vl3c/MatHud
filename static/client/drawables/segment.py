@@ -71,7 +71,18 @@ class Segment(Drawable):
 
     def get_state(self) -> Dict[str, Any]:
         points_names: list[str] = sorted([self.point1.name, self.point2.name])
-        state: Dict[str, Any] = {"name": self.name, "args": {"p1": points_names[0], "p2": points_names[1], "line_formula": self.line_formula}}
+        # Refresh the cached line formula so state reflects any upstream point updates.
+        self.line_formula = self._calculate_line_algebraic_formula()
+        state: Dict[str, Any] = {
+            "name": self.name,
+            "args": {
+                "p1": points_names[0],
+                "p2": points_names[1],
+                "line_formula": self.line_formula,
+                "p1_coords": [self.point1.x, self.point1.y],
+                "p2_coords": [self.point2.x, self.point2.y],
+            },
+        }
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
@@ -94,6 +105,8 @@ class Segment(Drawable):
         self.point1.y += y_offset
         self.point2.x += x_offset
         self.point2.y += y_offset
+        # Keep analytic state in sync after translation.
+        self.line_formula = self._calculate_line_algebraic_formula()
 
     def update_color(self, color: str) -> None:
         """Update the segment color metadata."""
