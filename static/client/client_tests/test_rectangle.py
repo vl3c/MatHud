@@ -97,4 +97,3 @@ class TestRectangle(unittest.TestCase):
         self.assertEqual((s1p1x, s1p1y), (252, 249))
         self.assertEqual((s1p2x, s1p2y), (256, 249))
         self.assertEqual((s2p2x, s2p2y), (256, 246))
-
