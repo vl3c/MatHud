@@ -90,37 +90,83 @@ class TestRunner:
         """Return the list of function calls for graphics drawing tests."""
         return [
             {
-                "function_name": "create_point",
-                "arguments": {"x": -200, "y": 100, "name": "A"}
-            },
-            {
-                "function_name": "create_point",
-                "arguments": {"x": 250, "y": -150, "name": "B"}
-            },
-            {
                 "function_name": "create_segment",
-                "arguments": {"x1": -200, "y1": 100, "x2": 250, "y2": -150, "name": "AB"}
+                "arguments": {"x1": -279.0, "y1": 374.0, "x2": -213.0, "y2": 278.0, "name": "CH"}
+            },
+            {
+                "function_name": "create_point",
+                "arguments": {"x": -290.0, "y": 240.0, "name": "P"}
             },
             {
                 "function_name": "create_vector",
-                "arguments": {"origin_x": -150, "origin_y": -200, "tip_x": 100, "tip_y": 200, "name": "v1"}
+                "arguments": {"origin_x": -143.0, "origin_y": 376.0, "tip_x": -82.0, "tip_y": 272.0, "name": "v1"}
             },
             {
                 "function_name": "create_triangle",
-                "arguments": {"x1": -100, "y1": -150, "x2": 120, "y2": 130, "x3": 150, "y3": -100, "name": "ABC"}
+                "arguments": {"x1": -60, "y1": 380, "x2": 60, "y2": 380, "x3": 0, "y3": 260, "name": "A'BD"}
             },
             {
                 "function_name": "create_rectangle",
-                "arguments": {"px": -250, "py": 250, "opposite_px": 220, "opposite_py": -220, "name": "Rect1"}
+                "arguments": {"px": 170.0, "py": 380.0, "opposite_px": 238.0, "opposite_py": 260.0, "name": "REFT"}
             },
             {
                 "function_name": "create_circle",
-                "arguments": {"center_x": 0, "center_y": 0, "radius": 150, "name": "Circle1"}
+                "arguments": {"center_x": -360, "center_y": 320, "radius": 60, "name": "G(60)"}
             },
             {
                 "function_name": "create_ellipse",
-                "arguments": {"center_x": 200, "center_y": -100, "radius_x": 60, "radius_y": 90, "name": "Ellipse1"}
+                "arguments": {"center_x": 360, "center_y": 320, "radius_x": 80, "radius_y": 50, "name": "I(80, 50)"}
             },
+            # Polygon below the x-axis (12-segment closed loop)
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": -100.0, "y1": -240.0, "x2": -70.0, "y2": -200.0, "name": "JO"}
+            },
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": -70.0, "y1": -200.0, "x2": -20.0, "y2": -180.0, "name": "OK"}
+            },
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": -20.0, "y1": -180.0, "x2": 40.0, "y2": -190.0, "name": "KL"}
+            },
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": 40.0, "y1": -190.0, "x2": 90.0, "y2": -220.0, "name": "LM"}
+            },
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": 90.0, "y1": -220.0, "x2": 130.0, "y2": -260.0, "name": "MN"}
+            },
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": 130.0, "y1": -260.0, "x2": 140.0, "y2": -310.0, "name": "NQ"}
+            },
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": 140.0, "y1": -310.0, "x2": 100.0, "y2": -350.0, "name": "QS"}
+            },
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": 100.0, "y1": -350.0, "x2": 40.0, "y2": -360.0, "name": "SU"}
+            },
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": 40.0, "y1": -360.0, "x2": -20.0, "y2": -350.0, "name": "UW"}
+            },
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": -20.0, "y1": -350.0, "x2": -70.0, "y2": -320.0, "name": "WX"}
+            },
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": -70.0, "y1": -320.0, "x2": -110.0, "y2": -280.0, "name": "XY"}
+            },
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": -110.0, "y1": -280.0, "x2": -100.0, "y2": -240.0, "name": "YJ"}
+            },
+            # End polygon segment loop
             {
                 "function_name": "draw_function",
                 "arguments": {"function_string": "50 * sin(x / 50)", "name": "f1", "left_bound": -300, "right_bound": 300}
@@ -132,6 +178,61 @@ class TestRunner:
             {
                 "function_name": "draw_function",
                 "arguments": {"function_string": "100 * sin(x / 50) + 50 * tan(x / 100)", "name": "f3", "left_bound": -300, "right_bound": 300}
+            },
+            {
+                "function_name": "create_circle_arc",
+                "arguments": {
+                    "point1_x": 319.0,
+                    "point1_y": -146.0,
+                    "point2_x": 246.0,
+                    "point2_y": -220.0,
+                    "center_x": 316.0,
+                    "center_y": -206.0,
+                    "radius": 60.06,
+                    "arc_name": "ArcMinor",
+                    "color": "orange",
+                    "use_major_arc": False
+                }
+            },
+            {
+                "function_name": "create_circle_arc",
+                "arguments": {
+                    "point1_x": 233.0,
+                    "point1_y": -314.0,
+                    "point2_x": 370.0,
+                    "point2_y": -52.0,
+                    "center_x": 324.0,
+                    "center_y": -174.0,
+                    "radius": 109.0,
+                    "arc_name": "ArcMajor",
+                    "color": "purple",
+                    "use_major_arc": True
+                }
+            },
+            {
+                "function_name": "create_segment",
+                "arguments": {"x1": 365.0, "y1": -286.0, "x2": 440.0, "y2": -132.0, "name": "A''E'"}
+            },
+            {
+                "function_name": "create_closed_shape_colored_area",
+                "arguments": {
+                    "polygon_segment_names": [
+                        "JO",
+                        "OK",
+                        "KL",
+                        "LM",
+                        "MN",
+                        "NQ",
+                        "QS",
+                        "SU",
+                        "UW",
+                        "WX",
+                        "XY",
+                        "YJ"
+                    ],
+                    "color": "plum",
+                    "opacity": 0.3
+                }
             },
             {
                 "function_name": "create_colored_area",
@@ -146,33 +247,64 @@ class TestRunner:
                 "arguments": {"drawable1_name": "f1", "drawable2_name": "f3", "color": "lightblue", "opacity": 0.3}
             },
             {
+                "function_name": "create_colored_area",
+                "arguments": {
+                    "drawable1_name": "f3",
+                    "drawable2_name": "CH",
+                    "color": "lightgray",
+                    "opacity": 0.25
+                }
+            },
+            {
                 "function_name": "create_closed_shape_colored_area",
                 "arguments": {
-                    "triangle_name": "ABC",
-                    "color": "salmon",
+                    "triangle_name": "A'BD",
+                    "color": "orange",
                     "opacity": 0.4
                 }
             },
             {
                 "function_name": "create_closed_shape_colored_area",
                 "arguments": {
-                    "circle_name": "Circle1",
-                    "chord_segment_name": "AB",
-                    "arc_clockwise": False,
-                    "resolution": 48,
-                    "color": "gold",
+                    "circle_name": "G(60)",
+                    "color": "red",
                     "opacity": 0.35
+                }
+            },
+            {
+                "function_name": "create_closed_shape_colored_area",
+                "arguments": {
+                    "rectangle_name": "REFT",
+                    "color": "green",
+                    "opacity": 0.35
+                }
+            },
+            {
+                "function_name": "create_closed_shape_colored_area",
+                "arguments": {
+                    "ellipse_name": "I(80, 50)",
+                    "color": "blue",
+                    "opacity": 0.35
+                }
+            },
+            {
+                "function_name": "create_closed_shape_colored_area",
+                "arguments": {
+                    "arc_name": "ArcMajor",
+                    "chord_segment_name": "A''E'",
+                    "color": "burlywood",
+                    "opacity": 0.3
                 }
             },
             {
                 "function_name": "create_angle",
                 "arguments": {
-                    "vx": 50,
-                    "vy": 50,
-                    "p1x": 150,
-                    "p1y": 50,
-                    "p2x": 50,
-                    "p2y": 150,
+                    "vx": -408.0,
+                    "vy": 150.0,
+                    "p1x": -328.0,
+                    "p1y": 150.0,
+                    "p2x": -408.0,
+                    "p2y": 230.0,
                     "color": "red",
                     "angle_name": "Angle1",
                     "is_reflex": True
@@ -181,12 +313,12 @@ class TestRunner:
             {
                 "function_name": "create_angle",
                 "arguments": {
-                    "vx": 200,
-                    "vy": 200,
-                    "p1x": 300,
-                    "p1y": 200,
-                    "p2x": 300,
-                    "p2y": 300,
+                    "vx": -118.0,
+                    "vy": 150.0,
+                    "p1x": -38.0,
+                    "p1y": 150.0,
+                    "p2x": -158.0,
+                    "p2y": 219.3,
                     "color": "blue",
                     "angle_name": "Angle2",
                     "is_reflex": False
@@ -195,12 +327,12 @@ class TestRunner:
             {
                 "function_name": "create_angle",
                 "arguments": {
-                    "vx": 350,
-                    "vy": 150,
-                    "p1x": 450,
-                    "p1y": 150,
-                    "p2x": 350,
-                    "p2y": 50,
+                    "vx": 170.0,
+                    "vy": 220.0,
+                    "p1x": 250.0,
+                    "p1y": 220.0,
+                    "p2x": 210.0,
+                    "p2y": 150.3,
                     "color": "green",
                     "angle_name": "Angle3",
                     "is_reflex": False
@@ -209,8 +341,8 @@ class TestRunner:
             {
                 "function_name": "create_label",
                 "arguments": {
-                    "x": -120,
-                    "y": 180,
+                    "x": -412.0,
+                    "y": 69.5,
                     "text": "Left Label",
                     "name": "LabelLeft",
                     "color": "purple",
@@ -221,8 +353,8 @@ class TestRunner:
             {
                 "function_name": "create_label",
                 "arguments": {
-                    "x": 70.2,
-                    "y": -146.0,
+                    "x": 300.0,
+                    "y": 100.0,
                     "text": "Right Label with\nMultiple Lines",
                     "name": "LabelRight",
                     "color": "teal",
