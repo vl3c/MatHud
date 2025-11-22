@@ -35,7 +35,7 @@ class TestHexagon(unittest.TestCase):
 
     def test_irregular_hexagon_flags(self) -> None:
         points = _make_regular_hexagon_points()
-        points[3].y *= 0.7
+        points[2].y *= 1.1
         hexagon = Hexagon(_segments_from_points(points))
         flags = hexagon.get_type_flags()
         self.assertFalse(flags["regular"])

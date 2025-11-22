@@ -42,6 +42,13 @@ class Quadrilateral(Polygon):
         if ordered_points is None or len(ordered_points) != 4:
             raise ValueError("Unable to determine quadrilateral vertex order")
 
+        area_accumulator = 0.0
+        for index, point in enumerate(ordered_points):
+            next_point = ordered_points[(index + 1) % 4]
+            area_accumulator += float(point.x) * float(next_point.y) - float(next_point.x) * float(point.y)
+        if abs(area_accumulator) <= 1e-9:
+            raise ValueError("Quadrilateral area must be non-zero")
+
         name = "".join(point.name for point in ordered_points)
 
         self.segment1 = segment1
