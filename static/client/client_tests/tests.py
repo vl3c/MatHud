@@ -72,6 +72,7 @@ from .test_renderer_edge_cases import (
     TestLabelEdgeCases,
     TestCartesianEdgeCases,
 )
+from .test_transformations_manager import TestTransformationsManager
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
@@ -132,6 +133,7 @@ class Tests:
             TestCircleManager,
             TestEllipseManager,
             TestColoredAreaManager,
+            TestTransformationsManager,
             TestFunctionManager,
             TestVector,
             TestTriangle,
