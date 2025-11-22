@@ -23,7 +23,7 @@ Dependencies:
 from __future__ import annotations
 
 import math
-from typing import Optional, Set, Tuple
+from typing import Dict, Optional, Set, Tuple
 
 from drawables.drawable import Drawable
 from drawables.point import Point
@@ -62,6 +62,16 @@ class Polygon(Drawable):
         points = list(self.get_vertices())
         for point in points:
             point.translate(x_offset, y_offset)
+
+    # ------------------------------------------------------------------
+    # Type metadata caching
+    # ------------------------------------------------------------------
+
+    def _set_type_flags(self, flags: Dict[str, bool]) -> None:
+        self._type_flags: Dict[str, bool] = dict(flags)
+
+    def get_type_flags(self) -> Dict[str, bool]:
+        return dict(getattr(self, "_type_flags", {}))
 
     def rotate(self, angle: float) -> Tuple[bool, Optional[str]]:
         """Rotate the polygon around its center by the given angle in degrees.
