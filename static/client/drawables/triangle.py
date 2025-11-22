@@ -2,7 +2,7 @@
 MatHud Triangle Geometric Object
 
 Represents a triangle formed by three connected line segments in 2D mathematical space.
-Extends RotatablePolygon to provide rotation capabilities around the triangle's center.
+Extends Polygon to provide rotation capabilities around the triangle's center.
 
 Key Features:
     - Three-segment triangle validation and construction
@@ -20,7 +20,7 @@ Geometric Properties:
 Dependencies:
     - constants: Default styling values
     - drawables.drawable: Base class interface
-    - drawables.rotatable_polygon: Rotation capabilities
+    - drawables.polygon: Rotation capabilities
     - utils.math_utils: Geometric validation
 """
 
@@ -30,13 +30,11 @@ from copy import deepcopy
 from typing import Any, Dict, Set, cast
 
 from constants import default_color
-from drawables.drawable import Drawable
 from drawables.point import Point
-from drawables.rotatable_polygon import RotatablePolygon
+from drawables.polygon import Polygon
 from drawables.segment import Segment
-import utils.math_utils as math_utils
 
-class Triangle(RotatablePolygon):
+class Triangle(Polygon):
     """Represents a triangle formed by three connected line segments.
     
     Validates that three segments form a proper triangle and provides rotation

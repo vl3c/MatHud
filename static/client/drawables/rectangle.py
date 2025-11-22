@@ -2,7 +2,7 @@
 MatHud Rectangle Geometric Object
 
 Represents a rectangle formed by four connected line segments in 2D mathematical space.
-Extends RotatablePolygon to provide rotation capabilities around the rectangle's center.
+Extends Polygon to provide rotation capabilities around the rectangle's center.
 
 Key Features:
     - Four-segment rectangle validation and construction
@@ -20,7 +20,7 @@ Geometric Properties:
 Dependencies:
     - constants: Default styling values
     - drawables.drawable: Base class interface
-    - drawables.rotatable_polygon: Rotation capabilities
+    - drawables.polygon: Rotation capabilities
     - utils.math_utils: Rectangle validation and geometric calculations
 """
 
@@ -32,11 +32,11 @@ from typing import Any, Dict, Set, cast
 from constants import default_color
 from drawables.drawable import Drawable
 from drawables.point import Point
-from drawables.rotatable_polygon import RotatablePolygon
+from drawables.polygon import Polygon
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
 
-class Rectangle(RotatablePolygon):
+class Rectangle(Polygon):
     """Represents a rectangle formed by four connected line segments.
     
     Validates that four segments form a proper rectangle with right angles and

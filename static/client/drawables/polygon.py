@@ -1,5 +1,5 @@
 """
-MatHud Rotatable Polygon Base Class
+MatHud Polygon Base Class
 
 Abstract base class for polygonal shapes that support rotation around their geometric center.
 Provides common rotation functionality for triangles, rectangles, and other multi-vertex shapes.
@@ -28,7 +28,7 @@ from typing import Optional, Set, Tuple
 from drawables.drawable import Drawable
 from drawables.point import Point
 
-class RotatablePolygon(Drawable):
+class Polygon(Drawable):
     """Abstract base class for polygons that can be rotated around their geometric center.
     
     Provides rotation capabilities for multi-vertex shapes using center-based rotation
