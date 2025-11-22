@@ -21,18 +21,20 @@ Dependencies:
     - constants: Default styling values
     - drawables.drawable: Base class interface
     - drawables.polygon: Rotation capabilities
+    - utils.geometry_utils: Type classification helpers
     - utils.math_utils: Geometric validation
 """
 
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict, Set, cast
+from typing import Any, Dict, List, Set, cast
 
 from constants import default_color
 from drawables.point import Point
 from drawables.polygon import Polygon
 from drawables.segment import Segment
+from utils.geometry_utils import GeometryUtils
 
 class Triangle(Polygon):
     """Represents a triangle formed by three connected line segments.
@@ -64,6 +66,8 @@ class Triangle(Polygon):
         self.segment1: Segment = segment1
         self.segment2: Segment = segment2
         self.segment3: Segment = segment3
+        self._segments: list[Segment] = [self.segment1, self.segment2, self.segment3]
+        self._type_flags: Dict[str, bool] = self._classify_triangle()
         name: str = self._set_name()
         super().__init__(name=name, color=color)
 
@@ -85,6 +89,28 @@ class Triangle(Polygon):
                 return False
         return True
     
+    def _classify_triangle(self) -> Dict[str, bool]:
+        flags = GeometryUtils.triangle_type_flags_from_segments(self._segments)
+        if flags is None:
+            return {"equilateral": False, "isosceles": False, "scalene": False, "right": False}
+        return flags
+
+    def get_type_flags(self) -> Dict[str, bool]:
+        """Return classification flags describing the triangle."""
+        return dict(self._type_flags)
+
+    def is_equilateral(self) -> bool:
+        return self._type_flags["equilateral"]
+
+    def is_isosceles(self) -> bool:
+        return self._type_flags["isosceles"]
+
+    def is_scalene(self) -> bool:
+        return self._type_flags["scalene"]
+
+    def is_right(self) -> bool:
+        return self._type_flags["right"]
+    
     def get_state(self) -> Dict[str, Any]:
         # Collect all point names into a list
         point_names: list[str] = [
@@ -99,7 +125,11 @@ class Triangle(Polygon):
         # Ensure that the list has at least 3 points by appending the most frequent point
         while len(point_names) < 3:
             point_names.append(most_frequent_point)
-        state: Dict[str, Any] = {"name": self.name, "args": {"p1": point_names[0], "p2": point_names[1], "p3": point_names[2]}}
+        state: Dict[str, Any] = {
+            "name": self.name,
+            "args": {"p1": point_names[0], "p2": point_names[1], "p3": point_names[2]},
+            "types": self.get_type_flags(),
+        }
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:

@@ -84,8 +84,24 @@ class TestTriangle(unittest.TestCase):
 
     def test_get_state(self) -> None:
         state = self.triangle.get_state()
-        expected_state = {"name": self.triangle.name, "args": {"p1": "P1", "p2": "P2", "p3": "P3"}}
+        expected_types = {"equilateral": False, "isosceles": False, "scalene": True, "right": True}
+        expected_state = {
+            "name": self.triangle.name,
+            "args": {"p1": "P1", "p2": "P2", "p3": "P3"},
+            "types": expected_types,
+        }
         self.assertEqual(state, expected_state)
+
+    def test_type_flags_helpers(self) -> None:
+        flags = self.triangle.get_type_flags()
+        self.assertFalse(flags["equilateral"])
+        self.assertFalse(flags["isosceles"])
+        self.assertTrue(flags["scalene"])
+        self.assertTrue(flags["right"])
+        self.assertFalse(self.triangle.is_equilateral())
+        self.assertFalse(self.triangle.is_isosceles())
+        self.assertTrue(self.triangle.is_scalene())
+        self.assertTrue(self.triangle.is_right())
 
     def test_deepcopy(self) -> None:
         triangle_copy = copy.deepcopy(self.triangle)
