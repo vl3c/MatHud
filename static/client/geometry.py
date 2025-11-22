@@ -24,6 +24,9 @@ from drawables.drawable import Drawable
 from drawables.ellipse import Ellipse
 from drawables.function import Function
 from drawables.rectangle import Rectangle
+from drawables.quadrilateral import Quadrilateral
+from drawables.pentagon import Pentagon
+from drawables.hexagon import Hexagon
 from drawables.segment import Segment
 from drawables.triangle import Triangle
 from drawables.vector import Vector
@@ -31,4 +34,18 @@ from drawables.point import Point
 from drawables.position import Position
 
 # Re-export all classes for convenient importing
-__all__: list[str] = ['Drawable', 'Point', 'Position', 'Segment', 'Vector', 'Triangle', 'Rectangle', 'Circle', 'Ellipse', 'Function']
+__all__: list[str] = [
+    'Drawable',
+    'Point',
+    'Position',
+    'Segment',
+    'Vector',
+    'Triangle',
+    'Quadrilateral',
+    'Pentagon',
+    'Hexagon',
+    'Rectangle',
+    'Circle',
+    'Ellipse',
+    'Function',
+]
