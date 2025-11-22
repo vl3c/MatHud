@@ -95,8 +95,15 @@ class TransformationsManager:
             # Raise an error to be handled by the AI interface
             raise ValueError(f"Error translating drawable: {str(e)}")
             
-        if moved_points:
+        class_name_getter = getattr(drawable, "get_class_name", None)
+        class_name = class_name_getter() if callable(class_name_getter) else drawable.__class__.__name__
+
+        if moved_points and class_name in {"Triangle", "Rectangle", "Polygon"}:
             self._refresh_polygon_dependencies(drawable, moved_points)
+        elif class_name == "Circle":
+            self._refresh_circle_dependencies(drawable)
+        elif class_name == "Ellipse":
+            self._refresh_ellipse_dependencies(drawable)
 
         # If we got here, the translation was successful
         # Redraw the canvas
@@ -166,6 +173,20 @@ class TransformationsManager:
         updated = self._refresh_segment_formulas(related_drawables, touched_point_ids)
         updated.append(polygon)
         self._invalidate_drawables(updated)
+
+    def _refresh_circle_dependencies(self, circle: Any) -> None:
+        dependency_manager = getattr(self.canvas, "dependency_manager", None)
+        drawables = self._gather_dependency_children({circle}, dependency_manager)
+        circle.circle_formula = circle._calculate_circle_algebraic_formula()
+        circle.regenerate_name()
+        self._invalidate_drawables([circle] + list(drawables))
+
+    def _refresh_ellipse_dependencies(self, ellipse: Any) -> None:
+        dependency_manager = getattr(self.canvas, "dependency_manager", None)
+        drawables = self._gather_dependency_children({ellipse}, dependency_manager)
+        ellipse.ellipse_formula = ellipse._calculate_ellipse_algebraic_formula()
+        ellipse.regenerate_name()
+        self._invalidate_drawables([ellipse] + list(drawables))
 
     def _collect_segments_from_polygon(self, polygon: Any, touched_point_ids: Set[int]) -> Set[Segment]:
         segments: Set[Segment] = set()

@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from typing import Dict, Iterable, List, Tuple
 
-from geometry import Point, Segment, Triangle, Rectangle
+from geometry import Point, Segment, Triangle, Rectangle, Circle, Ellipse
 from drawables.closed_shape_colored_area import ClosedShapeColoredArea
 from managers.transformations_manager import TransformationsManager
 from client_tests.simple_mock import SimpleMock
@@ -134,3 +134,56 @@ class TestTransformationsManager(unittest.TestCase):
         expected_coords = [[coord[0] + 1.5, coord[1] - 2.0] for coord in initial_snapshot["polygon_coords"]]
         self.assertEqual(updated_snapshot["polygon_coords"], expected_coords)
 
+    def test_translate_circle_refreshes_dependents(self) -> None:
+        center = Point(0, 0, name="C")
+        circle = Circle(center, 5, color="cyan")
+        area = ClosedShapeColoredArea(
+            shape_type="circle",
+            circle=circle,
+            color="lightblue",
+            opacity=0.5,
+        )
+
+        segments: List[Segment] = []
+        canvas, dependency_manager, renderer = _build_canvas(circle, segments)
+        circle.canvas = canvas
+        area.canvas = canvas
+        dependency_manager.register(circle, area)
+
+        initial_snapshot = area.get_state()["args"]["geometry_snapshot"]
+
+        manager = TransformationsManager(canvas)
+        manager.translate_object(circle.name, 2.0, -1.0)
+
+        self.assertEqual(circle.center.x, 2.0)
+        self.assertEqual(circle.center.y, -1.0)
+        updated_snapshot = area.get_state()["args"]["geometry_snapshot"]
+        self.assertNotEqual(initial_snapshot["circle"]["center"], updated_snapshot["circle"]["center"])
+        self.assertTrue(renderer.invalidate_drawable_cache.calls)
+
+    def test_translate_ellipse_refreshes_dependents(self) -> None:
+        center = Point(1, 1, name="E")
+        ellipse = Ellipse(center, 6, 4, rotation_angle=30.0, color="magenta")
+        area = ClosedShapeColoredArea(
+            shape_type="ellipse",
+            ellipse=ellipse,
+            color="lavender",
+            opacity=0.3,
+        )
+
+        segments: List[Segment] = []
+        canvas, dependency_manager, renderer = _build_canvas(ellipse, segments)
+        ellipse.canvas = canvas
+        area.canvas = canvas
+        dependency_manager.register(ellipse, area)
+
+        initial_snapshot = area.get_state()["args"]["geometry_snapshot"]
+
+        manager = TransformationsManager(canvas)
+        manager.translate_object(ellipse.name, -3.0, 4.0)
+
+        self.assertEqual(ellipse.center.x, -2.0)
+        self.assertEqual(ellipse.center.y, 5.0)
+        updated_snapshot = area.get_state()["args"]["geometry_snapshot"]
+        self.assertNotEqual(initial_snapshot["ellipse"]["center"], updated_snapshot["ellipse"]["center"])
+        self.assertTrue(renderer.invalidate_drawable_cache.calls)
