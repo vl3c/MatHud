@@ -188,8 +188,10 @@ def _compute_principal_axes(
     c /= count
 
     disc = (a - c) * (a - c) + 4.0 * b * b
-    if disc <= 0:
-        raise PolygonCanonicalizationError("Unable to determine rectangle orientation from supplied vertices.")
+    if disc <= 1e-18:
+        # Symmetric rectangles (e.g., squares) can collapse the covariance discriminant.
+        # Fall back to an axis-aligned basis; later alignment will orient to the diagonal.
+        return 1.0, 0.0, 0.0, 1.0
     sqrt_disc = math.sqrt(disc)
     lambda1 = (a + c + sqrt_disc) / 2.0
     if abs(b) > 1e-12:

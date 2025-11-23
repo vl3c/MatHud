@@ -11,8 +11,9 @@ Core Responsibilities:
     - Dependency Management: Tracks relationships with constituent points and segments
 
 Geometric Construction:
-    - Diagonal-Based Creation: Uses two opposite corners to define complete rectangle
-    - Automatic Corner Calculation: Computes all four vertices from diagonal points
+    - Canonicalized Geometry: All input is normalized via polygon_canonicalizer to produce an ideal rectangle
+    - Diagonal-Based Creation: Uses two opposite corners to define complete rectangle when vertices are omitted
+    - Vertex Construction: Supports rotated rectangles by best-fitting supplied vertices
     - Edge Segment Creation: Creates all four boundary segments automatically
     - Point Management: Generates corner points with systematic naming
 
@@ -43,10 +44,15 @@ State Management:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Tuple, cast
 
 from drawables.rectangle import Rectangle
 from managers.polygon_type import PolygonType
+from utils.polygon_canonicalizer import (
+    PolygonCanonicalizationError,
+    PointLike,
+    canonicalize_rectangle,
+)
 if TYPE_CHECKING:
     from canvas import Canvas
     from managers.drawables_container import DrawablesContainer
@@ -115,19 +121,19 @@ class RectangleManager:
         """
         rectangles = self.drawables.Rectangles
         
-        # Calculate the coordinates of the other two corners based on the diagonal points
-        corner1: tuple[float, float] = (px, py)
-        corner2: tuple[float, float] = (opposite_px, py)
-        corner3: tuple[float, float] = (opposite_px, opposite_py)
-        corner4: tuple[float, float] = (px, opposite_py)
+        try:
+            target_vertices = canonicalize_rectangle(
+                [(px, py), (opposite_px, opposite_py)],
+                construction_mode="diagonal",
+            )
+        except PolygonCanonicalizationError:
+            return None
+
+        target_signature = self._vertex_signature(target_vertices)
         
         # Iterate over all rectangles
         for rectangle in rectangles:
-            segments: List[Any] = [rectangle.segment1, rectangle.segment2, rectangle.segment3, rectangle.segment4]
-            rectangle_corners: List[Tuple[float, float]] = [(segment.point1.x, segment.point1.y) for segment in segments]
-            
-            # Ensuring all corners are matched, considering rectangles could be defined in any direction
-            if all(corner in rectangle_corners for corner in [corner1, corner2, corner3, corner4]):
+            if self._rectangle_signature(rectangle) == target_signature:
                 return rectangle
                 
         return None
@@ -159,6 +165,8 @@ class RectangleManager:
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        *,
+        vertices: Optional[Sequence[PointLike]] = None,
     ) -> Rectangle:
         """
         Create a rectangle with the specified diagonal points.
@@ -179,14 +187,22 @@ class RectangleManager:
         Returns:
             Rectangle: The newly created or existing rectangle object
         """
-        vertices = [
-            (px, py),
-            (opposite_px, py),
-            (opposite_px, opposite_py),
-            (px, opposite_py),
-        ]
+        try:
+            if vertices is not None:
+                canonical_vertices = canonicalize_rectangle(
+                    vertices,
+                    construction_mode="vertices",
+                )
+            else:
+                canonical_vertices = canonicalize_rectangle(
+                    [(px, py), (opposite_px, opposite_py)],
+                    construction_mode="diagonal",
+                )
+        except PolygonCanonicalizationError as exc:
+            raise ValueError(str(exc)) from exc
+
         polygon = self.drawable_manager.polygon_manager.create_polygon(
-            vertices,
+            canonical_vertices,
             polygon_type=PolygonType.RECTANGLE,
             name=name,
             color=color,
@@ -226,3 +242,23 @@ class RectangleManager:
                 new_color=new_color,
             )
         )
+
+    # ------------------------------------------------------------------ #
+    # Helpers
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _vertex_signature(vertices: Sequence[Tuple[float, float]]) -> Tuple[Tuple[float, float], ...]:
+        """Normalize vertex coordinates for comparison with tolerance handling."""
+        rounded = {(round(x, 6), round(y, 6)) for x, y in vertices}
+        return tuple(sorted(rounded))
+
+    def _rectangle_signature(self, rectangle: Rectangle) -> Tuple[Tuple[float, float], ...]:
+        segments: Sequence[Any] = [
+            rectangle.segment1,
+            rectangle.segment2,
+            rectangle.segment3,
+            rectangle.segment4,
+        ]
+        vertices = [(segment.point1.x, segment.point1.y) for segment in segments]
+        return self._vertex_signature(vertices)

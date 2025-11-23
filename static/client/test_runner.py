@@ -114,8 +114,18 @@ class TestRunner:
                 }
             },
             {
-                "function_name": "create_rectangle",
-                "arguments": {"px": 170.0, "py": 380.0, "opposite_px": 238.0, "opposite_py": 260.0, "name": "REFT"}
+                "function_name": "create_polygon",
+                "arguments": {
+                    "vertices": [
+                        {"x": 170.0, "y": 380.0},
+                        {"x": 238.0, "y": 380.0},
+                        {"x": 238.0, "y": 260.0},
+                        {"x": 170.0, "y": 260.0}
+                    ],
+                    "polygon_type": "rectangle",
+                    "color": None,
+                    "name": "REFT"
+                }
             },
             {
                 "function_name": "create_circle",

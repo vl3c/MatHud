@@ -11,6 +11,10 @@ from drawables.position import Position
 from managers.polygon_type import PolygonType
 from managers.edit_policy import EditRule, get_drawable_edit_policy
 from utils.geometry_utils import GeometryUtils
+from utils.polygon_canonicalizer import (
+    PolygonCanonicalizationError,
+    canonicalize_rectangle,
+)
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -85,6 +89,17 @@ class PolygonManager:
     ) -> "Drawable":
         normalized_vertices = self._sanitize_vertices(vertices)
         normalized_type, constraints = self._resolve_polygon_type(normalized_vertices, polygon_type)
+
+        if constraints.get("require_rectangle"):
+            mode = "diagonal" if len(normalized_vertices) == 2 else "vertices"
+            try:
+                normalized_vertices = canonicalize_rectangle(
+                    normalized_vertices,
+                    construction_mode=mode,
+                )
+            except PolygonCanonicalizationError as exc:
+                raise ValueError(str(exc)) from exc
+
         self._validate_polygon_coordinates(normalized_vertices, normalized_type, constraints)
 
         existing = self.get_polygon_by_vertices(normalized_vertices, normalized_type)

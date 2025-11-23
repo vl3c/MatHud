@@ -779,6 +779,8 @@ class Canvas:
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        *,
+        vertices: Optional[Sequence[Any]] = None,
     ) -> "Drawable":
         """Create a rectangle with the specified diagonal points"""
         return self.drawable_manager.create_rectangle(
@@ -789,6 +791,7 @@ class Canvas:
             name,
             color=color,
             extra_graphics=extra_graphics,
+            vertices=vertices,
         )
 
     def delete_rectangle(self, name: str) -> bool:

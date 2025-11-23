@@ -421,7 +421,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "create_polygon",
-                    "description": "Creates a polygon from ordered vertex coordinates. Optionally specify the polygon type (triangle, quadrilateral, pentagon, or hexagon).",
+                    "description": "Creates a polygon from ordered vertex coordinates. For rectangle and square types, coordinates are normalized through the canonicalizer so near-rectangles snap into valid rectangles.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -530,87 +530,6 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             }
                         },
                         "required": ["polygon_name", "polygon_type", "new_color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_rectangle",
-                    "description": "Creates and draws a rectangle at the given coordinates for two diagonal points. If a name is provided, the first four available letters will be used to name the corners.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "px": {
-                                "type": "number",
-                                "description": "The X coordinate of the origin point"
-                            },
-                            "py": {
-                                "type": "number",
-                                "description": "The Y coordinate of the origin point"
-                            },
-                            "opposite_px": {
-                                "type": "number",
-                                "description": "The X coordinate of the opposite point"
-                            },
-                            "opposite_py": {
-                                "type": "number",
-                                "description": "The Y coordinate of the opposite point"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the rectangle"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the rectangle. If provided, the first four available letters will be used to name the corners."
-                            }
-                        },
-                        "required": ["px", "py", "opposite_px", "opposite_py", "color", "name"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_rectangle",
-                    "description": "Deletes the rectangle with the given name",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The name of the rectangle",
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_rectangle",
-                    "description": "Updates editable properties of an existing rectangle (currently just color). Provide null for fields that should remain unchanged.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Existing name of the rectangle to edit."
-                            },
-                            "new_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional new color for the rectangle."
-                            }
-                        },
-                        "required": ["name", "new_color"],
                         "additionalProperties": False
                     }
                 }
