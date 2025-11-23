@@ -70,14 +70,17 @@ class Segment(Drawable):
         return line_formula
 
     def get_state(self) -> Dict[str, Any]:
-        points_names: list[str] = sorted([self.point1.name, self.point2.name])
+        # Keep endpoint ordering consistent with in-memory references so downstream
+        # consumers (workspace saves, dependency checks) preserve segment identity.
+        point1_name: str = self.point1.name
+        point2_name: str = self.point2.name
         # Refresh the cached line formula so state reflects any upstream point updates.
         self.line_formula = self._calculate_line_algebraic_formula()
         state: Dict[str, Any] = {
             "name": self.name,
             "args": {
-                "p1": points_names[0],
-                "p2": points_names[1],
+                "p1": point1_name,
+                "p2": point2_name,
                 "line_formula": self.line_formula,
                 "p1_coords": [self.point1.x, self.point1.y],
                 "p2_coords": [self.point2.x, self.point2.y],
