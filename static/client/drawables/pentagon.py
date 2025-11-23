@@ -40,6 +40,7 @@ class Pentagon(Polygon):
         self._segments: List[Segment] = list(segments)
         self._points: List[Point] = list(ordered_points)
         self._set_type_flags(GeometryUtils.polygon_flags(self._points))
+        self._set_base_type_labels(["pentagon"])
 
         super().__init__(name=name, color=color, is_renderable=False)
 
@@ -63,7 +64,7 @@ class Pentagon(Polygon):
         return {
             "name": self.name,
             "args": args,
-            "types": self.get_type_flags(),
+            "types": self.get_type_names(),
         }
 
     def get_segments(self) -> List[Segment]:

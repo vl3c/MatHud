@@ -77,7 +77,7 @@ class TestRectangle(unittest.TestCase):
         self.assertEqual(state["name"], self.rectangle.name)
         self.assertEqual(state["args"], expected_args)
         self.assertIn("types", state)
-        self.assertEqual(state["types"], {"square": False, "rectangle": True, "rhombus": False, "irregular": False})
+        self.assertEqual(state["types"], ["quadrilateral", "rectangle"])
 
     def test_deepcopy(self) -> None:
         rectangle_copy = copy.deepcopy(self.rectangle)

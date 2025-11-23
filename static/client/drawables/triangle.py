@@ -68,6 +68,7 @@ class Triangle(Polygon):
         self.segment3: Segment = segment3
         self._segments: list[Segment] = [self.segment1, self.segment2, self.segment3]
         self._set_type_flags(self._classify_triangle())
+        self._set_base_type_labels(["triangle"])
         name: str = self._set_name()
         super().__init__(name=name, color=color, is_renderable=False)
 
@@ -128,7 +129,7 @@ class Triangle(Polygon):
         state: Dict[str, Any] = {
             "name": self.name,
             "args": {"p1": point_names[0], "p2": point_names[1], "p3": point_names[2]},
-            "types": self.get_type_flags(),
+            "types": self.get_type_names(),
         }
         return state
 

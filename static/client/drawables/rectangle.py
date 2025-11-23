@@ -69,6 +69,7 @@ class Rectangle(Quadrilateral):
                                  segment4.point1.x, segment4.point1.y):
             raise ValueError("The quadrilateral formed by the segments is not a rectangle")
         super().__init__(segment1, segment2, segment3, segment4, color=color)
+        self._set_base_type_labels(["quadrilateral", "rectangle"])
 
     def get_class_name(self) -> str:
         return 'Rectangle'
@@ -97,9 +98,7 @@ class Rectangle(Quadrilateral):
             "name": self.name,
             "args": {"p1": points_names[0], "p2": points_names[1], "p3": points_names[2], "p4": points_names[3]},
         }
-        quad_flags = self.get_type_flags()
-        if quad_flags:
-            state["types"] = quad_flags
+        state["types"] = self.get_type_names()
         return state
 
     def get_vertices(self) -> Set[Point]:

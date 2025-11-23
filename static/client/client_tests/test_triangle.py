@@ -87,7 +87,7 @@ class TestTriangle(unittest.TestCase):
 
     def test_get_state(self) -> None:
         state = self.triangle.get_state()
-        expected_types = {"equilateral": False, "isosceles": False, "scalene": True, "right": True}
+        expected_types = ["triangle", "scalene", "right"]
         expected_state = {
             "name": self.triangle.name,
             "args": {"p1": "P1", "p2": "P2", "p3": "P3"},

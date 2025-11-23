@@ -23,7 +23,7 @@ Dependencies:
 from __future__ import annotations
 
 import math
-from typing import Dict, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from drawables.drawable import Drawable
 from drawables.point import Point
@@ -72,6 +72,32 @@ class Polygon(Drawable):
 
     def get_type_flags(self) -> Dict[str, bool]:
         return dict(getattr(self, "_type_flags", {}))
+
+    def _set_base_type_labels(self, labels: Iterable[str]) -> None:
+        sanitized: List[str] = []
+        seen: Set[str] = set()
+        for label in labels:
+            normalized = str(label).strip().lower()
+            if not normalized or normalized in seen:
+                continue
+            sanitized.append(normalized)
+            seen.add(normalized)
+        self._base_type_labels = sanitized
+
+    def get_type_names(self) -> List[str]:
+        """Return a list of active type labels for the polygon."""
+        base_labels: List[str] = list(getattr(self, "_base_type_labels", []))
+        flagged = [name for name, enabled in self.get_type_flags().items() if enabled]
+
+        ordered: List[str] = []
+        seen: Set[str] = set()
+        for label in base_labels + flagged:
+            normalized = str(label).strip().lower()
+            if not normalized or normalized in seen:
+                continue
+            ordered.append(normalized)
+            seen.add(normalized)
+        return ordered
 
     def rotate(self, angle: float) -> Tuple[bool, Optional[str]]:
         """Rotate the polygon around its center by the given angle in degrees.
