@@ -25,7 +25,7 @@ Advanced Features:
 Integration Points:
     - PointManager: Automatic point creation for segment endpoints
     - TriangleManager: Provides segments for triangle construction
-    - RectangleManager: Supplies edges for rectangle formation
+    - PolygonManager: Supplies edges for polygon formation
     - VectorManager: Creates underlying segments for vector visualization
 
 State Management:

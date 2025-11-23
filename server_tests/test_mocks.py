@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, TypedDict, cast
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, cast
 
 
 class PointDict(TypedDict, total=False):
@@ -65,6 +65,7 @@ class CanvasStateDict(TypedDict, total=False):
     Segments: List[SegmentDict]
     Circles: List[CircleDict]
     Rectangles: List[RectangleDict]
+    Polygons: List[Dict[str, Any]]
     Triangles: List[TriangleDict]
     Ellipses: List[EllipseDict]
     Functions: List[FunctionDict]
@@ -86,6 +87,7 @@ class MockCanvas:
         self.functions: List[FunctionDict] = []
         self.vectors: List[VectorDict] = []
         self.computations: List[ComputationDict] = []
+        self.polygons: List[Dict[str, Any]] = []
 
     def get_drawables(self) -> List[Dict[str, Any]]:
         """Get all drawable objects on the canvas."""
@@ -97,7 +99,8 @@ class MockCanvas:
             self.triangles +
             self.ellipses +
             self.functions +
-            self.vectors
+            self.vectors +
+            self.polygons
         ))
 
     def get_drawables_by_class_name(self, class_name: str) -> List[Dict[str, Any]]:
@@ -121,6 +124,7 @@ class MockCanvas:
             "Segments": self.segments,
             "Circles": self.circles,
             "Rectangles": self.rectangles,
+            "Polygons": self.polygons,
             "Triangles": self.triangles,
             "Ellipses": self.ellipses,
             "Functions": self.functions,
@@ -166,15 +170,42 @@ class MockCanvas:
         self.circles.append(circle)
         return circle
 
-    def create_rectangle(self, x1: float, y1: float, x2: float, y2: float, name: str = "") -> RectangleDict:
-        """Create a rectangle on the canvas."""
-        rectangle: RectangleDict = cast(RectangleDict, {
-            "point1": {"x": x1, "y": y1},
-            "point3": {"x": x2, "y": y2},
-            "name": name
-        })
-        self.rectangles.append(rectangle)
-        return rectangle
+    def create_polygon(
+        self,
+        vertices: List[Any],
+        *,
+        polygon_type: Optional[str] = None,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> Dict[str, Any]:
+        """Create a polygon entry for the mock canvas."""
+        vertex_pairs: List[Tuple[float, float]] = []
+        for vertex in vertices:
+            if isinstance(vertex, dict):
+                vertex_pairs.append((float(vertex["x"]), float(vertex["y"])))
+            else:
+                x, y = vertex
+                vertex_pairs.append((float(x), float(y)))
+
+        polygon: Dict[str, Any] = {
+            "vertices": [{"x": x, "y": y} for x, y in vertex_pairs],
+            "polygon_type": polygon_type,
+            "name": name,
+            "color": color,
+        }
+        self.polygons.append(polygon)
+
+        if polygon_type == "rectangle" and len(vertex_pairs) >= 3:
+            rectangle: RectangleDict = cast(RectangleDict, {
+                "point1": {"x": vertex_pairs[0][0], "y": vertex_pairs[0][1]},
+                "point3": {"x": vertex_pairs[2][0], "y": vertex_pairs[2][1]},
+                "name": name
+            })
+            self.rectangles.append(rectangle)
+            return rectangle
+
+        return polygon
 
     def create_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float, name: str = "") -> TriangleDict:
         """Create a triangle on the canvas."""

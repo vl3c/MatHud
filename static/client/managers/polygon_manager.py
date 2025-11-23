@@ -459,5 +459,7 @@ class PolygonManager:
         return vertices
 
     def _build_vertex_signature(self, vertices: Sequence[Coordinate]) -> Tuple[Tuple[float, float], ...]:
-        return tuple(sorted({(float(x), float(y)) for x, y in vertices}))
+        """Normalize vertex coordinates for comparison, rounding to mitigate floating drift."""
+        rounded = {(round(float(x), 6), round(float(y), 6)) for x, y in vertices}
+        return tuple(sorted(rounded))
 

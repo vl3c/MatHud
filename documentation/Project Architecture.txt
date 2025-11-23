@@ -202,8 +202,8 @@ static/client/
 │   ├── point_manager.py               # Point creation/management
 │   ├── segment_manager.py             # Segment operations
 │   ├── vector_manager.py              # Vector operations
+│   ├── polygon_manager.py             # Unified polygon creation/update/delete (triangles, rectangles, etc.)
 │   ├── triangle_manager.py            # Triangle operations
-│   ├── rectangle_manager.py           # Rectangle operations
 │   ├── circle_manager.py              # Circle operations
 │   ├── ellipse_manager.py             # Ellipse operations
 │   ├── angle_manager.py               # Angle operations

@@ -3,6 +3,8 @@ from __future__ import annotations
 import unittest
 
 from canvas import Canvas
+from managers.polygon_type import PolygonType
+from utils.polygon_canonicalizer import canonicalize_rectangle
 from drawables.drawable import Drawable
 from geometry import Position
 from client_tests.simple_mock import SimpleMock
@@ -85,7 +87,11 @@ class TestCustomDrawableNames(unittest.TestCase):
 
     def test_rectangle_basic_naming(self) -> None:
         # Test creating a rectangle with a custom name
-        rectangle = self.canvas.create_rectangle(10, 10, 30, 30, "Rectangle")
+        rectangle = self.canvas.create_polygon(
+            canonicalize_rectangle([(10, 10), (30, 30)], construction_mode="diagonal"),
+            polygon_type=PolygonType.RECTANGLE,
+            name="Rectangle",
+        )
         points = [
             rectangle.segment1.point1.name,
             rectangle.segment1.point2.name,
@@ -98,7 +104,11 @@ class TestCustomDrawableNames(unittest.TestCase):
         self.assertIn("C", points)
         self.assertIn("T", points)
         # Test creating another rectangle with same name - should use next available letters
-        rectangle2 = self.canvas.create_rectangle(40, 40, 60, 60, "Rectangle")
+        rectangle2 = self.canvas.create_polygon(
+            canonicalize_rectangle([(40, 40), (60, 60)], construction_mode="diagonal"),
+            polygon_type=PolygonType.RECTANGLE,
+            name="Rectangle",
+        )
         points2 = [
             rectangle2.segment1.point1.name,
             rectangle2.segment1.point2.name,
@@ -113,7 +123,11 @@ class TestCustomDrawableNames(unittest.TestCase):
 
     def test_rectangle_apostrophe_naming(self) -> None:
         # Test rectangle with apostrophes in name
-        rectangle = self.canvas.create_rectangle(70, 70, 90, 90, "W'X''Y'''Z")
+        rectangle = self.canvas.create_polygon(
+            canonicalize_rectangle([(70, 70), (90, 90)], construction_mode="diagonal"),
+            polygon_type=PolygonType.RECTANGLE,
+            name="W'X''Y'''Z",
+        )
         points = [
             rectangle.segment1.point1.name,
             rectangle.segment1.point2.name,

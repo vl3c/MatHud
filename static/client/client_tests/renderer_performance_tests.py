@@ -11,6 +11,8 @@ from browser import document, window
 from constants import DEFAULT_RENDERER_MODE
 
 from canvas import Canvas
+from managers.polygon_type import PolygonType
+from utils.polygon_canonicalizer import canonicalize_rectangle
 
 
 # Baseline workload used when no custom scene is supplied
@@ -90,7 +92,11 @@ def _populate_scene(canvas: Canvas, spec: Dict[str, Any]) -> Dict[str, int]:
         opposite = pick_point()
         if p is opposite:
             continue
-        canvas.create_rectangle(p.x, p.y, opposite.x, opposite.y)
+        vertices = canonicalize_rectangle(
+            [(p.x, p.y), (opposite.x, opposite.y)],
+            construction_mode="diagonal",
+        )
+        canvas.create_polygon(vertices, polygon_type=PolygonType.RECTANGLE)
         created["rectangles"] += 1
 
     for _ in range(spec.get("circles", 0)):

@@ -16,7 +16,6 @@ Manager Hierarchy:
     - SegmentManager: Line segment operations with endpoint validation
     - VectorManager: Vector operations with origin and tip management
     - TriangleManager: Triangle operations with vertex coordinate matching
-    - RectangleManager: Rectangle operations with diagonal point handling
     - CircleManager: Circle operations with center and radius validation
     - EllipseManager: Ellipse operations with center, radii, and rotation
     - AngleManager: Angle operations with vertex and arm management
@@ -57,7 +56,6 @@ from managers.triangle_manager import TriangleManager
 from managers.function_manager import FunctionManager
 from managers.circle_manager import CircleManager
 from managers.ellipse_manager import EllipseManager
-from managers.rectangle_manager import RectangleManager
 from managers.polygon_manager import PolygonManager
 from managers.polygon_type import PolygonType
 from managers.colored_area_manager import ColoredAreaManager
@@ -159,11 +157,6 @@ class DrawableManager:
         self.ellipse_manager: EllipseManager = EllipseManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager, 
             self.point_manager, self.proxy
-        )
-        
-        self.rectangle_manager: RectangleManager = RectangleManager(
-            canvas, self.drawables, self.name_generator, self.dependency_manager,
-            self.point_manager, self.segment_manager, self.proxy
         )
         
         self.colored_area_manager: ColoredAreaManager = ColoredAreaManager(
@@ -667,57 +660,6 @@ class DrawableManager:
                 new_rotation_angle=new_rotation_angle,
                 new_center_x=new_center_x,
                 new_center_y=new_center_y,
-            )
-        )
-    
-    # ------------------- Rectangle Methods -------------------
-    
-    def get_rectangle_by_diagonal_points(self, px: float, py: float, opposite_px: float, opposite_py: float) -> Optional["Rectangle"]:
-        """Get a rectangle by its diagonal points"""
-        return self.rectangle_manager.get_rectangle_by_diagonal_points(px, py, opposite_px, opposite_py)
-        
-    def get_rectangle_by_name(self, name: str) -> Optional["Rectangle"]:
-        """Get a rectangle by its name"""
-        return self.rectangle_manager.get_rectangle_by_name(name)
-        
-    def create_rectangle(
-        self,
-        px: float,
-        py: float,
-        opposite_px: float,
-        opposite_py: float,
-        name: str = "",
-        color: Optional[str] = None,
-        extra_graphics: bool = True,
-        *,
-        vertices: Optional[Sequence[Any]] = None,
-    ) -> "Rectangle":
-        """Create a new rectangle with the specified diagonal points"""
-        return self.rectangle_manager.create_rectangle(
-            px,
-            py,
-            opposite_px,
-            opposite_py,
-            name,
-            color=color,
-            extra_graphics=extra_graphics,
-            vertices=vertices,
-        )
-        
-    def delete_rectangle(self, name: str) -> bool:
-        """Delete a rectangle by its name"""
-        return bool(self.rectangle_manager.delete_rectangle(name))
-    
-    def update_rectangle(
-        self,
-        name: str,
-        new_color: Optional[str] = None,
-    ) -> bool:
-        """Update editable properties of a rectangle."""
-        return bool(
-            self.rectangle_manager.update_rectangle(
-                name,
-                new_color=new_color,
             )
         )
     

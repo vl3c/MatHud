@@ -762,55 +762,6 @@ class Canvas:
             )
         )
 
-    def get_rectangle_by_diagonal_points(self, px: float, py: float, opposite_px: float, opposite_py: float) -> Optional["Drawable"]:
-        """Get a rectangle by its diagonal points"""
-        return self.drawable_manager.get_rectangle_by_diagonal_points(px, py, opposite_px, opposite_py)
-
-    def get_rectangle_by_name(self, name: str) -> Optional["Drawable"]:
-        """Get a rectangle by its name"""
-        return self.drawable_manager.get_rectangle_by_name(name)
-
-    def create_rectangle(
-        self,
-        px: float,
-        py: float,
-        opposite_px: float,
-        opposite_py: float,
-        name: str = "",
-        color: Optional[str] = None,
-        extra_graphics: bool = True,
-        *,
-        vertices: Optional[Sequence[Any]] = None,
-    ) -> "Drawable":
-        """Create a rectangle with the specified diagonal points"""
-        return self.drawable_manager.create_rectangle(
-            px,
-            py,
-            opposite_px,
-            opposite_py,
-            name,
-            color=color,
-            extra_graphics=extra_graphics,
-            vertices=vertices,
-        )
-
-    def delete_rectangle(self, name: str) -> bool:
-        """Delete a rectangle by its name"""
-        return bool(self.drawable_manager.delete_rectangle(name))
-    
-    def update_rectangle(
-        self,
-        name: str,
-        new_color: Optional[str] = None,
-    ) -> bool:
-        """Update editable properties of a rectangle."""
-        return bool(
-            self.drawable_manager.update_rectangle(
-                name,
-                new_color=new_color,
-            )
-        )
-
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional["Drawable"]:
         """Get a circle by its center coordinates and radius"""
         return self.drawable_manager.get_circle(center_x, center_y, radius)

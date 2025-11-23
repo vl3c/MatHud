@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, cast
 
 from server_tests.test_mocks import CanvasStateDict, MockCanvas
+from static.client.utils.polygon_canonicalizer import canonicalize_rectangle
 from static.workspace_manager import WORKSPACES_DIR, WorkspaceManager, WorkspaceState
 
 TEST_DIR = "Test"
@@ -229,7 +230,11 @@ class TestWorkspaceManagement(unittest.TestCase):
         """Test saving workspace with multiple types of objects."""
         self.canvas.create_point(0, 0, "O")
         self.canvas.create_circle(0, 0, 100, "C1")
-        self.canvas.create_rectangle(-50, -50, 50, 50, "R1")
+        rect_vertices = canonicalize_rectangle(
+            [(-50, -50), (50, 50)],
+            construction_mode="diagonal",
+        )
+        self.canvas.create_polygon(rect_vertices, polygon_type="rectangle", name="R1")
         self.canvas.draw_function("sin(x)", "f1")
         self.canvas.add_computation("area", 10000)
         

@@ -24,7 +24,7 @@ Object Restoration:
     - Segments: Line segments with endpoint dependency resolution
     - Vectors: Directed segments with origin/tip point relationships
     - Triangles: Three-vertex polygons with automatic edge detection
-    - Rectangles: Four-corner polygons with diagonal point calculation and segment reuse
+    - Rectangles: Canonicalized polygons rebuilt via the unified polygon manager
     - Circles: Circular objects with center point dependencies
     - Ellipses: Elliptical objects with center and rotation parameters
     - Functions: Mathematical function expressions with domain settings
@@ -39,10 +39,9 @@ Dependencies:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import json
-from itertools import permutations
 
 from browser import ajax, document
 from constants import (
@@ -51,6 +50,11 @@ from constants import (
     default_closed_shape_resolution,
 )
 from utils.math_utils import MathUtils
+from managers.polygon_type import PolygonType
+from utils.polygon_canonicalizer import (
+    PolygonCanonicalizationError,
+    canonicalize_rectangle,
+)
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -184,211 +188,67 @@ class WorkspaceManager:
                 )
 
     def _create_rectangles(self, state: Dict[str, Any]) -> None:
-        """
-        Create rectangles from workspace state with diagonal point calculation and segment reuse.
-        
-        Handles complex rectangle restoration by finding existing segments that form
-        rectangles and reusing them when possible. Falls back to standard rectangle
-        creation if existing segments don't form valid rectangles.
-        
-        Args:
-            state (dict): Workspace state containing rectangle definitions.
-        """
+        """Create rectangles from workspace state using the polygon manager."""
         if "Rectangles" not in state:
             return
-        
+
         for item_state in state["Rectangles"]:
             rect_name: str = item_state.get("name", "UnnamedRectangle")
-            
             arg_point_names: List[Optional[str]] = [
                 item_state["args"].get("p1"),
                 item_state["args"].get("p2"),
                 item_state["args"].get("p3"),
-                item_state["args"].get("p4")
+                item_state["args"].get("p4"),
             ]
 
             if not all(arg_point_names):
-                print(f"Warning: Rectangle '{rect_name}' is missing one or more point names (p1, p2, p3, p4) in its state. Skipping.")
+                print(
+                    f"Warning: Rectangle '{rect_name}' is missing one or more point names (p1, p2, p3, p4) in its state. Skipping."
+                )
                 continue
 
-            points: List[Optional["Point"]] = [self.canvas.get_point_by_name(name) for name in arg_point_names]
-
+            points: List[Optional["Point"]] = [
+                self.canvas.get_point_by_name(name) for name in arg_point_names
+            ]
             if not all(points):
-                missing_names: List[str] = [str(arg_point_names[i]) for i, p in enumerate(points) if not p]
-                print(f"Warning: Could not find one or more points ({', '.join(missing_names)}) for rectangle '{rect_name}' in the canvas. Skipping.")
+                missing_names: List[str] = [
+                    str(arg_point_names[i]) for i, p in enumerate(points) if not p
+                ]
+                print(
+                    f"Warning: Could not find one or more points ({', '.join(missing_names)}) for rectangle '{rect_name}' in the canvas. Skipping."
+                )
                 continue
-            
-            p_diag1: Optional["Point"]
-            p_diag2: Optional["Point"]
-            p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, rect_name)
-            
-            if not p_diag1 or not p_diag2:
-                print(f"Warning: Could not determine diagonal points for rectangle '{rect_name}'. Skipping.")
-                continue
-            
-            try:
-                # Instead of using canvas.create_rectangle (which creates new segments),
-                # find the existing segments that form this rectangle and create it directly
-                rect_segments: Optional[List["Segment"]] = self._find_rectangle_segments(points)
-                
-                if not rect_segments:
-                    # Fall back to standard creation if segments not found
-                    created_rect: Any = self.canvas.create_rectangle(
-                        p_diag1.x,
-                        p_diag1.y,
-                        p_diag2.x,
-                        p_diag2.y,
-                        name=item_state.get("name", "")
-                    )
-                else:
-                    # Existing segments found that connect the rectangle's points
-                    # Create properly oriented segments for Rectangle constructor
-                    properly_oriented_segments: Optional[List["Segment"]] = self._get_properly_oriented_rectangle_segments(rect_segments, points)
-                    
-                    if properly_oriented_segments:
-                        # Create rectangle directly using properly oriented segments
-                        from drawables.rectangle import Rectangle
-                        try:
-                            created_rect = Rectangle(
-                                properly_oriented_segments[0], properly_oriented_segments[1], 
-                                properly_oriented_segments[2], properly_oriented_segments[3], 
-                                self.canvas
-                            )
-                            
-                            # Set the name if provided
-                            if item_state.get("name"):
-                                created_rect.name = item_state.get("name")
-                            
-                            # Add to drawables
-                            self.canvas.drawable_manager.drawables.add(created_rect)
-                            
-                            # Register dependencies
-                            self.canvas.drawable_manager.dependency_manager.analyze_drawable_for_dependencies(created_rect)
-                            
-                        except ValueError as e:
-                            # If Rectangle constructor still fails, fall back to standard creation
-                            created_rect = self.canvas.create_rectangle(
-                                p_diag1.x,
-                                p_diag1.y,
-                                p_diag2.x,
-                                p_diag2.y,
-                                name=item_state.get("name", "")
-                            )
-                    else:
-                        # Fall back to standard rectangle creation
-                        created_rect = self.canvas.create_rectangle(
-                            p_diag1.x,
-                            p_diag1.y,
-                            p_diag2.x,
-                            p_diag2.y,
-                            name=item_state.get("name", "")
-                        )
-                
-            except ValueError as e:
-                if "The segments do not form a rectangle" in str(e):
-                    print(f"Warning: Skipping rectangle '{rect_name}' - segments do not form a valid rectangle topology. This may be due to inconsistent workspace data.")
-                    continue
-                else:
-                    # Re-raise if it's a different ValueError
-                    raise
-            except Exception as e:
-                raise
 
-    def _find_rectangle_segments(self, points: List["Point"]) -> Optional[List["Segment"]]:
-        """
-        Find existing segments that form a rectangle from the given points.
-        
-        Searches for existing segments connecting pairs of the four rectangle points
-        and attempts to arrange them in proper rectangular order forming a closed loop.
-        
-        Args:
-            points (list): List of 4 Point objects that should form a rectangle.
-            
-        Returns:
-            list or None: List of 4 segments in proper rectangle order, or None if not found.
-        """
-        if len(points) != 4:
-            return None
-            
-        # Find all segments that connect pairs of these points
-        connecting_segments: List["Segment"] = []
-        for i in range(len(points)):
-            for j in range(i + 1, len(points)):
-                p1: "Point" = points[i]
-                p2: "Point" = points[j]
-                # Look for segment connecting these two points (regardless of direction)
-                segment: Optional["Segment"] = self.canvas.get_segment_by_points(p1, p2)
-                if not segment:
-                    # Try the other direction
-                    segment = self.canvas.get_segment_by_points(p2, p1)
-                if segment:
-                    connecting_segments.append(segment)
-        
-        # For a rectangle, we need exactly 4 segments
-        if len(connecting_segments) != 4:
-            return None
-            
-        # Try to arrange segments in proper rectangle order
-        # A rectangle needs segments that form a closed loop
-        return self._arrange_segments_in_rectangle_order(connecting_segments)
-    
-    def _arrange_segments_in_rectangle_order(self, segments: List["Segment"]) -> Optional[List["Segment"]]:
-        """Arrange segments in proper rectangle order (each segment's end connects to next segment's start)."""
-        if len(segments) != 4:
-            return None
-        
-        # Try different starting segments and arrangements
-        for start_seg in segments:
-            remaining: List["Segment"] = segments.copy()
-            remaining.remove(start_seg)
-            
-            # Try both directions for the starting segment
-            for start_direction in [True, False]:  # True = normal direction, False = reversed
-                ordered: List["Segment"] = [start_seg]
-                current_end_point: "Point"
-                if start_direction:
-                    current_end_point = start_seg.point2
-                else:
-                    current_end_point = start_seg.point1  
-                
-                remaining_copy: List["Segment"] = remaining.copy()
-                
-                # Try to build a path
-                while remaining_copy and len(ordered) < 4:
-                    found_next: bool = False
-                    for seg in remaining_copy:
-                        if seg.point1 == current_end_point:
-                            ordered.append(seg)
-                            current_end_point = seg.point2
-                            remaining_copy.remove(seg)
-                            found_next = True
-                            break
-                        elif seg.point2 == current_end_point:
-                            # We conceptually reverse this segment for path building
-                            ordered.append(seg)
-                            current_end_point = seg.point1
-                            remaining_copy.remove(seg) 
-                            found_next = True
-                            break
-                    
-                    if not found_next:
-                        break
-                
-                # Check if we have a closed rectangle (4 segments, last connects back to first)
-                if len(ordered) == 4:
-                    # Check if the path closes properly
-                    start_point: "Point"
-                    if start_direction:
-                        start_point = start_seg.point1
-                    else:
-                        start_point = start_seg.point2
-                    
-                    closes_properly: bool = (current_end_point == start_point)
-                    
-                    if closes_properly:
-                        return ordered
-        
-        return None
+            resolved_vertices: Optional[List[Tuple[float, float]]] = None
+
+            try:
+                resolved_vertices = canonicalize_rectangle(
+                    [(point.x, point.y) for point in points if point is not None],
+                    construction_mode="vertices",
+                )
+            except PolygonCanonicalizationError:
+                p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, rect_name)
+                if not p_diag1 or not p_diag2:
+                    print(
+                        f"Warning: Could not determine diagonal points for rectangle '{rect_name}'. Skipping."
+                    )
+                    continue
+                try:
+                    resolved_vertices = canonicalize_rectangle(
+                        [(p_diag1.x, p_diag1.y), (p_diag2.x, p_diag2.y)],
+                        construction_mode="diagonal",
+                    )
+                except PolygonCanonicalizationError:
+                    print(
+                        f"Warning: Unable to canonicalize rectangle '{rect_name}' from supplied coordinates. Skipping."
+                    )
+                    continue
+
+            self.canvas.create_polygon(
+                resolved_vertices,
+                polygon_type=PolygonType.RECTANGLE,
+                name=rect_name,
+            )
 
     def _create_circles(self, state: Dict[str, Any]) -> None:
         """Create circles from workspace state."""
@@ -707,55 +567,3 @@ class WorkspaceManager:
         req.open('GET', url, False)  # Set to synchronous
         req.send()
         return on_complete(req)
-
-    def _get_properly_oriented_rectangle_segments(self, segments: List["Segment"], points: List["Point"]) -> Optional[List["Segment"]]:
-        """Create properly oriented segments that satisfy Rectangle constructor connectivity.
-        Since existing segments may have orientations that don't match Rectangle requirements,
-        we create new segment objects with correct orientations."""
-        if len(segments) != 4 or len(points) != 4:
-            return None
-        
-        from drawables.segment import Segment
-        
-        # Try all possible rectangular paths through the 4 points
-        for point_perm in permutations(points):
-            p1: "Point"
-            p2: "Point"
-            p3: "Point"
-            p4: "Point"
-            p1, p2, p3, p4 = point_perm
-            
-            # Check if this forms a valid rectangle path: p1 -> p2 -> p3 -> p4 -> p1
-            # Verify we have segments connecting each pair of consecutive points
-            has_p1_p2: bool = any(self._segments_connect_points(seg, p1, p2) for seg in segments)
-            has_p2_p3: bool = any(self._segments_connect_points(seg, p2, p3) for seg in segments)
-            has_p3_p4: bool = any(self._segments_connect_points(seg, p3, p4) for seg in segments)
-            has_p4_p1: bool = any(self._segments_connect_points(seg, p4, p1) for seg in segments)
-            
-            if has_p1_p2 and has_p2_p3 and has_p3_p4 and has_p4_p1:
-                # This is a valid rectangular path
-                # Create new segments with correct orientations for Rectangle constructor
-                try:
-                    # Create segments with proper connectivity: each segment's end connects to next segment's start
-                    seg1: "Segment" = Segment(p1, p2)  # p1 -> p2
-                    seg2: "Segment" = Segment(p2, p3)  # p2 -> p3  
-                    seg3: "Segment" = Segment(p3, p4)  # p3 -> p4
-                    seg4: "Segment" = Segment(p4, p1)  # p4 -> p1
-                    
-                    # Verify this satisfies Rectangle constructor requirements
-                    if (seg1.point2 == seg2.point1 and 
-                        seg2.point2 == seg3.point1 and 
-                        seg3.point2 == seg4.point1 and 
-                        seg4.point2 == seg1.point1):
-                        
-                        return [seg1, seg2, seg3, seg4]
-                        
-                except Exception:
-                    continue
-        
-        return None
-    
-    def _segments_connect_points(self, segment: "Segment", point1: "Point", point2: "Point") -> bool:
-        """Check if a segment connects two points (in either direction)."""
-        return bool((segment.point1 == point1 and segment.point2 == point2) or 
-                (segment.point1 == point2 and segment.point2 == point1)) 

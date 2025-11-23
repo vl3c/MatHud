@@ -69,7 +69,7 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 2. Segment Manager (`managers/segment_manager.py`)
 3. Vector Manager (`managers/vector_manager.py`)
 4. Triangle Manager (`managers/triangle_manager.py`)
-5. Rectangle Manager (`managers/rectangle_manager.py`)
+5. Polygon Manager (`managers/polygon_manager.py`)
 6. Circle Manager (`managers/circle_manager.py`)
 7. Ellipse Manager (`managers/ellipse_manager.py`)
 8. Function Manager (`managers/function_manager.py`)
@@ -255,7 +255,7 @@ Attributes:
 - `create_segment(x1, y1, x2, y2, name="", extra_graphics=True)`: Create a line segment between two points
 - `create_vector(origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True)`: Create a vector from origin to tip
 - `create_triangle(x1, y1, x2, y2, x3, y3, name="", extra_graphics=True)`: Create a triangle from three points
-- `create_rectangle(px, py, opposite_px, opposite_py, name="", extra_graphics=True)`: Create a rectangle from diagonal points
+- `create_polygon(vertices, polygon_type="rectangle", name="", extra_graphics=True)`: Create a rectangle from canonicalized vertices (use `canonicalize_rectangle` for diagonal pairs)
 - `create_circle(center_x, center_y, radius, name="", extra_graphics=True)`: Create a circle with specified center and radius
 - `create_circle_arc(point1_x, point1_y, point2_x, point2_y, point3_x=None, point3_y=None, center_point_choice=None, circle_name=None, center_x=None, center_y=None, radius=None, arc_name=None, use_major_arc=False, extra_graphics=True)`: Create a circle arc between two points. When supplying explicit center/radius values or referencing an existing circle, all provided endpoints (new or existing) are projected onto that circle before the arc is created. Alternatively, provide three points plus `center_point_choice` (point1/point2/point3) to treat that point as the center and derive the circle automatically.
 - `delete_circle_arc(name)`: Remove a circle arc by name without deleting its endpoints.
@@ -558,7 +558,7 @@ Args:
 - `_create_segments(state)`: Create segments from workspace state with endpoint validation
 - `_create_vectors(state)`: Create vectors from workspace state with origin/tip resolution
 - `_create_triangles(state)`: Create triangles from workspace state with vertex dependencies
-- `_create_rectangles(state)`: Create rectangles from workspace state with diagonal point calculation and segment reuse
+- `_create_rectangles(state)`: Recreate rectangles from workspace state using polygon canonicalization
 - `_create_circles(state)`: Create circles from workspace state with center point dependencies
 - `_create_ellipses(state)`: Create ellipses from workspace state with parameter restoration
 - `_create_functions(state)`: Create mathematical functions from workspace state
@@ -1750,10 +1750,10 @@ This class coordinates specialized managers for each drawable type:
 - `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", extra_graphics=True)`: Create an ellipse with specified parameters
 - `delete_ellipse(name)`: Delete an ellipse by its name
 - `update_ellipse(name, new_color=None, new_radius_x=None, new_radius_y=None, new_rotation_angle=None, new_center_x=None, new_center_y=None)`: Update ellipse styling or geometry (solitary ellipses only; center moves require complete coordinate pairs)
-- `get_rectangle_by_diagonal_points(px, py, opposite_px, opposite_py)`: Get a rectangle by two diagonal points
-- `get_rectangle_by_name(name)`: Get a rectangle by its name
-- `create_rectangle(px, py, opposite_px, opposite_py, name="", extra_graphics=True)`: Create a rectangle with specified diagonal points
-- `delete_rectangle(name)`: Delete a rectangle by its name
+- `get_polygon_by_vertices(vertices, polygon_type="rectangle")`: Get a rectangle by canonicalized vertices
+- `get_polygon_by_name(name, polygon_type="rectangle")`: Get a rectangle by its name
+- `create_polygon(vertices, polygon_type="rectangle", name="", extra_graphics=True)`: Create a rectangle from canonicalized vertices (use `canonicalize_rectangle` for diagonal pairs)
+- `delete_polygon(polygon_type="rectangle", name)`: Delete a rectangle by name via the polygon API
 - `update_rectangle(name, new_color=None)`: Update a rectangle's color
 - `create_label(x, y, text, name="", color=None, font_size=None, rotation_degrees=None)`: Create a label anchored at math-space coordinates
 - `delete_label(name)`: Delete a label by its name
@@ -2271,57 +2271,15 @@ State Management:
 - `delete_triangle(x1, y1, x2, y2, x3, y3)`: Delete a triangle by its vertex coordinates
 - `create_new_triangles_from_connected_segments()`: Automatically detect and create triangles from connected segments
 
-#### Rectangle Manager (`managers/rectangle_manager.py`)
+#### Rectangle Operations (Polygon Manager)
 
-**File Header:**
-```
-MatHud Rectangle Management System
+**Overview:**
+Rectangles are constructed through the unified polygon pipeline. Supplying `polygon_type="rectangle"` to `create_polygon` routes coordinates through `canonicalize_rectangle`, which normalizes diagonal pairs or noisy vertex lists into a valid rectangle before instantiation.
 
-Manages rectangle creation, retrieval, and deletion with diagonal-based construction.
-Handles rectangle operations through four-corner coordinate systems and segment management.
-
-Core Responsibilities:
-    - Rectangle Creation: Constructs rectangles from diagonal point coordinates
-    - Rectangle Retrieval: Lookup by diagonal points or rectangle name
-    - Rectangle Deletion: Safe removal with cleanup of all four edge segments
-    - Dependency Management: Tracks relationships with constituent points and segments
-
-Geometric Construction:
-    - Diagonal-Based Creation: Uses two opposite corners to define complete rectangle
-    - Automatic Corner Calculation: Computes all four vertices from diagonal points
-    - Edge Segment Creation: Creates all four boundary segments automatically
-    - Point Management: Generates corner points with systematic naming
-
-Advanced Features:
-    - Collision Detection: Prevents creation of duplicate rectangles
-    - Name Parsing: Extracts vertex names from rectangle identifiers
-    - Coordinate Validation: Ensures mathematically valid rectangle construction
-    - Extra Graphics: Optional creation of related geometric objects
-
-Integration Points:
-    - PointManager: Creates and manages rectangle corner points
-    - SegmentManager: Creates and manages rectangle edge segments
-    - DependencyManager: Tracks rectangle relationships with constituent elements
-    - Canvas: Handles rendering and visual updates
-
-Mathematical Properties:
-    - Area Calculation: Supports rectangle area computation from diagonal points
-    - Coordinate System: Works within canvas coordinate space
-    - Precision Handling: Uses mathematical tolerance for coordinate operations
-    - Geometric Validation: Ensures rectangles maintain proper geometric properties
-
-State Management:
-    - Undo/Redo: Complete state archiving for rectangle operations
-    - Canvas Integration: Immediate visual updates after modifications
-    - Dependency Tracking: Maintains relationships during operations
-    - Cleanup Logic: Intelligent removal of constituent segments during deletion
-```
-
-**Key Methods:**
-- `get_rectangle_by_diagonal_points(px, py, opposite_px, opposite_py)`: Get a rectangle by two diagonal points
-- `get_rectangle_by_name(name)`: Get a rectangle by its name
-- `create_rectangle(px, py, opposite_px, opposite_py, name="", extra_graphics=True)`: Create a rectangle with specified diagonal points
-- `delete_rectangle(name)`: Delete a rectangle by its name
+**Key Points:**
+- `PolygonManager.create_polygon` canonicalizes rectangle vertices using `utils/polygon_canonicalizer.py`.
+- Workspace restoration and other call sites build rectangles by invoking `create_polygon` with the canonicalized vertex list; no rectangle-specific manager is required.
+- AI tooling (`static/functions_definitions.py`) documents this behavior so prompts can provide diagonal corners or approximate rectangles confidently.
 
 #### Circle Manager (`managers/circle_manager.py`)
 

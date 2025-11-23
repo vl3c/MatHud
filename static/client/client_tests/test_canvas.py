@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import unittest
 from random import randint
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, List, Optional, cast
 import re
 import math
 
 from canvas import Canvas
 from expression_validator import ExpressionValidator
 from utils.math_utils import MathUtils
+from utils.polygon_canonicalizer import canonicalize_rectangle
 from types import SimpleNamespace
 from geometry import Position
 from managers.polygon_type import PolygonType
@@ -45,6 +46,29 @@ class TestCanvas(unittest.TestCase):
                 canvas_self.drawable_manager.drawables.rebuild_renderables()
 
         setattr(Canvas, 'drawables', property(get_drawables, set_drawables))
+
+    def _create_rectangle(
+        self,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        *,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> Any:
+        vertices = canonicalize_rectangle(
+            [(x1, y1), (x2, y2)],
+            construction_mode="diagonal",
+        )
+        return self.canvas.create_polygon(
+            vertices,
+            polygon_type=PolygonType.RECTANGLE,
+            name=name,
+            color=color,
+            extra_graphics=extra_graphics,
+        )
 
     def test_init(self) -> None:
         self.assertEqual(self.canvas.width, 500)
@@ -840,7 +864,7 @@ class TestCanvas(unittest.TestCase):
         )
         deleted = self.canvas.delete_polygon(polygon_type=PolygonType.RECTANGLE, name=polygon.name)
         self.assertTrue(deleted)
-        self.assertIsNone(self.canvas.get_rectangle_by_name(polygon.name))
+        self.assertIsNone(self.canvas.get_polygon_by_name(polygon.name, polygon_type=PolygonType.RECTANGLE))
 
     def test_create_polygon_square_validation(self) -> None:
         with self.assertRaises(ValueError):
@@ -884,67 +908,63 @@ class TestCanvas(unittest.TestCase):
 
     # Rectangle tests
     def test_create_rectangle_new(self) -> None:
-        # Directly test creating a new rectangle without previous setup
-        new_rectangle = self.canvas.create_rectangle(10, 10, 40, 40)
+        new_rectangle = self._create_rectangle(10, 10, 40, 40)
         self.assertIsNotNone(new_rectangle, "Failed to create a new rectangle.")
         self.assertIn(new_rectangle, self.canvas.get_drawables_by_class_name('Rectangle'), "New rectangle should be in canvas.")
 
     def test_get_rectangle_by_diagonal_points(self) -> None:
-        # Create a rectangle for this test
-        rectangle_created = self.canvas.create_rectangle(10, 10, 30, 30)
-        # Test retrieving an existing rectangle
-        rectangle_retrieved = self.canvas.get_rectangle_by_diagonal_points(10, 10, 30, 30)
+        rectangle_created = self._create_rectangle(10, 10, 30, 30)
+        target_vertices = canonicalize_rectangle(
+            [(10, 10), (30, 30)],
+            construction_mode="diagonal",
+        )
+        rectangle_retrieved = self.canvas.get_polygon_by_vertices(target_vertices, polygon_type=PolygonType.RECTANGLE)
         self.assertIsNotNone(rectangle_retrieved, "Rectangle should exist.")
         self.assertEqual(rectangle_created, rectangle_retrieved, "Retrieved rectangle should be the same as the created one.")
-        # Test retrieving a non-existent rectangle
-        non_existent_rectangle = self.canvas.get_rectangle_by_diagonal_points(100, 100, 200, 200)
+        missing_vertices = canonicalize_rectangle(
+            [(100, 100), (200, 200)],
+            construction_mode="diagonal",
+        )
+        non_existent_rectangle = self.canvas.get_polygon_by_vertices(missing_vertices, polygon_type=PolygonType.RECTANGLE)
         self.assertIsNone(non_existent_rectangle, "Should not retrieve a non-existent rectangle.")
 
     def test_get_rectangle_by_name(self) -> None:
-        # Create a rectangle for this test
-        rectangle_created = self.canvas.create_rectangle(10, 10, 20, 20)
-        # Test retrieving an existing rectangle by name
-        rectangle_retrieved = self.canvas.get_rectangle_by_name(rectangle_created.name)
+        rectangle_created = self._create_rectangle(10, 10, 20, 20)
+        rectangle_retrieved = self.canvas.get_polygon_by_name(rectangle_created.name, polygon_type=PolygonType.RECTANGLE)
         self.assertIsNotNone(rectangle_retrieved, "Rectangle should exist.")
         self.assertEqual(rectangle_created, rectangle_retrieved, "Retrieved rectangle should be the same as the created one.")
-        # Test retrieving a non-existent rectangle by name
-        non_existent_rectangle = self.canvas.get_rectangle_by_name("NonExistent")
+        non_existent_rectangle = self.canvas.get_polygon_by_name("NonExistent", polygon_type=PolygonType.RECTANGLE)
         self.assertIsNone(non_existent_rectangle, "Should not retrieve a non-existent rectangle by name.")
 
     def test_create_rectangle_existing(self) -> None:
-        # Create a rectangle to test reusing existing rectangles
-        created_rectangle = self.canvas.create_rectangle(10, 10, 30, 30)
-        # Test creating a rectangle with the same coordinates
-        retrieved_rectangle = self.canvas.create_rectangle(10, 10, 30, 30)
+        created_rectangle = self._create_rectangle(10, 10, 30, 30)
+        retrieved_rectangle = self._create_rectangle(10, 10, 30, 30)
         self.assertEqual(created_rectangle, retrieved_rectangle, "Should reuse the existing rectangle.")
 
     def test_delete_rectangle(self) -> None:
-        # Create a rectangle to test deletion
-        rectangle = self.canvas.create_rectangle(10, 10, 30, 30, name="ABCD")
-        # Test deleting the rectangle
-        self.canvas.delete_rectangle(rectangle.name)
-        self.assertIsNone(self.canvas.get_rectangle_by_diagonal_points(10, 10, 30, 30), "Rectangle should be deleted.")
-        self.assertIsNone(self.canvas.get_rectangle_by_name("ABCD"), "Rectangle should be deleted.")
+        rectangle = self._create_rectangle(10, 10, 30, 30, name="ABCD")
+        self.canvas.delete_polygon(polygon_type=PolygonType.RECTANGLE, name=rectangle.name)
+        vertices = canonicalize_rectangle([(10, 10), (30, 30)], construction_mode="diagonal")
+        self.assertIsNone(
+            self.canvas.get_polygon_by_vertices(vertices, polygon_type=PolygonType.RECTANGLE),
+            "Rectangle should be deleted.",
+        )
+        self.assertIsNone(
+            self.canvas.get_polygon_by_name("ABCD", polygon_type=PolygonType.RECTANGLE),
+            "Rectangle should be deleted.",
+        )
 
-    def test_delete_rectangle_by_nonexistent_name(self) -> None:
-        """Test deleting a rectangle with a non-existent name returns False and doesn't cause errors."""
-        # Test deleting a rectangle that doesn't exist
-        result = self.canvas.delete_rectangle('NonexistentRectangle')
-        self.assertFalse(result, "delete_rectangle should return False for non-existent names")
-        
-        # Create a rectangle and verify normal deletion still works
-        rectangle = self.canvas.create_rectangle(10, 10, 30, 30)
-        self.assertIsNotNone(self.canvas.get_rectangle_by_name(rectangle.name))
-        
-        # Verify the non-existent deletion didn't affect existing rectangles
+    def test_delete_rectangles_by_nonexistent_name(self) -> None:
+        result = self.canvas.delete_polygon(polygon_type=PolygonType.RECTANGLE, name='NonexistentRectangle')
+        self.assertFalse(result, "delete_polygon should return False for non-existent rectangle names")
+        rectangle = self._create_rectangle(10, 10, 30, 30)
+        self.assertIsNotNone(self.canvas.get_polygon_by_name(rectangle.name, polygon_type=PolygonType.RECTANGLE))
         self.assertIn(rectangle, self.canvas.get_drawables_by_class_name('Rectangle'))
-        
-        # Delete the rectangle and verify it was removed
-        self.assertTrue(self.canvas.delete_rectangle(rectangle.name))
-        self.assertIsNone(self.canvas.get_rectangle_by_name(rectangle.name))
+        self.assertTrue(self.canvas.delete_polygon(polygon_type=PolygonType.RECTANGLE, name=rectangle.name))
+        self.assertIsNone(self.canvas.get_polygon_by_name(rectangle.name, polygon_type=PolygonType.RECTANGLE))
 
     def test_delete_rectangles_depending_on_point(self) -> None:
-        rectangle = self.canvas.create_rectangle(10, 10, 30, 30)
+        rectangle = self._create_rectangle(10, 10, 30, 30)
         self.assertIsNotNone(rectangle)
         self.assertIn(rectangle, self.canvas.get_drawables_by_class_name(rectangle.get_class_name()))
         self.canvas.drawable_manager.point_manager._delete_point_dependencies(10, 10)
@@ -991,7 +1011,7 @@ class TestCanvas(unittest.TestCase):
 
     def test_create_rectangle_with_color(self) -> None:
         custom_color = "#00ff88"
-        rectangle = self.canvas.create_rectangle(0, 0, 20, 10, color=custom_color)
+        rectangle = self._create_rectangle(0, 0, 20, 10, color=custom_color)
         self.assertEqual(rectangle.color, custom_color)
         self.assertEqual(rectangle.segment1.color, custom_color)
         self.assertEqual(rectangle.segment2.color, custom_color)
@@ -1914,7 +1934,7 @@ class TestCanvas(unittest.TestCase):
 
     def test_rectangle_rotation(self) -> None:
         """Test rectangle rotation around its center"""
-        rectangle = self.canvas.create_rectangle(0, 0, 30, 20)
+        rectangle = self._create_rectangle(0, 0, 30, 20)
         initial_points = {
             (p.x, p.y) 
             for p in [rectangle.segment1.point1, rectangle.segment1.point2,
@@ -1932,7 +1952,7 @@ class TestCanvas(unittest.TestCase):
 
     def test_rectangle_multiple_rotations(self) -> None:
         """Test multiple rotations on a rectangle"""
-        rectangle = self.canvas.create_rectangle(0, 0, 30, 20)
+        rectangle = self._create_rectangle(0, 0, 30, 20)
         
         # Define points for easier reference
         p1 = rectangle.segment1.point1

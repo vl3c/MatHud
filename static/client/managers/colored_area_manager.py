@@ -60,6 +60,7 @@ from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
 from drawables.segment import Segment
 from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from managers.polygon_type import PolygonType
 from utils.geometry_utils import GeometryUtils
 from utils.style_utils import StyleUtils
 
@@ -252,7 +253,10 @@ class ColoredAreaManager:
             segments = [triangle.segment1, triangle.segment2, triangle.segment3]
             shape_type = "polygon"
         elif rectangle_name:
-            rectangle = self.drawable_manager.get_rectangle_by_name(rectangle_name)
+            rectangle = self.drawable_manager.get_polygon_by_name(
+                rectangle_name,
+                polygon_type=PolygonType.RECTANGLE,
+            )
             if not rectangle:
                 raise ValueError(f"Rectangle '{rectangle_name}' was not found.")
             segments = [

@@ -63,7 +63,7 @@ class TestColoredAreaManager(unittest.TestCase):
                     return triangle
             return None
 
-        def get_rectangle_by_name(name: str) -> Optional[Rectangle]:
+        def get_polygon_by_name(name: str, polygon_type: Optional[Any] = None) -> Optional[Rectangle]:
             for rectangle in self.drawables.Rectangles:
                 if getattr(rectangle, "name", "") == name:
                     return rectangle
@@ -84,7 +84,7 @@ class TestColoredAreaManager(unittest.TestCase):
         self.drawable_manager_proxy.get_circle_by_name = get_circle_by_name
         self.drawable_manager_proxy.get_ellipse_by_name = get_ellipse_by_name
         self.drawable_manager_proxy.get_triangle_by_name = get_triangle_by_name
-        self.drawable_manager_proxy.get_rectangle_by_name = get_rectangle_by_name
+        self.drawable_manager_proxy.get_polygon_by_name = get_polygon_by_name
         self.drawable_manager_proxy.get_function = get_function
         self.drawable_manager_proxy.create_point = create_point
 
