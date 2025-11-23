@@ -78,11 +78,6 @@ class FunctionRegistry:
             "delete_polygon": canvas.delete_polygon,
             "update_polygon": canvas.update_polygon,
             
-            # ===== TRIANGLE OPERATIONS =====
-            "create_triangle": canvas.create_triangle,
-            "delete_triangle": canvas.delete_triangle,
-            "update_triangle": canvas.update_triangle,
-            
             # ===== RECTANGLE OPERATIONS =====
             "create_rectangle": canvas.create_rectangle,
             "delete_rectangle": canvas.delete_rectangle,
@@ -193,11 +188,6 @@ class FunctionRegistry:
             "create_polygon",
             "delete_polygon",
             "update_polygon",
-            
-            # Triangle operations
-            "create_triangle",
-            "delete_triangle",
-            "update_triangle",
             
             # Rectangle operations
             "create_rectangle",

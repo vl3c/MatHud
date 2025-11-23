@@ -102,8 +102,16 @@ class TestRunner:
                 "arguments": {"origin_x": -143.0, "origin_y": 376.0, "tip_x": -82.0, "tip_y": 272.0, "name": "v1"}
             },
             {
-                "function_name": "create_triangle",
-                "arguments": {"x1": -60, "y1": 380, "x2": 60, "y2": 380, "x3": 0, "y3": 260, "name": "A'BD"}
+                "function_name": "create_polygon",
+                "arguments": {
+                    "vertices": [
+                        {"x": -60, "y": 380},
+                        {"x": 60, "y": 380},
+                        {"x": 0, "y": 260}
+                    ],
+                    "polygon_type": "triangle",
+                    "name": "A'BD"
+                }
             },
             {
                 "function_name": "create_rectangle",
