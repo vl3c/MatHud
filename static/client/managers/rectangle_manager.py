@@ -43,11 +43,10 @@ State Management:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, cast
 
 from drawables.rectangle import Rectangle
-from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
-
+from managers.polygon_type import PolygonType
 if TYPE_CHECKING:
     from canvas import Canvas
     from managers.drawables_container import DrawablesContainer
@@ -96,7 +95,6 @@ class RectangleManager:
         self.point_manager: "PointManager" = point_manager
         self.segment_manager: "SegmentManager" = segment_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
-        self.rectangle_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Rectangle")
         
     def get_rectangle_by_diagonal_points(self, px: float, py: float, opposite_px: float, opposite_py: float) -> Optional[Rectangle]:
         """
@@ -181,85 +179,20 @@ class RectangleManager:
         Returns:
             Rectangle: The newly created or existing rectangle object
         """
-        # Archive before creation
-        self.canvas.undo_redo_manager.archive()
-        
-        # Check if the rectangle already exists
-        existing_rectangle = self.get_rectangle_by_diagonal_points(px, py, opposite_px, opposite_py)
-        if existing_rectangle:
-            return existing_rectangle
-            
-        # Extract point names from rectangle name
-        point_names: List[str] = ["", "", "", ""]
-        if name:
-            point_names = self.name_generator.split_point_names(name, 4)
-        
-        # Create points first with the correct names
-        p1 = self.point_manager.create_point(px, py, point_names[0], extra_graphics=False)
-        p2 = self.point_manager.create_point(opposite_px, py, point_names[1], extra_graphics=False)
-        p3 = self.point_manager.create_point(opposite_px, opposite_py, point_names[2], extra_graphics=False)
-        p4 = self.point_manager.create_point(px, opposite_py, point_names[3], extra_graphics=False)
-        
-        # Create segments using the points
-        segment_color_kwargs: Dict[str, Any] = {}
-        color_value = str(color).strip() if color is not None else ""
-        if color_value:
-            segment_color_kwargs["color"] = color_value
-        s1 = self.segment_manager.create_segment(
-            p1.x,
-            p1.y,
-            p2.x,
-            p2.y,
-            extra_graphics=False,
-            **segment_color_kwargs,
+        vertices = [
+            (px, py),
+            (opposite_px, py),
+            (opposite_px, opposite_py),
+            (px, opposite_py),
+        ]
+        polygon = self.drawable_manager.polygon_manager.create_polygon(
+            vertices,
+            polygon_type=PolygonType.RECTANGLE,
+            name=name,
+            color=color,
+            extra_graphics=extra_graphics,
         )
-        s2 = self.segment_manager.create_segment(
-            p2.x,
-            p2.y,
-            p3.x,
-            p3.y,
-            extra_graphics=False,
-            **segment_color_kwargs,
-        )
-        s3 = self.segment_manager.create_segment(
-            p3.x,
-            p3.y,
-            p4.x,
-            p4.y,
-            extra_graphics=False,
-            **segment_color_kwargs,
-        )
-        s4 = self.segment_manager.create_segment(
-            p4.x,
-            p4.y,
-            p1.x,
-            p1.y,
-            extra_graphics=False,
-            **segment_color_kwargs,
-        )
-        
-        # Create the rectangle
-        if color_value:
-            new_rectangle = Rectangle(s1, s2, s3, s4, color=color_value)
-            new_rectangle.update_color(color_value)
-        else:
-            new_rectangle = Rectangle(s1, s2, s3, s4)
-        
-        # Add to drawables
-        self.drawables.add(new_rectangle)
-        
-        # Register dependencies
-        self.dependency_manager.analyze_drawable_for_dependencies(new_rectangle)
-        
-        # Handle extra graphics if requested
-        if extra_graphics:
-            self.drawable_manager.create_drawables_from_new_connections()
-        
-        # Draw the rectangle
-        if self.canvas.draw_enabled:
-            self.canvas.draw()
-            
-        return new_rectangle
+        return cast(Rectangle, polygon)
         
     def delete_rectangle(self, name: str) -> bool:
         """
@@ -274,98 +207,22 @@ class RectangleManager:
         Returns:
             bool: True if the rectangle was found and deleted, False otherwise
         """
-        rectangle = self.get_rectangle_by_name(name)
-        if not rectangle:
-            return False
-            
-        # Archive before deletion
-        self.canvas.undo_redo_manager.archive()
-        
-        # Remove from drawables
-        self.drawables.remove(rectangle)
-        
-        # Delete all 4 segments
-        self.segment_manager.delete_segment(rectangle.segment1.point1.x, rectangle.segment1.point1.y, 
-                                          rectangle.segment1.point2.x, rectangle.segment1.point2.y)
-        self.segment_manager.delete_segment(rectangle.segment2.point1.x, rectangle.segment2.point1.y, 
-                                          rectangle.segment2.point2.x, rectangle.segment2.point2.y)
-        self.segment_manager.delete_segment(rectangle.segment3.point1.x, rectangle.segment3.point1.y, 
-                                          rectangle.segment3.point2.x, rectangle.segment3.point2.y)
-        self.segment_manager.delete_segment(rectangle.segment4.point1.x, rectangle.segment4.point1.y, 
-                                          rectangle.segment4.point2.x, rectangle.segment4.point2.y)
-        
-        # Redraw
-        if self.canvas.draw_enabled:
-            self.canvas.draw()
-            
-        return True 
+        return bool(
+            self.drawable_manager.polygon_manager.delete_polygon(
+                polygon_type=PolygonType.RECTANGLE,
+                name=name,
+            )
+        )
 
     def update_rectangle(
         self,
         rectangle_name: str,
         new_color: Optional[str] = None,
     ) -> bool:
-        rectangle = self._get_rectangle_or_raise(rectangle_name)
-        pending_fields = self._collect_rectangle_requested_fields(new_color)
-        self._validate_rectangle_policy(list(pending_fields.keys()))
-        self._validate_color_request(pending_fields, new_color)
-
-        self.canvas.undo_redo_manager.archive()
-        self._apply_rectangle_updates(rectangle, pending_fields, new_color)
-
-        if self.canvas.draw_enabled:
-            self.canvas.draw()
-
-        return True
-
-    def _get_rectangle_or_raise(self, rectangle_name: str) -> Rectangle:
-        rectangle = self.get_rectangle_by_name(rectangle_name)
-        if not rectangle:
-            raise ValueError(f"Rectangle '{rectangle_name}' was not found.")
-        return rectangle
-
-    def _collect_rectangle_requested_fields(
-        self,
-        new_color: Optional[str],
-    ) -> Dict[str, str]:
-        pending_fields: Dict[str, str] = {}
-        if new_color is not None:
-            pending_fields["color"] = str(new_color)
-
-        if not pending_fields:
-            raise ValueError("Provide at least one property to update.")
-
-        return pending_fields
-
-    def _validate_rectangle_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
-        if not self.rectangle_edit_policy:
-            raise ValueError("Edit policy for rectangles is not configured.")
-
-        validated_rules: Dict[str, EditRule] = {}
-        for field in requested_fields:
-            rule = self.rectangle_edit_policy.get_rule(field)
-            if not rule:
-                raise ValueError(f"Editing field '{field}' is not permitted for rectangles.")
-            validated_rules[field] = rule
-
-        return validated_rules
-
-    def _validate_color_request(
-        self,
-        pending_fields: Dict[str, str],
-        new_color: Optional[str],
-    ) -> None:
-        if "color" in pending_fields and (new_color is None or not str(new_color).strip()):
-            raise ValueError("Rectangle color cannot be empty.")
-
-    def _apply_rectangle_updates(
-        self,
-        rectangle: Rectangle,
-        pending_fields: Dict[str, str],
-        new_color: Optional[str],
-    ) -> None:
-        if "color" in pending_fields and new_color is not None:
-            if hasattr(rectangle, "update_color") and callable(getattr(rectangle, "update_color")):
-                rectangle.update_color(str(new_color))
-            else:
-                rectangle.color = str(new_color)
+        return bool(
+            self.drawable_manager.polygon_manager.update_polygon(
+                rectangle_name,
+                polygon_type=PolygonType.RECTANGLE,
+                new_color=new_color,
+            )
+        )

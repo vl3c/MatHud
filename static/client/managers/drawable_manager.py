@@ -42,7 +42,7 @@ Integration Points:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional, cast
+from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union, cast
 
 from constants import (
     default_area_fill_color,
@@ -58,6 +58,8 @@ from managers.function_manager import FunctionManager
 from managers.circle_manager import CircleManager
 from managers.ellipse_manager import EllipseManager
 from managers.rectangle_manager import RectangleManager
+from managers.polygon_manager import PolygonManager
+from managers.polygon_type import PolygonType
 from managers.colored_area_manager import ColoredAreaManager
 from managers.drawable_manager_proxy import DrawableManagerProxy
 from name_generator.drawable import DrawableNameGenerator
@@ -129,6 +131,16 @@ class DrawableManager:
             canvas, self.drawables, self.name_generator, self.dependency_manager, 
             self.point_manager, self.proxy
         )
+
+        self.polygon_manager: PolygonManager = PolygonManager(
+            canvas,
+            self.drawables,
+            self.name_generator,
+            self.dependency_manager,
+            self.point_manager,
+            self.segment_manager,
+            self.proxy,
+        )
         
         self.triangle_manager: TriangleManager = TriangleManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager, 
@@ -190,6 +202,81 @@ class DrawableManager:
         return cast(List["Drawable"], self.drawables.get_renderables_with_layering())
     
     # ------------------- Point Methods -------------------
+
+    # ------------------- Polygon Methods -------------------
+
+    def create_polygon(
+        self,
+        vertices: Sequence[Any],
+        *,
+        polygon_type: Optional[Union[str, PolygonType]] = None,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> "Drawable":
+        """Create a polygon specified by ordered vertices."""
+        return self.polygon_manager.create_polygon(
+            vertices,
+            polygon_type=polygon_type,
+            name=name,
+            color=color,
+            extra_graphics=extra_graphics,
+        )
+
+    def update_polygon(
+        self,
+        polygon_name: str,
+        *,
+        polygon_type: Optional[Union[str, PolygonType]] = None,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update editable properties of an existing polygon."""
+        return bool(
+            self.polygon_manager.update_polygon(
+                polygon_name,
+                polygon_type=polygon_type,
+                new_color=new_color,
+            )
+        )
+
+    def delete_polygon(
+        self,
+        *,
+        polygon_type: Optional[Union[str, PolygonType]] = None,
+        name: Optional[str] = None,
+        vertices: Optional[Sequence[Any]] = None,
+    ) -> bool:
+        """Delete a polygon either by name or by its vertices."""
+        return bool(
+            self.polygon_manager.delete_polygon(
+                polygon_type=polygon_type,
+                name=name,
+                vertices=vertices,
+            )
+        )
+
+    def get_polygon_by_name(
+        self,
+        polygon_name: str,
+        polygon_type: Optional[Union[str, PolygonType]] = None,
+    ) -> Optional["Drawable"]:
+        """Retrieve a polygon by name."""
+        return cast(
+            Optional["Drawable"],
+            self.polygon_manager.get_polygon_by_name(polygon_name, polygon_type),
+        )
+
+    def get_polygon_by_vertices(
+        self,
+        vertices: Sequence[Any],
+        polygon_type: Optional[Union[str, PolygonType]] = None,
+    ) -> Optional["Drawable"]:
+        """Retrieve a polygon by its vertex coordinates."""
+        normalized_vertices = list(vertices)
+        return cast(
+            Optional["Drawable"],
+            self.polygon_manager.get_polygon_by_vertices(normalized_vertices, polygon_type),
+        )
     
     def get_point(self, x: float, y: float) -> Optional["Point"]:
         """Get a point at the specified coordinates"""

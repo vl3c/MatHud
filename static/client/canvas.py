@@ -33,7 +33,7 @@ Dependencies:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast
 
 from constants import (
     default_area_fill_color,
@@ -51,6 +51,7 @@ from managers.undo_redo_manager import UndoRedoManager
 from managers.drawable_manager import DrawableManager
 from managers.drawable_dependency_manager import DrawableDependencyManager
 from managers.transformations_manager import TransformationsManager
+from managers.polygon_type import PolygonType
 from constants import DEFAULT_RENDERER_MODE
 from rendering.factory import create_renderer
 from rendering.interfaces import RendererProtocol
@@ -415,6 +416,78 @@ class Canvas:
     def get_drawables_by_class_name(self, class_name: str) -> List["Drawable"]:
         """Get drawables of a specific class name"""
         return cast(List["Drawable"], self.drawable_manager.drawables.get_by_class_name(class_name))
+
+    def create_polygon(
+        self,
+        vertices: Sequence[Any],
+        *,
+        polygon_type: Optional[Union[str, PolygonType]] = None,
+        name: str = "",
+        color: Optional[str] = None,
+        extra_graphics: bool = True,
+    ) -> "Drawable":
+        """Create a polygon with ordered vertices."""
+        return self.drawable_manager.create_polygon(
+            vertices,
+            polygon_type=polygon_type,
+            name=name,
+            color=color,
+            extra_graphics=extra_graphics,
+        )
+
+    def update_polygon(
+        self,
+        polygon_name: str,
+        *,
+        polygon_type: Optional[Union[str, PolygonType]] = None,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update editable properties of an existing polygon."""
+        return bool(
+            self.drawable_manager.update_polygon(
+                polygon_name,
+                polygon_type=polygon_type,
+                new_color=new_color,
+            )
+        )
+
+    def delete_polygon(
+        self,
+        *,
+        polygon_type: Optional[Union[str, PolygonType]] = None,
+        name: Optional[str] = None,
+        vertices: Optional[Sequence[Any]] = None,
+    ) -> bool:
+        """Delete a polygon by name or by vertex coordinates."""
+        return bool(
+            self.drawable_manager.delete_polygon(
+                polygon_type=polygon_type,
+                name=name,
+                vertices=vertices,
+            )
+        )
+
+    def get_polygon_by_name(
+        self,
+        polygon_name: str,
+        polygon_type: Optional[Union[str, PolygonType]] = None,
+    ) -> Optional["Drawable"]:
+        """Retrieve a polygon by name."""
+        return cast(
+            Optional["Drawable"],
+            self.drawable_manager.get_polygon_by_name(polygon_name, polygon_type),
+        )
+
+    def get_polygon_by_vertices(
+        self,
+        vertices: Sequence[Any],
+        polygon_type: Optional[Union[str, PolygonType]] = None,
+    ) -> Optional["Drawable"]:
+        """Retrieve a polygon by its vertex coordinates."""
+        return cast(
+            Optional["Drawable"],
+            self.drawable_manager.get_polygon_by_vertices(vertices, polygon_type),
+        )
 
     def get_cartesian2axis_state(self) -> Dict[str, Any]:
         return cast(Dict[str, Any], self.cartesian2axis.get_state())
@@ -1260,4 +1333,3 @@ class Canvas:
         if "webgl" in module_lower:
             return "webgl"
         return "unknown"
-

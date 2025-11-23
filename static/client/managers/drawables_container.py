@@ -40,7 +40,7 @@ Access Patterns:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
@@ -281,6 +281,65 @@ class DrawablesContainer:
         for rectangle in self.Rectangles:
             if getattr(rectangle, "name", "") == name:
                 return rectangle
+        return None
+    
+    @property
+    def Quadrilaterals(self) -> List["Drawable"]:
+        """Get all Quadrilateral objects."""
+        return self.get_by_class_name('Quadrilateral')
+
+    def get_quadrilateral_by_name(self, name: str) -> Optional["Drawable"]:
+        """Retrieve a quadrilateral by name."""
+        if not name:
+            return None
+        for quadrilateral in self.Quadrilaterals:
+            if getattr(quadrilateral, "name", "") == name:
+                return quadrilateral
+        return None
+
+    @property
+    def Pentagons(self) -> List["Drawable"]:
+        """Get all Pentagon objects."""
+        return self.get_by_class_name('Pentagon')
+
+    def get_pentagon_by_name(self, name: str) -> Optional["Drawable"]:
+        """Retrieve a pentagon by name."""
+        if not name:
+            return None
+        for pentagon in self.Pentagons:
+            if getattr(pentagon, "name", "") == name:
+                return pentagon
+        return None
+
+    @property
+    def Hexagons(self) -> List["Drawable"]:
+        """Get all Hexagon objects."""
+        return self.get_by_class_name('Hexagon')
+
+    def get_hexagon_by_name(self, name: str) -> Optional["Drawable"]:
+        """Retrieve a hexagon by name."""
+        if not name:
+            return None
+        for hexagon in self.Hexagons:
+            if getattr(hexagon, "name", "") == name:
+                return hexagon
+        return None
+
+    def iter_polygons(self, allowed_classes: Optional[Iterable[str]] = None) -> Iterable["Drawable"]:
+        """Iterate over stored polygon drawables, optionally filtered by class name."""
+        polygon_classes = ("Triangle", "Quadrilateral", "Rectangle", "Pentagon", "Hexagon")
+        target_classes = tuple(allowed_classes) if allowed_classes else polygon_classes
+        for class_name in target_classes:
+            for drawable in self.get_by_class_name(class_name):
+                yield drawable
+
+    def get_polygon_by_name(self, name: str, allowed_classes: Optional[Iterable[str]] = None) -> Optional["Drawable"]:
+        """Retrieve the first polygon matching the provided name."""
+        if not name:
+            return None
+        for polygon in self.iter_polygons(allowed_classes):
+            if getattr(polygon, "name", "") == name:
+                return polygon
         return None
         
     @property

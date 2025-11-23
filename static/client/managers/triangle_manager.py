@@ -42,12 +42,12 @@ State Management:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, List, Optional, cast
 
 from drawables.triangle import Triangle
+from managers.polygon_type import PolygonType
 from utils.math_utils import MathUtils
 from utils.geometry_utils import GeometryUtils
-from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -97,7 +97,6 @@ class TriangleManager:
         self.point_manager: "PointManager" = point_manager
         self.segment_manager: "SegmentManager" = segment_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
-        self.triangle_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Triangle")
         
     def get_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> Optional[Triangle]:
         """
@@ -117,19 +116,20 @@ class TriangleManager:
         Returns:
             Triangle: The matching triangle object, or None if no match is found
         """
-        triangles = self.drawables.Triangles
-        for triangle in triangles:
-            if MathUtils.triangle_matches_coordinates(triangle, x1, y1, x2, y2, x3, y3):
-                return triangle
-        return None
+        polygon = self.drawable_manager.polygon_manager.get_polygon_by_vertices(
+            [(x1, y1), (x2, y2), (x3, y3)],
+            polygon_type=PolygonType.TRIANGLE,
+        )
+        return cast(Optional[Triangle], polygon)
 
     def get_triangle_by_name(self, name: str) -> Optional[Triangle]:
         if not name:
             return None
-        for triangle in self.drawables.Triangles:
-            if triangle.name == name:
-                return triangle
-        return None
+        polygon = self.drawable_manager.polygon_manager.get_polygon_by_name(
+            name,
+            polygon_type=PolygonType.TRIANGLE,
+        )
+        return cast(Optional[Triangle], polygon)
         
     def create_triangle(
         self,
@@ -164,77 +164,14 @@ class TriangleManager:
         Returns:
             Triangle: The newly created or existing triangle object
         """
-        # Archive before creation
-        self.canvas.undo_redo_manager.archive()
-        
-        # Check if the triangle already exists
-        existing_triangle = self.get_triangle(x1, y1, x2, y2, x3, y3)
-        if existing_triangle:
-            return existing_triangle
-            
-        # Extract point names from triangle name
-        point_names: List[str] = ["", "", ""]
-        if name:
-            point_names = self.name_generator.split_point_names(name, 3)
-            
-        # Create points first with the correct names
-        p1 = self.point_manager.create_point(x1, y1, name=point_names[0], extra_graphics=False)
-        p2 = self.point_manager.create_point(x2, y2, name=point_names[1], extra_graphics=False)
-        p3 = self.point_manager.create_point(x3, y3, name=point_names[2], extra_graphics=False)
-            
-        # Create segments using the points
-        segment_color_kwargs: Dict[str, Any] = {}
-        color_value = str(color).strip() if color is not None else ""
-        if color_value:
-            segment_color_kwargs["color"] = color_value
-        s1 = self.segment_manager.create_segment(
-            p1.x,
-            p1.y,
-            p2.x,
-            p2.y,
-            extra_graphics=False,
-            **segment_color_kwargs,
+        polygon = self.drawable_manager.polygon_manager.create_polygon(
+            [(x1, y1), (x2, y2), (x3, y3)],
+            polygon_type=PolygonType.TRIANGLE,
+            name=name,
+            color=color,
+            extra_graphics=extra_graphics,
         )
-        s2 = self.segment_manager.create_segment(
-            p2.x,
-            p2.y,
-            p3.x,
-            p3.y,
-            extra_graphics=False,
-            **segment_color_kwargs,
-        )
-        s3 = self.segment_manager.create_segment(
-            p3.x,
-            p3.y,
-            p1.x,
-            p1.y,
-            extra_graphics=False,
-            **segment_color_kwargs,
-        )
-            
-        # Create the triangle
-        if color_value:
-            new_triangle = Triangle(s1, s2, s3, color=color_value)
-            # Ensure segments reflect the requested color even if they pre-existed
-            new_triangle.update_color(color_value)
-        else:
-            new_triangle = Triangle(s1, s2, s3)
-        
-        # Add to drawables
-        self.drawables.add(new_triangle)
-        
-        # Register dependencies
-        self.dependency_manager.analyze_drawable_for_dependencies(new_triangle)
-        
-        # Handle extra graphics if requested
-        if extra_graphics:
-            self.drawable_manager.create_drawables_from_new_connections()
-        
-        # Draw the triangle
-        if self.canvas.draw_enabled:
-            self.canvas.draw()
-            
-        return new_triangle
+        return cast(Triangle, polygon)
         
     def delete_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> bool:
         """
@@ -255,96 +192,25 @@ class TriangleManager:
         Returns:
             bool: True if the triangle was found and deleted, False otherwise
         """
-        triangle = self.get_triangle(x1, y1, x2, y2, x3, y3)
-        if not triangle:
-            return False
-            
-        # Archive before deletion
-        self.canvas.undo_redo_manager.archive()
-        
-        # Remove from drawables
-        self.drawables.remove(triangle)
-        
-        # Delete the segments using the vertex coordinates
-        self.segment_manager.delete_segment(x1, y1, x2, y2)
-        self.segment_manager.delete_segment(x2, y2, x3, y3)
-        self.segment_manager.delete_segment(x3, y3, x1, y1)
-        
-        # Redraw
-        if self.canvas.draw_enabled:
-            self.canvas.draw()
-            
-        return True
+        return bool(
+            self.drawable_manager.polygon_manager.delete_polygon(
+                polygon_type=PolygonType.TRIANGLE,
+                vertices=[(x1, y1), (x2, y2), (x3, y3)],
+            )
+        )
 
     def update_triangle(
         self,
         triangle_name: str,
         new_color: Optional[str] = None,
     ) -> bool:
-        triangle = self._get_triangle_or_raise(triangle_name)
-        pending_fields = self._collect_triangle_requested_fields(new_color)
-        self._validate_triangle_policy(list(pending_fields.keys()))
-        self._validate_color_request(pending_fields, new_color)
-
-        self.canvas.undo_redo_manager.archive()
-        self._apply_triangle_updates(triangle, pending_fields, new_color)
-
-        if self.canvas.draw_enabled:
-            self.canvas.draw()
-
-        return True
-
-    def _get_triangle_or_raise(self, triangle_name: str) -> Triangle:
-        triangle = self.get_triangle_by_name(triangle_name)
-        if not triangle:
-            raise ValueError(f"Triangle '{triangle_name}' was not found.")
-        return triangle
-
-    def _collect_triangle_requested_fields(
-        self,
-        new_color: Optional[str],
-    ) -> Dict[str, str]:
-        pending_fields: Dict[str, str] = {}
-        if new_color is not None:
-            pending_fields["color"] = new_color
-
-        if not pending_fields:
-            raise ValueError("Provide at least one property to update.")
-
-        return pending_fields
-
-    def _validate_triangle_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
-        if not self.triangle_edit_policy:
-            raise ValueError("Edit policy for triangles is not configured.")
-
-        validated_rules: Dict[str, EditRule] = {}
-        for field in requested_fields:
-            rule = self.triangle_edit_policy.get_rule(field)
-            if not rule:
-                raise ValueError(f"Editing field '{field}' is not permitted for triangles.")
-            validated_rules[field] = rule
-
-        return validated_rules
-
-    def _validate_color_request(
-        self,
-        pending_fields: Dict[str, str],
-        new_color: Optional[str],
-    ) -> None:
-        if "color" in pending_fields and (new_color is None or not str(new_color).strip()):
-            raise ValueError("Triangle color cannot be empty.")
-
-    def _apply_triangle_updates(
-        self,
-        triangle: Triangle,
-        pending_fields: Dict[str, str],
-        new_color: Optional[str],
-    ) -> None:
-        if "color" in pending_fields and new_color is not None:
-            if hasattr(triangle, "update_color") and callable(getattr(triangle, "update_color")):
-                triangle.update_color(str(new_color))
-            else:
-                triangle.color = str(new_color)
+        return bool(
+            self.drawable_manager.polygon_manager.update_polygon(
+                triangle_name,
+                polygon_type=PolygonType.TRIANGLE,
+                new_color=new_color,
+            )
+        )
 
     def create_new_triangles_from_connected_segments(self) -> None:
         """

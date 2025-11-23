@@ -420,6 +420,123 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "create_polygon",
+                    "description": "Creates a polygon from ordered vertex coordinates. Optionally specify the polygon type (triangle, quadrilateral, pentagon, or hexagon).",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "vertices": {
+                                "type": "array",
+                                "minItems": 3,
+                                "description": "Ordered list of polygon vertex coordinates.",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x": {
+                                            "type": "number",
+                                            "description": "X coordinate of the vertex."
+                                        },
+                                        "y": {
+                                            "type": "number",
+                                            "description": "Y coordinate of the vertex."
+                                        }
+                                    },
+                                    "required": ["x", "y"],
+                                    "additionalProperties": False
+                                }
+                            },
+                            "polygon_type": {
+                                "type": ["string", "null"],
+                                "description": "Optional polygon classification (triangle, quadrilateral, rectangle, square, pentagon, or hexagon)."
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional stroke color for the polygon edges."
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the polygon. Letters are reused to label vertices."
+                            }
+                        },
+                        "required": ["vertices", "polygon_type", "color", "name"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "delete_polygon",
+                    "description": "Deletes a polygon by name or by matching a set of vertex coordinates. Specify polygon_type to limit the search.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "polygon_type": {
+                                "type": ["string", "null"],
+                                "description": "Optional polygon classification (triangle, quadrilateral, rectangle, square, pentagon, or hexagon)."
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Existing name of the polygon to delete."
+                            },
+                            "vertices": {
+                                "type": "array",
+                                "minItems": 3,
+                                "description": "Ordered list of polygon vertex coordinates used for lookup.",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x": {
+                                            "type": "number",
+                                            "description": "X coordinate of the vertex."
+                                        },
+                                        "y": {
+                                            "type": "number",
+                                            "description": "Y coordinate of the vertex."
+                                        }
+                                    },
+                                    "required": ["x", "y"],
+                                    "additionalProperties": False
+                                }
+                            }
+                        },
+                        "required": ["polygon_type", "name", "vertices"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "update_polygon",
+                    "description": "Updates editable properties of an existing polygon (currently just color). Provide null for fields that should remain unchanged.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "polygon_name": {
+                                "type": "string",
+                                "description": "Existing name of the polygon to edit."
+                            },
+                            "polygon_type": {
+                                "type": ["string", "null"],
+                                "description": "Optional polygon classification to disambiguate the lookup."
+                            },
+                            "new_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional new color for the polygon edges."
+                            }
+                        },
+                        "required": ["polygon_name", "polygon_type", "new_color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "create_triangle",
                     "description": "Creates and draws a triangle at the given coordinates for three points. If a name is provided, the first three available letters will be used to name the vertices.",
                     "strict": True,

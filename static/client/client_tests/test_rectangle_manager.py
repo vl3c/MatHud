@@ -6,6 +6,7 @@ from drawables.point import Point
 from drawables.segment import Segment
 from drawables.rectangle import Rectangle
 from managers.drawables_container import DrawablesContainer
+from managers.polygon_manager import PolygonManager
 from managers.rectangle_manager import RectangleManager
 from .simple_mock import SimpleMock
 
@@ -24,6 +25,7 @@ class TestRectangleManager(unittest.TestCase):
 
         self.drawables = DrawablesContainer()
         self.name_generator = SimpleMock(name="NameGeneratorMock")
+        self.name_generator.split_point_names = SimpleMock(side_effect=lambda _name, count: [""] * count)
         self.dependency_manager = SimpleMock(
             name="DependencyManagerMock",
             analyze_drawable_for_dependencies=SimpleMock(),
@@ -34,6 +36,16 @@ class TestRectangleManager(unittest.TestCase):
             name="DrawableManagerProxyMock",
             create_drawables_from_new_connections=SimpleMock(),
         )
+        self.polygon_manager = PolygonManager(
+            canvas=self.canvas,
+            drawables_container=self.drawables,
+            name_generator=self.name_generator,
+            dependency_manager=self.dependency_manager,
+            point_manager=self.point_manager,
+            segment_manager=self.segment_manager,
+            drawable_manager_proxy=self.drawable_manager_proxy,
+        )
+        self.drawable_manager_proxy.polygon_manager = self.polygon_manager
 
         self.rectangle_manager = RectangleManager(
             canvas=self.canvas,

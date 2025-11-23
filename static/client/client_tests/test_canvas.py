@@ -11,6 +11,7 @@ from expression_validator import ExpressionValidator
 from utils.math_utils import MathUtils
 from types import SimpleNamespace
 from geometry import Position
+from managers.polygon_type import PolygonType
 from .simple_mock import SimpleMock
 from utils.geometry_utils import GeometryUtils
 
@@ -746,6 +747,140 @@ class TestCanvas(unittest.TestCase):
 
         self.assertEqual(len(triangle_calls), 0, "Triangles should not be rendered directly.")
         self.assertEqual(len(segment_calls), 3, "Triangle rendering should rely on its three segments.")
+
+    def test_create_polygon_triangle_equivalence(self) -> None:
+        vertices = [
+            {"x": 0.0, "y": 0.0},
+            {"x": 10.0, "y": 0.0},
+            {"x": 0.0, "y": 10.0},
+        ]
+        polygon = self.canvas.create_polygon(
+            vertices,
+            polygon_type=PolygonType.TRIANGLE,
+            name="Triangle",
+            color="#ff0001",
+        )
+        self.assertEqual(polygon.get_class_name(), "Triangle")
+        self.assertFalse(polygon.is_renderable)
+        self.assertEqual(polygon.segment1.color, "#ff0001")
+        self.assertIs(
+            polygon,
+            self.canvas.get_triangle(0.0, 0.0, 10.0, 0.0, 0.0, 10.0),
+        )
+
+    def test_create_polygon_rectangle_naming(self) -> None:
+        polygon = self.canvas.create_polygon(
+            [
+                {"x": 0.0, "y": 0.0},
+                {"x": 20.0, "y": 0.0},
+                {"x": 20.0, "y": 10.0},
+                {"x": 0.0, "y": 10.0},
+            ],
+            polygon_type=PolygonType.RECTANGLE,
+            name="Rect",
+        )
+        point_names = {
+            polygon.segment1.point1.name,
+            polygon.segment1.point2.name,
+            polygon.segment2.point2.name,
+            polygon.segment3.point2.name,
+        }
+        self.assertEqual(point_names, {"R", "E", "C", "T"})
+        self.assertFalse(polygon.is_renderable)
+
+    def test_create_polygon_infer_type(self) -> None:
+        polygon = self.canvas.create_polygon(
+            [
+                (0.0, 0.0),
+                (15.0, 0.0),
+                (15.0, 12.0),
+                (0.0, 12.0),
+            ],
+            name="ABCD",
+        )
+        self.assertEqual(polygon.get_class_name(), "Quadrilateral")
+
+    def test_update_polygon_color(self) -> None:
+        polygon = self.canvas.create_polygon(
+            [
+                {"x": 0.0, "y": 0.0},
+                {"x": 10.0, "y": 0.0},
+                {"x": 10.0, "y": 10.0},
+                {"x": 0.0, "y": 10.0},
+            ],
+            polygon_type=PolygonType.RECTANGLE,
+            name="Rect",
+            color="#123123",
+        )
+        self.canvas.update_polygon(polygon.name, polygon_type=PolygonType.RECTANGLE, new_color="#ff00aa")
+        self.assertEqual(polygon.color, "#ff00aa")
+        self.assertTrue(all(edge.color == "#ff00aa" for edge in [polygon.segment1, polygon.segment2, polygon.segment3, polygon.segment4]))
+
+    def test_delete_polygon_by_vertices(self) -> None:
+        vertices = [
+            {"x": 1.0, "y": 1.0},
+            {"x": 5.0, "y": 1.0},
+            {"x": 3.0, "y": 4.0},
+        ]
+        polygon = self.canvas.create_polygon(vertices, polygon_type=PolygonType.TRIANGLE, name="XYZ")
+        deleted = self.canvas.delete_polygon(polygon_type=PolygonType.TRIANGLE, vertices=vertices)
+        self.assertTrue(deleted)
+        self.assertIsNone(self.canvas.get_triangle(1.0, 1.0, 5.0, 1.0, 3.0, 4.0))
+
+    def test_delete_polygon_by_name(self) -> None:
+        polygon = self.canvas.create_polygon(
+            [
+                {"x": -5.0, "y": -5.0},
+                {"x": 5.0, "y": -5.0},
+                {"x": 5.0, "y": 5.0},
+                {"x": -5.0, "y": 5.0},
+            ],
+            polygon_type=PolygonType.RECTANGLE,
+            name="NAME",
+        )
+        deleted = self.canvas.delete_polygon(polygon_type=PolygonType.RECTANGLE, name=polygon.name)
+        self.assertTrue(deleted)
+        self.assertIsNone(self.canvas.get_rectangle_by_name(polygon.name))
+
+    def test_create_polygon_square_validation(self) -> None:
+        with self.assertRaises(ValueError):
+            self.canvas.create_polygon(
+                [
+                    {"x": 0.0, "y": 0.0},
+                    {"x": 3.0, "y": 0.0},
+                    {"x": 3.0, "y": 1.0},
+                    {"x": 0.0, "y": 1.0},
+                ],
+                polygon_type=PolygonType.SQUARE,
+                name="SQRE",
+            )
+
+    def test_create_polygon_pentagon_flags(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (3.0, 1.5),
+            (1.0, 3.0),
+            (-1.0, 1.5),
+        ]
+        polygon = self.canvas.create_polygon(vertices, polygon_type=PolygonType.PENTAGON)
+        flags = polygon.get_type_flags()
+        self.assertIn("regular", flags)
+        self.assertIn("irregular", flags)
+        self.assertFalse(polygon.is_renderable)
+
+    def test_create_polygon_hexagon_renderable_state(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (3.0, 1.0),
+            (2.0, 2.0),
+            (0.0, 2.0),
+            (-1.0, 1.0),
+        ]
+        polygon = self.canvas.create_polygon(vertices, polygon_type=PolygonType.HEXAGON)
+        self.assertEqual(polygon.get_class_name(), "Hexagon")
+        self.assertFalse(polygon.is_renderable)
 
     # Rectangle tests
     def test_create_rectangle_new(self) -> None:

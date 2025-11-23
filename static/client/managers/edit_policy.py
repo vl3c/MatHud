@@ -153,6 +153,39 @@ RECTANGLE_EDIT_POLICY = DrawableEditPolicy(
     },
 )
 
+QUADRILATERAL_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="Quadrilateral",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Adjust the outline color of the quadrilateral.",
+        ),
+    },
+)
+
+PENTAGON_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="Pentagon",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Adjust the outline color of the pentagon.",
+        ),
+    },
+)
+
+HEXAGON_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="Hexagon",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Adjust the outline color of the hexagon.",
+        ),
+    },
+)
+
 CIRCLE_EDIT_POLICY = DrawableEditPolicy(
     drawable_type="Circle",
     rules={
@@ -310,6 +343,9 @@ DRAWABLE_EDIT_POLICIES: Dict[str, DrawableEditPolicy] = {
     VECTOR_EDIT_POLICY.drawable_type: VECTOR_EDIT_POLICY,
     TRIANGLE_EDIT_POLICY.drawable_type: TRIANGLE_EDIT_POLICY,
     RECTANGLE_EDIT_POLICY.drawable_type: RECTANGLE_EDIT_POLICY,
+    QUADRILATERAL_EDIT_POLICY.drawable_type: QUADRILATERAL_EDIT_POLICY,
+    PENTAGON_EDIT_POLICY.drawable_type: PENTAGON_EDIT_POLICY,
+    HEXAGON_EDIT_POLICY.drawable_type: HEXAGON_EDIT_POLICY,
     CIRCLE_EDIT_POLICY.drawable_type: CIRCLE_EDIT_POLICY,
     CIRCLE_ARC_EDIT_POLICY.drawable_type: CIRCLE_ARC_EDIT_POLICY,
     ELLIPSE_EDIT_POLICY.drawable_type: ELLIPSE_EDIT_POLICY,
