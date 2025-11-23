@@ -38,6 +38,7 @@ from .test_circle_manager import TestCircleManager
 from .test_ellipse_manager import TestEllipseManager
 from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
+from .test_polygon_canonicalizer import TestPolygonCanonicalizer
 from .test_triangle import TestTriangle
 from .test_quadrilateral import TestQuadrilateral
 from .test_pentagon import TestPentagon
@@ -122,6 +123,7 @@ class Tests:
             TestCartesianEdgeCases,
             TestMathFunctions,
             TestGeometryUtils,
+            TestPolygonCanonicalizer,
             TestDrawableNameGenerator,
             TestPoint,
             TestSegment,
