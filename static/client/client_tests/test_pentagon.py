@@ -32,6 +32,7 @@ class TestPentagon(unittest.TestCase):
         flags = pentagon.get_type_flags()
         self.assertTrue(flags["regular"])
         self.assertFalse(flags["irregular"])
+        self.assertFalse(pentagon.is_renderable)
 
     def test_irregular_pentagon_flags(self) -> None:
         points = _make_regular_pentagon_points()
@@ -40,6 +41,7 @@ class TestPentagon(unittest.TestCase):
         flags = pentagon.get_type_flags()
         self.assertFalse(flags["regular"])
         self.assertTrue(flags["irregular"])
+        self.assertFalse(pentagon.is_renderable)
 
     def test_invalid_segment_count(self) -> None:
         points = _make_regular_pentagon_points()

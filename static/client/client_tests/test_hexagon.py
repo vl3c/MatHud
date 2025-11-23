@@ -32,6 +32,7 @@ class TestHexagon(unittest.TestCase):
         flags = hexagon.get_type_flags()
         self.assertTrue(flags["regular"])
         self.assertFalse(flags["irregular"])
+        self.assertFalse(hexagon.is_renderable)
 
     def test_irregular_hexagon_flags(self) -> None:
         points = _make_regular_hexagon_points()
@@ -40,6 +41,7 @@ class TestHexagon(unittest.TestCase):
         flags = hexagon.get_type_flags()
         self.assertFalse(flags["regular"])
         self.assertTrue(flags["irregular"])
+        self.assertFalse(hexagon.is_renderable)
 
     def test_invalid_segment_count(self) -> None:
         points = _make_regular_hexagon_points()

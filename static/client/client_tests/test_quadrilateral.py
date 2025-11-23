@@ -33,6 +33,7 @@ class TestQuadrilateral(unittest.TestCase):
         self.assertTrue(flags["rectangle"])
         self.assertTrue(flags["rhombus"])
         self.assertFalse(flags["irregular"])
+        self.assertFalse(quad.is_renderable)
 
     def test_rectangle_flags(self) -> None:
         points = [
@@ -47,6 +48,7 @@ class TestQuadrilateral(unittest.TestCase):
         self.assertTrue(flags["rectangle"])
         self.assertFalse(flags["rhombus"])
         self.assertFalse(flags["irregular"])
+        self.assertFalse(quad.is_renderable)
 
     def test_irregular_flags(self) -> None:
         points = [
@@ -61,6 +63,7 @@ class TestQuadrilateral(unittest.TestCase):
         self.assertFalse(flags["rectangle"])
         self.assertFalse(flags["rhombus"])
         self.assertTrue(flags["irregular"])
+        self.assertFalse(quad.is_renderable)
 
     def test_invalid_segments_raise(self) -> None:
         p1 = _make_point("A", 0.0, 0.0)

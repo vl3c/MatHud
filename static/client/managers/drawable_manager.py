@@ -185,6 +185,10 @@ class DrawableManager:
         """Get all drawables as a flat list, with colored areas first (behind other elements)"""
         return cast(List["Drawable"], self.drawables.get_all_with_layering())
     
+    def get_renderable_drawables(self) -> List["Drawable"]:
+        """Get only the drawables that should be rendered, preserving layering."""
+        return cast(List["Drawable"], self.drawables.get_renderables_with_layering())
+    
     # ------------------- Point Methods -------------------
     
     def get_point(self, x: float, y: float) -> Optional["Point"]:

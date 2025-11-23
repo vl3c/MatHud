@@ -59,6 +59,7 @@ class TestTriangleManager(unittest.TestCase):
 
     def test_update_triangle_changes_color_and_draws(self) -> None:
         triangle = self._add_triangle()
+        self.assertFalse(triangle.is_renderable)
 
         result = self.triangle_manager.update_triangle("ABC", new_color="#ff00ff")
 
@@ -83,7 +84,6 @@ class TestTriangleManager(unittest.TestCase):
         self._add_triangle()
         with self.assertRaises(ValueError):
             self.triangle_manager.update_triangle("ABC")
-
 
 if __name__ == "__main__":
     unittest.main()

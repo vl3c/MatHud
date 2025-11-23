@@ -260,7 +260,7 @@ class Canvas:
                     pass
 
             # Draw all drawables - coordinate transformations handled by CoordinateMapper
-            for drawable in self.drawable_manager.get_drawables():
+            for drawable in self.drawable_manager.get_renderable_drawables():
                 if apply_zoom and hasattr(drawable, '_invalidate_cache_on_zoom'):
                     drawable._invalidate_cache_on_zoom()
                 if renderer is not None:

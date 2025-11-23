@@ -61,7 +61,7 @@ class Quadrilateral(Polygon):
         self._points: List[Point] = list(ordered_points)
         self._set_type_flags(GeometryUtils.quadrilateral_type_flags(self._points))
 
-        super().__init__(name=name, color=color)
+        super().__init__(name=name, color=color, is_renderable=False)
 
     def _align_points_with_segments(
         self,

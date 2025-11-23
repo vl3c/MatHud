@@ -64,6 +64,9 @@ class TestRectangle(unittest.TestCase):
         self.assertEqual(self.rectangle.segment4, self.segment4)
         self.assertEqual(self.rectangle.color, "orange")
 
+    def test_rectangle_is_not_renderable_by_default(self) -> None:
+        self.assertFalse(self.rectangle.is_renderable)
+
     def test_get_class_name(self) -> None:
         self.assertEqual(self.rectangle.get_class_name(), 'Rectangle')
 

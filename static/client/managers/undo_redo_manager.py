@@ -107,6 +107,7 @@ class UndoRedoManager:
         
         # Restore only the drawables from the last state
         self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(last_state['drawables'])
+        self.canvas.drawable_manager.drawables.rebuild_renderables()
         
         # Ensure all objects are properly initialized
         self._fix_drawable_canvas_references()
@@ -140,6 +141,7 @@ class UndoRedoManager:
         
         # Restore only the drawables from the next state
         self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(next_state['drawables'])
+        self.canvas.drawable_manager.drawables.rebuild_renderables()
         
         # Ensure all objects are properly initialized
         self._fix_drawable_canvas_references()

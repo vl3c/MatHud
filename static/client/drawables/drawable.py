@@ -37,15 +37,17 @@ class Drawable:
         name (str): Identifier for the object
         color (str): Color metadata (used by renderers)
     """
-    def __init__(self, name: str = "", color: str = default_color) -> None:
+    def __init__(self, name: str = "", color: str = default_color, *, is_renderable: bool = True) -> None:
         """Initialize a drawable object with basic properties.
         
         Args:
             name (str): Identifier for the object
             color (str): Color metadata for renderers
+            is_renderable (bool): Indicates if the object should be rendered directly
         """
         self._name: str = name
         self._color: str = color
+        self._is_renderable: bool = bool(is_renderable)
     
     @property
     def name(self) -> str:
@@ -62,6 +64,14 @@ class Drawable:
     @color.setter
     def color(self, value: str) -> None:
         self._color = value
+
+    @property
+    def is_renderable(self) -> bool:
+        return self._is_renderable
+
+    @is_renderable.setter
+    def is_renderable(self, value: bool) -> None:
+        self._is_renderable = bool(value)
 
     def get_class_name(self) -> str:
         raise NotImplementedError("Subclasses must implement class_name method")

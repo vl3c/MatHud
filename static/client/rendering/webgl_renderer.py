@@ -28,6 +28,13 @@ class WebGLRenderer(RendererProtocol):
         self.gl.clear(self.gl.COLOR_BUFFER_BIT)
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
+        renderable_attr = getattr(drawable, "is_renderable", True)
+        try:
+            if not bool(renderable_attr):
+                return True
+        except Exception:
+            return True
+        # Handlers perform the actual drawing; this method only dispatches.
         handler = self._handlers_by_type.get(type(drawable))
         if handler is None:
             return False
@@ -121,6 +128,12 @@ class WebGLRenderer(RendererProtocol):
         self._render_drawable(label, coordinate_mapper)
 
     def _render_drawable(self, drawable: Any, coordinate_mapper: Any) -> None:
+        renderable_attr = getattr(drawable, "is_renderable", True)
+        try:
+            if not bool(renderable_attr):
+                return
+        except Exception:
+            return
         plan = self._resolve_drawable_plan(drawable, coordinate_mapper)
         if plan is None:
             return

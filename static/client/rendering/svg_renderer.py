@@ -238,6 +238,13 @@ class SvgRenderer(RendererProtocol):
         self._telemetry.end_frame()
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
+        renderable_attr = getattr(drawable, "is_renderable", True)
+        try:
+            if not bool(renderable_attr):
+                return True
+        except Exception:
+            return True
+        # Handlers perform the actual drawing; this method only dispatches.
         handler: Optional[Callable[[Any, Any], None]] = self._handlers_by_type.get(type(drawable))
         if handler is None:
             return False
@@ -366,6 +373,12 @@ class SvgRenderer(RendererProtocol):
         self._render_drawable(label, coordinate_mapper)
 
     def _render_drawable(self, drawable: Any, coordinate_mapper: Any) -> None:
+        renderable_attr = getattr(drawable, "is_renderable", True)
+        try:
+            if not bool(renderable_attr):
+                return
+        except Exception:
+            return
         drawable_name = self._resolve_drawable_name(drawable)
         map_state = self._capture_map_state(coordinate_mapper)
         signature = self._compute_drawable_signature(drawable)

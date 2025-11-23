@@ -910,8 +910,6 @@ _HELPERS: Dict[str, Any] = {
     "Ellipse": shared.render_ellipse_helper,
     "Vector": shared.render_vector_helper,
     "Angle": shared.render_angle_helper,
-    "Triangle": shared.render_triangle_helper,
-    "Rectangle": shared.render_rectangle_helper,
     "Function": shared.render_function_helper,
     "FunctionsBoundedColoredArea": shared.render_functions_bounded_area_helper,
     "FunctionSegmentBoundedColoredArea": shared.render_function_segment_area_helper,
@@ -928,6 +926,12 @@ def build_plan_for_drawable(
     *,
     supports_transform: bool = True,
 ) -> Optional[OptimizedPrimitivePlan]:
+    renderable_attr = getattr(drawable, "is_renderable", True)
+    try:
+        if not bool(renderable_attr):
+            return None
+    except Exception:
+        return None
     class_name = getattr(drawable, "get_class_name", None)
     if callable(class_name):
         class_name = class_name()

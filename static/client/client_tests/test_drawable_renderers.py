@@ -221,86 +221,6 @@ class TestCircleArcRenderer(unittest.TestCase):
         self.assertTrue(sweep_clockwise)
         delta = abs(end_angle - start_angle)
         self.assertTrue(math.isclose(delta, 3 * math.pi / 2, rel_tol=1e-6))
-class TestTriangleRenderer(unittest.TestCase):
-    def setUp(self) -> None:
-        self.mapper = CoordinateMapper(640, 480)
-        self.primitives = RecordingPrimitives()
-        self.style = {
-            "segment_stroke_width": 1,
-            "segment_color": "#000000",
-        }
-
-    def test_triangle_draws_three_segments(self) -> None:
-        p1 = Point(0, 0, name="A")
-        p2 = Point(3, 0, name="B")
-        p3 = Point(1.5, 2.6, name="C")
-        seg1 = Segment(p1, p2)
-        seg2 = Segment(p2, p3)
-        seg3 = Segment(p3, p1)
-        triangle = Triangle(seg1, seg2, seg3, color="#FF0000")
-
-        shared.render_triangle_helper(self.primitives, triangle, self.mapper, self.style)
-
-        line_calls = [call for call in self.primitives.calls if call[0] == "stroke_line"]
-        self.assertEqual(len(line_calls), 3)
-
-    def test_triangle_uses_shape_lifecycle(self) -> None:
-        p1 = Point(0, 0, name="A")
-        p2 = Point(2, 0, name="B")
-        p3 = Point(1, 1.7, name="C")
-        seg1 = Segment(p1, p2)
-        seg2 = Segment(p2, p3)
-        seg3 = Segment(p3, p1)
-        triangle = Triangle(seg1, seg2, seg3)
-
-        shared.render_triangle_helper(self.primitives, triangle, self.mapper, self.style)
-
-        self.assertIn("begin", self.primitives.shapes)
-        self.assertIn("end", self.primitives.shapes)
-
-
-class TestRectangleRenderer(unittest.TestCase):
-    def setUp(self) -> None:
-        self.mapper = CoordinateMapper(640, 480)
-        self.primitives = RecordingPrimitives()
-        self.style = {
-            "segment_stroke_width": 1,
-            "segment_color": "#000000",
-        }
-
-    def test_rectangle_draws_four_segments(self) -> None:
-        p1 = Point(0, 0, name="A")
-        p2 = Point(4, 0, name="B")
-        p3 = Point(4, 3, name="C")
-        p4 = Point(0, 3, name="D")
-        seg1 = Segment(p1, p2)
-        seg2 = Segment(p2, p3)
-        seg3 = Segment(p3, p4)
-        seg4 = Segment(p4, p1)
-        rectangle = Rectangle(seg1, seg2, seg3, seg4, color="#00FF00")
-
-        shared.render_rectangle_helper(self.primitives, rectangle, self.mapper, self.style)
-
-        line_calls = [call for call in self.primitives.calls if call[0] == "stroke_line"]
-        self.assertEqual(len(line_calls), 4)
-
-    def test_rectangle_uses_shape_lifecycle(self) -> None:
-        p1 = Point(1, 1, name="A")
-        p2 = Point(3, 1, name="B")
-        p3 = Point(3, 2, name="C")
-        p4 = Point(1, 2, name="D")
-        seg1 = Segment(p1, p2)
-        seg2 = Segment(p2, p3)
-        seg3 = Segment(p3, p4)
-        seg4 = Segment(p4, p1)
-        rectangle = Rectangle(seg1, seg2, seg3, seg4)
-
-        shared.render_rectangle_helper(self.primitives, rectangle, self.mapper, self.style)
-
-        self.assertIn("begin", self.primitives.shapes)
-        self.assertIn("end", self.primitives.shapes)
-
-
 class TestEllipseRenderer(unittest.TestCase):
     def setUp(self) -> None:
         self.mapper = CoordinateMapper(640, 480)
@@ -447,8 +367,6 @@ class TestRendererEdgeCases(unittest.TestCase):
 __all__ = [
     "TestVectorRenderer",
     "TestAngleRenderer",
-    "TestTriangleRenderer",
-    "TestRectangleRenderer",
     "TestEllipseRenderer",
     "TestLabelRenderer",
     "TestRendererEdgeCases",

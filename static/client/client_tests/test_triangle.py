@@ -63,6 +63,9 @@ class TestTriangle(unittest.TestCase):
         self.assertEqual(self.triangle.segment3, self.segment3)
         self.assertEqual(self.triangle.color, "yellow")
 
+    def test_triangle_is_not_renderable_by_default(self) -> None:
+        self.assertFalse(self.triangle.is_renderable)
+
     def test_segments_form_triangle(self) -> None:
         # Given the corrected logic, ensure your segments are connected as per the new requirements
         self.assertTrue(self.triangle._segments_form_triangle(self.segment1, self.segment2, self.segment3))

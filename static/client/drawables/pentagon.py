@@ -41,7 +41,7 @@ class Pentagon(Polygon):
         self._points: List[Point] = list(ordered_points)
         self._set_type_flags(GeometryUtils.polygon_flags(self._points))
 
-        super().__init__(name=name, color=color)
+        super().__init__(name=name, color=color, is_renderable=False)
 
     def get_class_name(self) -> str:
         return "Pentagon"

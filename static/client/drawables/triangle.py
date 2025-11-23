@@ -69,7 +69,7 @@ class Triangle(Polygon):
         self._segments: list[Segment] = [self.segment1, self.segment2, self.segment3]
         self._set_type_flags(self._classify_triangle())
         name: str = self._set_name()
-        super().__init__(name=name, color=color)
+        super().__init__(name=name, color=color, is_renderable=False)
 
     def _set_name(self) -> str:
         # Get unique vertices using a set first, then sort

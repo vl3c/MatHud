@@ -54,8 +54,6 @@ from .test_renderer_logic import TestRendererLogic
 from .test_drawable_renderers import (
     TestVectorRenderer,
     TestAngleRenderer,
-    TestTriangleRenderer,
-    TestRectangleRenderer,
     TestEllipseRenderer,
     TestLabelRenderer,
     TestRendererEdgeCases as TestDrawableRendererEdgeCases,
@@ -108,8 +106,6 @@ class Tests:
             TestRendererLogic,
             TestVectorRenderer,
             TestAngleRenderer,
-            TestTriangleRenderer,
-            TestRectangleRenderer,
             TestEllipseRenderer,
             TestLabelRenderer,
             TestDrawableRendererEdgeCases,

@@ -40,6 +40,8 @@ class TestCanvas(unittest.TestCase):
 
         def set_drawables(canvas_self: Canvas, value: Dict[str, List[Any]]) -> None:
             canvas_self.drawable_manager.drawables._drawables = value
+            if hasattr(canvas_self.drawable_manager.drawables, "rebuild_renderables"):
+                canvas_self.drawable_manager.drawables.rebuild_renderables()
 
         setattr(Canvas, 'drawables', property(get_drawables, set_drawables))
 
@@ -696,6 +698,54 @@ class TestCanvas(unittest.TestCase):
         self.canvas.drawable_manager.triangle_manager.create_new_triangles_from_connected_segments()
         # Verify: No triangle should be created as the segments are not connected
         self.assertEqual(len(self.canvas.get_drawables_by_class_name("Triangle")), 0, "Canvas should have no triangles as segments are unconnected.")
+
+    def test_triangle_rendering_uses_primitives_only(self) -> None:
+        class RecordingRenderer:
+            def __init__(self) -> None:
+                self.calls: List[Any] = []
+
+            def clear(self) -> None:
+                return None
+
+            def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
+                self.calls.append(drawable)
+                return True
+
+            def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
+                return None
+
+            def register(self, cls: type, handler: Any) -> None:
+                return None
+
+            def register_default_drawables(self) -> None:
+                return None
+
+            def begin_frame(self) -> None:
+                return None
+
+            def end_frame(self) -> None:
+                return None
+
+        renderer = RecordingRenderer()
+        canvas = Canvas(400, 400, draw_enabled=True, renderer=renderer)
+        canvas.create_triangle(0, 0, 10, 0, 0, 10)
+        renderer.calls.clear()
+        canvas.draw()
+
+        self.assertEqual(
+            len(canvas.get_drawables_by_class_name("Triangle")),
+            1,
+            "Triangle should remain in canvas state even when abstract.",
+        )
+        triangle_calls = [
+            drawable for drawable in renderer.calls if getattr(drawable, "get_class_name", lambda: "")() == "Triangle"
+        ]
+        segment_calls = [
+            drawable for drawable in renderer.calls if getattr(drawable, "get_class_name", lambda: "")() == "Segment"
+        ]
+
+        self.assertEqual(len(triangle_calls), 0, "Triangles should not be rendered directly.")
+        self.assertEqual(len(segment_calls), 3, "Triangle rendering should rely on its three segments.")
 
     # Rectangle tests
     def test_create_rectangle_new(self) -> None:

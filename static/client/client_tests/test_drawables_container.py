@@ -171,3 +171,38 @@ class TestDrawablesContainer(unittest.TestCase):
         ordered = self.container.get_all_with_layering()
         self.assertEqual(ordered[-1], circle_arc)
         self.assertTrue(ordered.index(circle) < ordered.index(circle_arc))
+
+    def test_renderables_layering_matches_expected(self) -> None:
+        """Renderables list keeps colored areas under circles and circles under arcs."""
+        colored_area = SimpleMock(
+            get_class_name=SimpleMock(return_value="ClosedShapeColoredArea"),
+            name="Area1",
+            is_renderable=True,
+        )
+        segment = SimpleMock(
+            get_class_name=SimpleMock(return_value="Segment"),
+            name="Seg1",
+            is_renderable=True,
+        )
+        circle = SimpleMock(
+            get_class_name=SimpleMock(return_value="Circle"),
+            name="Circle1",
+            is_renderable=True,
+        )
+        circle_arc = SimpleMock(
+            get_class_name=SimpleMock(return_value="CircleArc"),
+            name="Arc1",
+            is_renderable=True,
+        )
+
+        self.container.add(colored_area)
+        self.container.add(segment)
+        self.container.add(circle)
+        self.container.add(circle_arc)
+
+        ordered = self.container.get_renderables_with_layering()
+        self.assertEqual(
+            [colored_area, segment, circle, circle_arc],
+            ordered,
+            "Colored areas should render before other drawables, circles, and arcs.",
+        )

@@ -56,6 +56,7 @@ class DrawablesContainer:
     def __init__(self) -> None:
         """Initialize an empty drawables container."""
         self._drawables: Dict[str, List["Drawable"]] = {}
+        self._renderables: Dict[str, List["Drawable"]] = {}
         
     def add(self, drawable: "Drawable") -> None:
         """
@@ -68,7 +69,59 @@ class DrawablesContainer:
         if category not in self._drawables:
             self._drawables[category] = []
         self._drawables[category].append(drawable)
+        self._sync_renderable_entry(drawable)
+
+    def _is_renderable(self, drawable: "Drawable") -> bool:
+        renderable_attr = getattr(drawable, "is_renderable", True)
+        try:
+            return bool(renderable_attr)
+        except Exception:
+            return True
+
+    def _apply_layering(self, colored: List["Drawable"], others: List["Drawable"]) -> List["Drawable"]:
+        circles: List["Drawable"] = []
+        circle_arcs: List["Drawable"] = []
+        remaining: List["Drawable"] = []
+
+        for drawable in others:
+            class_name = (
+                drawable.get_class_name()
+                if hasattr(drawable, "get_class_name")
+                else drawable.__class__.__name__
+            )
+            if class_name == "Circle":
+                circles.append(drawable)
+            elif class_name == "CircleArc":
+                circle_arcs.append(drawable)
+            else:
+                remaining.append(drawable)
+
+        return colored + remaining + circles + circle_arcs
         
+    def _add_to_renderables(self, drawable: "Drawable") -> None:
+        category = drawable.get_class_name()
+        if category not in self._renderables:
+            self._renderables[category] = []
+        bucket = self._renderables[category]
+        if drawable not in bucket:
+            bucket.append(drawable)
+
+    def _remove_from_renderables(self, drawable: "Drawable") -> None:
+        category = drawable.get_class_name()
+        bucket = self._renderables.get(category)
+        if not bucket:
+            return
+        if drawable in bucket:
+            bucket.remove(drawable)
+            if not bucket:
+                del self._renderables[category]
+
+    def _sync_renderable_entry(self, drawable: "Drawable") -> None:
+        if self._is_renderable(drawable):
+            self._add_to_renderables(drawable)
+        else:
+            self._remove_from_renderables(drawable)
+
     def remove(self, drawable: "Drawable") -> bool:
         """
         Remove a drawable from the container.
@@ -82,6 +135,9 @@ class DrawablesContainer:
         category = drawable.get_class_name()
         if category in self._drawables and drawable in self._drawables[category]:
             self._drawables[category].remove(drawable)
+            if not self._drawables[category]:
+                del self._drawables[category]
+            self._remove_from_renderables(drawable)
             return True
         return False
         
@@ -144,28 +200,25 @@ class DrawablesContainer:
         """
         colored = self.get_colored_areas()
         others = self.get_non_colored_areas()
-        circles: List["Drawable"] = []
-        circle_arcs: List["Drawable"] = []
-        remaining: List["Drawable"] = []
+        return self._apply_layering(colored, others)
 
-        for drawable in others:
-            class_name = (
-                drawable.get_class_name()
-                if hasattr(drawable, "get_class_name")
-                else drawable.__class__.__name__
-            )
-            if class_name == "Circle":
-                circles.append(drawable)
-            elif class_name == "CircleArc":
-                circle_arcs.append(drawable)
+    def get_renderables_with_layering(self) -> List["Drawable"]:
+        """
+        Get renderable drawables with proper layering, excluding abstract objects.
+        """
+        colored: List["Drawable"] = []
+        others: List["Drawable"] = []
+        for class_name, bucket in self._renderables.items():
+            if 'ColoredArea' in class_name:
+                colored.extend(bucket)
             else:
-                remaining.append(drawable)
-
-        return colored + remaining + circles + circle_arcs
+                others.extend(bucket)
+        return self._apply_layering(list(colored), list(others))
         
     def clear(self) -> None:
         """Remove all drawables from the container."""
         self._drawables.clear()
+        self._renderables.clear()
         
     def get_state(self) -> Dict[str, List[Dict[str, Any]]]:
         """
@@ -178,6 +231,13 @@ class DrawablesContainer:
         for category, drawables in self._drawables.items():
             state_dict[category + 's'] = [drawable.get_state() for drawable in drawables]
         return state_dict
+
+    def rebuild_renderables(self) -> None:
+        """Rebuild the renderables index from the current drawable storage."""
+        self._renderables = {}
+        for bucket in self._drawables.values():
+            for drawable in bucket:
+                self._sync_renderable_entry(drawable)
         
     # Property-style access for specific drawable types (for convenience)
     @property

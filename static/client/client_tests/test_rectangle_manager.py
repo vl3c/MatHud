@@ -61,6 +61,7 @@ class TestRectangleManager(unittest.TestCase):
 
     def test_update_rectangle_changes_color_and_draws(self) -> None:
         rectangle = self._add_rectangle()
+        self.assertFalse(rectangle.is_renderable)
 
         result = self.rectangle_manager.update_rectangle("ABCD", new_color="#00aaff")
 
@@ -86,7 +87,6 @@ class TestRectangleManager(unittest.TestCase):
         self._add_rectangle()
         with self.assertRaises(ValueError):
             self.rectangle_manager.update_rectangle("ABCD")
-
 
 if __name__ == "__main__":
     unittest.main()
