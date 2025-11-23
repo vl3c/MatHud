@@ -130,16 +130,65 @@ class WorkspaceManager:
         if "Segments" not in state:
             return
         for item_state in state["Segments"]:
-            p1: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p1"])
-            p2: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p2"])
-            if p1 and p2:
-                self.canvas.create_segment(
-                    p1.x,
-                    p1.y,
-                    p2.x,
-                    p2.y,
-                    name=item_state.get("name", "")
-                )
+            args = item_state.get("args", {})
+            p1 = self._get_point_from_state(args.get("p1"), args.get("p1_coords"))
+            p2 = self._get_point_from_state(args.get("p2"), args.get("p2_coords"))
+
+            if not p1 or not p2:
+                continue
+
+            p1, p2 = self._reconcile_segment_endpoints(p1, p2, args)
+
+            self.canvas.create_segment(
+                p1.x,
+                p1.y,
+                p2.x,
+                p2.y,
+                name=item_state.get("name", ""),
+            )
+
+    def _get_point_from_state(
+        self,
+        name: Optional[str],
+        coords: Optional[List[float]],
+    ) -> Optional["Point"]:
+        point: Optional["Point"] = self.canvas.get_point_by_name(name) if name else None
+        if point:
+            return point
+        return self._get_point_from_coords(coords)
+
+    def _get_point_from_coords(self, coords: Optional[List[float]]) -> Optional["Point"]:
+        if not coords or len(coords) != 2:
+            return None
+        return self.canvas.get_point(coords[0], coords[1])
+
+    def _reconcile_segment_endpoints(
+        self,
+        p1: "Point",
+        p2: "Point",
+        args: Dict[str, Any],
+    ) -> Tuple["Point", "Point"]:
+        p1_coords: Optional[List[float]] = args.get("p1_coords")
+        p2_coords: Optional[List[float]] = args.get("p2_coords")
+
+        if self._point_matches_coords(p1, p1_coords) and self._point_matches_coords(p2, p2_coords):
+            return p1, p2
+
+        if self._point_matches_coords(p1, p2_coords) and self._point_matches_coords(p2, p1_coords):
+            return p2, p1
+
+        replacement_p1 = self._get_point_from_coords(p1_coords)
+        replacement_p2 = self._get_point_from_coords(p2_coords)
+
+        return (
+            replacement_p1 if replacement_p1 else p1,
+            replacement_p2 if replacement_p2 else p2,
+        )
+
+    def _point_matches_coords(self, point: Optional["Point"], coords: Optional[List[float]]) -> bool:
+        if not point or not coords or len(coords) != 2:
+            return False
+        return MathUtils.point_matches_coordinates(point, coords[0], coords[1])
 
     def _create_vectors(self, state: Dict[str, Any]) -> None:
         """Create vectors from workspace state."""

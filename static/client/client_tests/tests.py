@@ -46,6 +46,7 @@ from .test_vector import TestVector
 from .test_angle import TestAngle
 from .test_angle_manager import TestAngleManager
 from .test_arc_manager import TestArcManager
+from .test_workspace_manager import TestWorkspaceSegmentPersistence
 from .test_function_bounded_colored_area_integration import TestFunctionBoundedColoredAreaIntegration
 from .renderer_performance_tests import TestRendererPerformance
 from .test_optimized_renderers import TestOptimizedRendererParity
@@ -120,6 +121,7 @@ class Tests:
             TestEllipseEdgeCases,
             TestLabelEdgeCases,
             TestCartesianEdgeCases,
+            TestWorkspaceSegmentPersistence,
             TestMathFunctions,
             TestGeometryUtils,
             TestPolygonCanonicalizer,
