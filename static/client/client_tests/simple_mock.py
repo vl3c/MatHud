@@ -14,6 +14,7 @@ class SimpleMock:
         """Initialise the mock with optional attributes and return value."""
         object.__setattr__(self, "_attributes", {})
         object.__setattr__(self, "_return_value", None)
+        object.__setattr__(self, "_side_effect", None)
         object.__setattr__(
             self,
             "calls",
@@ -22,13 +23,17 @@ class SimpleMock:
         for key, value in kwargs.items():
             if key == "return_value":
                 self._return_value = value
+            elif key == "side_effect":
+                self._side_effect = value
             else:
                 self._attributes[key] = value
 
     def __setattr__(self, key: str, value: Any) -> None:
         """Support dynamic attribute assignment while tracking configured values."""
-        if key in {"_attributes", "_return_value", "calls"}:
+        if key in {"_attributes", "_return_value", "_side_effect", "calls"}:
             object.__setattr__(self, key, value)
+        elif key == "side_effect":
+            object.__setattr__(self, "_side_effect", value)
         else:
             self._attributes[key] = value
 
@@ -52,6 +57,8 @@ class SimpleMock:
             return self._attributes[attr]
         if attr == "return_value":
             return self._return_value
+        if attr == "side_effect":
+            return getattr(self, "_side_effect")
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{attr}'")
 
     def setAttribute(self, key: str, value: Any) -> None:
@@ -63,6 +70,10 @@ class SimpleMock:
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Record a call and return the configured ``return_value``."""
         self.calls.append((args, kwargs))
+        if self._side_effect is not None:
+            if callable(self._side_effect):
+                return self._side_effect(*args, **kwargs)
+            return self._side_effect
         return self._return_value
 
     def assert_called_once_with(self, *args: Any, **kwargs: Any) -> None:
