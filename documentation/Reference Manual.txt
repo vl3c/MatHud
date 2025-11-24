@@ -68,7 +68,6 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 1. Point Manager (`managers/point_manager.py`)
 2. Segment Manager (`managers/segment_manager.py`)
 3. Vector Manager (`managers/vector_manager.py`)
-4. Triangle Manager (`managers/triangle_manager.py`)
 5. Polygon Manager (`managers/polygon_manager.py`)
 6. Circle Manager (`managers/circle_manager.py`)
 7. Ellipse Manager (`managers/ellipse_manager.py`)
@@ -254,7 +253,7 @@ Attributes:
 - `delete_point(x, y)`: Delete a point at the specified coordinates
 - `create_segment(x1, y1, x2, y2, name="", extra_graphics=True)`: Create a line segment between two points
 - `create_vector(origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True)`: Create a vector from origin to tip
-- `create_triangle(x1, y1, x2, y2, x3, y3, name="", extra_graphics=True)`: Create a triangle from three points
+- `create_polygon(vertices, polygon_type="triangle", name="", extra_graphics=True)`: Create a triangle from three points
 - `create_polygon(vertices, polygon_type="rectangle", name="", extra_graphics=True)`: Create a rectangle from canonicalized vertices (use `canonicalize_rectangle` for diagonal pairs)
 - `create_circle(center_x, center_y, radius, name="", extra_graphics=True)`: Create a circle with specified center and radius
 - `create_circle_arc(point1_x, point1_y, point2_x, point2_y, point3_x=None, point3_y=None, center_point_choice=None, circle_name=None, center_x=None, center_y=None, radius=None, arc_name=None, use_major_arc=False, extra_graphics=True)`: Create a circle arc between two points. When supplying explicit center/radius values or referencing an existing circle, all provided endpoints (new or existing) are projected onto that circle before the arc is created. Alternatively, provide three points plus `center_point_choice` (point1/point2/point3) to treat that point as the center and derive the circle automatically.
@@ -557,7 +556,7 @@ Args:
 - `_create_points(state)`: Create points from workspace state during restoration
 - `_create_segments(state)`: Create segments from workspace state with endpoint validation
 - `_create_vectors(state)`: Create vectors from workspace state with origin/tip resolution
-- `_create_triangles(state)`: Create triangles from workspace state with vertex dependencies
+- `_create_triangles(state)`: Create triangles from workspace state using the polygon manager
 - `_create_rectangles(state)`: Recreate rectangles from workspace state using polygon canonicalization
 - `_create_circles(state)`: Create circles from workspace state with center point dependencies
 - `_create_ellipses(state)`: Create ellipses from workspace state with parameter restoration
@@ -1674,8 +1673,7 @@ Manager Hierarchy:
     - PointManager: Point creation, retrieval, and deletion operations
     - SegmentManager: Line segment operations with endpoint validation
     - VectorManager: Vector operations with origin and tip management
-    - TriangleManager: Triangle operations with vertex coordinate matching
-    - RectangleManager: Rectangle operations with diagonal point handling
+    - PolygonManager: Polygon operations with canonicalization for triangles, quadrilaterals (rectangles, squares), pentagons, and hexagons
     - CircleManager: Circle operations with center and radius validation
     - EllipseManager: Ellipse operations with center, radii, and rotation
     - AngleManager: Angle operations with vertex and arm management
@@ -1734,10 +1732,10 @@ This class coordinates specialized managers for each drawable type:
 - `create_vector(origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True)`: Create a vector from origin to tip
 - `delete_vector(origin_x, origin_y, tip_x, tip_y)`: Delete a vector by its coordinates
 - `update_vector(name, new_color=None)`: Update a vector's color
-- `get_triangle(x1, y1, x2, y2, x3, y3)`: Get a triangle by its vertex coordinates
-- `create_triangle(x1, y1, x2, y2, x3, y3, name="", extra_graphics=True)`: Create a triangle from three points
-- `delete_triangle(x1, y1, x2, y2, x3, y3)`: Delete a triangle by its vertex coordinates
-- `update_triangle(name, new_color=None)`: Update a triangle's color
+- `get_polygon_by_vertices(vertices, polygon_type="triangle")`: Get a triangle by its vertex coordinates
+- `create_polygon(vertices, polygon_type="triangle", name="", extra_graphics=True)`: Create a triangle from three points
+- `delete_polygon(polygon_type="triangle", vertices=[...])`: Delete a triangle by its vertex coordinates
+- `update_polygon(name, polygon_type="triangle", new_color=None)`: Update a triangle's color
 - `get_function(name)`: Get a function by its name
 - `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a function on the canvas
 - `delete_function(name)`: Delete a function by its name
@@ -1786,7 +1784,6 @@ Design Pattern:
 
 Use Cases:
     - SegmentManager accessing PointManager functionality
-    - TriangleManager accessing both PointManager and SegmentManager
     - Any manager needing to call methods on other managers
 
 Implementation:
@@ -2157,8 +2154,7 @@ Advanced Features:
 
 Integration Points:
     - PointManager: Automatic point creation for segment endpoints
-    - TriangleManager: Provides segments for triangle construction
-    - RectangleManager: Supplies edges for rectangle formation
+    - PolygonManager: Supplies edges for polygon formation (triangles, rectangles, and other n-gons)
     - VectorManager: Creates underlying segments for vector visualization
 
 State Management:
@@ -2220,7 +2216,6 @@ Mathematical Context:
 - `create_vector(origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True)`: Create a vector from origin to tip
 - `delete_vector(origin_x, origin_y, tip_x, tip_y)`: Delete a vector by its coordinates
 
-#### Triangle Manager (`managers/triangle_manager.py`)
 
 **File Header:**
 ```
@@ -2266,9 +2261,9 @@ State Management:
 ```
 
 **Key Methods:**
-- `get_triangle(x1, y1, x2, y2, x3, y3)`: Get a triangle by its vertex coordinates
-- `create_triangle(x1, y1, x2, y2, x3, y3, name="", extra_graphics=True)`: Create a triangle from three points
-- `delete_triangle(x1, y1, x2, y2, x3, y3)`: Delete a triangle by its vertex coordinates
+- `get_polygon_by_vertices(vertices, polygon_type="triangle")`: Get a triangle by its vertex coordinates
+- `create_polygon(vertices, polygon_type="triangle", name="", extra_graphics=True)`: Create a triangle from three points
+- `delete_polygon(polygon_type="triangle", vertices=[...])`: Delete a triangle by its vertex coordinates
 - `create_new_triangles_from_connected_segments()`: Automatically detect and create triangles from connected segments
 
 #### Rectangle Operations (Polygon Manager)

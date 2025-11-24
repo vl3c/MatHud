@@ -203,7 +203,6 @@ static/client/
 │   ├── segment_manager.py             # Segment operations
 │   ├── vector_manager.py              # Vector operations
 │   ├── polygon_manager.py             # Unified polygon creation/update/delete (triangles, rectangles, etc.)
-│   ├── triangle_manager.py            # Triangle operations
 │   ├── circle_manager.py              # Circle operations
 │   ├── ellipse_manager.py             # Ellipse operations
 │   ├── angle_manager.py               # Angle operations
@@ -311,8 +310,7 @@ server_tests/
   - `PointManager`: Manages point objects.
   - `SegmentManager`: Manages line segment objects.
   - `VectorManager`: Manages vector objects.
-  - `TriangleManager`: Manages triangle objects.
-  - `RectangleManager`: Manages rectangle objects.
+  - `PolygonManager`: Manages polygon objects (triangles, quadrilaterals, pentagons, hexagons, including specialized rectangle and square flows).
   - `CircleManager`: Manages circle objects.
   - `EllipseManager`: Manages ellipse objects.
   - `AngleManager`: Manages angle objects.
