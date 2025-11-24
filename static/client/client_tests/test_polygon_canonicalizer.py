@@ -446,6 +446,71 @@ class TestPolygonCanonicalizer(unittest.TestCase):
             dot = edge1[0] * edge2[0] + edge1[1] * edge2[1]
             self.assertAlmostEqual(dot, 0.0, places=5)
 
+    def test_triangle_very_small_polygon(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (0.01, 0.0),
+            (0.005, 0.0086),
+        ]
+        result = canonicalize_triangle(vertices, subtype="equilateral")
+        self.assertEqual(len(result), 3)
+        lengths = self._side_lengths(result)
+        self.assertAlmostEqual(lengths[0], lengths[1], places=6)
+
+    def test_triangle_preserves_first_vertex(self) -> None:
+        vertices = [
+            (10.0, 20.0),
+            (14.0, 20.1),
+            (12.0, 23.5),
+        ]
+        result = canonicalize_triangle(vertices)
+        dist = math.hypot(result[0][0] - vertices[0][0], result[0][1] - vertices[0][1])
+        self.assertLess(dist, 0.5)
+
+    def test_quadrilateral_very_small_polygon(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (0.01, 0.0),
+            (0.01, 0.01),
+            (0.0, 0.01),
+        ]
+        result = canonicalize_quadrilateral(vertices, subtype="square")
+        self.assertEqual(len(result), 4)
+        lengths = self._side_lengths(result)
+        for length in lengths[1:]:
+            self.assertAlmostEqual(lengths[0], length, places=6)
+
+    def test_quadrilateral_preserves_first_vertex(self) -> None:
+        vertices = [
+            (10.0, 20.0),
+            (14.0, 20.0),
+            (14.0, 23.0),
+            (10.0, 23.0),
+        ]
+        result = canonicalize_quadrilateral(vertices, subtype="rectangle")
+        dist = math.hypot(result[0][0] - vertices[0][0], result[0][1] - vertices[0][1])
+        self.assertLess(dist, 0.01)
+
+    def test_rectangle_very_small_tolerance(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 2.0),
+            (0.0, 2.0),
+        ]
+        result = canonicalize_rectangle(vertices, tolerance=1e-9)
+        self.assertEqual(len(result), 4)
+
+    def test_quadrilateral_invalid_subtype_raises(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 2.0),
+            (0.0, 2.0),
+        ]
+        with self.assertRaises(PolygonCanonicalizationError):
+            canonicalize_quadrilateral(vertices, subtype="hexagon")
+
 
 if __name__ == "__main__":
     unittest.main()
