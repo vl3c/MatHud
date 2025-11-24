@@ -15,7 +15,6 @@ Manager Hierarchy:
     - PointManager: Point creation, retrieval, and deletion operations
     - SegmentManager: Line segment operations with endpoint validation
     - VectorManager: Vector operations with origin and tip management
-    - TriangleManager: Triangle operations with vertex coordinate matching
     - CircleManager: Circle operations with center and radius validation
     - EllipseManager: Ellipse operations with center, radii, and rotation
     - AngleManager: Angle operations with vertex and arm management
@@ -52,7 +51,6 @@ from geometry import Point
 from managers.point_manager import PointManager
 from managers.segment_manager import SegmentManager
 from managers.vector_manager import VectorManager
-from managers.triangle_manager import TriangleManager
 from managers.function_manager import FunctionManager
 from managers.circle_manager import CircleManager
 from managers.ellipse_manager import EllipseManager
@@ -74,7 +72,6 @@ if TYPE_CHECKING:
     from drawables.point import Point
     from drawables.segment import Segment
     from drawables.vector import Vector
-    from drawables.triangle import Triangle
     from drawables.function import Function
     from drawables.circle import Circle
     from drawables.ellipse import Ellipse
@@ -90,7 +87,6 @@ class DrawableManager:
     - Points
     - Segments
     - Vectors
-    - Triangles
     - Functions
     - Circles
     - Ellipses
@@ -138,11 +134,6 @@ class DrawableManager:
             self.point_manager,
             self.segment_manager,
             self.proxy,
-        )
-        
-        self.triangle_manager: TriangleManager = TriangleManager(
-            canvas, self.drawables, self.name_generator, self.dependency_manager, 
-            self.point_manager, self.segment_manager, self.proxy
         )
         
         self.function_manager: FunctionManager = FunctionManager(
@@ -249,6 +240,10 @@ class DrawableManager:
                 vertices=vertices,
             )
         )
+
+    def create_new_triangles_from_connected_segments(self) -> None:
+        """Detect and create triangles from connected segments using the polygon pipeline."""
+        self.polygon_manager.create_triangles_from_segments()
 
     def get_polygon_by_name(
         self,
@@ -454,60 +449,6 @@ class DrawableManager:
         """Update editable properties of a vector."""
         return bool(
             self.vector_manager.update_vector(
-                name,
-                new_color=new_color,
-            )
-        )
-    
-    # ------------------- Triangle Methods -------------------
-    
-    def get_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> Optional["Triangle"]:
-        """Get a triangle by its vertex coordinates"""
-        return self.triangle_manager.get_triangle(x1, y1, x2, y2, x3, y3)
-        
-    def get_triangle_by_name(self, name: str) -> Optional["Triangle"]:
-        """Get a triangle by its name"""
-        return self.triangle_manager.get_triangle_by_name(name)
-        
-    def create_triangle(
-        self,
-        x1: float,
-        y1: float,
-        x2: float,
-        y2: float,
-        x3: float,
-        y3: float,
-        name: str = "",
-        color: Optional[str] = None,
-        subtype: Optional[str] = None,
-        extra_graphics: bool = True,
-    ) -> "Triangle":
-        """Create a new triangle with the specified vertices"""
-        return self.triangle_manager.create_triangle(
-            x1,
-            y1,
-            x2,
-            y2,
-            x3,
-            y3,
-            name,
-            color=color,
-            subtype=subtype,
-            extra_graphics=extra_graphics,
-        )
-        
-    def delete_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> bool:
-        """Delete a triangle with the specified vertices"""
-        return bool(self.triangle_manager.delete_triangle(x1, y1, x2, y2, x3, y3))
-    
-    def update_triangle(
-        self,
-        name: str,
-        new_color: Optional[str] = None,
-    ) -> bool:
-        """Update editable properties of a triangle."""
-        return bool(
-            self.triangle_manager.update_triangle(
                 name,
                 new_color=new_color,
             )
@@ -752,8 +693,7 @@ class DrawableManager:
         )
 
     def create_drawables_from_new_connections(self) -> None:
-        # Call the method on the TriangleManager
-        self.triangle_manager.create_new_triangles_from_connected_segments()
+        self.polygon_manager.create_triangles_from_segments()
 
     # The transformation methods have been moved to TransformationsManager
     # def translate_object(self, name, x_offset, y_offset):

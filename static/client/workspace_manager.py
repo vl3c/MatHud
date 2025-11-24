@@ -226,14 +226,14 @@ class WorkspaceManager:
             p2: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p2"])
             p3: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p3"])
             if p1 and p2 and p3:
-                self.canvas.create_triangle(
-                    p1.x,
-                    p1.y,
-                    p2.x,
-                    p2.y,
-                    p3.x,
-                    p3.y,
-                    name=item_state.get("name", "")
+                self.canvas.create_polygon(
+                    [
+                        (p1.x, p1.y),
+                        (p2.x, p2.y),
+                        (p3.x, p3.y),
+                    ],
+                    polygon_type=PolygonType.TRIANGLE,
+                    name=item_state.get("name", ""),
                 )
 
     def _create_rectangles(self, state: Dict[str, Any]) -> None:

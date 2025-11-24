@@ -659,47 +659,77 @@ class TestCanvas(unittest.TestCase):
 
     # Triangle tests
     def test_create_triangle_existing(self) -> None:
-        triangle = self.canvas.create_triangle(10, 10, 20, 20, 30, 30)
-        retrieved_triangle = self.canvas.create_triangle(10, 10, 20, 20, 30, 30)
+        vertices = [(10, 10), (20, 20), (30, 30)]
+        triangle = self.canvas.create_polygon(vertices, polygon_type=PolygonType.TRIANGLE)
+        retrieved_triangle = self.canvas.create_polygon(vertices, polygon_type=PolygonType.TRIANGLE)
         self.assertEqual(triangle, retrieved_triangle)
 
     def test_create_triangle_new(self) -> None:
-        new_triangle = self.canvas.create_triangle(10, 10, 20, 20, 30, 30)
+        new_triangle = self.canvas.create_polygon(
+            [(10, 10), (20, 20), (30, 30)],
+            polygon_type=PolygonType.TRIANGLE,
+        )
         self.assertIsNotNone(new_triangle)
         self.assertIn(new_triangle, self.canvas.get_drawables_by_class_name('Triangle'))
 
     def test_get_triangle(self) -> None:
-        triangle = self.canvas.create_triangle(10, 10, 20, 20, 30, 30)
-        retrieved_triangle = self.canvas.get_triangle(10, 10, 20, 20, 30, 30)
+        vertices = [(10, 10), (20, 20), (30, 30)]
+        triangle = self.canvas.create_polygon(vertices, polygon_type=PolygonType.TRIANGLE)
+        retrieved_triangle = self.canvas.get_polygon_by_vertices(
+            vertices,
+            polygon_type=PolygonType.TRIANGLE,
+        )
         self.assertEqual(triangle, retrieved_triangle)
-        # Test retrieving a non-existent triangle
-        non_existent_triangle = self.canvas.get_triangle(100, 100, 200, 200, 300, 300)
+        non_existent_triangle = self.canvas.get_polygon_by_vertices(
+            [(100, 100), (200, 200), (300, 300)],
+            polygon_type=PolygonType.TRIANGLE,
+        )
         self.assertIsNone(non_existent_triangle)
 
     def test_delete_triangle(self) -> None:
-        triangle = self.canvas.create_triangle(10, 10, 20, 20, 30, 30)
-        self.canvas.delete_triangle(10, 10, 20, 20, 30, 30)
+        vertices = [(10, 10), (20, 20), (30, 30)]
+        triangle = self.canvas.create_polygon(vertices, polygon_type=PolygonType.TRIANGLE)
+        self.canvas.delete_polygon(polygon_type=PolygonType.TRIANGLE, vertices=vertices)
         self.assertNotIn(triangle, self.canvas.get_drawables_by_class_name(triangle.get_class_name()))
         # Verifying segments and points still exist after deleting the triangle
         points = self.canvas.get_drawables_by_class_name('Point')
-        self.assertTrue(all(p in points for p in [self.canvas.get_point(10, 10), self.canvas.get_point(20, 20), self.canvas.get_point(30, 30)]))
+        self.assertTrue(
+            all(
+                p in points
+                for p in [
+                    self.canvas.get_point(10, 10),
+                    self.canvas.get_point(20, 20),
+                    self.canvas.get_point(30, 30),
+                ]
+            )
+        )
 
     def test_delete_triangle_by_nonexistent_coordinates(self) -> None:
         """Test deleting a triangle with non-existent coordinates returns False and doesn't cause errors."""
         # Test deleting a triangle that doesn't exist
-        result = self.canvas.delete_triangle(100, 100, 200, 200, 300, 300)
-        self.assertFalse(result, "delete_triangle should return False for non-existent coordinates")
+        result = self.canvas.delete_polygon(
+            polygon_type=PolygonType.TRIANGLE,
+            vertices=[(100, 100), (200, 200), (300, 300)],
+        )
+        self.assertFalse(result, "delete_polygon should return False for non-existent triangle coordinates")
         
         # Create a triangle and verify normal deletion still works
-        triangle = self.canvas.create_triangle(10, 10, 20, 20, 30, 30)
-        self.assertIsNotNone(self.canvas.get_triangle(10, 10, 20, 20, 30, 30))
+        vertices = [(10, 10), (20, 20), (30, 30)]
+        triangle = self.canvas.create_polygon(vertices, polygon_type=PolygonType.TRIANGLE)
+        self.assertIsNotNone(
+            self.canvas.get_polygon_by_vertices(vertices, polygon_type=PolygonType.TRIANGLE)
+        )
         
         # Verify the non-existent deletion didn't affect existing triangles
         self.assertIn(triangle, self.canvas.get_drawables_by_class_name('Triangle'))
         
         # Delete the triangle and verify it was removed
-        self.assertTrue(self.canvas.delete_triangle(10, 10, 20, 20, 30, 30))
-        self.assertIsNone(self.canvas.get_triangle(10, 10, 20, 20, 30, 30))
+        self.assertTrue(
+            self.canvas.delete_polygon(polygon_type=PolygonType.TRIANGLE, vertices=vertices)
+        )
+        self.assertIsNone(
+            self.canvas.get_polygon_by_vertices(vertices, polygon_type=PolygonType.TRIANGLE)
+        )
 
     def test_create_triangle_from_connected_segments(self) -> None:
         # Setup: Create segments that form a triangle
@@ -710,7 +740,7 @@ class TestCanvas(unittest.TestCase):
         self.assertEqual(len(self.canvas.get_drawables_by_class_name("Segment")), 3, "Canvas should initially have 3 segments.")
         self.assertEqual(len(self.canvas.get_drawables_by_class_name("Triangle")), 0, "Canvas should initially have no triangles.")
         # Execute: Attempt to create new triangles from connected segments
-        self.canvas.drawable_manager.triangle_manager.create_new_triangles_from_connected_segments()
+        self.canvas.drawable_manager.create_new_triangles_from_connected_segments()
         # Verify: A triangle should be created from the three segments
         self.assertEqual(len(self.canvas.get_drawables_by_class_name("Triangle")), 1, "Canvas should have 1 triangle after operation.")
 
@@ -720,7 +750,7 @@ class TestCanvas(unittest.TestCase):
         self.canvas.create_segment(20, 20, 30, 20)
         self.canvas.create_segment(40, 40, 50, 50)
         # Execute: Attempt to create new triangles from unconnected segments
-        self.canvas.drawable_manager.triangle_manager.create_new_triangles_from_connected_segments()
+        self.canvas.drawable_manager.create_new_triangles_from_connected_segments()
         # Verify: No triangle should be created as the segments are not connected
         self.assertEqual(len(self.canvas.get_drawables_by_class_name("Triangle")), 0, "Canvas should have no triangles as segments are unconnected.")
 
@@ -753,7 +783,10 @@ class TestCanvas(unittest.TestCase):
 
         renderer = RecordingRenderer()
         canvas = Canvas(400, 400, draw_enabled=True, renderer=renderer)
-        canvas.create_triangle(0, 0, 10, 0, 0, 10)
+        canvas.create_polygon(
+            [(0, 0), (10, 0), (0, 10)],
+            polygon_type=PolygonType.TRIANGLE,
+        )
         renderer.calls.clear()
         canvas.draw()
 
@@ -789,7 +822,10 @@ class TestCanvas(unittest.TestCase):
         self.assertEqual(polygon.segment1.color, "#ff0001")
         self.assertIs(
             polygon,
-            self.canvas.get_triangle(0.0, 0.0, 10.0, 0.0, 0.0, 10.0),
+            self.canvas.get_polygon_by_vertices(
+                [(0.0, 0.0), (10.0, 0.0), (0.0, 10.0)],
+                polygon_type=PolygonType.TRIANGLE,
+            ),
         )
 
     def test_create_polygon_rectangle_naming(self) -> None:
@@ -849,7 +885,12 @@ class TestCanvas(unittest.TestCase):
         polygon = self.canvas.create_polygon(vertices, polygon_type=PolygonType.TRIANGLE, name="XYZ")
         deleted = self.canvas.delete_polygon(polygon_type=PolygonType.TRIANGLE, vertices=vertices)
         self.assertTrue(deleted)
-        self.assertIsNone(self.canvas.get_triangle(1.0, 1.0, 5.0, 1.0, 3.0, 4.0))
+        self.assertIsNone(
+            self.canvas.get_polygon_by_vertices(
+                [(1.0, 1.0), (5.0, 1.0), (3.0, 4.0)],
+                polygon_type=PolygonType.TRIANGLE,
+            )
+        )
 
     def test_delete_polygon_by_name(self) -> None:
         polygon = self.canvas.create_polygon(
@@ -1003,7 +1044,11 @@ class TestCanvas(unittest.TestCase):
 
     def test_create_triangle_with_color(self) -> None:
         custom_color = "#aa5500"
-        triangle = self.canvas.create_triangle(0, 0, 10, 0, 0, 10, color=custom_color)
+        triangle = self.canvas.create_polygon(
+            [(0, 0), (10, 0), (0, 10)],
+            polygon_type=PolygonType.TRIANGLE,
+            color=custom_color,
+        )
         self.assertEqual(triangle.color, custom_color)
         self.assertEqual(triangle.segment1.color, custom_color)
         self.assertEqual(triangle.segment2.color, custom_color)
@@ -1721,7 +1766,10 @@ class TestCanvas(unittest.TestCase):
 
     def test_translate_triangle(self) -> None:
         # Create a triangle with initial points
-        triangle = self.canvas.create_triangle(0, 0, 10, 0, 5, 10)
+        triangle = self.canvas.create_polygon(
+            [(0, 0), (10, 0), (5, 10)],
+            polygon_type=PolygonType.TRIANGLE,
+        )
         
         # Store original positions of all points
         original_points = [
@@ -1902,7 +1950,10 @@ class TestCanvas(unittest.TestCase):
 
     def test_triangle_rotation(self) -> None:
         """Test triangle rotation around its center"""
-        triangle = self.canvas.create_triangle(0, 0, 30, 0, 15, 30)
+        triangle = self.canvas.create_polygon(
+            [(0, 0), (30, 0), (15, 30)],
+            polygon_type=PolygonType.TRIANGLE,
+        )
         initial_points = {
             (p.x, p.y) 
             for p in [triangle.segment1.point1, triangle.segment1.point2, triangle.segment2.point2]
@@ -1918,7 +1969,10 @@ class TestCanvas(unittest.TestCase):
 
     def test_triangle_full_rotation(self) -> None:
         """Test that a full rotation returns to original position"""
-        triangle = self.canvas.create_triangle(0, 0, 30, 0, 15, 30)
+        triangle = self.canvas.create_polygon(
+            [(0, 0), (30, 0), (15, 30)],
+            polygon_type=PolygonType.TRIANGLE,
+        )
         initial_points = {
             (round(p.x, 6), round(p.y, 6))
             for p in [triangle.segment1.point1, triangle.segment1.point2, triangle.segment2.point2]
@@ -2144,7 +2198,12 @@ class TestCanvas(unittest.TestCase):
         """Test that deleting a point on a triangle segment preserves the triangle structure."""
 
         # Create a triangle with vertices A(0,0), B(30,0), C(15,20)
-        triangle = self.canvas.create_triangle(0, 0, 30, 0, 15, 20, name="ABC", extra_graphics=False)
+        triangle = self.canvas.create_polygon(
+            [(0, 0), (30, 0), (15, 20)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="ABC",
+            extra_graphics=False,
+        )
         
         # Get the segments of the triangle
         segments_before = self.canvas.get_drawables_by_class_name('Segment')

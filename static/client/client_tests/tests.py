@@ -32,7 +32,6 @@ from .test_rectangle import TestRectangle
 from .test_segment import TestSegment
 from .test_segment_manager import TestSegmentManager
 from .test_vector_manager import TestVectorManager
-from .test_triangle_manager import TestTriangleManager
 from .test_circle_manager import TestCircleManager
 from .test_ellipse_manager import TestEllipseManager
 from .test_colored_area_manager import TestColoredAreaManager
@@ -130,7 +129,6 @@ class Tests:
             TestSegment,
             TestSegmentManager,
             TestVectorManager,
-            TestTriangleManager,
             TestCircleManager,
             TestEllipseManager,
             TestColoredAreaManager,

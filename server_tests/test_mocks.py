@@ -138,6 +138,7 @@ class MockCanvas:
         self.segments = []
         self.circles = []
         self.rectangles = []
+        self.polygons = []
         self.triangles = []
         self.ellipses = []
         self.functions = []
@@ -216,6 +217,11 @@ class MockCanvas:
             "name": name
         })
         self.triangles.append(triangle)
+        self.create_polygon(
+            [(x1, y1), (x2, y2), (x3, y3)],
+            polygon_type="triangle",
+            name=name,
+        )
         return triangle
 
     def create_ellipse(self, x: float, y: float, radius_x: float, radius_y: float, rotation_angle: float = 0, name: str = "") -> EllipseDict:

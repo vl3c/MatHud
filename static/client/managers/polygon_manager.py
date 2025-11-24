@@ -10,7 +10,10 @@ from drawables.triangle import Triangle
 from drawables.position import Position
 from managers.polygon_type import PolygonType
 from managers.edit_policy import EditRule, get_drawable_edit_policy
+from itertools import combinations
+
 from utils.geometry_utils import GeometryUtils
+from utils.math_utils import MathUtils
 from utils.polygon_canonicalizer import (
     PolygonCanonicalizationError,
     QuadrilateralSubtype,
@@ -478,6 +481,30 @@ class PolygonManager:
                 allowed = ", ".join(sorted(QuadrilateralSubtype.values()))
                 raise ValueError(f"Unsupported quadrilateral subtype '{subtype}'. Expected one of: {allowed}.") from exc
         raise ValueError("Polygon subtype hints are only supported for triangle or quadrilateral polygons.")
+
+    def create_triangles_from_segments(self) -> None:
+        segments: List[Any] = cast(List[Any], list(self.drawables.Segments))
+        for s1, s2, s3 in combinations(segments, 3):
+            unique_points = GeometryUtils.get_unique_point_names_from_segments([s1, s2, s3])
+            if len(unique_points) != 3:
+                continue
+            if not GeometryUtils.is_fully_connected_graph(unique_points, self.drawables.Segments):
+                continue
+
+            p1 = self.point_manager.get_point_by_name(unique_points[0])
+            p2 = self.point_manager.get_point_by_name(unique_points[1])
+            p3 = self.point_manager.get_point_by_name(unique_points[2])
+            if not all([p1, p2, p3]):
+                continue
+
+            if MathUtils.points_orientation(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y) == 0:
+                continue
+
+            self.create_polygon(
+                [(p1.x, p1.y), (p2.x, p2.y), (p3.x, p3.y)],
+                polygon_type=PolygonType.TRIANGLE,
+                extra_graphics=False,
+            )
 
     def _iter_polygon_segments(self, polygon: "Drawable") -> Iterable["Segment"]:
         if hasattr(polygon, "get_segments") and callable(getattr(polygon, "get_segments")):

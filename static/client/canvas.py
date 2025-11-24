@@ -718,54 +718,6 @@ class Canvas:
             )
         )
 
-    def get_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> Optional["Drawable"]:
-        """Get a triangle by its vertex coordinates"""
-        return self.drawable_manager.get_triangle(x1, y1, x2, y2, x3, y3)
-
-    def create_triangle(
-        self,
-        x1: float,
-        y1: float,
-        x2: float,
-        y2: float,
-        x3: float,
-        y3: float,
-        name: str = "",
-        color: Optional[str] = None,
-        subtype: Optional[str] = None,
-        extra_graphics: bool = True,
-    ) -> "Drawable":
-        """Create a triangle with the specified vertices"""
-        return self.drawable_manager.create_triangle(
-            x1,
-            y1,
-            x2,
-            y2,
-            x3,
-            y3,
-            name,
-            color=color,
-            subtype=subtype,
-            extra_graphics=extra_graphics,
-        )
-
-    def delete_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> bool:
-        """Delete a triangle by its vertex coordinates"""
-        return bool(self.drawable_manager.delete_triangle(x1, y1, x2, y2, x3, y3))
-    
-    def update_triangle(
-        self,
-        name: str,
-        new_color: Optional[str] = None,
-    ) -> bool:
-        """Update editable properties of a triangle."""
-        return bool(
-            self.drawable_manager.update_triangle(
-                name,
-                new_color=new_color,
-            )
-        )
-
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional["Drawable"]:
         """Get a circle by its center coordinates and radius"""
         return self.drawable_manager.get_circle(center_x, center_y, radius)

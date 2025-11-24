@@ -479,7 +479,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "enum": POLYGON_SUBTYPE_VALUES + [None],
                             }
                         },
-                        "required": ["vertices", "polygon_type", "color", "name"],
+                        "required": ["vertices", "polygon_type", "color", "name", "subtype"],
                         "additionalProperties": False
                     }
                 }
