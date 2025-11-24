@@ -573,8 +573,7 @@ class ArchitectureDiagramGenerator:
                         point_mgr = Python("PointManager")
                         segment_mgr = Python("SegmentManager")
                         vector_mgr = Python("VectorManager")
-                        triangle_mgr = Python("TriangleManager")
-                        rectangle_mgr = Python("RectangleManager")
+                        polygon_mgr = Python("PolygonManager")
                         circle_mgr = Python("CircleManager")
                         ellipse_mgr = Python("EllipseManager")
                         angle_mgr = Python("AngleManager")
@@ -615,15 +614,15 @@ class ArchitectureDiagramGenerator:
                     canvas >> coord_system
                     
                     # DrawableManager coordinates all shape managers
-                    drawable_manager >> [point_mgr, segment_mgr, vector_mgr, triangle_mgr, rectangle_mgr]
+                    drawable_manager >> [point_mgr, segment_mgr, vector_mgr, polygon_mgr]
                     drawable_manager >> [circle_mgr, ellipse_mgr, angle_mgr, function_mgr, area_mgr]
                     
                     # Shape managers create and manage their respective objects
                     point_mgr >> point_obj
                     segment_mgr >> segment_obj
                     vector_mgr >> vector_obj
-                    triangle_mgr >> triangle_obj
-                    rectangle_mgr >> rectangle_obj
+                    polygon_mgr >> triangle_obj
+                    polygon_mgr >> rectangle_obj
                     circle_mgr >> circle_obj
                     ellipse_mgr >> ellipse_obj
                     angle_mgr >> angle_obj
@@ -631,7 +630,7 @@ class ArchitectureDiagramGenerator:
                     area_mgr >> colored_area_obj
                     
                     # Name generation
-                    [point_mgr, segment_mgr, vector_mgr, triangle_mgr, rectangle_mgr] >> name_generator
+                    [point_mgr, segment_mgr, vector_mgr, polygon_mgr] >> name_generator
                     [circle_mgr, ellipse_mgr, angle_mgr, function_mgr, area_mgr] >> name_generator
                     name_generator >> [drawable_names, point_names, function_names]
                     

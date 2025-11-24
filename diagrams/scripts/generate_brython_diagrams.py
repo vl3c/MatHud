@@ -103,8 +103,8 @@ class BrythonDiagramGenerator:
         ]
         
         self.manager_classes: List[str] = [
-            'drawable_manager.py', 'point_manager.py', 'segment_manager.py', 
-            'vector_manager.py', 'triangle_manager.py',
+            'drawable_manager.py', 'point_manager.py', 'segment_manager.py',
+            'vector_manager.py', 'polygon_manager.py',
             'circle_manager.py', 'ellipse_manager.py', 'angle_manager.py',
             'function_manager.py', 'colored_area_manager.py', 'drawable_dependency_manager.py',
             'drawable_manager_proxy.py', 'transformations_manager.py', 'undo_redo_manager.py',
@@ -384,7 +384,7 @@ class BrythonDiagramGenerator:
 
         # Specific manager category diagrams
         manager_categories: List[Tuple[List[str], str]] = [
-            (['point_manager.py', 'segment_manager.py', 'vector_manager.py', 'triangle_manager.py', 'circle_manager.py', 'ellipse_manager.py', 'angle_manager.py'], 'brython_shape_managers'),
+            (['point_manager.py', 'segment_manager.py', 'vector_manager.py', 'polygon_manager.py', 'circle_manager.py', 'ellipse_manager.py', 'angle_manager.py'], 'brython_shape_managers'),
             (['function_manager.py', 'colored_area_manager.py'], 'brython_specialized_managers'),
             (['drawable_manager.py', 'drawable_dependency_manager.py', 'drawable_manager_proxy.py', 'drawables_container.py'], 'brython_core_managers'),
             (['transformations_manager.py', 'undo_redo_manager.py'], 'brython_system_managers')
