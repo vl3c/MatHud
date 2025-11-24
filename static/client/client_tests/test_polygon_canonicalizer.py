@@ -6,10 +6,27 @@ import unittest
 from utils.polygon_canonicalizer import (
     PolygonCanonicalizationError,
     canonicalize_rectangle,
+    canonicalize_triangle,
 )
 
 
 class TestPolygonCanonicalizer(unittest.TestCase):
+    @staticmethod
+    def _side_lengths(vertices: list[tuple[float, float]]) -> list[float]:
+        lengths: list[float] = []
+        for i in range(len(vertices)):
+            x1, y1 = vertices[i]
+            x2, y2 = vertices[(i + 1) % len(vertices)]
+            lengths.append(math.hypot(x2 - x1, y2 - y1))
+        return lengths
+
+    @staticmethod
+    def _orientation(vertices: list[tuple[float, float]]) -> float:
+        x1, y1 = vertices[0]
+        x2, y2 = vertices[1]
+        x3, y3 = vertices[2]
+        return (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)
+
     def test_rectangle_vertices_axis_aligned(self) -> None:
         vertices = [
             (0.0, 0.0),
@@ -178,6 +195,95 @@ class TestPolygonCanonicalizer(unittest.TestCase):
     def test_rectangle_invalid_construction_mode(self) -> None:
         with self.assertRaises(PolygonCanonicalizationError):
             canonicalize_rectangle([(0.0, 0.0), (1.0, 1.0)], construction_mode="unknown")
+
+    def test_triangle_vertices_basic(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (4.0, 0.2),
+            (1.5, 3.2),
+        ]
+        result = canonicalize_triangle(vertices)
+        self.assertEqual(len(result), 3)
+        self.assertGreater(abs(self._orientation(result)), 1e-6)
+        distance = math.hypot(result[0][0] - vertices[0][0], result[0][1] - vertices[0][1])
+        self.assertLess(distance, 0.5)
+
+    def test_triangle_equilateral_subtype(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (2.0, 0.01),
+            (1.02, 1.732),
+        ]
+        result = canonicalize_triangle(vertices, subtype="equilateral")
+        lengths = sorted(self._side_lengths(result))
+        self.assertAlmostEqual(lengths[0], lengths[1], places=6)
+        self.assertAlmostEqual(lengths[1], lengths[2], places=6)
+
+    def test_triangle_isosceles_subtype(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (3.0, 0.3),
+            (1.5, 4.1),
+        ]
+        result = canonicalize_triangle(vertices, subtype="isosceles")
+        lengths = self._side_lengths(result)
+        equal_legs = sorted([lengths[0], lengths[2]])
+        self.assertAlmostEqual(equal_legs[0], equal_legs[1], places=6)
+
+        midpoint = (
+            (result[1][0] + result[2][0]) / 2.0,
+            (result[1][1] + result[2][1]) / 2.0,
+        )
+        apex_vector = (result[0][0] - midpoint[0], result[0][1] - midpoint[1])
+        self.assertGreater(math.hypot(*apex_vector), 0.0)
+
+    def test_triangle_right_subtype(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (4.1, -0.05),
+            (0.05, 3.9),
+        ]
+        result = canonicalize_triangle(vertices, subtype="right")
+        legs = [
+            (result[1][0] - result[0][0], result[1][1] - result[0][1]),
+            (result[2][0] - result[0][0], result[2][1] - result[0][1]),
+        ]
+        dot = legs[0][0] * legs[1][0] + legs[0][1] * legs[1][1]
+        self.assertAlmostEqual(dot, 0.0, places=6)
+
+    def test_triangle_right_isosceles_subtype(self) -> None:
+        vertices = [
+            (1.0, 1.0),
+            (4.0, 1.2),
+            (1.2, 4.0),
+        ]
+        result = canonicalize_triangle(vertices, subtype="right_isosceles")
+        lengths = self._side_lengths(result)
+        self.assertAlmostEqual(lengths[0], lengths[2], places=6)
+        legs = [
+            (result[1][0] - result[0][0], result[1][1] - result[0][1]),
+            (result[2][0] - result[0][0], result[2][1] - result[0][1]),
+        ]
+        dot = legs[0][0] * legs[1][0] + legs[0][1] * legs[1][1]
+        self.assertAlmostEqual(dot, 0.0, places=6)
+
+    def test_triangle_invalid_vertices(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 0.0),
+        ]
+        with self.assertRaises(PolygonCanonicalizationError):
+            canonicalize_triangle(vertices)
+
+    def test_triangle_invalid_subtype(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (0.0, 1.0),
+        ]
+        with self.assertRaises(PolygonCanonicalizationError):
+            canonicalize_triangle(vertices, subtype="scalene")
 
 
 if __name__ == "__main__":
