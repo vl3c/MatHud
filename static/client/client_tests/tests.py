@@ -41,6 +41,10 @@ from .test_triangle import TestTriangle
 from .test_quadrilateral import TestQuadrilateral
 from .test_pentagon import TestPentagon
 from .test_hexagon import TestHexagon
+from .test_heptagon import TestHeptagon
+from .test_octagon import TestOctagon
+from .test_nonagon import TestNonagon
+from .test_decagon import TestDecagon
 from .test_vector import TestVector
 from .test_angle import TestAngle
 from .test_angle_manager import TestAngleManager
@@ -139,6 +143,10 @@ class Tests:
             TestQuadrilateral,
             TestPentagon,
             TestHexagon,
+            TestHeptagon,
+            TestOctagon,
+            TestNonagon,
+            TestDecagon,
             TestRectangle,
             TestCircle,
             TestCircleArc,

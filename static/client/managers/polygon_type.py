@@ -10,6 +10,10 @@ class PolygonType(str, Enum):
     SQUARE = "square"
     PENTAGON = "pentagon"
     HEXAGON = "hexagon"
+    HEPTAGON = "heptagon"
+    OCTAGON = "octagon"
+    NONAGON = "nonagon"
+    DECAGON = "decagon"
 
     @classmethod
     def coerce(cls, value: str) -> "PolygonType":

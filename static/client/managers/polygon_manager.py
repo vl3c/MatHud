@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
 
+from drawables.decagon import Decagon
+from drawables.heptagon import Heptagon
 from drawables.hexagon import Hexagon
+from drawables.nonagon import Nonagon
+from drawables.octagon import Octagon
 from drawables.pentagon import Pentagon
 from drawables.quadrilateral import Quadrilateral
 from drawables.rectangle import Rectangle
@@ -50,6 +54,10 @@ class PolygonManager:
         PolygonType.SQUARE: 4,
         PolygonType.PENTAGON: 5,
         PolygonType.HEXAGON: 6,
+        PolygonType.HEPTAGON: 7,
+        PolygonType.OCTAGON: 8,
+        PolygonType.NONAGON: 9,
+        PolygonType.DECAGON: 10,
     }
 
     _TYPE_TO_CLASSES: Dict[PolygonType, Tuple[str, ...]] = {
@@ -59,9 +67,23 @@ class PolygonManager:
         PolygonType.SQUARE: ("Rectangle",),
         PolygonType.PENTAGON: ("Pentagon",),
         PolygonType.HEXAGON: ("Hexagon",),
+        PolygonType.HEPTAGON: ("Heptagon",),
+        PolygonType.OCTAGON: ("Octagon",),
+        PolygonType.NONAGON: ("Nonagon",),
+        PolygonType.DECAGON: ("Decagon",),
     }
 
-    _ALL_POLYGON_CLASSES: Tuple[str, ...] = ("Triangle", "Quadrilateral", "Rectangle", "Pentagon", "Hexagon")
+    _ALL_POLYGON_CLASSES: Tuple[str, ...] = (
+        "Triangle",
+        "Quadrilateral",
+        "Rectangle",
+        "Pentagon",
+        "Hexagon",
+        "Heptagon",
+        "Octagon",
+        "Nonagon",
+        "Decagon",
+    )
 
     def __init__(
         self,
@@ -393,6 +415,29 @@ class PolygonManager:
                 polygon.update_color(color_value)
             return polygon
 
+        if polygon_type is PolygonType.HEPTAGON:
+            polygon = Heptagon(segments, color=color_value) if color_value else Heptagon(segments)
+            if color_value:
+                polygon.update_color(color_value)
+            return polygon
+
+        if polygon_type is PolygonType.OCTAGON:
+            polygon = Octagon(segments, color=color_value) if color_value else Octagon(segments)
+            if color_value:
+                polygon.update_color(color_value)
+            return polygon
+
+        if polygon_type is PolygonType.NONAGON:
+            polygon = Nonagon(segments, color=color_value) if color_value else Nonagon(segments)
+            if color_value:
+                polygon.update_color(color_value)
+            return polygon
+
+        if polygon_type is PolygonType.DECAGON:
+            polygon = Decagon(segments, color=color_value) if color_value else Decagon(segments)
+            if color_value:
+                polygon.update_color(color_value)
+            return polygon
         raise ValueError(f"Unsupported polygon type '{polygon_type.value}'.")
 
     def _collect_requested_fields(self, new_color: Optional[str]) -> Dict[str, str]:
