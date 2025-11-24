@@ -23,7 +23,12 @@ from typing import Any, Dict, List
 
 from importlib import import_module
 
-from static.constants_sync import SERVER_CONSTANTS_MODULE, ensure_client_constants_available
+from static.mirror_client_modules import (
+    POLYGON_SUBTYPES_MODULE,
+    SERVER_CONSTANTS_MODULE,
+    ensure_client_constants_available,
+    ensure_polygon_subtypes_available,
+)
 
 ensure_client_constants_available()
 _client_constants = import_module(SERVER_CONSTANTS_MODULE)
@@ -35,6 +40,15 @@ DEFAULT_CIRCLE_ARC_COLOR: str = getattr(
     "DEFAULT_CIRCLE_ARC_COLOR",
     getattr(_client_constants, "default_color", "black"),
 )
+
+
+ensure_polygon_subtypes_available()
+_polygon_subtypes_module = import_module(POLYGON_SUBTYPES_MODULE)
+_TriangleSubtype = getattr(_polygon_subtypes_module, "TriangleSubtype")
+_QuadrilateralSubtype = getattr(_polygon_subtypes_module, "QuadrilateralSubtype")
+TRIANGLE_SUBTYPE_VALUES = _TriangleSubtype.values()
+QUADRILATERAL_SUBTYPE_VALUES = _QuadrilateralSubtype.values()
+POLYGON_SUBTYPE_VALUES = sorted(set(TRIANGLE_SUBTYPE_VALUES + QUADRILATERAL_SUBTYPE_VALUES))
 
 
 FunctionDefinition = Dict[str, Any]

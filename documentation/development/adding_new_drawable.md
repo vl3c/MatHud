@@ -30,7 +30,7 @@ This checklist documents the workflow for introducing a new drawable type to Mat
 ## 5. Update AI Function Definitions
 1. Extend `static/functions_definitions.py` with JSON schema entries for create/delete commands.
 2. Document required parameters, optional styling, and validation limits (length, ranges, etc.).
-3. If server-side tools need access to client constants, mirror any new values through `static/constants_sync.py` and import them from there so the schema stays in sync with the Brython defaults.
+3. If server-side tools need access to client constants, mirror any new values through `static/mirror_client_modules.py` and import them from there so the schema stays in sync with the Brython defaults.
 
 ## 6. Implement Rendering Support
 1. Create a helper in `rendering/shared_drawable_renderers.py` that transforms math-space values to screen-space primitives.
