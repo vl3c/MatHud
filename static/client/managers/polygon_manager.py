@@ -18,6 +18,7 @@ from utils.polygon_canonicalizer import (
     PolygonCanonicalizationError,
     QuadrilateralSubtype,
     TriangleSubtype,
+    canonicalize_quadrilateral,
     canonicalize_rectangle,
     canonicalize_triangle,
 )
@@ -97,7 +98,7 @@ class PolygonManager:
         normalized_vertices = self._sanitize_vertices(vertices)
         original_vertices = list(normalized_vertices)
         normalized_type, constraints = self._resolve_polygon_type(normalized_vertices, polygon_type)
-        triangle_subtype, _ = self._normalize_polygon_subtype(subtype, normalized_type)
+        triangle_subtype, quad_subtype = self._normalize_polygon_subtype(subtype, normalized_type)
 
         if constraints.get("require_square"):
             # Validate squares before any canonicalization so invalid inputs raise immediately.
@@ -121,6 +122,17 @@ class PolygonManager:
                 )
             except PolygonCanonicalizationError:
                 # Preserve legacy behavior for degenerate triangles (e.g., collinear vertices)
+                normalized_vertices = original_vertices
+        elif normalized_type is PolygonType.QUADRILATERAL and quad_subtype is not None:
+            try:
+                normalized_vertices = canonicalize_quadrilateral(
+                    normalized_vertices,
+                    subtype=quad_subtype,
+                )
+                # Promote to Rectangle type for rectangle/square subtypes
+                if quad_subtype in (QuadrilateralSubtype.RECTANGLE, QuadrilateralSubtype.SQUARE):
+                    normalized_type = PolygonType.RECTANGLE
+            except PolygonCanonicalizationError:
                 normalized_vertices = original_vertices
 
         self._validate_polygon_coordinates(normalized_vertices, normalized_type, constraints)

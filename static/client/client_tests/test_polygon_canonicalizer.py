@@ -5,6 +5,7 @@ import unittest
 
 from utils.polygon_canonicalizer import (
     PolygonCanonicalizationError,
+    canonicalize_quadrilateral,
     canonicalize_rectangle,
     canonicalize_triangle,
 )
@@ -284,6 +285,166 @@ class TestPolygonCanonicalizer(unittest.TestCase):
         ]
         with self.assertRaises(PolygonCanonicalizationError):
             canonicalize_triangle(vertices, subtype="scalene")
+
+    def test_quadrilateral_parallelogram(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (5.0, 3.0),
+            (1.0, 3.0),
+        ]
+        result = canonicalize_quadrilateral(vertices, subtype="parallelogram")
+        self.assertEqual(len(result), 4)
+        vec_01 = (result[1][0] - result[0][0], result[1][1] - result[0][1])
+        vec_32 = (result[2][0] - result[3][0], result[2][1] - result[3][1])
+        self.assertAlmostEqual(vec_01[0], vec_32[0], places=6)
+        self.assertAlmostEqual(vec_01[1], vec_32[1], places=6)
+        vec_03 = (result[3][0] - result[0][0], result[3][1] - result[0][1])
+        vec_12 = (result[2][0] - result[1][0], result[2][1] - result[1][1])
+        self.assertAlmostEqual(vec_03[0], vec_12[0], places=6)
+        self.assertAlmostEqual(vec_03[1], vec_12[1], places=6)
+
+    def test_quadrilateral_rhombus(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (3.0, 1.0),
+            (4.0, 4.0),
+            (1.0, 3.0),
+        ]
+        result = canonicalize_quadrilateral(vertices, subtype="rhombus")
+        self.assertEqual(len(result), 4)
+        lengths = self._side_lengths(result)
+        for length in lengths[1:]:
+            self.assertAlmostEqual(lengths[0], length, places=5)
+
+    def test_quadrilateral_kite(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (2.0, 3.0),
+            (4.0, 0.0),
+            (2.0, -1.0),
+        ]
+        result = canonicalize_quadrilateral(vertices, subtype="kite")
+        self.assertEqual(len(result), 4)
+        lengths = self._side_lengths(result)
+        pairs = [(lengths[0], lengths[3]), (lengths[1], lengths[2])]
+        for a, b in pairs:
+            self.assertAlmostEqual(a, b, places=5)
+
+    def test_quadrilateral_trapezoid(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (6.0, 0.0),
+            (5.0, 3.0),
+            (1.0, 3.0),
+        ]
+        result = canonicalize_quadrilateral(vertices, subtype="trapezoid")
+        self.assertEqual(len(result), 4)
+        vec_01 = (result[1][0] - result[0][0], result[1][1] - result[0][1])
+        vec_32 = (result[2][0] - result[3][0], result[2][1] - result[3][1])
+        len_01 = math.hypot(vec_01[0], vec_01[1])
+        len_32 = math.hypot(vec_32[0], vec_32[1])
+        if len_01 > 1e-6 and len_32 > 1e-6:
+            unit_01 = (vec_01[0] / len_01, vec_01[1] / len_01)
+            unit_32 = (vec_32[0] / len_32, vec_32[1] / len_32)
+            dot = abs(unit_01[0] * unit_32[0] + unit_01[1] * unit_32[1])
+            self.assertAlmostEqual(dot, 1.0, places=5)
+
+    def test_quadrilateral_isosceles_trapezoid(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (6.0, 0.0),
+            (5.0, 4.0),
+            (1.0, 4.0),
+        ]
+        result = canonicalize_quadrilateral(vertices, subtype="isosceles_trapezoid")
+        self.assertEqual(len(result), 4)
+        lengths = self._side_lengths(result)
+        leg1 = lengths[1]
+        leg2 = lengths[3]
+        self.assertAlmostEqual(leg1, leg2, places=5)
+
+    def test_quadrilateral_right_trapezoid(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (5.0, 0.0),
+            (5.0, 3.0),
+            (0.0, 4.0),
+        ]
+        result = canonicalize_quadrilateral(vertices, subtype="right_trapezoid")
+        self.assertEqual(len(result), 4)
+        vec_01 = (result[1][0] - result[0][0], result[1][1] - result[0][1])
+        vec_03 = (result[3][0] - result[0][0], result[3][1] - result[0][1])
+        dot = vec_01[0] * vec_03[0] + vec_01[1] * vec_03[1]
+        self.assertAlmostEqual(dot, 0.0, places=5)
+
+    def test_quadrilateral_no_subtype(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (4.0, 0.5),
+            (3.5, 3.0),
+            (0.5, 2.5),
+        ]
+        result = canonicalize_quadrilateral(vertices)
+        self.assertEqual(len(result), 4)
+        dist = math.hypot(result[0][0] - vertices[0][0], result[0][1] - vertices[0][1])
+        self.assertLess(dist, 0.5)
+
+    def test_quadrilateral_invalid_vertices(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (1.0, 0.0),
+            (0.0, 1.0),
+        ]
+        with self.assertRaises(PolygonCanonicalizationError):
+            canonicalize_quadrilateral(vertices)
+
+    def test_quadrilateral_rectangle_subtype(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 2.0),
+            (0.0, 2.0),
+        ]
+        result = canonicalize_quadrilateral(vertices, subtype="rectangle")
+        self.assertEqual(len(result), 4)
+        # Verify all angles are right angles (dot product of adjacent sides is 0)
+        for i in range(4):
+            v0 = result[i]
+            v1 = result[(i + 1) % 4]
+            v2 = result[(i + 2) % 4]
+            edge1 = (v1[0] - v0[0], v1[1] - v0[1])
+            edge2 = (v2[0] - v1[0], v2[1] - v1[1])
+            dot = edge1[0] * edge2[0] + edge1[1] * edge2[1]
+            self.assertAlmostEqual(dot, 0.0, places=5)
+        # Verify opposite sides are equal
+        lengths = self._side_lengths(result)
+        self.assertAlmostEqual(lengths[0], lengths[2], places=5)
+        self.assertAlmostEqual(lengths[1], lengths[3], places=5)
+
+    def test_quadrilateral_square_subtype(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 2.0),
+            (0.0, 2.0),
+        ]
+        result = canonicalize_quadrilateral(vertices, subtype="square")
+        self.assertEqual(len(result), 4)
+        # Verify all sides are equal
+        lengths = self._side_lengths(result)
+        for length in lengths[1:]:
+            self.assertAlmostEqual(lengths[0], length, places=5)
+        # Verify all angles are right angles
+        for i in range(4):
+            v0 = result[i]
+            v1 = result[(i + 1) % 4]
+            v2 = result[(i + 2) % 4]
+            edge1 = (v1[0] - v0[0], v1[1] - v0[1])
+            edge2 = (v2[0] - v1[0], v2[1] - v1[1])
+            dot = edge1[0] * edge2[0] + edge1[1] * edge2[1]
+            self.assertAlmostEqual(dot, 0.0, places=5)
 
 
 if __name__ == "__main__":

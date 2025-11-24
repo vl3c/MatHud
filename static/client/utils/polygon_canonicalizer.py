@@ -4,8 +4,9 @@ from utils.canonicalizers import (
     PointLike,
     PointTuple,
     PolygonCanonicalizationError,
-    RectangleCanonicalizer,
+    QuadrilateralCanonicalizer,
     TriangleCanonicalizer,
+    canonicalize_quadrilateral,
     canonicalize_rectangle,
     canonicalize_triangle,
 )
@@ -15,10 +16,11 @@ __all__ = [
     "PointLike",
     "PointTuple",
     "PolygonCanonicalizationError",
-    "RectangleCanonicalizer",
+    "QuadrilateralCanonicalizer",
     "TriangleCanonicalizer",
     "QuadrilateralSubtype",
     "TriangleSubtype",
+    "canonicalize_quadrilateral",
     "canonicalize_rectangle",
     "canonicalize_triangle",
 ]

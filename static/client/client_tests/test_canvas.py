@@ -947,6 +947,48 @@ class TestCanvas(unittest.TestCase):
         self.assertEqual(polygon.get_class_name(), "Hexagon")
         self.assertFalse(polygon.is_renderable)
 
+    def test_create_polygon_quadrilateral_parallelogram_subtype(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (5.0, 3.0),
+            (1.0, 3.0),
+        ]
+        polygon = self.canvas.create_polygon(
+            vertices,
+            polygon_type=PolygonType.QUADRILATERAL,
+            subtype="parallelogram",
+            name="PARA",
+        )
+        self.assertEqual(polygon.get_class_name(), "Quadrilateral")
+        segments = polygon.get_segments()
+        vec_01 = (segments[0].point2.x - segments[0].point1.x, segments[0].point2.y - segments[0].point1.y)
+        vec_23 = (segments[2].point2.x - segments[2].point1.x, segments[2].point2.y - segments[2].point1.y)
+        self.assertAlmostEqual(vec_01[0], -vec_23[0], places=4)
+        self.assertAlmostEqual(vec_01[1], -vec_23[1], places=4)
+
+    def test_create_polygon_quadrilateral_rhombus_subtype(self) -> None:
+        vertices = [
+            (0.0, 0.0),
+            (3.0, 1.0),
+            (4.0, 4.0),
+            (1.0, 3.0),
+        ]
+        polygon = self.canvas.create_polygon(
+            vertices,
+            polygon_type=PolygonType.QUADRILATERAL,
+            subtype="rhombus",
+            name="RHOM",
+        )
+        self.assertEqual(polygon.get_class_name(), "Quadrilateral")
+        segments = polygon.get_segments()
+        lengths = [
+            ((s.point2.x - s.point1.x) ** 2 + (s.point2.y - s.point1.y) ** 2) ** 0.5
+            for s in segments
+        ]
+        for length in lengths[1:]:
+            self.assertAlmostEqual(lengths[0], length, places=4)
+
     # Rectangle tests
     def test_create_rectangle_new(self) -> None:
         new_rectangle = self._create_rectangle(10, 10, 40, 40)
