@@ -135,56 +135,30 @@ class TestRunner:
                 "function_name": "create_ellipse",
                 "arguments": {"center_x": 360, "center_y": 320, "radius_x": 80, "radius_y": 50, "name": "I(80, 50)"}
             },
-            # Polygon below the x-axis (12-segment closed loop)
+            # 12-sided polygon below the x-axis
             {
-                "function_name": "create_segment",
-                "arguments": {"x1": -100.0, "y1": -240.0, "x2": -70.0, "y2": -200.0, "name": "JO"}
+                "function_name": "create_polygon",
+                "arguments": {
+                    "vertices": [
+                        {"x": -100.0, "y": -240.0},
+                        {"x": -70.0, "y": -200.0},
+                        {"x": -20.0, "y": -180.0},
+                        {"x": 40.0, "y": -190.0},
+                        {"x": 90.0, "y": -220.0},
+                        {"x": 130.0, "y": -260.0},
+                        {"x": 140.0, "y": -310.0},
+                        {"x": 100.0, "y": -350.0},
+                        {"x": 40.0, "y": -360.0},
+                        {"x": -20.0, "y": -350.0},
+                        {"x": -70.0, "y": -320.0},
+                        {"x": -110.0, "y": -280.0}
+                    ],
+                    "polygon_type": "generic",
+                    "name": "JOKLMNQSUWXY",
+                    "color": None,
+                    "subtype": None
+                }
             },
-            {
-                "function_name": "create_segment",
-                "arguments": {"x1": -70.0, "y1": -200.0, "x2": -20.0, "y2": -180.0, "name": "OK"}
-            },
-            {
-                "function_name": "create_segment",
-                "arguments": {"x1": -20.0, "y1": -180.0, "x2": 40.0, "y2": -190.0, "name": "KL"}
-            },
-            {
-                "function_name": "create_segment",
-                "arguments": {"x1": 40.0, "y1": -190.0, "x2": 90.0, "y2": -220.0, "name": "LM"}
-            },
-            {
-                "function_name": "create_segment",
-                "arguments": {"x1": 90.0, "y1": -220.0, "x2": 130.0, "y2": -260.0, "name": "MN"}
-            },
-            {
-                "function_name": "create_segment",
-                "arguments": {"x1": 130.0, "y1": -260.0, "x2": 140.0, "y2": -310.0, "name": "NQ"}
-            },
-            {
-                "function_name": "create_segment",
-                "arguments": {"x1": 140.0, "y1": -310.0, "x2": 100.0, "y2": -350.0, "name": "QS"}
-            },
-            {
-                "function_name": "create_segment",
-                "arguments": {"x1": 100.0, "y1": -350.0, "x2": 40.0, "y2": -360.0, "name": "SU"}
-            },
-            {
-                "function_name": "create_segment",
-                "arguments": {"x1": 40.0, "y1": -360.0, "x2": -20.0, "y2": -350.0, "name": "UW"}
-            },
-            {
-                "function_name": "create_segment",
-                "arguments": {"x1": -20.0, "y1": -350.0, "x2": -70.0, "y2": -320.0, "name": "WX"}
-            },
-            {
-                "function_name": "create_segment",
-                "arguments": {"x1": -70.0, "y1": -320.0, "x2": -110.0, "y2": -280.0, "name": "XY"}
-            },
-            {
-                "function_name": "create_segment",
-                "arguments": {"x1": -110.0, "y1": -280.0, "x2": -100.0, "y2": -240.0, "name": "YJ"}
-            },
-            # End polygon segment loop
             {
                 "function_name": "draw_function",
                 "arguments": {"function_string": "50 * sin(x / 50)", "name": "f1", "left_bound": -300, "right_bound": 300}
