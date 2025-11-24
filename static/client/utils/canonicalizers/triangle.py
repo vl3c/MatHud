@@ -10,24 +10,17 @@ from .common import (
     contains_point,
     point_like_to_tuple,
 )
+from utils.polygon_subtypes import TriangleSubtype
 
 
 class TriangleCanonicalizer:
     """Best-fit triangle canonicalization helpers with subtype support."""
 
-    _SUPPORTED_SUBTYPES = {
-        None,
-        "equilateral",
-        "isosceles",
-        "right",
-        "right_isosceles",
-    }
-
     @staticmethod
     def canonicalize(
         vertices: Sequence[PointLike],
         *,
-        subtype: str | None = None,
+        subtype: TriangleSubtype | str | None = None,
         tolerance: float = 1e-6,
     ) -> List[PointTuple]:
         points = [point_like_to_tuple(vertex) for vertex in vertices]
@@ -41,13 +34,13 @@ class TriangleCanonicalizer:
         if normalized_subtype is None:
             return TriangleCanonicalizer._align_to_original_order(ordered, original_order)
 
-        if normalized_subtype == "equilateral":
+        if normalized_subtype is TriangleSubtype.EQUILATERAL:
             result = TriangleCanonicalizer._canonicalize_equilateral(ordered, original_order)
-        elif normalized_subtype == "isosceles":
+        elif normalized_subtype is TriangleSubtype.ISOSCELES:
             result = TriangleCanonicalizer._canonicalize_isosceles(ordered, original_order, tolerance)
-        elif normalized_subtype == "right":
+        elif normalized_subtype is TriangleSubtype.RIGHT:
             result = TriangleCanonicalizer._canonicalize_right(ordered, original_order, tolerance)
-        elif normalized_subtype == "right_isosceles":
+        elif normalized_subtype is TriangleSubtype.RIGHT_ISOSCELES:
             result = TriangleCanonicalizer._canonicalize_right_isosceles(ordered, original_order, tolerance)
         else:
             raise PolygonCanonicalizationError(f"Unsupported triangle subtype '{subtype}'.")
@@ -195,13 +188,13 @@ class TriangleCanonicalizer:
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _normalize_subtype(subtype: str | None) -> str | None:
+    def _normalize_subtype(subtype: TriangleSubtype | str | None) -> TriangleSubtype | None:
         if subtype is None:
             return None
-        normalized = subtype.strip().lower().replace("-", "_")
-        if normalized not in TriangleCanonicalizer._SUPPORTED_SUBTYPES:
-            raise PolygonCanonicalizationError(f"Unsupported triangle subtype '{subtype}'.")
-        return normalized
+        try:
+            return TriangleSubtype.from_value(subtype)
+        except ValueError as exc:
+            raise PolygonCanonicalizationError(str(exc)) from exc
 
     @staticmethod
     def _dedupe_vertices(points: Sequence[PointTuple], tolerance: float) -> List[PointTuple]:

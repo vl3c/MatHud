@@ -9,6 +9,7 @@ from utils.canonicalizers import (
     canonicalize_rectangle,
     canonicalize_triangle,
 )
+from utils.polygon_subtypes import QuadrilateralSubtype, TriangleSubtype
 
 __all__ = [
     "PointLike",
@@ -16,6 +17,8 @@ __all__ = [
     "PolygonCanonicalizationError",
     "RectangleCanonicalizer",
     "TriangleCanonicalizer",
+    "QuadrilateralSubtype",
+    "TriangleSubtype",
     "canonicalize_rectangle",
     "canonicalize_triangle",
 ]

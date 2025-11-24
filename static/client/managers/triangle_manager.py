@@ -141,6 +141,7 @@ class TriangleManager:
         y3: float,
         name: str = "",
         color: Optional[str] = None,
+        subtype: Optional[str] = None,
         extra_graphics: bool = True,
     ) -> Triangle:
         """
@@ -169,6 +170,7 @@ class TriangleManager:
             polygon_type=PolygonType.TRIANGLE,
             name=name,
             color=color,
+            subtype=subtype,
             extra_graphics=extra_graphics,
         )
         return cast(Triangle, polygon)

@@ -435,7 +435,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "create_polygon",
-                    "description": "Creates a polygon from ordered vertex coordinates. For rectangle and square types, coordinates are normalized through the canonicalizer so near-rectangles snap into valid rectangles.",
+                    "description": "Creates a polygon from ordered vertex coordinates. For rectangle and square types, coordinates are normalized through the canonicalizer so near-rectangles snap into valid rectangles. Triangle inputs can optionally request canonicalization toward special subtypes such as equilateral or right triangles.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -462,7 +462,8 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             },
                             "polygon_type": {
                                 "type": ["string", "null"],
-                                "description": "Optional polygon classification (triangle, quadrilateral, rectangle, square, pentagon, or hexagon)."
+                                "description": "Optional polygon classification (triangle, quadrilateral, pentagon, or hexagon).",
+                                "enum": ["triangle", "quadrilateral", "pentagon", "hexagon", None],
                             },
                             "color": {
                                 "type": ["string", "null"],
@@ -471,6 +472,11 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "name": {
                                 "type": ["string", "null"],
                                 "description": "Optional name for the polygon. Letters are reused to label vertices."
+                            },
+                            "subtype": {
+                                "type": ["string", "null"],
+                                "description": "Optional polygon subtype hint. Triangles support equilateral, isosceles, right, right_isosceles. Quadrilaterals support rectangle, square, parallelogram, rhombus, kite, trapezoid, isosceles_trapezoid, right_trapezoid.",
+                                "enum": POLYGON_SUBTYPE_VALUES + [None],
                             }
                         },
                         "required": ["vertices", "polygon_type", "color", "name"],

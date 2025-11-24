@@ -13,7 +13,10 @@ from managers.edit_policy import EditRule, get_drawable_edit_policy
 from utils.geometry_utils import GeometryUtils
 from utils.polygon_canonicalizer import (
     PolygonCanonicalizationError,
+    QuadrilateralSubtype,
+    TriangleSubtype,
     canonicalize_rectangle,
+    canonicalize_triangle,
 )
 
 if TYPE_CHECKING:
@@ -85,10 +88,17 @@ class PolygonManager:
         polygon_type: Optional[Union[str, PolygonType]] = None,
         name: str = "",
         color: Optional[str] = None,
+        subtype: Optional[Union[str, TriangleSubtype, QuadrilateralSubtype]] = None,
         extra_graphics: bool = True,
     ) -> "Drawable":
         normalized_vertices = self._sanitize_vertices(vertices)
+        original_vertices = list(normalized_vertices)
         normalized_type, constraints = self._resolve_polygon_type(normalized_vertices, polygon_type)
+        triangle_subtype, _ = self._normalize_polygon_subtype(subtype, normalized_type)
+
+        if constraints.get("require_square"):
+            # Validate squares before any canonicalization so invalid inputs raise immediately.
+            self._validate_polygon_coordinates(original_vertices, normalized_type, constraints)
 
         if constraints.get("require_rectangle"):
             mode = "diagonal" if len(normalized_vertices) == 2 else "vertices"
@@ -96,9 +106,19 @@ class PolygonManager:
                 normalized_vertices = canonicalize_rectangle(
                     normalized_vertices,
                     construction_mode=mode,
+                    enforce_square=constraints.get("require_square", False),
                 )
             except PolygonCanonicalizationError as exc:
                 raise ValueError(str(exc)) from exc
+        elif normalized_type is PolygonType.TRIANGLE:
+            try:
+                normalized_vertices = canonicalize_triangle(
+                    normalized_vertices,
+                    subtype=triangle_subtype,
+                )
+            except PolygonCanonicalizationError:
+                # Preserve legacy behavior for degenerate triangles (e.g., collinear vertices)
+                normalized_vertices = original_vertices
 
         self._validate_polygon_coordinates(normalized_vertices, normalized_type, constraints)
 
@@ -434,6 +454,30 @@ class PolygonManager:
         if polygon_type is PolygonType.RECTANGLE:
             return {"require_rectangle": True}
         return {}
+
+    def _normalize_polygon_subtype(
+        self,
+        subtype: Optional[Union[str, TriangleSubtype, QuadrilateralSubtype]],
+        polygon_type: PolygonType,
+    ) -> Tuple[Optional[TriangleSubtype], Optional[QuadrilateralSubtype]]:
+        if subtype is None:
+            return None, None
+        sanitized = str(subtype).strip()
+        if not sanitized:
+            return None, None
+        if polygon_type is PolygonType.TRIANGLE:
+            try:
+                return TriangleSubtype.from_value(subtype), None
+            except ValueError as exc:
+                allowed = ", ".join(sorted(TriangleSubtype.values()))
+                raise ValueError(f"Unsupported triangle subtype '{subtype}'. Expected one of: {allowed}.") from exc
+        if polygon_type is PolygonType.QUADRILATERAL:
+            try:
+                return None, QuadrilateralSubtype.from_value(subtype)
+            except ValueError as exc:
+                allowed = ", ".join(sorted(QuadrilateralSubtype.values()))
+                raise ValueError(f"Unsupported quadrilateral subtype '{subtype}'. Expected one of: {allowed}.") from exc
+        raise ValueError("Polygon subtype hints are only supported for triangle or quadrilateral polygons.")
 
     def _iter_polygon_segments(self, polygon: "Drawable") -> Iterable["Segment"]:
         if hasattr(polygon, "get_segments") and callable(getattr(polygon, "get_segments")):

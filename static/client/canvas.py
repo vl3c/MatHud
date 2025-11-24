@@ -424,6 +424,7 @@ class Canvas:
         polygon_type: Optional[Union[str, PolygonType]] = None,
         name: str = "",
         color: Optional[str] = None,
+        subtype: Optional[str] = None,
         extra_graphics: bool = True,
     ) -> "Drawable":
         """Create a polygon with ordered vertices."""
@@ -432,6 +433,7 @@ class Canvas:
             polygon_type=polygon_type,
             name=name,
             color=color,
+            subtype=subtype,
             extra_graphics=extra_graphics,
         )
 
@@ -730,6 +732,7 @@ class Canvas:
         y3: float,
         name: str = "",
         color: Optional[str] = None,
+        subtype: Optional[str] = None,
         extra_graphics: bool = True,
     ) -> "Drawable":
         """Create a triangle with the specified vertices"""
@@ -742,6 +745,7 @@ class Canvas:
             y3,
             name,
             color=color,
+            subtype=subtype,
             extra_graphics=extra_graphics,
         )
 
