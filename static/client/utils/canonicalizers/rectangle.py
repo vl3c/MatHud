@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Iterable, List, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 from .common import (
     PointLike,
@@ -11,8 +11,6 @@ from .common import (
     nearest_point,
     point_like_to_tuple,
 )
-
-
 class RectangleCanonicalizer:
     """Best-fit rectangle canonicalization routines."""
 
@@ -22,12 +20,13 @@ class RectangleCanonicalizer:
         *,
         construction_mode: str | None = None,
         tolerance: float | None = 1e-6,
+        enforce_square: bool = False,
     ) -> List[PointTuple]:
         mode = RectangleCanonicalizer._normalize_mode(construction_mode)
         tol = 1e-6 if tolerance is None else float(tolerance)
         if mode == "diagonal":
             return RectangleCanonicalizer._canonicalize_diagonal(vertices)
-        return RectangleCanonicalizer._canonicalize_vertices(vertices, tol)
+        return RectangleCanonicalizer._canonicalize_vertices(vertices, tol, enforce_square)
 
     @staticmethod
     def _normalize_mode(construction_mode: str | None) -> str:
@@ -58,13 +57,18 @@ class RectangleCanonicalizer:
         ]
 
     @staticmethod
-    def _canonicalize_vertices(vertices: Sequence[PointLike], tolerance: float) -> List[PointTuple]:
+    def _canonicalize_vertices(
+        vertices: Sequence[PointLike],
+        tolerance: float,
+        enforce_square: bool,
+    ) -> List[PointTuple]:
         points = [point_like_to_tuple(vertex) for vertex in vertices]
         if len(points) < 4:
             raise PolygonCanonicalizationError("Rectangle canonicalization requires at least four vertices.")
 
         distinct = RectangleCanonicalizer._dedupe_vertices(points, tolerance)
         primary_anchor, opposite_anchor = RectangleCanonicalizer._extract_diagonal_anchors(points)
+
         ordered_vertices = RectangleCanonicalizer._prioritize_diagonal_vertices(
             distinct,
             primary_anchor,
@@ -85,6 +89,15 @@ class RectangleCanonicalizer:
         height = max_beta - min_beta
         if width <= 0 or height <= 0:
             raise PolygonCanonicalizationError("Provided vertices collapse to a line; cannot form a rectangle.")
+
+        if enforce_square:
+            half_side = (width + height) / 4.0
+            mid_alpha = (min_alpha + max_alpha) / 2.0
+            mid_beta = (min_beta + max_beta) / 2.0
+            min_alpha = mid_alpha - half_side
+            max_alpha = mid_alpha + half_side
+            min_beta = mid_beta - half_side
+            max_beta = mid_beta + half_side
 
         canonical = RectangleCanonicalizer._build_corners_from_bounds(
             centroid_x,
@@ -362,12 +375,14 @@ def canonicalize_rectangle(
     *,
     construction_mode: str | None = None,
     tolerance: float | None = 1e-6,
+    enforce_square: bool = False,
 ) -> List[PointTuple]:
     """Convenience function mirroring the legacy API."""
     return RectangleCanonicalizer.canonicalize(
         vertices,
         construction_mode=construction_mode,
         tolerance=tolerance,
+        enforce_square=enforce_square,
     )
 
 
