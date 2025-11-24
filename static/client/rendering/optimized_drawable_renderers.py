@@ -382,7 +382,7 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
                 text_delta = -text_delta
             text_angle = angle_v_p1_rad + text_delta
             tx = vertex_screen[0] + text_radius * math.cos(text_angle)
-            ty = vertex_screen[1] - text_radius * math.sin(text_angle)
+            ty = vertex_screen[1] + text_radius * math.sin(text_angle)
             new_position = (tx, ty)
             base_font_size = float(angle_meta.get("base_font_size", getattr(font, "size", 12.0)) or 12.0)
             if not math.isfinite(base_font_size) or base_font_size <= 0:
