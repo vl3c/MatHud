@@ -12,7 +12,6 @@ Design Pattern:
 
 Use Cases:
     - SegmentManager accessing PointManager functionality
-    - TriangleManager accessing both PointManager and SegmentManager
     - Any manager needing to call methods on other managers
 
 Implementation:

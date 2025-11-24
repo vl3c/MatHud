@@ -84,7 +84,10 @@ def _populate_scene(canvas: Canvas, spec: Dict[str, Any]) -> Dict[str, int]:
         p3 = pick_point()
         if len({id(p1), id(p2), id(p3)}) < 3:
             continue
-        canvas.create_triangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y)
+        canvas.create_polygon(
+            [(p1.x, p1.y), (p2.x, p2.y), (p3.x, p3.y)],
+            polygon_type=PolygonType.TRIANGLE,
+        )
         created["triangles"] += 1
 
     for _ in range(spec.get("rectangles", 0)):

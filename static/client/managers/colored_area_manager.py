@@ -72,7 +72,6 @@ if TYPE_CHECKING:
     from managers.drawable_manager_proxy import DrawableManagerProxy
     from name_generator.drawable import DrawableNameGenerator
     from drawables.rectangle import Rectangle
-    from drawables.triangle import Triangle
 
 class ColoredAreaManager:
     """
@@ -247,10 +246,17 @@ class ColoredAreaManager:
         chord_segment: Optional[Segment] = None
 
         if triangle_name:
-            triangle = self.drawable_manager.get_triangle_by_name(triangle_name)
+            triangle = self.drawable_manager.get_polygon_by_name(
+                triangle_name,
+                polygon_type=PolygonType.TRIANGLE,
+            )
             if not triangle:
                 raise ValueError(f"Triangle '{triangle_name}' was not found.")
-            segments = [triangle.segment1, triangle.segment2, triangle.segment3]
+            segments = [
+                triangle.segment1,
+                triangle.segment2,
+                triangle.segment3,
+            ]
             shape_type = "polygon"
         elif rectangle_name:
             rectangle = self.drawable_manager.get_polygon_by_name(

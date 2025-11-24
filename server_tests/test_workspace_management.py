@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, cast
 
 from server_tests.test_mocks import CanvasStateDict, MockCanvas
+from static.client.managers.polygon_type import PolygonType
 from static.client.utils.polygon_canonicalizer import canonicalize_rectangle
 from static.workspace_manager import WORKSPACES_DIR, WorkspaceManager, WorkspaceState
 
@@ -95,7 +96,11 @@ class TestWorkspaceManagement(unittest.TestCase):
 
     def test_load_workspace(self) -> None:
         """Test loading a workspace."""
-        self.canvas.create_triangle(0, 0, 100, 0, 50, 100, "ABC")
+        self.canvas.create_polygon(
+            [(0, 0), (100, 0), (50, 100)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="ABC",
+        )
         workspace_name = "test_triangle_workspace"
         success = self.workspace_manager.save_workspace(cast(WorkspaceState, self.canvas.get_canvas_state()), workspace_name, TEST_DIR)
         self.assertTrue(success, "Initial save should succeed")
@@ -106,10 +111,14 @@ class TestWorkspaceManagement(unittest.TestCase):
         state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
         
         state_dict = cast(Dict[str, Any], state)
-        self.assertIn("Triangles", state_dict)
-        self.assertEqual(len(state_dict["Triangles"]), 1)
-        triangle = state_dict["Triangles"][0]
-        self.assertEqual(triangle["name"], "ABC")
+        self.assertIn("Polygons", state_dict)
+        triangles = [
+            polygon for polygon in state_dict["Polygons"]
+            if polygon.get("polygon_type") == "triangle"
+        ]
+        self.assertEqual(len(triangles), 1)
+        triangle = triangles[0]
+        self.assertEqual(triangle.get("name"), "ABC")
 
     def test_load_nonexistent_workspace(self) -> None:
         """Test loading a workspace that doesn't exist."""

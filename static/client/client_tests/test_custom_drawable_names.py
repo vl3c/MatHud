@@ -68,19 +68,31 @@ class TestCustomDrawableNames(unittest.TestCase):
 
     def test_triangle_basic_naming(self) -> None:
         # Test creating a triangle with a custom name
-        triangle = self.canvas.create_triangle(10, 10, 20, 20, 30, 30, "Triangle")
+        triangle = self.canvas.create_polygon(
+            [(10, 10), (20, 20), (30, 30)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="Triangle",
+        )
         self.assertEqual(triangle.segment1.point1.name, "T")
         self.assertEqual(triangle.segment1.point2.name, "R")
         self.assertEqual(triangle.segment2.point2.name, "I")
         # Test creating another triangle with same name - should use next available letters
-        triangle2 = self.canvas.create_triangle(40, 40, 50, 50, 60, 60, "Triangle")
+        triangle2 = self.canvas.create_polygon(
+            [(40, 40), (50, 50), (60, 60)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="Triangle",
+        )
         self.assertEqual(triangle2.segment1.point1.name, "A")
         self.assertEqual(triangle2.segment1.point2.name, "N")
         self.assertEqual(triangle2.segment2.point2.name, "G")
 
     def test_triangle_apostrophe_naming(self) -> None:
         # Test triangle with apostrophes in name
-        triangle = self.canvas.create_triangle(70, 70, 80, 80, 90, 90, "A'B''C'''")
+        triangle = self.canvas.create_polygon(
+            [(70, 70), (80, 80), (90, 90)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="A'B''C'''",
+        )
         self.assertEqual(triangle.segment1.point1.name, "A'")
         self.assertEqual(triangle.segment1.point2.name, "B''")
         self.assertEqual(triangle.segment2.point2.name, "C'''")

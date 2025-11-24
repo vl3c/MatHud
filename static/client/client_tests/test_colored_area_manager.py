@@ -8,13 +8,14 @@ from drawables.circle import Circle
 from drawables.ellipse import Ellipse
 from drawables.point import Point
 from drawables.rectangle import Rectangle
-from drawables.segment import Segment
 from drawables.triangle import Triangle
+from drawables.segment import Segment
 from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
 from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
 from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea
 from drawables.function import Function
 from managers.colored_area_manager import ColoredAreaManager
+from managers.polygon_type import PolygonType
 from managers.drawables_container import DrawablesContainer
 from .simple_mock import SimpleMock
 from constants import default_area_fill_color, default_area_opacity, default_closed_shape_resolution
@@ -57,16 +58,17 @@ class TestColoredAreaManager(unittest.TestCase):
                     return ellipse
             return None
 
-        def get_triangle_by_name(name: str) -> Optional[Triangle]:
-            for triangle in self.drawables.Triangles:
-                if getattr(triangle, "name", "") == name:
-                    return triangle
-            return None
-
-        def get_polygon_by_name(name: str, polygon_type: Optional[Any] = None) -> Optional[Rectangle]:
-            for rectangle in self.drawables.Rectangles:
-                if getattr(rectangle, "name", "") == name:
-                    return rectangle
+        def get_polygon_by_name(name: str, polygon_type: Optional[Any] = None):
+            if polygon_type == PolygonType.TRIANGLE:
+                for triangle in self.drawables.Triangles:
+                    if getattr(triangle, "name", "") == name:
+                        return triangle
+                return None
+            if polygon_type == PolygonType.RECTANGLE:
+                for rectangle in self.drawables.Rectangles:
+                    if getattr(rectangle, "name", "") == name:
+                        return rectangle
+                return None
             return None
 
         def get_function(name: str) -> Optional[Function]:
@@ -83,7 +85,6 @@ class TestColoredAreaManager(unittest.TestCase):
         self.drawable_manager_proxy.get_segment_by_name = get_segment_by_name
         self.drawable_manager_proxy.get_circle_by_name = get_circle_by_name
         self.drawable_manager_proxy.get_ellipse_by_name = get_ellipse_by_name
-        self.drawable_manager_proxy.get_triangle_by_name = get_triangle_by_name
         self.drawable_manager_proxy.get_polygon_by_name = get_polygon_by_name
         self.drawable_manager_proxy.get_function = get_function
         self.drawable_manager_proxy.create_point = create_point
