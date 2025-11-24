@@ -462,8 +462,8 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             },
                             "polygon_type": {
                                 "type": ["string", "null"],
-                                "description": "Optional polygon classification (triangle, quadrilateral, pentagon, or hexagon).",
-                                "enum": ["triangle", "quadrilateral", "pentagon", "hexagon", None],
+                                "description": "Optional polygon classification (triangle, quadrilateral, pentagon, hexagon, heptagon, octagon, nonagon, decagon, or generic).",
+                                "enum": ["triangle", "quadrilateral", "pentagon", "hexagon", "heptagon", "octagon", "nonagon", "decagon", "generic", None],
                             },
                             "color": {
                                 "type": ["string", "null"],
@@ -495,7 +495,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                         "properties": {
                             "polygon_type": {
                                 "type": ["string", "null"],
-                                "description": "Optional polygon classification (triangle, quadrilateral, rectangle, square, pentagon, or hexagon)."
+                                "description": "Optional polygon classification (triangle, quadrilateral, rectangle, square, pentagon, hexagon, heptagon, octagon, nonagon, decagon, or generic)."
                             },
                             "name": {
                                 "type": ["string", "null"],

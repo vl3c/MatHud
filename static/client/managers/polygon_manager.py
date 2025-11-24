@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
 
 from drawables.decagon import Decagon
+from drawables.generic_polygon import GenericPolygon
 from drawables.heptagon import Heptagon
 from drawables.hexagon import Hexagon
 from drawables.nonagon import Nonagon
@@ -71,6 +72,7 @@ class PolygonManager:
         PolygonType.OCTAGON: ("Octagon",),
         PolygonType.NONAGON: ("Nonagon",),
         PolygonType.DECAGON: ("Decagon",),
+        PolygonType.GENERIC: ("GenericPolygon",),
     }
 
     _ALL_POLYGON_CLASSES: Tuple[str, ...] = (
@@ -83,6 +85,7 @@ class PolygonManager:
         "Octagon",
         "Nonagon",
         "Decagon",
+        "GenericPolygon",
     )
 
     def __init__(
@@ -438,6 +441,13 @@ class PolygonManager:
             if color_value:
                 polygon.update_color(color_value)
             return polygon
+
+        if polygon_type is PolygonType.GENERIC:
+            polygon = GenericPolygon(segments, color=color_value) if color_value else GenericPolygon(segments)
+            if color_value:
+                polygon.update_color(color_value)
+            return polygon
+
         raise ValueError(f"Unsupported polygon type '{polygon_type.value}'.")
 
     def _collect_requested_fields(self, new_color: Optional[str]) -> Dict[str, str]:
@@ -499,9 +509,17 @@ class PolygonManager:
                 continue
             if expected == count:
                 return polygon_type
+        if count >= GenericPolygon.MIN_SIDES:
+            return PolygonType.GENERIC
         raise ValueError(f"Unsupported polygon with {count} vertices.")
 
     def _validate_vertex_count(self, count: int, polygon_type: PolygonType) -> None:
+        if polygon_type is PolygonType.GENERIC:
+            if count < GenericPolygon.MIN_SIDES:
+                raise ValueError(
+                    f"Generic polygon requires at least {GenericPolygon.MIN_SIDES} vertices, received {count}."
+                )
+            return
         expected = self._TYPE_TO_SIDE_COUNT.get(polygon_type)
         if expected is not None and expected != count:
             raise ValueError(

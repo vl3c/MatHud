@@ -14,6 +14,7 @@ class PolygonType(str, Enum):
     OCTAGON = "octagon"
     NONAGON = "nonagon"
     DECAGON = "decagon"
+    GENERIC = "generic"
 
     @classmethod
     def coerce(cls, value: str) -> "PolygonType":

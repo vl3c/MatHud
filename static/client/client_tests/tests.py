@@ -45,6 +45,7 @@ from .test_heptagon import TestHeptagon
 from .test_octagon import TestOctagon
 from .test_nonagon import TestNonagon
 from .test_decagon import TestDecagon
+from .test_generic_polygon import TestGenericPolygon
 from .test_vector import TestVector
 from .test_angle import TestAngle
 from .test_angle_manager import TestAngleManager
@@ -147,6 +148,7 @@ class Tests:
             TestOctagon,
             TestNonagon,
             TestDecagon,
+            TestGenericPolygon,
             TestRectangle,
             TestCircle,
             TestCircleArc,
