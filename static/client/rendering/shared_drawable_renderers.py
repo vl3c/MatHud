@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from constants import default_font_family, label_min_screen_font_px, label_vanish_threshold_px
 from rendering.closed_shape_area_renderable import ClosedShapeAreaRenderable
@@ -408,35 +408,7 @@ def render_vector_helper(primitives, vector, coordinate_mapper, style):
     _render_vector(primitives, start, end, seg, color, stroke, style)
 
 
-def render_label_helper(primitives, label, coordinate_mapper, style):
-    position = getattr(label, "position", None)
-    if position is None:
-        return
-    try:
-        screen_point = coordinate_mapper.math_to_screen(position.x, position.y)  # type: ignore[attr-defined]
-    except Exception:
-        return
-    if not screen_point:
-        return
-    screen_x, screen_y = screen_point
-
-    raw_font_size = getattr(label, "font_size", style.get("label_font_size", 14))
-    fallback_font = style.get("label_font_size", 14)
-    base_font_size = _coerce_font_size(raw_font_size, fallback_font)
-    effective_font_size = _compute_zoom_adjusted_font_size(base_font_size, label, coordinate_mapper)
-    if effective_font_size <= 0:
-        return
-
-    if math.isfinite(effective_font_size) and effective_font_size.is_integer():
-        font_size_final: float | int = int(effective_font_size)
-    else:
-        font_size_final = effective_font_size
-
-    font_family = style.get("label_font_family", style.get("font_family", default_font_family))
-    font = FontStyle(family=font_family, size=font_size_final)
-    color = str(getattr(label, "color", style.get("label_text_color", "#000")))
-    alignment = TextAlignment(horizontal="left", vertical="alphabetic")
-
+def _get_label_lines(label):
     try:
         lines = list(getattr(label, "lines", []))
     except Exception:
@@ -444,6 +416,62 @@ def render_label_helper(primitives, label, coordinate_mapper, style):
     if not lines:
         text_value = str(getattr(label, "text", ""))
         lines = text_value.split("\n") if text_value else [""]
+    return lines
+
+
+def _compute_label_font(label, style, coordinate_mapper):
+    raw_font_size = getattr(label, "font_size", style.get("label_font_size", 14))
+    fallback_font = style.get("label_font_size", 14)
+    base_font_size = _coerce_font_size(raw_font_size, fallback_font)
+    effective_font_size = _compute_zoom_adjusted_font_size(base_font_size, label, coordinate_mapper)
+
+    if effective_font_size <= 0:
+        return None, base_font_size, effective_font_size
+
+    if math.isfinite(effective_font_size) and effective_font_size.is_integer():
+        font_size_final = int(effective_font_size)
+    else:
+        font_size_final = effective_font_size
+
+    font_family = style.get("label_font_family", style.get("font_family", default_font_family))
+    font = FontStyle(family=font_family, size=font_size_final)
+    return font, base_font_size, effective_font_size
+
+
+def _build_label_metadata(index, position, offset_y, rotation_degrees, label, base_font_size):
+    return {
+        "label": {
+            "line_index": index,
+            "math_position": (position.x, position.y),
+            "screen_offset": (0.0, float(offset_y)),
+            "rotation_degrees": rotation_degrees,
+            "reference_scale_factor": getattr(label, "reference_scale_factor", 1.0),
+            "base_font_size": base_font_size,
+            "min_font_size": label_min_screen_font_px,
+            "vanish_threshold_px": label_vanish_threshold_px,
+        }
+    }
+
+
+def render_label_helper(primitives, label, coordinate_mapper, style):
+    position = getattr(label, "position", None)
+    if position is None:
+        return
+    try:
+        screen_point = coordinate_mapper.math_to_screen(position.x, position.y)
+    except Exception:
+        return
+    if not screen_point:
+        return
+    screen_x, screen_y = screen_point
+
+    font, base_font_size, effective_font_size = _compute_label_font(label, style, coordinate_mapper)
+    if font is None:
+        return
+
+    color = str(getattr(label, "color", style.get("label_text_color", "#000")))
+    alignment = TextAlignment(horizontal="left", vertical="alphabetic")
+    lines = _get_label_lines(label)
 
     size_numeric = font.size if isinstance(font.size, (int, float)) else effective_font_size
     line_height = float(size_numeric) * 1.2
@@ -458,18 +486,7 @@ def render_label_helper(primitives, label, coordinate_mapper, style):
     for index, line in enumerate(lines):
         current_text = str(line)
         offset_y = index * line_height
-        metadata = {
-            "label": {
-                "line_index": index,
-                "math_position": (position.x, position.y),
-                "screen_offset": (0.0, float(offset_y)),
-                "rotation_degrees": rotation_degrees,
-                "reference_scale_factor": getattr(label, "reference_scale_factor", 1.0),
-                "base_font_size": base_font_size,
-                "min_font_size": label_min_screen_font_px,
-                "vanish_threshold_px": label_vanish_threshold_px,
-            }
-        }
+        metadata = _build_label_metadata(index, position, offset_y, rotation_degrees, label, base_font_size)
         primitives.draw_text(
             current_text,
             (screen_x, screen_y + offset_y),
@@ -480,8 +497,79 @@ def render_label_helper(primitives, label, coordinate_mapper, style):
         )
 
 
+def _compute_angle_arc_params(vx, vy, p1x, p1y, arc_radius, coordinate_mapper):
+    try:
+        arm1_length = math.hypot(p1x - vx, p1y - vy)
+        arm2_length = math.hypot(p1x - vx, p1y - vy)
+        min_arm_length = min(arm1_length, arm2_length)
+    except Exception:
+        min_arm_length = arc_radius
+    clamped_radius = arc_radius if min_arm_length <= 0 else min(arc_radius, min_arm_length)
+
+    try:
+        mapper_scale = float(getattr(coordinate_mapper, "scale_factor", 1.0) or 1.0)
+    except Exception:
+        mapper_scale = 1.0
+    if mapper_scale <= 0:
+        mapper_scale = 1.0
+    min_arm_length_math = min_arm_length / mapper_scale if min_arm_length > 0 else 0.0
+
+    return clamped_radius, min_arm_length, min_arm_length_math
+
+
+def _compute_angle_label_params(vx, vy, p1y, clamped_radius, arc_radius, display_degrees, params, style):
+    text_radius = clamped_radius * float(style.get("angle_text_arc_radius_factor", 1.8))
+    display_angle_rad = math.radians(display_degrees)
+    text_delta = display_angle_rad / 2.0
+    if params.get("final_sweep_flag", "0") == "0":
+        text_delta = -text_delta
+    text_angle = params["angle_v_p1_rad"] + text_delta
+    tx = vx + text_radius * math.cos(text_angle)
+    ty = vy + text_radius * math.sin(text_angle)
+
+    font_size_value = style.get("angle_label_font_size", 12)
+    try:
+        base_font_size = float(font_size_value)
+    except Exception:
+        base_font_size = 12.0
+    if not math.isfinite(base_font_size) or base_font_size <= 0:
+        base_font_size = 12.0
+
+    font_family = style.get("angle_label_font_family", style.get("font_family", default_font_family))
+    ratio = clamped_radius / arc_radius if arc_radius > 0 else 1.0
+    ratio = max(min(ratio, 1.0), 0.0)
+    effective_font_size = base_font_size * ratio
+    if effective_font_size < label_min_screen_font_px:
+        effective_font_size = label_min_screen_font_px
+
+    font = FontStyle(family=font_family, size=effective_font_size)
+    should_draw_label = clamped_radius > 0 and effective_font_size > 0
+
+    return tx, ty, font, base_font_size, should_draw_label
+
+
+def _build_angle_metadata(angle_obj, arc_radius, clamped_radius, min_arm_length, min_arm_length_math,
+                          display_degrees, params, style):
+    return {
+        "angle": {
+            "vertex_math": (getattr(angle_obj.vertex_point, "x", 0.0), getattr(angle_obj.vertex_point, "y", 0.0)),
+            "arm1_math": (getattr(angle_obj.arm1_point, "x", 0.0), getattr(angle_obj.arm1_point, "y", 0.0)),
+            "arm2_math": (getattr(angle_obj.arm2_point, "x", 0.0), getattr(angle_obj.arm2_point, "y", 0.0)),
+            "arc_radius_on_screen": arc_radius,
+            "clamped_arc_radius_on_screen": clamped_radius,
+            "min_arm_length_on_screen": min_arm_length,
+            "min_arm_length_in_math": min_arm_length_math,
+            "display_degrees": float(display_degrees),
+            "final_sweep_flag": params.get("final_sweep_flag", "0"),
+            "text_radius_factor": float(style.get("angle_text_arc_radius_factor", 1.8)),
+            "base_font_size": style.get("angle_label_font_size", 12),
+            "min_font_size": label_min_screen_font_px,
+        }
+    }
+
+
 @_manages_shape
-def _render_angle_arc(primitives, vx, vy, clamped_radius, start_angle, end_angle, sweep_cw, stroke, css_class, metadata):
+def _draw_angle_arc(primitives, vx, vy, clamped_radius, start_angle, end_angle, sweep_cw, stroke, css_class, metadata):
     primitives.stroke_arc(
         (vx, vy),
         clamped_radius,
@@ -495,6 +583,18 @@ def _render_angle_arc(primitives, vx, vy, clamped_radius, start_angle, end_angle
     )
 
 
+def _draw_angle_label(primitives, tx, ty, display_degrees, font, color, metadata):
+    primitives.draw_text(
+        f"{display_degrees:.1f}\u00b0",
+        (tx, ty),
+        font,
+        color,
+        TextAlignment(horizontal="center", vertical="middle"),
+        screen_space=True,
+        metadata=metadata,
+    )
+
+
 def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
     try:
         vx, vy = coordinate_mapper.math_to_screen(angle_obj.vertex_point.x, angle_obj.vertex_point.y)
@@ -503,20 +603,13 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
     except Exception:
         return
 
-    params = angle_obj._calculate_arc_parameters(  # type: ignore[attr-defined]
-        vx,
-        vy,
-        p1x,
-        p1y,
-        p2x,
-        p2y,
-        arc_radius=style.get("angle_arc_radius"),
+    params = angle_obj._calculate_arc_parameters(
+        vx, vy, p1x, p1y, p2x, p2y, arc_radius=style.get("angle_arc_radius")
     )
     if not params:
         return
 
     arc_radius = float(params["arc_radius_on_screen"])
-    # Compute screen-space distances to maintain arc within shortest segment when zoomed out
     try:
         arm1_length = math.hypot(p1x - vx, p1y - vy)
         arm2_length = math.hypot(p2x - vx, p2y - vy)
@@ -524,6 +617,7 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
     except Exception:
         min_arm_length = arc_radius
     clamped_radius = arc_radius if min_arm_length <= 0 else min(arc_radius, min_arm_length)
+
     try:
         mapper_scale = float(getattr(coordinate_mapper, "scale_factor", 1.0) or 1.0)
     except Exception:
@@ -535,68 +629,166 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
     display_degrees = getattr(angle_obj, "angle_degrees", None)
     if display_degrees is None:
         return
+
     color = str(getattr(angle_obj, "color", style.get("angle_color", "#000")))
     stroke = StrokeStyle(color=color, width=float(style.get("angle_stroke_width", 1) or 1))
-    text_radius = clamped_radius * float(style.get("angle_text_arc_radius_factor", 1.8))
-    display_angle_rad = math.radians(display_degrees)
-    text_delta = display_angle_rad / 2.0
-    if params.get("final_sweep_flag", "0") == "0":
-        text_delta = -text_delta
-    text_angle = params["angle_v_p1_rad"] + text_delta
-    tx = vx + text_radius * math.cos(text_angle)
-    ty = vy + text_radius * math.sin(text_angle)
-    font_size_value = style.get("angle_label_font_size", 12)
-    try:
-        base_font_size = float(font_size_value)
-    except Exception:
-        base_font_size = 12.0
-    if not math.isfinite(base_font_size) or base_font_size <= 0:
-        base_font_size = 12.0
-    font_family = style.get("angle_label_font_family", style.get("font_family", default_font_family))
-    ratio = 1.0
-    if arc_radius > 0:
-        ratio = clamped_radius / arc_radius
-    ratio = max(min(ratio, 1.0), 0.0)
-    effective_font_size = base_font_size * ratio
-    if effective_font_size < label_min_screen_font_px:
-        effective_font_size = label_min_screen_font_px
-    font = FontStyle(family=font_family, size=effective_font_size)
-    should_draw_label = clamped_radius > 0 and effective_font_size > 0
+
+    tx, ty, font, base_font_size, should_draw_label = _compute_angle_label_params(
+        vx, vy, p1y, clamped_radius, arc_radius, display_degrees, params, style
+    )
+
     start_angle = math.atan2(p1y - vy, p1x - vx)
     sweep_cw = params.get("final_sweep_flag", "0") == "1"
     delta = math.radians(display_degrees)
     direction = 1 if sweep_cw else -1
     end_angle = start_angle + direction * delta
+
     css_class = "angle-arc" if hasattr(primitives, "_surface") else None
-    angle_metadata = {
-        "angle": {
-            "vertex_math": (getattr(angle_obj.vertex_point, "x", 0.0), getattr(angle_obj.vertex_point, "y", 0.0)),
-            "arm1_math": (getattr(angle_obj.arm1_point, "x", 0.0), getattr(angle_obj.arm1_point, "y", 0.0)),
-            "arm2_math": (getattr(angle_obj.arm2_point, "x", 0.0), getattr(angle_obj.arm2_point, "y", 0.0)),
-            "arc_radius_on_screen": arc_radius,
-            "clamped_arc_radius_on_screen": clamped_radius,
-            "min_arm_length_on_screen": min_arm_length,
-            "min_arm_length_in_math": min_arm_length_math,
-            "display_degrees": float(display_degrees),
-            "final_sweep_flag": params.get("final_sweep_flag", "0"),
-            "text_radius_factor": float(style.get("angle_text_arc_radius_factor", 1.8)),
-            "base_font_size": base_font_size,
-            "min_font_size": label_min_screen_font_px,
-        }
-    }
-    _render_angle_arc(
-        primitives, vx, vy, clamped_radius, start_angle, end_angle, sweep_cw, stroke, css_class, angle_metadata
+    angle_metadata = _build_angle_metadata(
+        angle_obj, arc_radius, clamped_radius, min_arm_length, min_arm_length_math,
+        display_degrees, params, style
     )
+
+    _draw_angle_arc(primitives, vx, vy, clamped_radius, start_angle, end_angle, sweep_cw, stroke, css_class, angle_metadata)
+
     if should_draw_label:
+        _draw_angle_label(primitives, tx, ty, display_degrees, font, color, angle_metadata)
+
+
+def _draw_cartesian_axes(primitives, ox, oy, width_px, height_px, axis_stroke):
+    primitives.stroke_line((0.0, oy), (width_px, oy), axis_stroke)
+    primitives.stroke_line((ox, 0.0), (ox, height_px), axis_stroke)
+
+
+def _draw_cartesian_tick_x(primitives, x_pos, ox, oy, scale, tick_size, tick_font_float, font,
+                           label_color, label_alignment, tick_stroke):
+    primitives.stroke_line((x_pos, oy - tick_size), (x_pos, oy + tick_size), tick_stroke)
+    if abs(x_pos - ox) < 1e-6:
         primitives.draw_text(
-            f"{display_degrees:.1f}°",
-            (tx, ty),
+            "O",
+            (x_pos + 2, oy + tick_size + tick_font_float),
             font,
-            color,
-            TextAlignment(horizontal="center", vertical="middle"),
-            screen_space=True,
-            metadata=angle_metadata,
+            label_color,
+            label_alignment,
         )
+    else:
+        value = (x_pos - ox) / scale
+        label = MathUtils.format_number_for_cartesian(value)
+        primitives.draw_text(
+            label,
+            (x_pos + 2, oy + tick_size + tick_font_float),
+            font,
+            label_color,
+            label_alignment,
+        )
+
+
+def _draw_cartesian_tick_y(primitives, y_pos, ox, oy, scale, tick_size, font,
+                           label_color, label_alignment, tick_stroke):
+    primitives.stroke_line((ox - tick_size, y_pos), (ox + tick_size, y_pos), tick_stroke)
+    if abs(y_pos - oy) >= 1e-6:
+        value = (oy - y_pos) / scale
+        label = MathUtils.format_number_for_cartesian(value)
+        primitives.draw_text(
+            label,
+            (ox + tick_size + 2, y_pos - tick_size),
+            font,
+            label_color,
+            label_alignment,
+        )
+
+
+def _draw_cartesian_mid_tick_x(primitives, x_pos, oy, mid_tick_size, tick_stroke):
+    if mid_tick_size <= 0.0:
+        return
+    primitives.stroke_line((x_pos, oy - mid_tick_size), (x_pos, oy + mid_tick_size), tick_stroke)
+
+
+def _draw_cartesian_mid_tick_y(primitives, y_pos, ox, mid_tick_size, tick_stroke):
+    if mid_tick_size <= 0.0:
+        return
+    primitives.stroke_line((ox - mid_tick_size, y_pos), (ox + mid_tick_size, y_pos), tick_stroke)
+
+
+def _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_tick, grid_stroke,
+                                 minor_grid_stroke):
+    x = ox
+    while x <= width_px:
+        primitives.stroke_line((x, 0.0), (x, height_px), grid_stroke)
+        mid_x = x + display_tick * 0.5
+        if mid_x <= width_px and minor_grid_stroke is not None:
+            primitives.stroke_line((mid_x, 0.0), (mid_x, height_px), minor_grid_stroke)
+        x += display_tick
+
+    x = ox - display_tick
+    while x >= 0.0:
+        primitives.stroke_line((x, 0.0), (x, height_px), grid_stroke)
+        mid_x = x + display_tick * 0.5
+        if mid_x >= 0.0 and minor_grid_stroke is not None:
+            primitives.stroke_line((mid_x, 0.0), (mid_x, height_px), minor_grid_stroke)
+        x -= display_tick
+
+
+def _draw_cartesian_grid_lines_y(primitives, oy, width_px, height_px, display_tick, grid_stroke,
+                                 minor_grid_stroke):
+    y = oy
+    while y <= height_px:
+        primitives.stroke_line((0.0, y), (width_px, y), grid_stroke)
+        mid_y = y + display_tick * 0.5
+        if mid_y <= height_px and minor_grid_stroke is not None:
+            primitives.stroke_line((0.0, mid_y), (width_px, mid_y), minor_grid_stroke)
+        y += display_tick
+
+    y = oy - display_tick
+    while y >= 0.0:
+        primitives.stroke_line((0.0, y), (width_px, y), grid_stroke)
+        mid_y = y + display_tick * 0.5
+        if mid_y >= 0.0 and minor_grid_stroke is not None:
+            primitives.stroke_line((0.0, mid_y), (width_px, mid_y), minor_grid_stroke)
+        y -= display_tick
+
+
+def _draw_cartesian_ticks_x(primitives, ox, oy, width_px, scale, display_tick, tick_size,
+                            mid_tick_size, tick_font_float, font, label_color, label_alignment,
+                            tick_stroke):
+    x = ox
+    while x <= width_px:
+        _draw_cartesian_tick_x(primitives, x, ox, oy, scale, tick_size, tick_font_float, font,
+                               label_color, label_alignment, tick_stroke)
+        mid_x = x + display_tick * 0.5
+        if mid_x <= width_px:
+            _draw_cartesian_mid_tick_x(primitives, mid_x, oy, mid_tick_size, tick_stroke)
+        x += display_tick
+
+    x = ox - display_tick
+    while x >= 0.0:
+        _draw_cartesian_tick_x(primitives, x, ox, oy, scale, tick_size, tick_font_float, font,
+                               label_color, label_alignment, tick_stroke)
+        mid_x = x + display_tick * 0.5
+        if mid_x >= 0.0:
+            _draw_cartesian_mid_tick_x(primitives, mid_x, oy, mid_tick_size, tick_stroke)
+        x -= display_tick
+
+
+def _draw_cartesian_ticks_y(primitives, ox, oy, height_px, scale, display_tick, tick_size,
+                            mid_tick_size, font, label_color, label_alignment, tick_stroke):
+    y = oy
+    while y <= height_px:
+        _draw_cartesian_tick_y(primitives, y, ox, oy, scale, tick_size, font, label_color,
+                               label_alignment, tick_stroke)
+        mid_y = y + display_tick * 0.5
+        if mid_y <= height_px:
+            _draw_cartesian_mid_tick_y(primitives, mid_y, ox, mid_tick_size, tick_stroke)
+        y += display_tick
+
+    y = oy - display_tick
+    while y >= 0.0:
+        _draw_cartesian_tick_y(primitives, y, ox, oy, scale, tick_size, font, label_color,
+                               label_alignment, tick_stroke)
+        mid_y = y + display_tick * 0.5
+        if mid_y >= 0.0:
+            _draw_cartesian_mid_tick_y(primitives, mid_y, ox, mid_tick_size, tick_stroke)
+        y -= display_tick
 
 
 @_manages_shape
@@ -605,132 +797,98 @@ def _render_cartesian_grid(
     tick_font_float, font, label_color, label_alignment, axis_stroke, grid_stroke,
     minor_grid_stroke, tick_stroke
 ):
-    primitives.stroke_line((0.0, oy), (width_px, oy), axis_stroke)
-    primitives.stroke_line((ox, 0.0), (ox, height_px), axis_stroke)
-
-    def draw_tick_x(x_pos: float) -> None:
-        primitives.stroke_line((x_pos, oy - tick_size), (x_pos, oy + tick_size), tick_stroke)
-        if abs(x_pos - ox) < 1e-6:
-            primitives.draw_text(
-                "O",
-                (x_pos + 2, oy + tick_size + tick_font_float),
-                font,
-                label_color,
-                label_alignment,
-            )
-        else:
-            value = (x_pos - ox) / scale
-            label = MathUtils.format_number_for_cartesian(value)
-            primitives.draw_text(
-                label,
-                (x_pos + 2, oy + tick_size + tick_font_float),
-                font,
-                label_color,
-                label_alignment,
-            )
-
-    def draw_tick_y(y_pos: float) -> None:
-        primitives.stroke_line((ox - tick_size, y_pos), (ox + tick_size, y_pos), tick_stroke)
-        if abs(y_pos - oy) >= 1e-6:
-            value = (oy - y_pos) / scale
-            label = MathUtils.format_number_for_cartesian(value)
-            primitives.draw_text(
-                label,
-                (ox + tick_size + 2, y_pos - tick_size),
-                font,
-                label_color,
-                label_alignment,
-            )
-
-    def draw_mid_tick_x(x_pos: float) -> None:
-        if mid_tick_size <= 0.0:
-            return
-        primitives.stroke_line((x_pos, oy - mid_tick_size), (x_pos, oy + mid_tick_size), tick_stroke)
-
-    def draw_mid_tick_y(y_pos: float) -> None:
-        if mid_tick_size <= 0.0:
-            return
-        primitives.stroke_line((ox - mid_tick_size, y_pos), (ox + mid_tick_size, y_pos), tick_stroke)
-
-    def draw_grid_line_x(x_pos: float) -> None:
-        primitives.stroke_line((x_pos, 0.0), (x_pos, height_px), grid_stroke)
-
-    def draw_grid_line_y(y_pos: float) -> None:
-        primitives.stroke_line((0.0, y_pos), (width_px, y_pos), grid_stroke)
-
-    def draw_minor_grid_line_x(x_pos: float) -> None:
-        if minor_grid_stroke is None:
-            return
-        primitives.stroke_line((x_pos, 0.0), (x_pos, height_px), minor_grid_stroke)
-
-    def draw_minor_grid_line_y(y_pos: float) -> None:
-        if minor_grid_stroke is None:
-            return
-        primitives.stroke_line((0.0, y_pos), (width_px, y_pos), minor_grid_stroke)
-
-    x = ox
-    while x <= width_px:
-        draw_grid_line_x(x)
-        draw_tick_x(x)
-        mid_x = x + display_tick * 0.5
-        if mid_x <= width_px:
-            draw_minor_grid_line_x(mid_x)
-            draw_mid_tick_x(mid_x)
-        x += display_tick
-
-    x = ox - display_tick
-    while x >= 0.0:
-        draw_grid_line_x(x)
-        draw_tick_x(x)
-        mid_x = x + display_tick * 0.5
-        if mid_x >= 0.0:
-            draw_minor_grid_line_x(mid_x)
-            draw_mid_tick_x(mid_x)
-        x -= display_tick
-
-    y = oy
-    while y <= height_px:
-        draw_grid_line_y(y)
-        draw_tick_y(y)
-        mid_y = y + display_tick * 0.5
-        if mid_y <= height_px:
-            draw_minor_grid_line_y(mid_y)
-            draw_mid_tick_y(mid_y)
-        y += display_tick
-
-    y = oy - display_tick
-    while y >= 0.0:
-        draw_grid_line_y(y)
-        draw_tick_y(y)
-        mid_y = y + display_tick * 0.5
-        if mid_y >= 0.0:
-            draw_minor_grid_line_y(mid_y)
-            draw_mid_tick_y(mid_y)
-        y -= display_tick
+    _draw_cartesian_axes(primitives, ox, oy, width_px, height_px, axis_stroke)
+    _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_tick, grid_stroke,
+                                 minor_grid_stroke)
+    _draw_cartesian_grid_lines_y(primitives, oy, width_px, height_px, display_tick, grid_stroke,
+                                 minor_grid_stroke)
+    _draw_cartesian_ticks_x(primitives, ox, oy, width_px, scale, display_tick, tick_size,
+                            mid_tick_size, tick_font_float, font, label_color, label_alignment,
+                            tick_stroke)
+    _draw_cartesian_ticks_y(primitives, ox, oy, height_px, scale, display_tick, tick_size,
+                            mid_tick_size, font, label_color, label_alignment, tick_stroke)
 
 
-def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
+def _get_cartesian_styles(style):
+    axis_color = str(style.get("cartesian_axis_color", "#000"))
+    grid_color = str(style.get("cartesian_grid_color", "lightgrey"))
+    label_color = str(style.get("cartesian_label_color", "grey"))
+
+    tick_size_raw = style.get("cartesian_tick_size", 3)
+    try:
+        tick_size = float(tick_size_raw)
+    except Exception:
+        tick_size = 3.0
+    if not math.isfinite(tick_size):
+        tick_size = 3.0
+    tick_size = max(tick_size, 0.0)
+    mid_tick_size = max(tick_size * 0.5, 0.0)
+
+    tick_font_raw = style.get("cartesian_tick_font_size", 8)
+    try:
+        tick_font_float = float(tick_font_raw)
+    except Exception:
+        tick_font_float = 8.0
+    if not math.isfinite(tick_font_float):
+        tick_font_float = 8.0
+
+    font_family = style.get("cartesian_font_family", style.get("font_family", default_font_family))
+    font = FontStyle(family=font_family, size=tick_font_raw)
+    label_alignment = TextAlignment(horizontal="left", vertical="alphabetic")
+
+    axis_stroke = StrokeStyle(color=axis_color, width=1)
+    grid_stroke = StrokeStyle(color=grid_color, width=1)
+    tick_stroke = StrokeStyle(color=axis_color, width=1)
+
+    minor_grid_color = str(style.get("cartesian_minor_grid_color", grid_color))
+    minor_grid_width_raw = style.get("cartesian_minor_grid_width", 0.5)
+    try:
+        minor_grid_width = float(minor_grid_width_raw)
+    except Exception:
+        minor_grid_width = 0.5
+    if not math.isfinite(minor_grid_width):
+        minor_grid_width = 0.5
+    minor_grid_width = max(minor_grid_width, 0.0)
+    minor_grid_stroke = (
+        StrokeStyle(color=minor_grid_color, width=minor_grid_width) if minor_grid_width > 0.0 else None
+    )
+
+    return {
+        "label_color": label_color,
+        "tick_size": tick_size,
+        "mid_tick_size": mid_tick_size,
+        "tick_font_float": tick_font_float,
+        "font": font,
+        "label_alignment": label_alignment,
+        "axis_stroke": axis_stroke,
+        "grid_stroke": grid_stroke,
+        "minor_grid_stroke": minor_grid_stroke,
+        "tick_stroke": tick_stroke,
+    }
+
+
+def _compute_cartesian_layout(cartesian, coordinate_mapper):
     width = getattr(cartesian, "width", None)
     height = getattr(cartesian, "height", None)
     if width is None or height is None:
-        return
+        return None
     try:
         width_px = float(width)
         height_px = float(height)
     except Exception:
-        return
+        return None
     if not math.isfinite(width_px) or not math.isfinite(height_px) or width_px <= 0 or height_px <= 0:
-        return
+        return None
 
     try:
         ox, oy = coordinate_mapper.math_to_screen(0, 0)
     except Exception:
-        return
+        return None
     try:
         ox = float(ox)
         oy = float(oy)
     except Exception:
-        return
+        return None
 
     scale_factor = getattr(coordinate_mapper, "scale_factor", 1)
     try:
@@ -760,51 +918,41 @@ def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
     if not math.isfinite(display_tick) or display_tick <= 0:
         display_tick = 1.0
 
-    axis_color = str(style.get("cartesian_axis_color", "#000"))
-    grid_color = str(style.get("cartesian_grid_color", "lightgrey"))
-    label_color = str(style.get("cartesian_label_color", "grey"))
+    return {
+        "ox": ox,
+        "oy": oy,
+        "width_px": width_px,
+        "height_px": height_px,
+        "scale": scale,
+        "display_tick": display_tick,
+    }
 
-    tick_size_raw = style.get("cartesian_tick_size", 3)
-    try:
-        tick_size = float(tick_size_raw)
-    except Exception:
-        tick_size = 3.0
-    if not math.isfinite(tick_size):
-        tick_size = 3.0
-    tick_size = max(tick_size, 0.0)
-    mid_tick_size = max(tick_size * 0.5, 0.0)
 
-    tick_font_raw = style.get("cartesian_tick_font_size", 8)
-    try:
-        tick_font_float = float(tick_font_raw)
-    except Exception:
-        tick_font_float = 8.0
-    if not math.isfinite(tick_font_float):
-        tick_font_float = 8.0
-    font_family = style.get("cartesian_font_family", style.get("font_family", default_font_family))
-    font = FontStyle(family=font_family, size=tick_font_raw)
-    label_alignment = TextAlignment(horizontal="left", vertical="alphabetic")
+def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
+    layout = _compute_cartesian_layout(cartesian, coordinate_mapper)
+    if layout is None:
+        return
 
-    axis_stroke = StrokeStyle(color=axis_color, width=1)
-    grid_stroke = StrokeStyle(color=grid_color, width=1)
-    minor_grid_color = str(style.get("cartesian_minor_grid_color", grid_color))
-    minor_grid_width_raw = style.get("cartesian_minor_grid_width", 0.5)
-    try:
-        minor_grid_width = float(minor_grid_width_raw)
-    except Exception:
-        minor_grid_width = 0.5
-    if not math.isfinite(minor_grid_width):
-        minor_grid_width = 0.5
-    minor_grid_width = max(minor_grid_width, 0.0)
-    minor_grid_stroke = (
-        StrokeStyle(color=minor_grid_color, width=minor_grid_width) if minor_grid_width > 0.0 else None
-    )
-    tick_stroke = StrokeStyle(color=axis_color, width=1)
+    styles = _get_cartesian_styles(style)
 
     _render_cartesian_grid(
-        primitives, ox, oy, width_px, height_px, scale, display_tick, tick_size, mid_tick_size,
-        tick_font_float, font, label_color, label_alignment, axis_stroke, grid_stroke,
-        minor_grid_stroke, tick_stroke
+        primitives,
+        layout["ox"],
+        layout["oy"],
+        layout["width_px"],
+        layout["height_px"],
+        layout["scale"],
+        layout["display_tick"],
+        styles["tick_size"],
+        styles["mid_tick_size"],
+        styles["tick_font_float"],
+        styles["font"],
+        styles["label_color"],
+        styles["label_alignment"],
+        styles["axis_stroke"],
+        styles["grid_stroke"],
+        styles["minor_grid_stroke"],
+        styles["tick_stroke"],
     )
 
 
@@ -936,13 +1084,13 @@ def render_closed_shape_area_helper(primitives, area_model, coordinate_mapper, s
     render_colored_area_helper(primitives, area, coordinate_mapper, style)
 
 
-def _points_close(p1: Tuple[float, float], p2: Tuple[float, float], tol: float = 1e-9) -> bool:
+def _points_close(p1: tuple[float, float], p2: tuple[float, float], tol: float = 1e-9) -> bool:
     return abs(p1[0] - p2[0]) <= tol and abs(p1[1] - p2[1]) <= tol
 
 
 def _paths_form_single_loop(
-    forward: List[Tuple[float, float]],
-    reverse: List[Tuple[float, float]],
+    forward: list[tuple[float, float]],
+    reverse: list[tuple[float, float]],
     tol: float = 1e-9,
 ) -> bool:
     if len(forward) < 3:
