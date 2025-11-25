@@ -71,11 +71,76 @@ def _compute_zoom_adjusted_font_size(base_size: float, label: Any, coordinate_ma
 
 
 # ----------------------------------------------------------------------------
+# Shape management decorator
+# ----------------------------------------------------------------------------
+
+
+def _manages_shape(render_fn):
+    """Decorator that wraps render logic with begin_shape/end_shape lifecycle calls."""
+    def wrapper(primitives, *args, **kwargs):
+        begin_shape = getattr(primitives, "begin_shape", None)
+        end_shape = getattr(primitives, "end_shape", None)
+        managing = callable(begin_shape) and callable(end_shape)
+        if managing:
+            begin_shape()
+        try:
+            return render_fn(primitives, *args, **kwargs)
+        finally:
+            if managing:
+                end_shape()
+    return wrapper
+
+
+# ----------------------------------------------------------------------------
 # Render helpers
 # ----------------------------------------------------------------------------
+
+
+@_manages_shape
+def _render_point(primitives, sx, sy, radius, point, fill, style):
+    primitives.fill_circle((sx, sy), radius, fill, screen_space=True)
+
+    label = getattr(point, "name", "")
+    if label:
+        label_text = f"{label}({round(getattr(point, 'x', 0), 3)}, {round(getattr(point, 'y', 0), 3)})"
+        font_size_value = style.get("point_label_font_size", 10)
+        try:
+            font_size_float = float(font_size_value)
+        except Exception:
+            font_size = font_size_value
+        else:
+            if math.isfinite(font_size_float) and font_size_float.is_integer():
+                font_size = int(font_size_float)
+            else:
+                font_size = font_size_float
+        font_family = style.get("point_label_font_family", style.get("font_family", default_font_family))
+        font = FontStyle(family=font_family, size=font_size)
+        label_metadata = {
+            "point_label": {
+                "math_position": (float(getattr(point, "x", 0.0)), float(getattr(point, "y", 0.0))),
+                "screen_offset": (float(radius), float(-radius)),
+            }
+        }
+        primitives.draw_text(
+            label_text,
+            (sx + radius, sy - radius),
+            font,
+            fill.color,
+            TextAlignment(horizontal="left", vertical="alphabetic"),
+            {
+                "user-select": "none",
+                "-webkit-user-select": "none",
+                "-moz-user-select": "none",
+                "-ms-user-select": "none",
+            },
+            screen_space=True,
+            metadata=label_metadata,
+        )
+
+
 def render_point_helper(primitives, point, coordinate_mapper, style):
     try:
-        sx_sy = coordinate_mapper.math_to_screen(point.x, point.y)  # type: ignore[attr-defined]
+        sx_sy = coordinate_mapper.math_to_screen(point.x, point.y)
     except Exception:
         return
     if not sx_sy:
@@ -84,66 +149,23 @@ def render_point_helper(primitives, point, coordinate_mapper, style):
     radius_raw = style.get("point_radius", 0) or 0
     try:
         radius = float(radius_raw)
-    except Exception as exc:
+    except Exception:
         return
     if radius <= 0:
         return
 
     fill = FillStyle(color=str(getattr(point, "color", style.get("point_color", "#000"))), opacity=None)
+    _render_point(primitives, sx, sy, radius_raw, point, fill, style)
 
-    begin_shape = getattr(primitives, "begin_shape", None)
-    end_shape = getattr(primitives, "end_shape", None)
-    managing_shape = callable(begin_shape) and callable(end_shape)
-    if managing_shape:
-        begin_shape()
-    try:
-        primitives.fill_circle((sx, sy), radius_raw, fill, screen_space=True)
 
-        label = getattr(point, "name", "")
-        if label:
-            # Match existing behavior: include coordinates in label text
-            label_text = f"{label}({round(getattr(point, 'x', 0), 3)}, {round(getattr(point, 'y', 0), 3)})"
-            font_size_value = style.get("point_label_font_size", 10)
-            try:
-                font_size_float = float(font_size_value)
-            except Exception:
-                font_size = font_size_value
-            else:
-                if math.isfinite(font_size_float) and font_size_float.is_integer():
-                    font_size = int(font_size_float)
-                else:
-                    font_size = font_size_float
-            font_family = style.get("point_label_font_family", style.get("font_family", default_font_family))
-            font = FontStyle(family=font_family, size=font_size)
-            label_metadata = {
-                "point_label": {
-                    "math_position": (float(getattr(point, "x", 0.0)), float(getattr(point, "y", 0.0))),
-                    "screen_offset": (float(radius), float(-radius)),
-                }
-            }
-            primitives.draw_text(
-                label_text,
-                (sx + radius, sy - radius),
-                font,
-                fill.color,
-                TextAlignment(horizontal="left", vertical="alphabetic"),
-                {
-                    "user-select": "none",
-                    "-webkit-user-select": "none",
-                    "-moz-user-select": "none",
-                    "-ms-user-select": "none",
-                },
-                screen_space=True,
-                metadata=label_metadata,
-            )
-    finally:
-        if managing_shape:
-            end_shape()
+@_manages_shape
+def _render_segment(primitives, start, end, stroke):
+    primitives.stroke_line(start, end, stroke, include_width=False)
 
 
 def render_segment_helper(primitives, segment, coordinate_mapper, style):
     try:
-        start = coordinate_mapper.math_to_screen(segment.point1.x, segment.point1.y)  # type: ignore[attr-defined]
+        start = coordinate_mapper.math_to_screen(segment.point1.x, segment.point1.y)
         end = coordinate_mapper.math_to_screen(segment.point2.x, segment.point2.y)
     except Exception:
         return
@@ -153,22 +175,18 @@ def render_segment_helper(primitives, segment, coordinate_mapper, style):
         color=str(getattr(segment, "color", style.get("segment_color", "#000"))),
         width=float(style.get("segment_stroke_width", 1) or 1),
     )
-    begin_shape = getattr(primitives, "begin_shape", None)
-    end_shape = getattr(primitives, "end_shape", None)
-    managing_shape = callable(begin_shape) and callable(end_shape)
-    if managing_shape:
-        begin_shape()
-    try:
-        primitives.stroke_line(start, end, stroke, include_width=False)
-    finally:
-        if managing_shape:
-            end_shape()
+    _render_segment(primitives, start, end, stroke)
+
+
+@_manages_shape
+def _render_ellipse(primitives, center, rx, ry, rotation_rad, stroke):
+    primitives.stroke_ellipse(center, rx, ry, rotation_rad, stroke)
 
 
 def render_ellipse_helper(primitives, ellipse, coordinate_mapper, style):
     try:
-        center = coordinate_mapper.math_to_screen(ellipse.center.x, ellipse.center.y)  # type: ignore[attr-defined]
-        radius_x = coordinate_mapper.scale_value(getattr(ellipse, "radius_x", None))  # type: ignore[attr-defined]
+        center = coordinate_mapper.math_to_screen(ellipse.center.x, ellipse.center.y)
+        radius_x = coordinate_mapper.scale_value(getattr(ellipse, "radius_x", None))
         radius_y = coordinate_mapper.scale_value(getattr(ellipse, "radius_y", None))
     except Exception:
         return
@@ -200,22 +218,18 @@ def render_ellipse_helper(primitives, ellipse, coordinate_mapper, style):
     except Exception:
         rotation_rad = 0.0
 
-    begin_shape = getattr(primitives, "begin_shape", None)
-    end_shape = getattr(primitives, "end_shape", None)
-    managing_shape = callable(begin_shape) and callable(end_shape)
-    if managing_shape:
-        begin_shape()
-    try:
-        primitives.stroke_ellipse(center, rx, ry, rotation_rad, stroke)
-    finally:
-        if managing_shape:
-            end_shape()
+    _render_ellipse(primitives, center, rx, ry, rotation_rad, stroke)
+
+
+@_manages_shape
+def _render_circle(primitives, center, radius, stroke):
+    primitives.stroke_circle(center, float(radius), stroke)
 
 
 def render_circle_helper(primitives, circle, coordinate_mapper, style):
     try:
-        center = coordinate_mapper.math_to_screen(circle.center.x, circle.center.y)  # type: ignore[attr-defined]
-        radius = coordinate_mapper.scale_value(circle.radius)  # type: ignore[attr-defined]
+        center = coordinate_mapper.math_to_screen(circle.center.x, circle.center.y)
+        radius = coordinate_mapper.scale_value(circle.radius)
     except Exception:
         return
     if not center or radius is None:
@@ -224,16 +238,7 @@ def render_circle_helper(primitives, circle, coordinate_mapper, style):
         color=str(getattr(circle, "color", style.get("circle_color", "#000"))),
         width=float(style.get("circle_stroke_width", 1) or 1),
     )
-    begin_shape = getattr(primitives, "begin_shape", None)
-    end_shape = getattr(primitives, "end_shape", None)
-    managing_shape = callable(begin_shape) and callable(end_shape)
-    if managing_shape:
-        begin_shape()
-    try:
-        primitives.stroke_circle(center, float(radius), stroke)
-    finally:
-        if managing_shape:
-            end_shape()
+    _render_circle(primitives, center, radius, stroke)
 
 
 def _map_circle_arc_to_screen(circle_arc, coordinate_mapper, style):
@@ -294,42 +299,33 @@ def _compute_circle_arc_sweep(circle_arc, center_screen, point1_screen):
     return start_angle_screen, end_angle_final, sweep_clockwise
 
 
+@_manages_shape
 def _stroke_circle_arc(primitives, circle_arc, center_screen, radius_on_screen, start_angle, end_angle, sweep_clockwise, style):
     color = str(getattr(circle_arc, "color", style.get("circle_arc_color", "#000")))
     stroke = StrokeStyle(
         color=color,
         width=float(style.get("circle_arc_stroke_width", 1) or 1),
     )
-
-    begin_shape = getattr(primitives, "begin_shape", None)
-    end_shape = getattr(primitives, "end_shape", None)
-    managing_shape = callable(begin_shape) and callable(end_shape)
-    if managing_shape:
-        begin_shape()
-    try:
-        metadata = {
-            "circle_arc": {
-                "center_math": (float(circle_arc.center_x), float(circle_arc.center_y)),
-                "radius_math": float(circle_arc.radius),
-                "use_major_arc": bool(getattr(circle_arc, "use_major_arc", False)),
-                "sweep_clockwise": sweep_clockwise,
-                "point1": (float(circle_arc.point1.x), float(circle_arc.point1.y)),
-                "point2": (float(circle_arc.point2.x), float(circle_arc.point2.y)),
-            }
+    metadata = {
+        "circle_arc": {
+            "center_math": (float(circle_arc.center_x), float(circle_arc.center_y)),
+            "radius_math": float(circle_arc.radius),
+            "use_major_arc": bool(getattr(circle_arc, "use_major_arc", False)),
+            "sweep_clockwise": sweep_clockwise,
+            "point1": (float(circle_arc.point1.x), float(circle_arc.point1.y)),
+            "point2": (float(circle_arc.point2.x), float(circle_arc.point2.y)),
         }
-        primitives.stroke_arc(
-            center_screen,
-            radius_on_screen,
-            float(start_angle),
-            float(end_angle),
-            sweep_clockwise,
-            stroke,
-            screen_space=True,
-            metadata=metadata,
-        )
-    finally:
-        if managing_shape:
-            end_shape()
+    }
+    primitives.stroke_arc(
+        center_screen,
+        radius_on_screen,
+        float(start_angle),
+        float(end_angle),
+        sweep_clockwise,
+        stroke,
+        screen_space=True,
+        metadata=metadata,
+    )
 
 
 def render_circle_arc_helper(primitives, circle_arc, coordinate_mapper, style):
@@ -358,12 +354,49 @@ def render_circle_arc_helper(primitives, circle_arc, coordinate_mapper, style):
     )
 
 
+@_manages_shape
+def _render_vector(primitives, start, end, seg, color, stroke, style):
+    primitives.stroke_line(start, end, stroke)
+
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    angle = math.atan2(dy, dx)
+    side_length = float(style.get("vector_tip_size", (style.get("point_radius", 2) or 2) * 4))
+    half_base = side_length / 2
+    height_sq = max(side_length * side_length - half_base * half_base, 0.0)
+    height = math.sqrt(height_sq)
+
+    tip = end
+    base1 = (
+        end[0] - height * math.cos(angle) - half_base * math.sin(angle),
+        end[1] - height * math.sin(angle) + half_base * math.cos(angle),
+    )
+    base2 = (
+        end[0] - height * math.cos(angle) + half_base * math.sin(angle),
+        end[1] - height * math.sin(angle) - half_base * math.cos(angle),
+    )
+    metadata = {
+        "vector_arrow": {
+            "start_math": (getattr(seg.point1, "x", 0.0), getattr(seg.point1, "y", 0.0)),
+            "end_math": (getattr(seg.point2, "x", 0.0), getattr(seg.point2, "y", 0.0)),
+            "tip_size": side_length,
+        }
+    }
+    primitives.fill_polygon(
+        [tip, base1, base2],
+        FillStyle(color=color),
+        StrokeStyle(color=color, width=1),
+        screen_space=True,
+        metadata=metadata,
+    )
+
+
 def render_vector_helper(primitives, vector, coordinate_mapper, style):
     seg = getattr(vector, "segment", None)
     if seg is None:
         return
     try:
-        start = coordinate_mapper.math_to_screen(seg.point1.x, seg.point1.y)  # type: ignore[attr-defined]
+        start = coordinate_mapper.math_to_screen(seg.point1.x, seg.point1.y)
         end = coordinate_mapper.math_to_screen(seg.point2.x, seg.point2.y)
     except Exception:
         return
@@ -372,48 +405,7 @@ def render_vector_helper(primitives, vector, coordinate_mapper, style):
 
     color = str(getattr(vector, "color", getattr(seg, "color", style.get("vector_color", "#000"))))
     stroke = StrokeStyle(color=color, width=float(style.get("segment_stroke_width", 1) or 1))
-    begin_shape = getattr(primitives, "begin_shape", None)
-    end_shape = getattr(primitives, "end_shape", None)
-    managing_shape = callable(begin_shape) and callable(end_shape)
-    if managing_shape:
-        begin_shape()
-    try:
-        primitives.stroke_line(start, end, stroke)
-
-        dx = end[0] - start[0]
-        dy = end[1] - start[1]
-        angle = math.atan2(dy, dx)
-        side_length = float(style.get("vector_tip_size", (style.get("point_radius", 2) or 2) * 4))
-        half_base = side_length / 2
-        height_sq = max(side_length * side_length - half_base * half_base, 0.0)
-        height = math.sqrt(height_sq)
-
-        tip = end
-        base1 = (
-            end[0] - height * math.cos(angle) - half_base * math.sin(angle),
-            end[1] - height * math.sin(angle) + half_base * math.cos(angle),
-        )
-        base2 = (
-            end[0] - height * math.cos(angle) + half_base * math.sin(angle),
-            end[1] - height * math.sin(angle) - half_base * math.cos(angle),
-        )
-        metadata = {
-            "vector_arrow": {
-                "start_math": (getattr(seg.point1, "x", 0.0), getattr(seg.point1, "y", 0.0)),
-                "end_math": (getattr(seg.point2, "x", 0.0), getattr(seg.point2, "y", 0.0)),
-                "tip_size": side_length,
-            }
-        }
-        primitives.fill_polygon(
-            [tip, base1, base2],
-            FillStyle(color=color),
-            StrokeStyle(color=color, width=1),
-            screen_space=True,
-            metadata=metadata,
-        )
-    finally:
-        if managing_shape:
-            end_shape()
+    _render_vector(primitives, start, end, seg, color, stroke, style)
 
 
 def render_label_helper(primitives, label, coordinate_mapper, style):
@@ -488,9 +480,24 @@ def render_label_helper(primitives, label, coordinate_mapper, style):
         )
 
 
+@_manages_shape
+def _render_angle_arc(primitives, vx, vy, clamped_radius, start_angle, end_angle, sweep_cw, stroke, css_class, metadata):
+    primitives.stroke_arc(
+        (vx, vy),
+        clamped_radius,
+        float(start_angle),
+        float(end_angle),
+        sweep_cw,
+        stroke,
+        css_class=css_class,
+        screen_space=True,
+        metadata=metadata,
+    )
+
+
 def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
     try:
-        vx, vy = coordinate_mapper.math_to_screen(angle_obj.vertex_point.x, angle_obj.vertex_point.y)  # type: ignore[attr-defined]
+        vx, vy = coordinate_mapper.math_to_screen(angle_obj.vertex_point.x, angle_obj.vertex_point.y)
         p1x, p1y = coordinate_mapper.math_to_screen(angle_obj.arm1_point.x, angle_obj.arm1_point.y)
         p2x, p2y = coordinate_mapper.math_to_screen(angle_obj.arm2_point.x, angle_obj.arm2_point.y)
     except Exception:
@@ -560,43 +567,26 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
     delta = math.radians(display_degrees)
     direction = 1 if sweep_cw else -1
     end_angle = start_angle + direction * delta
-    begin_shape = getattr(primitives, "begin_shape", None)
-    end_shape = getattr(primitives, "end_shape", None)
-    managing_shape = callable(begin_shape) and callable(end_shape)
-    if managing_shape:
-        begin_shape()
-    try:
-        css_class = "angle-arc" if hasattr(primitives, "_surface") else None
-        angle_metadata = {
-            "angle": {
-                "vertex_math": (getattr(angle_obj.vertex_point, "x", 0.0), getattr(angle_obj.vertex_point, "y", 0.0)),
-                "arm1_math": (getattr(angle_obj.arm1_point, "x", 0.0), getattr(angle_obj.arm1_point, "y", 0.0)),
-                "arm2_math": (getattr(angle_obj.arm2_point, "x", 0.0), getattr(angle_obj.arm2_point, "y", 0.0)),
-                "arc_radius_on_screen": arc_radius,
-                "clamped_arc_radius_on_screen": clamped_radius,
-                "min_arm_length_on_screen": min_arm_length,
-                "min_arm_length_in_math": min_arm_length_math,
-                "display_degrees": float(display_degrees),
-                "final_sweep_flag": params.get("final_sweep_flag", "0"),
-                "text_radius_factor": float(style.get("angle_text_arc_radius_factor", 1.8)),
-                "base_font_size": base_font_size,
-                "min_font_size": label_min_screen_font_px,
-            }
+    css_class = "angle-arc" if hasattr(primitives, "_surface") else None
+    angle_metadata = {
+        "angle": {
+            "vertex_math": (getattr(angle_obj.vertex_point, "x", 0.0), getattr(angle_obj.vertex_point, "y", 0.0)),
+            "arm1_math": (getattr(angle_obj.arm1_point, "x", 0.0), getattr(angle_obj.arm1_point, "y", 0.0)),
+            "arm2_math": (getattr(angle_obj.arm2_point, "x", 0.0), getattr(angle_obj.arm2_point, "y", 0.0)),
+            "arc_radius_on_screen": arc_radius,
+            "clamped_arc_radius_on_screen": clamped_radius,
+            "min_arm_length_on_screen": min_arm_length,
+            "min_arm_length_in_math": min_arm_length_math,
+            "display_degrees": float(display_degrees),
+            "final_sweep_flag": params.get("final_sweep_flag", "0"),
+            "text_radius_factor": float(style.get("angle_text_arc_radius_factor", 1.8)),
+            "base_font_size": base_font_size,
+            "min_font_size": label_min_screen_font_px,
         }
-        primitives.stroke_arc(
-            (vx, vy),
-            clamped_radius,
-            float(start_angle),
-            float(end_angle),
-            sweep_cw,
-            stroke,
-            css_class=css_class,
-            screen_space=True,
-            metadata=angle_metadata,
-        )
-    finally:
-        if managing_shape:
-            end_shape()
+    }
+    _render_angle_arc(
+        primitives, vx, vy, clamped_radius, start_angle, end_angle, sweep_cw, stroke, css_class, angle_metadata
+    )
     if should_draw_label:
         primitives.draw_text(
             f"{display_degrees:.1f}°",
@@ -607,6 +597,116 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
             screen_space=True,
             metadata=angle_metadata,
         )
+
+
+@_manages_shape
+def _render_cartesian_grid(
+    primitives, ox, oy, width_px, height_px, scale, display_tick, tick_size, mid_tick_size,
+    tick_font_float, font, label_color, label_alignment, axis_stroke, grid_stroke,
+    minor_grid_stroke, tick_stroke
+):
+    primitives.stroke_line((0.0, oy), (width_px, oy), axis_stroke)
+    primitives.stroke_line((ox, 0.0), (ox, height_px), axis_stroke)
+
+    def draw_tick_x(x_pos: float) -> None:
+        primitives.stroke_line((x_pos, oy - tick_size), (x_pos, oy + tick_size), tick_stroke)
+        if abs(x_pos - ox) < 1e-6:
+            primitives.draw_text(
+                "O",
+                (x_pos + 2, oy + tick_size + tick_font_float),
+                font,
+                label_color,
+                label_alignment,
+            )
+        else:
+            value = (x_pos - ox) / scale
+            label = MathUtils.format_number_for_cartesian(value)
+            primitives.draw_text(
+                label,
+                (x_pos + 2, oy + tick_size + tick_font_float),
+                font,
+                label_color,
+                label_alignment,
+            )
+
+    def draw_tick_y(y_pos: float) -> None:
+        primitives.stroke_line((ox - tick_size, y_pos), (ox + tick_size, y_pos), tick_stroke)
+        if abs(y_pos - oy) >= 1e-6:
+            value = (oy - y_pos) / scale
+            label = MathUtils.format_number_for_cartesian(value)
+            primitives.draw_text(
+                label,
+                (ox + tick_size + 2, y_pos - tick_size),
+                font,
+                label_color,
+                label_alignment,
+            )
+
+    def draw_mid_tick_x(x_pos: float) -> None:
+        if mid_tick_size <= 0.0:
+            return
+        primitives.stroke_line((x_pos, oy - mid_tick_size), (x_pos, oy + mid_tick_size), tick_stroke)
+
+    def draw_mid_tick_y(y_pos: float) -> None:
+        if mid_tick_size <= 0.0:
+            return
+        primitives.stroke_line((ox - mid_tick_size, y_pos), (ox + mid_tick_size, y_pos), tick_stroke)
+
+    def draw_grid_line_x(x_pos: float) -> None:
+        primitives.stroke_line((x_pos, 0.0), (x_pos, height_px), grid_stroke)
+
+    def draw_grid_line_y(y_pos: float) -> None:
+        primitives.stroke_line((0.0, y_pos), (width_px, y_pos), grid_stroke)
+
+    def draw_minor_grid_line_x(x_pos: float) -> None:
+        if minor_grid_stroke is None:
+            return
+        primitives.stroke_line((x_pos, 0.0), (x_pos, height_px), minor_grid_stroke)
+
+    def draw_minor_grid_line_y(y_pos: float) -> None:
+        if minor_grid_stroke is None:
+            return
+        primitives.stroke_line((0.0, y_pos), (width_px, y_pos), minor_grid_stroke)
+
+    x = ox
+    while x <= width_px:
+        draw_grid_line_x(x)
+        draw_tick_x(x)
+        mid_x = x + display_tick * 0.5
+        if mid_x <= width_px:
+            draw_minor_grid_line_x(mid_x)
+            draw_mid_tick_x(mid_x)
+        x += display_tick
+
+    x = ox - display_tick
+    while x >= 0.0:
+        draw_grid_line_x(x)
+        draw_tick_x(x)
+        mid_x = x + display_tick * 0.5
+        if mid_x >= 0.0:
+            draw_minor_grid_line_x(mid_x)
+            draw_mid_tick_x(mid_x)
+        x -= display_tick
+
+    y = oy
+    while y <= height_px:
+        draw_grid_line_y(y)
+        draw_tick_y(y)
+        mid_y = y + display_tick * 0.5
+        if mid_y <= height_px:
+            draw_minor_grid_line_y(mid_y)
+            draw_mid_tick_y(mid_y)
+        y += display_tick
+
+    y = oy - display_tick
+    while y >= 0.0:
+        draw_grid_line_y(y)
+        draw_tick_y(y)
+        mid_y = y + display_tick * 0.5
+        if mid_y >= 0.0:
+            draw_minor_grid_line_y(mid_y)
+            draw_mid_tick_y(mid_y)
+        y -= display_tick
 
 
 def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
@@ -701,124 +801,26 @@ def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
     )
     tick_stroke = StrokeStyle(color=axis_color, width=1)
 
-    begin_shape = getattr(primitives, "begin_shape", None)
-    end_shape = getattr(primitives, "end_shape", None)
-    managing_shape = callable(begin_shape) and callable(end_shape)
-    if managing_shape:
-        begin_shape()
-    try:
-        primitives.stroke_line((0.0, oy), (width_px, oy), axis_stroke)
-        primitives.stroke_line((ox, 0.0), (ox, height_px), axis_stroke)
+    _render_cartesian_grid(
+        primitives, ox, oy, width_px, height_px, scale, display_tick, tick_size, mid_tick_size,
+        tick_font_float, font, label_color, label_alignment, axis_stroke, grid_stroke,
+        minor_grid_stroke, tick_stroke
+    )
 
-        def draw_tick_x(x_pos: float) -> None:
-            primitives.stroke_line((x_pos, oy - tick_size), (x_pos, oy + tick_size), tick_stroke)
-            if abs(x_pos - ox) < 1e-6:
-                primitives.draw_text(
-                    "O",
-                    (x_pos + 2, oy + tick_size + tick_font_float),
-                    font,
-                    label_color,
-                    label_alignment,
-                )
-            else:
-                value = (x_pos - ox) / scale
-                label = MathUtils.format_number_for_cartesian(value)
-                primitives.draw_text(
-                    label,
-                    (x_pos + 2, oy + tick_size + tick_font_float),
-                    font,
-                    label_color,
-                    label_alignment,
-                )
 
-        def draw_tick_y(y_pos: float) -> None:
-            primitives.stroke_line((ox - tick_size, y_pos), (ox + tick_size, y_pos), tick_stroke)
-            if abs(y_pos - oy) >= 1e-6:
-                value = (oy - y_pos) / scale
-                label = MathUtils.format_number_for_cartesian(value)
-                primitives.draw_text(
-                    label,
-                    (ox + tick_size + 2, y_pos - tick_size),
-                    font,
-                    label_color,
-                    label_alignment,
-                )
-
-        def draw_mid_tick_x(x_pos: float) -> None:
-            if mid_tick_size <= 0.0:
-                return
-            primitives.stroke_line((x_pos, oy - mid_tick_size), (x_pos, oy + mid_tick_size), tick_stroke)
-
-        def draw_mid_tick_y(y_pos: float) -> None:
-            if mid_tick_size <= 0.0:
-                return
-            primitives.stroke_line((ox - mid_tick_size, y_pos), (ox + mid_tick_size, y_pos), tick_stroke)
-
-        def draw_grid_line_x(x_pos: float) -> None:
-            primitives.stroke_line((x_pos, 0.0), (x_pos, height_px), grid_stroke)
-
-        def draw_grid_line_y(y_pos: float) -> None:
-            primitives.stroke_line((0.0, y_pos), (width_px, y_pos), grid_stroke)
-
-        def draw_minor_grid_line_x(x_pos: float) -> None:
-            if minor_grid_stroke is None:
-                return
-            primitives.stroke_line((x_pos, 0.0), (x_pos, height_px), minor_grid_stroke)
-
-        def draw_minor_grid_line_y(y_pos: float) -> None:
-            if minor_grid_stroke is None:
-                return
-            primitives.stroke_line((0.0, y_pos), (width_px, y_pos), minor_grid_stroke)
-
-        x = ox
-        while x <= width_px:
-            draw_grid_line_x(x)
-            draw_tick_x(x)
-            mid_x = x + display_tick * 0.5
-            if mid_x <= width_px:
-                draw_minor_grid_line_x(mid_x)
-                draw_mid_tick_x(mid_x)
-            x += display_tick
-
-        x = ox - display_tick
-        while x >= 0.0:
-            draw_grid_line_x(x)
-            draw_tick_x(x)
-            mid_x = x + display_tick * 0.5
-            if mid_x >= 0.0:
-                draw_minor_grid_line_x(mid_x)
-                draw_mid_tick_x(mid_x)
-            x -= display_tick
-
-        y = oy
-        while y <= height_px:
-            draw_grid_line_y(y)
-            draw_tick_y(y)
-            mid_y = y + display_tick * 0.5
-            if mid_y <= height_px:
-                draw_minor_grid_line_y(mid_y)
-                draw_mid_tick_y(mid_y)
-            y += display_tick
-
-        y = oy - display_tick
-        while y >= 0.0:
-            draw_grid_line_y(y)
-            draw_tick_y(y)
-            mid_y = y + display_tick * 0.5
-            if mid_y >= 0.0:
-                draw_minor_grid_line_y(mid_y)
-                draw_mid_tick_y(mid_y)
-            y -= display_tick
-    finally:
-        if managing_shape:
-            end_shape()
+@_manages_shape
+def _render_function_paths(primitives, screen_paths, stroke):
+    for path in screen_paths:
+        if len(path) < 2:
+            continue
+        primitives.stroke_polyline(path, stroke)
 
 
 def render_function_helper(primitives, func, coordinate_mapper, style):
     try:
         canvas = getattr(func, "canvas", None)
         cartesian = getattr(canvas, "cartesian2axis", None) if canvas is not None else None
-        renderable = FunctionRenderable(func, coordinate_mapper, cartesian)  # type: ignore[attr-defined]
+        renderable = FunctionRenderable(func, coordinate_mapper, cartesian)
         screen_paths = renderable.build_screen_paths().paths
     except Exception:
         return
@@ -829,19 +831,7 @@ def render_function_helper(primitives, func, coordinate_mapper, style):
         color=str(getattr(func, "color", style.get("function_color", "#000"))),
         width=float(style.get("function_stroke_width", 1) or 1),
     )
-    begin_shape = getattr(primitives, "begin_shape", None)
-    end_shape = getattr(primitives, "end_shape", None)
-    managing_shape = callable(begin_shape) and callable(end_shape)
-    if managing_shape:
-        begin_shape()
-    try:
-        for path in screen_paths:
-            if len(path) < 2:
-                continue
-            primitives.stroke_polyline(path, stroke)
-    finally:
-        if managing_shape:
-            end_shape()
+    _render_function_paths(primitives, screen_paths, stroke)
 
     if getattr(func, "name", "") and screen_paths and screen_paths[0]:
         font_size_value = style.get("function_label_font_size", 12)
@@ -866,6 +856,11 @@ def render_function_helper(primitives, func, coordinate_mapper, style):
             stroke.color,
             TextAlignment(horizontal="left", vertical="alphabetic"),
         )
+
+
+@_manages_shape
+def _render_joined_area(primitives, forward, reverse, fill):
+    primitives.fill_joined_area(forward, reverse, fill)
 
 
 def render_colored_area_helper(primitives, closed_area, coordinate_mapper, style):
@@ -902,9 +897,6 @@ def render_colored_area_helper(primitives, closed_area, coordinate_mapper, style
         color=str(raw_color),
         opacity=opacity,
     )
-    begin_shape = getattr(primitives, "begin_shape", None)
-    end_shape = getattr(primitives, "end_shape", None)
-    managing_shape = callable(begin_shape) and callable(end_shape)
 
     if _paths_form_single_loop(forward, reverse):
         loop_points = list(forward)
@@ -913,13 +905,7 @@ def render_colored_area_helper(primitives, closed_area, coordinate_mapper, style
         primitives.fill_polygon(loop_points, fill)
         return
 
-    if managing_shape:
-        begin_shape()
-    try:
-        primitives.fill_joined_area(forward, reverse, fill)
-    finally:
-        if managing_shape:
-            end_shape()
+    _render_joined_area(primitives, forward, reverse, fill)
 
 
 # ----------------------------------------------------------------------------
