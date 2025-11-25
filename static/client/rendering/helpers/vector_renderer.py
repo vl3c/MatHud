@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 
 from rendering.helpers.shape_decorator import _manages_shape
-from rendering.renderer_primitives import FillStyle, StrokeStyle
+from rendering.primitives import FillStyle, StrokeStyle
 
 
 @_manages_shape

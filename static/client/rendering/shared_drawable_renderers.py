@@ -27,7 +27,7 @@ from rendering.helpers import (
     render_segments_bounded_area_helper,
     render_vector_helper,
 )
-from rendering.renderer_primitives import (
+from rendering.primitives import (
     FillStyle,
     FontStyle,
     RendererPrimitives,

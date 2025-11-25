@@ -4,7 +4,7 @@ import math
 
 from constants import default_font_family, label_min_screen_font_px
 from rendering.helpers.shape_decorator import _manages_shape
-from rendering.renderer_primitives import FontStyle, StrokeStyle, TextAlignment
+from rendering.primitives import FontStyle, StrokeStyle, TextAlignment
 
 
 def _compute_angle_arc_params(vx, vy, p1x, p1y, arc_radius, coordinate_mapper):

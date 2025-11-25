@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from browser import document, svg
 
-from rendering.renderer_primitives import (
+from rendering.primitives import (
     FillStyle,
     FontStyle,
     RendererPrimitives,

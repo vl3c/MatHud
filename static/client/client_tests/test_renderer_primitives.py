@@ -20,7 +20,7 @@ from rendering.svg_renderer import SvgRenderer
 from rendering.svg_primitive_adapter import SvgPrimitiveAdapter
 from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
 from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
-from rendering.renderer_primitives import FillStyle, RendererPrimitives
+from rendering.primitives import FillStyle, RendererPrimitives
 from rendering.shared_drawable_renderers import render_vector_helper
 from .simple_mock import SimpleMock
 

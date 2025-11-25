@@ -4,7 +4,7 @@ import math
 
 from constants import default_font_family
 from rendering.helpers.shape_decorator import _manages_shape
-from rendering.renderer_primitives import FontStyle, StrokeStyle, TextAlignment
+from rendering.primitives import FontStyle, StrokeStyle, TextAlignment
 from utils.math_utils import MathUtils
 
 

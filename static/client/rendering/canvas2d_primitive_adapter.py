@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Optional, Tuple
 
-from rendering.renderer_primitives import (
+from rendering.primitives import (
     FillStyle,
     FontStyle,
     RendererPrimitives,

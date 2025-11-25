@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from rendering.helpers.shape_decorator import _manages_shape
-from rendering.renderer_primitives import StrokeStyle
+from rendering.primitives import StrokeStyle
 
 
 @_manages_shape

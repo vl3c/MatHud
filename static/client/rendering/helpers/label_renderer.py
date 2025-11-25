@@ -4,7 +4,7 @@ import math
 
 from constants import default_font_family, label_min_screen_font_px, label_vanish_threshold_px
 from rendering.helpers.font_helpers import _coerce_font_size, _compute_zoom_adjusted_font_size
-from rendering.renderer_primitives import FontStyle, TextAlignment
+from rendering.primitives import FontStyle, TextAlignment
 
 
 def _get_label_lines(label):

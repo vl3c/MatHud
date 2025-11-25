@@ -9,7 +9,7 @@ from rendering.helpers.area_builders import (
     build_segments_colored_area,
 )
 from rendering.helpers.shape_decorator import _manages_shape
-from rendering.renderer_primitives import FillStyle
+from rendering.primitives import FillStyle
 
 
 def _filter_valid_points(points):
