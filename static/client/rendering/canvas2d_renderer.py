@@ -8,7 +8,7 @@ from browser import document, html, window
 from rendering.style_manager import get_renderer_style
 from rendering.interfaces import RendererProtocol
 from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
-from rendering.optimized_drawable_renderers import (
+from rendering.cached_render_plan import (
     OptimizedPrimitivePlan,
     build_plan_for_cartesian,
     build_plan_for_drawable,

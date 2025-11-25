@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from rendering import optimized_drawable_renderers as optimized
+from rendering import cached_render_plan as optimized
 from rendering import shared_drawable_renderers as shared
 from rendering import style_manager
 

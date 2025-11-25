@@ -5,7 +5,7 @@ from server_tests import python_path_setup  # noqa: F401
 import unittest
 from types import SimpleNamespace
 
-from rendering import optimized_drawable_renderers as optimized
+from rendering import cached_render_plan as optimized
 from rendering import shared_drawable_renderers as shared
 from rendering import style_manager
 from rendering.primitives import ClosedArea

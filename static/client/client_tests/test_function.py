@@ -4,7 +4,7 @@ from geometry import Position, Function
 from expression_validator import ExpressionValidator
 from .simple_mock import SimpleMock
 from coordinate_mapper import CoordinateMapper
-from rendering.function_renderable import FunctionRenderable
+from rendering.renderables import FunctionRenderable
 
 
 class TestFunction(unittest.TestCase):

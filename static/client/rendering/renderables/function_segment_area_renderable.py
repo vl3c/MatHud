@@ -77,4 +77,3 @@ class FunctionSegmentAreaRenderable:
             opacity=getattr(self.area, "opacity", None),
         )
 
-

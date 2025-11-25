@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from rendering.closed_shape_area_renderable import ClosedShapeAreaRenderable
-from rendering.function_segment_area_renderable import FunctionSegmentAreaRenderable
-from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
-from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
+from rendering.renderables import (
+    ClosedShapeAreaRenderable,
+    FunctionSegmentAreaRenderable,
+    FunctionsBoundedAreaRenderable,
+    SegmentsBoundedAreaRenderable,
+)
 
 
 def build_functions_colored_area(area_model, coordinate_mapper):

@@ -5,7 +5,7 @@ from utils.math_utils import MathUtils
 from geometry import Position
 from .simple_mock import SimpleMock
 import math  # Add import at the top of the method
-from rendering.function_renderable import FunctionRenderable
+from rendering.renderables import FunctionRenderable
 
 
 class TestMathFunctions(unittest.TestCase):

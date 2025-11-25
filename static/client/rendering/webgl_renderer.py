@@ -7,7 +7,7 @@ from browser import document, html, window, console
 from rendering.interfaces import RendererProtocol
 from rendering.style_manager import get_renderer_style
 from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
-from rendering.optimized_drawable_renderers import (
+from rendering.cached_render_plan import (
     build_plan_for_cartesian,
     build_plan_for_drawable,
 )

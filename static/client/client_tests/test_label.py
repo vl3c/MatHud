@@ -14,7 +14,7 @@ from drawables.label import Label
 from managers.drawables_container import DrawablesContainer
 from managers.label_manager import LabelManager
 from coordinate_mapper import CoordinateMapper
-from rendering.optimized_drawable_renderers import build_plan_for_drawable, _capture_map_state
+from rendering.cached_render_plan import build_plan_for_drawable, _capture_map_state
 from rendering.style_manager import get_renderer_style
 from rendering.shared_drawable_renderers import render_label_helper
 from name_generator.drawable import DrawableNameGenerator

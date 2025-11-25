@@ -17,7 +17,6 @@ class SegmentsBoundedAreaRenderable:
         self.mapper: Any = coordinate_mapper
 
     def _screen_xy(self, point: Any) -> Tuple[Optional[float], Optional[float]]:
-        # Convert math coordinates to screen using the mapper exclusively
         if point is None or not hasattr(point, 'x') or not hasattr(point, 'y'):
             return None, None
         result: Any = self.mapper.math_to_screen(point.x, point.y)
@@ -43,7 +42,6 @@ class SegmentsBoundedAreaRenderable:
             p2: Tuple[Optional[float], Optional[float]] = self._screen_xy(self.area.segment1.point2)
             if None in p1 or None in p2:
                 return None
-            # Use mapper to compute x-axis (y=0) at the same screen x positions
             assert p1[0] is not None and p1[1] is not None and p2[0] is not None and p2[1] is not None
             xaxis_screen_at_p2: float = self.mapper.math_to_screen(self.mapper.screen_to_math(p2[0], p2[1])[0], 0)[1]
             xaxis_screen_at_p1: float = self.mapper.math_to_screen(self.mapper.screen_to_math(p1[0], p1[1])[0], 0)[1]
@@ -91,5 +89,4 @@ class SegmentsBoundedAreaRenderable:
             color=getattr(self.area, "color", None),
             opacity=getattr(self.area, "opacity", None),
         )
-
 

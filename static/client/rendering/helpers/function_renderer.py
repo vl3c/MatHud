@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 
 from constants import default_font_family
-from rendering.function_renderable import FunctionRenderable
+from rendering.renderables import FunctionRenderable
 from rendering.helpers.shape_decorator import _manages_shape
 from rendering.primitives import FontStyle, StrokeStyle, TextAlignment
 

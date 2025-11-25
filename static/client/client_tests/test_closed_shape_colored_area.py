@@ -6,7 +6,7 @@ import copy
 
 from drawables.closed_shape_colored_area import ClosedShapeColoredArea
 from constants import default_closed_shape_resolution
-from rendering.closed_shape_area_renderable import ClosedShapeAreaRenderable
+from rendering.renderables import ClosedShapeAreaRenderable
 from utils.geometry_utils import GeometryUtils
 from .simple_mock import SimpleMock
 

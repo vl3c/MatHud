@@ -171,4 +171,3 @@ class ClosedShapeAreaRenderable:
         reverse = [(end["x"], end["y"]), (start["x"], start["y"])]
         return points, reverse
 
-

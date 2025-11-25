@@ -3,7 +3,7 @@ import copy
 from geometry import Position
 from coordinate_mapper import CoordinateMapper
 from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea
-from rendering.function_segment_area_renderable import FunctionSegmentAreaRenderable
+from rendering.renderables import FunctionSegmentAreaRenderable
 from drawables.function import Function
 from .simple_mock import SimpleMock
 

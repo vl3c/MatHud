@@ -34,7 +34,7 @@ This checklist documents the workflow for introducing a new drawable type to Mat
 
 ## 6. Implement Rendering Support
 1. Create a helper in `rendering/shared_drawable_renderers.py` that transforms math-space values to screen-space primitives.
-2. Register the helper in `_HELPERS` inside `rendering/optimized_drawable_renderers.py`.
+2. Register the helper in `_HELPERS` inside `rendering/cached_render_plan.py`.
 3. Ensure each renderer (`canvas2d_renderer.py`, `svg_renderer.py`, `webgl_renderer.py`) registers the new drawable class and delegates to `_render_drawable`.
 4. Add constants to style manager or adapters if special handling is required.
 

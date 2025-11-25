@@ -17,10 +17,8 @@ class FunctionRenderable:
     def __init__(self, function_model: Any, coordinate_mapper: Any, cartesian2axis: Optional[Any] = None) -> None:
         self.func: Any = function_model
         self.mapper: Any = coordinate_mapper
-        # Prefer explicitly provided cartesian2axis; otherwise, do not rely on model.canvas
         self.cartesian2axis: Optional[Any] = cartesian2axis
 
-        # Simple cache
         self._cached_screen_paths: Optional[ScreenPolyline] = None
         self._cache_valid: bool = False
         self._last_scale: Optional[float] = None
@@ -35,19 +33,16 @@ class FunctionRenderable:
         self._last_screen_bounds = None
 
     def _get_visible_bounds(self) -> Tuple[float, float]:
-        # Use cartesian2axis if available (legacy path), otherwise rely on mapper
         try:
             if self.cartesian2axis:
                 return (
                     self.cartesian2axis.get_visible_left_bound(),
                     self.cartesian2axis.get_visible_right_bound(),
                 )
-            # Mapper-based bounds
             left: float = self.mapper.get_visible_left_bound()
             right: float = self.mapper.get_visible_right_bound()
             return left, right
         except Exception:
-            # Fallback safe default
             return -10, 10
 
     def _should_regenerate(self) -> bool:
@@ -77,7 +72,6 @@ class FunctionRenderable:
         return False
 
     def build_math_paths(self, left_bound: Optional[float] = None, right_bound: Optional[float] = None) -> MathPolyline:
-        # Determine bounds
         if left_bound is None or right_bound is None:
             v_left: float
             v_right: float
@@ -85,19 +79,16 @@ class FunctionRenderable:
             left_bound = v_left if left_bound is None else left_bound
             right_bound = right_bound if right_bound is not None else v_right
 
-        # Clamp to model bounds if present
         if self.func.left_bound is not None:
             left_bound = max(left_bound, self.func.left_bound)
         if self.func.right_bound is not None:
             right_bound = min(right_bound, self.func.right_bound)
 
-        # At this point left_bound and right_bound are guaranteed to be float
         assert left_bound is not None and right_bound is not None
 
         if right_bound <= left_bound:
             return MathPolyline([])
 
-        # Step heuristic similar to original, capped to at most 200 samples across range
         range_width: float = right_bound - left_bound
         step: float = range_width / 200.0
 
@@ -106,9 +97,7 @@ class FunctionRenderable:
         x: float = left_bound
         expect_asymptote_behind: bool = False
 
-        # Use a strict upper bound to avoid exceeding 200 points due to inclusive end
         while x < right_bound - 1e-12:
-            # Skip discontinuities
             try:
                 if hasattr(self.func, 'point_discontinuities') and self.func.point_discontinuities and x in self.func.point_discontinuities:
                     x += step
@@ -116,13 +105,11 @@ class FunctionRenderable:
             except Exception:
                 pass
 
-            # Evaluate function
             try:
                 y: Optional[float] = self.func.function(x)
             except Exception:
                 y = None
 
-            # Detect asymptotes via model
             asymptote_x: Optional[float] = None
             if hasattr(self.func, 'get_vertical_asymptote_between_x'):
                 try:
@@ -168,9 +155,7 @@ class FunctionRenderable:
             self._cache_valid = True
         return self._cached_screen_paths or ScreenPolyline([])
 
-    # --- Equivalent of original Function._generate_paths but producing (x,y) tuples ---
     def _build_screen_paths_equivalent(self) -> list[list[tuple[float, float]]]:
-        # Determine base bounds (model-provided or default math window) and intersect with visible
         visible_left: float
         visible_right: float
         visible_left, visible_right = self._get_visible_bounds()
@@ -197,7 +182,6 @@ class FunctionRenderable:
             if range_width <= 0:
                 return 1.0
             base_step: float = range_width / 200.0
-            # Trig-specific adaptation similar to original
             fs: str = getattr(self.func, 'function_string', '')
             if 'sin' in fs or 'cos' in fs:
                 matches: list[str] = re.findall(r'(?:sin|cos)\((\d+(?:\.\d+)?)\*?x\)', fs)
@@ -209,21 +193,17 @@ class FunctionRenderable:
                 points_per_period: float = 320.0 / max(visible_periods, 1e-9)
                 points_per_period = min(MAX_POINTS, points_per_period)
                 step_trig: float = period / points_per_period if points_per_period > 0 else base_step
-                # Enforce a global cap by adjusting to at most 200 points across the range
                 cap_step: float = range_width / MAX_POINTS
                 return max(cap_step, step_trig)
             if any(pattern in fs for pattern in ['x**2', 'x^2']):
                 return base_step * 2.0
-            # Enforce global cap for non-trig as well
             return base_step
 
         step: float = calculate_step_size()
-        # Global cap: ensure total samples across range does not exceed 200
         if step > 0:
             cap_step: float = (right_bound - left_bound) / MAX_POINTS
             step = max(cap_step, step)
 
-        # Adaptive step by slope magnitude to densify steep functions
         try:
             eps: float = max(1e-6, (right_bound - left_bound) / 1000.0)
             cx: float = (left_bound + right_bound) / 2.0
@@ -235,12 +215,10 @@ class FunctionRenderable:
                     scale: float = getattr(self.mapper, 'scale_factor', 1.0) or 1.0
                     target_pixel: float = 2.0
                     desired_step: float = (target_pixel / scale) / slope_abs
-                    # Respect global cap while allowing densification for steep regions
                     step = min(step, max((right_bound - left_bound) / MAX_POINTS, desired_step))
         except Exception:
             pass
 
-        # Screen height for bound checks (prefer cartesian2axis.height, fallback to mapper canvas height)
         height: float = getattr(self.cartesian2axis, 'height', None) or 0
         if not height:
             height = getattr(self.mapper, 'canvas_height', 0) or 0
@@ -264,9 +242,7 @@ class FunctionRenderable:
                 return (None, None), None
 
         x: float = left_bound
-        # Use strict right bound to avoid oversampling
         while x < right_bound - 1e-12:
-            # Skip exact point discontinuities
             try:
                 if getattr(self.func, 'point_discontinuities', None) and x in self.func.point_discontinuities:
                     x += step
@@ -281,7 +257,6 @@ class FunctionRenderable:
                 x += step
                 continue
 
-            # Asymptote ahead
             asymptote_x: Optional[float] = None
             if hasattr(self.func, 'get_vertical_asymptote_between_x'):
                 try:
@@ -300,7 +275,6 @@ class FunctionRenderable:
                 if new_scaled_point[0] is not None:
                     scaled_point, y_val = new_scaled_point, new_y
 
-            # Determine neighbor previous scaled point
             neighbor_prev_scaled_point: tuple[float, float] | tuple[None, None]
             if has_vertical_asymptote_behind:
                 try:
@@ -317,14 +291,11 @@ class FunctionRenderable:
                 x += step
                 continue
 
-            prev_y: Any = neighbor_prev_scaled_point[1] if len(neighbor_prev_scaled_point) > 1 else neighbor_prev_scaled_point[1] if isinstance(neighbor_prev_scaled_point, tuple) else None
-            # Use screen y for bound checks
             prev_sy: float = neighbor_prev_scaled_point[1]
             sy: float = scaled_point[1]
             prev_sx: float = neighbor_prev_scaled_point[0]
             sx_val: float = scaled_point[0]
 
-            # Large pixel jump -> break path
             if abs(prev_sy - sy) > height * 2:
                 if current_path:
                     paths.append(current_path)
@@ -332,7 +303,6 @@ class FunctionRenderable:
                 x += step
                 continue
 
-            # Bound crossing detection (using screen coordinates)
             top_bound: float = 0
             bottom_bound: float = height
             crosses_top_bound_upward: bool = prev_sy >= top_bound and sy < top_bound
@@ -341,8 +311,6 @@ class FunctionRenderable:
             crosses_bottom_bound_upward: bool = prev_sy >= bottom_bound and sy < bottom_bound
             left_bound_screen: float = -screen_margin
             right_bound_screen: float = width + screen_margin
-            prev_visible_x: bool = (left_bound_screen <= prev_sx <= right_bound_screen)
-            curr_visible_x: bool = (left_bound_screen <= sx_val <= right_bound_screen)
             crosses_left_enter: bool = prev_sx <= left_bound_screen and sx_val > left_bound_screen
             crosses_left_exit: bool = prev_sx >= left_bound_screen and sx_val < left_bound_screen
             crosses_right_enter: bool = prev_sx >= right_bound_screen and sx_val < right_bound_screen
@@ -381,7 +349,6 @@ class FunctionRenderable:
             if x > right_bound:
                 break
 
-            # Skip off-screen points
             if sy >= bottom_bound or sy <= top_bound:
                 x += step
                 continue
@@ -390,7 +357,6 @@ class FunctionRenderable:
                 continue
             samples_visible += 1
 
-            # Add visibly different points
             if not current_path:
                 current_path = [(scaled_point[0], scaled_point[1])]
                 samples_emitted += 1
@@ -433,5 +399,4 @@ class FunctionRenderable:
                 paths = original_paths
 
         return paths
-
 

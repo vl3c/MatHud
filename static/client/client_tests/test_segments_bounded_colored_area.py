@@ -7,7 +7,7 @@ from typing import Any, cast
 from geometry import Position
 from coordinate_mapper import CoordinateMapper
 from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
-from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
+from rendering.renderables import SegmentsBoundedAreaRenderable
 from .simple_mock import SimpleMock
 
 

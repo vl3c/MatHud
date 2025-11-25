@@ -25,7 +25,6 @@ class FunctionsBoundedAreaRenderable:
         if self._is_function_like(f):
             try:
                 y: Any = f.function(x_math)
-                # Filter out NaN and infinite values
                 if y is None:
                     return None
                 if not isinstance(y, (int, float)):
@@ -38,24 +37,20 @@ class FunctionsBoundedAreaRenderable:
         return None
 
     def _get_bounds(self) -> Tuple[float, float]:
-        # Start from model math bounds
         try:
             left: float
             right: float
             left, right = self.area._get_bounds()
         except Exception:
             left, right = -10, 10
-        # Apply function bounds if present
         for f in (self.area.func1, self.area.func2):
             if hasattr(f, 'left_bound') and hasattr(f, 'right_bound') and f.left_bound is not None and f.right_bound is not None:
                 left = max(left, f.left_bound)
                 right = min(right, f.right_bound)
-        # Apply user bounds
         if getattr(self.area, 'left_bound', None) is not None:
             left = max(left, self.area.left_bound)
         if getattr(self.area, 'right_bound', None) is not None:
             right = min(right, self.area.right_bound)
-        # Finally, intersect with visible bounds for rendering
         try:
             vis_left: float = self.mapper.get_visible_left_bound()
             vis_right: float = self.mapper.get_visible_right_bound()
@@ -78,7 +73,6 @@ class FunctionsBoundedAreaRenderable:
             y1: Optional[float] = self._eval_y_math(f1, x_m)
             y2: Optional[float] = self._eval_y_math(f2, x_m)
             if y1 is None or y2 is None:
-                # Keep alignment: insert a break marker so ends do not transpose
                 pairs.append((None, None))
                 continue
             s1: Tuple[float, float] = self.mapper.math_to_screen(x_m, y1)
@@ -86,7 +80,7 @@ class FunctionsBoundedAreaRenderable:
             pairs.append((s1, s2))
         if not pairs:
             return [], []
-        # Trim leading/trailing invalids and split on gaps to avoid transposed joins
+
         def split_valid(seq: List[Optional[Tuple[float, float]]]) -> List[List[Tuple[float, float]]]:
             chunks: List[List[Tuple[float, float]]] = []
             cur: List[Tuple[float, float]] = []
@@ -100,13 +94,13 @@ class FunctionsBoundedAreaRenderable:
             if cur:
                 chunks.append(cur)
             return chunks
+
         f_seq: List[Optional[Tuple[float, float]]] = [p[0] if p[0] is not None else None for p in pairs]
         g_seq: List[Optional[Tuple[float, float]]] = [p[1] if p[1] is not None else None for p in pairs]
         f_chunks: List[List[Tuple[float, float]]] = split_valid(f_seq)
         g_chunks: List[List[Tuple[float, float]]] = split_valid(g_seq)
         if not f_chunks or not g_chunks:
             return [], []
-        # Use the longest aligned chunk to build area
         idx: int = max(range(min(len(f_chunks), len(g_chunks))), key=lambda i: min(len(f_chunks[i]), len(g_chunks[i])))
         forward: List[Tuple[float, float]] = f_chunks[idx]
         reverse: List[Tuple[float, float]] = list(reversed(g_chunks[idx]))
@@ -129,5 +123,4 @@ class FunctionsBoundedAreaRenderable:
             color=getattr(self.area, "color", None),
             opacity=getattr(self.area, "opacity", None),
         )
-
 

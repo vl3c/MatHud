@@ -7,7 +7,7 @@ from drawables.point import Point
 from drawables.segment import Segment
 from drawables.function import Function
 
-from rendering.function_renderable import FunctionRenderable
+from rendering.renderables import FunctionRenderable
 from rendering.primitives import ClosedArea
 
 
@@ -76,7 +76,7 @@ class TestFunctionsBoundedAreaRenderable(unittest.TestCase):
         self.mapper = CoordinateMapper(640, 480)
 
     def test_build_screen_area_with_two_functions(self) -> None:
-        from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
+        from rendering.renderables import FunctionsBoundedAreaRenderable
         from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
         
         f1 = Function("x^2", name="f")
@@ -94,7 +94,7 @@ class TestFunctionsBoundedAreaRenderable(unittest.TestCase):
         self.assertGreater(len(result.reverse_points), 0)
 
     def test_area_with_x_bounds(self) -> None:
-        from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
+        from rendering.renderables import FunctionsBoundedAreaRenderable
         from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
         
         f1 = Function("2*x", name="f")
@@ -115,7 +115,7 @@ class TestSegmentsBoundedAreaRenderable(unittest.TestCase):
         self.mapper = CoordinateMapper(640, 480)
 
     def test_build_screen_area_from_segments(self) -> None:
-        from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
+        from rendering.renderables import SegmentsBoundedAreaRenderable
         from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
         
         p1 = Point(0, 0, name="A")
@@ -139,7 +139,7 @@ class TestSegmentsBoundedAreaRenderable(unittest.TestCase):
             self.assertGreater(len(result.forward_points), 0)
 
     def test_triangular_area_from_segments(self) -> None:
-        from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
+        from rendering.renderables import SegmentsBoundedAreaRenderable
         from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
         
         p1 = Point(0, 0, name="A")
@@ -188,7 +188,7 @@ class TestRenderableEdgeCases(unittest.TestCase):
             self.fail(f"Invalid function should not raise exception: {exc}")
 
     def test_none_segment_area_handles_gracefully(self) -> None:
-        from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
+        from rendering.renderables import SegmentsBoundedAreaRenderable
         from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
         
         p1 = Point(0, 0, name="A")

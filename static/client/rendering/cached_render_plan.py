@@ -163,7 +163,7 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
     if op == "stroke_circle":
         center, radius, stroke = command.args
         new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
-        screen_space = bool(command.kwargs.get("screen_space"))  # future-proof
+        screen_space = bool(command.kwargs.get("screen_space"))
         new_radius = float(radius) if screen_space else _reproject_radius(float(radius), old_state, new_state)
         command.args = (new_center, new_radius, stroke)
         command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
@@ -459,11 +459,9 @@ def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state
         return
 
     if op == "stroke_vector":
-        # Not currently emitted, guard for completeness
         return
 
     if op == "stroke_line_with_arrow":
-        # Not currently emitted
         return
 
 

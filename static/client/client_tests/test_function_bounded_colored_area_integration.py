@@ -4,7 +4,7 @@ import unittest
 from typing import Tuple
 
 from coordinate_mapper import CoordinateMapper
-from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
+from rendering.renderables import FunctionsBoundedAreaRenderable
 from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
 from drawables.function import Function
 

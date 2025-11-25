@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, Optional, Set, Tuple
 
 from browser import document, svg, window
 
-from rendering.optimized_drawable_renderers import (
+from rendering.cached_render_plan import (
     OptimizedPrimitivePlan,
     build_plan_for_cartesian,
     build_plan_for_drawable,
