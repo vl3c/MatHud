@@ -3,14 +3,14 @@ from __future__ import annotations
 import math
 from typing import Any, List, Optional, Dict
 
-from rendering.shared_drawable_renderers import (
+from rendering.renderer_primitives import (
     FillStyle,
     FontStyle,
-    Point2D,
     RendererPrimitives,
     StrokeStyle,
     TextAlignment,
 )
+from rendering.shared_drawable_renderers import Point2D
 
 
 class WebGLPrimitiveAdapter(RendererPrimitives):

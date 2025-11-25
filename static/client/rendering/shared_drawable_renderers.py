@@ -1,10 +1,30 @@
 from __future__ import annotations
 
 import math
-
 from typing import Any, Dict, List, Optional, Tuple
 
 from constants import default_font_family, label_min_screen_font_px, label_vanish_threshold_px
+from rendering.closed_shape_area_renderable import ClosedShapeAreaRenderable
+from rendering.function_renderable import FunctionRenderable
+from rendering.function_segment_area_renderable import FunctionSegmentAreaRenderable
+from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
+from rendering.renderer_primitives import (
+    FillStyle,
+    FontStyle,
+    RendererPrimitives,
+    StrokeStyle,
+    TextAlignment,
+)
+from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
+from utils.math_utils import MathUtils
+
+Point2D = tuple
+
+
+# ----------------------------------------------------------------------------
+# Font size helpers
+# ----------------------------------------------------------------------------
+
 
 def _coerce_font_size(candidate: Any, fallback: Any, default_value: float = 14.0) -> float:
     try:
@@ -49,152 +69,10 @@ def _compute_zoom_adjusted_font_size(base_size: float, label: Any, coordinate_ma
         return 0.0
     return max(scaled, label_min_screen_font_px)
 
-from utils.math_utils import MathUtils
 
-Point2D = tuple
-
-class StrokeStyle:
-    __slots__ = ("color", "width", "line_join", "line_cap")
-
-    def __init__(self, color, width, line_join=None, line_cap=None, **kwargs):
-        self.color = str(color)
-        self.width = float(width)
-        self.line_join = line_join
-        self.line_cap = line_cap
-
-class FillStyle:
-    __slots__ = ("color", "opacity")
-
-    def __init__(self, color, opacity=None, **kwargs):
-        self.color = str(color)
-        self.opacity = None if opacity is None else float(opacity)
-
-class FontStyle:
-    __slots__ = ("family", "size", "weight")
-
-    def __init__(self, family, size, weight=None):
-        self.family = family
-        try:
-            size_float = float(size)
-        except Exception:
-            self.size = size
-        else:
-            if math.isfinite(size_float) and size_float.is_integer():
-                self.size = int(size_float)
-            else:
-                self.size = size_float
-        self.weight = weight
-
-class TextAlignment:
-    __slots__ = ("horizontal", "vertical")
-
-    def __init__(self, horizontal="left", vertical="alphabetic"):
-        self.horizontal = horizontal
-        self.vertical = vertical
-
-class RendererPrimitives:
-    """Backend-specific primitive surface consumed by shared helpers."""
-
-    def stroke_line(self, start, end, stroke, *, include_width=True):
-        raise NotImplementedError
-
-    def stroke_polyline(self, points, stroke):
-        raise NotImplementedError
-
-    def stroke_circle(self, center, radius, stroke):
-        raise NotImplementedError
-
-    def fill_circle(self, center, radius, fill, stroke=None, *, screen_space=False):
-        raise NotImplementedError
-
-    def stroke_ellipse(self, center, radius_x, radius_y, rotation_rad, stroke):
-        raise NotImplementedError
-
-    def fill_polygon(
-        self,
-        points,
-        fill,
-        stroke=None,
-        *,
-        screen_space: bool = False,
-        metadata: Optional[Dict[str, Any]] = None,
-    ):
-        raise NotImplementedError
-
-    def fill_joined_area(self, forward, reverse, fill):
-        raise NotImplementedError
-
-    def stroke_arc(
-        self,
-        center,
-        radius,
-        start_angle_rad,
-        end_angle_rad,
-        sweep_clockwise,
-        stroke,
-        css_class=None,
-        *,
-        screen_space: bool = False,
-        metadata: Optional[Dict[str, Any]] = None,
-    ):
-        raise NotImplementedError
-
-    def draw_text(
-        self,
-        text,
-        position,
-        font,
-        color,
-        alignment,
-        style_overrides=None,
-        *,
-        screen_space: bool = False,
-        metadata: Optional[Dict[str, Any]] = None,
-    ):
-        raise NotImplementedError
-
-    def clear_surface(self):
-        raise NotImplementedError
-
-    def resize_surface(self, width, height):
-        raise NotImplementedError
-
-    # ------------------------------------------------------------------
-    # Optional lifecycle hooks used by optimized rendering paths.
-    # Default implementations are no-ops so legacy adapters do not need
-    # to override them.
-    # ------------------------------------------------------------------
-
-    def begin_frame(self):
-        """Hook invoked at the start of a full canvas render cycle."""
-        return None
-
-    def end_frame(self):
-        """Hook invoked at the end of a full canvas render cycle."""
-        return None
-
-    def begin_batch(self, plan=None):
-        """Hook invoked before executing a batched render plan."""
-        return None
-
-    def end_batch(self, plan=None):
-        """Hook invoked after executing a batched render plan."""
-        return None
-
-    def execute_optimized(self, command):
-        """Fallback execution path for optimized commands."""
-        handler = getattr(self, getattr(command, "op", ""), None)
-        if callable(handler):
-            handler(*getattr(command, "args", ()), **getattr(command, "kwargs", {}))
-
-from rendering.closed_shape_area_renderable import ClosedShapeAreaRenderable
-from rendering.function_renderable import FunctionRenderable
-from rendering.function_segment_area_renderable import FunctionSegmentAreaRenderable
-from rendering.functions_area_renderable import FunctionsBoundedAreaRenderable
-from rendering.primitives import ClosedArea
-from rendering.segments_area_renderable import SegmentsBoundedAreaRenderable
-
-
+# ----------------------------------------------------------------------------
+# Render helpers
+# ----------------------------------------------------------------------------
 def render_point_helper(primitives, point, coordinate_mapper, style):
     try:
         sx_sy = coordinate_mapper.math_to_screen(point.x, point.y)  # type: ignore[attr-defined]

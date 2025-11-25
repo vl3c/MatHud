@@ -3,14 +3,14 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Optional, Tuple
 
-from rendering.shared_drawable_renderers import (
+from rendering.renderer_primitives import (
     FillStyle,
     FontStyle,
-    Point2D,
     RendererPrimitives,
     StrokeStyle,
     TextAlignment,
 )
+from rendering.shared_drawable_renderers import Point2D
 
 
 class Canvas2DPrimitiveAdapter(RendererPrimitives):

@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from constants import label_min_screen_font_px, label_vanish_threshold_px
 from rendering import shared_drawable_renderers as shared
-from rendering.shared_drawable_renderers import RendererPrimitives
+from rendering.renderer_primitives import RendererPrimitives
 
 _STYLE_CLASSES = (
     shared.StrokeStyle,

@@ -8,7 +8,7 @@ from coordinate_mapper import CoordinateMapper
 from rendering import shared_drawable_renderers as shared
 from rendering.optimized_drawable_renderers import build_plan_for_cartesian, build_plan_for_drawable
 from rendering.style_manager import get_renderer_style
-from rendering.shared_drawable_renderers import RendererPrimitives
+from rendering.renderer_primitives import RendererPrimitives
 from cartesian_system_2axis import Cartesian2Axis
 from drawables.point import Point
 from drawables.segment import Segment

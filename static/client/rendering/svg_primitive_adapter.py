@@ -5,14 +5,14 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from browser import document, svg
 
-from rendering.shared_drawable_renderers import (
+from rendering.renderer_primitives import (
     FillStyle,
     FontStyle,
-    Point2D,
     RendererPrimitives,
     StrokeStyle,
     TextAlignment,
 )
+from rendering.shared_drawable_renderers import Point2D
 
 
 class SvgPrimitiveAdapter(RendererPrimitives):
