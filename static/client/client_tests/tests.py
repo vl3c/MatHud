@@ -79,6 +79,13 @@ from .test_renderer_edge_cases import (
     TestLabelEdgeCases,
     TestCartesianEdgeCases,
 )
+from .test_font_helpers import TestCoerceFontSize, TestComputeZoomAdjustedFontSize
+from .test_colored_area_helpers import (
+    TestPointsClose,
+    TestPathsFormSingleLoop,
+    TestFilterValidPoints,
+    TestRenderColoredAreaHelper,
+)
 from .test_transformations_manager import TestTransformationsManager
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
@@ -176,6 +183,12 @@ class Tests:
             TestDrawablesContainer,
             TestFunctionBoundedColoredAreaIntegration,
             TestLinearAlgebraUtils,
+            TestCoerceFontSize,
+            TestComputeZoomAdjustedFontSize,
+            TestPointsClose,
+            TestPathsFormSingleLoop,
+            TestFilterValidPoints,
+            TestRenderColoredAreaHelper,
         ]
 
         for test_case in test_cases:
