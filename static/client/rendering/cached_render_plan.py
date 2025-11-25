@@ -140,329 +140,407 @@ def _reproject_radius(radius: float, old: MapState, new: MapState) -> float:
     return math_radius * new["scale"]
 
 
+def _get_safe_scale(state: MapState, key: str = "scale") -> float:
+    value = float(state.get(key, 1.0) or 1.0)
+    return 1.0 if value <= 0 else value
+
+
+def _reproject_stroke_line(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState
+) -> None:
+    start, end, stroke = command.args
+    new_start = _math_to_screen_point(_screen_to_math_point(start, old_state), new_state)
+    new_end = _math_to_screen_point(_screen_to_math_point(end, old_state), new_state)
+    command.args = (new_start, new_end, stroke)
+    command.meta["geometry"] = _quantize_geometry((new_start, new_end))
+
+
+def _reproject_stroke_polyline(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState
+) -> None:
+    points, stroke = command.args
+    new_points = _reproject_points(points, old_state, new_state)
+    command.args = (new_points, stroke)
+    command.meta["geometry"] = _quantize_geometry(new_points)
+
+
+def _reproject_stroke_circle(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState
+) -> None:
+    center, radius, stroke = command.args
+    new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
+    screen_space = bool(command.kwargs.get("screen_space"))
+    new_radius = float(radius) if screen_space else _reproject_radius(float(radius), old_state, new_state)
+    command.args = (new_center, new_radius, stroke)
+    command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
+
+
+def _reproject_fill_circle(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState
+) -> None:
+    center, radius, fill, stroke = command.args
+    new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
+    screen_space = bool(command.kwargs.get("screen_space"))
+    new_radius = float(radius) if screen_space else _reproject_radius(float(radius), old_state, new_state)
+    command.args = (new_center, new_radius, fill, stroke)
+    command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
+
+
+def _reproject_stroke_ellipse(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState
+) -> None:
+    center, radius_x, radius_y, rotation, stroke = command.args
+    new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
+    new_rx = _reproject_radius(float(radius_x), old_state, new_state)
+    new_ry = _reproject_radius(float(radius_y), old_state, new_state)
+    command.args = (new_center, new_rx, new_ry, rotation, stroke)
+    command.meta["geometry"] = _quantize_geometry((new_center, new_rx, new_ry, rotation))
+
+
+def _reproject_fill_joined_area(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState
+) -> None:
+    forward, reverse, fill = command.args
+    new_forward = _reproject_points(forward, old_state, new_state)
+    new_reverse = _reproject_points(reverse, old_state, new_state)
+    command.args = (new_forward, new_reverse, fill)
+    command.meta["geometry"] = _quantize_geometry(new_forward + new_reverse)
+
+
+def _compute_vector_arrow_points(
+    vector_meta: Dict[str, Any], new_state: MapState
+) -> Tuple[Tuple[float, float], ...]:
+    start_math = tuple(vector_meta.get("start_math", (0.0, 0.0)))
+    end_math = tuple(vector_meta.get("end_math", (0.0, 0.0)))
+    tip_size = float(vector_meta.get("tip_size", 8.0))
+    start_screen = _math_to_screen_point(start_math, new_state)
+    end_screen = _math_to_screen_point(end_math, new_state)
+    dx = end_screen[0] - start_screen[0]
+    dy = end_screen[1] - start_screen[1]
+    direction_length = math.hypot(dx, dy)
+    if direction_length <= 1e-6:
+        return (end_screen, end_screen, end_screen)
+    angle = math.atan2(dy, dx)
+    half_base = tip_size / 2.0
+    height_sq = max(tip_size * tip_size - half_base * half_base, 0.0)
+    height = min(math.sqrt(height_sq), direction_length)
+    tip = end_screen
+    base1 = (
+        end_screen[0] - height * math.cos(angle) - half_base * math.sin(angle),
+        end_screen[1] - height * math.sin(angle) + half_base * math.cos(angle),
+    )
+    base2 = (
+        end_screen[0] - height * math.cos(angle) + half_base * math.sin(angle),
+        end_screen[1] - height * math.sin(angle) - half_base * math.cos(angle),
+    )
+    return (tip, base1, base2)
+
+
+def _reproject_fill_polygon(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState
+) -> None:
+    points, fill, stroke = command.args
+    metadata = command.kwargs.get("metadata") or {}
+    vector_meta = metadata.get("vector_arrow") if isinstance(metadata, dict) else None
+    if vector_meta:
+        new_points = _compute_vector_arrow_points(vector_meta, new_state)
+    else:
+        new_points = _reproject_points(points, old_state, new_state)
+    command.args = (tuple(new_points), fill, stroke)
+    command.meta["geometry"] = _quantize_geometry(new_points)
+
+
+def _compute_angle_arc_radius(
+    angle_meta: Dict[str, Any],
+    radius: float,
+    old_state: MapState,
+    new_state: MapState,
+) -> float:
+    base_radius_screen = float(
+        angle_meta.get("clamped_arc_radius_on_screen", angle_meta.get("arc_radius_on_screen", radius))
+    )
+    min_arm_math = float(angle_meta.get("min_arm_length_in_math", base_radius_screen))
+    base_scale = _get_safe_scale(old_state)
+    new_scale = _get_safe_scale(new_state)
+    radius_math = base_radius_screen / base_scale if base_scale > 0 else base_radius_screen
+    new_radius = radius_math * new_scale
+    max_radius = min_arm_math * new_scale
+    return min(new_radius, max_radius) if max_radius > 0 else new_radius
+
+
+def _reproject_arc_with_angle_meta(
+    command: PrimitiveCommand,
+    angle_meta: Dict[str, Any],
+    radius: float,
+    stroke: Any,
+    old_state: MapState,
+    new_state: MapState,
+) -> None:
+    vertex_math = tuple(angle_meta.get("vertex_math", (0.0, 0.0)))
+    arm1_math = tuple(angle_meta.get("arm1_math", (0.0, 0.0)))
+    display_degrees = float(angle_meta.get("display_degrees", 0.0))
+    sweep_flag = str(angle_meta.get("final_sweep_flag", "0"))
+    radius_screen = _compute_angle_arc_radius(angle_meta, radius, old_state, new_state)
+    vertex_screen = _math_to_screen_point(vertex_math, new_state)
+    arm1_screen = _math_to_screen_point(arm1_math, new_state)
+    start_angle = math.atan2(arm1_screen[1] - vertex_screen[1], arm1_screen[0] - vertex_screen[0])
+    sweep_cw = sweep_flag == "1"
+    delta = math.radians(display_degrees)
+    direction = 1 if sweep_cw else -1
+    end_angle = start_angle + direction * delta
+    command.args = (vertex_screen, radius_screen, start_angle, end_angle, sweep_cw, stroke)
+    command.meta["geometry"] = _quantize_geometry((vertex_screen, radius_screen))
+
+
+def _parse_point_tuple(raw: Any, default: Tuple[float, float] = (0.0, 0.0)) -> Tuple[float, float]:
+    try:
+        return (float(raw[0]), float(raw[1]))
+    except Exception:
+        return default
+
+
+def _compute_sweep_delta(
+    center_math: Tuple[float, float],
+    point1_math: Tuple[float, float],
+    point2_math: Tuple[float, float],
+    use_major: bool,
+) -> float:
+    start_angle_math = math.atan2(point1_math[1] - center_math[1], point1_math[0] - center_math[0])
+    target_angle_math = math.atan2(point2_math[1] - center_math[1], point2_math[0] - center_math[0])
+    full_turn = 2 * math.pi
+    delta_ccw_math = (target_angle_math - start_angle_math) % full_turn
+    delta_cw_math = (start_angle_math - target_angle_math) % full_turn
+    minor_is_ccw = delta_ccw_math <= delta_cw_math
+    minor_delta = delta_ccw_math if minor_is_ccw else delta_cw_math
+    major_delta = delta_cw_math if minor_is_ccw else delta_ccw_math
+    return major_delta if use_major else minor_delta
+
+
+def _reproject_arc_with_circle_meta(
+    command: PrimitiveCommand,
+    circle_meta: Dict[str, Any],
+    radius: float,
+    stroke: Any,
+    old_state: MapState,
+    new_state: MapState,
+) -> None:
+    center_math = _parse_point_tuple(circle_meta.get("center_math", (0.0, 0.0)))
+    point1_math = _parse_point_tuple(circle_meta.get("point1", (0.0, 0.0)))
+    point2_math = _parse_point_tuple(circle_meta.get("point2", (0.0, 0.0)))
+    try:
+        radius_math = float(circle_meta.get("radius_math", radius))
+    except Exception:
+        radius_math = float(radius)
+    use_major = bool(circle_meta.get("use_major_arc", False))
+    stored_cw = bool(circle_meta.get("sweep_clockwise", False))
+    new_center = _math_to_screen_point(center_math, new_state)
+    point1_screen = _math_to_screen_point(point1_math, new_state)
+    start_angle_screen = math.atan2(point1_screen[1] - new_center[1], point1_screen[0] - new_center[0])
+    sweep_delta = _compute_sweep_delta(center_math, point1_math, point2_math, use_major)
+    try:
+        radius_float = float(radius)
+    except Exception:
+        radius_float = 0.0
+    if sweep_delta <= 0.0:
+        command.args = (new_center, radius_float, start_angle_screen, start_angle_screen, stored_cw, stroke)
+        command.meta["geometry"] = _quantize_geometry((new_center, radius_float))
+        return
+    base_scale_old = _get_safe_scale(old_state)
+    base_scale_new = _get_safe_scale(new_state)
+    if radius_math > 0.0 and base_scale_old > 0.0:
+        style_scale = radius_float / (radius_math * base_scale_old)
+        new_radius = radius_math * base_scale_new * style_scale
+    elif base_scale_old > 0.0:
+        new_radius = radius_float * (base_scale_new / base_scale_old)
+    else:
+        new_radius = radius_float
+    end_angle_screen = start_angle_screen + sweep_delta if stored_cw else start_angle_screen - sweep_delta
+    command.args = (new_center, new_radius, start_angle_screen, end_angle_screen, stored_cw, stroke)
+    command.meta["geometry"] = _quantize_geometry(
+        (new_center, new_radius, start_angle_screen, end_angle_screen, stored_cw)
+    )
+
+
+def _reproject_stroke_arc(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState
+) -> None:
+    center, radius, start_angle, end_angle, sweep_clockwise, stroke = command.args
+    metadata = command.kwargs.get("metadata") or {}
+    angle_meta = metadata.get("angle") if isinstance(metadata, dict) else None
+    circle_meta = metadata.get("circle_arc") if isinstance(metadata, dict) else None
+    if angle_meta:
+        _reproject_arc_with_angle_meta(command, angle_meta, radius, stroke, old_state, new_state)
+    elif circle_meta:
+        _reproject_arc_with_circle_meta(command, circle_meta, radius, stroke, old_state, new_state)
+    else:
+        new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
+        screen_space = bool(command.kwargs.get("screen_space"))
+        new_radius = float(radius) if screen_space else _reproject_radius(float(radius), old_state, new_state)
+        command.args = (new_center, new_radius, start_angle, end_angle, sweep_clockwise, stroke)
+        command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
+
+
+def _reproject_text_with_angle_meta(
+    angle_meta: Dict[str, Any],
+    font: Any,
+    old_state: MapState,
+    new_state: MapState,
+) -> Tuple[Tuple[float, float], Any]:
+    vertex_math = tuple(angle_meta.get("vertex_math", (0.0, 0.0)))
+    arm1_math = tuple(angle_meta.get("arm1_math", (0.0, 0.0)))
+    base_radius_screen = float(
+        angle_meta.get("clamped_arc_radius_on_screen", angle_meta.get("arc_radius_on_screen", 0.0))
+    )
+    style_radius_screen = float(angle_meta.get("arc_radius_on_screen", base_radius_screen))
+    min_arm_math = float(angle_meta.get("min_arm_length_in_math", base_radius_screen))
+    text_factor = float(angle_meta.get("text_radius_factor", 1.8))
+    display_degrees = float(angle_meta.get("display_degrees", 0.0))
+    sweep_flag = str(angle_meta.get("final_sweep_flag", "0"))
+    base_scale = _get_safe_scale(old_state)
+    new_scale = _get_safe_scale(new_state)
+    radius_math = base_radius_screen / base_scale if base_scale > 0 else base_radius_screen
+    new_radius = radius_math * new_scale
+    max_radius = min_arm_math * new_scale
+    radius_screen = min(new_radius, max_radius) if max_radius > 0 else new_radius
+    vertex_screen = _math_to_screen_point(vertex_math, new_state)
+    arm1_screen = _math_to_screen_point(arm1_math, new_state)
+    angle_v_p1_rad = math.atan2(vertex_screen[1] - arm1_screen[1], arm1_screen[0] - vertex_screen[0])
+    text_radius = radius_screen * text_factor
+    text_delta = math.radians(display_degrees) / 2.0
+    if sweep_flag == "0":
+        text_delta = -text_delta
+    text_angle = angle_v_p1_rad + text_delta
+    tx = vertex_screen[0] + text_radius * math.cos(text_angle)
+    ty = vertex_screen[1] + text_radius * math.sin(text_angle)
+    new_position = (tx, ty)
+    base_font_size = float(angle_meta.get("base_font_size", getattr(font, "size", 12.0)) or 12.0)
+    if not math.isfinite(base_font_size) or base_font_size <= 0:
+        base_font_size = 12.0
+    min_font_size = float(angle_meta.get("min_font_size", label_min_screen_font_px) or label_min_screen_font_px)
+    ratio_font = 1.0
+    if style_radius_screen > 0:
+        ratio_font = max(min(radius_screen / style_radius_screen, 1.0), 0.0)
+    new_font_size = base_font_size * ratio_font
+    if new_font_size < min_font_size:
+        new_font_size = min_font_size
+    new_font = shared.FontStyle(getattr(font, "family", None), new_font_size, getattr(font, "weight", None))
+    return new_position, new_font
+
+
+def _extract_screen_offset(raw: Any) -> Tuple[float, float]:
+    if isinstance(raw, (list, tuple)) and len(raw) == 2:
+        return float(raw[0]), float(raw[1])
+    return 0.0, 0.0
+
+
+def _reproject_text_with_point_meta(
+    point_meta: Dict[str, Any],
+    new_state: MapState,
+) -> Tuple[float, float]:
+    math_position = tuple(point_meta.get("math_position", (0.0, 0.0)))
+    offset_x, offset_y = _extract_screen_offset(point_meta.get("screen_offset", (0.0, 0.0)))
+    base_screen = _math_to_screen_point(math_position, new_state)
+    return (base_screen[0] + offset_x, base_screen[1] + offset_y)
+
+
+def _compute_label_font_scale(
+    label_meta: Dict[str, Any],
+    font: Any,
+    new_state: MapState,
+) -> Tuple[float, float]:
+    base_font_size = float(label_meta.get("base_font_size", getattr(font, "size", 14.0)) or 14.0)
+    reference_scale = float(label_meta.get("reference_scale_factor", 1.0) or 1.0)
+    min_font_size = float(label_meta.get("min_font_size", label_min_screen_font_px) or label_min_screen_font_px)
+    vanish_threshold = float(
+        label_meta.get("vanish_threshold_px", label_vanish_threshold_px) or label_vanish_threshold_px
+    )
+    current_scale = float(new_state.get("scale", 1.0) or 1.0)
+    if not math.isfinite(reference_scale) or reference_scale <= 0:
+        reference_scale = 1.0
+    if not math.isfinite(current_scale) or current_scale <= 0:
+        current_scale = 1.0
+    ratio = current_scale / reference_scale if reference_scale else 1.0
+    if not math.isfinite(ratio) or ratio <= 0:
+        ratio = 1.0
+    if ratio >= 1.0:
+        new_font_size = base_font_size
+    else:
+        scaled = base_font_size * ratio
+        if scaled <= vanish_threshold:
+            new_font_size = 0.0
+        else:
+            new_font_size = max(scaled, min_font_size)
+    return base_font_size, new_font_size
+
+
+def _reproject_text_with_label_meta(
+    label_meta: Dict[str, Any],
+    font: Any,
+    new_state: MapState,
+) -> Tuple[Tuple[float, float], Any]:
+    math_position = tuple(label_meta.get("math_position", (0.0, 0.0)))
+    offset_x, offset_y = _extract_screen_offset(label_meta.get("screen_offset", (0.0, 0.0)))
+    base_screen = _math_to_screen_point(math_position, new_state)
+    base_font_size, new_font_size = _compute_label_font_scale(label_meta, font, new_state)
+    if base_font_size > 0 and new_font_size > 0:
+        offset_scale = new_font_size / base_font_size
+    elif new_font_size <= 0:
+        offset_scale = 0.0
+    else:
+        offset_scale = 1.0
+    offset_x *= offset_scale
+    offset_y *= offset_scale
+    new_position = (base_screen[0] + offset_x, base_screen[1] + offset_y)
+    existing_size = getattr(font, "size", None)
+    try:
+        existing_size_float = float(existing_size)
+    except Exception:
+        existing_size_float = None
+    if existing_size_float is None or abs(existing_size_float - new_font_size) > 1e-6:
+        font = shared.FontStyle(getattr(font, "family", None), new_font_size, getattr(font, "weight", None))
+    return new_position, font
+
+
+def _reproject_draw_text(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState
+) -> None:
+    text, position, font, color, alignment = command.args
+    metadata = command.kwargs.get("metadata") or {}
+    angle_meta = metadata.get("angle") if isinstance(metadata, dict) else None
+    point_meta = metadata.get("point_label") if isinstance(metadata, dict) else None
+    label_meta = metadata.get("label") if isinstance(metadata, dict) else None
+    if angle_meta:
+        new_position, font = _reproject_text_with_angle_meta(angle_meta, font, old_state, new_state)
+    elif point_meta:
+        new_position = _reproject_text_with_point_meta(point_meta, new_state)
+    elif label_meta:
+        new_position, font = _reproject_text_with_label_meta(label_meta, font, new_state)
+    else:
+        new_position = _math_to_screen_point(_screen_to_math_point(position, old_state), new_state)
+    command.args = (text, new_position, font, color, alignment)
+    command.meta["geometry"] = _quantize_geometry((new_position,))
+
+
+_REPROJECT_HANDLERS: Dict[str, Any] = {
+    "stroke_line": _reproject_stroke_line,
+    "stroke_polyline": _reproject_stroke_polyline,
+    "stroke_circle": _reproject_stroke_circle,
+    "fill_circle": _reproject_fill_circle,
+    "stroke_ellipse": _reproject_stroke_ellipse,
+    "fill_joined_area": _reproject_fill_joined_area,
+    "fill_polygon": _reproject_fill_polygon,
+    "stroke_arc": _reproject_stroke_arc,
+    "draw_text": _reproject_draw_text,
+}
+
+
 def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
     op = command.op
     if not op:
         return
-
-    if op == "stroke_line":
-        start, end, stroke = command.args
-        new_start = _math_to_screen_point(_screen_to_math_point(start, old_state), new_state)
-        new_end = _math_to_screen_point(_screen_to_math_point(end, old_state), new_state)
-        command.args = (new_start, new_end, stroke)
-        command.meta["geometry"] = _quantize_geometry((new_start, new_end))
-        return
-
-    if op == "stroke_polyline":
-        points, stroke = command.args
-        new_points = _reproject_points(points, old_state, new_state)
-        command.args = (new_points, stroke)
-        command.meta["geometry"] = _quantize_geometry(new_points)
-        return
-
-    if op == "stroke_circle":
-        center, radius, stroke = command.args
-        new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
-        screen_space = bool(command.kwargs.get("screen_space"))
-        new_radius = float(radius) if screen_space else _reproject_radius(float(radius), old_state, new_state)
-        command.args = (new_center, new_radius, stroke)
-        command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
-        return
-
-    if op == "fill_circle":
-        center, radius, fill, stroke = command.args
-        new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
-        screen_space = bool(command.kwargs.get("screen_space"))
-        new_radius = float(radius) if screen_space else _reproject_radius(float(radius), old_state, new_state)
-        command.args = (new_center, new_radius, fill, stroke)
-        command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
-        return
-
-    if op == "stroke_ellipse":
-        center, radius_x, radius_y, rotation, stroke = command.args
-        new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
-        new_rx = _reproject_radius(float(radius_x), old_state, new_state)
-        new_ry = _reproject_radius(float(radius_y), old_state, new_state)
-        command.args = (new_center, new_rx, new_ry, rotation, stroke)
-        command.meta["geometry"] = _quantize_geometry((new_center, new_rx, new_ry, rotation))
-        return
-
-    if op == "fill_polygon":
-        points, fill, stroke = command.args
-        metadata = command.kwargs.get("metadata") or {}
-        vector_meta = metadata.get("vector_arrow") if isinstance(metadata, dict) else None
-        if vector_meta:
-            start_math = tuple(vector_meta.get("start_math", (0.0, 0.0)))
-            end_math = tuple(vector_meta.get("end_math", (0.0, 0.0)))
-            tip_size = float(vector_meta.get("tip_size", 8.0))
-            start_screen = _math_to_screen_point(start_math, new_state)
-            end_screen = _math_to_screen_point(end_math, new_state)
-            dx = end_screen[0] - start_screen[0]
-            dy = end_screen[1] - start_screen[1]
-            direction_length = math.hypot(dx, dy)
-            if direction_length <= 1e-6:
-                new_points = (end_screen, end_screen, end_screen)
-            else:
-                angle = math.atan2(dy, dx)
-                half_base = tip_size / 2.0
-                height_sq = max(tip_size * tip_size - half_base * half_base, 0.0)
-                height = min(math.sqrt(height_sq), direction_length)
-                tip = end_screen
-                base1 = (
-                    end_screen[0] - height * math.cos(angle) - half_base * math.sin(angle),
-                    end_screen[1] - height * math.sin(angle) + half_base * math.cos(angle),
-                )
-                base2 = (
-                    end_screen[0] - height * math.cos(angle) + half_base * math.sin(angle),
-                    end_screen[1] - height * math.sin(angle) - half_base * math.cos(angle),
-                )
-                new_points = (tip, base1, base2)
-        else:
-            screen_space = bool(command.kwargs.get("screen_space"))
-            if screen_space:
-                new_points = _reproject_points(points, old_state, new_state)
-            else:
-                new_points = _reproject_points(points, old_state, new_state)
-        command.args = (tuple(new_points), fill, stroke)
-        command.meta["geometry"] = _quantize_geometry(new_points)
-        return
-
-    if op == "fill_joined_area":
-        forward, reverse, fill = command.args
-        new_forward = _reproject_points(forward, old_state, new_state)
-        new_reverse = _reproject_points(reverse, old_state, new_state)
-        command.args = (new_forward, new_reverse, fill)
-        command.meta["geometry"] = _quantize_geometry(new_forward + new_reverse)
-        return
-
-    if op == "stroke_arc":
-        center, radius, start_angle, end_angle, sweep_clockwise, stroke = command.args
-        metadata = command.kwargs.get("metadata") or {}
-        angle_meta = metadata.get("angle") if isinstance(metadata, dict) else None
-        circle_meta = metadata.get("circle_arc") if isinstance(metadata, dict) else None
-        if angle_meta:
-            vertex_math = tuple(angle_meta.get("vertex_math", (0.0, 0.0)))
-            arm1_math = tuple(angle_meta.get("arm1_math", (0.0, 0.0)))
-            arm2_math = tuple(angle_meta.get("arm2_math", (0.0, 0.0)))
-            base_radius_screen = float(angle_meta.get("clamped_arc_radius_on_screen", angle_meta.get("arc_radius_on_screen", radius)))
-            min_arm_math = float(angle_meta.get("min_arm_length_in_math", base_radius_screen))
-            display_degrees = float(angle_meta.get("display_degrees", 0.0))
-            sweep_flag = str(angle_meta.get("final_sweep_flag", "0"))
-            base_scale = float(old_state.get("scale", 1.0) or 1.0)
-            if base_scale <= 0:
-                base_scale = 1.0
-            new_scale = float(new_state.get("scale", 1.0) or 1.0)
-            if new_scale <= 0:
-                new_scale = 1.0
-            radius_math = base_radius_screen / base_scale if base_scale > 0 else base_radius_screen
-            new_radius = radius_math * new_scale
-            max_radius = min_arm_math * new_scale
-            radius_screen = min(new_radius, max_radius) if max_radius > 0 else new_radius
-            vertex_screen = _math_to_screen_point(vertex_math, new_state)
-            arm1_screen = _math_to_screen_point(arm1_math, new_state)
-            arm2_screen = _math_to_screen_point(arm2_math, new_state)
-            angle_v_p1_rad = math.atan2(vertex_screen[1] - arm1_screen[1], arm1_screen[0] - vertex_screen[0])
-            start_angle = math.atan2(arm1_screen[1] - vertex_screen[1], arm1_screen[0] - vertex_screen[0])
-            sweep_cw = sweep_flag == "1"
-            delta = math.radians(display_degrees)
-            direction = 1 if sweep_cw else -1
-            end_angle = start_angle + direction * delta
-            command.args = (vertex_screen, radius_screen, start_angle, end_angle, sweep_cw, stroke)
-            command.meta["geometry"] = _quantize_geometry((vertex_screen, radius_screen))
-        elif circle_meta:
-            center_raw = circle_meta.get("center_math", (0.0, 0.0))
-            point1_raw = circle_meta.get("point1", (0.0, 0.0))
-            point2_raw = circle_meta.get("point2", (0.0, 0.0))
-            try:
-                center_math = (float(center_raw[0]), float(center_raw[1]))
-            except Exception:
-                center_math = (0.0, 0.0)
-            try:
-                point1_math = (float(point1_raw[0]), float(point1_raw[1]))
-            except Exception:
-                point1_math = (0.0, 0.0)
-            try:
-                point2_math = (float(point2_raw[0]), float(point2_raw[1]))
-            except Exception:
-                point2_math = (0.0, 0.0)
-            try:
-                radius_math = float(circle_meta.get("radius_math", radius))
-            except Exception:
-                radius_math = float(radius)
-            use_major = bool(circle_meta.get("use_major_arc", False))
-            stored_cw = bool(circle_meta.get("sweep_clockwise", False))
-
-            new_center = _math_to_screen_point(center_math, new_state)
-            point1_screen = _math_to_screen_point(point1_math, new_state)
-            point2_screen = _math_to_screen_point(point2_math, new_state)
-            start_angle_screen = math.atan2(point1_screen[1] - new_center[1], point1_screen[0] - new_center[0])
-
-            start_angle_math = math.atan2(point1_math[1] - center_math[1], point1_math[0] - center_math[0])
-            target_angle_math = math.atan2(point2_math[1] - center_math[1], point2_math[0] - center_math[0])
-            full_turn = 2 * math.pi
-            delta_ccw_math = (target_angle_math - start_angle_math) % full_turn
-            delta_cw_math = (start_angle_math - target_angle_math) % full_turn
-            minor_is_ccw = delta_ccw_math <= delta_cw_math
-            minor_delta = delta_ccw_math if minor_is_ccw else delta_cw_math
-            major_delta = delta_cw_math if minor_is_ccw else delta_ccw_math
-            sweep_delta = major_delta if use_major else minor_delta
-            try:
-                radius_float = float(radius)
-            except Exception:
-                radius_float = 0.0
-            if sweep_delta <= 0.0:
-                command.args = (new_center, radius_float, start_angle_screen, start_angle_screen, stored_cw, stroke)
-                command.meta["geometry"] = _quantize_geometry((new_center, radius_float))
-                return
-
-            base_scale_old = float(old_state.get("scale", 1.0) or 1.0)
-            if base_scale_old <= 0.0:
-                base_scale_old = 1.0
-            base_scale_new = float(new_state.get("scale", 1.0) or 1.0)
-            if base_scale_new <= 0.0:
-                base_scale_new = 1.0
-            if radius_math > 0.0 and base_scale_old > 0.0:
-                style_scale = radius_float / (radius_math * base_scale_old)
-                new_radius = radius_math * base_scale_new * style_scale
-            elif base_scale_old > 0.0:
-                new_radius = radius_float * (base_scale_new / base_scale_old)
-            else:
-                new_radius = radius_float
-
-            if stored_cw:
-                end_angle_screen = start_angle_screen + sweep_delta
-            else:
-                end_angle_screen = start_angle_screen - sweep_delta
-
-            command.args = (new_center, new_radius, start_angle_screen, end_angle_screen, stored_cw, stroke)
-            command.meta["geometry"] = _quantize_geometry((new_center, new_radius, start_angle_screen, end_angle_screen, stored_cw))
-        else:
-            new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
-            screen_space = bool(command.kwargs.get("screen_space"))
-            if screen_space:
-                new_radius = float(radius)
-            else:
-                new_radius = _reproject_radius(float(radius), old_state, new_state)
-            command.args = (new_center, new_radius, start_angle, end_angle, sweep_clockwise, stroke)
-            command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
-        return
-
-    if op == "draw_text":
-        text, position, font, color, alignment = command.args
-        metadata = command.kwargs.get("metadata") or {}
-        angle_meta = metadata.get("angle") if isinstance(metadata, dict) else None
-        point_meta = metadata.get("point_label") if isinstance(metadata, dict) else None
-        if angle_meta:
-            vertex_math = tuple(angle_meta.get("vertex_math", (0.0, 0.0)))
-            arm1_math = tuple(angle_meta.get("arm1_math", (0.0, 0.0)))
-            arm2_math = tuple(angle_meta.get("arm2_math", (0.0, 0.0)))
-            base_radius_screen = float(angle_meta.get("clamped_arc_radius_on_screen", angle_meta.get("arc_radius_on_screen", 0.0)))
-            style_radius_screen = float(angle_meta.get("arc_radius_on_screen", base_radius_screen))
-            min_arm_math = float(angle_meta.get("min_arm_length_in_math", base_radius_screen))
-            text_factor = float(angle_meta.get("text_radius_factor", 1.8))
-            display_degrees = float(angle_meta.get("display_degrees", 0.0))
-            sweep_flag = str(angle_meta.get("final_sweep_flag", "0"))
-            base_scale = float(old_state.get("scale", 1.0) or 1.0)
-            if base_scale <= 0:
-                base_scale = 1.0
-            new_scale = float(new_state.get("scale", 1.0) or 1.0)
-            if new_scale <= 0:
-                new_scale = 1.0
-            radius_math = base_radius_screen / base_scale if base_scale > 0 else base_radius_screen
-            new_radius = radius_math * new_scale
-            max_radius = min_arm_math * new_scale
-            radius_screen = min(new_radius, max_radius) if max_radius > 0 else new_radius
-            vertex_screen = _math_to_screen_point(vertex_math, new_state)
-            arm1_screen = _math_to_screen_point(arm1_math, new_state)
-            arm2_screen = _math_to_screen_point(arm2_math, new_state)
-            angle_v_p1_rad = math.atan2(vertex_screen[1] - arm1_screen[1], arm1_screen[0] - vertex_screen[0])
-            text_radius = radius_screen * text_factor
-            text_delta = math.radians(display_degrees) / 2.0
-            if sweep_flag == "0":
-                text_delta = -text_delta
-            text_angle = angle_v_p1_rad + text_delta
-            tx = vertex_screen[0] + text_radius * math.cos(text_angle)
-            ty = vertex_screen[1] + text_radius * math.sin(text_angle)
-            new_position = (tx, ty)
-            base_font_size = float(angle_meta.get("base_font_size", getattr(font, "size", 12.0)) or 12.0)
-            if not math.isfinite(base_font_size) or base_font_size <= 0:
-                base_font_size = 12.0
-            min_font_size = float(angle_meta.get("min_font_size", label_min_screen_font_px) or label_min_screen_font_px)
-            ratio_font = 1.0
-            if style_radius_screen > 0:
-                ratio_font = max(min(radius_screen / style_radius_screen, 1.0), 0.0)
-            new_font_size = base_font_size * ratio_font
-            if new_font_size < min_font_size:
-                new_font_size = min_font_size
-            font = shared.FontStyle(getattr(font, "family", None), new_font_size, getattr(font, "weight", None))
-        elif point_meta:
-            math_position = tuple(point_meta.get("math_position", (0.0, 0.0)))
-            screen_offset = point_meta.get("screen_offset", (0.0, 0.0))
-            if isinstance(screen_offset, (list, tuple)) and len(screen_offset) == 2:
-                offset_x, offset_y = float(screen_offset[0]), float(screen_offset[1])
-            else:
-                offset_x = offset_y = 0.0
-            base_screen = _math_to_screen_point(math_position, new_state)
-            new_position = (base_screen[0] + offset_x, base_screen[1] + offset_y)
-        else:
-            label_meta = metadata.get("label") if isinstance(metadata, dict) else None
-            if label_meta:
-                math_position = tuple(label_meta.get("math_position", (0.0, 0.0)))
-                screen_offset = label_meta.get("screen_offset", (0.0, 0.0))
-                if isinstance(screen_offset, (list, tuple)) and len(screen_offset) == 2:
-                    offset_x, offset_y = float(screen_offset[0]), float(screen_offset[1])
-                else:
-                    offset_x = offset_y = 0.0
-                base_screen = _math_to_screen_point(math_position, new_state)
-                base_font_size = float(label_meta.get("base_font_size", getattr(font, "size", 14.0)) or 14.0)
-                reference_scale = float(label_meta.get("reference_scale_factor", 1.0) or 1.0)
-                min_font_size = float(label_meta.get("min_font_size", label_min_screen_font_px) or label_min_screen_font_px)
-                vanish_threshold = float(
-                    label_meta.get("vanish_threshold_px", label_vanish_threshold_px) or label_vanish_threshold_px
-                )
-                current_scale = float(new_state.get("scale", 1.0) or 1.0)
-                if not math.isfinite(reference_scale) or reference_scale <= 0:
-                    reference_scale = 1.0
-                if not math.isfinite(current_scale) or current_scale <= 0:
-                    current_scale = 1.0
-                ratio = current_scale / reference_scale if reference_scale else 1.0
-                if not math.isfinite(ratio) or ratio <= 0:
-                    ratio = 1.0
-                if ratio >= 1.0:
-                    new_font_size = base_font_size
-                else:
-                    scaled = base_font_size * ratio
-                    if scaled <= vanish_threshold:
-                        new_font_size = 0.0
-                    else:
-                        new_font_size = max(scaled, min_font_size)
-                if base_font_size > 0 and new_font_size > 0:
-                    offset_scale = new_font_size / base_font_size
-                elif new_font_size <= 0:
-                    offset_scale = 0.0
-                else:
-                    offset_scale = 1.0
-                offset_x *= offset_scale
-                offset_y *= offset_scale
-                new_position = (base_screen[0] + offset_x, base_screen[1] + offset_y)
-                existing_size = getattr(font, "size", None)
-                try:
-                    existing_size_float = float(existing_size)
-                except Exception:
-                    existing_size_float = None
-                if existing_size_float is None or abs(existing_size_float - new_font_size) > 1e-6:
-                    font = shared.FontStyle(getattr(font, "family", None), new_font_size, getattr(font, "weight", None))
-            else:
-                new_position = _math_to_screen_point(_screen_to_math_point(position, old_state), new_state)
-        command.args = (text, new_position, font, color, alignment)
-        command.meta["geometry"] = _quantize_geometry((new_position,))
-        return
-
-    if op == "stroke_vector":
-        return
-
-    if op == "stroke_line_with_arrow":
-        return
+    handler = _REPROJECT_HANDLERS.get(op)
+    if handler:
+        handler(command, old_state, new_state)
 
 
 def _drawable_key(drawable: Any, fallback: str) -> str:
