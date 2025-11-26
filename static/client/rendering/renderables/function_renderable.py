@@ -8,6 +8,7 @@ math-only and the renderer consumes a clean representation.
 
 from __future__ import annotations
 
+import math
 from typing import Any, Optional, Tuple
 
 from rendering.primitives import MathPolyline, ScreenPolyline
@@ -42,6 +43,23 @@ class FunctionRenderable:
         self._last_scale = None
         self._last_bounds = None
         self._last_screen_bounds = None
+
+    def _compute_angle(
+        self,
+        p1: Tuple[float, float],
+        p2: Tuple[float, float],
+        p3: Tuple[float, float],
+    ) -> float:
+        """Compute angle at p2 formed by points p1-p2-p3, in radians."""
+        v1 = (p1[0] - p2[0], p1[1] - p2[1])
+        v2 = (p3[0] - p2[0], p3[1] - p2[1])
+        dot = v1[0] * v2[0] + v1[1] * v2[1]
+        mag1 = math.sqrt(v1[0] ** 2 + v1[1] ** 2)
+        mag2 = math.sqrt(v2[0] ** 2 + v2[1] ** 2)
+        if mag1 == 0 or mag2 == 0:
+            return math.pi
+        cos_angle = max(-1.0, min(1.0, dot / (mag1 * mag2)))
+        return math.acos(cos_angle)
 
     def _get_visible_bounds(self) -> Tuple[float, float]:
         try:
