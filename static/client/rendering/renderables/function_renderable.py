@@ -278,54 +278,56 @@ class FunctionRenderable:
 
         paths: list[list[tuple[float, float]]] = []
         current_path: list[tuple[float, float]] = []
-        expect_asymptote_behind: bool = False
+        
+        # Cache previous point to avoid redundant function evaluation
+        prev_scaled_point: Optional[Tuple[Optional[float], Optional[float]]] = None
 
         x: float = left_bound
         while x < right_bound - 1e-12:
             if self._is_discontinuity(x):
+                prev_scaled_point = None
                 x += step
                 continue
 
             scaled_point, y_val = self._eval_scaled_point(x)
             if scaled_point[0] is None:
+                prev_scaled_point = None
                 x += step
                 continue
 
-            scaled_point, y_val, has_asymptote_ahead = self._adjust_point_for_asymptote_ahead(
-                x, step, scaled_point, y_val
-            )
-            had_asymptote_behind = expect_asymptote_behind
-            if has_asymptote_ahead:
-                expect_asymptote_behind = True
+            # Check for asymptote ahead
+            asymptote_x = self._get_asymptote_between(x, x + step)
+            if asymptote_x is not None:
+                new_scaled_point, new_y = self._eval_scaled_point(asymptote_x - min(1e-3, step / 10))
+                if new_scaled_point[0] is not None:
+                    scaled_point, y_val = new_scaled_point, new_y
+                prev_scaled_point = None
 
-            neighbor_prev, _ = self._get_neighbor_prev_point(x, step, had_asymptote_behind)
-            if had_asymptote_behind:
-                expect_asymptote_behind = False
-
-            if neighbor_prev[0] is None:
-                x += step
-                continue
-
-            prev_sx, prev_sy = neighbor_prev[0], neighbor_prev[1]
             sx_val, sy = scaled_point[0], scaled_point[1]
 
-            if self._is_large_jump(prev_sy, sy, height):
-                if current_path:
-                    paths.append(current_path)
-                    current_path = []
-                x += step
-                continue
+            # Use cached previous point instead of re-evaluating
+            if prev_scaled_point is not None and prev_scaled_point[0] is not None:
+                prev_sx, prev_sy = prev_scaled_point[0], prev_scaled_point[1]
 
-            boundary_result = self._handle_boundary_crossing(
-                x, left_bound, right_bound, width, height,
-                prev_sx, prev_sy, sx_val, sy,
-                neighbor_prev, scaled_point, current_path, paths
-            )
-            if boundary_result is not None:
-                current_path, paths, should_continue = boundary_result
-                if should_continue:
+                if self._is_large_jump(prev_sy, sy, height):
+                    if current_path:
+                        paths.append(current_path)
+                        current_path = []
+                    prev_scaled_point = scaled_point
                     x += step
                     continue
+
+                boundary_result = self._handle_boundary_crossing(
+                    x, left_bound, right_bound, width, height,
+                    prev_sx, prev_sy, sx_val, sy,
+                    prev_scaled_point, scaled_point, current_path, paths
+                )
+                if boundary_result is not None:
+                    current_path, paths, should_continue = boundary_result
+                    if should_continue:
+                        prev_scaled_point = scaled_point
+                        x += step
+                        continue
 
             if x > right_bound:
                 break
@@ -334,10 +336,12 @@ class FunctionRenderable:
                 if current_path:
                     paths.append(current_path)
                     current_path = []
+                prev_scaled_point = scaled_point
                 x += step
                 continue
 
             current_path.append((scaled_point[0], scaled_point[1]))
+            prev_scaled_point = scaled_point
 
             x += step
 
