@@ -34,3 +34,6 @@ documentation/metrics/detailed_project_metrics.txt
 static/_client_constants_runtime.py
 static/_polygon_subtypes_runtime.py
 package-lock.json
+
+# Temporary
+temp_files/
