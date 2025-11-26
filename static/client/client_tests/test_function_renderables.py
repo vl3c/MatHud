@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import unittest
 
 from coordinate_mapper import CoordinateMapper
@@ -69,6 +70,74 @@ class TestFunctionRenderable(unittest.TestCase):
         result = renderable.build_screen_paths()
 
         self.assertGreater(len(result.paths), 0)
+
+    def test_high_frequency_sin_has_sufficient_samples_per_period(self) -> None:
+        func = Function("sin(10*x)", name="s")
+        renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+
+        result = renderable.build_screen_paths()
+
+        self.assertGreater(len(result.paths), 0)
+        total_points = sum(len(path) for path in result.paths)
+        self.assertGreater(total_points, 20)
+
+    def test_high_frequency_sin_peaks_are_smooth(self) -> None:
+        func = Function("sin(5*x)", name="s")
+        renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+
+        result = renderable.build_screen_paths()
+
+        self.assertGreater(len(result.paths), 0)
+        min_angle_radians = math.radians(30)
+        violations = 0
+        total_checked = 0
+        for path in result.paths:
+            if len(path) < 3:
+                continue
+            for i in range(1, len(path) - 1):
+                angle = renderable._compute_angle(path[i - 1], path[i], path[i + 1])
+                total_checked += 1
+                if angle < min_angle_radians:
+                    violations += 1
+        self.assertEqual(violations, 0, f"Found {violations} angles below 30 degrees out of {total_checked}")
+
+    def test_adaptive_sampling_produces_more_points_for_curves(self) -> None:
+        linear_func = Function("x", name="linear")
+        curved_func = Function("sin(x)", name="curved")
+
+        linear_renderable = FunctionRenderable(linear_func, self.mapper, self.cartesian)
+        curved_renderable = FunctionRenderable(curved_func, self.mapper, self.cartesian)
+
+        linear_result = linear_renderable.build_screen_paths()
+        curved_result = curved_renderable.build_screen_paths()
+
+        linear_points = sum(len(path) for path in linear_result.paths)
+        curved_points = sum(len(path) for path in curved_result.paths)
+
+        self.assertGreater(curved_points, linear_points)
+
+    def test_sin_peaks_have_minimum_angle_of_30_degrees(self) -> None:
+        func = Function("100*sin(x)", name="s", left_bound=-100, right_bound=100)
+        renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+
+        result = renderable.build_screen_paths()
+
+        self.assertGreater(len(result.paths), 0)
+        min_angle_radians = math.radians(30)
+        violations = 0
+        total_angles_checked = 0
+
+        for path in result.paths:
+            if len(path) < 3:
+                continue
+            for i in range(1, len(path) - 1):
+                angle = renderable._compute_angle(path[i - 1], path[i], path[i + 1])
+                total_angles_checked += 1
+                if angle < min_angle_radians:
+                    violations += 1
+
+        self.assertGreater(total_angles_checked, 50)
+        self.assertEqual(violations, 0, f"Found {violations} angles below 30 degrees out of {total_angles_checked}")
 
 
 class TestFunctionsBoundedAreaRenderable(unittest.TestCase):
