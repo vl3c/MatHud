@@ -65,83 +65,71 @@ def _draw_cartesian_mid_tick_y(primitives, y_pos, ox, mid_tick_size, tick_stroke
 
 def _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_tick, grid_stroke,
                                  minor_grid_stroke):
-    x = ox
-    while x <= width_px:
-        primitives.stroke_line((x, 0.0), (x, height_px), grid_stroke)
-        mid_x = x + display_tick * 0.5
-        if mid_x <= width_px and minor_grid_stroke is not None:
-            primitives.stroke_line((mid_x, 0.0), (mid_x, height_px), minor_grid_stroke)
-        x += display_tick
-
-    x = ox - display_tick
-    while x >= 0.0:
-        primitives.stroke_line((x, 0.0), (x, height_px), grid_stroke)
-        mid_x = x + display_tick * 0.5
-        if mid_x >= 0.0 and minor_grid_stroke is not None:
-            primitives.stroke_line((mid_x, 0.0), (mid_x, height_px), minor_grid_stroke)
-        x -= display_tick
+    if display_tick <= 0:
+        return
+    import math
+    start_n = math.ceil(-ox / display_tick)
+    end_n = math.floor((width_px - ox) / display_tick)
+    for n in range(start_n, end_n + 1):
+        x = ox + n * display_tick
+        if 0 <= x <= width_px:
+            primitives.stroke_line((x, 0.0), (x, height_px), grid_stroke)
+        if minor_grid_stroke is not None:
+            mid_x = x + display_tick * 0.5
+            if 0 <= mid_x <= width_px:
+                primitives.stroke_line((mid_x, 0.0), (mid_x, height_px), minor_grid_stroke)
 
 
 def _draw_cartesian_grid_lines_y(primitives, oy, width_px, height_px, display_tick, grid_stroke,
                                  minor_grid_stroke):
-    y = oy
-    while y <= height_px:
-        primitives.stroke_line((0.0, y), (width_px, y), grid_stroke)
-        mid_y = y + display_tick * 0.5
-        if mid_y <= height_px and minor_grid_stroke is not None:
-            primitives.stroke_line((0.0, mid_y), (width_px, mid_y), minor_grid_stroke)
-        y += display_tick
-
-    y = oy - display_tick
-    while y >= 0.0:
-        primitives.stroke_line((0.0, y), (width_px, y), grid_stroke)
-        mid_y = y + display_tick * 0.5
-        if mid_y >= 0.0 and minor_grid_stroke is not None:
-            primitives.stroke_line((0.0, mid_y), (width_px, mid_y), minor_grid_stroke)
-        y -= display_tick
+    if display_tick <= 0:
+        return
+    import math
+    start_n = math.ceil(-oy / display_tick)
+    end_n = math.floor((height_px - oy) / display_tick)
+    for n in range(start_n, end_n + 1):
+        y = oy + n * display_tick
+        if 0 <= y <= height_px:
+            primitives.stroke_line((0.0, y), (width_px, y), grid_stroke)
+        if minor_grid_stroke is not None:
+            mid_y = y + display_tick * 0.5
+            if 0 <= mid_y <= height_px:
+                primitives.stroke_line((0.0, mid_y), (width_px, mid_y), minor_grid_stroke)
 
 
 def _draw_cartesian_ticks_x(primitives, ox, oy, width_px, scale, display_tick, tick_size,
                             mid_tick_size, tick_font_float, font, label_color, label_alignment,
                             tick_stroke):
-    x = ox
-    while x <= width_px:
-        _draw_cartesian_tick_x(primitives, x, ox, oy, scale, tick_size, tick_font_float, font,
-                               label_color, label_alignment, tick_stroke)
+    if display_tick <= 0:
+        return
+    import math
+    start_n = math.ceil(-ox / display_tick)
+    end_n = math.floor((width_px - ox) / display_tick)
+    for n in range(start_n, end_n + 1):
+        x = ox + n * display_tick
+        if 0 <= x <= width_px:
+            _draw_cartesian_tick_x(primitives, x, ox, oy, scale, tick_size, tick_font_float, font,
+                                   label_color, label_alignment, tick_stroke)
         mid_x = x + display_tick * 0.5
-        if mid_x <= width_px:
+        if 0 <= mid_x <= width_px:
             _draw_cartesian_mid_tick_x(primitives, mid_x, oy, mid_tick_size, tick_stroke)
-        x += display_tick
-
-    x = ox - display_tick
-    while x >= 0.0:
-        _draw_cartesian_tick_x(primitives, x, ox, oy, scale, tick_size, tick_font_float, font,
-                               label_color, label_alignment, tick_stroke)
-        mid_x = x + display_tick * 0.5
-        if mid_x >= 0.0:
-            _draw_cartesian_mid_tick_x(primitives, mid_x, oy, mid_tick_size, tick_stroke)
-        x -= display_tick
 
 
 def _draw_cartesian_ticks_y(primitives, ox, oy, height_px, scale, display_tick, tick_size,
                             mid_tick_size, font, label_color, label_alignment, tick_stroke):
-    y = oy
-    while y <= height_px:
-        _draw_cartesian_tick_y(primitives, y, ox, oy, scale, tick_size, font, label_color,
-                               label_alignment, tick_stroke)
+    if display_tick <= 0:
+        return
+    import math
+    start_n = math.ceil(-oy / display_tick)
+    end_n = math.floor((height_px - oy) / display_tick)
+    for n in range(start_n, end_n + 1):
+        y = oy + n * display_tick
+        if 0 <= y <= height_px:
+            _draw_cartesian_tick_y(primitives, y, ox, oy, scale, tick_size, font, label_color,
+                                   label_alignment, tick_stroke)
         mid_y = y + display_tick * 0.5
-        if mid_y <= height_px:
+        if 0 <= mid_y <= height_px:
             _draw_cartesian_mid_tick_y(primitives, mid_y, ox, mid_tick_size, tick_stroke)
-        y += display_tick
-
-    y = oy - display_tick
-    while y >= 0.0:
-        _draw_cartesian_tick_y(primitives, y, ox, oy, scale, tick_size, font, label_color,
-                               label_alignment, tick_stroke)
-        mid_y = y + display_tick * 0.5
-        if mid_y >= 0.0:
-            _draw_cartesian_mid_tick_y(primitives, mid_y, ox, mid_tick_size, tick_stroke)
-        y -= display_tick
 
 
 @_manages_shape
