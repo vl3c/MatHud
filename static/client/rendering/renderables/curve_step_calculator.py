@@ -17,7 +17,8 @@ TRIG_POINTS_TARGET: float = 320.0
 QUADRATIC_STEP_MULTIPLIER: float = 2.0
 SLOPE_TARGET_PIXELS: float = 2.0
 
-USE_ADAPTIVE_STEP_CALCULATOR: bool = True
+# Step calculator selection: "heuristic", "pixel", or "adaptive"
+STEP_CALCULATOR_MODE: str = "pixel"
 
 ADAPTIVE_MAX_PIXEL_DISTANCE: float = 10.0
 ADAPTIVE_MAX_ANGLE_DEG: float = 10.0
@@ -99,6 +100,45 @@ class StepCalculator:
         except Exception:
             pass
         return step
+
+
+class PixelStepCalculator:
+    """
+    Simple step calculator based on target pixel distance between points.
+    
+    Computes step size to maintain approximately 3 pixels between rendered points,
+    clamped to produce between 50-200 points total.
+    """
+
+    @staticmethod
+    def calculate(
+        left_bound: float,
+        right_bound: float,
+        _eval_func: Callable[[float], Any],  # unused, kept for API compatibility
+        math_to_screen: Callable[[float, float], Tuple[float, float]],
+    ) -> float:
+        range_width = right_bound - left_bound
+        if range_width <= 0:
+            return 1.0
+
+        # Compute scale factor from math_to_screen
+        try:
+            screen_left = math_to_screen(left_bound, 0)
+            screen_right = math_to_screen(right_bound, 0)
+            screen_width = abs(screen_right[0] - screen_left[0])
+            pixels_per_unit = screen_width / range_width if range_width > 0 else 1.0
+        except Exception:
+            pixels_per_unit = 32.0  # fallback
+
+        # Target ~3 pixels between points for smooth curves
+        target_pixel_step = 3.0
+        step = target_pixel_step / pixels_per_unit if pixels_per_unit > 0 else range_width / 200
+
+        # Ensure reasonable bounds: at least 50 points, at most 200 points
+        min_step = range_width / 200
+        max_step = range_width / 50
+        
+        return max(min_step, min(step, max_step))
 
 
 class AdaptiveStepCalculator:

@@ -14,8 +14,9 @@ from typing import Any, Optional, Tuple
 from rendering.primitives import MathPolyline, ScreenPolyline
 from rendering.renderables.curve_step_calculator import (
     AdaptiveStepCalculator,
+    PixelStepCalculator,
     StepCalculator,
-    USE_ADAPTIVE_STEP_CALCULATOR,
+    STEP_CALCULATOR_MODE,
 )
 
 SCREEN_MARGIN: float = 16.0
@@ -210,7 +211,9 @@ class FunctionRenderable:
         return width, height
 
     def _calculate_step(self, left_bound: float, right_bound: float) -> float:
-        if USE_ADAPTIVE_STEP_CALCULATOR:
+        if STEP_CALCULATOR_MODE == "pixel":
+            return self._calculate_step_pixel(left_bound, right_bound)
+        elif STEP_CALCULATOR_MODE == "adaptive":
             return self._calculate_step_adaptive(left_bound, right_bound)
         return self._calculate_step_heuristic(left_bound, right_bound)
 
@@ -219,6 +222,11 @@ class FunctionRenderable:
         scale_factor = getattr(self.mapper, 'scale_factor', 1.0) or 1.0
         return StepCalculator.calculate(
             left_bound, right_bound, function_string, self.func.function, scale_factor
+        )
+
+    def _calculate_step_pixel(self, left_bound: float, right_bound: float) -> float:
+        return PixelStepCalculator.calculate(
+            left_bound, right_bound, self.func.function, self.mapper.math_to_screen
         )
 
     def _calculate_step_adaptive(self, left_bound: float, right_bound: float) -> float:
