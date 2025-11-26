@@ -68,8 +68,8 @@ def _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_ti
     if display_tick <= 0:
         return
     import math
-    start_n = math.ceil(-ox / display_tick)
-    end_n = math.floor((width_px - ox) / display_tick)
+    start_n = int(math.ceil(-ox / display_tick))
+    end_n = int(math.floor((width_px - ox) / display_tick))
     for n in range(start_n, end_n + 1):
         x = ox + n * display_tick
         if 0 <= x <= width_px:
@@ -85,8 +85,8 @@ def _draw_cartesian_grid_lines_y(primitives, oy, width_px, height_px, display_ti
     if display_tick <= 0:
         return
     import math
-    start_n = math.ceil(-oy / display_tick)
-    end_n = math.floor((height_px - oy) / display_tick)
+    start_n = int(math.ceil(-oy / display_tick))
+    end_n = int(math.floor((height_px - oy) / display_tick))
     for n in range(start_n, end_n + 1):
         y = oy + n * display_tick
         if 0 <= y <= height_px:
@@ -103,8 +103,8 @@ def _draw_cartesian_ticks_x(primitives, ox, oy, width_px, scale, display_tick, t
     if display_tick <= 0:
         return
     import math
-    start_n = math.ceil(-ox / display_tick)
-    end_n = math.floor((width_px - ox) / display_tick)
+    start_n = int(math.ceil(-ox / display_tick))
+    end_n = int(math.floor((width_px - ox) / display_tick))
     for n in range(start_n, end_n + 1):
         x = ox + n * display_tick
         if 0 <= x <= width_px:
@@ -120,8 +120,8 @@ def _draw_cartesian_ticks_y(primitives, ox, oy, height_px, scale, display_tick, 
     if display_tick <= 0:
         return
     import math
-    start_n = math.ceil(-oy / display_tick)
-    end_n = math.floor((height_px - oy) / display_tick)
+    start_n = int(math.ceil(-oy / display_tick))
+    end_n = int(math.floor((height_px - oy) / display_tick))
     for n in range(start_n, end_n + 1):
         y = oy + n * display_tick
         if 0 <= y <= height_px:
