@@ -17,12 +17,12 @@ TRIG_POINTS_TARGET: float = 320.0
 QUADRATIC_STEP_MULTIPLIER: float = 2.0
 SLOPE_TARGET_PIXELS: float = 2.0
 
-USE_ADAPTIVE_STEP_CALCULATOR: bool = False
+USE_ADAPTIVE_STEP_CALCULATOR: bool = True
 
 ADAPTIVE_MAX_PIXEL_DISTANCE: float = 10.0
 ADAPTIVE_MAX_ANGLE_DEG: float = 10.0
 ADAPTIVE_MAX_BEND: float = _m.tan(_m.radians(ADAPTIVE_MAX_ANGLE_DEG))
-ADAPTIVE_MAX_BISECTIONS: int = 16
+ADAPTIVE_MAX_DEPTH: int = 8
 ADAPTIVE_MIN_SAMPLES: int = 80
 ADAPTIVE_PROBE_COUNT: int = 16
 
@@ -121,7 +121,7 @@ class AdaptiveStepCalculator:
             return 1.0
 
         max_step = range_width / ADAPTIVE_MIN_SAMPLES
-        min_step = range_width / (2 ** ADAPTIVE_MAX_BISECTIONS)
+        min_step = range_width / (2 ** ADAPTIVE_MAX_DEPTH)
 
         worst_step = max_step
         probe_step = range_width / ADAPTIVE_PROBE_COUNT
@@ -139,7 +139,7 @@ class AdaptiveStepCalculator:
                         diff = (screen[0] - prev_screen[0], screen[1] - prev_screen[1])
                         required = AdaptiveStepCalculator._find_required_step(
                             x - probe_step, x, prev_screen, screen, diff, prev_diff,
-                            eval_func, math_to_screen, min_step, probe_step
+                            eval_func, math_to_screen, probe_step, 0
                         )
                         worst_step = min(worst_step, required)
                         prev_diff = diff
@@ -188,14 +188,14 @@ class AdaptiveStepCalculator:
         prev_diff: Optional[Tuple[float, float]],
         eval_func: Callable[[float], Any],
         math_to_screen: Callable[[float, float], Tuple[float, float]],
-        min_step: float,
         current_step: float,
+        depth: int,
     ) -> float:
         if AdaptiveStepCalculator._is_distance_ok(diff) and AdaptiveStepCalculator._is_angle_ok(prev_diff, diff):
             return current_step
 
-        if current_step <= min_step:
-            return min_step
+        if depth >= ADAPTIVE_MAX_DEPTH:
+            return current_step / (2 ** (ADAPTIVE_MAX_DEPTH - depth))
 
         mid_x = (x_left + x_right) / 2
         half_step = current_step / 2
@@ -203,21 +203,21 @@ class AdaptiveStepCalculator:
         try:
             mid_y = eval_func(mid_x)
             if not AdaptiveStepCalculator._is_valid(mid_y):
-                return min_step
+                return half_step
             screen_mid = math_to_screen(mid_x, mid_y)
         except Exception:
-            return min_step
+            return half_step
 
         left_diff = (screen_mid[0] - screen_left[0], screen_mid[1] - screen_left[1])
         right_diff = (screen_right[0] - screen_mid[0], screen_right[1] - screen_mid[1])
 
         left_step = AdaptiveStepCalculator._find_required_step(
             x_left, mid_x, screen_left, screen_mid, left_diff, prev_diff,
-            eval_func, math_to_screen, min_step, half_step
+            eval_func, math_to_screen, half_step, depth + 1
         )
         right_step = AdaptiveStepCalculator._find_required_step(
             mid_x, x_right, screen_mid, screen_right, right_diff, left_diff,
-            eval_func, math_to_screen, min_step, half_step
+            eval_func, math_to_screen, half_step, depth + 1
         )
 
         return min(left_step, right_step)
