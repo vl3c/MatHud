@@ -13,17 +13,12 @@ from typing import Any, Optional, Tuple
 
 from rendering.primitives import MathPolyline, ScreenPolyline
 from rendering.renderables.curve_step_calculator import (
-    MAX_POINTS,
     AdaptiveStepCalculator,
     StepCalculator,
     USE_ADAPTIVE_STEP_CALCULATOR,
 )
 
-MAX_POINTS_VISIBLE_FRACTION: float = 0.65
-MIN_POINTS_PER_FUNCTION: int = 100
 SCREEN_MARGIN: float = 16.0
-SCALE_CHANGE_THRESHOLD_LOW: float = 0.8
-SCALE_CHANGE_THRESHOLD_HIGH: float = 1.2
 
 
 class FunctionRenderable:
@@ -88,16 +83,17 @@ class FunctionRenderable:
         current_scale: Optional[float] = getattr(self.mapper, 'scale_factor', None)
         current_bounds: Tuple[float, float] = self._get_visible_bounds()
         screen_signature = self._get_screen_signature()
-        if self._cached_screen_paths is None or not self._cache_valid or self._last_bounds != current_bounds:
+        if self._cached_screen_paths is None or not self._cache_valid:
             self._update_cache_state(current_scale, current_bounds, screen_signature)
             return True
-        if self._last_scale is not None and current_scale is not None:
-            ratio: float = current_scale / self._last_scale if self._last_scale else 1
-            if ratio < SCALE_CHANGE_THRESHOLD_LOW or ratio > SCALE_CHANGE_THRESHOLD_HIGH:
-                self._update_cache_state(current_scale, current_bounds, screen_signature)
-                return True
+        if self._last_bounds != current_bounds:
+            self._update_cache_state(current_scale, current_bounds, screen_signature)
+            return True
+        if self._last_scale != current_scale:
+            self._update_cache_state(current_scale, current_bounds, screen_signature)
+            return True
         if self._last_screen_bounds != screen_signature:
-            self._last_screen_bounds = screen_signature
+            self._update_cache_state(current_scale, current_bounds, screen_signature)
             return True
         return False
 
@@ -238,26 +234,6 @@ class FunctionRenderable:
         except Exception:
             return (None, None), None
 
-    def _downsample_paths(self, paths: list, samples_emitted: int, samples_visible: int) -> list:
-        total_points_threshold = max(MIN_POINTS_PER_FUNCTION, int(MAX_POINTS * MAX_POINTS_VISIBLE_FRACTION))
-        if samples_emitted <= total_points_threshold or samples_visible <= total_points_threshold:
-            return paths
-        original_paths = paths
-        downsampled_paths: list[list[tuple[float, float]]] = []
-        decimation_factor = int(max(2, round(samples_emitted / total_points_threshold)))
-        for path in paths:
-            if len(path) <= decimation_factor:
-                downsampled_paths.append(path)
-                continue
-            reduced: list[tuple[float, float]] = []
-            for index, point in enumerate(path):
-                if index % decimation_factor == 0 or index == len(path) - 1:
-                    reduced.append(point)
-            downsampled_paths.append(reduced)
-        total_after = sum(len(path) for path in downsampled_paths)
-        if total_after >= MIN_POINTS_PER_FUNCTION:
-            return downsampled_paths
-        return original_paths
 
     def _adjust_point_for_asymptote_ahead(
         self, x: float, step: float, scaled_point: Tuple, y_val: Any
@@ -292,11 +268,6 @@ class FunctionRenderable:
             return False
         return True
 
-    def _should_emit_point(self, scaled_point: Tuple, current_path: list) -> bool:
-        if not current_path:
-            return True
-        lastx, lasty = current_path[-1]
-        return abs(scaled_point[0] - lastx) > 1 or abs(scaled_point[1] - lasty) > 1
 
     def _build_screen_paths_equivalent(self) -> list[list[tuple[float, float]]]:
         left_bound, right_bound = self._get_effective_bounds()
@@ -308,8 +279,6 @@ class FunctionRenderable:
         paths: list[list[tuple[float, float]]] = []
         current_path: list[tuple[float, float]] = []
         expect_asymptote_behind: bool = False
-        samples_emitted = 0
-        samples_visible = 0
 
         x: float = left_bound
         while x < right_bound - 1e-12:
@@ -362,20 +331,20 @@ class FunctionRenderable:
                 break
 
             if not self._is_point_visible(sx_val, sy, width, height, visible_min_x, visible_max_x):
+                if current_path:
+                    paths.append(current_path)
+                    current_path = []
                 x += step
                 continue
-            samples_visible += 1
 
-            if self._should_emit_point(scaled_point, current_path):
-                current_path.append((scaled_point[0], scaled_point[1]))
-                samples_emitted += 1
+            current_path.append((scaled_point[0], scaled_point[1]))
 
             x += step
 
         if current_path:
             paths.append(current_path)
 
-        return self._downsample_paths(paths, samples_emitted, samples_visible)
+        return paths
 
     def _handle_boundary_crossing(
         self, x: float, left_bound: float, right_bound: float, width: float, height: float,
