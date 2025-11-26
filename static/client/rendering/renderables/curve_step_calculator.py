@@ -23,8 +23,8 @@ ADAPTIVE_MAX_PIXEL_DISTANCE: float = 10.0
 ADAPTIVE_MAX_ANGLE_DEG: float = 10.0
 ADAPTIVE_MAX_BEND: float = _m.tan(_m.radians(ADAPTIVE_MAX_ANGLE_DEG))
 ADAPTIVE_MAX_DEPTH: int = 8
-ADAPTIVE_MIN_SAMPLES: int = 80
-ADAPTIVE_PROBE_COUNT: int = 16
+ADAPTIVE_MIN_SAMPLES: int = 200
+ADAPTIVE_PROBE_COUNT: int = 64
 
 
 class StepCalculator:
@@ -195,7 +195,7 @@ class AdaptiveStepCalculator:
             return current_step
 
         if depth >= ADAPTIVE_MAX_DEPTH:
-            return current_step / (2 ** (ADAPTIVE_MAX_DEPTH - depth))
+            return current_step / 2
 
         mid_x = (x_left + x_right) / 2
         half_step = current_step / 2
