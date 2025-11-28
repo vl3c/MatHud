@@ -151,25 +151,23 @@ class TestFunction(unittest.TestCase):
         # Verify paths are regenerated successfully
         self.assertTrue(len(new_paths.paths) > 0)
 
-    def test_adaptive_step_size(self) -> None:
-        # Test function with varying slopes using FunctionRenderable
-        steep_function = Function("100*x", "Steep")
-        gradual_function = Function("0.1*x", "Gradual")
+    def test_high_amplitude_gets_more_samples(self) -> None:
+        # Test that high amplitude functions get more samples
+        low_amp_function = Function("sin(x)", "LowAmp")
+        high_amp_function = Function("5*sin(x)", "HighAmp")
         
-        steep_renderable = FunctionRenderable(steep_function, self.canvas.coordinate_mapper)
-        gradual_renderable = FunctionRenderable(gradual_function, self.canvas.coordinate_mapper)
+        low_amp_renderable = FunctionRenderable(low_amp_function, self.canvas.coordinate_mapper)
+        high_amp_renderable = FunctionRenderable(high_amp_function, self.canvas.coordinate_mapper)
         
-        steep_paths = steep_renderable.build_screen_paths().paths
-        gradual_paths = gradual_renderable.build_screen_paths().paths
+        low_amp_paths = low_amp_renderable.build_screen_paths().paths
+        high_amp_paths = high_amp_renderable.build_screen_paths().paths
         
-        # Calculate total points in each function
-        steep_total_points = sum(len(path) for path in steep_paths)
-        gradual_total_points = sum(len(path) for path in gradual_paths)
+        low_amp_points = sum(len(path) for path in low_amp_paths)
+        high_amp_points = sum(len(path) for path in high_amp_paths)
         
-        # Steep function should have MORE points for better detail
-        # Steep function should have at least as many points as the gradual one
-        self.assertGreaterEqual(steep_total_points, gradual_total_points,
-                              f"Expected steep function to have at least as many points ({steep_total_points}) as gradual function ({gradual_total_points})")
+        # High amplitude function should have at least as many points
+        self.assertGreaterEqual(high_amp_points, low_amp_points,
+                              f"Expected high amplitude function ({high_amp_points} points) to have at least as many points as low amplitude ({low_amp_points})")
 
     def test_discontinuity_handling(self) -> None:
         # Test function with discontinuity using FunctionRenderable

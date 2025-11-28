@@ -196,8 +196,10 @@ class FunctionRenderable:
         return width, height
 
     def _calculate_step(self, left_bound: float, right_bound: float) -> float:
+        _, screen_height = self._get_screen_dimensions()
         return PixelStepCalculator.calculate(
-            left_bound, right_bound, self.func.function, self.mapper.math_to_screen
+            left_bound, right_bound, self.func.function,
+            self.mapper.math_to_screen, screen_height
         )
 
     def _eval_scaled_point(self, x_val: float) -> Tuple[Tuple[Optional[float], Optional[float]], Any]:
