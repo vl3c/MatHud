@@ -68,6 +68,7 @@ from .test_function_renderables import (
     TestFunctionRenderable,
     TestFunctionsBoundedAreaRenderable,
     TestSegmentsBoundedAreaRenderable,
+    TestBoundaryExtension,
     TestRenderableEdgeCases,
 )
 from .test_renderer_edge_cases import (
@@ -125,6 +126,7 @@ class Tests:
             TestFunctionRenderable,
             TestFunctionsBoundedAreaRenderable,
             TestSegmentsBoundedAreaRenderable,
+            TestBoundaryExtension,
             TestRenderableEdgeCases,
             TestPointEdgeCases,
             TestSegmentEdgeCases,
