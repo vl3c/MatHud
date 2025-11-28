@@ -320,7 +320,7 @@ class SvgRenderer(RendererProtocol):
         self._assign_cartesian_dimensions(cartesian, width, height)
         drawable_name = "Cartesian2Axis"
         map_state = self._capture_map_state(coordinate_mapper)
-        signature = self._compute_drawable_signature(cartesian)
+        signature = self._compute_drawable_signature(cartesian, coordinate_mapper)
         plan_context = self._resolve_cartesian_plan(
             cartesian, coordinate_mapper, map_state, signature, drawable_name
         )
@@ -375,7 +375,7 @@ class SvgRenderer(RendererProtocol):
             return
         drawable_name = self._resolve_drawable_name(drawable)
         map_state = self._capture_map_state(coordinate_mapper)
-        signature = self._compute_drawable_signature(drawable)
+        signature = self._compute_drawable_signature(drawable, coordinate_mapper)
         cache_key = self._plan_cache_key(drawable, drawable_name)
         plan_context = self._resolve_drawable_plan_context(
             drawable, coordinate_mapper, map_state, signature, drawable_name, cache_key
@@ -452,7 +452,7 @@ class SvgRenderer(RendererProtocol):
             return f"{drawable_name}:{identifier}"
         return f"{drawable_name}:{id(drawable)}"
 
-    def _compute_drawable_signature(self, drawable: Any) -> Tuple[Any, ...]:
+    def _compute_drawable_signature(self, drawable: Any, coordinate_mapper: Any = None) -> Tuple[Any, ...]:
         state_func = getattr(drawable, "get_state", None)
         state: Any = None
         if callable(state_func):
@@ -468,7 +468,15 @@ class SvgRenderer(RendererProtocol):
             snapshot = fallback
         else:
             snapshot = {**fallback, "__state__": state}
+        if self._needs_scale_in_signature(drawable) and coordinate_mapper is not None:
+            scale = getattr(coordinate_mapper, "scale_factor", None)
+            if scale is not None:
+                snapshot["_view_scale"] = round(float(scale), 4)
         return self._freeze_signature(snapshot)
+
+    def _needs_scale_in_signature(self, drawable: Any) -> bool:
+        class_name = getattr(drawable, "get_class_name", lambda: "")()
+        return class_name in ("Function", "FunctionsBoundedColoredArea", "FunctionSegmentBoundedColoredArea")
 
     def _freeze_signature(self, value: Any) -> Tuple[Any, ...]:
         if isinstance(value, dict):

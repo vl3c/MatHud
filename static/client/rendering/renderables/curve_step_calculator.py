@@ -130,8 +130,8 @@ class PixelStepCalculator:
         except Exception:
             pixels_per_unit = 32.0  # fallback
 
-        # Target ~3 pixels between points for smooth curves
-        target_pixel_step = 3.0
+        # Target ~5 pixels between points for smooth curves
+        target_pixel_step = 5.0
         step = target_pixel_step / pixels_per_unit if pixels_per_unit > 0 else range_width / 200
 
         # Ensure reasonable bounds: at least 50 points, at most 200 points
