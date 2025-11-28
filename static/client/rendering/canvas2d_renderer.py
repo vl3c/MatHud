@@ -413,6 +413,9 @@ class Canvas2DRenderer(RendererProtocol):
             scale = getattr(coordinate_mapper, "scale_factor", None)
             if scale is not None:
                 snapshot["_view_scale"] = round(float(scale), 4)
+            offset = getattr(coordinate_mapper, "offset", None)
+            if offset is not None:
+                snapshot["_view_offset"] = (round(float(offset.x), 2), round(float(offset.y), 2))
         return self._freeze_signature(snapshot)
 
     def _needs_scale_in_signature(self, drawable: Any) -> bool:
