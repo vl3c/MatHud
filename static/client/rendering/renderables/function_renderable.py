@@ -346,7 +346,237 @@ class FunctionRenderable:
         if current_path:
             paths.append(current_path)
 
+        self._extend_paths_to_boundaries(paths, width, height, step, left_bound, right_bound)
         return paths
+
+    def _extend_paths_to_boundaries(
+        self, paths: list[list[tuple[float, float]]], width: float, height: float, step: float,
+        left_bound: float, right_bound: float
+    ) -> None:
+        """
+        Ensures each sub-path extends to screen boundaries for complete rendering.
+        """
+        for path in paths:
+            if len(path) < 2:
+                continue
+            self._extend_path_start(path, width, height, step, left_bound)
+            self._extend_path_end(path, width, height, step, right_bound)
+
+    def _extend_path_start(
+        self, path: list[tuple[float, float]], width: float, height: float, step: float, left_bound: float
+    ) -> None:
+        """Extend or clamp the start of a path to reach the screen boundary."""
+        sx, sy = path[0]
+        math_x, _ = self.mapper.screen_to_math(sx, sy)
+        if abs(math_x - left_bound) < 0.01:
+            return
+        
+        if self._is_inside_screen(sx, sy, width, height):
+            ext_pt = self._sample_extension_backward(sx, sy, step, left_bound, height)
+            if self._is_usable_sample(ext_pt, sy, height):
+                path.insert(0, ext_pt)
+            else:
+                ext_pt = self._get_extrapolated_start(path, height, left_bound)
+                if ext_pt is not None:
+                    path.insert(0, ext_pt)
+        elif self._is_outside_screen_y(sy, height) and len(path) >= 2:
+            x2, y2 = path[1]
+            path[0] = self._clamp_to_boundary(x2, y2, sx, sy, height)
+
+    def _extend_path_end(
+        self, path: list[tuple[float, float]], width: float, height: float, step: float, right_bound: float
+    ) -> None:
+        """Extend or clamp the end of a path to reach the screen boundary."""
+        sx, sy = path[-1]
+        math_x, _ = self.mapper.screen_to_math(sx, sy)
+        if abs(math_x - right_bound) < 0.01:
+            return
+        
+        if self._is_inside_screen(sx, sy, width, height):
+            ext_pt = self._sample_extension_forward(sx, sy, step, right_bound, height)
+            if self._is_usable_sample(ext_pt, sy, height):
+                path.append(ext_pt)
+            else:
+                ext_pt = self._get_extrapolated_end(path, height, right_bound)
+                if ext_pt is not None:
+                    path.append(ext_pt)
+        elif self._is_outside_screen_y(sy, height) and len(path) >= 2:
+            x1, y1 = path[-2]
+            path[-1] = self._clamp_to_boundary(x1, y1, sx, sy, height)
+
+    def _is_usable_sample(self, ext_pt: Optional[tuple[float, float]], origin_y: float, height: float) -> bool:
+        """Check if sampled extension point is valid and reaches boundary."""
+        if ext_pt is None:
+            return False
+        return self._is_valid_extension(origin_y, ext_pt[1], height) and self._is_at_boundary(ext_pt[1], height)
+
+    def _get_extrapolated_start(
+        self, path: list[tuple[float, float]], height: float, left_bound: float
+    ) -> Optional[tuple[float, float]]:
+        """Extrapolate to boundary and clamp to left bound."""
+        inner_pt = path[1] if len(path) > 1 else path[0]
+        ext_pt = self._extrapolate_to_boundary(path[0], inner_pt, height, backward=True)
+        if ext_pt is not None:
+            ext_pt = self._clamp_to_left_bound(ext_pt, left_bound)
+        return ext_pt
+
+    def _get_extrapolated_end(
+        self, path: list[tuple[float, float]], height: float, right_bound: float
+    ) -> Optional[tuple[float, float]]:
+        """Extrapolate to boundary and clamp to right bound."""
+        inner_pt = path[-2] if len(path) > 1 else path[-1]
+        ext_pt = self._extrapolate_to_boundary(path[-1], inner_pt, height, backward=False)
+        if ext_pt is not None:
+            ext_pt = self._clamp_to_right_bound(ext_pt, right_bound)
+        return ext_pt
+
+    def _clamp_to_left_bound(self, pt: tuple[float, float], left_bound: float) -> Optional[tuple[float, float]]:
+        """Clamp point to left bound if it extends past it."""
+        math_x, _ = self.mapper.screen_to_math(pt[0], pt[1])
+        if math_x >= left_bound:
+            return pt  # Within bounds
+        # Clamp to left_bound - evaluate function at left_bound
+        clamped_pt, _ = self._eval_scaled_point(left_bound)
+        if clamped_pt[0] is not None:
+            return (clamped_pt[0], clamped_pt[1])
+        return None
+
+    def _clamp_to_right_bound(self, pt: tuple[float, float], right_bound: float) -> Optional[tuple[float, float]]:
+        """Clamp point to right bound if it extends past it."""
+        math_x, _ = self.mapper.screen_to_math(pt[0], pt[1])
+        if math_x <= right_bound:
+            return pt  # Within bounds
+        # Clamp to right_bound - evaluate function at right_bound
+        clamped_pt, _ = self._eval_scaled_point(right_bound)
+        if clamped_pt[0] is not None:
+            return (clamped_pt[0], clamped_pt[1])
+        return None
+
+    def _is_at_boundary(self, y: float, height: float) -> bool:
+        """Check if y is at or beyond screen boundary."""
+        return y <= 0 or y >= height
+
+    def _extrapolate_to_boundary(
+        self, edge_pt: tuple[float, float], inner_pt: tuple[float, float], height: float, backward: bool
+    ) -> Optional[tuple[float, float]]:
+        """
+        Extrapolate from path direction to hit the appropriate boundary.
+        edge_pt: the endpoint we're extending from
+        inner_pt: the next point in the path (gives us direction)
+        backward: True if extending start (go opposite direction), False if extending end
+        """
+        x1, y1 = edge_pt
+        x2, y2 = inner_pt
+        
+        # Direction from inner to edge (the way the path is going)
+        dx = x1 - x2
+        dy = y1 - y2
+        
+        if abs(dy) < 1e-9:
+            return None  # Horizontal line, no vertical boundary to hit
+        
+        # Determine which boundary to hit based on direction
+        if backward:
+            # Extending start: continue in the direction the path came from
+            # If dy > 0, path is going down (y increasing), so continue down to y=height
+            # If dy < 0, path is going up (y decreasing), so continue up to y=0
+            target_y = height if dy > 0 else 0.0
+        else:
+            # Extending end: continue in the direction the path is going
+            target_y = height if dy > 0 else 0.0
+        
+        # Calculate intersection
+        t = (target_y - y1) / dy
+        if t < 0:
+            return None  # Boundary is behind us
+        
+        new_x = x1 + t * dx
+        return (new_x, target_y)
+
+    def _is_valid_extension(self, orig_y: float, ext_y: float, height: float) -> bool:
+        """
+        Check if extension point is valid (same side of screen, not crossing to different branch).
+        - If original is in top half and extension goes further up (or to top boundary): valid
+        - If original is in bottom half and extension goes further down (or to bottom boundary): valid
+        - If extension crosses from top half to bottom half or vice versa: invalid
+        """
+        mid = height / 2
+        orig_in_top_half = orig_y < mid
+        ext_in_top_half = ext_y < mid
+        # Extension is valid if both are in same half, or extension is at boundary
+        if ext_y <= 0 or ext_y >= height:
+            # Extension is at boundary - valid only if it's the "correct" boundary
+            if orig_in_top_half and ext_y <= 0:
+                return True  # Top half extending to top boundary
+            if not orig_in_top_half and ext_y >= height:
+                return True  # Bottom half extending to bottom boundary
+            return False  # Wrong boundary
+        return orig_in_top_half == ext_in_top_half
+
+    def _is_inside_screen(self, sx: float, sy: float, width: float, height: float) -> bool:
+        """Check if point is strictly inside visible screen bounds."""
+        return 0 < sy < height and 0 < sx < width
+
+    def _is_outside_screen_y(self, sy: float, height: float) -> bool:
+        """Check if point is outside screen in Y direction."""
+        return sy <= 0 or sy >= height
+
+    def _sample_extension_backward(
+        self, sx: float, sy: float, step: float, left_bound: float, height: float
+    ) -> Optional[tuple[float, float]]:
+        """Sample one step backward, respecting bounds and asymptotes."""
+        math_x, _ = self.mapper.screen_to_math(sx, sy)
+        # Check for asymptote within a few steps (to extend toward it)
+        search_left = max(left_bound, math_x - 3 * step)
+        asymptote_x = self._get_asymptote_between(search_left, math_x)
+        if asymptote_x is not None:
+            # Sample just past the asymptote on our side
+            sample_x = asymptote_x + min(1e-3, step / 10)
+        else:
+            sample_x = max(left_bound, math_x - step)
+        if sample_x >= math_x:
+            return None
+        prev_pt, _ = self._eval_scaled_point(sample_x)
+        if prev_pt[0] is None:
+            return None
+        return self._clamp_to_boundary(sx, sy, prev_pt[0], prev_pt[1], height)
+
+    def _sample_extension_forward(
+        self, sx: float, sy: float, step: float, right_bound: float, height: float
+    ) -> Optional[tuple[float, float]]:
+        """Sample one step forward, respecting bounds and asymptotes."""
+        math_x, _ = self.mapper.screen_to_math(sx, sy)
+        # Check for asymptote within a few steps (to extend toward it)
+        search_right = min(right_bound, math_x + 3 * step)
+        asymptote_x = self._get_asymptote_between(math_x, search_right)
+        if asymptote_x is not None:
+            # Sample just before the asymptote on our side
+            sample_x = asymptote_x - min(1e-3, step / 10)
+        else:
+            sample_x = min(right_bound, math_x + step)
+        if sample_x <= math_x:
+            return None
+        next_pt, _ = self._eval_scaled_point(sample_x)
+        if next_pt[0] is None:
+            return None
+        return self._clamp_to_boundary(sx, sy, next_pt[0], next_pt[1], height)
+
+    def _clamp_to_boundary(
+        self, x1: float, y1: float, x2: float, y2: float, height: float
+    ) -> tuple[float, float]:
+        """
+        If (x2,y2) is outside screen, return intersection of line (x1,y1)→(x2,y2)
+        with screen boundary. Uses linear interpolation: t = (target_y - y1) / (y2 - y1)
+        """
+        if 0 <= y2 <= height:
+            return (x2, y2)
+        if abs(y2 - y1) < 1e-9:
+            return (x2, max(0.0, min(y2, height)))
+        if y2 < 0:
+            t = -y1 / (y2 - y1)
+            return (x1 + t * (x2 - x1), 0.0)
+        t = (height - y1) / (y2 - y1)
+        return (x1 + t * (x2 - x1), height)
 
     def _handle_boundary_crossing(
         self, x: float, left_bound: float, right_bound: float, width: float, height: float,
