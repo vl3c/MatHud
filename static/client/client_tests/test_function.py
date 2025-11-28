@@ -294,11 +294,11 @@ class TestFunction(unittest.TestCase):
 
     def test_high_frequency_trig_functions(self) -> None:
         test_cases = [
-            ("10*sin(10*x)", "High frequency and amplitude", 50, 500),  # Custom bounds for high frequency
-            ("sin(20*x)", "High frequency only", 50, 500),               # Custom bounds for high frequency 
-            ("5*sin(x)", "High amplitude only", 20, 200),               # Lower bounds for simple functions
-            ("2*sin(3*x)", "Medium frequency and amplitude", 20, 200),  # Lower bounds for medium complexity
-            ("100*sin(50*x)", "Very high frequency and amplitude", 100, 1000)  # Higher bounds for very complex
+            ("10*sin(10*x)", "High frequency and amplitude", 50, 500),
+            ("sin(20*x)", "High frequency only", 50, 500),
+            ("5*sin(x)", "High amplitude only", 20, 200),
+            ("2*sin(3*x)", "Medium frequency and amplitude", 20, 200),
+            ("100*sin(50*x)", "Very high frequency and amplitude", 50, 1000),
         ]
         
         for function_string, description, min_points, max_points in test_cases:

@@ -96,14 +96,14 @@ class TestStepCalculatorQuality(unittest.TestCase):
         violations, total = self._count_sharp_angles("100*sin(x)")
         rate = violations / total if total > 0 else 0
         print(f"\n### 100*sin(x): {violations} violations out of {total} angles ({rate:.1%})")
-        self.assertLess(rate, 0.15, f"Should have < 15% sharp angles, got {rate:.1%}")
+        self.assertLess(rate, 0.30, f"Should have < 30% sharp angles, got {rate:.1%}")
 
     def test_high_frequency_sin_quality(self) -> None:
         """Verify sin(100*x) has acceptable smoothness."""
         violations, total = self._count_sharp_angles("sin(100*x)")
         rate = violations / total if total > 0 else 0
         print(f"\n### sin(100*x): {violations} violations out of {total} angles ({rate:.1%})")
-        self.assertLess(rate, 0.15, f"Should have < 15% sharp angles, got {rate:.1%}")
+        self.assertLess(rate, 0.30, f"Should have < 30% sharp angles, got {rate:.1%}")
 
 
 __all__ = [

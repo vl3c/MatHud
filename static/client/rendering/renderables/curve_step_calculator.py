@@ -13,7 +13,7 @@ from typing import Any, Callable, List, Tuple
 PROBE_COUNT: int = 10
 MIN_POINTS: int = 50
 MAX_POINTS: int = 200
-MAX_POINTS_HIGH_DETAIL: int = 500
+MAX_POINTS_HIGH_DETAIL: int = 1500
 TARGET_PIXEL_STEP: float = 5.0
 AMPLITUDE_EXPONENT: float = 1.5
 
@@ -137,15 +137,15 @@ class PixelStepCalculator:
             screen_amplitude = abs(y_max - y_min)
 
         amplitude_ratio = screen_amplitude / screen_height if screen_height > 0 else 0
-        amplitude_factor = 1.0 + amplitude_ratio * 2.0
+        amplitude_factor = 1.0 + amplitude_ratio * 4.0
 
         sign_changes = PixelStepCalculator._count_sign_changes(y_values)
-        frequency_factor = 1.0 + sign_changes * 0.3
+        frequency_factor = 1.0 + sign_changes * 0.5
 
         combined_factor = amplitude_factor * frequency_factor
         adjusted_step = base_step / combined_factor
         
-        needs_high_detail = amplitude_ratio > 0.3 or sign_changes > 3
+        needs_high_detail = amplitude_ratio > 0.1 or sign_changes > 1
         max_points = MAX_POINTS_HIGH_DETAIL if needs_high_detail else MAX_POINTS
         
         return PixelStepCalculator._clamp_step(adjusted_step, range_width, max_points)
