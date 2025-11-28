@@ -12,22 +12,13 @@ from rendering.renderables import FunctionRenderable
 from rendering.primitives import ClosedArea
 
 
-class MockCartesian:
-    def __init__(self):
-        self.width = 640.0
-        self.height = 480.0
-        self.current_tick_spacing = 50.0
-        self.default_tick_spacing = 50.0
-
-
 class TestFunctionRenderable(unittest.TestCase):
     def setUp(self) -> None:
         self.mapper = CoordinateMapper(640, 480)
-        self.cartesian = MockCartesian()
 
     def test_build_screen_paths_returns_polyline(self) -> None:
         func = Function("x", name="f")
-        renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+        renderable = FunctionRenderable(func, self.mapper)
 
         result = renderable.build_screen_paths()
 
@@ -37,7 +28,7 @@ class TestFunctionRenderable(unittest.TestCase):
 
     def test_linear_function_produces_continuous_path(self) -> None:
         func = Function("x", name="f")
-        renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+        renderable = FunctionRenderable(func, self.mapper)
 
         result = renderable.build_screen_paths()
 
@@ -46,7 +37,7 @@ class TestFunctionRenderable(unittest.TestCase):
 
     def test_quadratic_function_produces_smooth_path(self) -> None:
         func = Function("x^2", name="g")
-        renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+        renderable = FunctionRenderable(func, self.mapper)
 
         result = renderable.build_screen_paths()
 
@@ -56,7 +47,7 @@ class TestFunctionRenderable(unittest.TestCase):
 
     def test_discontinuous_function_produces_multiple_paths(self) -> None:
         func = Function("1/x", name="h")
-        renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+        renderable = FunctionRenderable(func, self.mapper)
 
         result = renderable.build_screen_paths()
 
@@ -65,7 +56,7 @@ class TestFunctionRenderable(unittest.TestCase):
 
     def test_trigonometric_function_evaluates(self) -> None:
         func = Function("sin(x)", name="s")
-        renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+        renderable = FunctionRenderable(func, self.mapper)
 
         result = renderable.build_screen_paths()
 
@@ -73,7 +64,7 @@ class TestFunctionRenderable(unittest.TestCase):
 
     def test_high_frequency_sin_has_sufficient_samples_per_period(self) -> None:
         func = Function("sin(10*x)", name="s")
-        renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+        renderable = FunctionRenderable(func, self.mapper)
 
         result = renderable.build_screen_paths()
 
@@ -83,7 +74,7 @@ class TestFunctionRenderable(unittest.TestCase):
 
     def test_high_frequency_sin_peaks_are_smooth(self) -> None:
         func = Function("sin(5*x)", name="s")
-        renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+        renderable = FunctionRenderable(func, self.mapper)
 
         result = renderable.build_screen_paths()
 
@@ -105,8 +96,8 @@ class TestFunctionRenderable(unittest.TestCase):
         linear_func = Function("x", name="linear")
         curved_func = Function("sin(x)", name="curved")
 
-        linear_renderable = FunctionRenderable(linear_func, self.mapper, self.cartesian)
-        curved_renderable = FunctionRenderable(curved_func, self.mapper, self.cartesian)
+        linear_renderable = FunctionRenderable(linear_func, self.mapper)
+        curved_renderable = FunctionRenderable(curved_func, self.mapper)
 
         linear_result = linear_renderable.build_screen_paths()
         curved_result = curved_renderable.build_screen_paths()
@@ -118,7 +109,7 @@ class TestFunctionRenderable(unittest.TestCase):
 
     def test_sin_peaks_have_minimum_angle_of_30_degrees(self) -> None:
         func = Function("100*sin(x)", name="s", left_bound=-100, right_bound=100)
-        renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+        renderable = FunctionRenderable(func, self.mapper)
 
         result = renderable.build_screen_paths()
 
@@ -230,11 +221,10 @@ class TestSegmentsBoundedAreaRenderable(unittest.TestCase):
 class TestRenderableEdgeCases(unittest.TestCase):
     def setUp(self) -> None:
         self.mapper = CoordinateMapper(640, 480)
-        self.cartesian = MockCartesian()
 
     def test_constant_function_produces_horizontal_line(self) -> None:
         func = Function("5", name="const")
-        renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+        renderable = FunctionRenderable(func, self.mapper)
 
         result = renderable.build_screen_paths()
 
@@ -251,7 +241,7 @@ class TestRenderableEdgeCases(unittest.TestCase):
         func = Function("invalid_expr", name="bad")
         
         try:
-            renderable = FunctionRenderable(func, self.mapper, self.cartesian)
+            renderable = FunctionRenderable(func, self.mapper)
             renderable.build_screen_paths()
         except Exception as exc:
             self.fail(f"Invalid function should not raise exception: {exc}")

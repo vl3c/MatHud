@@ -23,10 +23,9 @@ SCREEN_MARGIN: float = 16.0
 
 
 class FunctionRenderable:
-    def __init__(self, function_model: Any, coordinate_mapper: Any, cartesian2axis: Optional[Any] = None) -> None:
+    def __init__(self, function_model: Any, coordinate_mapper: Any) -> None:
         self.func: Any = function_model
         self.mapper: Any = coordinate_mapper
-        self.cartesian2axis: Optional[Any] = cartesian2axis
         self._cached_screen_paths: Optional[ScreenPolyline] = None
         self._cache_valid: bool = False
         self._last_scale: Optional[float] = None
@@ -59,11 +58,6 @@ class FunctionRenderable:
 
     def _get_visible_bounds(self) -> Tuple[float, float]:
         try:
-            if self.cartesian2axis:
-                return (
-                    self.cartesian2axis.get_visible_left_bound(),
-                    self.cartesian2axis.get_visible_right_bound(),
-                )
             left: float = self.mapper.get_visible_left_bound()
             right: float = self.mapper.get_visible_right_bound()
             return left, right
@@ -71,8 +65,8 @@ class FunctionRenderable:
             return -10, 10
 
     def _get_screen_signature(self) -> Tuple[int, int]:
-        screen_width = getattr(self.mapper, "canvas_width", None) or getattr(self.cartesian2axis, "width", None)
-        screen_height = getattr(self.mapper, "canvas_height", None) or getattr(self.cartesian2axis, "height", None)
+        screen_width = getattr(self.mapper, "canvas_width", None)
+        screen_height = getattr(self.mapper, "canvas_height", None)
         return (int(screen_width or 0), int(screen_height or 0))
 
     def _update_cache_state(self, scale: Optional[float], bounds: Tuple[float, float], screen_sig: Tuple[int, int]) -> None:
@@ -202,12 +196,8 @@ class FunctionRenderable:
         return max(visible_left, base_left), min(visible_right, base_right)
 
     def _get_screen_dimensions(self) -> Tuple[float, float]:
-        height: float = getattr(self.cartesian2axis, 'height', None) or 0
-        if not height:
-            height = getattr(self.mapper, 'canvas_height', 0) or 0
-        width: float = getattr(self.cartesian2axis, 'width', None) or 0
-        if not width:
-            width = getattr(self.mapper, 'canvas_width', 0) or 0
+        width: float = getattr(self.mapper, 'canvas_width', 0) or 0
+        height: float = getattr(self.mapper, 'canvas_height', 0) or 0
         return width, height
 
     def _calculate_step(self, left_bound: float, right_bound: float) -> float:

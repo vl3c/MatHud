@@ -130,7 +130,6 @@ class Canvas:
         self._register_renderer_handlers()
 
     def add_drawable(self, drawable: "Drawable") -> None:
-        drawable.canvas = self  # Set the drawable's canvas reference
         self.drawable_manager.drawables.add(drawable)
 
     def _register_renderer_handlers(self) -> None:
@@ -364,10 +363,6 @@ class Canvas:
         if apply_zoom and hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
             self.cartesian2axis._invalidate_cache_on_zoom()
         self.cartesian2axis.draw()
-
-    def _fix_drawable_canvas_references(self) -> None:
-        for drawable in self.drawable_manager.get_drawables():
-            drawable.canvas = self
 
     def clear(self) -> None:
         """Clear all drawables"""

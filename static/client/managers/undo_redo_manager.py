@@ -24,7 +24,6 @@ Operation Flow:
     - State clearing: Automatic redo stack clearing on new operations
 
 Complex State Handling:
-    - Reference Reconstruction: _fix_drawable_canvas_references() ensures proper canvas links
     - Dependency Rebuilding: _rebuild_dependency_graph() recreates object relationships
     - Deep Copy Management: Handles nested object structures and circular references
     - Memory Efficiency: Strategic state limitation to prevent memory bloat
@@ -110,7 +109,6 @@ class UndoRedoManager:
         self.canvas.drawable_manager.drawables.rebuild_renderables()
         
         # Ensure all objects are properly initialized
-        self._fix_drawable_canvas_references()
         self._rebuild_dependency_graph()
         
         # Make sure to reset any cached or derived values
@@ -144,7 +142,6 @@ class UndoRedoManager:
         self.canvas.drawable_manager.drawables.rebuild_renderables()
         
         # Ensure all objects are properly initialized
-        self._fix_drawable_canvas_references()
         self._rebuild_dependency_graph()
         
         # Make sure to reset any cached or derived values
@@ -171,18 +168,6 @@ class UndoRedoManager:
         """
         return len(self.redo_stack) > 0
     
-    def _fix_drawable_canvas_references(self) -> None:
-        """
-        Ensures all drawables have a reference to the canvas.
-        
-        This is necessary after loading a saved state, as the serialization
-        process may lose canvas references.
-        """
-        for drawable_type in self.canvas.drawable_manager.drawables._drawables:
-            for drawable in self.canvas.drawable_manager.drawables._drawables[drawable_type]:
-                # This assumes all objects stored in _drawables are expected to have a 'canvas' attribute.
-                drawable.canvas = self.canvas
-
     def _rebuild_dependency_graph(self) -> None:
         """
         Rebuilds the dependency relationships between drawables.

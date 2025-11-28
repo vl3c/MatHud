@@ -143,59 +143,6 @@ class TestDrawableDependencyManager(unittest.TestCase):
         parents = self.manager.get_parents(self.segment1)
         self.assertEqual(len(parents), 0, "Segment1 should have no parents after removal")
     
-    def test_update_canvas_references_parent_propagation(self) -> None:
-        """Test updating canvas references with propagation to parents"""
-        # Arrange: Set up a structure where segments depend on points
-        self.manager.register_dependency(child=self.segment1, parent=self.point1)
-        self.manager.register_dependency(child=self.segment1, parent=self.point2)
-        
-        # Mock canvases
-        original_canvas = self._create_mock_drawable("OriginalCanvas", "Canvas")
-        new_canvas = self._create_mock_drawable("NewCanvas", "Canvas")
-        
-        # Set initial canvas references
-        self.point1.canvas = original_canvas
-        self.point2.canvas = original_canvas
-        self.segment1.canvas = original_canvas
-        
-        # Act: Update point1's canvas
-        self.manager.update_canvas_references(self.point1, new_canvas)
-        
-        # Assert: All connected objects should be updated
-        self.assertEqual(self.point1.canvas, new_canvas, "Point1's canvas should be updated")
-        # We no longer test that segment1 remains unchanged, since we now propagate to children too
-        self.assertEqual(self.segment1.canvas, new_canvas, "Segment1's canvas should also be updated")
-        # Point2 should be updated via segment1 (child→parent propagation)
-        self.assertEqual(self.point2.canvas, new_canvas, "Point2's canvas should be updated via segment1")
-    
-    def test_update_canvas_references_segment_special_case(self) -> None:
-        """Test that updating a segment's canvas updates its points (special case)"""
-        # Create simplified test objects with clear canvas references
-        point1 = self._create_mock_point("TestPoint1")
-        point2 = self._create_mock_point("TestPoint2")
-        segment = self._create_mock_segment("TestSegment", point1, point2)
-        
-        # Create canvases
-        original_canvas = self._create_mock_drawable("OriginalCanvas", "Canvas")
-        new_canvas = self._create_mock_drawable("NewCanvas", "Canvas")
-        
-        # Set initial canvas references
-        point1.canvas = original_canvas
-        point2.canvas = original_canvas
-        segment.canvas = original_canvas
-        
-        # Register dependencies
-        self.manager.register_dependency(child=segment, parent=point1)
-        self.manager.register_dependency(child=segment, parent=point2)
-        
-        # Update segment's canvas
-        self.manager.update_canvas_references(segment, new_canvas)
-        
-        # Verify both segment and points have updated canvas
-        self.assertEqual(segment.canvas, new_canvas, "Segment's canvas should be updated")
-        self.assertEqual(point1.canvas, new_canvas, "Point1's canvas should be updated")
-        self.assertEqual(point2.canvas, new_canvas, "Point2's canvas should be updated")
-    
     def test_resolve_dependency_order(self) -> None:
         """Test resolving dependencies in the correct order"""
         # Set up dependencies: Segments -> Points (points are parents of segments)
@@ -345,52 +292,6 @@ class TestDrawableDependencyManager(unittest.TestCase):
         dependencies = self.manager.analyze_drawable_for_dependencies(obj_without_method)
         self.assertEqual(len(dependencies), 0, "Object without get_class_name should return empty dependencies list")
     
-    def test_update_canvas_references_bidirectional(self) -> None:
-        """Test updating canvas references with bidirectional propagation (parents and children)"""
-        # Arrange: Create a structure with parents and children
-        #   Point1 <- Segment1 -> Point2
-        #      ^                    ^
-        #      |                    |
-        #   Segment3              Segment2
-        #      |                    |
-        #      v                    v
-        #   Point3 --------------> Point3
-        
-        # Set up dependencies
-        self.manager.register_dependency(child=self.segment1, parent=self.point1)
-        self.manager.register_dependency(child=self.segment1, parent=self.point2)
-        self.manager.register_dependency(child=self.segment2, parent=self.point2)
-        self.manager.register_dependency(child=self.segment2, parent=self.point3)
-        self.manager.register_dependency(child=self.segment3, parent=self.point3)
-        self.manager.register_dependency(child=self.segment3, parent=self.point1)
-        
-        # Mock canvases
-        canvas_class = "Canvas"  # Get class_name right
-        original_canvas = self._create_mock_drawable("OriginalCanvas", canvas_class)
-        new_canvas = self._create_mock_drawable("NewCanvas", canvas_class)
-        
-        # Set initial canvas references
-        self.point1.canvas = original_canvas
-        self.point2.canvas = original_canvas
-        self.point3.canvas = original_canvas
-        self.segment1.canvas = original_canvas
-        self.segment2.canvas = original_canvas
-        self.segment3.canvas = original_canvas
-        
-        # Verify we've set up correctly
-        self.assertEqual(self.point1.canvas, original_canvas, "Point1's initial canvas should be original_canvas")
-        self.assertEqual(self.point2.canvas, original_canvas, "Point2's initial canvas should be original_canvas")
-        
-        # Act: Update point1's canvas - should propagate to all connected objects
-        self.manager.update_canvas_references(self.point1, new_canvas)
-        
-        # Assert: All objects should be updated since they're all connected
-        self.assertEqual(self.point1.canvas, new_canvas, "Point1's canvas should be updated")
-        self.assertEqual(self.point2.canvas, new_canvas, "Point2's canvas should be updated")
-        self.assertEqual(self.point3.canvas, new_canvas, "Point3's canvas should be updated")
-        self.assertEqual(self.segment1.canvas, new_canvas, "Segment1's canvas should be updated")
-        self.assertEqual(self.segment2.canvas, new_canvas, "Segment2's canvas should be updated")
-        self.assertEqual(self.segment3.canvas, new_canvas, "Segment3's canvas should be updated")
     
     def test_drawable_types_completeness(self) -> None:
         """Test that analyze_drawable_for_dependencies has cases for all drawable types"""
@@ -476,13 +377,6 @@ class TestDrawableDependencyManager(unittest.TestCase):
             self.manager.remove_drawable(None)  # Should not raise exception
         except Exception as e:
             self.fail(f"remove_drawable failed with None: {e}")
-            
-        # Test update_canvas_references with None
-        dummy_canvas = self._create_mock_drawable("DummyCanvas", "Canvas")
-        try:
-            self.manager.update_canvas_references(None, dummy_canvas)  # Should not raise exception
-        except Exception as e:
-            self.fail(f"update_canvas_references failed with None drawable: {e}")
             
         # Test analyze_drawable_for_dependencies with None
         dependencies = self.manager.analyze_drawable_for_dependencies(None)

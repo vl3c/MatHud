@@ -86,7 +86,6 @@ class TestCanvas(unittest.TestCase):
     def test_add_drawable(self) -> None:
         self.canvas.add_drawable(self.mock_point1)
         self.canvas.add_drawable(self.mock_segment1)
-        self.assertEqual(self.mock_point1.canvas, self.canvas)
         self.assertIn('Point', self.canvas.drawable_manager.drawables._drawables)
         self.assertIn('Segment', self.canvas.drawable_manager.drawables._drawables)
         self.assertIn(self.mock_point1, self.canvas.drawable_manager.drawables._drawables['Point'])
@@ -103,15 +102,6 @@ class TestCanvas(unittest.TestCase):
         self.canvas.add_drawable(self.mock_segment1)
         drawables = self.canvas.get_drawables_by_class_name(self.mock_point1.get_class_name())
         self.assertEqual(drawables, [self.mock_point1])
-
-    def test_fix_drawable_canvas_references(self) -> None:
-        # Add drawables to the container rather than assigning directly
-        self.canvas.drawable_manager.drawables._drawables = {'Point': [self.mock_point1], 'Segment': [self.mock_segment1]}
-        self.assertEqual(self.mock_point1.canvas, None)
-        self.assertEqual(self.mock_segment1.canvas, None)
-        self.canvas._fix_drawable_canvas_references()
-        self.assertEqual(self.mock_point1.canvas, self.canvas)
-        self.assertEqual(self.mock_segment1.canvas, self.canvas)
 
     def test_get_drawables_state(self) -> None:
         self.canvas.add_drawable(self.mock_point1)

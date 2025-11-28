@@ -288,63 +288,6 @@ class DrawableDependencyManager:
         if drawable_id in self._object_lookup:
             del self._object_lookup[drawable_id]
     
-    def update_canvas_references(self, drawable: Optional["Drawable"], canvas: "Canvas") -> None:
-        """
-        Update canvas references for a drawable and its dependencies
-        
-        Args:
-            drawable: The drawable to update
-            canvas: The canvas reference to set
-        """
-        if drawable is None:
-            print("Warning: Trying to update canvas references for None drawable")
-            return
-            
-        print(f"Starting canvas update for {drawable}")
-        
-        # Track all visited objects to avoid cycles
-        visited: Set["Drawable"] = set()
-        
-        # Use a queue for breadth-first traversal
-        queue: List["Drawable"] = [drawable]
-        
-        # Breadth-first traversal to update all connected objects
-        while queue:
-            current = queue.pop(0)
-            
-            # Skip if already visited or None
-            if current in visited or current is None:
-                continue
-                
-            visited.add(current)
-            
-            # Update the current object's canvas
-            if hasattr(current, 'canvas'):
-                current.canvas = canvas
-                print(f"Updated {current}.canvas = {canvas}")
-            
-            # Add children (objects that depend on this one)
-            children = self.get_children(current)
-            for child in children:
-                if child is not None and child not in visited:
-                    queue.append(child)
-                    
-            # Add parents (objects this one depends on)
-            parents = self.get_parents(current)
-            for parent in parents:
-                if parent is not None and parent not in visited:
-                    queue.append(parent)
-                    
-            # Special handling for segments (they already have the points as parents,
-            # but this ensures we handle the direct references too)
-            if hasattr(current, 'get_class_name') and current.get_class_name() == 'Segment':
-                if hasattr(current, 'point1') and current.point1 is not None:
-                    if current.point1 not in visited:
-                        queue.append(current.point1)
-                        
-                if hasattr(current, 'point2') and current.point2 is not None:
-                    if current.point2 not in visited:
-                        queue.append(current.point2)
     
     def analyze_drawable_for_dependencies(self, drawable: "Drawable") -> List["Drawable"]:
         """

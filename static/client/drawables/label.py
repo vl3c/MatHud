@@ -81,7 +81,6 @@ class Label(Drawable):
         if numeric <= 0:
             raise ValueError("Label font size must be positive")
         self._font_size = numeric
-        self._capture_current_scale_as_reference()
 
     @property
     def rotation_degrees(self) -> float:
@@ -191,17 +190,6 @@ class Label(Drawable):
 
     def update_reference_scale(self, reference_scale_factor: Optional[float]) -> None:
         self._reference_scale_factor = self._normalize_reference_scale(reference_scale_factor)
-
-    def _capture_current_scale_as_reference(self) -> None:
-        canvas = getattr(self, "canvas", None)
-        scale: Optional[float] = None
-        if canvas is not None:
-            mapper = getattr(canvas, "coordinate_mapper", None)
-            if mapper is not None:
-                scale_value = getattr(mapper, "scale_factor", None)
-                if isinstance(scale_value, (int, float)):
-                    scale = float(scale_value)
-        self._reference_scale_factor = self._normalize_reference_scale(scale)
 
     def _normalize_reference_scale(self, value: Optional[float]) -> float:
         try:

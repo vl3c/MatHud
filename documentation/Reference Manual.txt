@@ -1985,7 +1985,6 @@ Operation Flow:
     - State clearing: Automatic redo stack clearing on new operations
 
 Complex State Handling:
-    - Reference Reconstruction: _fix_drawable_canvas_references() ensures proper canvas links
     - Dependency Rebuilding: _rebuild_dependency_graph() recreates object relationships
     - Deep Copy Management: Handles nested object structures and circular references
     - Memory Efficiency: Strategic state limitation to prevent memory bloat
@@ -2020,7 +2019,6 @@ This class is responsible for:
 - `can_undo()`: Check if undo operation is possible
 - `can_redo()`: Check if redo operation is possible
 - `clear()`: Clear all archived states
-- `_fix_drawable_canvas_references()`: Ensure all drawables have proper canvas references
 - `_rebuild_dependency_graph()`: Rebuild dependency relationships between drawables
 
 #### Transformations Manager (`managers/transformations_manager.py`)

@@ -57,17 +57,14 @@ def _render_function_paths(primitives, screen_paths, stroke, width=0, height=0):
 
 
 def _get_or_create_renderable(func, coordinate_mapper):
-    canvas = getattr(func, "canvas", None)
-    cartesian = getattr(canvas, "cartesian2axis", None) if canvas else None
     renderable = getattr(func, "_renderable", None)
     if renderable is None or renderable.mapper is not coordinate_mapper:
-        renderable = FunctionRenderable(func, coordinate_mapper, cartesian)
+        renderable = FunctionRenderable(func, coordinate_mapper)
         try:
             func._renderable = renderable
         except Exception:
             pass
     else:
-        renderable.cartesian2axis = cartesian
         renderable.mapper = coordinate_mapper
     return renderable
 

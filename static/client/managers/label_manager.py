@@ -73,6 +73,8 @@ class LabelManager:
         resolved_name = self.name_generator.generate_label_name(sanitized_name or None)
         resolved_color = str(color) if color else default_color
         resolved_font_size = float(font_size) if font_size is not None else float(default_label_font_size)
+        mapper = getattr(self.canvas, "coordinate_mapper", None)
+        scale_factor = getattr(mapper, "scale_factor", None) if mapper is not None else None
         label = Label(
             x,
             y,
@@ -81,11 +83,8 @@ class LabelManager:
             color=resolved_color,
             font_size=resolved_font_size,
             rotation_degrees=rotation_degrees,
+            reference_scale_factor=scale_factor,
         )
-        label.canvas = self.canvas
-        mapper = getattr(self.canvas, "coordinate_mapper", None)
-        scale_factor = getattr(mapper, "scale_factor", None) if mapper is not None else None
-        label.update_reference_scale(scale_factor)
         self.drawables.add(label)
         if self.canvas.draw_enabled:
             self.canvas.draw()

@@ -66,7 +66,6 @@ class TestTransformationsManager(unittest.TestCase):
         triangle = Triangle(s1, s2, s3, color="yellow")
 
         canvas, _, renderer = _build_canvas(triangle, [s1, s2, s3])
-        triangle.canvas = canvas
         manager = TransformationsManager(canvas)
 
         manager.translate_object(triangle.name, 1.5, -2.0)
@@ -89,7 +88,6 @@ class TestTransformationsManager(unittest.TestCase):
         rectangle = Rectangle(s1, s2, s3, s4, color="purple")
 
         canvas, _, renderer = _build_canvas(rectangle, [s1, s2, s3, s4])
-        rectangle.canvas = canvas
         manager = TransformationsManager(canvas)
 
         manager.translate_object(rectangle.name, -1.0, 2.5)
@@ -118,8 +116,6 @@ class TestTransformationsManager(unittest.TestCase):
         )
 
         canvas, dependency_manager, renderer = _build_canvas(rectangle, [s1, s2, s3, s4])
-        rectangle.canvas = canvas
-        area.canvas = canvas
         dependency_manager.register_many(
             (segment, area) for segment in (s1, s2, s3, s4)
         )
@@ -146,8 +142,6 @@ class TestTransformationsManager(unittest.TestCase):
 
         segments: List[Segment] = []
         canvas, dependency_manager, renderer = _build_canvas(circle, segments)
-        circle.canvas = canvas
-        area.canvas = canvas
         dependency_manager.register(circle, area)
 
         initial_snapshot = area.get_state()["args"]["geometry_snapshot"]
@@ -173,8 +167,6 @@ class TestTransformationsManager(unittest.TestCase):
 
         segments: List[Segment] = []
         canvas, dependency_manager, renderer = _build_canvas(ellipse, segments)
-        ellipse.canvas = canvas
-        area.canvas = canvas
         dependency_manager.register(ellipse, area)
 
         initial_snapshot = area.get_state()["args"]["geometry_snapshot"]
