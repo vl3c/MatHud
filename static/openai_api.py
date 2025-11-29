@@ -120,7 +120,7 @@ class OpenAIChatCompletionsAPI:
             print(f"API model updated to: {identifier}")
 
     def _remove_canvas_state_from_user_messages(self) -> None:
-        """Remove canvas state from the last user message in the conversation history.
+        """Remove canvas state from all user messages in the conversation history.
         
         Cleans up canvas state data to reduce token usage in subsequent requests
         while preserving other message content.
@@ -157,7 +157,7 @@ class OpenAIChatCompletionsAPI:
                         pass
 
     def _remove_images_from_user_messages(self) -> None:
-        """Remove image content from the last user message in the conversation history.
+        """Remove image content from all user messages in the conversation history.
         
         Extracts text content from vision messages to reduce token usage
         in follow-up requests while preserving conversation context.
@@ -175,7 +175,7 @@ class OpenAIChatCompletionsAPI:
                     message["content"] = text_part.get("text", "")
 
     def _clean_conversation_history(self) -> None:
-        """Clean up the conversation history by removing canvas states and images from the last user message.
+        """Clean up the conversation history by removing canvas states and images from all user messages.
         
         Optimizes conversation history for token efficiency by removing
         large data elements while preserving conversation flow.
