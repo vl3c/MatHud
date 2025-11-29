@@ -877,9 +877,33 @@ class Canvas:
         """Add a computation to the history if it doesn't already exist."""
         self.computations = ComputationUtils.add_computation(self.computations, expression, result)
 
-    def zoom_to_bounds(self, left_bound: float, right_bound: float, top_bound: float, bottom_bound: float) -> bool:
-        """Fit the viewport to the supplied math bounds and refresh the grid."""
-        self.coordinate_mapper.set_visible_bounds(left_bound, right_bound, top_bound, bottom_bound)
+    def zoom(self, center_x: float, center_y: float, range_val: float, range_axis: str) -> bool:
+        """Center viewport on (center_x, center_y) with specified range on one axis.
+        
+        The range applies to the axis specified by range_axis. The other axis
+        scales according to the canvas aspect ratio.
+        
+        Args:
+            center_x: X coordinate to center the viewport on
+            center_y: Y coordinate to center the viewport on
+            range_val: Half-size for the specified axis
+            range_axis: 'x' or 'y' - which axis the range applies to
+        """
+        if range_axis == "x":
+            left = center_x - range_val
+            right = center_x + range_val
+            aspect = self.height / self.width
+            y_range = range_val * aspect
+            top = center_y + y_range
+            bottom = center_y - y_range
+        else:
+            top = center_y + range_val
+            bottom = center_y - range_val
+            aspect = self.width / self.height
+            x_range = range_val * aspect
+            left = center_x - x_range
+            right = center_x + x_range
+        self.coordinate_mapper.set_visible_bounds(left, right, top, bottom)
         if hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
             self.cartesian2axis._invalidate_cache_on_zoom()
         self.draw(apply_zoom=True)

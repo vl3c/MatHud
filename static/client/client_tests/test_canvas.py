@@ -147,25 +147,6 @@ class TestCanvas(unittest.TestCase):
         self.mock_point1.reset.assert_called_once_with()
         self.mock_segment1.reset.assert_called_once_with()
 
-    def test_zoom_to_bounds(self) -> None:
-        self.canvas.draw = SimpleMock(return_value=None)
-
-        self.canvas.zoom_to_bounds(-10, 10, 5, -5)
-
-        self.canvas.draw.assert_called_once()
-        draw_args, draw_kwargs = self.canvas.draw.calls[0]
-        self.assertEqual(draw_args, ())
-        self.assertEqual(draw_kwargs, {'apply_zoom': True})
-        left = self.canvas.coordinate_mapper.get_visible_left_bound()
-        right = self.canvas.coordinate_mapper.get_visible_right_bound()
-        top = self.canvas.coordinate_mapper.get_visible_top_bound()
-        bottom = self.canvas.coordinate_mapper.get_visible_bottom_bound()
-
-        self.assertAlmostEqual(left, -10, places=6)
-        self.assertAlmostEqual(right, 10, places=6)
-        self.assertGreaterEqual(top, 5)
-        self.assertLessEqual(bottom, -5)
-
     def test_undo_redo(self) -> None:
         # Test basic undo/redo functionality
         point = self.canvas.create_point(0, 0, "A")

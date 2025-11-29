@@ -53,6 +53,12 @@ from .test_angle import TestAngle
 from .test_angle_manager import TestAngleManager
 from .test_arc_manager import TestArcManager
 from .test_workspace_manager import TestWorkspaceSegmentPersistence
+from .test_zoom import (
+    TestZoomXAxisRange,
+    TestZoomYAxisRange,
+    TestZoomAspectRatios,
+    TestZoomEdgeCases,
+)
 from .test_function_bounded_colored_area_integration import TestFunctionBoundedColoredAreaIntegration
 from .renderer_performance_tests import TestRendererPerformance
 from .test_optimized_renderers import TestOptimizedRendererParity
@@ -177,6 +183,10 @@ class Tests:
             TestSegmentsBoundedColoredArea,
             TestCartesian2Axis,
             TestCanvas,
+            TestZoomXAxisRange,
+            TestZoomYAxisRange,
+            TestZoomAspectRatios,
+            TestZoomEdgeCases,
             TestExpressionValidator,
             TestProcessFunctionCalls,
             TestLabel,

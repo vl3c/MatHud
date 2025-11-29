@@ -86,30 +86,31 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
-                    "name": "zoom_to_bounds",
-                    "description": "Fits the viewport to the specified math-space bounds",
+                    "name": "zoom",
+                    "description": "Centers viewport on (center_x, center_y). The range_val specifies half-width (if range_axis='x') or half-height (if range_axis='y'); the other axis scales with canvas aspect ratio. Example: 'zoom x in range +-2, y around 10' uses center_x=0, center_y=10, range_val=2, range_axis='x'.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "left_bound": {
+                            "center_x": {
                                 "type": "number",
-                                "description": "Left math bound to include in view"
+                                "description": "X coordinate to center on"
                             },
-                            "right_bound": {
+                            "center_y": {
                                 "type": "number",
-                                "description": "Right math bound to include in view"
+                                "description": "Y coordinate to center on"
                             },
-                            "top_bound": {
+                            "range_val": {
                                 "type": "number",
-                                "description": "Top math bound to include in view"
+                                "description": "Half-size for the specified axis (shows center +/- this value)"
                             },
-                            "bottom_bound": {
-                                "type": "number",
-                                "description": "Bottom math bound to include in view"
+                            "range_axis": {
+                                "type": "string",
+                                "enum": ["x", "y"],
+                                "description": "Which axis range applies to; other axis scales with aspect ratio"
                             }
                         },
-                        "required": ["left_bound", "right_bound", "top_bound", "bottom_bound"],
+                        "required": ["center_x", "center_y", "range_val", "range_axis"],
                         "additionalProperties": False
                     }
                 }
