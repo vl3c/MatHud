@@ -1708,12 +1708,17 @@ class MathUtils:
             # Find all tangent terms in the function
             tan_matches = re.findall(r'tan\((.*?)(?:\)|$)', function_string)
             for tan_arg in tan_matches:
-                # Extract coefficient of x if present
-                coeff_match = re.search(r'([+-]?\d*\.?\d*)\s*\*?\s*x', tan_arg)
-                if coeff_match:
-                    coeff = float(coeff_match.group(1) or '1')
+                coeff = 1.0
+                # Check for x/divisor pattern first (e.g., x/100)
+                div_match = re.search(r'x\s*/\s*(\d+\.?\d*)', tan_arg)
+                if div_match:
+                    divisor = float(div_match.group(1))
+                    coeff = 1.0 / divisor if divisor != 0 else 1.0
                 else:
-                    coeff = 1
+                    # Check for coefficient*x pattern (e.g., 2*x or 2x)
+                    coeff_match = re.search(r'([+-]?\d+\.?\d*)\s*\*?\s*x', tan_arg)
+                    if coeff_match:
+                        coeff = float(coeff_match.group(1))
                     
                 # Get bounds
                 left = left_bound if left_bound is not None else -1000
