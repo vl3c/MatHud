@@ -314,23 +314,51 @@ class OpenAIChatCompletionsAPI:
         }
 
     def _append_tool_messages(self, tool_calls: Sequence[Any] | None) -> None:
-        """Create and append tool messages for each tool call.
+        """Create and append placeholder tool messages for each tool call.
         
-        Creates placeholder tool messages for conversation history tracking.
-        Actual tool execution happens on the client side.
+        Creates placeholder tool messages that will be updated with actual results
+        when the client sends back tool_call_results.
         
         Args:
             tool_calls: List of tool calls from the assistant's response
         """
         if tool_calls:
             for tool_call in tool_calls:
-                # Here you would typically execute the tool and get its result
-                # For now, we'll just create a placeholder response
                 tool_message = self._create_tool_message(
                     getattr(tool_call, "id", None),
-                    f"Tool {getattr(getattr(tool_call, 'function', None), 'name', '<unknown>')} executed with args: {getattr(getattr(tool_call, 'function', None), 'arguments', '')}"
+                    "Awaiting result..."
                 )
                 self.messages.append(tool_message)
+
+    def _update_tool_messages_with_results(self, tool_call_results: str) -> None:
+        """Update placeholder tool messages with actual results from the client.
+        
+        Finds tool messages at the end of the conversation and updates their content
+        with the actual execution results.
+        
+        Args:
+            tool_call_results: JSON string containing tool execution results
+        """
+        try:
+            results = json.loads(tool_call_results)
+            if not isinstance(results, dict):
+                return
+        except (json.JSONDecodeError, TypeError):
+            return
+
+        results_str = json.dumps(results)
+        for message in reversed(self.messages):
+            if message.get("role") == "tool":
+                message["content"] = results_str
+                return
+
+    def _parse_prompt_json(self, full_prompt: str) -> Optional[Dict[str, Any]]:
+        """Parse the prompt JSON and return the parsed dict, or None on failure."""
+        try:
+            prompt_json = json.loads(full_prompt)
+            return prompt_json if isinstance(prompt_json, dict) else None
+        except (json.JSONDecodeError, TypeError):
+            return None
 
     def create_chat_completion(self, full_prompt: str) -> Any:
         """Create chat completion with OpenAI API.
@@ -344,12 +372,15 @@ class OpenAIChatCompletionsAPI:
         Returns:
             OpenAI response choice object with message and finish_reason
         """
-        # Prepare message content with optional canvas image
-        message_content = self._prepare_message_content(full_prompt)
+        prompt_json = self._parse_prompt_json(full_prompt)
+        tool_call_results = prompt_json.get("tool_call_results") if prompt_json else None
 
-        # Append the new user message
-        message: MessageDict = {"role": "user", "content": message_content}
-        self.messages.append(message)
+        if tool_call_results:
+            self._update_tool_messages_with_results(tool_call_results)
+        else:
+            message_content = self._prepare_message_content(full_prompt)
+            message: MessageDict = {"role": "user", "content": message_content}
+            self.messages.append(message)
 
         # Make the API call
         try:
@@ -386,10 +417,15 @@ class OpenAIChatCompletionsAPI:
           - 'token': incremental text content with key 'text'
           - 'final': completion summary with keys 'ai_message', 'ai_tool_calls', 'finish_reason'
         """
-        message_content = self._prepare_message_content(full_prompt)
+        prompt_json = self._parse_prompt_json(full_prompt)
+        tool_call_results = prompt_json.get("tool_call_results") if prompt_json else None
 
-        user_message: MessageDict = {"role": "user", "content": message_content}
-        self.messages.append(user_message)
+        if tool_call_results:
+            self._update_tool_messages_with_results(tool_call_results)
+        else:
+            message_content = self._prepare_message_content(full_prompt)
+            user_message: MessageDict = {"role": "user", "content": message_content}
+            self.messages.append(user_message)
 
         accumulated_text = ""
         tool_calls_accumulator: Dict[int, Dict[str, Any]] = {}
