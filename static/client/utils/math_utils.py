@@ -1934,21 +1934,27 @@ class MathUtils:
         eval_func: Any,
         test_range: float = 20.0,
         probe_count: int = 20,
+        range_hint: Optional[float] = None,
     ) -> Tuple[bool, Optional[float]]:
         """
         Detect if a function is periodic by probing for oscillations.
         
-        Tests the function over a fixed range centered at 0 to detect if
+        Tests the function over a range centered at 0 to detect if
         midpoints deviate from chords, indicating oscillation.
         
         Args:
             eval_func: Function to evaluate y = f(x)
-            test_range: Range to test over (centered at 0)
+            test_range: Base range to test over (centered at 0)
             probe_count: Number of probe segments
+            range_hint: Optional hint from function bounds to scale test_range
             
         Returns:
             Tuple of (is_periodic, estimated_period or None)
         """
+        # Scale test_range based on range_hint for long-period functions
+        if range_hint is not None and range_hint > test_range:
+            test_range = min(range_hint, 1000.0)
+        
         left = -test_range / 2
         segment_width = test_range / probe_count
         deviation_count = 0
