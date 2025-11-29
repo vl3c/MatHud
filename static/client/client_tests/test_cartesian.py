@@ -351,3 +351,179 @@ class TestCartesian2Axis(unittest.TestCase):
         self.coordinate_mapper.scale_factor = 0.5
         self.assertEqual(self.cartesian_system.get_relative_width(), 1600)
         self.assertEqual(self.cartesian_system.get_relative_height(), 1200)
+
+    def _count_grid_lines(self, origin, dimension_px, display_tick):
+        import math
+        if display_tick <= 0:
+            return 0
+        start_n = int(math.ceil(-origin / display_tick))
+        end_n = int(math.floor((dimension_px - origin) / display_tick))
+        count = 0
+        for n in range(start_n, end_n + 1):
+            pos = origin + n * display_tick
+            if 0 <= pos <= dimension_px:
+                count += 1
+        return count
+
+    def _calculate_adaptive_tick_spacing(self, width, scale_factor, max_ticks=10):
+        import math
+        relative_width = width / scale_factor
+        ideal_spacing = relative_width / max_ticks
+        if ideal_spacing <= 0:
+            return 1.0
+        magnitude = 10 ** math.floor(math.log10(ideal_spacing))
+        candidates = [magnitude * m for m in [1, 2, 5, 10]]
+        for spacing in candidates:
+            if spacing >= ideal_spacing:
+                return spacing
+        return candidates[-1]
+
+    def test_grid_line_count_constant_at_various_origins(self):
+        width_px = 800
+        height_px = 600
+        display_tick = 50
+        
+        base_count_x = self._count_grid_lines(400, width_px, display_tick)
+        base_count_y = self._count_grid_lines(300, height_px, display_tick)
+        
+        offsets = [
+            (0, 0),
+            (100, 100),
+            (-500, -500),
+            (1000, 1000),
+            (-10000, -10000),
+            (50000, 50000),
+            (-123456, -654321),
+        ]
+        
+        for ox_offset, oy_offset in offsets:
+            ox = 400 + ox_offset
+            oy = 300 + oy_offset
+            count_x = self._count_grid_lines(ox, width_px, display_tick)
+            count_y = self._count_grid_lines(oy, height_px, display_tick)
+            
+            self.assertAlmostEqual(
+                count_x, base_count_x, delta=2,
+                msg=f"X grid line count {count_x} differs from base {base_count_x} at ox={ox}"
+            )
+            self.assertAlmostEqual(
+                count_y, base_count_y, delta=2,
+                msg=f"Y grid line count {count_y} differs from base {base_count_y} at oy={oy}"
+            )
+
+    def test_grid_line_count_bounded_across_zoom_levels(self):
+        width_px = 800
+        height_px = 600
+        
+        zoom_levels = [0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 50.0, 100.0]
+        
+        for scale_factor in zoom_levels:
+            tick_spacing = self._calculate_adaptive_tick_spacing(width_px, scale_factor)
+            display_tick = tick_spacing * scale_factor
+            
+            ox = width_px / 2
+            oy = height_px / 2
+            count_x = self._count_grid_lines(ox, width_px, display_tick)
+            count_y = self._count_grid_lines(oy, height_px, display_tick)
+            
+            self.assertGreaterEqual(
+                count_x, 4,
+                msg=f"Too few X grid lines ({count_x}) at scale {scale_factor}"
+            )
+            self.assertLessEqual(
+                count_x, 25,
+                msg=f"Too many X grid lines ({count_x}) at scale {scale_factor}"
+            )
+            self.assertGreaterEqual(
+                count_y, 3,
+                msg=f"Too few Y grid lines ({count_y}) at scale {scale_factor}"
+            )
+            self.assertLessEqual(
+                count_y, 20,
+                msg=f"Too many Y grid lines ({count_y}) at scale {scale_factor}"
+            )
+
+    def test_grid_line_count_constant_at_extreme_distances(self):
+        width_px = 800
+        height_px = 600
+        
+        scale_factors = [0.01, 1.0, 100.0]
+        
+        for scale_factor in scale_factors:
+            tick_spacing = self._calculate_adaptive_tick_spacing(width_px, scale_factor)
+            display_tick = tick_spacing * scale_factor
+            
+            base_ox = width_px / 2
+            base_oy = height_px / 2
+            base_count_x = self._count_grid_lines(base_ox, width_px, display_tick)
+            base_count_y = self._count_grid_lines(base_oy, height_px, display_tick)
+            
+            extreme_offsets = [
+                1e6, -1e6,
+                1e9, -1e9,
+                1e12, -1e12,
+            ]
+            
+            for offset in extreme_offsets:
+                ox = base_ox + offset
+                oy = base_oy + offset
+                count_x = self._count_grid_lines(ox, width_px, display_tick)
+                count_y = self._count_grid_lines(oy, height_px, display_tick)
+                
+                self.assertAlmostEqual(
+                    count_x, base_count_x, delta=2,
+                    msg=f"scale={scale_factor}, offset={offset}: X count {count_x} vs base {base_count_x}"
+                )
+                self.assertAlmostEqual(
+                    count_y, base_count_y, delta=2,
+                    msg=f"scale={scale_factor}, offset={offset}: Y count {count_y} vs base {base_count_y}"
+                )
+
+    def test_grid_line_count_combined_zoom_and_distance(self):
+        width_px = 800
+        height_px = 600
+        
+        test_cases = [
+            (0.1, 0),
+            (0.1, 1e6),
+            (0.1, -1e6),
+            (1.0, 0),
+            (1.0, 1e6),
+            (1.0, -1e6),
+            (10.0, 0),
+            (10.0, 1e6),
+            (10.0, -1e6),
+            (100.0, 0),
+            (100.0, 1e9),
+            (100.0, -1e9),
+        ]
+        
+        results = {}
+        for scale_factor, offset in test_cases:
+            if scale_factor not in results:
+                results[scale_factor] = []
+            
+            tick_spacing = self._calculate_adaptive_tick_spacing(width_px, scale_factor)
+            display_tick = tick_spacing * scale_factor
+            
+            ox = width_px / 2 + offset
+            oy = height_px / 2 + offset
+            count_x = self._count_grid_lines(ox, width_px, display_tick)
+            count_y = self._count_grid_lines(oy, height_px, display_tick)
+            results[scale_factor].append((count_x, count_y, offset))
+        
+        for scale_factor, counts in results.items():
+            x_counts = [c[0] for c in counts]
+            y_counts = [c[1] for c in counts]
+            
+            x_range = max(x_counts) - min(x_counts)
+            y_range = max(y_counts) - min(y_counts)
+            
+            self.assertLessEqual(
+                x_range, 2,
+                msg=f"At scale {scale_factor}, X counts vary too much: {counts}"
+            )
+            self.assertLessEqual(
+                y_range, 2,
+                msg=f"At scale {scale_factor}, Y counts vary too much: {counts}"
+            )
