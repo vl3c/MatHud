@@ -26,6 +26,7 @@ from .test_label import TestLabel
 from .test_segments_bounded_colored_area import TestSegmentsBoundedColoredArea
 from .test_function_calling import TestProcessFunctionCalls
 from .test_math_functions import TestMathFunctions
+from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
 from .test_geometry_utils import TestGeometryUtils
 from .test_point import TestPoint
 from .test_rectangle import TestRectangle
@@ -137,6 +138,8 @@ class Tests:
             TestCartesianEdgeCases,
             TestWorkspaceSegmentPersistence,
             TestMathFunctions,
+            TestPeriodicityDetection,
+            TestPeriodicityEdgeCases,
             TestGeometryUtils,
             TestPolygonCanonicalizer,
             TestDrawableNameGenerator,

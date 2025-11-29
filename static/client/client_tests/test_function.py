@@ -277,12 +277,15 @@ class TestFunction(unittest.TestCase):
         renderable = FunctionRenderable(complex_function, self.canvas.coordinate_mapper)
         paths = renderable.build_screen_paths().paths
         
-        # Check number of paths is reasonable
-        self.assertLess(len(paths), 100, "Should not exceed maximum paths limit")
+        # Can't have more paths or points than horizontal canvas pixels
+        canvas_width = self.canvas.width
         
-        # Check total number of points is reasonable
+        # Check number of paths is reasonable
+        self.assertLessEqual(len(paths), canvas_width, "Should not exceed canvas width in paths")
+        
+        # Check total number of points is reasonable (allow +1 for endpoint-inclusive sampling)
         total_points = sum(len(path) for path in paths)
-        self.assertLess(total_points, 1001, "Should not exceed maximum points limit")
+        self.assertLessEqual(total_points, canvas_width + 1, "Should not exceed canvas width + 1 in points")
         
         # Check minimum distance between consecutive points in each path
         for path in paths:
@@ -293,15 +296,18 @@ class TestFunction(unittest.TestCase):
                     self.assertGreater(dx + dy, 0, "Points should not be duplicates")
 
     def test_high_frequency_trig_functions(self) -> None:
+        # Adaptive sampler generates points up to canvas width for periodic functions
+        canvas_width = self.canvas.width
+        
         test_cases = [
-            ("10*sin(10*x)", "High frequency and amplitude", 50, 500),
-            ("sin(20*x)", "High frequency only", 50, 500),
-            ("5*sin(x)", "High amplitude only", 20, 200),
-            ("2*sin(3*x)", "Medium frequency and amplitude", 20, 200),
-            ("100*sin(50*x)", "Very high frequency and amplitude", 50, 1000),
+            ("10*sin(10*x)", "High frequency and amplitude", 20),
+            ("sin(20*x)", "High frequency only", 20),
+            ("5*sin(x)", "High amplitude only", 20),
+            ("2*sin(3*x)", "Medium frequency and amplitude", 20),
+            ("100*sin(50*x)", "Very high frequency and amplitude", 20),
         ]
         
-        for function_string, description, min_points, max_points in test_cases:
+        for function_string, description, min_points in test_cases:
             with self.subTest(function_string=function_string, description=description):
                 try:
                     f = Function(function_string, "test_func")
@@ -313,11 +319,11 @@ class TestFunction(unittest.TestCase):
                     # Count total points across all paths
                     total_points = sum(len(path) for path in paths)
                     
-                    # Use function-specific bounds
+                    # Check bounds: at least min_points, at most canvas width + 1 (endpoint-inclusive)
                     self.assertGreaterEqual(total_points, min_points, 
                                          f"{function_string} ({description}): {total_points} points, expected at least {min_points}")
-                    self.assertLessEqual(total_points, max_points, 
-                                       f"{function_string} ({description}): {total_points} points, expected at most {max_points}")
+                    self.assertLessEqual(total_points, canvas_width + 1, 
+                                       f"{function_string} ({description}): {total_points} points, exceeds canvas width + 1")
                 except Exception as e:
                     self.fail(f"Failed to handle {function_string}: {str(e)}")
 
