@@ -172,6 +172,14 @@ class TestRunner:
                 "arguments": {"function_string": "100 * sin(x / 50) + 50 * tan(x / 100)", "name": "f3", "left_bound": -300, "right_bound": 300}
             },
             {
+                "function_name": "draw_function",
+                "arguments": {"function_string": "-1/x", "name": "f4", "left_bound": -10, "right_bound": 10, "color": "red"}
+            },
+            {
+                "function_name": "draw_function",
+                "arguments": {"function_string": "tan(x)", "name": "f5", "left_bound": -20, "right_bound": 20, "color": "blue"}
+            },
+            {
                 "function_name": "create_circle_arc",
                 "arguments": {
                     "point1_x": 319.0,
