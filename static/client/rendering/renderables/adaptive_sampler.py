@@ -80,8 +80,8 @@ class AdaptiveSampler:
             sub_left = boundaries[i]
             sub_right = boundaries[i + 1]
             
-            # Skip asymptote points themselves by using small epsilon
-            epsilon = 1e-10
+            # Skip asymptote points - use larger epsilon for numerical stability
+            epsilon = 1e-6
             if i > 0:  # Not the first sub-range, so sub_left is an asymptote
                 sub_left = sub_left + epsilon
             if i < len(boundaries) - 2:  # Not the last sub-range, so sub_right is an asymptote
@@ -97,7 +97,6 @@ class AdaptiveSampler:
             
             if samples:
                 all_samples.append(samples)
-        
         return all_samples
 
     @staticmethod

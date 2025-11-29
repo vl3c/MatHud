@@ -292,7 +292,7 @@ class FunctionRenderable:
         Each sub-range between asymptotes is sampled independently.
         """
         left_bound, right_bound = self._get_effective_bounds()
-        _, height = self._get_screen_dimensions()
+        width, height = self._get_screen_dimensions()
         
         # Get samples split by asymptotes - each sub-list is a continuous range
         sample_subranges = self._calculate_sample_points_by_subrange(left_bound, right_bound)
@@ -302,9 +302,28 @@ class FunctionRenderable:
         for sample_points in sample_subranges:
             paths = self._build_path_from_samples(sample_points, height)
             all_paths.extend(paths)
-        
         return all_paths
     
+    def _interpolate_boundary_crossing(
+        self, sx1: float, sy1: float, sx2: float, sy2: float, height: float
+    ) -> Optional[tuple[float, float]]:
+        """Calculate intersection point where line crosses screen boundary (y=0 or y=height)."""
+        if sy1 == sy2:
+            return None
+        # Check if crossing top boundary (y=0)
+        if (sy1 < 0 <= sy2) or (sy2 < 0 <= sy1):
+            t = (0 - sy1) / (sy2 - sy1)
+            return (sx1 + t * (sx2 - sx1), 0.0)
+        # Check if crossing bottom boundary (y=height)
+        if (sy1 <= height < sy2) or (sy2 <= height < sy1):
+            t = (height - sy1) / (sy2 - sy1)
+            return (sx1 + t * (sx2 - sx1), height)
+        return None
+
+    def _is_on_screen(self, sy: float, height: float) -> bool:
+        """Check if y coordinate is within screen bounds."""
+        return 0 <= sy <= height
+
     def _build_path_from_samples(
         self, sample_points: list[float], height: float
     ) -> list[list[tuple[float, float]]]:
@@ -317,43 +336,59 @@ class FunctionRenderable:
 
         paths: list[list[tuple[float, float]]] = []
         current_path: list[tuple[float, float]] = []
-        prev_y: Optional[float] = None
+        prev_sy: Optional[float] = None
+        prev_sx: Optional[float] = None
         prev_x: Optional[float] = None
 
         for x in sample_points:
-            # Check for known discontinuity
             if self._is_discontinuity(x):
                 self._finalize_path(current_path, paths)
                 current_path = []
-                prev_y = None
+                prev_sy = None
+                prev_sx = None
                 prev_x = None
                 continue
             
-            # Check for asymptote between previous and current x
             if prev_x is not None and self._get_asymptote_between(prev_x, x) is not None:
                 self._finalize_path(current_path, paths)
                 current_path = []
-                prev_y = None
+                prev_sy = None
+                prev_sx = None
 
-            # Evaluate point
             scaled_point, _ = self._eval_scaled_point(x)
             if scaled_point[0] is None:
                 self._finalize_path(current_path, paths)
                 current_path = []
-                prev_y = None
+                prev_sy = None
+                prev_sx = None
                 prev_x = x
                 continue
 
             sx, sy = scaled_point[0], scaled_point[1]
-            sy = self._clamp_screen_y(sy, height)
+            on_screen = self._is_on_screen(sy, height)
+            prev_on_screen = prev_sy is not None and self._is_on_screen(prev_sy, height)
 
-            # Check for large y-jump (indicates asymptotic behavior)
-            if prev_y is not None and self._is_large_jump(prev_y, sy, height):
+            # Handle boundary crossings BEFORE large jump check
+            if prev_sx is not None and prev_sy is not None:
+                crossing = self._interpolate_boundary_crossing(prev_sx, prev_sy, sx, sy, height)
+                if crossing:
+                    if prev_on_screen and not on_screen:
+                        current_path.append(crossing)
+                        self._finalize_path(current_path, paths)
+                        current_path = []
+                    elif not prev_on_screen and on_screen:
+                        current_path.append(crossing)
+
+            # Large jump without crossing = discontinuity, break path
+            if prev_sy is not None and self._is_large_jump(prev_sy, sy, height) and on_screen and prev_on_screen:
                 self._finalize_path(current_path, paths)
                 current_path = []
 
-            current_path.append((sx, sy))
-            prev_y = sy
+            if on_screen:
+                current_path.append((sx, sy))
+
+            prev_sy = sy
+            prev_sx = sx
             prev_x = x
 
         self._finalize_path(current_path, paths)

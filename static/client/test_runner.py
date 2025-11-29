@@ -177,7 +177,7 @@ class TestRunner:
             },
             {
                 "function_name": "draw_function",
-                "arguments": {"function_string": "tan(x)", "name": "f5", "left_bound": -20, "right_bound": 20, "color": "blue"}
+                "arguments": {"function_string": "tan(x)", "name": "f5", "left_bound": -5, "right_bound": 5, "color": "orange"}
             },
             {
                 "function_name": "create_circle_arc",
