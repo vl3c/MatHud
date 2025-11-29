@@ -71,10 +71,6 @@ from .test_function_renderables import (
     TestBoundaryExtension,
     TestRenderableEdgeCases,
 )
-from .test_step_calculator_benchmark import (
-    TestStepCalculatorPerformance,
-    TestStepCalculatorQuality,
-)
 from .test_renderer_edge_cases import (
     TestPointEdgeCases,
     TestSegmentEdgeCases,
@@ -132,8 +128,6 @@ class Tests:
             TestSegmentsBoundedAreaRenderable,
             TestBoundaryExtension,
             TestRenderableEdgeCases,
-            TestStepCalculatorPerformance,
-            TestStepCalculatorQuality,
             TestPointEdgeCases,
             TestSegmentEdgeCases,
             TestCircleEdgeCases,
