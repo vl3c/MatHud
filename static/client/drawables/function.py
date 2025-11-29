@@ -6,17 +6,19 @@ from typing import Any, Dict, List, Optional, cast
 from constants import default_color, default_point_size
 from drawables.drawable import Drawable
 from expression_validator import ExpressionValidator
+from utils.math_utils import MathUtils
 
 
 class Function(Drawable):
-    def __init__(self, function_string: str, name: Optional[str] = None, step: float = default_point_size, color: str = default_color, left_bound: Optional[float] = None, right_bound: Optional[float] = None, vertical_asymptotes: Optional[List[float]] = None, horizontal_asymptotes: Optional[List[float]] = None, point_discontinuities: Optional[List[float]] = None) -> None:
+    def __init__(self, function_string: str, name: Optional[str] = None, step: float = default_point_size, color: str = default_color, left_bound: Optional[float] = None, right_bound: Optional[float] = None, vertical_asymptotes: Optional[List[float]] = None, horizontal_asymptotes: Optional[List[float]] = None, point_discontinuities: Optional[List[float]] = None, is_periodic: Optional[bool] = None, estimated_period: Optional[float] = None) -> None:
         self.step: float = step
         self.left_bound: Optional[float] = left_bound
         self.right_bound: Optional[float] = right_bound
+        self.is_periodic: bool = False
+        self.estimated_period: Optional[float] = None
         try:
             self.function_string = ExpressionValidator.fix_math_expression(function_string)
             self.function = ExpressionValidator.parse_function_string(function_string)
-            # Set asymptotes and discontinuities if provided, otherwise calculate them
             if vertical_asymptotes is not None:
                 self.vertical_asymptotes = vertical_asymptotes
             if horizontal_asymptotes is not None:
@@ -25,9 +27,23 @@ class Function(Drawable):
                 self.point_discontinuities = point_discontinuities
             if vertical_asymptotes is None and horizontal_asymptotes is None and point_discontinuities is None:
                 self._calculate_asymptotes_and_discontinuities()
+            if is_periodic is not None:
+                self.is_periodic = is_periodic
+                self.estimated_period = estimated_period
+            else:
+                self._detect_periodicity()
         except Exception as e:
             raise ValueError(f"Failed to parse function string '{function_string}': {str(e)}")
         super().__init__(name=name or "f", color=color)
+
+    def _detect_periodicity(self) -> None:
+        """Detect if function is periodic and estimate its period."""
+        range_hint = None
+        if self.left_bound is not None and self.right_bound is not None:
+            range_hint = abs(self.right_bound - self.left_bound)
+        self.is_periodic, self.estimated_period = MathUtils.detect_function_periodicity(
+            self.function, range_hint=range_hint
+        )
     
     def get_class_name(self) -> str:
         return 'Function'
@@ -65,7 +81,9 @@ class Function(Drawable):
             right_bound=self.right_bound,
             vertical_asymptotes=self.vertical_asymptotes.copy() if hasattr(self, 'vertical_asymptotes') and self.vertical_asymptotes is not None else None,
             horizontal_asymptotes=self.horizontal_asymptotes.copy() if hasattr(self, 'horizontal_asymptotes') and self.horizontal_asymptotes is not None else None,
-            point_discontinuities=self.point_discontinuities.copy() if hasattr(self, 'point_discontinuities') and self.point_discontinuities is not None else None
+            point_discontinuities=self.point_discontinuities.copy() if hasattr(self, 'point_discontinuities') and self.point_discontinuities is not None else None,
+            is_periodic=self.is_periodic,
+            estimated_period=self.estimated_period,
         )
         memo[id(self)] = new_function
         return new_function
