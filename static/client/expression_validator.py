@@ -557,7 +557,15 @@ class ExpressionValidator(ast.NodeVisitor):
         """Parse a function string using Python's built-in evaluation (faster)"""
         function_string = ExpressionValidator.fix_math_expression(function_string, python_compatible=True)
         ExpressionValidator.validate_expression_tree(function_string)
-        return lambda x: ExpressionValidator.evaluate_expression(function_string, x)
+        
+        tree = ast.parse(function_string, mode='eval')
+        compiled_code = compile(tree, '<string>', mode='eval')
+        
+        def evaluator(x: float) -> float:
+            variables = ExpressionValidator._get_variables_and_functions(x)
+            return eval(compiled_code, variables)
+        
+        return evaluator
 
     @staticmethod
     def parse_function_string(function_string: str, use_mathjs: bool = False) -> Callable[[float], Any]:
