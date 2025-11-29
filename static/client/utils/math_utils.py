@@ -1923,3 +1923,55 @@ class MathUtils:
         # Return the best diagonal pair
         best_diagonal = potential_diagonals[0]
         return best_diagonal[0], best_diagonal[1]
+
+    @staticmethod
+    def detect_function_periodicity(
+        eval_func: Any,
+        test_range: float = 20.0,
+        probe_count: int = 20,
+    ) -> Tuple[bool, Optional[float]]:
+        """
+        Detect if a function is periodic by probing for oscillations.
+        
+        Tests the function over a fixed range centered at 0 to detect if
+        midpoints deviate from chords, indicating oscillation.
+        
+        Args:
+            eval_func: Function to evaluate y = f(x)
+            test_range: Range to test over (centered at 0)
+            probe_count: Number of probe segments
+            
+        Returns:
+            Tuple of (is_periodic, estimated_period or None)
+        """
+        left = -test_range / 2
+        segment_width = test_range / probe_count
+        deviation_count = 0
+        
+        for i in range(probe_count):
+            seg_left = left + i * segment_width
+            seg_right = seg_left + segment_width
+            seg_mid = (seg_left + seg_right) / 2
+            try:
+                y_left = eval_func(seg_left)
+                y_mid = eval_func(seg_mid)
+                y_right = eval_func(seg_right)
+                if not all(
+                    isinstance(v, (int, float)) and math.isfinite(v)
+                    for v in [y_left, y_mid, y_right]
+                ):
+                    continue
+                expected_mid = (y_left + y_right) / 2
+                deviation = abs(y_mid - expected_mid)
+                amplitude = abs(y_right - y_left) / 2
+                if amplitude > 0.01 and deviation > amplitude * 0.1:
+                    deviation_count += 1
+            except Exception:
+                continue
+        
+        if deviation_count >= probe_count // 4:
+            estimated_periods = deviation_count
+            estimated_period = test_range / estimated_periods
+            return True, estimated_period
+        
+        return False, None
