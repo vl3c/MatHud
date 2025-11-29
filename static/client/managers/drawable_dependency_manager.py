@@ -105,14 +105,9 @@ class DrawableDependencyManager:
             child: The child drawable that depends on the parent
             parent: The parent drawable that child depends on
         """
-        # Get names for logging, fall back to str(obj) if no name attribute
-        child_name_for_log = child.name if hasattr(child, 'name') and child.name else str(child)
-        parent_name_for_log = parent.name if hasattr(parent, 'name') and parent.name else str(parent)
-
         # Prevent Point from being registered as a child of another Point using the helper method
         if self._should_skip_point_point_dependency(child, parent):
-            print(f"### DDManager: SKIPPING Point-as-child-of-Point registration: Child Point '{child_name_for_log}' with Parent Point '{parent_name_for_log}'.")
-            return # Exit early
+            return
         
         # Verify objects have get_class_name
         self._verify_get_class_name_method(child, "Child")

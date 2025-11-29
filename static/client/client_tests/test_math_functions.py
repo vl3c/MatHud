@@ -870,7 +870,6 @@ class TestMathFunctions(unittest.TestCase):
         # Note: The result of 0.0 for these cases is not typical and might be due to JavaScript's handling.
         for expr in nested_zero_division_cases:
             result = MathUtils.evaluate(expr)
-            print(f"### Expression: {expr}, Result: {result}")  # Print result for inspection
             if expr in ["1/(2/(1-1))", "1/9*(3-3)", "1/9*3*(1-1)", "1/3*2*(5-5)*4", "2/(1/(1-1))"]:
                 self.assertEqual(result, 0.0, f"Expected 0.0 for expression: {expr}, got {result}")
             elif expr == "1/((3-3)/(4-4))":  # JavaScript returns nan for this case

@@ -574,18 +574,10 @@ class TestDrawableDependencyManager(unittest.TestCase):
         parent_point2 = self._create_mock_point("ParentPoint2", 100, 0)
         parent_segment = self._create_mock_segment("Parent", parent_point1, parent_point2)
         
-        # Debug print to check points
-        print(f"### Parent segment point1: {parent_segment.point1}")
-        print(f"###Parent segment point2: {parent_segment.point2}")
-        
         # Create child segments that should be found
         child_point1 = self._create_mock_point("ChildPoint1", 25, 0)
         child_point2 = self._create_mock_point("ChildPoint2", 75, 0)
         child1 = self._create_mock_segment("Child1", child_point1, child_point2)
-        
-        # Debug print to check child points
-        print(f"### Child1 point1: {child1.point1}")
-        print(f"### Child1 point2: {child1.point2}")
         
         child_point3 = self._create_mock_point("ChildPoint3", 0, 0)
         child_point4 = self._create_mock_point("ChildPoint4", 50, 0)
