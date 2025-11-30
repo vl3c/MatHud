@@ -198,7 +198,7 @@ class FunctionRenderable:
 
     def _calculate_sample_points_by_subrange(self, left_bound: float, right_bound: float) -> list[list[float]]:
         """
-        Calculate sample points, splitting at asymptotes into separate sub-ranges.
+        Calculate sample points, splitting at asymptotes and discontinuities into separate sub-ranges.
         Returns a list of sample lists, one per continuous sub-range.
         """
         canvas_width = int(getattr(self.mapper, 'canvas_width', 800) or 800)
@@ -209,17 +209,21 @@ class FunctionRenderable:
             num_periods = range_width / self.func.estimated_period
             initial_segments = min(canvas_width, max(8, int(num_periods * 4)))
         
-        # Get asymptotes and use the new method
+        # Get asymptotes AND point discontinuities - both require splitting
         asymptotes = getattr(self.func, 'vertical_asymptotes', []) or []
+        point_discontinuities = getattr(self.func, 'point_discontinuities', []) or []
         
-        if asymptotes:
+        # Combine all split points (asymptotes and discontinuities)
+        all_split_points = sorted(set(asymptotes + point_discontinuities))
+        
+        if all_split_points:
             return AdaptiveSampler.generate_samples_with_asymptotes(
                 left_bound, right_bound, self.func.function,
-                self.mapper.math_to_screen, asymptotes, initial_segments,
+                self.mapper.math_to_screen, all_split_points, initial_segments,
                 max_samples=canvas_width
             )
         else:
-            # No asymptotes - single range
+            # No split points - single range
             samples, _ = AdaptiveSampler.generate_samples(
                 left_bound, right_bound, self.func.function,
                 self.mapper.math_to_screen, initial_segments,
