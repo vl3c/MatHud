@@ -8,11 +8,15 @@ Streams reasoning tokens during the thinking phase.
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 from static.openai_api_base import OpenAIAPIBase, MessageDict, StreamEvent
+
+# Use the shared MatHud logger for file logging
+_logger = logging.getLogger("mathud")
 
 
 class OpenAIResponsesAPI(OpenAIAPIBase):
@@ -34,12 +38,14 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             self._log_repeat_count = 1
 
     def _flush_log(self) -> None:
-        """Flush any pending repeated log message."""
+        """Flush any pending repeated log message to both console and log file."""
         if self._last_log_message is not None:
             if self._log_repeat_count > 1:
-                print(f"{self._last_log_message} (x{self._log_repeat_count})")
+                msg = f"{self._last_log_message} (x{self._log_repeat_count})"
             else:
-                print(self._last_log_message)
+                msg = self._last_log_message
+            print(msg)  # Console output
+            _logger.info(msg)  # File logging
             self._last_log_message = None
             self._log_repeat_count = 0
 
@@ -321,7 +327,9 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
     def _handle_stream_error(self, exc: Exception) -> Iterator[StreamEvent]:
         """Handle streaming errors by yielding error response."""
         self._flush_log()
-        print(f"[OpenAI Responses API] Streaming exception: {exc}")  # Always print errors immediately
+        error_msg = f"[OpenAI Responses API] Streaming exception: {exc}"
+        print(error_msg)  # Console output
+        _logger.error(error_msg)  # File logging
         yield {"type": "token", "text": "\n"}
         yield {
             "type": "final",

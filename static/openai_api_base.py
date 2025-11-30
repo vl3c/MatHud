@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 from collections.abc import Sequence
 from types import SimpleNamespace
@@ -19,6 +20,9 @@ from openai import OpenAI
 
 from static.ai_model import AIModel
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
+
+# Use the shared MatHud logger for file logging
+_logger = logging.getLogger("mathud")
 
 MessageContent = Union[str, List[Dict[str, Any]]]
 MessageDict = Dict[str, Any]
@@ -78,7 +82,9 @@ class OpenAIAPIBase:
         """Set the AI model by identifier string."""
         if str(self.model) != identifier:
             self.model = AIModel.from_identifier(identifier)
-            print(f"API model updated to: {identifier}")
+            msg = f"API model updated to: {identifier}"
+            print(msg)  # Console output
+            _logger.info(msg)  # File logging
 
     def _remove_canvas_state_from_user_messages(self) -> None:
         """Remove canvas state from all user messages in the conversation history."""
@@ -124,7 +130,7 @@ class OpenAIAPIBase:
 
     def _clean_conversation_history(self) -> None:
         """Clean up the conversation history by removing canvas states and images."""
-        print(f"All messages BEFORE removing canvas_state: \n{self.messages}\n\n")
+        _logger.debug(f"All messages BEFORE removing canvas_state: \n{self.messages}\n\n")
         self._remove_canvas_state_from_user_messages()
         self._remove_images_from_user_messages()
 
@@ -138,7 +144,9 @@ class OpenAIAPIBase:
                     {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_data}"}}
                 ]
         except Exception as e:
-            print(f"Failed to load canvas image: {e}")
+            error_msg = f"Failed to load canvas image: {e}"
+            print(error_msg)  # Console output
+            _logger.error(error_msg)  # File logging
             return None
 
     def _prepare_message_content(self, full_prompt: str) -> MessageContent:

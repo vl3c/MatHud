@@ -7,11 +7,15 @@ Inherits shared functionality from OpenAIAPIBase.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 from static.openai_api_base import OpenAIAPIBase, MessageDict, StreamEvent
+
+# Use the shared MatHud logger for file logging
+_logger = logging.getLogger("mathud")
 
 
 class OpenAIChatCompletionsAPI(OpenAIAPIBase):
@@ -61,7 +65,9 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 max_tokens=self.max_tokens,
             )
         except Exception as e:
-            print(f"Error during API call: {str(e)}")
+            error_msg = f"Error during API call: {str(e)}"
+            print(error_msg)  # Console output
+            _logger.error(error_msg)  # File logging
             return self._create_error_response()
 
         choice = response.choices[0]
@@ -124,7 +130,9 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                     break
 
         except Exception as exc:
-            print(f"[OpenAI API] Streaming exception: {exc}")
+            error_msg = f"[OpenAI API] Streaming exception: {exc}"
+            print(error_msg)  # Console output
+            _logger.error(error_msg)  # File logging
             yield {"type": "token", "text": "\n"}
             yield {
                 "type": "final",
