@@ -356,6 +356,11 @@ input, select, textarea, button {
     word-wrap: break-word;
 }
 
+/* Hide empty chat content to avoid blank lines */
+.chat-content:empty {
+    display: none;
+}
+
 /* Markdown content styling */
 /* ===== MARKDOWN CONTENT STYLING ===== */
 /* Comprehensive markdown formatting for AI response messages */
@@ -601,6 +606,37 @@ input, select, textarea, button {
     border: 1px solid var(--border-color);
     border-left: 3px solid var(--primary-color);
     line-height: 1.6;
+}
+
+/* ===== REASONING DISPLAY STYLING ===== */
+/* Collapsible dropdown for AI reasoning/thinking content */
+.reasoning-dropdown {
+    margin-bottom: 8px;
+}
+
+.reasoning-summary {
+    cursor: pointer;
+    color: #888;
+    font-style: italic;
+    padding: 4px 0;
+    user-select: none;
+}
+
+.reasoning-summary:hover {
+    color: #666;
+}
+
+.reasoning-content {
+    color: #888;
+    font-size: 0.9em;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 4px;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 4px;
+    border-left: 2px solid #ddd;
 }
 
 /* ===== CHAT INPUT COMPONENTS ===== */
