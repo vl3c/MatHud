@@ -58,6 +58,10 @@ class AIInterface:
         undoable_functions (tuple): Functions that support undo/redo operations
         markdown_parser (MarkdownParser): Converts markdown text to HTML for rich formatting
     """
+    
+    # Timeout in milliseconds for AI responses
+    AI_RESPONSE_TIMEOUT_MS: int = 10000
+    
     def __init__(self, canvas: "Canvas") -> None:
         """Initialize the AI interface with canvas integration and function registry.
         
@@ -77,6 +81,8 @@ class AIInterface:
         self._stream_buffer: str = ""
         self._stream_content_element: Optional[Any] = None  # DOMNode
         self._stream_message_container: Optional[Any] = None  # DOMNode
+        # Timeout state
+        self._response_timeout_id: Optional[int] = None
 
     def run_tests(self) -> Dict[str, Any]:
         """Run unit tests for the AIInterface class and return results to the AI as the function result."""
@@ -203,6 +209,8 @@ class AIInterface:
     def _on_stream_token(self, text: str) -> None:
         """Handle a streamed token: append to buffer and update the UI element."""
         try:
+            # Reset timeout since we're receiving data
+            self._start_response_timeout()
             self._stream_buffer += text
             self._ensure_stream_message_element()
             if self._stream_content_element is not None:
@@ -335,22 +343,72 @@ class AIInterface:
         print(f"### AI finish reason: {finish_reason}")
 
     def _disable_send_controls(self) -> None:
-        """Disable only the send functionality while processing."""
+        """Disable only the send functionality while processing and start a timeout."""
         try:
             self.is_processing = True
             if "send-button" in document:
                 document["send-button"].disabled = True
+            # Start timeout to automatically re-enable controls if no response
+            self._start_response_timeout()
         except Exception as e:
             print(f"Error disabling send controls: {e}")
 
     def _enable_send_controls(self) -> None:
-        """Enable send functionality after processing."""
+        """Enable send functionality after processing and cancel the timeout."""
         try:
+            # Cancel any pending timeout
+            self._cancel_response_timeout()
             self.is_processing = False
             if "send-button" in document:
                 document["send-button"].disabled = False
         except Exception as e:
             print(f"Error enabling send controls: {e}")
+
+    def _start_response_timeout(self) -> None:
+        """Start a timeout that will re-enable controls if no response is received."""
+        try:
+            # Cancel any existing timeout first
+            self._cancel_response_timeout()
+            self._response_timeout_id = window.setTimeout(
+                self._on_response_timeout,
+                self.AI_RESPONSE_TIMEOUT_MS
+            )
+        except Exception as e:
+            print(f"Error starting response timeout: {e}")
+
+    def _cancel_response_timeout(self) -> None:
+        """Cancel the response timeout if one is pending."""
+        try:
+            if self._response_timeout_id is not None:
+                window.clearTimeout(self._response_timeout_id)
+                self._response_timeout_id = None
+        except Exception as e:
+            print(f"Error cancelling response timeout: {e}")
+
+    def _on_response_timeout(self) -> None:
+        """Handle timeout - abort the stream, re-enable controls and show error message."""
+        try:
+            self._response_timeout_id = None
+            if self.is_processing:
+                print("AI response timeout - aborting stream and re-enabling send controls")
+                # Abort the current streaming connection
+                self._abort_current_stream()
+                self._print_ai_message_in_chat(
+                    "⚠️ Request timed out. The AI is taking too long to respond. Please try again."
+                )
+                self.is_processing = False
+                if "send-button" in document:
+                    document["send-button"].disabled = False
+        except Exception as e:
+            print(f"Error handling response timeout: {e}")
+    
+    def _abort_current_stream(self) -> None:
+        """Abort the current streaming connection if one is active."""
+        try:
+            if hasattr(window, 'abortCurrentStream'):
+                window.abortCurrentStream()
+        except Exception as e:
+            print(f"Error aborting stream: {e}")
 
     def _process_ai_response(self, ai_message: str, tool_calls: Any, finish_reason: str) -> None:     
         self._debug_log_ai_response(ai_message, tool_calls, finish_reason)
