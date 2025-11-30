@@ -986,9 +986,16 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "color": {
                                 "type": ["string", "null"],
                                 "description": "Optional color for the plotted function."
+                            },
+                            "undefined_at": {
+                                "type": ["array", "null"],
+                                "description": "Optional list of x-values where the function is explicitly undefined (holes). E.g., [0, 2] means the function has holes at x=0 and x=2.",
+                                "items": {
+                                    "type": "number"
+                                }
                             }
                         },
-                        "required": ["function_string", "name", "left_bound", "right_bound", "color"],
+                        "required": ["function_string", "name", "left_bound", "right_bound", "color", "undefined_at"],
                         "additionalProperties": False
                     }
                 }

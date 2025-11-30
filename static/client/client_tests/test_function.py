@@ -342,3 +342,56 @@ class TestFunction(unittest.TestCase):
                 self.assertIsInstance(path[0], tuple)
                 self.assertEqual(len(path[0]), 2)  # Should be (x, y) tuple
 
+
+class TestFunctionUndefinedAt(unittest.TestCase):
+    """Tests for undefined_at (hole) support in Function."""
+    
+    def test_function_with_single_undefined_point(self) -> None:
+        """Test that a function with a single undefined point returns NaN at that point."""
+        import math
+        f = Function("2", "constant_with_hole", undefined_at=[0])
+        
+        self.assertAlmostEqual(f.function(-5), 2.0)
+        self.assertAlmostEqual(f.function(5), 2.0)
+        self.assertTrue(math.isnan(f.function(0)))
+        self.assertIn(0, f.point_discontinuities)
+    
+    def test_function_with_multiple_undefined_points(self) -> None:
+        """Test that a function with multiple undefined points returns NaN at those points."""
+        import math
+        f = Function("x^2", "parabola_with_holes", undefined_at=[-1, 0, 1])
+        
+        self.assertAlmostEqual(f.function(-5), 25.0)
+        self.assertAlmostEqual(f.function(0.5), 0.25)
+        self.assertTrue(math.isnan(f.function(-1)))
+        self.assertTrue(math.isnan(f.function(0)))
+        self.assertTrue(math.isnan(f.function(1)))
+        self.assertIn(-1, f.point_discontinuities)
+        self.assertIn(0, f.point_discontinuities)
+        self.assertIn(1, f.point_discontinuities)
+    
+    def test_function_get_state_includes_undefined_at(self) -> None:
+        """Test that get_state includes undefined_at when present."""
+        f = Function("x", "linear_with_hole", undefined_at=[0])
+        state = f.get_state()
+        self.assertIn("undefined_at", state["args"])
+        self.assertEqual(state["args"]["undefined_at"], [0])
+    
+    def test_function_get_state_omits_undefined_at_when_empty(self) -> None:
+        """Test that get_state does not include undefined_at when empty."""
+        f = Function("x", "linear")
+        state = f.get_state()
+        self.assertNotIn("undefined_at", state["args"])
+    
+    def test_function_deepcopy_preserves_undefined_at(self) -> None:
+        """Test that deepcopy preserves undefined_at."""
+        f = Function("x^2", "parabola_with_hole", undefined_at=[0, 2])
+        f_copy = copy.deepcopy(f)
+        
+        self.assertEqual(f_copy.undefined_at, [0, 2])
+        self.assertIsNot(f_copy.undefined_at, f.undefined_at)
+    
+    def test_function_without_undefined_at_has_empty_list(self) -> None:
+        """Test that a function without undefined_at has an empty list."""
+        f = Function("sin(x)", "sine")
+        self.assertEqual(f.undefined_at, [])

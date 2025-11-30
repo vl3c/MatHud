@@ -830,6 +830,7 @@ class Canvas:
         left_bound: Optional[float] = None,
         right_bound: Optional[float] = None,
         color: Optional[str] = None,
+        undefined_at: Optional[List[float]] = None,
     ) -> "Drawable":
         """Draw a function on the canvas"""
         return self.drawable_manager.draw_function(
@@ -838,6 +839,7 @@ class Canvas:
             left_bound,
             right_bound,
             color=color,
+            undefined_at=undefined_at,
         )
 
     def delete_function(self, name: str) -> bool:

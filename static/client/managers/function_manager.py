@@ -109,6 +109,7 @@ class FunctionManager:
         left_bound: Optional[float] = None,
         right_bound: Optional[float] = None,
         color: Optional[str] = None,
+        undefined_at: Optional[List[float]] = None,
     ) -> Function:
         """
         Draw a function on the canvas.
@@ -123,6 +124,7 @@ class FunctionManager:
             left_bound (float, optional): Left domain boundary for function evaluation
             right_bound (float, optional): Right domain boundary for function evaluation
             color (str, optional): Color for the plotted function
+            undefined_at (list, optional): List of x-values where the function is undefined (holes)
             
         Returns:
             Function: The newly created or updated function object
@@ -140,12 +142,20 @@ class FunctionManager:
             # If it exists, update its expression
             try:
                 existing_function.function_string = ExpressionValidator.fix_math_expression(function_string)
-                existing_function.function = ExpressionValidator.parse_function_string(function_string, use_mathjs=False)
+                existing_function._base_function = ExpressionValidator.parse_function_string(function_string, use_mathjs=False)
             except Exception as e:
                 raise ValueError(f"Failed to parse function string '{function_string}': {str(e)}")
             # Update the bounds
             existing_function.left_bound = left_bound
             existing_function.right_bound = right_bound
+            # Update undefined_at
+            if undefined_at is not None:
+                existing_function.undefined_at = undefined_at
+                # Re-add to point_discontinuities
+                for hole in undefined_at:
+                    if hole not in existing_function.point_discontinuities:
+                        existing_function.point_discontinuities.append(hole)
+                existing_function.point_discontinuities.sort()
             
             if color_value:
                 existing_function.update_color(color_value)
@@ -165,6 +175,8 @@ class FunctionManager:
             }
             if color_value:
                 function_kwargs["color"] = color_value
+            if undefined_at:
+                function_kwargs["undefined_at"] = undefined_at
             new_function = Function(function_string, **function_kwargs)
             
             # Add to drawables

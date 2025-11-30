@@ -338,6 +338,7 @@ class WorkspaceManager:
                 item_state["args"]["function_string"],
                 name=item_state.get("name", ""),
                 left_bound=item_state["args"].get("left_bound"),
+                undefined_at=item_state["args"].get("undefined_at"),
                 right_bound=item_state["args"].get("right_bound")
             )
 

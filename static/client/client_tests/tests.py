@@ -17,7 +17,7 @@ from .test_event_handler import TestCanvasEventHandlerTouch
 from .test_throttle import TestThrottle
 from .test_window_mocks import TestWindowMocks
 from .test_expression_validator import TestExpressionValidator
-from .test_function import TestFunction
+from .test_function import TestFunction, TestFunctionUndefinedAt
 from .test_functions_bounded_colored_area import TestFunctionsBoundedColoredArea
 from .test_function_segment_bounded_colored_area import TestFunctionSegmentBoundedColoredArea
 from .test_closed_shape_colored_area import TestClosedShapeColoredArea
@@ -177,6 +177,7 @@ class Tests:
             TestArcManager,
             TestEllipse,
             TestFunction,
+            TestFunctionUndefinedAt,
             TestFunctionsBoundedColoredArea,
             TestFunctionSegmentBoundedColoredArea,
             TestClosedShapeColoredArea,

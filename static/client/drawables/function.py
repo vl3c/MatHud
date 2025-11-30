@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import math
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Callable, Dict, List, Optional, cast
 
 from constants import default_color, default_point_size
 from drawables.drawable import Drawable
@@ -10,21 +11,29 @@ from utils.math_utils import MathUtils
 
 
 class Function(Drawable):
-    def __init__(self, function_string: str, name: Optional[str] = None, step: float = default_point_size, color: str = default_color, left_bound: Optional[float] = None, right_bound: Optional[float] = None, vertical_asymptotes: Optional[List[float]] = None, horizontal_asymptotes: Optional[List[float]] = None, point_discontinuities: Optional[List[float]] = None, is_periodic: Optional[bool] = None, estimated_period: Optional[float] = None) -> None:
+    def __init__(self, function_string: str, name: Optional[str] = None, step: float = default_point_size, color: str = default_color, left_bound: Optional[float] = None, right_bound: Optional[float] = None, vertical_asymptotes: Optional[List[float]] = None, horizontal_asymptotes: Optional[List[float]] = None, point_discontinuities: Optional[List[float]] = None, is_periodic: Optional[bool] = None, estimated_period: Optional[float] = None, undefined_at: Optional[List[float]] = None) -> None:
         self.step: float = step
         self.left_bound: Optional[float] = left_bound
         self.right_bound: Optional[float] = right_bound
         self.is_periodic: bool = False
         self.estimated_period: Optional[float] = None
+        self.undefined_at: List[float] = undefined_at or []
         try:
             self.function_string = ExpressionValidator.fix_math_expression(function_string)
-            self.function = ExpressionValidator.parse_function_string(function_string)
+            self._base_function: Callable[[float], float] = ExpressionValidator.parse_function_string(function_string)
             if vertical_asymptotes is not None:
                 self.vertical_asymptotes = vertical_asymptotes
             if horizontal_asymptotes is not None:
                 self.horizontal_asymptotes = horizontal_asymptotes
             if point_discontinuities is not None:
-                self.point_discontinuities = point_discontinuities
+                self.point_discontinuities = list(point_discontinuities)
+            else:
+                self.point_discontinuities = []
+            # Add undefined_at points to point_discontinuities
+            for hole in self.undefined_at:
+                if hole not in self.point_discontinuities:
+                    self.point_discontinuities.append(hole)
+            self.point_discontinuities.sort()
             if vertical_asymptotes is None and horizontal_asymptotes is None and point_discontinuities is None:
                 self._calculate_asymptotes_and_discontinuities()
             if is_periodic is not None:
@@ -35,6 +44,13 @@ class Function(Drawable):
         except Exception as e:
             raise ValueError(f"Failed to parse function string '{function_string}': {str(e)}")
         super().__init__(name=name or "f", color=color)
+    
+    def function(self, x: float) -> float:
+        """Evaluate the function at x. Returns NaN for explicit undefined points."""
+        for hole in self.undefined_at:
+            if abs(x - hole) < 1e-12:
+                return float('nan')
+        return self._base_function(x)
 
     def _detect_periodicity(self) -> None:
         """Detect if function is periodic and estimate its period."""
@@ -66,6 +82,8 @@ class Function(Drawable):
             state["args"]["horizontal_asymptotes"] = self.horizontal_asymptotes
         if hasattr(self, 'point_discontinuities') and self.point_discontinuities:
             state["args"]["point_discontinuities"] = self.point_discontinuities
+        if self.undefined_at:
+            state["args"]["undefined_at"] = self.undefined_at
             
         return state
 
@@ -84,6 +102,7 @@ class Function(Drawable):
             point_discontinuities=self.point_discontinuities.copy() if hasattr(self, 'point_discontinuities') and self.point_discontinuities is not None else None,
             is_periodic=self.is_periodic,
             estimated_period=self.estimated_period,
+            undefined_at=self.undefined_at.copy() if self.undefined_at else None,
         )
         memo[id(self)] = new_function
         return new_function
@@ -97,6 +116,15 @@ class Function(Drawable):
             self.left_bound += x_offset
         if self.right_bound is not None:
             self.right_bound += x_offset
+        
+        # Translate undefined points
+        if self.undefined_at and x_offset != 0:
+            self.undefined_at = [h + x_offset for h in self.undefined_at]
+            # Update point_discontinuities to reflect translated holes
+            self.point_discontinuities = [
+                p + x_offset if p in [h - x_offset for h in self.undefined_at] else p
+                for p in self.point_discontinuities
+            ]
 
         try:
             # First handle horizontal translation by replacing x with (x - x_offset)
@@ -127,7 +155,7 @@ class Function(Drawable):
 
             # Update function string and parse new function
             self.function_string = ExpressionValidator.fix_math_expression(new_function_string)
-            self.function = ExpressionValidator.parse_function_string(new_function_string)
+            self._base_function = ExpressionValidator.parse_function_string(new_function_string)
             
         except Exception as e:
             print(f"Warning: Could not translate function: {str(e)}")
@@ -136,6 +164,9 @@ class Function(Drawable):
                 self.left_bound -= x_offset
             if self.right_bound is not None:
                 self.right_bound -= x_offset
+            # Revert undefined_at
+            if self.undefined_at and x_offset != 0:
+                self.undefined_at = [h - x_offset for h in self.undefined_at]
 
     def rotate(self, angle: float) -> None:
         pass 

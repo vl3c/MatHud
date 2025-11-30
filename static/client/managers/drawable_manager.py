@@ -467,6 +467,7 @@ class DrawableManager:
         left_bound: Optional[float] = None,
         right_bound: Optional[float] = None,
         color: Optional[str] = None,
+        undefined_at: Optional[List[float]] = None,
     ) -> "Function":
         """Create a new function with the specified expression"""
         return self.function_manager.draw_function(
@@ -475,6 +476,7 @@ class DrawableManager:
             left_bound,
             right_bound,
             color=color,
+            undefined_at=undefined_at,
         )
         
     def delete_function(self, name: str) -> bool:
