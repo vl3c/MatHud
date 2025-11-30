@@ -29,13 +29,14 @@ class Function(Drawable):
                 self.point_discontinuities = list(point_discontinuities)
             else:
                 self.point_discontinuities = []
-            # Add undefined_at points to point_discontinuities
+            # Calculate asymptotes BEFORE adding undefined_at (it overwrites point_discontinuities)
+            if vertical_asymptotes is None and horizontal_asymptotes is None and point_discontinuities is None:
+                self._calculate_asymptotes_and_discontinuities()
+            # Add undefined_at points to point_discontinuities AFTER calculation
             for hole in self.undefined_at:
                 if hole not in self.point_discontinuities:
                     self.point_discontinuities.append(hole)
             self.point_discontinuities.sort()
-            if vertical_asymptotes is None and horizontal_asymptotes is None and point_discontinuities is None:
-                self._calculate_asymptotes_and_discontinuities()
             if is_periodic is not None:
                 self.is_periodic = is_periodic
                 self.estimated_period = estimated_period
