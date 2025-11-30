@@ -252,6 +252,11 @@ class TestPiecewiseFunctionRendering(unittest.TestCase):
         self.assertEqual(pf.left_bound, -10)
         self.assertEqual(pf.right_bound, 10)
         
+        # Verify discontinuity is detected at x=0 but NOT at the bounds
+        self.assertIn(0, pf.point_discontinuities)
+        self.assertNotIn(-10, pf.point_discontinuities, "Left bound should not be a discontinuity")
+        self.assertNotIn(10, pf.point_discontinuities, "Right bound should not be a discontinuity")
+        
         # Verify rendering works
         renderable = FunctionRenderable(pf, self.mapper)
         result = renderable.build_screen_paths()
@@ -260,9 +265,12 @@ class TestPiecewiseFunctionRendering(unittest.TestCase):
         self.assertIsNotNone(result.paths)
         self.assertGreater(len(result.paths), 0, "Constant piecewise function should produce paths")
         
-        # Should have points
-        total_points = sum(len(path) for path in result.paths)
-        self.assertGreater(total_points, 0, "Should have points in paths")
+        # Should have multiple paths due to discontinuity at x=0
+        self.assertGreaterEqual(len(result.paths), 2, "Step function should produce at least 2 separate paths")
+        
+        # Should have points in each path
+        for i, path in enumerate(result.paths):
+            self.assertGreater(len(path), 0, f"Path {i} should have points")
 
     def test_piecewise_function_renders_with_function_renderable(self) -> None:
         pieces = [

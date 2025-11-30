@@ -155,7 +155,8 @@ class PiecewiseFunction(Drawable):
                 if hole not in self.point_discontinuities:
                     self.point_discontinuities.append(hole)
         
-        # Collect boundary points
+        # Collect boundary points (excluding the function's overall bounds)
+        # The overall bounds are not discontinuities - they're just where the function ends
         boundary_points: List[float] = []
         for interval in self.intervals:
             if interval.left is not None:
@@ -166,6 +167,9 @@ class PiecewiseFunction(Drawable):
         boundary_points = sorted(set(boundary_points))
         
         for boundary in boundary_points:
+            # Skip the function's overall bounds - these aren't discontinuities
+            if boundary == self.left_bound or boundary == self.right_bound:
+                continue
             if self._is_jump_discontinuity(boundary):
                 if boundary not in self.point_discontinuities:
                     self.point_discontinuities.append(boundary)
