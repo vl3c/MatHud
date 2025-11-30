@@ -6,7 +6,7 @@ Manages dependency injection for AI API, WebDriver, workspace operations, and lo
 
 Dependencies:
     - Flask: Web framework core
-    - static.openai_api: OpenAI API integration
+    - static.openai_completions_api: OpenAI Chat Completions API integration
     - static.workspace_manager: Workspace file operations
     - static.log_manager: Application logging
     - static.routes: Route definitions and registration
@@ -24,7 +24,8 @@ from flask import Flask, Response, jsonify
 from flask_session import Session as FlaskSession
 
 from static.log_manager import LogManager
-from static.openai_api import OpenAIChatCompletionsAPI
+from static.openai_completions_api import OpenAIChatCompletionsAPI
+from static.openai_responses_api import OpenAIResponsesAPI
 from static.workspace_manager import WorkspaceManager
 
 
@@ -48,6 +49,7 @@ class MatHudFlask(Flask):
 
     log_manager: LogManager
     ai_api: OpenAIChatCompletionsAPI
+    responses_api: OpenAIResponsesAPI
     webdriver_manager: Optional["WebDriverManager"]
     workspace_manager: WorkspaceManager
 
@@ -66,7 +68,8 @@ class AppManager:
         - Authentication: Session management and pseudo-login for deployed environments
         
     Managed Dependencies:
-        - OpenAIChatCompletionsAPI: AI-powered mathematical problem solving
+        - OpenAIChatCompletionsAPI: Chat Completions API for standard models
+        - OpenAIResponsesAPI: Responses API for reasoning models (GPT-5, o3, o4-mini)
         - WorkspaceManager: File system operations and workspace organization
         - LogManager: Application-wide logging and debugging support
         - Route Registration: RESTful API endpoint configuration
@@ -171,6 +174,7 @@ class AppManager:
         # Initialize managers
         app.log_manager = LogManager()
         app.ai_api = OpenAIChatCompletionsAPI()
+        app.responses_api = OpenAIResponsesAPI()
         app.webdriver_manager = None  # Will be set after Flask starts
         
         # Initialize workspace manager

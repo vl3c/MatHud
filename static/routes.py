@@ -296,8 +296,13 @@ def register_routes(app: MatHudFlask) -> None:
     def send_message_stream() -> ResponseReturnValue:
         """Stream AI response tokens for the provided message payload.
         
+        Routes to appropriate API based on model type:
+        - Reasoning models (GPT-5, o3, o4-mini): Uses Responses API with reasoning streaming
+        - Standard models (GPT-4.1, GPT-4o): Uses Chat Completions API
+        
         Returns a newline-delimited JSON stream with events of shape:
-        {"type":"token","text":"..."}\n for incremental tokens and
+        {"type":"reasoning","text":"..."}\n for reasoning tokens (reasoning models only)
+        {"type":"token","text":"..."}\n for incremental response tokens
         {"type":"final","ai_message":str,"ai_tool_calls":list,"finish_reason":str}\n at the end.
         """
         request_payload_raw: JsonValue = request.get_json(silent=True)
@@ -341,6 +346,7 @@ def register_routes(app: MatHudFlask) -> None:
 
         if ai_model:
             app.ai_api.set_model(ai_model)
+            app.responses_api.set_model(ai_model)
 
         app.log_manager.log_user_message(message)
 
@@ -355,7 +361,14 @@ def register_routes(app: MatHudFlask) -> None:
         @stream_with_context
         def generate() -> Iterator[str]:
             try:
-                for event in app.ai_api.create_chat_completion_stream(message):
+                # Route to appropriate API based on model type
+                model = app.ai_api.get_model()
+                if model.is_reasoning_model:
+                    stream = app.responses_api.create_response_stream(message)
+                else:
+                    stream = app.ai_api.create_chat_completion_stream(message)
+                
+                for event in stream:
                     if isinstance(event, dict):
                         event_dict = cast(StreamEventDict, event)
                         if event_dict.get('type') == 'final':
