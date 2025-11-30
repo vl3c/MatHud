@@ -61,6 +61,8 @@ class AIInterface:
     
     # Timeout in milliseconds for AI responses
     AI_RESPONSE_TIMEOUT_MS: int = 10000
+    # Extended timeout for reasoning models (2 minutes)
+    REASONING_TIMEOUT_MS: int = 120000
     
     def __init__(self, canvas: "Canvas") -> None:
         """Initialize the AI interface with canvas integration and function registry.
@@ -81,6 +83,14 @@ class AIInterface:
         self._stream_buffer: str = ""
         self._stream_content_element: Optional[Any] = None  # DOMNode
         self._stream_message_container: Optional[Any] = None  # DOMNode
+        # Reasoning streaming state
+        self._reasoning_buffer: str = ""
+        self._reasoning_element: Optional[Any] = None  # DOMNode
+        self._reasoning_details: Optional[Any] = None  # DOMNode (details element)
+        self._reasoning_summary: Optional[Any] = None  # DOMNode (summary element)
+        self._is_reasoning: bool = False
+        self._request_start_time: Optional[float] = None  # Timestamp when user request started
+        self._needs_continuation_separator: bool = False  # Add newline before next text after tool calls
         # Timeout state
         self._response_timeout_id: Optional[int] = None
 
@@ -206,13 +216,84 @@ class AIInterface:
             except Exception as e:
                 print(f"Error creating streaming element: {e}")
 
+    def _ensure_reasoning_element(self) -> None:
+        """Create the reasoning dropdown element inside the AI message box."""
+        if self._reasoning_element is None:
+            try:
+                container = html.DIV(Class="chat-message normal")
+                label = html.SPAN("AI: ", Class="chat-sender ai")
+                
+                # Collapsible dropdown for reasoning
+                details = html.DETAILS(Class="reasoning-dropdown")
+                # Start collapsed by default (user can expand if curious)
+                summary = html.SUMMARY("Thinking...", Class="reasoning-summary")
+                reasoning_content = html.DIV(Class="reasoning-content")
+                reasoning_content.text = ""
+                details <= summary
+                details <= reasoning_content
+                
+                # Content area for the actual response (hidden initially)
+                response_content = html.DIV(Class="chat-content")
+                response_content.text = ""
+                
+                container <= label
+                container <= details
+                container <= response_content
+                document["chat-history"] <= container
+                
+                self._reasoning_element = reasoning_content
+                self._reasoning_details = details
+                self._reasoning_summary = summary
+                self._stream_message_container = container
+                self._stream_content_element = response_content
+            except Exception as e:
+                print(f"Error creating reasoning element: {e}")
+
+    def _on_stream_reasoning(self, text: str) -> None:
+        """Handle a reasoning token: append to reasoning buffer and update UI."""
+        try:
+            # Use extended timeout for reasoning phase
+            self._start_response_timeout(use_reasoning_timeout=True)
+            self._is_reasoning = True
+            
+            # Don't repeat the placeholder if we already have it
+            if "(Reasoning in progress...)" in text and "(Reasoning in progress...)" in self._reasoning_buffer:
+                return
+            
+            self._reasoning_buffer += text
+            self._ensure_reasoning_element()
+            if self._reasoning_element is not None:
+                self._reasoning_element.text = self._reasoning_buffer
+            document["chat-history"].scrollTop = document["chat-history"].scrollHeight
+        except Exception as e:
+            print(f"Error handling reasoning token: {e}")
+
     def _on_stream_token(self, text: str) -> None:
         """Handle a streamed token: append to buffer and update the UI element."""
         try:
-            # Reset timeout since we're receiving data
-            self._start_response_timeout()
+            # Reset timeout since we're receiving data (use normal timeout for response)
+            self._start_response_timeout(use_reasoning_timeout=False)
+            
+            # If we were in reasoning phase, collapse the reasoning dropdown
+            if self._is_reasoning and self._reasoning_details is not None:
+                try:
+                    del self._reasoning_details.attrs["open"]
+                except Exception:
+                    try:
+                        self._reasoning_details.attrs["open"] = False
+                    except Exception:
+                        pass
+                self._is_reasoning = False
+            
+            # Add newline separator if continuing after tool calls (extra line for visual separation)
+            if self._needs_continuation_separator:
+                self._stream_buffer += "\n\n\n"
+                self._needs_continuation_separator = False
+            
             self._stream_buffer += text
-            self._ensure_stream_message_element()
+            # Use reasoning element's response area if it exists, otherwise create normal element
+            if self._stream_content_element is None and self._reasoning_element is None:
+                self._ensure_stream_message_element()
             if self._stream_content_element is not None:
                 self._stream_content_element.text = self._stream_buffer
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
@@ -222,29 +303,109 @@ class AIInterface:
     def _finalize_stream_message(self, final_message: Optional[str] = None) -> None:
         """Convert the streamed plain text to parsed markdown and render math."""
         try:
-            text_to_render = final_message if final_message is not None else self._stream_buffer
-            if not text_to_render:
-                return
+            # Prefer the accumulated buffer (contains all text across tool calls)
+            # Only use final_message as fallback if buffer is empty
+            text_to_render = self._stream_buffer if self._stream_buffer.strip() else (final_message or "")
+            
+            # If we have reasoning content and actual text, create a combined element
+            if self._reasoning_buffer and self._stream_message_container is not None:
+                if text_to_render and self._stream_content_element is not None:
+                    # Update the response content with parsed markdown
+                    parsed_content = self._parse_markdown_to_html(text_to_render)
+                    self._stream_content_element.innerHTML = parsed_content
+                    self._stream_content_element.classList.add("markdown")
+                    
+                    # Update summary to show elapsed time and ensure dropdown stays closed
+                    if self._reasoning_summary is not None and self._request_start_time is not None:
+                        try:
+                            from browser import window
+                            elapsed_ms = window.Date.now() - self._request_start_time
+                            elapsed_seconds = int(elapsed_ms / 1000)
+                            self._reasoning_summary.text = f"Thought for {elapsed_seconds} seconds"
+                        except Exception:
+                            pass
+                    
+                    # Ensure dropdown is closed
+                    if self._reasoning_details is not None:
+                        try:
+                            del self._reasoning_details.attrs["open"]
+                        except Exception:
+                            try:
+                                self._reasoning_details.attrs["open"] = False
+                            except Exception:
+                                pass
+                    
+                    self._render_math()
+                    document["chat-history"].scrollTop = document["chat-history"].scrollHeight
+                else:
+                    # Reasoning but no text content - remove the empty container
+                    self._remove_empty_response_container()
+            elif text_to_render:
+                # No reasoning, use standard finalization
+                final_element = self._create_message_element("AI", text_to_render)
 
-            final_element = self._create_message_element("AI", text_to_render)
-
-            history = document["chat-history"]
-            if self._stream_message_container is not None:
-                try:
-                    history.replaceChild(final_element, self._stream_message_container)
-                except Exception:
+                history = document["chat-history"]
+                if self._stream_message_container is not None:
+                    try:
+                        history.replaceChild(final_element, self._stream_message_container)
+                    except Exception:
+                        history <= final_element
+                else:
                     history <= final_element
-            else:
-                history <= final_element
 
-            self._render_math()
-            history.scrollTop = history.scrollHeight
+                self._render_math()
+                history.scrollTop = history.scrollHeight
+            else:
+                # No text content at all - remove any empty container
+                self._remove_empty_response_container()
         except Exception as e:
             print(f"Error finalizing stream message: {e}")
         finally:
             self._stream_buffer = ""
             self._stream_content_element = None
             self._stream_message_container = None
+            self._reasoning_buffer = ""
+            self._reasoning_element = None
+            self._reasoning_details = None
+            self._reasoning_summary = None
+            self._is_reasoning = False
+            self._request_start_time = None
+
+    def _remove_empty_response_container(self) -> None:
+        """Remove the current response container if it has no actual text content.
+        
+        This cleans up "Thinking..." boxes when the AI only performs tool calls
+        without providing a text response. Never removes a container with actual text.
+        """
+        try:
+            # Check if there's actual text content in buffer or visible in the element
+            has_buffer_text = bool(self._stream_buffer.strip())
+            has_element_text = False
+            if self._stream_content_element is not None:
+                try:
+                    element_text = self._stream_content_element.text or self._stream_content_element.innerHTML or ""
+                    has_element_text = bool(element_text.strip())
+                except Exception:
+                    pass
+            
+            # Only remove if there's NO actual text content anywhere
+            if self._stream_message_container is not None and not has_buffer_text and not has_element_text:
+                history = document["chat-history"]
+                try:
+                    history.removeChild(self._stream_message_container)
+                except Exception:
+                    pass
+                # Reset state
+                self._stream_message_container = None
+                self._stream_content_element = None
+                self._reasoning_element = None
+                self._reasoning_details = None
+                self._reasoning_summary = None
+                self._reasoning_buffer = ""
+                self._is_reasoning = False
+                # Don't reset _request_start_time here - we want to keep timing across tool calls
+        except Exception as e:
+            print(f"Error removing empty container: {e}")
 
     def _on_stream_final(self, event_obj: Any) -> None:
         """Handle the final event from the streaming response."""
@@ -255,16 +416,24 @@ class AIInterface:
             ai_tool_calls = event.get('ai_tool_calls', [])
             ai_message = event.get('ai_message', '')
 
-            if finish_reason in ("stop", "error"):
+            # If no tool calls OR finish reason indicates completion, finalize the message
+            if finish_reason in ("stop", "error", "completed") or not ai_tool_calls:
                 if not self._stream_buffer and ai_message:
                     self._stream_buffer = ai_message
                 self._finalize_stream_message(ai_message or None)
                 self._enable_send_controls()
                 return
 
+            # Processing tool calls - keep the "Thinking..." container visible
+            # It will be removed/updated when the final response arrives
             try:
                 call_results = ProcessFunctionCalls.get_results(ai_tool_calls, self.available_functions, self.undoable_functions, self.canvas)
                 self._store_results_in_canvas_state(call_results)
+                # Reset timeout with extended duration - AI needs time to process tool results
+                self._start_response_timeout(use_reasoning_timeout=True)
+                # Mark that we need a newline separator before the next text
+                if self._stream_buffer.strip():
+                    self._needs_continuation_separator = True
                 self._send_prompt_to_ai(None, json.dumps(call_results))
             except Exception as e:
                 print(f"Error processing streamed tool calls: {e}")
@@ -364,14 +533,19 @@ class AIInterface:
         except Exception as e:
             print(f"Error enabling send controls: {e}")
 
-    def _start_response_timeout(self) -> None:
-        """Start a timeout that will re-enable controls if no response is received."""
+    def _start_response_timeout(self, use_reasoning_timeout: bool = False) -> None:
+        """Start a timeout that will re-enable controls if no response is received.
+        
+        Args:
+            use_reasoning_timeout: If True, use extended timeout for reasoning models
+        """
         try:
             # Cancel any existing timeout first
             self._cancel_response_timeout()
+            timeout_ms = self.REASONING_TIMEOUT_MS if use_reasoning_timeout else self.AI_RESPONSE_TIMEOUT_MS
             self._response_timeout_id = window.setTimeout(
                 self._on_response_timeout,
-                self.AI_RESPONSE_TIMEOUT_MS
+                timeout_ms
             )
         except Exception as e:
             print(f"Error starting response timeout: {e}")
@@ -544,14 +718,15 @@ class AIInterface:
         try:
             payload_json = json.dumps(payload)
             payload_js = window.JSON.parse(payload_json)
-            self._stream_buffer = ""
-            self._stream_content_element = None
-            self._stream_message_container = None
+            # Don't reset any state here - all state management is done in _send_prompt_to_ai_stream
+            # This preserves intermediary text and reasoning content across tool call continuations
+            # Call JS streaming helper with reasoning callback
             window.sendMessageStream(
                 payload_js,
                 self._on_stream_token,
                 self._on_stream_final,
-                self._on_stream_error
+                self._on_stream_error,
+                self._on_stream_reasoning
             )
         except Exception as e:
             print(f"Falling back to non-streaming request due to error: {e}")
@@ -580,6 +755,22 @@ class AIInterface:
         }
         prompt = json.dumps(prompt_json)
         print(f'Prompt for AI (stream): {prompt}')
+        
+        # For new user messages, reset all state including containers and buffers
+        # For tool call results, preserve everything to keep intermediary text visible
+        if user_message is not None and tool_call_results is None:
+            self._request_start_time = window.Date.now()
+            # Reset all streaming state for new conversation turn
+            self._stream_buffer = ""
+            self._stream_content_element = None
+            self._stream_message_container = None
+            self._reasoning_buffer = ""
+            self._reasoning_element = None
+            self._reasoning_details = None
+            self._reasoning_summary = None
+            self._is_reasoning = False
+            self._needs_continuation_separator = False
+        
         try:
             payload = self._create_request_payload(prompt, include_svg=True)
             self._start_streaming_request(payload)
@@ -605,6 +796,22 @@ class AIInterface:
         # Convert to JSON string
         prompt = json.dumps(prompt_json)
         print(f'Prompt for AI: {prompt}')
+        
+        # For new user messages, reset all state including containers and buffers
+        # For tool call results, preserve everything to keep intermediary text visible
+        if user_message is not None and tool_call_results is None:
+            self._request_start_time = window.Date.now()
+            # Reset all streaming state for new conversation turn
+            self._stream_buffer = ""
+            self._stream_content_element = None
+            self._stream_message_container = None
+            self._reasoning_buffer = ""
+            self._reasoning_element = None
+            self._reasoning_details = None
+            self._reasoning_summary = None
+            self._is_reasoning = False
+            self._needs_continuation_separator = False
+        
         self._send_request(prompt)
 
     def send_user_message(self, message: str) -> None:
