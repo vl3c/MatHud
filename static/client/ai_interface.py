@@ -285,9 +285,11 @@ class AIInterface:
                         pass
                 self._is_reasoning = False
             
-            # Add newline separator if continuing after tool calls (extra line for visual separation)
+            # When continuing after tool calls, clear the buffer and start fresh
+            # The AI will re-state any necessary context in its new response
+            # This prevents duplication when AI restates previous confirmations
             if self._needs_continuation_separator:
-                self._stream_buffer += "\n\n\n"
+                self._stream_buffer = ""
                 self._needs_continuation_separator = False
             
             self._stream_buffer += text
