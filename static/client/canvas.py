@@ -863,6 +863,36 @@ class Canvas:
             )
         )
 
+    def draw_piecewise_function(
+        self,
+        pieces: List[Dict[str, Any]],
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
+        """Draw a piecewise function on the canvas."""
+        return self.drawable_manager.draw_piecewise_function(
+            pieces,
+            name,
+            color=color,
+        )
+
+    def delete_piecewise_function(self, name: str) -> bool:
+        """Delete a piecewise function by its name."""
+        return bool(self.drawable_manager.delete_piecewise_function(name))
+
+    def update_piecewise_function(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update editable properties of a piecewise function."""
+        return bool(
+            self.drawable_manager.update_piecewise_function(
+                name,
+                new_color=new_color,
+            )
+        )
+
     def translate_object(self, name: str, x_offset: float, y_offset: float) -> bool:
         """Translates a drawable object by the specified offset"""
         return bool(self.transformations_manager.translate_object(name, x_offset, y_offset))

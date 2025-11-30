@@ -479,7 +479,7 @@ class SvgRenderer(RendererProtocol):
 
     def _needs_scale_in_signature(self, drawable: Any) -> bool:
         class_name = getattr(drawable, "get_class_name", lambda: "")()
-        return class_name in ("Function", "FunctionsBoundedColoredArea", "FunctionSegmentBoundedColoredArea")
+        return class_name in ("Function", "PiecewiseFunction", "FunctionsBoundedColoredArea", "FunctionSegmentBoundedColoredArea")
 
     def _freeze_signature(self, value: Any) -> Tuple[Any, ...]:
         if isinstance(value, dict):

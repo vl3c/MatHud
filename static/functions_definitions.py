@@ -1053,6 +1053,110 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "draw_piecewise_function",
+                    "description": "Plots a piecewise-defined function with different expressions for different intervals. Each piece specifies an expression and its valid interval bounds. Use null for unbounded intervals (extending to infinity). Use undefined_at for explicit holes (points where the function is undefined).",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "pieces": {
+                                "type": "array",
+                                "minItems": 1,
+                                "description": "List of function pieces, each defining an expression and its interval.",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "expression": {
+                                            "type": "string",
+                                            "description": "Mathematical expression for this piece (e.g., 'x^2', 'sin(x)')."
+                                        },
+                                        "left": {
+                                            "type": ["number", "null"],
+                                            "description": "Left interval bound (null for negative infinity)."
+                                        },
+                                        "right": {
+                                            "type": ["number", "null"],
+                                            "description": "Right interval bound (null for positive infinity)."
+                                        },
+                                        "left_inclusive": {
+                                            "type": "boolean",
+                                            "description": "Whether the left bound is included in the interval."
+                                        },
+                                        "right_inclusive": {
+                                            "type": "boolean",
+                                            "description": "Whether the right bound is included in the interval."
+                                        },
+                                        "undefined_at": {
+                                            "type": ["array", "null"],
+                                            "description": "Optional list of x-values where this piece is explicitly undefined (holes).",
+                                            "items": {
+                                                "type": "number"
+                                            }
+                                        }
+                                    },
+                                    "required": ["expression", "left", "right", "left_inclusive", "right_inclusive", "undefined_at"],
+                                    "additionalProperties": False
+                                }
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the piecewise function."
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the plotted function."
+                            }
+                        },
+                        "required": ["pieces", "name", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "delete_piecewise_function",
+                    "description": "Removes the plotted piecewise function with the given name from the canvas.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the piecewise function to delete."
+                            }
+                        },
+                        "required": ["name"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "update_piecewise_function",
+                    "description": "Updates editable properties of an existing piecewise function (currently just color). Provide null for fields to leave them unchanged.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Existing name of the piecewise function to edit."
+                            },
+                            "new_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional new color for the function plot."
+                            }
+                        },
+                        "required": ["name", "new_color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "evaluate_expression",
                     "description": "Evaluates a mathematical expression provided as a string and returns the numerical result. The expression can include variables like x, y; constants like e, pi; mathematical operations and functions like sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pi, e, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, mean, median, mode, stdev, variance, random, randint.",
                     "parameters": {

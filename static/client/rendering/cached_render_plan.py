@@ -987,6 +987,7 @@ _HELPERS: Dict[str, Any] = {
     "Vector": shared.render_vector_helper,
     "Angle": shared.render_angle_helper,
     "Function": shared.render_function_helper,
+    "PiecewiseFunction": shared.render_function_helper,
     "FunctionsBoundedColoredArea": shared.render_functions_bounded_area_helper,
     "FunctionSegmentBoundedColoredArea": shared.render_function_segment_area_helper,
     "SegmentsBoundedColoredArea": shared.render_segments_bounded_area_helper,

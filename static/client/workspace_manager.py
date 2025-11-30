@@ -338,8 +338,20 @@ class WorkspaceManager:
                 item_state["args"]["function_string"],
                 name=item_state.get("name", ""),
                 left_bound=item_state["args"].get("left_bound"),
+                right_bound=item_state["args"].get("right_bound"),
                 undefined_at=item_state["args"].get("undefined_at"),
-                right_bound=item_state["args"].get("right_bound")
+            )
+
+    def _create_piecewise_functions(self, state: Dict[str, Any]) -> None:
+        """Create piecewise functions from workspace state."""
+        if "PiecewiseFunctions" not in state:
+            return
+        for item_state in state["PiecewiseFunctions"]:
+            pieces = item_state["args"].get("pieces", [])
+            self.canvas.draw_piecewise_function(
+                pieces,
+                name=item_state.get("name", ""),
+                color=item_state["args"].get("color"),
             )
 
     def _create_colored_areas(self, state: Dict[str, Any]) -> None:
@@ -515,6 +527,7 @@ class WorkspaceManager:
         self._create_circle_arcs(state)
         self._create_ellipses(state)
         self._create_functions(state)
+        self._create_piecewise_functions(state)
         # Create colored areas after functions since they may depend on functions
         self._create_colored_areas(state)
         # Create angles after segments since they depend on segments  

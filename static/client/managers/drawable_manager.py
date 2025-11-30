@@ -52,6 +52,7 @@ from managers.point_manager import PointManager
 from managers.segment_manager import SegmentManager
 from managers.vector_manager import VectorManager
 from managers.function_manager import FunctionManager
+from managers.piecewise_function_manager import PiecewiseFunctionManager
 from managers.circle_manager import CircleManager
 from managers.ellipse_manager import EllipseManager
 from managers.polygon_manager import PolygonManager
@@ -137,6 +138,10 @@ class DrawableManager:
         )
         
         self.function_manager: FunctionManager = FunctionManager(
+            canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
+        )
+        
+        self.piecewise_function_manager: PiecewiseFunctionManager = PiecewiseFunctionManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
         )
         
@@ -497,6 +502,42 @@ class DrawableManager:
                 new_color=new_color,
                 new_left_bound=new_left_bound,
                 new_right_bound=new_right_bound,
+            )
+        )
+
+    # ------------------- Piecewise Function Methods -------------------
+
+    def get_piecewise_function(self, name: str) -> Optional["Drawable"]:
+        """Get a piecewise function by its name."""
+        return self.piecewise_function_manager.get_piecewise_function(name)
+
+    def draw_piecewise_function(
+        self,
+        pieces: List[Any],
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
+        """Create a new piecewise function with the specified pieces."""
+        return self.piecewise_function_manager.draw_piecewise_function(
+            pieces,
+            name,
+            color=color,
+        )
+
+    def delete_piecewise_function(self, name: str) -> bool:
+        """Delete a piecewise function by its name."""
+        return bool(self.piecewise_function_manager.delete_piecewise_function(name))
+
+    def update_piecewise_function(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+    ) -> bool:
+        """Update editable properties of a piecewise function."""
+        return bool(
+            self.piecewise_function_manager.update_piecewise_function(
+                name,
+                new_color=new_color,
             )
         )
     

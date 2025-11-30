@@ -103,6 +103,11 @@ class FunctionRegistry:
             "delete_function": canvas.delete_function,
             "update_function": canvas.update_function,
             
+            # ===== PIECEWISE FUNCTION PLOTTING =====
+            "draw_piecewise_function": canvas.draw_piecewise_function,
+            "delete_piecewise_function": canvas.delete_piecewise_function,
+            "update_piecewise_function": canvas.update_piecewise_function,
+            
             # ===== OBJECT TRANSFORMATIONS =====
             "translate_object": canvas.translate_object,
             "rotate_object": canvas.rotate_object,
@@ -208,6 +213,11 @@ class FunctionRegistry:
             "draw_function",
             "delete_function",
             "update_function",
+            
+            # Piecewise function operations
+            "draw_piecewise_function",
+            "delete_piecewise_function",
+            "update_piecewise_function",
             
             # Object transformations
             "translate_object",

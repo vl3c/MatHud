@@ -78,6 +78,13 @@ from .test_function_renderables import (
     TestBoundaryExtension,
     TestRenderableEdgeCases,
 )
+from .test_piecewise_function import (
+    TestPiecewiseFunctionInterval,
+    TestPiecewiseFunction,
+    TestPiecewiseFunctionRendering,
+    TestPiecewiseFunctionUndefinedAt,
+    TestPiecewiseFunctionEdgeCases,
+)
 from .test_renderer_edge_cases import (
     TestPointEdgeCases,
     TestSegmentEdgeCases,
@@ -135,6 +142,11 @@ class Tests:
             TestSegmentsBoundedAreaRenderable,
             TestBoundaryExtension,
             TestRenderableEdgeCases,
+            TestPiecewiseFunctionInterval,
+            TestPiecewiseFunction,
+            TestPiecewiseFunctionRendering,
+            TestPiecewiseFunctionUndefinedAt,
+            TestPiecewiseFunctionEdgeCases,
             TestPointEdgeCases,
             TestSegmentEdgeCases,
             TestCircleEdgeCases,

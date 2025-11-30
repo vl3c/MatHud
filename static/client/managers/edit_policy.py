@@ -335,6 +335,17 @@ SEGMENTS_BOUNDED_COLORED_AREA_EDIT_POLICY = DrawableEditPolicy(
     },
 )
 
+PIECEWISE_FUNCTION_EDIT_POLICY = DrawableEditPolicy(
+    drawable_type="PiecewiseFunction",
+    rules={
+        "color": EditRule(
+            field="color",
+            category="cosmetic",
+            description="Update the plotted piecewise function color.",
+        ),
+    },
+)
+
 DRAWABLE_EDIT_POLICIES: Dict[str, DrawableEditPolicy] = {
     POINT_EDIT_POLICY.drawable_type: POINT_EDIT_POLICY,
     ANGLE_EDIT_POLICY.drawable_type: ANGLE_EDIT_POLICY,
@@ -353,6 +364,7 @@ DRAWABLE_EDIT_POLICIES: Dict[str, DrawableEditPolicy] = {
     FUNCTIONS_BOUNDED_COLORED_AREA_EDIT_POLICY.drawable_type: FUNCTIONS_BOUNDED_COLORED_AREA_EDIT_POLICY,
     FUNCTION_SEGMENT_BOUNDED_COLORED_AREA_EDIT_POLICY.drawable_type: FUNCTION_SEGMENT_BOUNDED_COLORED_AREA_EDIT_POLICY,
     SEGMENTS_BOUNDED_COLORED_AREA_EDIT_POLICY.drawable_type: SEGMENTS_BOUNDED_COLORED_AREA_EDIT_POLICY,
+    PIECEWISE_FUNCTION_EDIT_POLICY.drawable_type: PIECEWISE_FUNCTION_EDIT_POLICY,
 }
 
 

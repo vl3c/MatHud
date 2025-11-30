@@ -358,6 +358,11 @@ class DrawablesContainer:
         return self.get_by_class_name('Function')
 
     @property
+    def PiecewiseFunctions(self) -> List["Drawable"]:
+        """Get all PiecewiseFunction objects."""
+        return self.get_by_class_name('PiecewiseFunction')
+
+    @property
     def Labels(self) -> List["Drawable"]:
         """Get all Label objects."""
         return self.get_by_class_name('Label')
