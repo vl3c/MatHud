@@ -80,6 +80,8 @@ Dependencies:
                         <label for="ai-model-selector">Model:</label>
                         <select id="ai-model-selector">
                             <option value="gpt-5-chat-latest">GPT-5 Chat Latest</option>
+                            <option value="o3">o3 (Reasoning)</option>
+                            <option value="o4-mini">o4-mini (Reasoning)</option>
                             <option value="gpt-4.1">GPT-4.1</option>
                             <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
                             <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
@@ -142,7 +144,8 @@ Dependencies:
     };
     
     // Expose a helper for Brython to stream responses
-    window.sendMessageStream = async function(payload, onToken, onFinal, onError) {
+    // onReasoning callback handles reasoning tokens from reasoning models
+    window.sendMessageStream = async function(payload, onToken, onFinal, onError, onReasoning) {
         // Abort any existing stream before starting a new one
         window.abortCurrentStream();
         
@@ -178,9 +181,16 @@ Dependencies:
                     if (!line) continue;
                     try {
                         const evt = JSON.parse(line);
-                        if (evt.type === 'token' && typeof onToken === 'function') {
+                        if (evt.type === 'reasoning' && typeof onReasoning === 'function') {
+                            onReasoning(evt.text || '');
+                        } else if (evt.type === 'token' && typeof onToken === 'function') {
                             onToken(evt.text || '');
                         } else if (evt.type === 'final' && typeof onFinal === 'function') {
+                            // Clear abort controller before calling onFinal to prevent
+                            // race condition when tool results trigger a new request
+                            if (window._currentStreamAbortController === abortController) {
+                                window._currentStreamAbortController = null;
+                            }
                             onFinal(evt);
                         }
                     } catch (e) {
@@ -192,9 +202,15 @@ Dependencies:
             if (buffer.trim()) {
                 try {
                     const evt = JSON.parse(buffer.trim());
-                    if (evt.type === 'token' && typeof onToken === 'function') {
+                    if (evt.type === 'reasoning' && typeof onReasoning === 'function') {
+                        onReasoning(evt.text || '');
+                    } else if (evt.type === 'token' && typeof onToken === 'function') {
                         onToken(evt.text || '');
                     } else if (evt.type === 'final' && typeof onFinal === 'function') {
+                        // Clear abort controller before calling onFinal
+                        if (window._currentStreamAbortController === abortController) {
+                            window._currentStreamAbortController = null;
+                        }
                         onFinal(evt);
                     }
                 } catch (e) {
@@ -232,16 +248,22 @@ Dependencies:
         
         /**
          * Updates vision toggle availability based on selected AI model capabilities.
-         * Vision features are only available for GPT-4 family models with vision support.
+         * Vision features are only available for models with vision support.
          */
         function updateVisionToggle() {
-            if (aiModelSelector.value === "gpt-5-chat-latest" ||
-                aiModelSelector.value === "gpt-4.1" || 
-                aiModelSelector.value === "gpt-4.1-mini" || 
-                aiModelSelector.value === "gpt-4.1-nano" || 
-                aiModelSelector.value === "gpt-4o" || 
-                aiModelSelector.value === "gpt-4o-mini" ||
-                aiModelSelector.value === "gpt-5-nano") {
+            // Models with vision support
+            var modelsWithVision = [
+                "gpt-5-chat-latest",
+                "gpt-4.1",
+                "gpt-4.1-mini",
+                "gpt-4.1-nano",
+                "gpt-4o",
+                "gpt-4o-mini",
+                "gpt-5-nano",
+                "o4-mini"  // o4-mini has vision, o3 does not
+            ];
+            
+            if (modelsWithVision.includes(aiModelSelector.value)) {
                 visionToggle.disabled = false;
                 visionToggle.style.opacity = "1";
                 visionLabel.style.color = "";
