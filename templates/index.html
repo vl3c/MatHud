@@ -125,13 +125,37 @@ Dependencies:
     
     <!-- Streaming helper using Fetch and NDJSON -->
     <script>
+    // Store the current stream's abort controller for cancellation
+    window._currentStreamAbortController = null;
+    
+    // Abort any ongoing stream - call this on timeout
+    window.abortCurrentStream = function() {
+        if (window._currentStreamAbortController) {
+            try {
+                window._currentStreamAbortController.abort();
+                console.log('[Stream] Aborted current stream');
+            } catch (e) {
+                console.error('[Stream] Error aborting:', e);
+            }
+            window._currentStreamAbortController = null;
+        }
+    };
+    
     // Expose a helper for Brython to stream responses
     window.sendMessageStream = async function(payload, onToken, onFinal, onError) {
+        // Abort any existing stream before starting a new one
+        window.abortCurrentStream();
+        
+        // Create new abort controller for this stream
+        const abortController = new AbortController();
+        window._currentStreamAbortController = abortController;
+        
         try {
             const resp = await fetch('/send_message_stream', {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
+                signal: abortController.signal
             });
 
             if (!resp.ok || !resp.body) {
@@ -178,7 +202,17 @@ Dependencies:
                 }
             }
         } catch (err) {
+            // Don't call onError for abort (that's intentional cancellation)
+            if (err.name === 'AbortError') {
+                console.log('[Stream] Request was aborted');
+                return;
+            }
             if (typeof onError === 'function') onError(err);
+        } finally {
+            // Clear the abort controller reference when done
+            if (window._currentStreamAbortController === abortController) {
+                window._currentStreamAbortController = null;
+            }
         }
     }
     </script>
