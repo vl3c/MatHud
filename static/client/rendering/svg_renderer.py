@@ -174,6 +174,7 @@ class SvgRenderer(RendererProtocol):
         self._register_shape("drawables.vector", "Vector", self._render_vector)
         self._register_shape("drawables.angle", "Angle", self._render_angle)
         self._register_shape("drawables.function", "Function", self._render_function)
+        self._register_shape("drawables.piecewise_function", "PiecewiseFunction", self._render_function)
         self._register_shape("drawables.triangle", "Triangle", self._render_triangle)
         self._register_shape("drawables.rectangle", "Rectangle", self._render_rectangle)
         self._register_shape(

@@ -109,7 +109,9 @@ def render_function_helper(primitives, func, coordinate_mapper, style):
     try:
         renderable = _get_or_create_renderable(func, coordinate_mapper)
         screen_paths = renderable.build_screen_paths().paths
-    except Exception:
+    except Exception as e:
+        # Log the error for debugging but don't crash rendering
+        print(f"[render_function_helper] Error building paths for {getattr(func, 'name', 'unknown')}: {e}")
         return
     if not screen_paths:
         return

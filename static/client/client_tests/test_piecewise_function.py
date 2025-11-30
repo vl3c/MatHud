@@ -236,6 +236,34 @@ class TestPiecewiseFunctionRendering(unittest.TestCase):
     def setUp(self) -> None:
         self.mapper = CoordinateMapper(640, 480)
 
+    def test_constant_piecewise_function_renders(self) -> None:
+        """Test that constant value piecewise functions render correctly."""
+        pieces = [
+            {"expression": "2", "left": -10, "right": 0, "left_inclusive": True, "right_inclusive": False},
+            {"expression": "5", "left": 0, "right": 10, "left_inclusive": True, "right_inclusive": True},
+        ]
+        pf = PiecewiseFunction(pieces, name="constant_piecewise")
+        
+        # Verify function evaluates correctly
+        self.assertAlmostEqual(pf.function(-5), 2.0)
+        self.assertAlmostEqual(pf.function(5), 5.0)
+        
+        # Verify bounds are computed
+        self.assertEqual(pf.left_bound, -10)
+        self.assertEqual(pf.right_bound, 10)
+        
+        # Verify rendering works
+        renderable = FunctionRenderable(pf, self.mapper)
+        result = renderable.build_screen_paths()
+        
+        self.assertIsNotNone(result)
+        self.assertIsNotNone(result.paths)
+        self.assertGreater(len(result.paths), 0, "Constant piecewise function should produce paths")
+        
+        # Should have points
+        total_points = sum(len(path) for path in result.paths)
+        self.assertGreater(total_points, 0, "Should have points in paths")
+
     def test_piecewise_function_renders_with_function_renderable(self) -> None:
         pieces = [
             {"expression": "x^2", "left": None, "right": 0, "left_inclusive": True, "right_inclusive": False},

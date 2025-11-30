@@ -239,6 +239,11 @@ class Canvas2DRenderer(RendererProtocol):
         except Exception:
             pass
         try:
+            from drawables.piecewise_function import PiecewiseFunction as PiecewiseFunctionDrawable
+            self.register(PiecewiseFunctionDrawable, self._render_function)
+        except Exception:
+            pass
+        try:
             from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea as FunctionsAreaDrawable
             self.register(FunctionsAreaDrawable, self._render_functions_bounded_colored_area)
         except Exception:
