@@ -31,6 +31,7 @@ from .test_geometry_utils import TestGeometryUtils
 from .test_graph_utils import TestGraphUtils
 from .test_path_elements import TestPathElements
 from .test_intersections import TestIntersections
+from .test_region import TestRegion, TestAreaUtilities
 from .test_point import TestPoint
 from .test_rectangle import TestRectangle
 from .test_segment import TestSegment
@@ -165,6 +166,8 @@ class Tests:
             TestGraphUtils,
             TestPathElements,
             TestIntersections,
+            TestRegion,
+            TestAreaUtilities,
             TestPolygonCanonicalizer,
             TestDrawableNameGenerator,
             TestPoint,
