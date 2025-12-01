@@ -47,7 +47,7 @@ from constants import (
     default_area_opacity,
     default_closed_shape_resolution,
 )
-from geometry import Point
+from drawables_aggregator import Point
 from managers.point_manager import PointManager
 from managers.segment_manager import SegmentManager
 from managers.vector_manager import VectorManager

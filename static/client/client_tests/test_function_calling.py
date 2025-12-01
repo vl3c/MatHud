@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from typing import Any, Dict, List
 
-from geometry import Position
+from drawables_aggregator import Position
 from canvas import Canvas
 from process_function_calls import ProcessFunctionCalls
 from .simple_mock import SimpleMock

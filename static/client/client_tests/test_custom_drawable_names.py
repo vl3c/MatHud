@@ -6,7 +6,7 @@ from canvas import Canvas
 from managers.polygon_type import PolygonType
 from utils.polygon_canonicalizer import canonicalize_rectangle
 from drawables.drawable import Drawable
-from geometry import Position
+from drawables_aggregator import Position
 from client_tests.simple_mock import SimpleMock
 
 

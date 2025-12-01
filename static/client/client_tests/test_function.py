@@ -1,6 +1,6 @@
 import unittest
 import copy
-from geometry import Position, Function
+from drawables_aggregator import Position, Function
 from expression_validator import ExpressionValidator
 from .simple_mock import SimpleMock
 from coordinate_mapper import CoordinateMapper

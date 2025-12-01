@@ -40,7 +40,7 @@ from constants import (
     default_area_opacity,
     default_closed_shape_resolution,
 )
-from geometry import Point
+from drawables_aggregator import Point
 from cartesian_system_2axis import Cartesian2Axis
 from coordinate_mapper import CoordinateMapper
 from utils.math_utils import MathUtils

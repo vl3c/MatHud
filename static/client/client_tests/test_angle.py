@@ -11,7 +11,7 @@ from managers.angle_manager import AngleManager
 from .simple_mock import SimpleMock
 from name_generator.drawable import DrawableNameGenerator
 from coordinate_mapper import CoordinateMapper
-from geometry import Position
+from drawables_aggregator import Position
 from rendering import shared_drawable_renderers as shared
 from rendering.cached_render_plan import build_plan_for_drawable, _capture_map_state
 from rendering.style_manager import get_renderer_style

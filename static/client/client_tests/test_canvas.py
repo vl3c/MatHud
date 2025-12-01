@@ -11,7 +11,7 @@ from expression_validator import ExpressionValidator
 from utils.math_utils import MathUtils
 from utils.polygon_canonicalizer import canonicalize_rectangle
 from types import SimpleNamespace
-from geometry import Position
+from drawables_aggregator import Position
 from managers.polygon_type import PolygonType
 from .simple_mock import SimpleMock
 from utils.geometry_utils import GeometryUtils

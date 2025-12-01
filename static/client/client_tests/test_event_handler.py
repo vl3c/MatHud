@@ -7,7 +7,7 @@ from typing import List
 from canvas_event_handler import CanvasEventHandler
 from .simple_mock import SimpleMock
 from browser import window as browser_window
-from geometry import Position
+from drawables_aggregator import Position
 from canvas import Canvas
 
 

@@ -40,7 +40,7 @@ from typing import Any, Dict, cast
 import math
 
 from constants import default_color
-from geometry import Drawable, Position
+from drawables_aggregator import Drawable, Position
 from utils.math_utils import MathUtils
 
 

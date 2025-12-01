@@ -1,5 +1,5 @@
 import unittest
-from geometry import Point, Position
+from drawables_aggregator import Point, Position
 from cartesian_system_2axis import Cartesian2Axis
 from .simple_mock import SimpleMock
 from coordinate_mapper import CoordinateMapper

@@ -1,5 +1,5 @@
 """
-MatHud Geometry Module
+MatHud Drawables Aggregator
 
 Convenience import aggregator for all drawable geometric objects.
 Provides a single import point for all mathematical visualization classes.

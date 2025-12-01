@@ -1,6 +1,6 @@
 import unittest
 import copy
-from geometry import Point, Position, Segment
+from drawables_aggregator import Point, Position, Segment
 from coordinate_mapper import CoordinateMapper
 from .simple_mock import SimpleMock
 

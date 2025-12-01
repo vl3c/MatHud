@@ -4,7 +4,7 @@ import copy
 import unittest
 from typing import Any
 
-from geometry import Position
+from drawables_aggregator import Position
 from coordinate_mapper import CoordinateMapper
 from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
 from rendering.renderables import FunctionsBoundedAreaRenderable

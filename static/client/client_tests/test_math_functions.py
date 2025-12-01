@@ -2,7 +2,7 @@ import unittest
 import json
 from typing import List
 from utils.math_utils import MathUtils
-from geometry import Position
+from drawables_aggregator import Position
 from .simple_mock import SimpleMock
 import math  # Add import at the top of the method
 from rendering.renderables import FunctionRenderable

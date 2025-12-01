@@ -1,6 +1,6 @@
 import unittest
 import copy
-from geometry import Position
+from drawables_aggregator import Position
 from coordinate_mapper import CoordinateMapper
 from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea
 from rendering.renderables import FunctionSegmentAreaRenderable

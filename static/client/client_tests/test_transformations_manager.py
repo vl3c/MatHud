@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from typing import Dict, Iterable, List, Tuple
 
-from geometry import Point, Segment, Triangle, Rectangle, Circle, Ellipse
+from drawables_aggregator import Point, Segment, Triangle, Rectangle, Circle, Ellipse
 from drawables.closed_shape_colored_area import ClosedShapeColoredArea
 from managers.transformations_manager import TransformationsManager
 from client_tests.simple_mock import SimpleMock

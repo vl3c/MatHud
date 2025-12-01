@@ -38,7 +38,7 @@ from constants import (
     zoom_out_scale_factor,
     mousemove_throttle_ms
 )
-from geometry import Position
+from drawables_aggregator import Position
 
 if TYPE_CHECKING:
     from ai_interface import AIInterface
@@ -219,7 +219,7 @@ class CanvasEventHandler:
         zp: Optional[Position] = self.canvas.zoom_point
         if zp is None:
             # Fallback: zoom about canvas center
-            from geometry import Position
+            from drawables_aggregator import Position
             zp = Position(self.canvas.width / 2, self.canvas.height / 2)
             self.canvas.zoom_point = zp
 

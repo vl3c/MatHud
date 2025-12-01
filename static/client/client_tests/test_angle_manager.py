@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from managers.angle_manager import AngleManager
 from .simple_mock import SimpleMock
 from coordinate_mapper import CoordinateMapper
-from geometry import Position
+from drawables_aggregator import Position
 from typing import Any
 
 class TestAngleManager(unittest.TestCase):
