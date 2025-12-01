@@ -593,3 +593,345 @@ class GeometryUtils:
     def is_irregular_polygon_from_segments(segments: List["Segment"]) -> bool:
         flags = GeometryUtils.polygon_flags_from_segments(segments)
         return bool(flags and flags["irregular"])
+
+    # -------------------------------------------------------------------------
+    # Path element intersection utilities
+    # -------------------------------------------------------------------------
+
+    INTERSECTION_EPSILON = 1e-9
+
+    @staticmethod
+    def _points_equal(
+        p1: Tuple[float, float],
+        p2: Tuple[float, float],
+        tol: float = 1e-9
+    ) -> bool:
+        """Check if two points are equal within tolerance."""
+        return abs(p1[0] - p2[0]) < tol and abs(p1[1] - p2[1]) < tol
+
+    @staticmethod
+    def _angle_in_arc_range(
+        angle: float,
+        start_angle: float,
+        end_angle: float,
+        clockwise: bool
+    ) -> bool:
+        """Check if angle is within the arc's angular range."""
+        two_pi = 2 * math.pi
+        
+        def normalize(a: float) -> float:
+            while a < 0:
+                a += two_pi
+            while a >= two_pi:
+                a -= two_pi
+            return a
+        
+        angle = normalize(angle)
+        start = normalize(start_angle)
+        end = normalize(end_angle)
+        
+        if not clockwise:
+            if start <= end:
+                return start <= angle <= end
+            else:
+                return angle >= start or angle <= end
+        else:
+            if start >= end:
+                return end <= angle <= start
+            else:
+                return angle <= start or angle >= end
+
+    @staticmethod
+    def line_line_intersection(
+        seg1_start: Tuple[float, float],
+        seg1_end: Tuple[float, float],
+        seg2_start: Tuple[float, float],
+        seg2_end: Tuple[float, float]
+    ) -> List[Tuple[float, float]]:
+        """
+        Find intersection point between two line segments.
+        Uses parametric form: P = P1 + t*(P2-P1)
+        """
+        x1, y1 = seg1_start
+        x2, y2 = seg1_end
+        x3, y3 = seg2_start
+        x4, y4 = seg2_end
+        
+        dx1 = x2 - x1
+        dy1 = y2 - y1
+        dx2 = x4 - x3
+        dy2 = y4 - y3
+        
+        denom = dx1 * dy2 - dy1 * dx2
+        eps = GeometryUtils.INTERSECTION_EPSILON
+        
+        if abs(denom) < eps:
+            return []
+        
+        dx3 = x3 - x1
+        dy3 = y3 - y1
+        
+        t = (dx3 * dy2 - dy3 * dx2) / denom
+        u = (dx3 * dy1 - dy3 * dx1) / denom
+        
+        if 0 <= t <= 1 and 0 <= u <= 1:
+            return [(x1 + t * dx1, y1 + t * dy1)]
+        
+        return []
+
+    @staticmethod
+    def line_circle_intersection(
+        seg_start: Tuple[float, float],
+        seg_end: Tuple[float, float],
+        center: Tuple[float, float],
+        radius: float,
+        start_angle: float,
+        end_angle: float,
+        clockwise: bool = False
+    ) -> List[Tuple[float, float]]:
+        """
+        Find intersection points between a line segment and a circular arc.
+        Delegates to MathUtils for core calculation, then filters by arc range.
+        """
+        class SegmentAdapter:
+            def __init__(self, p1: Tuple[float, float], p2: Tuple[float, float]):
+                self.point1 = type('P', (), {'x': p1[0], 'y': p1[1]})()
+                self.point2 = type('P', (), {'x': p2[0], 'y': p2[1]})()
+        
+        segment = SegmentAdapter(seg_start, seg_end)
+        raw_intersections = MathUtils.circle_segment_intersections(
+            center[0], center[1], radius, segment
+        )
+        
+        results: List[Tuple[float, float]] = []
+        for hit in raw_intersections:
+            angle = hit['angle']
+            if GeometryUtils._angle_in_arc_range(angle, start_angle, end_angle, clockwise):
+                results.append((hit['x'], hit['y']))
+        
+        return results
+
+    @staticmethod
+    def line_ellipse_intersection(
+        seg_start: Tuple[float, float],
+        seg_end: Tuple[float, float],
+        center: Tuple[float, float],
+        radius_x: float,
+        radius_y: float,
+        rotation: float,
+        start_angle: float,
+        end_angle: float,
+        clockwise: bool = False
+    ) -> List[Tuple[float, float]]:
+        """
+        Find intersection points between a line segment and an elliptical arc.
+        Delegates to MathUtils for core calculation, then filters by arc range.
+        """
+        class SegmentAdapter:
+            def __init__(self, p1: Tuple[float, float], p2: Tuple[float, float]):
+                self.point1 = type('P', (), {'x': p1[0], 'y': p1[1]})()
+                self.point2 = type('P', (), {'x': p2[0], 'y': p2[1]})()
+        
+        segment = SegmentAdapter(seg_start, seg_end)
+        rotation_degrees = math.degrees(rotation)
+        raw_intersections = MathUtils.ellipse_segment_intersections(
+            center[0], center[1], radius_x, radius_y, rotation_degrees, segment
+        )
+        
+        results: List[Tuple[float, float]] = []
+        for hit in raw_intersections:
+            angle = hit['angle']
+            if GeometryUtils._angle_in_arc_range(angle, start_angle, end_angle, clockwise):
+                results.append((hit['x'], hit['y']))
+        
+        return results
+
+    @staticmethod
+    def circle_circle_intersection(
+        center1: Tuple[float, float],
+        radius1: float,
+        start_angle1: float,
+        end_angle1: float,
+        clockwise1: bool,
+        center2: Tuple[float, float],
+        radius2: float,
+        start_angle2: float,
+        end_angle2: float,
+        clockwise2: bool
+    ) -> List[Tuple[float, float]]:
+        """
+        Find intersection points between two circular arcs.
+        Uses the radical line method.
+        """
+        cx1, cy1 = center1
+        cx2, cy2 = center2
+        eps = GeometryUtils.INTERSECTION_EPSILON
+        
+        dx = cx2 - cx1
+        dy = cy2 - cy1
+        d = math.sqrt(dx * dx + dy * dy)
+        
+        if d < eps:
+            return []
+        if d > radius1 + radius2 + eps:
+            return []
+        if d < abs(radius1 - radius2) - eps:
+            return []
+        
+        a = (radius1 * radius1 - radius2 * radius2 + d * d) / (2 * d)
+        h_squared = radius1 * radius1 - a * a
+        if h_squared < -eps:
+            return []
+        
+        h = math.sqrt(max(0, h_squared))
+        px = cx1 + a * dx / d
+        py = cy1 + a * dy / d
+        
+        results: List[Tuple[float, float]] = []
+        
+        if h < eps:
+            point = (px, py)
+            angle1 = math.atan2(point[1] - cy1, point[0] - cx1)
+            angle2 = math.atan2(point[1] - cy2, point[0] - cx2)
+            if (GeometryUtils._angle_in_arc_range(angle1, start_angle1, end_angle1, clockwise1) and
+                GeometryUtils._angle_in_arc_range(angle2, start_angle2, end_angle2, clockwise2)):
+                results.append(point)
+        else:
+            offset_x = h * dy / d
+            offset_y = h * dx / d
+            
+            for sign in [1, -1]:
+                point = (px + sign * offset_x, py - sign * offset_y)
+                angle1 = math.atan2(point[1] - cy1, point[0] - cx1)
+                angle2 = math.atan2(point[1] - cy2, point[0] - cx2)
+                if (GeometryUtils._angle_in_arc_range(angle1, start_angle1, end_angle1, clockwise1) and
+                    GeometryUtils._angle_in_arc_range(angle2, start_angle2, end_angle2, clockwise2)):
+                    results.append(point)
+        
+        return results
+
+    @staticmethod
+    def circle_ellipse_intersection(
+        circle_center: Tuple[float, float],
+        circle_radius: float,
+        circle_start: float,
+        circle_end: float,
+        circle_cw: bool,
+        ellipse_center: Tuple[float, float],
+        ellipse_rx: float,
+        ellipse_ry: float,
+        ellipse_rotation: float,
+        ellipse_start: float,
+        ellipse_end: float,
+        ellipse_cw: bool
+    ) -> List[Tuple[float, float]]:
+        """
+        Find intersection points between a circular arc and an elliptical arc.
+        Uses numerical sampling approach.
+        """
+        cx, cy = ellipse_center
+        rot = ellipse_rotation
+        
+        cos_rot = math.cos(-rot)
+        sin_rot = math.sin(-rot)
+        
+        circle_cx_local = (circle_center[0] - cx) * cos_rot - (circle_center[1] - cy) * sin_rot
+        circle_cy_local = (circle_center[0] - cx) * sin_rot + (circle_center[1] - cy) * cos_rot
+        
+        circle_cx_scaled = circle_cx_local / ellipse_rx
+        circle_cy_scaled = circle_cy_local / ellipse_ry
+        
+        results: List[Tuple[float, float]] = []
+        num_samples = 360
+        
+        for i in range(num_samples):
+            angle = 2 * math.pi * i / num_samples
+            
+            ex = math.cos(angle)
+            ey = math.sin(angle)
+            
+            dist_x = (ex - circle_cx_scaled) * ellipse_rx
+            dist_y = (ey - circle_cy_scaled) * ellipse_ry
+            dist = math.sqrt(dist_x * dist_x + dist_y * dist_y)
+            
+            if abs(dist - circle_radius) < 0.01:
+                cos_rot_inv = math.cos(rot)
+                sin_rot_inv = math.sin(rot)
+                world_x = (ex * ellipse_rx) * cos_rot_inv - (ey * ellipse_ry) * sin_rot_inv + cx
+                world_y = (ex * ellipse_rx) * sin_rot_inv + (ey * ellipse_ry) * cos_rot_inv + cy
+                
+                circle_angle = math.atan2(world_y - circle_center[1], world_x - circle_center[0])
+                
+                if (GeometryUtils._angle_in_arc_range(angle, ellipse_start, ellipse_end, ellipse_cw) and
+                    GeometryUtils._angle_in_arc_range(circle_angle, circle_start, circle_end, circle_cw)):
+                    
+                    is_duplicate = any(
+                        GeometryUtils._points_equal((world_x, world_y), existing, tol=0.001)
+                        for existing in results
+                    )
+                    if not is_duplicate:
+                        results.append((world_x, world_y))
+        
+        return results
+
+    @staticmethod
+    def ellipse_ellipse_intersection(
+        center1: Tuple[float, float],
+        rx1: float,
+        ry1: float,
+        rotation1: float,
+        start1: float,
+        end1: float,
+        cw1: bool,
+        center2: Tuple[float, float],
+        rx2: float,
+        ry2: float,
+        rotation2: float,
+        start2: float,
+        end2: float,
+        cw2: bool
+    ) -> List[Tuple[float, float]]:
+        """
+        Find intersection points between two elliptical arcs.
+        Uses numerical sampling approach.
+        """
+        results: List[Tuple[float, float]] = []
+        num_samples = 360
+        
+        for i in range(num_samples):
+            angle1 = 2 * math.pi * i / num_samples
+            
+            if not GeometryUtils._angle_in_arc_range(angle1, start1, end1, cw1):
+                continue
+            
+            cos_a = math.cos(angle1)
+            sin_a = math.sin(angle1)
+            cos_rot1 = math.cos(rotation1)
+            sin_rot1 = math.sin(rotation1)
+            
+            local_x = rx1 * cos_a
+            local_y = ry1 * sin_a
+            world_x = cos_rot1 * local_x - sin_rot1 * local_y + center1[0]
+            world_y = sin_rot1 * local_x + cos_rot1 * local_y + center1[1]
+            
+            cos_rot2 = math.cos(-rotation2)
+            sin_rot2 = math.sin(-rotation2)
+            dx = world_x - center2[0]
+            dy = world_y - center2[1]
+            local2_x = cos_rot2 * dx - sin_rot2 * dy
+            local2_y = sin_rot2 * dx + cos_rot2 * dy
+            
+            normalized = (local2_x / rx2) ** 2 + (local2_y / ry2) ** 2
+            
+            if abs(normalized - 1.0) < 0.01:
+                angle2 = math.atan2(local2_y / ry2, local2_x / rx2)
+                
+                if GeometryUtils._angle_in_arc_range(angle2, start2, end2, cw2):
+                    is_duplicate = any(
+                        GeometryUtils._points_equal((world_x, world_y), existing, tol=0.001)
+                        for existing in results
+                    )
+                    if not is_duplicate:
+                        results.append((world_x, world_y))
+        
+        return results

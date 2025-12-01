@@ -11,6 +11,14 @@ from .path import (
     CircularArc,
     EllipticalArc,
     CompositePath,
+    line_line_intersection,
+    line_circle_intersection,
+    line_ellipse_intersection,
+    circle_circle_intersection,
+    circle_ellipse_intersection,
+    ellipse_ellipse_intersection,
+    element_element_intersection,
+    path_path_intersections,
 )
 
 __all__ = [
@@ -19,4 +27,12 @@ __all__ = [
     'CircularArc',
     'EllipticalArc',
     'CompositePath',
+    'line_line_intersection',
+    'line_circle_intersection',
+    'line_ellipse_intersection',
+    'circle_circle_intersection',
+    'circle_ellipse_intersection',
+    'ellipse_ellipse_intersection',
+    'element_element_intersection',
+    'path_path_intersections',
 ]
