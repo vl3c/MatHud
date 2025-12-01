@@ -449,6 +449,93 @@ class TestGeometryUtils(unittest.TestCase):
         self.assertTrue(GeometryUtils.is_decagon(points))
         self.assertTrue(GeometryUtils.is_decagon_from_segments(segments))
 
+    # ------------------------------------------------------------------
+    # Open path helpers
+    # ------------------------------------------------------------------
+
+    def test_segments_form_open_path_single_segment(self) -> None:
+        segments = [_make_segment(self.point_a, self.point_b)]
+        self.assertTrue(GeometryUtils.segments_form_open_path(segments))
+
+    def test_segments_form_open_path_chain(self) -> None:
+        segments = [
+            _make_segment(self.point_a, self.point_b),
+            _make_segment(self.point_b, self.point_c),
+            _make_segment(self.point_c, self.point_d),
+        ]
+        self.assertTrue(GeometryUtils.segments_form_open_path(segments))
+
+    def test_segments_form_open_path_rejects_cycle(self) -> None:
+        segments = [
+            _make_segment(self.point_a, self.point_b),
+            _make_segment(self.point_b, self.point_c),
+            _make_segment(self.point_c, self.point_a),
+        ]
+        self.assertFalse(GeometryUtils.segments_form_open_path(segments))
+
+    def test_segments_form_open_path_rejects_t_structure(self) -> None:
+        segments = [
+            _make_segment(self.point_a, self.point_b),
+            _make_segment(self.point_b, self.point_c),
+            _make_segment(self.point_b, self.point_d),
+        ]
+        self.assertFalse(GeometryUtils.segments_form_open_path(segments))
+
+    def test_segments_form_open_path_rejects_disconnected(self) -> None:
+        segments = [
+            _make_segment(self.point_a, self.point_b),
+            _make_segment(self.point_d, self.point_e),
+        ]
+        self.assertFalse(GeometryUtils.segments_form_open_path(segments))
+
+    def test_order_segments_into_path_single_segment(self) -> None:
+        segments = [_make_segment(self.point_b, self.point_a)]
+        ordered = GeometryUtils.order_segments_into_path(segments)
+        self.assertIsNotNone(ordered)
+        assert ordered is not None
+        names = [point.name for point in ordered]
+        self.assertEqual(names, ["A", "B"])
+
+    def test_order_segments_into_path_chain(self) -> None:
+        segments = [
+            _make_segment(self.point_c, self.point_d),
+            _make_segment(self.point_a, self.point_b),
+            _make_segment(self.point_b, self.point_c),
+        ]
+        ordered = GeometryUtils.order_segments_into_path(segments)
+        self.assertIsNotNone(ordered)
+        assert ordered is not None
+        names = [point.name for point in ordered]
+        self.assertEqual(names, ["A", "B", "C", "D"])
+
+    def test_order_segments_into_path_invalid_cycle(self) -> None:
+        segments = [
+            _make_segment(self.point_a, self.point_b),
+            _make_segment(self.point_b, self.point_c),
+            _make_segment(self.point_c, self.point_a),
+        ]
+        self.assertIsNone(GeometryUtils.order_segments_into_path(segments))
+
+    def test_path_math_coordinates_from_segments(self) -> None:
+        segments = [
+            _make_segment(self.point_a, self.point_b),
+            _make_segment(self.point_b, self.point_c),
+        ]
+        coords = GeometryUtils.path_math_coordinates_from_segments(segments)
+        self.assertIsNotNone(coords)
+        assert coords is not None
+        self.assertEqual(len(coords), 3)
+        self.assertEqual(coords[0], (0.0, 0.0))
+        self.assertEqual(coords[1], (2.0, 0.0))
+        self.assertEqual(coords[2], (1.0, 2.0))
+
+    def test_path_math_coordinates_invalid_returns_none(self) -> None:
+        segments = [
+            _make_segment(self.point_a, self.point_b),
+            _make_segment(self.point_d, self.point_e),
+        ]
+        self.assertIsNone(GeometryUtils.path_math_coordinates_from_segments(segments))
+
 
 if __name__ == "__main__":
     unittest.main()

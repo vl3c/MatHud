@@ -28,6 +28,7 @@ from .test_function_calling import TestProcessFunctionCalls
 from .test_math_functions import TestMathFunctions
 from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
 from .test_geometry_utils import TestGeometryUtils
+from .test_graph_utils import TestGraphUtils
 from .test_point import TestPoint
 from .test_rectangle import TestRectangle
 from .test_segment import TestSegment
@@ -159,6 +160,7 @@ class Tests:
             TestPeriodicityDetection,
             TestPeriodicityEdgeCases,
             TestGeometryUtils,
+            TestGraphUtils,
             TestPolygonCanonicalizer,
             TestDrawableNameGenerator,
             TestPoint,
