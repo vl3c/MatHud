@@ -1,30 +1,25 @@
 """
 MatHud Geometry Utilities Module
 
-Graph theory and geometric analysis utilities for connectivity and relationship validation.
-Provides functions for analyzing connections between geometric objects and validating graph structures.
+Geometric analysis utilities for shape validation and classification.
+Provides functions for analyzing geometric objects and validating shape structures.
 
 Key Features:
     - Point name extraction from segment collections
-    - Graph connectivity analysis for geometric networks
-    - Segment relationship validation
-    - Unique identifier management for geometric objects
-
-Graph Theory Operations:
-    - Fully connected graph validation
-    - Point-to-segment mapping
-    - Connectivity analysis for shape construction
-    - Network topology validation
+    - Shape connectivity validation via graph theory
+    - Polygon classification (triangle, quadrilateral, etc.)
+    - Regularity detection for polygons
 
 Use Cases:
-    - Triangle validation (three connected segments)
+    - Triangle validation and classification (equilateral, isosceles, scalene, right)
     - Rectangle validation (four connected segments in proper topology)
+    - Polygon regularity checking
     - Shape completion checking
-    - Geometric network analysis
 
 Dependencies:
     - itertools.combinations: Graph pair analysis
     - utils.math_utils: Segment matching operations
+    - utils.graph_utils: Graph theory primitives
 """
 
 from __future__ import annotations
@@ -34,6 +29,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Set, Tuple, Un
 
 from itertools import combinations
 from .math_utils import MathUtils
+from .graph_utils import Edge, GraphUtils
 
 if TYPE_CHECKING:
     from drawables.point import Point
@@ -43,11 +39,18 @@ PointLike = Union["Point", Tuple[float, float]]
 
 
 class GeometryUtils:
-    """Graph theory and geometric analysis utilities for connectivity validation.
+    """Geometric analysis utilities for shape validation and classification.
     
     Provides static methods for analyzing relationships between geometric objects,
-    particularly for validating connectivity in geometric networks and shapes.
+    particularly for validating connectivity and classifying polygon shapes.
+    Delegates graph theory operations to GraphUtils.
     """
+    
+    @staticmethod
+    def _segments_to_edges(segments: List["Segment"]) -> List[Edge[str]]:
+        """Convert segment objects to Edge objects using point names as vertex identifiers."""
+        return [Edge(segment.point1.name, segment.point2.name) for segment in segments]
+    
     @staticmethod
     def _build_point_graph(segments: List["Segment"]) -> Dict[str, Set[str]]:
         """
@@ -59,13 +62,8 @@ class GeometryUtils:
         Returns:
             dict: point name -> connected point names
         """
-        graph: Dict[str, Set[str]] = {}
-        for segment in segments:
-            p1 = segment.point1.name
-            p2 = segment.point2.name
-            graph.setdefault(p1, set()).add(p2)
-            graph.setdefault(p2, set()).add(p1)
-        return graph
+        edges = GeometryUtils._segments_to_edges(segments)
+        return GraphUtils.build_adjacency_map(edges)
 
     @staticmethod
     def get_unique_point_names_from_segments(segments: List["Segment"]) -> List[str]:
@@ -117,31 +115,8 @@ class GeometryUtils:
             - Every vertex has degree two (exactly two incident segments)
             - The graph formed by the segments is connected
         """
-        if len(segments) < 3:
-            return False
-
-        graph = GeometryUtils._build_point_graph(segments)
-        if not graph:
-            return False
-
-        # All vertices in a simple polygon should have degree two
-        for neighbors in graph.values():
-            if len(neighbors) != 2:
-                return False
-
-        # Ensure the graph is connected
-        start = next(iter(graph))
-        visited: Set[str] = set()
-        stack: List[str] = [start]
-
-        while stack:
-            current = stack.pop()
-            if current in visited:
-                continue
-            visited.add(current)
-            stack.extend(graph[current] - visited)
-
-        return len(visited) == len(graph)
+        edges = GeometryUtils._segments_to_edges(segments)
+        return GraphUtils.is_simple_cycle(edges)
 
     @staticmethod
     def order_segments_into_loop(segments: List["Segment"]) -> Optional[List["Point"]]:
@@ -201,6 +176,61 @@ class GeometryUtils:
         Convenience helper returning ordered math-space coordinates for a closed polygon.
         """
         ordered_points = GeometryUtils.order_segments_into_loop(segments)
+        if not ordered_points:
+            return None
+        return [(float(point.x), float(point.y)) for point in ordered_points]
+
+    # -------------------------------------------------------------------------
+    # Open path helpers
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def segments_form_open_path(segments: List["Segment"]) -> bool:
+        """
+        Check if the provided segments form a simple open path (chain).
+
+        A valid open path requires:
+            - At least one segment
+            - Exactly 2 vertices with degree 1 (the endpoints)
+            - All other vertices have degree 2
+            - The graph formed by the segments is connected
+        """
+        edges = GeometryUtils._segments_to_edges(segments)
+        return GraphUtils.is_simple_path(edges)
+
+    @staticmethod
+    def order_segments_into_path(segments: List["Segment"]) -> Optional[List["Point"]]:
+        """
+        Order a set of segments that form an open path into a vertex list.
+
+        Returns:
+            List of Point objects in traversal order from one endpoint to the other,
+            or None if the segments cannot be ordered into a valid path.
+        """
+        if not GeometryUtils.segments_form_open_path(segments):
+            return None
+
+        adjacency: Dict[str, List["Segment"]] = {}
+        point_by_name: Dict[str, "Point"] = {}
+        for segment in segments:
+            adjacency.setdefault(segment.point1.name, []).append(segment)
+            adjacency.setdefault(segment.point2.name, []).append(segment)
+            point_by_name[segment.point1.name] = segment.point1
+            point_by_name[segment.point2.name] = segment.point2
+
+        edges = GeometryUtils._segments_to_edges(segments)
+        ordered_names = GraphUtils.order_path_vertices(edges)
+        if ordered_names is None:
+            return None
+
+        return [point_by_name[name] for name in ordered_names]
+
+    @staticmethod
+    def path_math_coordinates_from_segments(segments: List["Segment"]) -> Optional[List[Tuple[float, float]]]:
+        """
+        Convenience helper returning ordered math-space coordinates for an open path.
+        """
+        ordered_points = GeometryUtils.order_segments_into_path(segments)
         if not ordered_points:
             return None
         return [(float(point.x), float(point.y)) for point in ordered_points]
