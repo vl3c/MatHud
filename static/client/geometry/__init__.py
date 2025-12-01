@@ -20,6 +20,7 @@ from .path import (
     element_element_intersection,
     path_path_intersections,
 )
+from .region import Region
 
 __all__ = [
     'PathElement',
@@ -27,6 +28,7 @@ __all__ = [
     'CircularArc',
     'EllipticalArc',
     'CompositePath',
+    'Region',
     'line_line_intersection',
     'line_circle_intersection',
     'line_ellipse_intersection',
