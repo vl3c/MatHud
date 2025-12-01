@@ -9,11 +9,12 @@ This checklist documents the workflow for introducing a new drawable type to Mat
 ## 2. Implement the Drawable Model
 1. Add the drawable class under `static/client/drawables/`.
 2. Inherit from `drawables.drawable.Drawable` and provide:
-   - A comprehensive docstring that describes the drawable’s purpose.
+   - A comprehensive docstring that describes the drawable's purpose.
    - Required attributes (positions, radii, etc.) with validation.
    - `get_class_name`, serialization via `get_state`, and deep copy logic.
    - Optional helpers for transformations (`translate`, `rotate`) when required so canvas operations behave consistently.
 3. Ensure the class remains free of rendering-specific code.
+4. For complex drawables with sub-components, place data classes in separate files under `static/client/drawables/` for clarity and reusability.
 
 ## 3. Extend Managers and Containers
 1. Update `DrawablesContainer` with a convenience property returning instances of the new class.
@@ -21,6 +22,7 @@ This checklist documents the workflow for introducing a new drawable type to Mat
 3. Register the manager within `DrawableManager` and expose delegating methods.
 4. Add undo/redo archiving in manager methods before mutating state.
 5. When a drawable depends optionally on a parent (for example, circle arcs that can reference an existing circle or stand alone), update dependency cleanup paths so removing either the parent shape or a shared point also removes the child drawable.
+6. Update `workspace_manager.py` to handle serialization/deserialization of the new drawable type, including any nested sub-components that need reconstruction.
 
 ## 4. Wire the Canvas API
 1. Register the drawable when the canvas configures renderers (`Canvas._register_renderer_handlers`).
@@ -33,10 +35,24 @@ This checklist documents the workflow for introducing a new drawable type to Mat
 3. If server-side tools need access to client constants, mirror any new values through `static/mirror_client_modules.py` and import them from there so the schema stays in sync with the Brython defaults.
 
 ## 6. Implement Rendering Support
+
+### New Rendering Logic
 1. Create a helper in `rendering/shared_drawable_renderers.py` that transforms math-space values to screen-space primitives.
 2. Register the helper in `_HELPERS` inside `rendering/cached_render_plan.py`.
-3. Ensure each renderer (`canvas2d_renderer.py`, `svg_renderer.py`, `webgl_renderer.py`) registers the new drawable class and delegates to `_render_drawable`.
+3. Register the new drawable class in each renderer and delegate to `_render_drawable`.
 4. Add constants to style manager or adapters if special handling is required.
+
+### Reusing Existing Rendering Logic
+If the new drawable shares rendering behavior with an existing type:
+1. Implement the same interface (methods and properties) that the existing renderer expects.
+2. Register the new drawable with the existing handler in each renderer's `register_default_drawables()`.
+3. Verify all required properties are populated correctly for the renderer to consume.
+
+### Registration Checklist
+Missing renderer registration causes silent rendering failures. Verify the drawable is registered in:
+- `canvas2d_renderer.py` - `register_default_drawables()`
+- `svg_renderer.py` - `register_default_drawables()`
+- `webgl_renderer.py` - `register_default_drawables()` (if applicable)
 
 ## 7. Add Tests
 1. Introduce unit tests in `static/client/client_tests/` covering:
