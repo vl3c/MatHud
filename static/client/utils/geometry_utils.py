@@ -935,3 +935,196 @@ class GeometryUtils:
                         results.append((world_x, world_y))
         
         return results
+
+    # -------------------------------------------------------------------------
+    # Area calculation utilities
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def polygon_area(points: List[Tuple[float, float]]) -> float:
+        """
+        Calculate the signed area of a polygon using the shoelace formula.
+        
+        Positive area indicates counter-clockwise winding.
+        Negative area indicates clockwise winding.
+        
+        Args:
+            points: List of (x, y) vertices in order (not closing the loop)
+            
+        Returns:
+            Signed area of the polygon
+        """
+        if len(points) < 3:
+            return 0.0
+        
+        n = len(points)
+        area = 0.0
+        for i in range(n):
+            j = (i + 1) % n
+            area += points[i][0] * points[j][1]
+            area -= points[j][0] * points[i][1]
+        
+        return area / 2.0
+
+    @staticmethod
+    def circular_sector_area(radius: float, angle_span: float) -> float:
+        """
+        Calculate the area of a circular sector.
+        
+        Args:
+            radius: Circle radius
+            angle_span: Angular span in radians (absolute value used)
+            
+        Returns:
+            Area of the sector
+        """
+        return 0.5 * radius * radius * abs(angle_span)
+
+    @staticmethod
+    def circular_segment_area(
+        center: Tuple[float, float],
+        radius: float,
+        start_angle: float,
+        end_angle: float,
+        clockwise: bool = False
+    ) -> float:
+        """
+        Calculate the signed area contribution of a circular arc segment.
+        
+        Uses the formula: (1/2) * integral of (x*dy - y*dx) along the arc.
+        For a circular arc, this integrates to:
+        Area = (r^2/2) * (theta2 - theta1) + (1/2) * (x1*y2 - x2*y1)
+        
+        The second term accounts for the chord contribution.
+        
+        Args:
+            center: (cx, cy) center of the circle
+            radius: Circle radius
+            start_angle: Start angle in radians
+            end_angle: End angle in radians
+            clockwise: Direction of traversal
+            
+        Returns:
+            Signed area contribution (positive for CCW, negative for CW traversal)
+        """
+        cx, cy = center
+        two_pi = 2 * math.pi
+        
+        start = start_angle % two_pi
+        end = end_angle % two_pi
+        
+        if clockwise:
+            if start <= end:
+                span = -(two_pi - (end - start))
+            else:
+                span = -(start - end)
+        else:
+            if start <= end:
+                span = end - start
+            else:
+                span = two_pi - (start - end)
+        
+        if abs(span) < GeometryUtils.INTERSECTION_EPSILON:
+            span = two_pi if not clockwise else -two_pi
+        
+        x1 = cx + radius * math.cos(start_angle)
+        y1 = cy + radius * math.sin(start_angle)
+        x2 = cx + radius * math.cos(end_angle)
+        y2 = cy + radius * math.sin(end_angle)
+        
+        sector_area = 0.5 * radius * radius * span
+        
+        chord_area = 0.5 * (x1 * y2 - x2 * y1)
+        
+        return sector_area + chord_area
+
+    @staticmethod
+    def elliptical_segment_area(
+        center: Tuple[float, float],
+        radius_x: float,
+        radius_y: float,
+        rotation: float,
+        start_angle: float,
+        end_angle: float,
+        clockwise: bool = False
+    ) -> float:
+        """
+        Calculate the signed area contribution of an elliptical arc segment.
+        
+        Uses numerical integration of (1/2) * (x*dy - y*dx) along the arc.
+        
+        Args:
+            center: (cx, cy) center of the ellipse
+            radius_x: Semi-major axis
+            radius_y: Semi-minor axis
+            rotation: Rotation angle in radians
+            start_angle: Start parameter angle in radians
+            end_angle: End parameter angle in radians
+            clockwise: Direction of traversal
+            
+        Returns:
+            Signed area contribution
+        """
+        cx, cy = center
+        cos_rot = math.cos(rotation)
+        sin_rot = math.sin(rotation)
+        
+        two_pi = 2 * math.pi
+        start = start_angle % two_pi
+        end = end_angle % two_pi
+        
+        if clockwise:
+            if start <= end:
+                span = -(two_pi - (end - start))
+            else:
+                span = -(start - end)
+        else:
+            if start <= end:
+                span = end - start
+            else:
+                span = two_pi - (start - end)
+        
+        if abs(span) < GeometryUtils.INTERSECTION_EPSILON:
+            span = two_pi if not clockwise else -two_pi
+        
+        num_steps = max(100, int(abs(span) * 50))
+        dt = span / num_steps
+        
+        area = 0.0
+        t = start_angle
+        
+        for _ in range(num_steps):
+            local_x = radius_x * math.cos(t)
+            local_y = radius_y * math.sin(t)
+            x = cos_rot * local_x - sin_rot * local_y + cx
+            y = sin_rot * local_x + cos_rot * local_y + cy
+            
+            dx_dt = -radius_x * math.sin(t)
+            dy_dt = radius_y * math.cos(t)
+            dx = cos_rot * dx_dt - sin_rot * dy_dt
+            dy = sin_rot * dx_dt + cos_rot * dy_dt
+            
+            area += 0.5 * (x * dy - y * dx) * dt
+            t += dt
+        
+        return area
+
+    @staticmethod
+    def line_segment_area_contribution(
+        start: Tuple[float, float],
+        end: Tuple[float, float]
+    ) -> float:
+        """
+        Calculate the signed area contribution of a line segment.
+        
+        Uses the formula: (1/2) * (x1*y2 - x2*y1)
+        This is the shoelace contribution for one edge.
+        
+        Args:
+            start: (x1, y1) start point
+            end: (x2, y2) end point
+            
+        Returns:
+            Signed area contribution
+        """
+        return 0.5 * (start[0] * end[1] - end[0] * start[1])
