@@ -829,3 +829,42 @@ class DrawableManager:
                 use_major_arc=use_major_arc,
             )
         )
+
+    # ------------------- Region-Capable Drawable Lookup -------------------
+
+    def get_region_capable_drawable_by_name(self, name: str) -> Optional["Drawable"]:
+        """Get a drawable that can be converted to a Region by its name.
+        
+        Searches polygons, circles, ellipses, arcs, and segments in sequence.
+        Segments are treated as half-planes for region operations.
+        
+        Args:
+            name: The name of the drawable to find
+            
+        Returns:
+            The drawable if found, None otherwise
+        """
+        if not name:
+            return None
+        
+        polygon = self.polygon_manager.get_polygon_by_name(name)
+        if polygon is not None:
+            return polygon
+        
+        circle = self.circle_manager.get_circle_by_name(name)
+        if circle is not None:
+            return circle
+        
+        ellipse = self.ellipse_manager.get_ellipse_by_name(name)
+        if ellipse is not None:
+            return ellipse
+        
+        arc = self.arc_manager.get_circle_arc_by_name(name)
+        if arc is not None:
+            return arc
+        
+        segment = self.segment_manager.get_segment_by_name(name)
+        if segment is not None:
+            return segment
+        
+        return None
