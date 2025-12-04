@@ -1381,8 +1381,10 @@ class TestAreaCalculation(unittest.TestCase):
         self.assertAlmostEqual(result.area, 28.21, delta=5)
     
     def test_arc_cut_by_horizontal_segment(self) -> None:
-        # Arc: center (0,0), r=10, sweep 0-120 degrees
+        # Arc: center (0,0), r=10, sweep 0-120 degrees (minor arc)
         # Segment: horizontal at y=5
+        # Segment line intersects circle at ~30 and ~150 degrees
+        # Only 30 deg is on arc (0-120), so full arc region is returned
         p1 = (10, 0)
         p2 = (10 * math.cos(math.radians(120)), 10 * math.sin(math.radians(120)))
         arc = MockCircleArc(p1, p2, 0, 0, 10, False, "arc")
@@ -1391,7 +1393,8 @@ class TestAreaCalculation(unittest.TestCase):
         self.canvas.drawable_manager.add_drawable("cut", segment)
         result = AreaExpressionEvaluator.evaluate("arc & cut", self.canvas)
         self.assertIsNone(result.error)
-        self.assertAlmostEqual(result.area, 41.88, delta=5)
+        # Full arc segment: sector(120deg) - triangle = 61.42
+        self.assertAlmostEqual(result.area, 61.42, delta=2)
     
     def test_circle_cut_by_two_segments_wedge(self) -> None:
         # Circle: center (0,0), r=6
@@ -1546,7 +1549,8 @@ class TestRegionGeneration(unittest.TestCase):
         # Real-world test case: purple major arc from test_runner
         # Arc: center (324, -174), radius 109, from (233, -314) to (370, -52)
         # Segment A''E': from (365, -286) to (440, -132)
-        # The segment cuts through the arc, keeping ~90% of the arc segment
+        # Segment line intersects circle at angles -64 and 12 degrees
+        # Both are on the major arc, enclosed region is between them (~76 degree sweep)
         arc = MockCircleArc(
             p1=(233.0, -314.0),
             p2=(370.0, -52.0),
@@ -1566,9 +1570,9 @@ class TestRegionGeneration(unittest.TestCase):
         
         result = AreaExpressionEvaluator.evaluate("ArcMaj_C'D' & A''E'", self.canvas)
         self.assertIsNone(result.error)
-        # Major arc sweep is 192.36 degrees, full area ~21216
-        # Segment cuts through, intersection area ~19094
-        self.assertAlmostEqual(result.area, 19094, delta=100)
+        # Enclosed region: circular segment with ~76 degree sweep
+        # Area = sector - triangle ~ 2115
+        self.assertAlmostEqual(result.area, 2115, delta=100)
     
     def test_major_arc_sweep_greater_than_180(self) -> None:
         # Bug fix test: major arc must have sweep > 180 degrees

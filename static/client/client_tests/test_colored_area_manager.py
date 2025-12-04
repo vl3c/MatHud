@@ -198,7 +198,7 @@ class TestColoredAreaManager(unittest.TestCase):
 
         self.drawable_manager_proxy.get_segment_by_name = fake_get_segment
 
-        area = self.manager.create_closed_shape_colored_area(
+        area = self.manager.create_region_colored_area(
             polygon_segment_names=["AB", "BC", "CA"],
             color="salmon",
             opacity=0.4,
@@ -228,7 +228,7 @@ class TestColoredAreaManager(unittest.TestCase):
         self.drawable_manager_proxy.get_segment_by_name = fake_get_segment
 
         with self.assertRaises(ValueError):
-            self.manager.create_closed_shape_colored_area(
+            self.manager.create_region_colored_area(
                 polygon_segment_names=["AB", "BC", "CD"],
                 color="gray",
                 opacity=0.3,
@@ -246,7 +246,7 @@ class TestColoredAreaManager(unittest.TestCase):
 
         self.drawable_manager_proxy.get_segment_by_name = fake_get_segment
 
-        area = self.manager.create_closed_shape_colored_area(
+        area = self.manager.create_region_colored_area(
             circle_name=circle.name,
             chord_segment_name=chord.name,
             color="gold",
@@ -266,7 +266,7 @@ class TestColoredAreaManager(unittest.TestCase):
         circle = Circle(circle_center, 4.0)
         self.drawable_manager_proxy.get_circle_by_name = lambda name: circle if name == circle.name else None
 
-        area = self.manager.create_closed_shape_colored_area(
+        area = self.manager.create_region_colored_area(
             circle_name=circle.name,
             color="skyblue",
             opacity=0.4,
@@ -290,7 +290,7 @@ class TestColoredAreaManager(unittest.TestCase):
         )
         self.drawables.add(triangle)
 
-        area = self.manager.create_closed_shape_colored_area(
+        area = self.manager.create_region_colored_area(
             triangle_name=triangle.name,
             color="orchid",
             opacity=0.5,
@@ -302,7 +302,7 @@ class TestColoredAreaManager(unittest.TestCase):
 
     def test_create_closed_shape_triangle_not_found(self) -> None:
         with self.assertRaises(ValueError):
-            self.manager.create_closed_shape_colored_area(triangle_name="Missing")
+            self.manager.create_region_colored_area(triangle_name="Missing")
 
     def test_create_closed_shape_invalid_polygon_loop(self) -> None:
         seg1 = Segment(Point(0.0, 0.0, "A"), Point(1.0, 0.0, "B"))
@@ -310,7 +310,7 @@ class TestColoredAreaManager(unittest.TestCase):
         self.drawable_manager_proxy.get_segment_by_name = lambda name: {"AB": seg1, "CD": seg2}.get(name)
 
         with self.assertRaises(ValueError):
-            self.manager.create_closed_shape_colored_area(polygon_segment_names=["AB", "CD"])
+            self.manager.create_region_colored_area(polygon_segment_names=["AB", "CD"])
 
     def test_create_colored_area_segment_function_swap(self) -> None:
         func = Function("sin(x)", name="f1")
@@ -371,7 +371,7 @@ class TestColoredAreaManager(unittest.TestCase):
         )
         self.drawables.add(rectangle)
 
-        area = self.manager.create_closed_shape_colored_area(rectangle_name=rectangle.name)
+        area = self.manager.create_region_colored_area(rectangle_name=rectangle.name)
         self.assertEqual(area.shape_type, "polygon")
         self.assertEqual(len(area.segments), 4)
 
@@ -385,7 +385,7 @@ class TestColoredAreaManager(unittest.TestCase):
         triangle = Triangle(s1, s2, s3)
         self.drawables.add(triangle)
 
-        area = self.manager.create_closed_shape_colored_area(
+        area = self.manager.create_region_colored_area(
             triangle_name=triangle.name,
             color="plum",
             opacity=0.6,
@@ -410,7 +410,7 @@ class TestColoredAreaManager(unittest.TestCase):
         rectangle = Rectangle(s1, s2, s3, s4)
         self.drawables.add(rectangle)
 
-        area = self.manager.create_closed_shape_colored_area(
+        area = self.manager.create_region_colored_area(
             rectangle_name=rectangle.name,
             color="khaki",
             opacity=0.45,
@@ -430,7 +430,7 @@ class TestColoredAreaManager(unittest.TestCase):
         circle = Circle(center, 4.5)
         self.drawable_manager_proxy.get_circle_by_name = lambda name: circle if name == circle.name else None
 
-        area = self.manager.create_closed_shape_colored_area(
+        area = self.manager.create_region_colored_area(
             circle_name=circle.name,
             resolution=None,
             color="lightblue",
@@ -451,7 +451,7 @@ class TestColoredAreaManager(unittest.TestCase):
         ellipse = Ellipse(center, 6.0, 3.0, rotation_angle=15.0)
         self.drawable_manager_proxy.get_ellipse_by_name = lambda name: ellipse if name == ellipse.name else None
 
-        area = self.manager.create_closed_shape_colored_area(
+        area = self.manager.create_region_colored_area(
             ellipse_name=ellipse.name,
             color="lavender",
             opacity=0.5,
@@ -477,7 +477,7 @@ class TestColoredAreaManager(unittest.TestCase):
 
         self.drawable_manager_proxy.get_segment_by_name = fake_get_segment
 
-        area = self.manager.create_closed_shape_colored_area(
+        area = self.manager.create_region_colored_area(
             ellipse_name=ellipse.name,
             chord_segment_name=chord.name,
             arc_clockwise=True,
@@ -493,6 +493,76 @@ class TestColoredAreaManager(unittest.TestCase):
         self.canvas.undo_redo_manager.archive.assert_called_once()
         self.canvas.draw.assert_called_once()
         self.dependency_manager.analyze_drawable_for_dependencies.assert_called_once_with(area)
+
+    def test_create_region_from_expression_creates_region_type(self) -> None:
+        import sys
+        from types import ModuleType
+
+        mock_region = SimpleMock(name="MockRegion")
+        mock_region._sample_to_points = SimpleMock(return_value=[(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)])
+
+        mock_result = SimpleMock()
+        mock_result.error = None
+        mock_result.region = mock_region
+
+        original_modules = {}
+        mock_evaluator = SimpleMock()
+        mock_evaluator.evaluate = SimpleMock(return_value=mock_result)
+
+        mock_module = ModuleType("utils.area_expression_evaluator")
+        mock_module.AreaExpressionEvaluator = mock_evaluator
+        original_modules["utils.area_expression_evaluator"] = sys.modules.get("utils.area_expression_evaluator")
+        sys.modules["utils.area_expression_evaluator"] = mock_module
+
+        try:
+            area = self.manager.create_region_colored_area(
+                expression="circle_A & triangle_ABC",
+                color="#D2B48C",
+                opacity=0.5,
+            )
+
+            self.assertEqual(area.shape_type, "region")
+            self.assertEqual(area.expression, "circle_A & triangle_ABC")
+            self.assertEqual(len(area.points), 3)
+            self.assertEqual(area.color, "#D2B48C")
+            self.assertEqual(area.opacity, 0.5)
+            self.assertIn(area, self.drawables.ClosedShapeColoredAreas)
+        finally:
+            if original_modules.get("utils.area_expression_evaluator") is not None:
+                sys.modules["utils.area_expression_evaluator"] = original_modules["utils.area_expression_evaluator"]
+
+    def test_create_region_from_expression_error_raises(self) -> None:
+        import sys
+        from types import ModuleType
+
+        mock_result = SimpleMock()
+        mock_result.error = "Invalid expression"
+        mock_result.region = None
+
+        mock_evaluator = SimpleMock()
+        mock_evaluator.evaluate = SimpleMock(return_value=mock_result)
+
+        mock_module = ModuleType("utils.area_expression_evaluator")
+        mock_module.AreaExpressionEvaluator = mock_evaluator
+        original = sys.modules.get("utils.area_expression_evaluator")
+        sys.modules["utils.area_expression_evaluator"] = mock_module
+
+        try:
+            with self.assertRaises(ValueError) as ctx:
+                self.manager.create_region_colored_area(
+                    expression="invalid_expr",
+                    color="red",
+                    opacity=0.3,
+                )
+            self.assertIn("Invalid expression", str(ctx.exception))
+        finally:
+            if original is not None:
+                sys.modules["utils.area_expression_evaluator"] = original
+
+    def test_create_region_no_params_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            self.manager.create_region_colored_area()
+        self.assertIn("expression", str(ctx.exception).lower())
 
 
 if __name__ == "__main__":
