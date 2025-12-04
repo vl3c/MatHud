@@ -1821,6 +1821,27 @@ FUNCTIONS: List[Dict[str, Any]] = [
                         "additionalProperties": False
                     }
                 }
-            }
+            },
             # END ANGLE FUNCTIONS
+            # START AREA CALCULATION FUNCTIONS
+            {
+                "type": "function",
+                "function": {
+                    "name": "calculate_area",
+                    "description": "Calculates the area of a region defined by a boolean expression over drawable shapes. Supports circles, ellipses, arcs (circular segments), polygons (triangles, rectangles, etc.), and segments (treated as half-planes - area to the LEFT of segment direction). Use operators: & (intersection), | (union), - (difference), ^ (symmetric difference). Parentheses supported for grouping.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "expression": {
+                                "type": "string",
+                                "description": "Boolean expression with drawable names. Examples: 'circle_A' (single shape), 'circle_A & triangle_ABC' (intersection), 'C(5) & AB' (circle cut by segment AB), 'ArcMaj_CD & triangle_ABC' (arc segment intersected with triangle), 'circle_A - triangle_ABC' (difference), '(circle_A & quad_ABCD) & EF' (shapes intersected then cut by segment)."
+                            }
+                        },
+                        "required": ["expression"],
+                        "additionalProperties": False
+                    }
+                }
+            }
+            # END AREA CALCULATION FUNCTIONS
         ]

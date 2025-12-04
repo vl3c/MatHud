@@ -22,6 +22,7 @@ from expression_evaluator import ExpressionEvaluator
 from result_processor import ResultProcessor
 from result_validator import ResultValidator
 from utils.linear_algebra_utils import LinearAlgebraUtils, LinearAlgebraObject, LinearAlgebraResult
+from utils.area_expression_evaluator import AreaExpressionEvaluator, AreaExpressionResult
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -126,3 +127,19 @@ class ProcessFunctionCalls:
             bool: True if result is successful, False for errors or empty values
         """
         return bool(ResultValidator.is_successful_result(value))
+    
+    @staticmethod
+    def calculate_area(expression: str, canvas: "Canvas") -> Dict[str, Any]:
+        """Calculate the area of a region defined by a boolean expression.
+        
+        Delegates to AreaExpressionEvaluator for parsing and computation.
+        
+        Args:
+            expression: Boolean expression with drawable names
+            canvas: Canvas instance to resolve drawable names
+            
+        Returns:
+            Dictionary with 'type' and 'value' keys
+        """
+        result: AreaExpressionResult = AreaExpressionEvaluator.evaluate(expression, canvas)
+        return result.to_dict()

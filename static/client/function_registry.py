@@ -145,6 +145,9 @@ class FunctionRegistry:
             "create_angle": canvas.create_angle,
             "delete_angle": canvas.delete_angle,
             "update_angle": canvas.update_angle,
+            
+            # ===== AREA CALCULATION =====
+            "calculate_area": lambda expression: ProcessFunctionCalls.calculate_area(expression, canvas),
         }
 
         # Add testing functions if ai_interface is provided
