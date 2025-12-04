@@ -28,6 +28,7 @@ class ClosedShapeAreaRenderable:
             "ellipse": self._build_ellipse_area,
             "circle_segment": self._build_circle_segment_area,
             "ellipse_segment": self._build_ellipse_segment_area,
+            "region": self._build_region_area,
         }
 
         builder = builders.get(shape_type)
@@ -170,4 +171,15 @@ class ClosedShapeAreaRenderable:
         points[-1] = (end["x"], end["y"])
         reverse = [(end["x"], end["y"]), (start["x"], start["y"])]
         return points, reverse
+
+    def _build_region_area(
+        self, spec: Dict[str, Any]
+    ) -> Optional[Tuple[List[Tuple[float, float]], List[Tuple[float, float]]]]:
+        """Build area from pre-computed region polygon points."""
+        points = spec.get("points", [])
+        if not points or len(points) < 3:
+            return None
+        forward = [(float(x), float(y)) for x, y in points]
+        reverse = list(reversed(forward))
+        return forward, reverse
 

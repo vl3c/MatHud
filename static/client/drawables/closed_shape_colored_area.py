@@ -1,13 +1,14 @@
 """
 MatHud Closed Shape Colored Area
 
-Fills the interior of polygons, circles, ellipses, or simple round-shape segments.
+Fills the interior of polygons, circles, ellipses, simple round-shape segments,
+or arbitrary regions defined by boolean expressions.
 """
 
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from constants import default_area_fill_color, default_area_opacity, default_closed_shape_resolution, closed_shape_resolution_minimum
 from drawables.circle import Circle
@@ -19,7 +20,7 @@ from utils.geometry_utils import GeometryUtils
 
 class ClosedShapeColoredArea(ColoredArea):
     """
-    Represents a colored area bounded by closed geometric figures.
+    Represents a colored area bounded by closed geometric figures or region expressions.
     """
 
     SUPPORTED_SHAPES = {
@@ -28,6 +29,7 @@ class ClosedShapeColoredArea(ColoredArea):
         "ellipse",
         "circle_segment",
         "ellipse_segment",
+        "region",
     }
 
     def __init__(
@@ -43,6 +45,8 @@ class ClosedShapeColoredArea(ColoredArea):
         color: str = default_area_fill_color,
         opacity: float = default_area_opacity,
         name: Optional[str] = None,
+        expression: Optional[str] = None,
+        points: Optional[List[Tuple[float, float]]] = None,
     ) -> None:
         if shape_type not in self.SUPPORTED_SHAPES:
             raise ValueError(f"Unsupported closed shape type '{shape_type}'")
@@ -58,6 +62,8 @@ class ClosedShapeColoredArea(ColoredArea):
                 self.segments.append(self.chord_segment)
         self.arc_clockwise: bool = bool(arc_clockwise)
         self.resolution: int = max(closed_shape_resolution_minimum, int(resolution))
+        self.expression: Optional[str] = expression
+        self.points: List[Tuple[float, float]] = list(points or [])
 
         generated_name = name or self._generate_name()
         super().__init__(name=generated_name, color=color, opacity=opacity)
@@ -70,6 +76,9 @@ class ClosedShapeColoredArea(ColoredArea):
             return f"closed_{self.circle.name}"
         if self.shape_type.startswith("ellipse") and self.ellipse:
             return f"closed_{self.ellipse.name}"
+        if self.shape_type == "region" and self.expression:
+            safe_expr = self.expression.replace(" ", "").replace("&", "_and_").replace("|", "_or_")[:30]
+            return f"region_{safe_expr}"
         return f"closed_shape_{self.shape_type}"
 
     def get_class_name(self) -> str:
@@ -88,7 +97,7 @@ class ClosedShapeColoredArea(ColoredArea):
         """
         Provide the raw geometry references for renderables.
         """
-        return {
+        spec: Dict[str, Any] = {
             "shape_type": self.shape_type,
             "segments": self.segments,
             "circle": self.circle,
@@ -97,6 +106,10 @@ class ClosedShapeColoredArea(ColoredArea):
             "arc_clockwise": self.arc_clockwise,
             "resolution": self.resolution,
         }
+        if self.shape_type == "region":
+            spec["expression"] = self.expression
+            spec["points"] = self.points
+        return spec
 
     def get_state(self) -> Dict[str, Any]:
         state = super().get_state()
@@ -109,6 +122,8 @@ class ClosedShapeColoredArea(ColoredArea):
                 "chord_segment": self.chord_segment.name if self.chord_segment else None,
                 "arc_clockwise": self.arc_clockwise,
                 "resolution": self.resolution,
+                "expression": self.expression,
+                "points": [[x, y] for x, y in self.points] if self.points else None,
                 "geometry_snapshot": self._snapshot_geometry(),
             }
         )
@@ -134,6 +149,8 @@ class ClosedShapeColoredArea(ColoredArea):
             color=self.color,
             opacity=self.opacity,
             name=self.name,
+            expression=self.expression,
+            points=list(self.points) if self.points else None,
         )
         memo[id(self)] = copied
         return copied
@@ -144,6 +161,9 @@ class ClosedShapeColoredArea(ColoredArea):
         if self.shape_type == "polygon":
             coords = GeometryUtils.polygon_math_coordinates_from_segments(self.segments) or []
             snapshot["polygon_coords"] = [[x, y] for x, y in coords]
+        if self.shape_type == "region" and self.points:
+            snapshot["region_points"] = [[x, y] for x, y in self.points]
+            snapshot["expression"] = self.expression
         if self.circle and hasattr(self.circle, "center"):
             center = getattr(self.circle, "center", None)
             if center and hasattr(center, "x") and hasattr(center, "y"):
