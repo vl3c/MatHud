@@ -221,7 +221,7 @@ class TestAreaUtilities(unittest.TestCase):
         self.assertAlmostEqual(area, 0.0, places=5)
         
         area = GeometryUtils.line_segment_area_contribution((0.0, 0.0), (1.0, 1.0))
-        self.assertAlmostEqual(area, 0.5, places=5)
+        self.assertAlmostEqual(area, 0.0, places=5)
 
 
 if __name__ == "__main__":

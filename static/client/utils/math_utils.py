@@ -432,7 +432,8 @@ class MathUtils:
         discriminant = max(discriminant, 0.0)
         sqrt_disc = math.sqrt(discriminant)
         intersections: List[Dict[str, float]] = []
-        for sign in (-1.0, 1.0):
+        signs = [-1.0, 1.0] if sqrt_disc > epsilon else [0.0]
+        for sign in signs:
             t = (-b + sign * sqrt_disc) / (2 * a)
             if t < -epsilon or t > 1 + epsilon:
                 continue
@@ -499,7 +500,8 @@ class MathUtils:
         sqrt_disc = math.sqrt(discriminant)
 
         intersections: List[Dict[str, float]] = []
-        for sign in (-1.0, 1.0):
+        signs = [-1.0, 1.0] if sqrt_disc > epsilon else [0.0]
+        for sign in signs:
             t = (-b + sign * sqrt_disc) / (2 * a)
             if t < -epsilon or t > 1 + epsilon:
                 continue
@@ -507,7 +509,6 @@ class MathUtils:
             local_x = lx1 + t * dx
             local_y = ly1 + t * dy
             world_x, world_y = to_world(local_x, local_y)
-            # Parameter angle on the ellipse before scaling
             theta = math.atan2(local_y / ry, local_x / rx)
             intersections.append({"x": world_x, "y": world_y, "angle": MathUtils._normalize_angle(theta)})
         return intersections
