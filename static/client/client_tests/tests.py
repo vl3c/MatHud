@@ -106,6 +106,10 @@ from .test_colored_area_helpers import (
     TestRenderColoredAreaHelper,
 )
 from .test_transformations_manager import TestTransformationsManager
+from .test_area_expression_evaluator import (
+    TestAreaCalculation,
+    TestRegionGeneration,
+)
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
@@ -226,6 +230,8 @@ class Tests:
             TestPathsFormSingleLoop,
             TestFilterValidPoints,
             TestRenderColoredAreaHelper,
+            TestAreaCalculation,
+            TestRegionGeneration,
         ]
 
         for test_case in test_cases:
