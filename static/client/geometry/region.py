@@ -263,6 +263,51 @@ class Region:
         path = CompositePath([arc])
         return cls(path)
     
+    @classmethod
+    def from_half_plane(
+        cls,
+        point1: Tuple[float, float],
+        point2: Tuple[float, float],
+        size: float = 10000.0
+    ) -> Region:
+        """Create a Region representing a half-plane bounded by a line.
+        
+        The half-plane is the area to the LEFT of the directed line from point1 to point2.
+        To get the other half, swap the points.
+        
+        Args:
+            point1: First point on the boundary line (x, y)
+            point2: Second point on the boundary line (x, y)
+            size: Size of the bounding box (should be larger than any shape it intersects)
+            
+        Returns:
+            A Region representing the half-plane
+        """
+        x1, y1 = point1
+        x2, y2 = point2
+        
+        dx = x2 - x1
+        dy = y2 - y1
+        length = math.sqrt(dx * dx + dy * dy)
+        
+        if length < 1e-10:
+            raise ValueError("Points must be distinct to define a half-plane")
+        
+        dx /= length
+        dy /= length
+        
+        nx, ny = -dy, dx
+        
+        ext1 = (x1 - dx * size, y1 - dy * size)
+        ext2 = (x2 + dx * size, y2 + dy * size)
+        
+        far1 = (ext1[0] + nx * size, ext1[1] + ny * size)
+        far2 = (ext2[0] + nx * size, ext2[1] + ny * size)
+        
+        points = [ext1, ext2, far2, far1]
+        
+        return cls.from_points(points)
+    
     def __repr__(self) -> str:
         return f"Region(boundary_elements={len(self._outer_boundary)}, holes={len(self._holes)})"
 
