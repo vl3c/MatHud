@@ -137,19 +137,21 @@ class TestRegion(unittest.TestCase):
         result = sq1.intersection(sq2)
         self.assertIsNone(result)
 
-    def test_union_overlapping_returns_single_region(self) -> None:
+    def test_union_overlapping_returns_correct_area(self) -> None:
         sq1 = Region.from_points([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
         sq2 = Region.from_points([(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)])
         
         result = sq1.union(sq2)
-        self.assertEqual(len(result), 1)
+        # Two 2x2 squares with 1x1 overlap: 4 + 4 - 1 = 7
+        self.assertAlmostEqual(result.area(), 7.0, places=1)
 
-    def test_union_disjoint_returns_both(self) -> None:
+    def test_union_disjoint_returns_correct_area(self) -> None:
         sq1 = Region.from_points([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         sq2 = Region.from_points([(5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0)])
         
         result = sq1.union(sq2)
-        self.assertEqual(len(result), 2)
+        # Two disjoint 1x1 squares: 1 + 1 = 2
+        self.assertAlmostEqual(result.area(), 2.0, places=1)
 
     def test_difference_overlapping(self) -> None:
         sq1 = Region.from_points([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])

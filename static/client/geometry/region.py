@@ -397,6 +397,28 @@ class Region:
         
         return output
 
+    @staticmethod
+    def _ensure_ccw(points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+        """Ensure polygon points are in counterclockwise order.
+        
+        Sutherland-Hodgman requires consistent CCW winding for both polygons.
+        """
+        if len(points) < 3:
+            return points
+        
+        # Calculate signed area using shoelace formula
+        signed_area = 0.0
+        n = len(points)
+        for i in range(n):
+            j = (i + 1) % n
+            signed_area += points[i][0] * points[j][1]
+            signed_area -= points[j][0] * points[i][1]
+        
+        # If clockwise (negative area), reverse to make CCW
+        if signed_area < 0:
+            return list(reversed(points))
+        return points
+
     def intersection(self, other: Region, num_samples: int = 100) -> Optional[Region]:
         """Compute the intersection of this region with another.
         
@@ -415,6 +437,10 @@ class Region:
         if len(self_points) < 3 or len(other_points) < 3:
             return None
         
+        # Ensure both polygons are CCW for correct clipping
+        self_points = self._ensure_ccw(self_points)
+        other_points = self._ensure_ccw(other_points)
+        
         clipped = self._sutherland_hodgman_clip(self_points, other_points)
         
         if len(clipped) < 3:
@@ -422,48 +448,21 @@ class Region:
         
         return Region.from_points(clipped)
 
-    def union(self, other: Region, num_samples: int = 100) -> List[Region]:
+    def union(self, other: Region, num_samples: int = 100) -> "Region":
         """Compute the union of this region with another.
         
-        Uses a simplified approach: returns both regions if disjoint,
-        or a merged boundary if overlapping.
+        Uses area formula: union = A + B - intersection.
+        Returns a CompositeRegion that computes area correctly.
         
         Args:
             other: Another Region to union with
             num_samples: Number of sample points for boundary approximation
             
         Returns:
-            List of Regions representing the union (may be 1 or 2 regions)
+            A Region representing the union
         """
-        self_points = self._sample_to_points(num_samples)
-        other_points = other._sample_to_points(num_samples)
-        
-        has_overlap = False
-        for px, py in self_points:
-            if other.contains_point(px, py):
-                has_overlap = True
-                break
-        
-        if not has_overlap:
-            for px, py in other_points:
-                if self.contains_point(px, py):
-                    has_overlap = True
-                    break
-        
-        if not has_overlap:
-            return [self, other]
-        
-        all_points = self_points + other_points
-        
-        if len(all_points) < 3:
-            return [self]
-        
-        hull = self._convex_hull(all_points)
-        
-        if len(hull) < 3:
-            return [self]
-        
-        return [Region.from_points(hull)]
+        intersection = self.intersection(other, num_samples)
+        return _CompositeRegion([self, other], intersection)
 
     @staticmethod
     def _convex_hull(points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
@@ -497,28 +496,89 @@ class Region:
         """Compute the difference of this region minus another.
         
         Returns the area of this region that is not in the other region.
-        Implemented by adding the other region as a hole.
+        Uses intersection as hole to correctly handle partial overlaps.
         
         Args:
             other: Region to subtract from this region
             num_samples: Number of sample points for boundary approximation
             
         Returns:
-            A new Region with the other region as a hole, or self if no overlap
+            A new Region with the intersection as a hole, or self if no overlap
         """
-        other_points = other._sample_to_points(num_samples)
+        inter = self.intersection(other, num_samples)
         
-        has_overlap = False
-        for px, py in other_points:
-            if self.contains_point(px, py):
-                has_overlap = True
-                break
-        
-        if not has_overlap:
+        if inter is None:
             return Region(self._outer_boundary, list(self._holes))
         
         new_holes = list(self._holes)
-        new_holes.append(other._outer_boundary)
+        new_holes.append(inter._outer_boundary)
         
         return Region(self._outer_boundary, new_holes)
+    
+    def symmetric_difference(self, other: Region, num_samples: int = 100) -> "Region":
+        """Compute the symmetric difference of this region with another.
+        
+        Returns the area in either region but not in both.
+        Uses formula: A ^ B = A + B - 2 * (A & B)
+        
+        Args:
+            other: Another Region
+            num_samples: Number of sample points for boundary approximation
+            
+        Returns:
+            A Region representing the symmetric difference
+        """
+        inter = self.intersection(other, num_samples)
+        return _SymmetricDifferenceRegion(self, other, inter)
 
+
+class _CompositeRegion(Region):
+    """A composite region representing the union of two regions.
+    
+    This is used internally to correctly compute union area using the
+    formula: area(A | B) = area(A) + area(B) - area(A & B)
+    """
+    
+    def __init__(self, regions: List[Region], intersection: Optional[Region]) -> None:
+        self._regions = regions
+        self._intersection = intersection
+        self._outer_boundary = regions[0]._outer_boundary if regions else CompositePath([])
+        self._holes: List[CompositePath] = []
+    
+    def area(self) -> float:
+        """Calculate union area as sum of regions minus intersection."""
+        total = sum(r.area() for r in self._regions)
+        if self._intersection is not None:
+            total -= self._intersection.area()
+        return total
+    
+    def contains_point(self, x: float, y: float) -> bool:
+        """Check if point is in any of the regions."""
+        return any(r.contains_point(x, y) for r in self._regions)
+
+
+class _SymmetricDifferenceRegion(Region):
+    """A region representing the symmetric difference of two regions.
+    
+    Uses formula: area(A ^ B) = area(A) + area(B) - 2 * area(A & B)
+    """
+    
+    def __init__(self, region1: Region, region2: Region, intersection: Optional[Region]) -> None:
+        self._region1 = region1
+        self._region2 = region2
+        self._intersection = intersection
+        self._outer_boundary = region1._outer_boundary
+        self._holes: List[CompositePath] = []
+    
+    def area(self) -> float:
+        """Calculate symmetric difference area."""
+        total = self._region1.area() + self._region2.area()
+        if self._intersection is not None:
+            total -= 2 * self._intersection.area()
+        return total
+    
+    def contains_point(self, x: float, y: float) -> bool:
+        """Check if point is in exactly one of the regions."""
+        in1 = self._region1.contains_point(x, y)
+        in2 = self._region2.contains_point(x, y)
+        return in1 != in2
