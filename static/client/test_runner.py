@@ -189,9 +189,7 @@ class TestRunner:
                     "center_x": 316.0,
                     "center_y": -206.0,
                     "radius": 60.06,
-                    "arc_name": "ArcMin_FG",
-                    "point1_name": "F",
-                    "point2_name": "G",
+                    "arc_name": "arc_ZB'",
                     "color": "orange",
                     "use_major_arc": False
                 }
@@ -206,9 +204,7 @@ class TestRunner:
                     "center_x": 324.0,
                     "center_y": -174.0,
                     "radius": 109.0,
-                    "arc_name": "ArcMaj_HI",
-                    "point1_name": "H",
-                    "point2_name": "I",
+                    "arc_name": "arc_C'D'",
                     "color": "purple",
                     "use_major_arc": True
                 }
