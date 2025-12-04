@@ -619,6 +619,10 @@ class GeometryUtils:
         """Check if angle is within the arc's angular range."""
         two_pi = 2 * math.pi
         
+        arc_span = abs(end_angle - start_angle)
+        if arc_span >= two_pi - 1e-9:
+            return True
+        
         def normalize(a: float) -> float:
             while a < 0:
                 a += two_pi
