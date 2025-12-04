@@ -388,6 +388,15 @@ class WorkspaceManager:
         chord_name = shape_args.get("chord_segment")
         arc_clockwise = shape_args.get("arc_clockwise", False)
         resolution = shape_args.get("resolution", default_closed_shape_resolution)
+        expression = shape_args.get("expression")
+
+        if shape_type == "region" and expression:
+            return self.canvas.create_region_colored_area(
+                expression=expression,
+                resolution=resolution,
+                color=color,
+                opacity=opacity,
+            )
 
         if shape_type == "polygon":
             polygon_names = shape_args.get("segments")
@@ -398,7 +407,7 @@ class WorkspaceManager:
         elif shape_type not in ("circle_segment", "ellipse_segment"):
             polygon_names = shape_args.get("segments")
 
-        return self.canvas.create_closed_shape_colored_area(
+        return self.canvas.create_region_colored_area(
             polygon_segment_names=polygon_names,
             circle_name=circle_name,
             ellipse_name=ellipse_name,

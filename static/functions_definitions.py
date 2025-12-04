@@ -1610,12 +1610,16 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
-                    "name": "create_closed_shape_colored_area",
-                    "description": "Fill the interior of a closed shape (triangle, rectangle, polygonal loop, circle, ellipse, or a round shape clipped by a single segment). Provide the relevant identifiers for the shape you want to fill.",
+                    "name": "create_region_colored_area",
+                    "description": "Fill a region defined by a boolean expression or a closed shape. Supports expressions with operators (& | - ^), arcs, circles, ellipses, polygons, and segments. Expression takes precedence if provided.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
                         "properties": {
+                            "expression": {
+                                "type": ["string", "null"],
+                                "description": "Boolean region expression using shape names and operators. Examples: 'ArcMaj_AB & CD' (arc intersected with segment), 'circle_A - triangle_ABC' (difference). Takes precedence over other parameters."
+                            },
                             "triangle_name": {
                                 "type": ["string", "null"],
                                 "description": "Name of an existing triangle to fill."
@@ -1659,6 +1663,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             }
                         },
                         "required": [
+                            "expression",
                             "triangle_name",
                             "rectangle_name",
                             "polygon_segment_names",

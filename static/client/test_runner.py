@@ -214,7 +214,7 @@ class TestRunner:
                 "arguments": {"x1": 365.0, "y1": -286.0, "x2": 440.0, "y2": -132.0, "name": "A''E'"}
             },
             {
-                "function_name": "create_closed_shape_colored_area",
+                "function_name": "create_region_colored_area",
                 "arguments": {
                     "polygon_segment_names": [
                         "JO",
@@ -256,7 +256,7 @@ class TestRunner:
                 }
             },
             {
-                "function_name": "create_closed_shape_colored_area",
+                "function_name": "create_region_colored_area",
                 "arguments": {
                     "triangle_name": "A'BD",
                     "color": "orange",
@@ -264,7 +264,7 @@ class TestRunner:
                 }
             },
             {
-                "function_name": "create_closed_shape_colored_area",
+                "function_name": "create_region_colored_area",
                 "arguments": {
                     "circle_name": "G(60)",
                     "color": "red",
@@ -272,7 +272,7 @@ class TestRunner:
                 }
             },
             {
-                "function_name": "create_closed_shape_colored_area",
+                "function_name": "create_region_colored_area",
                 "arguments": {
                     "rectangle_name": "REFT",
                     "color": "green",
@@ -280,7 +280,7 @@ class TestRunner:
                 }
             },
             {
-                "function_name": "create_closed_shape_colored_area",
+                "function_name": "create_region_colored_area",
                 "arguments": {
                     "ellipse_name": "I(80, 50)",
                     "color": "blue",
@@ -352,6 +352,14 @@ class TestRunner:
                     "font_size": 14,
                     "rotation_degrees": -10.0,
                 },
+            },
+            {
+                "function_name": "create_region_colored_area",
+                "arguments": {
+                    "expression": "ArcMaj_C'D' & A''E'",
+                    "color": "#D2B48C",
+                    "opacity": 0.5
+                }
             },
             {
                 "function_name": "clear_canvas",

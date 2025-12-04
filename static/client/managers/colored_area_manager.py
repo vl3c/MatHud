@@ -218,9 +218,10 @@ class ColoredAreaManager:
             
         return colored_area
 
-    def create_closed_shape_colored_area(
+    def create_region_colored_area(
         self,
         *,
+        expression: Optional[str] = None,
         triangle_name: Optional[str] = None,
         rectangle_name: Optional[str] = None,
         polygon_segment_names: Optional[List[str]] = None,
@@ -233,11 +234,15 @@ class ColoredAreaManager:
         opacity: float = default_area_opacity,
     ) -> ClosedShapeColoredArea:
         """
-        Creates a closed-shape colored area from existing triangles, rectangles,
-        polygonal segments, circles, ellipses, or simple round-shape chords.
+        Creates a colored area from a region expression, existing shapes, or simple geometries.
+        
+        Expression takes precedence if provided. Supports boolean operations on shapes.
         """
         self.canvas._validate_color_and_opacity(color, opacity)
         self.canvas.undo_redo_manager.archive()
+
+        if expression:
+            return self._create_from_expression(expression, resolution, color, opacity)
 
         shape_type: Optional[str] = None
         segments: List[Segment] = []
@@ -309,7 +314,7 @@ class ColoredAreaManager:
             shape_type = "ellipse"
         else:
             raise ValueError(
-                "Specify a triangle, rectangle, polygon segments, circle, or ellipse to create a closed shape area."
+                "Specify an expression, triangle, rectangle, polygon segments, circle, or ellipse to create a region colored area."
             )
 
         closed_area = ClosedShapeColoredArea(
@@ -333,6 +338,41 @@ class ColoredAreaManager:
         if self.canvas.draw_enabled:
             self.canvas.draw()
 
+        return closed_area
+    
+    def _create_from_expression(
+        self,
+        expression: str,
+        resolution: int,
+        color: str,
+        opacity: float,
+    ) -> ClosedShapeColoredArea:
+        """Create a colored area from a boolean region expression."""
+        from utils.area_expression_evaluator import AreaExpressionEvaluator
+        
+        result = AreaExpressionEvaluator.evaluate(expression, self.canvas)
+        if result.error:
+            raise ValueError(result.error)
+        
+        if result.region is None:
+            raise ValueError(f"Expression '{expression}' did not produce a valid region")
+        
+        points = result.region._sample_to_points(resolution)
+        
+        closed_area = ClosedShapeColoredArea(
+            shape_type="region",
+            expression=expression,
+            points=points,
+            resolution=resolution,
+            color=color,
+            opacity=opacity,
+        )
+        
+        self.drawables.add(closed_area)
+        
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+        
         return closed_area
         
     def delete_colored_area(self, name: str) -> bool:

@@ -672,9 +672,10 @@ class DrawableManager:
             opacity,
         )
 
-    def create_closed_shape_colored_area(
+    def create_region_colored_area(
         self,
         *,
+        expression: Optional[str] = None,
         triangle_name: Optional[str] = None,
         rectangle_name: Optional[str] = None,
         polygon_segment_names: Optional[List[str]] = None,
@@ -686,8 +687,9 @@ class DrawableManager:
         color: str = default_area_fill_color,
         opacity: float = default_area_opacity,
     ) -> "ClosedShapeColoredArea":
-        """Create a closed shape colored area."""
-        return self.colored_area_manager.create_closed_shape_colored_area(
+        """Create a region colored area from expression or closed shape."""
+        return self.colored_area_manager.create_region_colored_area(
+            expression=expression,
             triangle_name=triangle_name,
             rectangle_name=rectangle_name,
             polygon_segment_names=polygon_segment_names,

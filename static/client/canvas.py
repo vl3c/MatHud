@@ -1018,9 +1018,10 @@ class Canvas:
         """Creates a vertical bounded colored area between two functions, two segments, or a function and a segment"""
         return self.drawable_manager.create_colored_area(drawable1_name, drawable2_name, left_bound, right_bound, color, opacity)
 
-    def create_closed_shape_colored_area(
+    def create_region_colored_area(
         self,
         *,
+        expression: Optional[str] = None,
         triangle_name: Optional[str] = None,
         rectangle_name: Optional[str] = None,
         polygon_segment_names: Optional[List[str]] = None,
@@ -1032,8 +1033,9 @@ class Canvas:
         color: str = default_area_fill_color,
         opacity: float = default_area_opacity,
     ) -> "Drawable":
-        """Creates a closed shape colored area (polygon, circle, ellipse, or round-segment)."""
-        return self.drawable_manager.create_closed_shape_colored_area(
+        """Creates a region colored area from expression or closed shape."""
+        return self.drawable_manager.create_region_colored_area(
+            expression=expression,
             triangle_name=triangle_name,
             rectangle_name=rectangle_name,
             polygon_segment_names=polygon_segment_names,
