@@ -11,10 +11,12 @@ from .drawable import DrawableNameGenerator
 from .base import NameGenerator
 from .point import PointNameGenerator
 from .function import FunctionNameGenerator
+from .arc import ArcNameGenerator
 
 __all__ = [
     'DrawableNameGenerator',
     'NameGenerator',
     'PointNameGenerator',
-    'FunctionNameGenerator'
+    'FunctionNameGenerator',
+    'ArcNameGenerator',
 ] 

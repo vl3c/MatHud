@@ -36,9 +36,16 @@ class TestArcManager(unittest.TestCase):
         def get_point_by_name(name: str) -> Optional[Point]:
             return self.points_by_name.get(name)
 
+        def get_point(x: float, y: float) -> Optional[Point]:
+            for point in self.points_by_name.values():
+                if abs(point.x - x) < 1e-9 and abs(point.y - y) < 1e-9:
+                    return point
+            return None
+
         self.point_manager = SimpleMock(
             create_point=create_point,
             get_point_by_name=get_point_by_name,
+            get_point=get_point,
         )
 
         self.circles: Dict[str, Circle] = {}
@@ -51,7 +58,10 @@ class TestArcManager(unittest.TestCase):
             get_circle_by_name=get_circle_by_name,
         )
 
-        self.name_generator = SimpleMock()
+        self.name_generator = SimpleMock(
+            extract_point_names_from_arc_name=lambda arc_name: (None, None),
+            generate_arc_name=lambda proposed, p1, p2, major, existing: proposed if proposed else f"{'ArcMaj' if major else 'ArcMin'}_{p1}{p2}",
+        )
 
         self.arc_manager = ArcManager(
             canvas=self.canvas,

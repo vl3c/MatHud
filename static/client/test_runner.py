@@ -189,7 +189,9 @@ class TestRunner:
                     "center_x": 316.0,
                     "center_y": -206.0,
                     "radius": 60.06,
-                    "arc_name": "ArcMinor",
+                    "arc_name": "ArcMin_FG",
+                    "point1_name": "F",
+                    "point2_name": "G",
                     "color": "orange",
                     "use_major_arc": False
                 }
@@ -204,7 +206,9 @@ class TestRunner:
                     "center_x": 324.0,
                     "center_y": -174.0,
                     "radius": 109.0,
-                    "arc_name": "ArcMajor",
+                    "arc_name": "ArcMaj_HI",
+                    "point1_name": "H",
+                    "point2_name": "I",
                     "color": "purple",
                     "use_major_arc": True
                 }
@@ -285,15 +289,6 @@ class TestRunner:
                     "ellipse_name": "I(80, 50)",
                     "color": "blue",
                     "opacity": 0.35
-                }
-            },
-            {
-                "function_name": "create_closed_shape_colored_area",
-                "arguments": {
-                    "arc_name": "ArcMajor",
-                    "chord_segment_name": "A''E'",
-                    "color": "burlywood",
-                    "opacity": 0.3
                 }
             },
             {

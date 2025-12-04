@@ -342,3 +342,121 @@ class TestDrawableNameGenerator(unittest.TestCase):
         self.assertIsNone(name)
         name = self.generator.generate_angle_name_from_segments(None, None)
         self.assertIsNone(name)
+
+    # -------------------------------------------------------------------------
+    # Arc Name Generation Tests
+    # -------------------------------------------------------------------------
+
+    def test_extract_point_names_from_arc_name_simple(self) -> None:
+        """Test extracting point names from simple arc name suggestions."""
+        p1, p2 = self.generator.extract_point_names_from_arc_name("AB")
+        self.assertEqual(p1, "A")
+        self.assertEqual(p2, "B")
+
+    def test_extract_point_names_from_arc_name_with_primes(self) -> None:
+        """Test extracting point names with prime symbols."""
+        p1, p2 = self.generator.extract_point_names_from_arc_name("A'B''")
+        self.assertEqual(p1, "A'")
+        self.assertEqual(p2, "B''")
+
+    def test_extract_point_names_from_arc_name_with_prefix(self) -> None:
+        """Test extracting point names when arc prefix is present."""
+        p1, p2 = self.generator.extract_point_names_from_arc_name("ArcMin_CD")
+        self.assertEqual(p1, "C")
+        self.assertEqual(p2, "D")
+        
+        p1, p2 = self.generator.extract_point_names_from_arc_name("ArcMaj_E'F''")
+        self.assertEqual(p1, "E'")
+        self.assertEqual(p2, "F''")
+        
+        p1, p2 = self.generator.extract_point_names_from_arc_name("arc_XY")
+        self.assertEqual(p1, "X")
+        self.assertEqual(p2, "Y")
+
+    def test_extract_point_names_from_arc_name_prefix_only(self) -> None:
+        """Test extracting from names that are just prefixes with nothing after."""
+        p1, p2 = self.generator.extract_point_names_from_arc_name("ArcMajor")
+        self.assertIsNone(p1)
+        self.assertIsNone(p2)
+        
+        p1, p2 = self.generator.extract_point_names_from_arc_name("ArcMinor")
+        self.assertIsNone(p1)
+        self.assertIsNone(p2)
+
+    def test_extract_point_names_from_arc_name_empty(self) -> None:
+        """Test extracting from empty or None arc names."""
+        p1, p2 = self.generator.extract_point_names_from_arc_name("")
+        self.assertIsNone(p1)
+        self.assertIsNone(p2)
+        
+        p1, p2 = self.generator.extract_point_names_from_arc_name(None)
+        self.assertIsNone(p1)
+        self.assertIsNone(p2)
+
+    def test_extract_point_names_from_arc_name_complex(self) -> None:
+        """Test extracting point names from complex expressions."""
+        p1, p2 = self.generator.extract_point_names_from_arc_name("A''E'")
+        self.assertEqual(p1, "A''")
+        self.assertEqual(p2, "E'")
+
+    def test_generate_arc_name_minor(self) -> None:
+        """Test generating minor arc names."""
+        result = self.generator.generate_arc_name(None, "A", "B", False, set())
+        self.assertEqual(result, "ArcMin_AB")
+
+    def test_generate_arc_name_major(self) -> None:
+        """Test generating major arc names."""
+        result = self.generator.generate_arc_name(None, "A", "B", True, set())
+        self.assertEqual(result, "ArcMaj_AB")
+
+    def test_generate_arc_name_with_primes(self) -> None:
+        """Test generating arc names with prime symbols in point names."""
+        result = self.generator.generate_arc_name(None, "A'", "B''", False, set())
+        self.assertEqual(result, "ArcMin_A'B''")
+        
+        result = self.generator.generate_arc_name(None, "C''", "D'''", True, set())
+        self.assertEqual(result, "ArcMaj_C''D'''")
+
+    def test_generate_arc_name_avoids_collision(self) -> None:
+        """Test that arc name generation avoids existing names."""
+        existing = {"ArcMin_AB"}
+        result = self.generator.generate_arc_name(None, "A", "B", False, existing)
+        self.assertEqual(result, "ArcMin_AB_1")
+        
+        existing = {"ArcMin_AB", "ArcMin_AB_1"}
+        result = self.generator.generate_arc_name(None, "A", "B", False, existing)
+        self.assertEqual(result, "ArcMin_AB_2")
+
+    def test_generate_arc_name_uses_proposed_with_prefix(self) -> None:
+        """Test that proposed name with proper prefix is used directly."""
+        result = self.generator.generate_arc_name("ArcMaj_CustomName", "A", "B", True, set())
+        self.assertEqual(result, "ArcMaj_CustomName")
+        
+        result = self.generator.generate_arc_name("ArcMin_XY", "A", "B", False, set())
+        self.assertEqual(result, "ArcMin_XY")
+
+    def test_generate_arc_name_extracts_from_proposed(self) -> None:
+        """Test that point names are extracted from proposed name."""
+        # "arc_XY" strips prefix, extracts X and Y
+        result = self.generator.generate_arc_name("arc_XY", "C", "D", False, set())
+        self.assertEqual(result, "ArcMin_XY")
+        
+        # "ArcMaj_PQ" strips prefix, extracts P and Q
+        result = self.generator.generate_arc_name("ArcMaj_PQ", "C", "D", True, set())
+        self.assertEqual(result, "ArcMaj_PQ")
+
+    def test_generate_arc_name_fallback_when_prefix_only(self) -> None:
+        """Test fallback to point names when proposed name has nothing after prefix."""
+        # "ArcMajor" strips to empty, falls back to provided point names
+        result = self.generator.generate_arc_name("ArcMajor", "C", "D", True, set())
+        self.assertEqual(result, "ArcMaj_CD")
+        
+        # "ArcMinor" strips to empty, falls back to provided point names
+        result = self.generator.generate_arc_name("ArcMinor", "E", "F", False, set())
+        self.assertEqual(result, "ArcMin_EF")
+
+    def test_generate_arc_name_proposed_with_collision(self) -> None:
+        """Test proposed name with collision gets suffix."""
+        existing = {"ArcMaj_AB"}
+        result = self.generator.generate_arc_name("ArcMaj_AB", "A", "B", True, existing)
+        self.assertEqual(result, "ArcMaj_AB_1")

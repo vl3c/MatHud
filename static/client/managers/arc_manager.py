@@ -121,20 +121,11 @@ class ArcManager:
         point2: "Point",
         use_major_arc: bool,
     ) -> str:
-        if proposed_name:
-            return proposed_name
-
-        base = f"arc_{point1.name}_{point2.name}".strip("_")
-        if use_major_arc:
-            base += "_major"
-
-        candidate = base or "circle_arc"
-        suffix = 1
+        """Generate arc name using the name generator."""
         existing_names = {arc.name for arc in self.drawables.CircleArcs}
-        while candidate in existing_names:
-            candidate = f"{base}_{suffix}"
-            suffix += 1
-        return candidate
+        return self.name_generator.generate_arc_name(
+            proposed_name, point1.name, point2.name, use_major_arc, existing_names
+        )
 
     def _find_duplicate_arc(
         self,
@@ -168,17 +159,67 @@ class ArcManager:
         point3_name: Optional[str],
         point3_x: Optional[float],
         point3_y: Optional[float],
+        arc_name: Optional[str] = None,
     ) -> Tuple["Point", bool, "Point", bool, Optional["Point"], bool]:
-        """Resolve up to three points from the supplied parameters."""
-        point1, point1_is_new = self._resolve_point("Point 1", point1_name, point1_x, point1_y)
-        point2, point2_is_new = self._resolve_point("Point 2", point2_name, point2_x, point2_y)
+        """Resolve up to three points from the supplied parameters.
+        
+        If point names are not provided, attempts to extract suggested names
+        from the arc_name parameter (e.g., 'arc_AB' -> points A and B).
+        Point name validation is handled by create_point via generate_point_name.
+        """
+        # Extract suggested point names from arc_name
+        suggested_p1, suggested_p2 = self.name_generator.extract_point_names_from_arc_name(arc_name)
+        
+        # Resolve point 1
+        point1, point1_is_new = self._resolve_arc_point(
+            "Point 1", point1_name, point1_x, point1_y, suggested_p1
+        )
+        
+        # Resolve point 2
+        point2, point2_is_new = self._resolve_arc_point(
+            "Point 2", point2_name, point2_x, point2_y, suggested_p2
+        )
 
+        # Resolve optional point 3
         point3: Optional["Point"] = None
         point3_is_new = False
         if any(value is not None for value in (point3_name, point3_x, point3_y)):
             point3, point3_is_new = self._resolve_point("Point 3", point3_name, point3_x, point3_y)
 
         return point1, point1_is_new, point2, point2_is_new, point3, point3_is_new
+
+    def _resolve_arc_point(
+        self,
+        label: str,
+        explicit_name: Optional[str],
+        x: Optional[float],
+        y: Optional[float],
+        suggested_name: Optional[str],
+    ) -> Tuple["Point", bool]:
+        """Resolve a point for arc creation.
+        
+        If explicit_name is provided, uses _resolve_point (lookup by name).
+        If only coordinates with suggested_name, uses create_point directly
+        (like segments do) to let generate_point_name handle validation.
+        """
+        # Explicit name provided - use standard resolution (lookup by name first)
+        if explicit_name:
+            return self._resolve_point(label, explicit_name, x, y)
+        
+        # Coordinates required when no explicit name
+        if x is None or y is None:
+            raise ValueError(f"{label} coordinates are required when no name is provided.")
+        
+        # Use create_point directly with suggested name (like segments do)
+        # create_point handles: coordinate lookup, name validation via generate_point_name
+        point = self.point_manager.create_point(
+            x, y,
+            name=suggested_name or "",
+            extra_graphics=False,
+        )
+        # Check if point was newly created or already existed at coordinates
+        is_new = not bool(self.point_manager.get_point(x, y) and suggested_name)
+        return point, True  # Assume new for arc creation purposes
 
     def _determine_arc_geometry(
         self,
@@ -351,6 +392,7 @@ class ArcManager:
             point3_name,
             point3_x,
             point3_y,
+            arc_name,
         )
 
         (

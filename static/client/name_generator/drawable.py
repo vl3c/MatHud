@@ -5,7 +5,7 @@ Coordinated name generation system managing names across all drawable object typ
 Provides unified naming interface with type-specific delegation.
 
 Key Features:
-    - Multi-type name coordination (points, functions, shapes, areas)
+    - Multi-type name coordination (points, functions, shapes, areas, arcs)
     - Type-specific naming strategy delegation
     - Global name uniqueness validation
     - Angle name generation from geometric relationships
@@ -13,15 +13,17 @@ Key Features:
 Dependencies:
     - name_generator.point: Point naming system
     - name_generator.function: Function naming system
+    - name_generator.arc: Arc naming system
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .point import PointNameGenerator
 from .function import FunctionNameGenerator
 from .label import LabelNameGenerator
+from .arc import ArcNameGenerator
 
 
 class DrawableNameGenerator:
@@ -35,6 +37,7 @@ class DrawableNameGenerator:
         used_letters_from_names (dict): Backward compatibility tracking
         point_generator (PointNameGenerator): Specialized point name generator
         function_generator (FunctionNameGenerator): Specialized function name generator
+        arc_generator (ArcNameGenerator): Specialized arc name generator
     """
     
     def __init__(self, canvas: Any) -> None:
@@ -50,6 +53,7 @@ class DrawableNameGenerator:
         self.point_generator: PointNameGenerator = PointNameGenerator(canvas)
         self.function_generator: FunctionNameGenerator = FunctionNameGenerator(canvas)
         self.label_generator: LabelNameGenerator = LabelNameGenerator(canvas)
+        self.arc_generator: ArcNameGenerator = ArcNameGenerator(canvas, self.point_generator)
     
     def reset_state(self) -> None:
         """Reset the state of all specialized name generators."""
@@ -166,6 +170,43 @@ class DrawableNameGenerator:
     def generate_label_name(self, preferred_name: Optional[str]) -> str:
         """Generate a unique label name, using preferred_name when provided."""
         return self.label_generator.generate_label_name(preferred_name)
+
+    def extract_point_names_from_arc_name(
+        self, arc_name: Optional[str]
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Extract suggested point names from an arc name suggestion.
+        
+        Args:
+            arc_name: Arc name or point name suggestion (e.g., "A'B'", "ArcMin_CD")
+            
+        Returns:
+            Tuple of (point1_name, point2_name)
+        """
+        return self.arc_generator.extract_point_names_from_arc_name(arc_name)
+
+    def generate_arc_name(
+        self,
+        proposed_name: Optional[str],
+        point1_name: str,
+        point2_name: str,
+        use_major_arc: bool,
+        existing_names: Set[str],
+    ) -> str:
+        """Generate a unique arc name based on endpoint names.
+        
+        Args:
+            proposed_name: Optional proposed name
+            point1_name: Name of the first endpoint
+            point2_name: Name of the second endpoint
+            use_major_arc: Whether this is a major arc
+            existing_names: Set of existing arc names
+            
+        Returns:
+            Unique arc name
+        """
+        return self.arc_generator.generate_arc_name(
+            proposed_name, point1_name, point2_name, use_major_arc, existing_names
+        )
 
     def _is_valid_point_list(self, points: List[str]) -> bool:
         """Helper to check if a list of points is valid for angle name generation.
