@@ -4,6 +4,7 @@ import unittest
 import math
 
 from coordinate_mapper import CoordinateMapper
+from constants import point_label_font_size
 from drawables.point import Point
 from drawables.segment import Segment
 from drawables.vector import Vector
@@ -321,6 +322,84 @@ class TestLabelRenderer(unittest.TestCase):
             self.assertLess(font.size, 16)
 
 
+class TestSegmentLabelRenderer(unittest.TestCase):
+    def setUp(self) -> None:
+        self.mapper = CoordinateMapper(640, 480)
+        self.primitives = RecordingPrimitives()
+        self.style = {
+            "segment_stroke_width": 1,
+            "segment_color": "#111111",
+        }
+
+    def test_segment_label_renders_when_visible_with_text(self) -> None:
+        p1 = Point(0, 0, name="A")
+        p2 = Point(10, 0, name="B")
+        segment = Segment(p1, p2, color="#ff00ff", label_text="mid", label_visible=True)
+
+        shared.render_segment_helper(self.primitives, segment, self.mapper, self.style)
+
+        text_calls = [call for call in self.primitives.calls if call[0] == "draw_text"]
+        self.assertEqual(len(text_calls), 1)
+        _, args, _ = text_calls[0]
+        text = args[0]
+        font = args[2]
+        color = args[3]
+        self.assertEqual(text, "mid")
+        self.assertEqual(color, "#ff00ff")
+        self.assertAlmostEqual(font.size, point_label_font_size)
+
+    def test_segment_label_skips_when_not_visible(self) -> None:
+        p1 = Point(0, 0, name="A")
+        p2 = Point(5, 5, name="B")
+        segment = Segment(p1, p2, label_text="hidden", label_visible=False)
+
+        shared.render_segment_helper(self.primitives, segment, self.mapper, self.style)
+
+        text_calls = [call for call in self.primitives.calls if call[0] == "draw_text"]
+        self.assertEqual(len(text_calls), 0)
+
+    def test_segment_label_skips_when_empty(self) -> None:
+        p1 = Point(0, 0, name="A")
+        p2 = Point(5, 5, name="B")
+        segment = Segment(p1, p2, label_text="", label_visible=True)
+
+        shared.render_segment_helper(self.primitives, segment, self.mapper, self.style)
+
+        text_calls = [call for call in self.primitives.calls if call[0] == "draw_text"]
+        self.assertEqual(len(text_calls), 0)
+
+    def test_segment_label_includes_reprojection_metadata(self) -> None:
+        """Verify segment label passes metadata for constant offset during zoom."""
+        p1 = Point(2, 4, name="A")
+        p2 = Point(8, 10, name="B")
+        segment = Segment(p1, p2, color="#00ff00", label_text="test", label_visible=True)
+        self.style["point_radius"] = 5.0
+
+        shared.render_segment_helper(self.primitives, segment, self.mapper, self.style)
+
+        text_calls = [call for call in self.primitives.calls if call[0] == "draw_text"]
+        self.assertEqual(len(text_calls), 1)
+
+        _, args, kwargs = text_calls[0]
+        metadata = kwargs.get("metadata")
+        self.assertIsNotNone(metadata, "draw_text should include metadata")
+
+        point_label_meta = metadata.get("point_label")
+        self.assertIsNotNone(point_label_meta, "metadata should have point_label key")
+
+        # math_position should be the segment midpoint in math coordinates
+        math_position = point_label_meta.get("math_position")
+        expected_mid_x = (p1.x + p2.x) / 2  # 5.0
+        expected_mid_y = (p1.y + p2.y) / 2  # 7.0
+        self.assertAlmostEqual(math_position[0], expected_mid_x)
+        self.assertAlmostEqual(math_position[1], expected_mid_y)
+
+        # screen_offset should be (radius, -radius) for single-line label
+        screen_offset = point_label_meta.get("screen_offset")
+        self.assertAlmostEqual(screen_offset[0], 5.0)  # radius
+        self.assertAlmostEqual(screen_offset[1], -5.0)  # -radius
+
+
 class TestRendererEdgeCases(unittest.TestCase):
     def setUp(self) -> None:
         self.mapper = CoordinateMapper(640, 480)
@@ -369,6 +448,7 @@ __all__ = [
     "TestAngleRenderer",
     "TestEllipseRenderer",
     "TestLabelRenderer",
+    "TestSegmentLabelRenderer",
     "TestRendererEdgeCases",
 ]
 

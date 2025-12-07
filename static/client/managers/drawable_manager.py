@@ -382,6 +382,8 @@ class DrawableManager:
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        label_text: Optional[str] = None,
+        label_visible: Optional[bool] = None,
     ) -> "Segment":
         """Create a new segment between the specified points"""
         return self.segment_manager.create_segment(
@@ -392,6 +394,8 @@ class DrawableManager:
             name,
             color=color,
             extra_graphics=extra_graphics,
+            label_text=label_text,
+            label_visible=label_visible,
         )
         
     def delete_segment(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> bool:
@@ -406,12 +410,16 @@ class DrawableManager:
         self,
         name: str,
         new_color: Optional[str] = None,
+        new_label_text: Optional[str] = None,
+        new_label_visible: Optional[bool] = None,
     ) -> bool:
         """Update editable properties of an existing segment."""
         return bool(
             self.segment_manager.update_segment(
                 name,
                 new_color=new_color,
+                new_label_text=new_label_text,
+                new_label_visible=new_label_visible,
             )
         )
     

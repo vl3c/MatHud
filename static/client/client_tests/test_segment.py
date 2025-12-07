@@ -79,6 +79,11 @@ class TestSegment(unittest.TestCase):
                 "line_formula": self.segment.line_formula,
                 "p1_coords": [self.segment.point1.x, self.segment.point1.y],
                 "p2_coords": [self.segment.point2.x, self.segment.point2.y],
+                "label": {
+                    "text": "",
+                    "visible": False,
+                    "font_size": self.segment.label.font_size,
+                },
             },
         }
         self.assertEqual(state, expected_state)

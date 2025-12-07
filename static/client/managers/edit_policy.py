@@ -117,6 +117,16 @@ SEGMENT_EDIT_POLICY = DrawableEditPolicy(
             category="cosmetic",
             description="Update the segment color.",
         ),
+        "label_text": EditRule(
+            field="label_text",
+            category="content",
+            description="Update the text of the segment-owned label.",
+        ),
+        "label_visible": EditRule(
+            field="label_visible",
+            category="style",
+            description="Toggle visibility of the segment-owned label.",
+        ),
     },
 )
 

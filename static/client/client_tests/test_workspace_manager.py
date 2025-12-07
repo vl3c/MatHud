@@ -38,8 +38,8 @@ class TestWorkspaceSegmentPersistence(unittest.TestCase):
                     return point
             return None
 
-        def create_segment(x1: float, y1: float, x2: float, y2: float, name: str = "") -> SimpleMock:
-            captured_segments.append((x1, y1, x2, y2, name))
+        def create_segment(x1: float, y1: float, x2: float, y2: float, name: str = "", **kwargs: object) -> SimpleMock:
+            captured_segments.append((x1, y1, x2, y2, name, kwargs))
             return SimpleMock()
 
         canvas = SimpleMock(
@@ -66,10 +66,12 @@ class TestWorkspaceSegmentPersistence(unittest.TestCase):
         manager._create_segments(legacy_state)
 
         self.assertEqual(len(captured_segments), 1)
-        x1, y1, x2, y2, name = captured_segments[0]
+        x1, y1, x2, y2, name, kwargs = captured_segments[0]
         self.assertEqual((x1, y1), (-70.0, -200.0))
         self.assertEqual((x2, y2), (-20.0, -180.0))
         self.assertEqual(name, "OK")
+        self.assertEqual(kwargs.get("label_text"), "")
+        self.assertFalse(bool(kwargs.get("label_visible", False)))
 
 
 if __name__ == "__main__":

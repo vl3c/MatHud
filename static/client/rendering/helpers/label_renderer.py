@@ -53,6 +53,11 @@ def _build_label_metadata(index, position, offset_y, rotation_degrees, label, ba
 
 
 def render_label_helper(primitives, label, coordinate_mapper, style):
+    try:
+        if hasattr(label, "visible") and not bool(getattr(label, "visible")):
+            return
+    except Exception:
+        return
     position = getattr(label, "position", None)
     if position is None:
         return

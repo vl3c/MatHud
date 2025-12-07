@@ -37,6 +37,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
+from drawables.label import Label
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
@@ -151,6 +152,8 @@ class SegmentManager:
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        label_text: Optional[str] = None,
+        label_visible: Optional[bool] = None,
     ) -> Segment:
         """
         Create a new segment between the specified points
@@ -161,6 +164,8 @@ class SegmentManager:
             name: Optional name for the segment
             color: Optional color for the segment
             extra_graphics: Whether to create additional graphics
+            label_text: Optional label text to attach to the segment
+            label_visible: Optional visibility flag for the attached label
             
         Returns:
             Segment: The newly created segment
@@ -184,10 +189,23 @@ class SegmentManager:
             
         # Create the segment (math-only; renderer uses canvas as needed)
         color_value = str(color).strip() if color is not None else ""
+        sanitized_label_text = Label.validate_text(label_text or "") if label_text is not None else ""
+        label_visibility = bool(label_visible) if label_visible is not None else False
         if color_value:
-            segment = Segment(p1, p2, color=color_value)
+            segment = Segment(
+                p1,
+                p2,
+                color=color_value,
+                label_text=sanitized_label_text,
+                label_visible=label_visibility,
+            )
         else:
-            segment = Segment(p1, p2)
+            segment = Segment(
+                p1,
+                p2,
+                label_text=sanitized_label_text,
+                label_visible=label_visibility,
+            )
         
         # Add to drawables
         self.drawables.add(segment)
@@ -287,17 +305,25 @@ class SegmentManager:
         self,
         segment_name: str,
         new_color: Optional[str] = None,
+        new_label_text: Optional[str] = None,
+        new_label_visible: Optional[bool] = None,
     ) -> bool:
         segment = self._get_segment_or_raise(segment_name)
-        pending_fields = self._collect_segment_requested_fields(new_color)
+        pending_fields = self._collect_segment_requested_fields(new_color, new_label_text, new_label_visible)
         self._validate_segment_policy(list(pending_fields.keys()))
 
         new_color_value = self._normalize_color_request(pending_fields, new_color)
+        normalized_label_text = self._normalize_label_text(pending_fields, new_label_text)
+        normalized_label_visibility = self._normalize_label_visibility(pending_fields, new_label_visible)
 
         self.canvas.undo_redo_manager.archive()
 
         if new_color_value is not None:
             segment.update_color(new_color_value)
+        if normalized_label_text is not None:
+            segment.update_label_text(normalized_label_text)
+        if normalized_label_visibility is not None:
+            segment.set_label_visibility(normalized_label_visibility)
 
         if self.canvas.draw_enabled:
             self.canvas.draw()
@@ -313,10 +339,16 @@ class SegmentManager:
     def _collect_segment_requested_fields(
         self,
         new_color: Optional[str],
+        new_label_text: Optional[str],
+        new_label_visible: Optional[bool],
     ) -> Dict[str, str]:
         pending_fields: Dict[str, str] = {}
         if new_color is not None:
             pending_fields["color"] = "color"
+        if new_label_text is not None:
+            pending_fields["label_text"] = "label_text"
+        if new_label_visible is not None:
+            pending_fields["label_visible"] = "label_visible"
 
         if not pending_fields:
             raise ValueError("Provide at least one property to update.")
@@ -345,6 +377,24 @@ class SegmentManager:
         if not sanitized:
             raise ValueError("Segment color cannot be empty.")
         return sanitized
+
+    def _normalize_label_text(
+        self,
+        pending_fields: Dict[str, str],
+        new_label_text: Optional[str],
+    ) -> Optional[str]:
+        if "label_text" not in pending_fields:
+            return None
+        return Label.validate_text("" if new_label_text is None else new_label_text)
+
+    def _normalize_label_visibility(
+        self,
+        pending_fields: Dict[str, str],
+        new_label_visible: Optional[bool],
+    ) -> Optional[bool]:
+        if "label_visible" not in pending_fields:
+            return None
+        return bool(new_label_visible)
 
 
     def _delete_segment_dependencies(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> None:

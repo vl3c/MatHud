@@ -278,9 +278,17 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "name": {
                                 "type": ["string", "null"],
                                 "description": "Optional name for the segment. If provided, the first two available letters will be used to name the endpoints."
+                            },
+                            "label_text": {
+                                "type": ["string", "null"],
+                                "description": "Optional text for the segment-owned label (default empty)"
+                            },
+                            "label_visible": {
+                                "type": ["boolean", "null"],
+                                "description": "Whether to display the segment-owned label (default false)"
                             }
                         },
-                        "required": ["x1", "y1", "x2", "y2", "color", "name"],
+                        "required": ["x1", "y1", "x2", "y2", "color", "name", "label_text", "label_visible"],
                         "additionalProperties": False
                     }
                 }
@@ -320,7 +328,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "update_segment",
-                    "description": "Updates editable properties of an existing segment (currently just color). Provide null for fields that should remain unchanged.",
+                    "description": "Updates editable properties of an existing segment (color, label text, or label visibility). Provide null for fields that should remain unchanged.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -332,9 +340,17 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "new_color": {
                                 "type": ["string", "null"],
                                 "description": "Optional new color for the segment"
+                            },
+                            "new_label_text": {
+                                "type": ["string", "null"],
+                                "description": "Optional new text for the segment-owned label"
+                            },
+                            "new_label_visible": {
+                                "type": ["boolean", "null"],
+                                "description": "Optional visibility flag for the segment-owned label"
                             }
                         },
-                        "required": ["name", "new_color"],
+                        "required": ["name", "new_color", "new_label_text", "new_label_visible"],
                         "additionalProperties": False
                     }
                 }
