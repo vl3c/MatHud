@@ -46,7 +46,14 @@ from coordinate_mapper import CoordinateMapper
 from utils.math_utils import MathUtils
 from utils.style_utils import StyleUtils
 from utils.geometry_utils import GeometryUtils
+from utils.graph_analyzer import GraphAnalyzer
 from utils.computation_utils import ComputationUtils
+from geometry.graph_state import (
+    GraphEdgeDescriptor,
+    GraphState,
+    GraphVertexDescriptor,
+    TreeState,
+)
 from managers.undo_redo_manager import UndoRedoManager
 from managers.drawable_manager import DrawableManager
 from managers.drawable_dependency_manager import DrawableDependencyManager
@@ -58,6 +65,7 @@ from rendering.interfaces import RendererProtocol
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
+    from geometry.graph_state import GraphState
 
 
 class Canvas:
@@ -721,6 +729,61 @@ class Canvas:
             )
         )
 
+    # ------------------- Graph Methods -------------------
+    def create_graph(self, graph_state: "GraphState") -> "Drawable":
+        return self.drawable_manager.create_graph(graph_state)
+
+    def delete_graph(self, name: str) -> bool:
+        return bool(self.drawable_manager.delete_graph(name))
+
+    def get_graph(self, name: str) -> Optional["Drawable"]:
+        return self.drawable_manager.get_graph(name)
+
+    def capture_graph_state(self, name: str):
+        return self.drawable_manager.capture_graph_state(name)
+
+    def generate_graph(
+        self,
+        *,
+        name: str = "Graph",
+        graph_type: str = "graph",
+        vertices: Optional[List[Dict[str, Any]]] = None,
+        edges: Optional[List[Dict[str, Any]]] = None,
+        adjacency_matrix: Optional[List[List[float]]] = None,
+        directed: Optional[bool] = None,
+        root: Optional[str] = None,
+        layout: Optional[str] = None,
+        placement_box: Optional[Dict[str, float]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        state = self.drawable_manager.build_graph_state(
+            name=name,
+            graph_type=graph_type,
+            vertices=vertices or [],
+            edges=edges or [],
+            adjacency_matrix=adjacency_matrix,
+            directed=directed,
+            root=root,
+            layout=layout,
+            placement_box=placement_box,
+            metadata=metadata,
+        )
+        graph = self.drawable_manager.create_graph(state)
+        return graph.get_state()
+
+    def analyze_graph(
+        self,
+        *,
+        graph_name: str,
+        operation: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        state = self.drawable_manager.capture_graph_state(graph_name)
+        if state is None:
+            return {"error": "Graph not found or spec missing"}
+        return GraphAnalyzer.analyze(state, operation, params)
+
+    # ------------------- Circle Methods -------------------
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional["Drawable"]:
         """Get a circle by its center coordinates and radius"""
         return self.drawable_manager.get_circle(center_x, center_y, radius)

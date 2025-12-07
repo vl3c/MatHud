@@ -3760,3 +3760,8 @@ The server-side testing uses pytest and focuses on Flask application components 
 In addition to server-specific suites, the runner also executes CPython-based regression tests for client renderer classes located in `server_tests/client_renderer/`, using lightweight browser stubs to exercise `static/client` code directly from pytest.
 
 The server tests are organized in the `server_tests/`
+
+### Graph and Tree Tools
+- `generate_graph(name?, graph_type, vertices, edges, adjacency_matrix?, directed?, root?, layout?, placement_box?)`: Programmatically place a graph or tree on the canvas. Directed edges become vectors; undirected edges become segments. Optional weights render as midpoint labels. A placement box keeps the layout from overlapping existing content. Adjacency matrices (if provided) use row/column order matching the vertices array (0-based).
+- `delete_graph(name)`: Remove a graph or tree and its associated points, edges, and weight labels.
+- `analyze_graph(operation, graph_name, params?)`: Analyze an existing graph by name (must already be on canvas). Operations include shortest path (weighted/unweighted), MST, topological sort, bridges, articulation points, Euler status, bipartite check, BFS/DFS orders, levels, diameter, LCA, balance/invert children, or reroot. Returns computed data plus vector/segment names to highlight.

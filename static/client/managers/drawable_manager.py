@@ -40,7 +40,7 @@ Integration Points:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast
 
 from constants import (
     default_area_fill_color,
@@ -65,6 +65,7 @@ from managers.drawables_container import DrawablesContainer
 from managers.angle_manager import AngleManager
 from managers.label_manager import LabelManager
 from managers.arc_manager import ArcManager
+from managers.graph_manager import GraphManager
 from drawables.closed_shape_colored_area import ClosedShapeColoredArea
 
 if TYPE_CHECKING:
@@ -79,6 +80,7 @@ if TYPE_CHECKING:
     from drawables.rectangle import Rectangle
     from drawables.angle import Angle
     from drawables.colored_area import ColoredArea
+    from geometry.graph_state import GraphState
 
 class DrawableManager:
     """
@@ -174,6 +176,18 @@ class DrawableManager:
             self.name_generator,
             self.dependency_manager,
             self.point_manager,
+            self.proxy,
+        )
+
+        self.graph_manager: GraphManager = GraphManager(
+            canvas,
+            self.drawables,
+            self.name_generator,
+            self.dependency_manager,
+            self.point_manager,
+            self.segment_manager,
+            self.vector_manager,
+            self.label_manager,
             self.proxy,
         )
         
@@ -748,14 +762,47 @@ class DrawableManager:
     def create_drawables_from_new_connections(self) -> None:
         self.polygon_manager.create_triangles_from_segments()
 
-    # The transformation methods have been moved to TransformationsManager
-    # def translate_object(self, name, x_offset, y_offset):
-    #     ...
-    # def rotate_object(self, name, angle):
-    #     ...
+    # ------------------- Graph Methods -------------------
+    def create_graph(self, graph_state: "GraphState") -> "Drawable":
+        return self.graph_manager.create_graph(graph_state)
+
+    def build_graph_state(
+        self,
+        *,
+        name: str,
+        graph_type: str,
+        vertices: List[Dict[str, Any]],
+        edges: List[Dict[str, Any]],
+        adjacency_matrix: Optional[List[List[float]]],
+        directed: Optional[bool],
+        root: Optional[str],
+        layout: Optional[str],
+        placement_box: Optional[Dict[str, float]],
+        metadata: Optional[Dict[str, Any]],
+    ) -> "GraphState":
+        return self.graph_manager.build_graph_state(
+            name=name,
+            graph_type=graph_type,
+            vertices=vertices,
+            edges=edges,
+            adjacency_matrix=adjacency_matrix,
+            directed=directed,
+            root=root,
+            layout=layout,
+            placement_box=placement_box,
+            metadata=metadata,
+        )
+
+    def delete_graph(self, name: str) -> bool:
+        return self.graph_manager.delete_graph(name)
+
+    def get_graph(self, name: str) -> Optional["Drawable"]:
+        return self.graph_manager.get_graph(name)
+
+    def capture_graph_state(self, name: str):
+        return self.graph_manager.capture_state(name)
 
     # ------------------- Angle Methods -------------------
-
     def create_angle(self, vx: float, vy: float, p1x: float, p1y: float, p2x: float, p2y: float, color: Optional[str] = None, angle_name: Optional[str] = None, is_reflex: bool = False, extra_graphics: bool = True) -> Optional["Angle"]:
         """Creates an angle defined by three points."""
         return self.angle_manager.create_angle(
