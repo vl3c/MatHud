@@ -141,6 +141,11 @@ class FunctionRegistry:
             "delete_colored_area": canvas.delete_colored_area,
             "update_colored_area": canvas.update_colored_area,
             
+            # ===== GRAPH OPERATIONS =====
+            "generate_graph": canvas.generate_graph,
+            "delete_graph": canvas.delete_graph,
+            "analyze_graph": canvas.analyze_graph,
+
             # ===== ANGLE OPERATIONS =====
             "create_angle": canvas.create_angle,
             "delete_angle": canvas.delete_angle,
@@ -232,6 +237,10 @@ class FunctionRegistry:
             "delete_colored_area",
             "update_colored_area",
             
+            # Graph operations
+            "generate_graph",
+            "delete_graph",
+
             # Angle operations
             "create_angle",
             "delete_angle",

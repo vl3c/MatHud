@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import unittest
 
+from geometry.graph_state import GraphEdgeDescriptor, GraphState, GraphVertexDescriptor, TreeState
+from utils.graph_analyzer import GraphAnalyzer
 from utils.graph_utils import Edge, GraphUtils
 
 
-class TestGraphUtils(unittest.TestCase):
+class TestGraph(unittest.TestCase):
 
     # ------------------------------------------------------------------
     # Edge
@@ -400,6 +402,145 @@ class TestGraphUtils(unittest.TestCase):
     def test_order_cycle_vertices_invalid_t_structure(self) -> None:
         edges = [Edge("A", "B"), Edge("B", "C"), Edge("B", "D")]
         self.assertIsNone(GraphUtils.order_cycle_vertices(edges))
+
+    # ------------------------------------------------------------------
+    # shortest path / dijkstra
+    # ------------------------------------------------------------------
+
+    def test_shortest_path_unweighted(self) -> None:
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("A", "C")]
+        path = GraphUtils.shortest_path_unweighted(edges, "A", "C", directed=False)
+        self.assertEqual(path, ["A", "C"])
+
+    def test_shortest_path_directed_no_path(self) -> None:
+        edges = [Edge("A", "B"), Edge("B", "C")]
+        path = GraphUtils.shortest_path_unweighted(edges, "C", "A", directed=True)
+        self.assertIsNone(path)
+
+    def test_shortest_path_weighted_prefers_lower_cost(self) -> None:
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("A", "C")]
+        weights = {("A", "C"): 10.0, ("A", "B"): 2.0, ("B", "C"): 2.0}
+        result = GraphUtils.shortest_path_dijkstra(edges, "A", "C", weight_lookup=weights, directed=False)
+        assert result is not None
+        path, cost = result
+        self.assertEqual(path, ["A", "B", "C"])
+        self.assertEqual(cost, 4.0)
+
+    # ------------------------------------------------------------------
+    # mst
+    # ------------------------------------------------------------------
+
+    def test_minimum_spanning_tree_basic(self) -> None:
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("A", "C")]
+        weights = {("A", "B"): 1.0, ("B", "C"): 5.0, ("A", "C"): 2.0}
+        mst = GraphUtils.minimum_spanning_tree(edges, weight_lookup=weights)
+        self.assertEqual(len(mst), 2)
+        names = {e.as_frozenset() for e in mst}
+        self.assertIn(frozenset({"A", "B"}), names)
+        self.assertIn(frozenset({"A", "C"}), names)
+
+    # ------------------------------------------------------------------
+    # topo / bridges / articulation
+    # ------------------------------------------------------------------
+
+    def test_topological_sort_cycle_returns_none(self) -> None:
+        adjacency = {"A": {"B"}, "B": {"A"}}
+        order = GraphUtils.topological_sort(adjacency)
+        self.assertIsNone(order)
+
+    def test_topological_sort_simple_dag(self) -> None:
+        adjacency = {"A": {"B", "C"}, "B": {"D"}, "C": {"D"}, "D": set()}
+        order = GraphUtils.topological_sort(adjacency)
+        self.assertIsNotNone(order)
+        assert order is not None
+        self.assertEqual(order[0], "A")
+        self.assertEqual(order[-1], "D")
+
+    def test_bridges_and_articulation_points(self) -> None:
+        adjacency = {
+            "A": {"B"},
+            "B": {"A", "C", "D"},
+            "C": {"B"},
+            "D": {"B", "E"},
+            "E": {"D"},
+        }
+        bridges = GraphUtils.find_bridges(adjacency)
+        self.assertIn(("D", "E"), bridges)
+        aps = GraphUtils.find_articulation_points(adjacency)
+        self.assertIn("B", aps)
+
+    # ------------------------------------------------------------------
+    # euler / bipartite
+    # ------------------------------------------------------------------
+
+    def test_euler_status_cycle_and_path(self) -> None:
+        cycle_adj = GraphUtils.build_adjacency_map([Edge("A", "B"), Edge("B", "C"), Edge("C", "A")])
+        path_adj = GraphUtils.build_adjacency_map([Edge("A", "B"), Edge("B", "C")])
+        self.assertEqual(GraphUtils.euler_status(cycle_adj), "cycle")
+        self.assertEqual(GraphUtils.euler_status(path_adj), "path")
+
+    def test_is_bipartite(self) -> None:
+        adjacency = GraphUtils.build_adjacency_map([Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")])
+        is_bipartite, coloring = GraphUtils.is_bipartite(adjacency)
+        self.assertTrue(is_bipartite)
+        self.assertEqual(len(coloring), 4)
+
+    def test_is_not_bipartite(self) -> None:
+        adjacency = GraphUtils.build_adjacency_map([Edge("A", "B"), Edge("B", "C"), Edge("C", "A")])
+        is_bipartite, _ = GraphUtils.is_bipartite(adjacency)
+        self.assertFalse(is_bipartite)
+
+    # ------------------------------------------------------------------
+    # tree helpers
+    # ------------------------------------------------------------------
+
+    def test_tree_helpers_levels_diameter_lca(self) -> None:
+        edges = [Edge("A", "B"), Edge("A", "C"), Edge("B", "D"), Edge("B", "E"), Edge("C", "F")]
+        adjacency = GraphUtils.build_adjacency_map(edges)
+        rooted = GraphUtils.root_tree(adjacency, "A")
+        assert rooted is not None
+        parent, children = rooted
+        depths = GraphUtils.node_depths("A", adjacency) or {}
+        levels = GraphUtils.tree_levels("A", adjacency)
+        self.assertEqual(depths["D"], 2)
+        self.assertEqual(levels[0], ["A"])
+        diameter = GraphUtils.tree_diameter(adjacency)
+        self.assertIsNotNone(diameter)
+        lca = GraphUtils.lowest_common_ancestor(parent, depths, "D", "E")
+        self.assertEqual(lca, "B")
+        balanced = GraphUtils.balance_children("A", children)
+        self.assertIn("B", balanced["A"])
+        inverted = GraphUtils.invert_children(children)
+        self.assertEqual(list(reversed(children["A"])), inverted["A"])
+        rerooted = GraphUtils.reroot_tree(parent, children, "B")
+        self.assertIsNotNone(rerooted)
+
+    # ------------------------------------------------------------------
+    # GraphAnalyzer integration
+    # ------------------------------------------------------------------
+
+    def test_graph_analyzer_shortest_path(self) -> None:
+        vertices = [GraphVertexDescriptor("A"), GraphVertexDescriptor("B"), GraphVertexDescriptor("C")]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B", weight=1.0, name="AB"),
+            GraphEdgeDescriptor("e2", "B", "C", weight=1.0, name="BC"),
+        ]
+        state = GraphState("G", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "shortest_path", {"start": "A", "goal": "C"})
+        self.assertEqual(result.get("path"), ["A", "B", "C"])
+        self.assertIn("AB", result.get("highlight_vectors", []))
+        self.assertIn("BC", result.get("highlight_vectors", []))
+
+    def test_graph_analyzer_lca(self) -> None:
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C", "D"]]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B"),
+            GraphEdgeDescriptor("e2", "A", "C"),
+            GraphEdgeDescriptor("e3", "B", "D"),
+        ]
+        state = TreeState("T", vertices, edges, root="A")
+        result = GraphAnalyzer.analyze(state, "lca", {"root": "A", "a": "D", "b": "C"})
+        self.assertEqual(result.get("lca"), "A")
 
 
 if __name__ == "__main__":

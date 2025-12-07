@@ -1733,6 +1733,122 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     }
                 }
             },
+            # START GRAPH FUNCTIONS
+            {
+                "type": "function",
+                "function": {
+                    "name": "generate_graph",
+                    "description": "Generates a graph or tree on the canvas using provided vertices/edges or an adjacency matrix. Returns the created graph state and drawable names for follow-up highlighting.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": ["string", "null"]},
+                            "graph_type": {
+                                "type": "string",
+                                "enum": ["graph", "tree", "dag"],
+                                "description": "Type of graph to create."
+                            },
+                            "directed": {"type": ["boolean", "null"]},
+                            "root": {"type": ["string", "null"], "description": "Root id for trees."},
+                            "layout": {"type": ["string", "null"], "description": "Layout hint such as circular, grid, radial, hierarchical."},
+                            "placement_box": {
+                                "type": ["object", "null"],
+                                "properties": {
+                                    "x": {"type": "number", "description": "Left X of the placement box"},
+                                    "y": {"type": "number", "description": "Top Y of the placement box"},
+                                    "width": {"type": "number"},
+                                    "height": {"type": "number"}
+                                },
+                                "required": ["x", "y", "width", "height"],
+                                "additionalProperties": False
+                            },
+                            "vertices": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {"type": ["string", "null"]},
+                                        "x": {"type": ["number", "null"]},
+                                        "y": {"type": ["number", "null"]},
+                                        "color": {"type": ["string", "null"]},
+                                        "label": {"type": ["string", "null"]}
+                                    },
+                                    "required": ["name", "x", "y", "color", "label"],
+                                    "additionalProperties": False
+                                },
+                                "description": "List of vertex descriptors. Vertex id is implied by array index starting at 0."
+                            },
+                            "edges": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "source": {"type": "number", "description": "Source vertex index (0-based, matches vertices array order)"},
+                                        "target": {"type": "number", "description": "Target vertex index (0-based, matches vertices array order)"},
+                                        "weight": {"type": ["number", "null"]},
+                                        "name": {"type": ["string", "null"]},
+                                        "color": {"type": ["string", "null"]},
+                                        "label": {"type": ["string", "null"]},
+                                        "directed": {"type": ["boolean", "null"]}
+                                    },
+                                    "required": ["source", "target", "weight", "name", "color", "label", "directed"],
+                                    "additionalProperties": False
+                                },
+                                "description": "List of edge descriptors."
+                            },
+                            "adjacency_matrix": {
+                                "type": ["array", "null"],
+                                "items": {
+                                    "type": "array",
+                                    "items": {"type": "number"}
+                                },
+                                "description": "Optional adjacency matrix (weights allowed). Rows/columns follow the order of the provided vertices array (0-based)."
+                            }
+                        },
+                        "required": ["name", "graph_type", "directed", "root", "layout", "placement_box", "vertices", "edges", "adjacency_matrix"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "delete_graph",
+                    "description": "Deletes a graph or tree and its associated drawables by name.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"}
+                        },
+                        "required": ["name"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "analyze_graph",
+                    "description": "Analyzes a graph or tree for operations like shortest path, MST, bridges, articulation points, Euler status, bipartite check, BFS/DFS orders, levels, diameter, or LCA. Accepts an existing graph name or an inline graph spec.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "graph_name": {"type": "string", "description": "Existing graph name to analyze (must exist on canvas)."},
+                            "operation": {
+                                "type": "string",
+                                "enum": ["shortest_path", "mst", "topological_sort", "bridges", "articulation_points", "euler_status", "bipartite", "bfs", "dfs", "levels", "diameter", "lca", "balance_children", "invert_children", "reroot"]
+                            },
+                            "params": {"type": ["object", "null"], "description": "Operation-specific parameters (start, goal, root, a, b, new_root, etc.)."}
+                        },
+                        "required": ["graph_name", "operation"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            # END GRAPH FUNCTIONS
             # START ANGLE FUNCTIONS
             {
                 "type": "function",

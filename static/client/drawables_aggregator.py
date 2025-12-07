@@ -32,6 +32,10 @@ from drawables.triangle import Triangle
 from drawables.vector import Vector
 from drawables.point import Point
 from drawables.position import Position
+from drawables.graph import Graph
+from drawables.directed_graph import DirectedGraph
+from drawables.undirected_graph import UndirectedGraph
+from drawables.tree import Tree
 
 # Re-export all classes for convenient importing
 __all__: list[str] = [
@@ -48,4 +52,8 @@ __all__: list[str] = [
     'Circle',
     'Ellipse',
     'Function',
+    'Graph',
+    'DirectedGraph',
+    'UndirectedGraph',
+    'Tree',
 ]
