@@ -1805,10 +1805,9 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                         "weight": {"type": ["number", "null"]},
                                         "name": {"type": ["string", "null"]},
                                         "color": {"type": ["string", "null"]},
-                                        "label": {"type": ["string", "null"]},
                                         "directed": {"type": ["boolean", "null"]}
                                     },
-                                    "required": ["source", "target", "weight", "name", "color", "label", "directed"],
+                                    "required": ["source", "target", "weight", "name", "color", "directed"],
                                     "additionalProperties": False
                                 },
                                 "description": "List of edge descriptors."
