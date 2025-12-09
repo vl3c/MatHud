@@ -317,7 +317,11 @@ class TestDrawableDependencyManager(unittest.TestCase):
             ('ColoredArea', self._create_mock_drawable("TestColoredArea", "ColoredArea")),
             ('SegmentsBoundedColoredArea', self._create_mock_drawable("TestSBCA", "SegmentsBoundedColoredArea")),
             ('FunctionSegmentBoundedColoredArea', self._create_mock_drawable("TestFSBCA", "FunctionSegmentBoundedColoredArea")),
-            ('FunctionsBoundedColoredArea', self._create_mock_drawable("TestFBCA", "FunctionsBoundedColoredArea"))
+            ('FunctionsBoundedColoredArea', self._create_mock_drawable("TestFBCA", "FunctionsBoundedColoredArea")),
+            ('Graph', self._create_mock_drawable("TestGraph", "Graph")),
+            ('DirectedGraph', self._create_mock_drawable("TestDirectedGraph", "DirectedGraph")),
+            ('UndirectedGraph', self._create_mock_drawable("TestUndirectedGraph", "UndirectedGraph")),
+            ('Tree', self._create_mock_drawable("TestTree", "Tree")),
         ]
         
         # Test each drawable type by calling the method and checking it doesn't raise an exception
