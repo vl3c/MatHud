@@ -1,40 +1,72 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from drawables.graph import Graph
+from geometry.graph_state import GraphEdgeDescriptor, GraphVertexDescriptor
+from utils.graph_utils import GraphUtils
+
+if TYPE_CHECKING:
+    from drawables.point import Point
+    from drawables.segment import Segment
 
 
 class UndirectedGraph(Graph):
-    """Graph where edges are segments (renderable container)."""
+    """Graph where edges are segments."""
 
     def __init__(
         self,
         name: str,
         *,
-        vertices: Optional[Dict[str, str]] = None,
-        edges: Optional[List[Dict[str, Any]]] = None,
-        points: Optional[List[str]] = None,
-        segments: Optional[List[str]] = None,
+        isolated_points: Optional[List["Point"]] = None,
+        segments: Optional[List["Segment"]] = None,
     ) -> None:
         super().__init__(
             name=name,
             directed=False,
             graph_type="graph",
-            vertices=vertices,
-            edges=edges,
-            points=points,
+            isolated_points=isolated_points,
             is_renderable=True,
         )
-        self.segments: List[str] = list(segments or [])
+        self._segments: List["Segment"] = list(segments or [])
+
+    @property
+    def segments(self) -> List["Segment"]:
+        return self._segments
 
     def get_class_name(self) -> str:
         return "UndirectedGraph"
 
+    # ------------------------------------------------------------------
+    # Computed graph data from segments
+    # ------------------------------------------------------------------
+    def _compute_descriptors(self) -> tuple[List[GraphVertexDescriptor], List[GraphEdgeDescriptor], List[List[float]]]:
+        segments = [seg for seg in self._segments if seg is not None]
+        isolated = [p for p in self._isolated_points if p is not None]
+        vertices, edges = GraphUtils.drawables_to_descriptors(segments, [], isolated_points=isolated)
+        vertices = sorted(vertices, key=lambda v: v.id)
+        adjacency_matrix = GraphUtils.adjacency_matrix_from_descriptors(vertices, edges, directed=False)
+        return vertices, edges, adjacency_matrix
+
+    @property
+    def vertices(self) -> Dict[str, str]:
+        vertices, _, _ = self._compute_descriptors()
+        return {v.id: v.name or v.id for v in vertices}
+
+    @property
+    def edges(self) -> List[Dict[str, Any]]:
+        _, edges, _ = self._compute_descriptors()
+        return [e.to_dict() for e in edges]
+
+    @property
+    def adjacency_matrix(self) -> List[List[float]]:
+        _, _, matrix = self._compute_descriptors()
+        return matrix
+
     def get_state(self) -> Dict[str, Any]:
         state = super().get_state()
-        state["args"]["segments"] = list(self.segments)
+        state["args"]["segments"] = [getattr(s, "name", "") for s in self._segments]
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> "UndirectedGraph":
@@ -42,11 +74,8 @@ class UndirectedGraph(Graph):
             return memo[id(self)]  # type: ignore[return-value]
         copied = UndirectedGraph(
             name=self.name,
-            vertices=deepcopy(self.vertices, memo),
-            edges=deepcopy(self.edges, memo),
-            points=deepcopy(self.points, memo),
-            segments=deepcopy(self.segments, memo),
+            segments=deepcopy(self._segments, memo),
+            isolated_points=deepcopy(self._isolated_points, memo),
         )
         memo[id(self)] = copied
         return copied
-

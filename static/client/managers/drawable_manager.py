@@ -187,7 +187,6 @@ class DrawableManager:
             self.point_manager,
             self.segment_manager,
             self.vector_manager,
-            self.label_manager,
             self.proxy,
         )
         

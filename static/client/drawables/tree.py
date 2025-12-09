@@ -1,23 +1,27 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from drawables.undirected_graph import UndirectedGraph
 
+if TYPE_CHECKING:
+    from drawables.point import Point
+    from drawables.segment import Segment
+
 
 class Tree(UndirectedGraph):
+    """Tree is an undirected graph with a designated root."""
+
     def __init__(
         self,
         name: str,
         *,
         root: Optional[str],
-        vertices: Optional[Dict[str, str]] = None,
-        edges: Optional[List[Dict[str, Any]]] = None,
-        points: Optional[List[str]] = None,
-        segments: Optional[List[str]] = None,
+        isolated_points: Optional[List["Point"]] = None,
+        segments: Optional[List["Segment"]] = None,
     ) -> None:
-        super().__init__(name=name, vertices=vertices, edges=edges, points=points, segments=segments)
+        super().__init__(name=name, isolated_points=isolated_points, segments=segments)
         self.graph_type = "tree"
         self.root: Optional[str] = root
 
@@ -35,11 +39,8 @@ class Tree(UndirectedGraph):
         copied = Tree(
             name=self.name,
             root=self.root,
-            vertices=deepcopy(self.vertices, memo),
-            edges=deepcopy(self.edges, memo),
-            points=deepcopy(self.points, memo),
-            segments=deepcopy(self.segments, memo),
+            segments=deepcopy(self._segments, memo),
+            isolated_points=deepcopy(self._isolated_points, memo),
         )
         memo[id(self)] = copied
         return copied
-
