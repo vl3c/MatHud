@@ -22,7 +22,6 @@ class Tree(UndirectedGraph):
         segments: Optional[List["Segment"]] = None,
     ) -> None:
         super().__init__(name=name, isolated_points=isolated_points, segments=segments)
-        self.graph_type = "tree"
         self.root: Optional[str] = root
 
     def get_class_name(self) -> str:

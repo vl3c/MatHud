@@ -24,7 +24,6 @@ class DirectedGraph(Graph):
     ) -> None:
         super().__init__(
             name=name,
-            graph_type="graph",
             isolated_points=isolated_points,
             is_renderable=True,
         )

@@ -47,7 +47,7 @@ class GraphAnalyzer:
     @staticmethod
     def analyze(state: GraphState, operation: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         params = params or {}
-        directed = bool(state.directed or state.graph_type == "dag")
+        directed = bool(state.directed)
         adjacency = GraphAnalyzer._build_adjacency(state, directed)
         edges = GraphAnalyzer._build_edges(state)
         weights = GraphAnalyzer._weight_lookup(state)

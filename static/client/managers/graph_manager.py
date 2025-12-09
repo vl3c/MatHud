@@ -287,7 +287,7 @@ class GraphManager:
             vertex_descriptors,
             edge_descriptors,
             directed=graph.directed,
-            graph_type=graph.graph_type,
+            graph_type=graph.get_class_name().lower(),
             metadata=getattr(graph, "metadata", {}),
             adjacency_matrix=adjacency_matrix,
         )

@@ -24,8 +24,6 @@ class UndirectedGraph(Graph):
     ) -> None:
         super().__init__(
             name=name,
-            directed=False,
-            graph_type="graph",
             isolated_points=isolated_points,
             is_renderable=True,
         )
