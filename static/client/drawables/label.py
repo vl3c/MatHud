@@ -37,6 +37,7 @@ class Label(Drawable):
         font_size: Optional[float] = None,
         rotation_degrees: Optional[float] = None,
         reference_scale_factor: Optional[float] = None,
+        visible: bool = True,
     ) -> None:
         self._position: Position = Position(float(x), float(y))
         super().__init__(name=name, color=color or default_color)
@@ -49,6 +50,7 @@ class Label(Drawable):
             else float(default_label_rotation_degrees)
         )
         self._reference_scale_factor: float = self._normalize_reference_scale(reference_scale_factor)
+        self._visible: bool = bool(visible)
         self.set_text(text)
 
     def get_class_name(self) -> str:
@@ -70,6 +72,14 @@ class Label(Drawable):
     @property
     def lines(self) -> List[str]:
         return list(self._lines)
+
+    @property
+    def visible(self) -> bool:
+        return self._visible
+
+    @visible.setter
+    def visible(self, value: bool) -> None:
+        self._visible = bool(value)
 
     @property
     def font_size(self) -> float:
@@ -111,6 +121,7 @@ class Label(Drawable):
                 "font_size": self._font_size,
                 "rotation_degrees": self._rotation_degrees,
                 "reference_scale_factor": self._reference_scale_factor,
+                "visible": self._visible,
             },
         }
 
@@ -126,6 +137,7 @@ class Label(Drawable):
             font_size=self._font_size,
             rotation_degrees=self._rotation_degrees,
             reference_scale_factor=self._reference_scale_factor,
+            visible=self._visible,
         )
         memo[id(self)] = clone
         return clone

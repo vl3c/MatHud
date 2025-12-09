@@ -72,6 +72,17 @@ class TestSegmentManager(unittest.TestCase):
         self.canvas.undo_redo_manager.archive.assert_called_once()
         self.canvas.draw.assert_called_once()
 
+    def test_update_segment_changes_label_text_and_visibility(self) -> None:
+        segment = self._add_segment()
+
+        result = self.segment_manager.update_segment("AB", new_label_text="mid", new_label_visible=True)
+
+        self.assertTrue(result)
+        self.assertEqual(segment.label.text, "mid")
+        self.assertTrue(segment.label.visible)
+        self.canvas.undo_redo_manager.archive.assert_called_once()
+        self.canvas.draw.assert_called_once()
+
     def test_update_segment_requires_existing_segment(self) -> None:
         with self.assertRaises(ValueError):
             self.segment_manager.update_segment("missing", new_color="#00ff00")

@@ -91,7 +91,16 @@ class TestRunner:
         return [
             {
                 "function_name": "create_segment",
-                "arguments": {"x1": -279.0, "y1": 374.0, "x2": -213.0, "y2": 278.0, "name": "CH"}
+                "arguments": {
+                    "x1": -279.0,
+                    "y1": 374.0,
+                    "x2": -213.0,
+                    "y2": 278.0,
+                    "name": "CH",
+                    "color": None,
+                    "label_text": "Segment CH",
+                    "label_visible": True,
+                },
             },
             {
                 "function_name": "create_point",
@@ -211,7 +220,16 @@ class TestRunner:
             },
             {
                 "function_name": "create_segment",
-                "arguments": {"x1": 365.0, "y1": -286.0, "x2": 440.0, "y2": -132.0, "name": "A''E'"}
+                "arguments": {
+                    "x1": 365.0,
+                    "y1": -286.0,
+                    "x2": 440.0,
+                    "y2": -132.0,
+                    "name": "A''E'",
+                    "color": None,
+                    "label_text": "should_not_be_visible",
+                    "label_visible": False,
+                },
             },
             {
                 "function_name": "create_region_colored_area",
@@ -360,6 +378,15 @@ class TestRunner:
                     "color": "#D2B48C",
                     "opacity": 0.5
                 }
+            },
+            {
+                "function_name": "update_segment",
+                "arguments": {
+                    "name": "F'H'",
+                    "new_color": None,
+                    "new_label_text": "Segment updated",
+                    "new_label_visible": True,
+                },
             },
             {
                 "function_name": "clear_canvas",

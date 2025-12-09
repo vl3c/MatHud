@@ -636,6 +636,8 @@ class Canvas:
         name: str = "",
         color: Optional[str] = None,
         extra_graphics: bool = True,
+        label_text: Optional[str] = None,
+        label_visible: Optional[bool] = None,
     ) -> "Drawable":
         """Create a segment between two points"""
         return self.drawable_manager.create_segment(
@@ -646,6 +648,8 @@ class Canvas:
             name,
             color=color,
             extra_graphics=extra_graphics,
+            label_text=label_text,
+            label_visible=label_visible,
         )
 
     def delete_segment(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> bool:
@@ -660,12 +664,16 @@ class Canvas:
         self,
         name: str,
         new_color: Optional[str] = None,
+        new_label_text: Optional[str] = None,
+        new_label_visible: Optional[bool] = None,
     ) -> bool:
         """Update editable properties of a segment."""
         return bool(
             self.drawable_manager.update_segment(
                 name,
                 new_color=new_color,
+                new_label_text=new_label_text,
+                new_label_visible=new_label_visible,
             )
         )
 

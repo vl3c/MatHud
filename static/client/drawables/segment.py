@@ -29,8 +29,9 @@ import math
 from copy import deepcopy
 from typing import Any, Dict, Optional, Tuple, cast
 
-from constants import default_color
+from constants import default_color, point_label_font_size
 from drawables.drawable import Drawable
+from drawables.label import Label
 from drawables.point import Point
 from drawables.position import Position
 from utils.math_utils import MathUtils
@@ -46,7 +47,15 @@ class Segment(Drawable):
         point2 (Point): Second endpoint of the segment
         line_formula (dict): Algebraic line equation coefficients (a, b, c for ax + by + c = 0)
     """
-    def __init__(self, p1: Point, p2: Point, color: str = default_color) -> None:
+    def __init__(
+        self,
+        p1: Point,
+        p2: Point,
+        color: str = default_color,
+        *,
+        label_text: str = "",
+        label_visible: bool = False,
+    ) -> None:
         """Initialize a line segment between two points.
         
         Args:
@@ -59,6 +68,15 @@ class Segment(Drawable):
         self.line_formula: Dict[str, float] = self._calculate_line_algebraic_formula()
         name: str = self.point1.name + self.point2.name
         super().__init__(name=name, color=color)
+        midpoint_x, midpoint_y = self._get_midpoint()
+        self.label: Label = Label(
+            midpoint_x,
+            midpoint_y,
+            str(label_text or ""),
+            color=self.color,
+            font_size=point_label_font_size,
+            visible=bool(label_visible),
+        )
 
     def get_class_name(self) -> str:
         return 'Segment'
@@ -76,6 +94,7 @@ class Segment(Drawable):
         point2_name: str = self.point2.name
         # Refresh the cached line formula so state reflects any upstream point updates.
         self.line_formula = self._calculate_line_algebraic_formula()
+        self._sync_label_position()
         state: Dict[str, Any] = {
             "name": self.name,
             "args": {
@@ -84,6 +103,11 @@ class Segment(Drawable):
                 "line_formula": self.line_formula,
                 "p1_coords": [self.point1.x, self.point1.y],
                 "p2_coords": [self.point2.x, self.point2.y],
+                "label": {
+                    "text": self.label.text,
+                    "visible": bool(getattr(self.label, "visible", True)),
+                    "font_size": getattr(self.label, "font_size", point_label_font_size),
+                },
             },
         }
         return state
@@ -98,8 +122,23 @@ class Segment(Drawable):
         new_p1: Point = deepcopy(self.point1, memo)
         new_p2: Point = deepcopy(self.point2, memo)
         # Create a new Segment instance with the copied points
-        new_segment: Segment = Segment(new_p1, new_p2, color=self.color)
+        new_segment: Segment = Segment(
+            new_p1,
+            new_p2,
+            color=self.color,
+            label_text=self.label.text,
+            label_visible=bool(getattr(self.label, "visible", True)),
+        )
         memo[id(self)] = new_segment
+        # Preserve label styling details
+        try:
+            new_segment.label.update_font_size(getattr(self.label, "font_size", point_label_font_size))
+            new_segment.label.update_rotation(getattr(self.label, "rotation_degrees", 0.0))
+            new_segment.label.update_color(getattr(self.label, "color", self.color))
+        except Exception:
+            pass
+        new_segment.name = self.name
+        new_segment._sync_label_position()
 
         return new_segment
 
@@ -110,16 +149,40 @@ class Segment(Drawable):
         self.point2.y += y_offset
         # Keep analytic state in sync after translation.
         self.line_formula = self._calculate_line_algebraic_formula()
+        self._sync_label_position()
 
     def update_color(self, color: str) -> None:
         """Update the segment color metadata."""
         self.color = str(color)
+        try:
+            self.label.update_color(self.color)
+        except Exception:
+            pass
 
     def _get_midpoint(self) -> Tuple[float, float]:
         """Calculate the midpoint of the segment"""
         x: float = (self.point1.x + self.point2.x) / 2
         y: float = (self.point1.y + self.point2.y) / 2
         return (x, y)
+
+    def _sync_label_position(self) -> None:
+        """Keep the embedded label anchored at the segment midpoint."""
+        if not hasattr(self, "label"):
+            return
+        try:
+            mid_x, mid_y = self._get_midpoint()
+            self.label.update_position(mid_x, mid_y)
+        except Exception:
+            pass
+
+    def update_label_text(self, text: str) -> None:
+        """Update the embedded label text (validated by Label)."""
+        self.label.update_text(text)
+
+    def set_label_visibility(self, visible: bool) -> None:
+        """Toggle embedded label visibility."""
+        self.label.visible = bool(visible)
+        self._sync_label_position()
 
     def _rotate_point_around_center(self, point: Point, center_x: float, center_y: float, angle_rad: float) -> None:
         """Rotate a single point around a center by given angle in radians"""
@@ -145,6 +208,7 @@ class Segment(Drawable):
         
         # Update line formula
         self.line_formula = self._calculate_line_algebraic_formula()
+        self._sync_label_position()
         
         # Return tuple (should_proceed, message) to match interface
         return True, None 

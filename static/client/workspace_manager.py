@@ -139,12 +139,17 @@ class WorkspaceManager:
 
             p1, p2 = self._reconcile_segment_endpoints(p1, p2, args)
 
+            label_args: Dict[str, Any] = args.get("label", {}) if isinstance(args.get("label", {}), dict) else {}
+            label_text: str = str(label_args.get("text", "") or "")
+            label_visible: bool = bool(label_args.get("visible", False))
             self.canvas.create_segment(
                 p1.x,
                 p1.y,
                 p2.x,
                 p2.y,
                 name=item_state.get("name", ""),
+                label_text=label_text,
+                label_visible=label_visible,
             )
 
     def _get_point_from_state(
