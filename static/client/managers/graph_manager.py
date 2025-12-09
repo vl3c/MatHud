@@ -99,6 +99,7 @@ class GraphManager:
                 )
 
         self.drawables.add(graph)
+        self.dependency_manager.analyze_drawable_for_dependencies(graph)
         return graph
 
     def build_graph_state(

@@ -33,7 +33,8 @@ class DirectedGraph(Graph):
 
     @property
     def vectors(self) -> List["Vector"]:
-        return self._vectors
+        """Return list of vectors."""
+        return list(self._vectors)
 
     def get_class_name(self) -> str:
         return "DirectedGraph"
@@ -42,12 +43,17 @@ class DirectedGraph(Graph):
     # Computed graph data from vectors
     # ------------------------------------------------------------------
     def _compute_descriptors(self) -> tuple[List[GraphVertexDescriptor], List[GraphEdgeDescriptor], List[List[float]]]:
-        vectors = [vec for vec in self._vectors if vec is not None]
-        isolated = [p for p in self._isolated_points if p is not None]
-        vertices, edges = GraphUtils.drawables_to_descriptors([], vectors, isolated_points=isolated)
+        vertices, edges = GraphUtils.drawables_to_descriptors([], self._vectors, isolated_points=self._isolated_points)
         vertices = sorted(vertices, key=lambda v: v.id)
         adjacency_matrix = GraphUtils.adjacency_matrix_from_descriptors(vertices, edges, directed=True)
         return vertices, edges, adjacency_matrix
+
+    def remove_vector(self, vector: "Vector") -> bool:
+        """Remove a vector reference from this graph."""
+        if vector in self._vectors:
+            self._vectors.remove(vector)
+            return True
+        return False
 
     @property
     def vertices(self) -> Dict[str, str]:
