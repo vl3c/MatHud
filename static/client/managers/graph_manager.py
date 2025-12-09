@@ -6,10 +6,9 @@ from drawables.graph import Graph
 from drawables.directed_graph import DirectedGraph
 from drawables.undirected_graph import UndirectedGraph
 from drawables.tree import Tree
-from drawables.tree import Tree
 from geometry.graph_state import GraphEdgeDescriptor, GraphState, GraphVertexDescriptor, TreeState
 from utils.graph_layout import layout_vertices
-from utils.graph_utils import Edge
+from utils.graph_utils import Edge, GraphUtils
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -19,7 +18,6 @@ if TYPE_CHECKING:
     from managers.drawables_container import DrawablesContainer
     from managers.drawable_dependency_manager import DrawableDependencyManager
     from managers.drawable_manager_proxy import DrawableManagerProxy
-    from managers.label_manager import LabelManager
     from managers.point_manager import PointManager
     from managers.segment_manager import SegmentManager
     from managers.vector_manager import VectorManager
@@ -36,7 +34,6 @@ class GraphManager:
         point_manager: "PointManager",
         segment_manager: "SegmentManager",
         vector_manager: "VectorManager",
-        label_manager: "LabelManager",
         drawable_manager_proxy: "DrawableManagerProxy",
     ) -> None:
         self.canvas = canvas
@@ -46,7 +43,6 @@ class GraphManager:
         self.point_manager = point_manager
         self.segment_manager = segment_manager
         self.vector_manager = vector_manager
-        self.label_manager = label_manager
         self.drawable_manager = drawable_manager_proxy
 
     # ------------------------------------------------------------------
@@ -72,36 +68,34 @@ class GraphManager:
             vertex_name_map[vertex.id] = point.name
             id_to_point[vertex.id] = point
 
-        edge_records: List[Dict[str, Any]] = []
+        segments_created: List["Segment"] = []
+        vectors_created: List["Vector"] = []
         for edge in state.edges:
-            edge_record = self._create_edge(edge, state.directed, id_to_point)
-            edge_records.append(edge_record)
+            segment_obj, vector_obj = self._create_edge(edge, state.directed, id_to_point)
+            if segment_obj:
+                segments_created.append(segment_obj)
+            if vector_obj:
+                vectors_created.append(vector_obj)
 
         if isinstance(state, TreeState):
             graph = Tree(
                 state.name,
                 root=getattr(state, "root", None),
-                vertices=vertex_name_map,
-                edges=edge_records,
-                segments=[record.get("segment_name", "") for record in edge_records if record.get("segment_name")],
-                points=list(vertex_name_map.values()),
+                segments=segments_created,
+                isolated_points=list(id_to_point.values()),
             )
         else:
             if state.directed:
                 graph = DirectedGraph(
                     state.name,
-                    vertices=vertex_name_map,
-                    edges=edge_records,
-                    vectors=[record.get("vector_name", "") for record in edge_records if record.get("vector_name")],
-                    points=list(vertex_name_map.values()),
+                    vectors=vectors_created,
+                    isolated_points=list(id_to_point.values()),
                 )
             else:
                 graph = UndirectedGraph(
                     state.name,
-                    vertices=vertex_name_map,
-                    edges=edge_records,
-                    segments=[record.get("segment_name", "") for record in edge_records if record.get("segment_name")],
-                    points=list(vertex_name_map.values()),
+                    segments=segments_created,
+                    isolated_points=list(id_to_point.values()),
                 )
 
         self.drawables.add(graph)
@@ -156,7 +150,6 @@ class GraphManager:
                     weight=edge.get("weight"),
                     name=edge.get("name"),
                     color=edge.get("color"),
-                    label=edge.get("label"),
                     directed=edge.get("directed"),
                 )
             )
@@ -208,25 +201,36 @@ class GraphManager:
         if existing is None:
             return False
 
-        for edge in existing.edges:
-            label_name = edge.get("label_name")
-            if label_name:
-                self.label_manager.delete_label(label_name)
+        point_names: set[str] = set()
 
-            vector_name = edge.get("vector_name")
-            if vector_name:
-                vector = self.vector_manager.get_vector_by_name(vector_name)
-                if vector:
-                    self.vector_manager.delete_vector(
-                        vector.origin.x, vector.origin.y, vector.tip.x, vector.tip.y
-                    )
+        if isinstance(existing, DirectedGraph):
+            vectors: List["Vector"] = list(existing.vectors)
+            for vector in vectors:
+                self.vector_manager.delete_vector(
+                    vector.origin.x, vector.origin.y, vector.tip.x, vector.tip.y
+                )
+                point_names.add(vector.origin.name)
+                point_names.add(vector.tip.name)
+        else:
+            segments: List["Segment"] = list(getattr(existing, "segments", []))
+            for segment in segments:
+                self.segment_manager.delete_segment(
+                    segment.point1.x,
+                    segment.point1.y,
+                    segment.point2.x,
+                    segment.point2.y,
+                    delete_children=True,
+                    delete_parents=False,
+                )
+                point_names.add(segment.point1.name)
+                point_names.add(segment.point2.name)
 
-            segment_name = edge.get("segment_name")
-            if segment_name:
-                self.segment_manager.delete_segment_by_name(segment_name)
+        # Also remove isolated points tracked on the graph
+        isolated_pts = getattr(existing, "_isolated_points", [])
+        for p in isolated_pts:
+            point_names.add(getattr(p, "name", ""))
 
-        vertex_names = list(existing.vertices.values())
-        for v_name in vertex_names:
+        for v_name in point_names:
             self.point_manager.delete_point_by_name(v_name)
 
         removed = self.drawables.remove(existing)
@@ -254,37 +258,18 @@ class GraphManager:
         if graph is None:
             return None
 
-        inverse_vertices = {point_name: vertex_id for vertex_id, point_name in graph.vertices.items()}
-        vertex_descriptors: List[GraphVertexDescriptor] = []
-        for vertex_id, point_name in graph.vertices.items():
-            point = self.point_manager.get_point_by_name(point_name)
-            x = point.x if point else 0.0
-            y = point.y if point else 0.0
-            vertex_descriptors.append(
-                GraphVertexDescriptor(vertex_id, name=point_name, x=x, y=y)
-            )
+        segments: List["Segment"] = list(getattr(graph, "segments", [])) if not isinstance(graph, DirectedGraph) else []
+        vectors: List["Vector"] = list(getattr(graph, "vectors", [])) if isinstance(graph, DirectedGraph) else []
+        isolated_points: List["Point"] = list(getattr(graph, "_isolated_points", []))
 
-        edge_descriptors: List[GraphEdgeDescriptor] = []
-        for edge_record in graph.edges:
-            source_name = edge_record.get("source")
-            target_name = edge_record.get("target")
-            source_id = inverse_vertices.get(source_name, source_name)
-            target_id = inverse_vertices.get(target_name, target_name)
-            edge_descriptors.append(
-                GraphEdgeDescriptor(
-                    edge_record.get("id", ""),
-                    source_id,
-                    target_id,
-                    weight=edge_record.get("weight"),
-                    name=edge_record.get("vector_name") or edge_record.get("segment_name"),
-                    color=None,
-                    label=edge_record.get("label_name"),
-                    directed=graph.directed,
-                    vector_name=edge_record.get("vector_name"),
-                    segment_name=edge_record.get("segment_name"),
-                    label_name=edge_record.get("label_name"),
-                )
-            )
+        vertex_descriptors, edge_descriptors = GraphUtils.drawables_to_descriptors(
+            segments, vectors, isolated_points=isolated_points
+        )
+        # Deterministic ordering for downstream consumers and adjacency matrix
+        vertex_descriptors = sorted(vertex_descriptors, key=lambda v: v.id)
+        adjacency_matrix = GraphUtils.adjacency_matrix_from_descriptors(
+            vertex_descriptors, edge_descriptors, directed=graph.directed
+        )
 
         if isinstance(graph, Tree):
             return TreeState(
@@ -293,6 +278,7 @@ class GraphManager:
                 edge_descriptors,
                 root=getattr(graph, "root", None),
                 metadata=getattr(graph, "metadata", {}),
+                adjacency_matrix=adjacency_matrix,
             )
 
         return GraphState(
@@ -302,6 +288,7 @@ class GraphManager:
             directed=graph.directed,
             graph_type=graph.graph_type,
             metadata=getattr(graph, "metadata", {}),
+            adjacency_matrix=adjacency_matrix,
         )
 
     # ------------------------------------------------------------------
@@ -343,11 +330,15 @@ class GraphManager:
         edge: GraphEdgeDescriptor,
         default_directed: bool,
         id_to_point: Dict[str, "Point"],
-    ) -> Dict[str, Any]:
+    ) -> Tuple[Optional["Segment"], Optional["Vector"]]:
         source_point = id_to_point[edge.source]
         target_point = id_to_point[edge.target]
         directed = edge.directed if edge.directed is not None else default_directed
         color_value = edge.color
+
+        label_text: Optional[str] = None
+        if edge.weight is not None:
+            label_text = str(edge.weight)
 
         if directed:
             vector_name = edge.name or ""
@@ -360,13 +351,13 @@ class GraphManager:
                 color=color_value,
                 extra_graphics=False,
             )
-            drawable_name = vector.name
-            record: Dict[str, Any] = {
-                "id": edge.id,
-                "source": source_point.name,
-                "target": target_point.name,
-                "vector_name": drawable_name,
-            }
+            if label_text:
+                try:
+                    vector.segment.update_label_text(label_text)
+                    vector.segment.set_label_visibility(True)
+                except Exception:
+                    pass
+            segment: Optional["Segment"] = None
         else:
             segment_name = edge.name or ""
             segment = self.segment_manager.create_segment(
@@ -377,27 +368,10 @@ class GraphManager:
                 name=segment_name,
                 color=color_value,
                 extra_graphics=False,
+                label_text=label_text if label_text is not None else "",
+                label_visible=label_text is not None,
             )
-            drawable_name = segment.name
-            record = {
-                "id": edge.id,
-                "source": source_point.name,
-                "target": target_point.name,
-                "segment_name": drawable_name,
-            }
+            vector = None
 
-        if edge.weight is not None:
-            mid_x = (source_point.x + target_point.x) / 2
-            mid_y = (source_point.y + target_point.y) / 2
-            label_text = edge.label if edge.label is not None else str(edge.weight)
-            label = self.label_manager.create_label(
-                mid_x,
-                mid_y,
-                str(label_text),
-                color=color_value,
-            )
-            record["weight"] = edge.weight
-            record["label_name"] = label.name
-
-        return record
+        return segment, vector
 

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from copy import deepcopy
-from typing import Any, Dict, List, Optional
+from abc import abstractmethod
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from drawables.drawable import Drawable
 
+if TYPE_CHECKING:
+    from drawables.point import Point
+
 
 class Graph(Drawable):
-    """Base graph container holding vertex and edge references."""
+    """Abstract graph interface; subclasses implement edge storage and descriptor computation."""
 
     def __init__(
         self,
@@ -15,20 +18,37 @@ class Graph(Drawable):
         *,
         directed: bool,
         graph_type: str = "graph",
-        vertices: Optional[Dict[str, str]] = None,
-        edges: Optional[List[Dict[str, Any]]] = None,
-        points: Optional[List[str]] = None,
+        isolated_points: Optional[List["Point"]] = None,
         is_renderable: bool = False,
     ) -> None:
         super().__init__(name=name, is_renderable=is_renderable)
         self.directed: bool = directed
         self.graph_type: str = graph_type
-        self.vertices: Dict[str, str] = vertices or {}
-        self.edges: List[Dict[str, Any]] = edges or []
-        self.points: List[str] = list(points or [])
+        self._isolated_points: List["Point"] = list(isolated_points or [])
 
     def get_class_name(self) -> str:
         return "Graph"
+
+    # ------------------------------------------------------------------
+    # Abstract interface - subclasses must implement
+    # ------------------------------------------------------------------
+    @property
+    @abstractmethod
+    def vertices(self) -> Dict[str, str]:
+        """Return mapping of vertex id to vertex name."""
+        ...
+
+    @property
+    @abstractmethod
+    def edges(self) -> List[Dict[str, Any]]:
+        """Return list of edge descriptor dicts."""
+        ...
+
+    @property
+    @abstractmethod
+    def adjacency_matrix(self) -> List[List[float]]:
+        """Return adjacency matrix."""
+        ...
 
     def get_state(self) -> Dict[str, Any]:
         return {
@@ -38,24 +58,12 @@ class Graph(Drawable):
                 "graph_type": self.graph_type,
                 "vertices": self.vertices,
                 "edges": self.edges,
-                "points": self.points,
+                "adjacency_matrix": self.adjacency_matrix,
             },
         }
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> "Graph":
-        if id(self) in memo:
-            return memo[id(self)]  # type: ignore[return-value]
-        copied = Graph(
-            name=self.name,
-            directed=self.directed,
-            graph_type=self.graph_type,
-            vertices=deepcopy(self.vertices, memo),
-            edges=deepcopy(self.edges, memo),
-            points=deepcopy(self.points, memo),
-            is_renderable=self.is_renderable,
-        )
-        memo[id(self)] = copied
-        return copied
+        raise NotImplementedError("Graph is abstract; use a concrete subclass")
 
     def rotate(self, angle: float) -> Any:
         return False, "Graph rotation is not supported"
