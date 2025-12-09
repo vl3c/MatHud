@@ -58,18 +58,21 @@ class GraphEdgeDescriptor:
         self.label_name = label_name
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        """Return dict with only non-null values to reduce state size."""
+        result: Dict[str, Any] = {
             "id": self.id,
             "source": self.source,
             "target": self.target,
-            "weight": self.weight,
-            "name": self.name,
-            "color": self.color,
-            "directed": self.directed,
-            "vector_name": self.vector_name,
-            "segment_name": self.segment_name,
-            "label_name": self.label_name,
         }
+        if self.weight is not None:
+            result["weight"] = self.weight
+        if self.name is not None:
+            result["name"] = self.name
+        if self.color is not None:
+            result["color"] = self.color
+        if self.directed is not None:
+            result["directed"] = self.directed
+        return result
 
 
 class GraphState:
