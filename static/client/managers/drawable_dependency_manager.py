@@ -89,6 +89,10 @@ class DrawableDependencyManager:
             'FunctionSegmentBoundedColoredArea': ['Function', 'Segment'],
             'FunctionsBoundedColoredArea': ['Function'],
             'ClosedShapeColoredArea': ['Segment', 'Circle', 'Ellipse'],
+            'Graph': ['Segment', 'Vector', 'Point'],
+            'DirectedGraph': ['Vector', 'Point'],
+            'UndirectedGraph': ['Segment', 'Point'],
+            'Tree': ['Segment', 'Point'],
         }
     
     def _should_skip_point_point_dependency(self, child: "Drawable", parent: "Drawable") -> bool:
@@ -261,10 +265,14 @@ class DrawableDependencyManager:
         Args:
             drawable: The drawable to remove
         """
-        # Remove from children's parents
         drawable_id = id(drawable)
+        drawable_class = drawable.get_class_name() if hasattr(drawable, 'get_class_name') else ""
 
+        # Notify children (e.g., graphs) to remove references to this drawable
         for child_id in self._children.get(drawable_id, set()).copy():
+            child = self._object_lookup.get(child_id)
+            if child:
+                self._notify_child_of_parent_removal(child, drawable, drawable_class)
             parents = self._parents.get(child_id)
             if parents and drawable_id in parents:
                 parents.discard(drawable_id)
@@ -282,6 +290,19 @@ class DrawableDependencyManager:
             del self._children[drawable_id]
         if drawable_id in self._object_lookup:
             del self._object_lookup[drawable_id]
+
+    def _notify_child_of_parent_removal(self, child: "Drawable", parent: "Drawable", parent_class: str) -> None:
+        """Notify a child drawable that one of its parents has been removed."""
+        child_class = child.get_class_name() if hasattr(child, 'get_class_name') else ""
+        
+        # Handle graph types - remove the reference from internal lists
+        if child_class in ('Graph', 'DirectedGraph', 'UndirectedGraph', 'Tree'):
+            if parent_class == 'Segment' and hasattr(child, 'remove_segment'):
+                child.remove_segment(parent)
+            elif parent_class == 'Vector' and hasattr(child, 'remove_vector'):
+                child.remove_vector(parent)
+            elif parent_class == 'Point' and hasattr(child, 'remove_point'):
+                child.remove_point(parent)
     
     
     def analyze_drawable_for_dependencies(self, drawable: "Drawable") -> List["Drawable"]:
@@ -444,6 +465,24 @@ class DrawableDependencyManager:
                 for segment in drawable.segments:
                     dependencies.append(segment)
                     self.register_dependency(drawable, segment)
+
+        elif class_name in ('Graph', 'DirectedGraph', 'UndirectedGraph', 'Tree'):
+            # Graphs depend on their segments, vectors, and isolated points
+            if hasattr(drawable, '_segments'):
+                for segment in drawable._segments:
+                    if segment:
+                        dependencies.append(segment)
+                        self.register_dependency(drawable, segment)
+            if hasattr(drawable, '_vectors'):
+                for vector in drawable._vectors:
+                    if vector:
+                        dependencies.append(vector)
+                        self.register_dependency(drawable, vector)
+            if hasattr(drawable, '_isolated_points'):
+                for point in drawable._isolated_points:
+                    if point:
+                        dependencies.append(point)
+                        self.register_dependency(drawable, point)
             
         return dependencies
     

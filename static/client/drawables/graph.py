@@ -62,6 +62,13 @@ class Graph(Drawable):
             },
         }
 
+    def remove_point(self, point: "Point") -> bool:
+        """Remove an isolated point reference from this graph."""
+        if point in self._isolated_points:
+            self._isolated_points.remove(point)
+            return True
+        return False
+
     def __deepcopy__(self, memo: Dict[int, Any]) -> "Graph":
         raise NotImplementedError("Graph is abstract; use a concrete subclass")
 

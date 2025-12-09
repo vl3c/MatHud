@@ -41,7 +41,6 @@ class GraphEdgeDescriptor:
         weight: Optional[float] = None,
         name: Optional[str] = None,
         color: Optional[str] = None,
-        label: Optional[str] = None,
         directed: Optional[bool] = None,
         vector_name: Optional[str] = None,
         segment_name: Optional[str] = None,
@@ -53,7 +52,6 @@ class GraphEdgeDescriptor:
         self.weight = weight
         self.name = name
         self.color = color
-        self.label = label
         self.directed = directed
         self.vector_name = vector_name
         self.segment_name = segment_name
@@ -67,7 +65,6 @@ class GraphEdgeDescriptor:
             "weight": self.weight,
             "name": self.name,
             "color": self.color,
-            "label": self.label,
             "directed": self.directed,
             "vector_name": self.vector_name,
             "segment_name": self.segment_name,
@@ -87,6 +84,7 @@ class GraphState:
         layout: Optional[str] = None,
         placement_box: Optional[Dict[str, float]] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        adjacency_matrix: Optional[List[List[float]]] = None,
     ) -> None:
         self.name = name
         self.vertices = vertices
@@ -96,6 +94,7 @@ class GraphState:
         self.layout = layout
         self.placement_box = placement_box or {}
         self.metadata = metadata or {}
+        self.adjacency_matrix = adjacency_matrix
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -107,6 +106,7 @@ class GraphState:
             "layout": self.layout,
             "placement_box": self.placement_box,
             "metadata": self.metadata,
+            "adjacency_matrix": self.adjacency_matrix,
         }
 
 
@@ -121,6 +121,7 @@ class TreeState(GraphState):
         layout: Optional[str] = None,
         placement_box: Optional[Dict[str, float]] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        adjacency_matrix: Optional[List[List[float]]] = None,
     ) -> None:
         super().__init__(
             name=name,
@@ -131,6 +132,7 @@ class TreeState(GraphState):
             layout=layout,
             placement_box=placement_box,
             metadata=metadata,
+            adjacency_matrix=adjacency_matrix,
         )
         self.root = root
 

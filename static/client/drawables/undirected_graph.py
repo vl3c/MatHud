@@ -33,7 +33,8 @@ class UndirectedGraph(Graph):
 
     @property
     def segments(self) -> List["Segment"]:
-        return self._segments
+        """Return list of segments."""
+        return list(self._segments)
 
     def get_class_name(self) -> str:
         return "UndirectedGraph"
@@ -42,12 +43,17 @@ class UndirectedGraph(Graph):
     # Computed graph data from segments
     # ------------------------------------------------------------------
     def _compute_descriptors(self) -> tuple[List[GraphVertexDescriptor], List[GraphEdgeDescriptor], List[List[float]]]:
-        segments = [seg for seg in self._segments if seg is not None]
-        isolated = [p for p in self._isolated_points if p is not None]
-        vertices, edges = GraphUtils.drawables_to_descriptors(segments, [], isolated_points=isolated)
+        vertices, edges = GraphUtils.drawables_to_descriptors(self._segments, [], isolated_points=self._isolated_points)
         vertices = sorted(vertices, key=lambda v: v.id)
         adjacency_matrix = GraphUtils.adjacency_matrix_from_descriptors(vertices, edges, directed=False)
         return vertices, edges, adjacency_matrix
+
+    def remove_segment(self, segment: "Segment") -> bool:
+        """Remove a segment reference from this graph."""
+        if segment in self._segments:
+            self._segments.remove(segment)
+            return True
+        return False
 
     @property
     def vertices(self) -> Dict[str, str]:
