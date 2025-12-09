@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import unittest
 
+from drawables.label import Label
+from drawables.point import Point
+from drawables.segment import Segment
+from drawables.vector import Vector
 from geometry.graph_state import GraphEdgeDescriptor, GraphState, GraphVertexDescriptor, TreeState
 from utils.graph_analyzer import GraphAnalyzer
 from utils.graph_utils import Edge, GraphUtils
@@ -519,6 +523,38 @@ class TestGraph(unittest.TestCase):
     # GraphAnalyzer integration
     # ------------------------------------------------------------------
 
+    def test_drawables_to_descriptors(self) -> None:
+        a = Point(0, 0, name="A")
+        b = Point(1, 0, name="B")
+        c = Point(1, 1, name="C")
+
+        segment = Segment(a, b, label_text="5.5")
+        vector = Vector(b, c)
+        vector.segment.label.update_text("2")
+
+        vertices, edges = GraphUtils.drawables_to_descriptors([segment], [vector])
+
+        self.assertEqual({v.id for v in vertices}, {"A", "B", "C"})
+        edge_lookup = {e.id: e for e in edges}
+
+        self.assertEqual(len(edges), 2)
+
+        seg_edge = edge_lookup.get(segment.name)
+        self.assertIsNotNone(seg_edge)
+        if seg_edge:
+            self.assertFalse(seg_edge.directed)
+            self.assertEqual(seg_edge.source, "A")
+            self.assertEqual(seg_edge.target, "B")
+            self.assertAlmostEqual(seg_edge.weight or 0.0, 5.5)
+
+        vec_edge = edge_lookup.get(vector.name)
+        self.assertIsNotNone(vec_edge)
+        if vec_edge:
+            self.assertTrue(vec_edge.directed)
+            self.assertEqual(vec_edge.source, "B")
+            self.assertEqual(vec_edge.target, "C")
+            self.assertAlmostEqual(vec_edge.weight or 0.0, 2.0)
+
     def test_graph_analyzer_shortest_path(self) -> None:
         vertices = [GraphVertexDescriptor("A"), GraphVertexDescriptor("B"), GraphVertexDescriptor("C")]
         edges = [
@@ -541,6 +577,270 @@ class TestGraph(unittest.TestCase):
         state = TreeState("T", vertices, edges, root="A")
         result = GraphAnalyzer.analyze(state, "lca", {"root": "A", "a": "D", "b": "C"})
         self.assertEqual(result.get("lca"), "A")
+
+    # ------------------------------------------------------------------
+    # adjacency_matrix_from_descriptors
+    # ------------------------------------------------------------------
+
+    def test_adjacency_matrix_from_descriptors_undirected(self) -> None:
+        vertices = [
+            GraphVertexDescriptor("A"),
+            GraphVertexDescriptor("B"),
+            GraphVertexDescriptor("C"),
+        ]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B", weight=2.0),
+            GraphEdgeDescriptor("e2", "B", "C", weight=3.0),
+        ]
+        matrix = GraphUtils.adjacency_matrix_from_descriptors(vertices, edges, directed=False)
+        self.assertEqual(len(matrix), 3)
+        self.assertEqual(matrix[0][1], 2.0)  # A-B
+        self.assertEqual(matrix[1][0], 2.0)  # B-A (symmetric)
+        self.assertEqual(matrix[1][2], 3.0)  # B-C
+        self.assertEqual(matrix[2][1], 3.0)  # C-B (symmetric)
+        self.assertEqual(matrix[0][2], 0.0)  # A-C (no edge)
+
+    def test_adjacency_matrix_from_descriptors_directed(self) -> None:
+        vertices = [
+            GraphVertexDescriptor("A"),
+            GraphVertexDescriptor("B"),
+            GraphVertexDescriptor("C"),
+        ]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B", weight=2.0),
+            GraphEdgeDescriptor("e2", "B", "C", weight=3.0),
+        ]
+        matrix = GraphUtils.adjacency_matrix_from_descriptors(vertices, edges, directed=True)
+        self.assertEqual(matrix[0][1], 2.0)  # A->B
+        self.assertEqual(matrix[1][0], 0.0)  # B->A (no reverse edge)
+        self.assertEqual(matrix[1][2], 3.0)  # B->C
+        self.assertEqual(matrix[2][1], 0.0)  # C->B (no reverse edge)
+
+    def test_adjacency_matrix_default_weight(self) -> None:
+        vertices = [GraphVertexDescriptor("A"), GraphVertexDescriptor("B")]
+        edges = [GraphEdgeDescriptor("e1", "A", "B")]  # No weight specified
+        matrix = GraphUtils.adjacency_matrix_from_descriptors(vertices, edges, directed=False)
+        self.assertEqual(matrix[0][1], 1.0)  # Default weight
+        self.assertEqual(matrix[1][0], 1.0)
+
+    # ------------------------------------------------------------------
+    # _extract_weight_from_label edge cases
+    # ------------------------------------------------------------------
+
+    def test_extract_weight_from_label_none(self) -> None:
+        result = GraphUtils._extract_weight_from_label(None)
+        self.assertIsNone(result)
+
+    def test_extract_weight_from_label_empty_text(self) -> None:
+        label = Label(0, 0, "")
+        result = GraphUtils._extract_weight_from_label(label)
+        self.assertIsNone(result)
+
+    def test_extract_weight_from_label_non_numeric(self) -> None:
+        label = Label(0, 0, "abc")
+        result = GraphUtils._extract_weight_from_label(label)
+        self.assertIsNone(result)
+
+    def test_extract_weight_from_label_valid_float(self) -> None:
+        label = Label(0, 0, "3.14")
+        result = GraphUtils._extract_weight_from_label(label)
+        self.assertAlmostEqual(result, 3.14)  # type: ignore[arg-type]
+
+    def test_extract_weight_from_label_integer(self) -> None:
+        label = Label(0, 0, "42")
+        result = GraphUtils._extract_weight_from_label(label)
+        self.assertEqual(result, 42.0)
+
+    def test_extract_weight_from_label_whitespace(self) -> None:
+        label = Label(0, 0, "  7.5  ")
+        result = GraphUtils._extract_weight_from_label(label)
+        self.assertAlmostEqual(result, 7.5)  # type: ignore[arg-type]
+
+    # ------------------------------------------------------------------
+    # drawables_to_descriptors with isolated points
+    # ------------------------------------------------------------------
+
+    def test_drawables_to_descriptors_isolated_points(self) -> None:
+        a = Point(0, 0, name="A")
+        b = Point(1, 0, name="B")
+        c = Point(2, 0, name="C")  # isolated
+        d = Point(3, 0, name="D")  # isolated
+
+        segment = Segment(a, b)
+        vertices, edges = GraphUtils.drawables_to_descriptors([segment], [], isolated_points=[c, d])
+
+        vertex_ids = {v.id for v in vertices}
+        self.assertEqual(vertex_ids, {"A", "B", "C", "D"})
+        self.assertEqual(len(edges), 1)
+
+    def test_drawables_to_descriptors_empty(self) -> None:
+        vertices, edges = GraphUtils.drawables_to_descriptors([], [])
+        self.assertEqual(vertices, [])
+        self.assertEqual(edges, [])
+
+    # ------------------------------------------------------------------
+    # GraphAnalyzer additional operations
+    # ------------------------------------------------------------------
+
+    def test_graph_analyzer_mst(self) -> None:
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C"]]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B", weight=1.0, name="AB"),
+            GraphEdgeDescriptor("e2", "B", "C", weight=2.0, name="BC"),
+            GraphEdgeDescriptor("e3", "A", "C", weight=5.0, name="AC"),
+        ]
+        state = GraphState("G", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "mst", {})
+        self.assertEqual(len(result.get("edges", [])), 2)
+        self.assertIn("AB", result.get("highlight_vectors", []))
+        self.assertIn("BC", result.get("highlight_vectors", []))
+
+    def test_graph_analyzer_bridges(self) -> None:
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C", "D"]]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B", name="AB"),
+            GraphEdgeDescriptor("e2", "B", "C", name="BC"),
+            GraphEdgeDescriptor("e3", "C", "D", name="CD"),
+        ]
+        state = GraphState("G", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "bridges", {})
+        bridges = result.get("bridges", [])
+        self.assertEqual(len(bridges), 3)  # All edges are bridges in a path
+
+    def test_graph_analyzer_articulation_points(self) -> None:
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C", "D"]]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B"),
+            GraphEdgeDescriptor("e2", "B", "C"),
+            GraphEdgeDescriptor("e3", "C", "D"),
+        ]
+        state = GraphState("G", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "articulation_points", {})
+        aps = result.get("articulation_points", [])
+        self.assertIn("B", aps)
+        self.assertIn("C", aps)
+
+    def test_graph_analyzer_euler_status(self) -> None:
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C"]]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B"),
+            GraphEdgeDescriptor("e2", "B", "C"),
+            GraphEdgeDescriptor("e3", "C", "A"),
+        ]
+        state = GraphState("G", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "euler_status", {})
+        self.assertEqual(result.get("status"), "cycle")
+
+    def test_graph_analyzer_bipartite(self) -> None:
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C", "D"]]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B"),
+            GraphEdgeDescriptor("e2", "B", "C"),
+            GraphEdgeDescriptor("e3", "C", "D"),
+            GraphEdgeDescriptor("e4", "D", "A"),
+        ]
+        state = GraphState("G", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "bipartite", {})
+        self.assertTrue(result.get("is_bipartite"))
+
+    def test_graph_analyzer_bfs(self) -> None:
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C", "D"]]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B"),
+            GraphEdgeDescriptor("e2", "A", "C"),
+            GraphEdgeDescriptor("e3", "B", "D"),
+        ]
+        state = GraphState("G", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "bfs", {"start": "A"})
+        order = result.get("order", [])
+        self.assertEqual(order[0], "A")
+        self.assertEqual(len(order), 4)
+
+    def test_graph_analyzer_dfs(self) -> None:
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C", "D"]]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B"),
+            GraphEdgeDescriptor("e2", "A", "C"),
+            GraphEdgeDescriptor("e3", "B", "D"),
+        ]
+        state = GraphState("G", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "dfs", {"start": "A"})
+        order = result.get("order", [])
+        self.assertEqual(order[0], "A")
+        self.assertEqual(len(order), 4)
+
+    def test_graph_analyzer_levels(self) -> None:
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C", "D"]]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B"),
+            GraphEdgeDescriptor("e2", "A", "C"),
+            GraphEdgeDescriptor("e3", "B", "D"),
+        ]
+        state = TreeState("T", vertices, edges, root="A")
+        result = GraphAnalyzer.analyze(state, "levels", {"root": "A"})
+        levels = result.get("levels", [])
+        self.assertEqual(levels[0], ["A"])
+        self.assertEqual(set(levels[1]), {"B", "C"})
+        self.assertEqual(levels[2], ["D"])
+
+    def test_graph_analyzer_diameter(self) -> None:
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C", "D"]]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B", name="AB"),
+            GraphEdgeDescriptor("e2", "B", "C", name="BC"),
+            GraphEdgeDescriptor("e3", "C", "D", name="CD"),
+        ]
+        state = GraphState("G", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "diameter", {})
+        path = result.get("path", [])
+        self.assertEqual(len(path), 4)
+        self.assertIn("A", path)
+        self.assertIn("D", path)
+
+    def test_graph_analyzer_topological_sort(self) -> None:
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C", "D"]]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B"),
+            GraphEdgeDescriptor("e2", "A", "C"),
+            GraphEdgeDescriptor("e3", "B", "D"),
+            GraphEdgeDescriptor("e4", "C", "D"),
+        ]
+        state = GraphState("G", vertices, edges, directed=True, graph_type="dag")
+        result = GraphAnalyzer.analyze(state, "topological_sort", {})
+        order = result.get("order", [])
+        self.assertEqual(order[0], "A")
+        self.assertEqual(order[-1], "D")
+
+    def test_graph_analyzer_reroot(self) -> None:
+        vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C"]]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B"),
+            GraphEdgeDescriptor("e2", "B", "C"),
+        ]
+        state = TreeState("T", vertices, edges, root="A")
+        result = GraphAnalyzer.analyze(state, "reroot", {"root": "A", "new_root": "B"})
+        new_parent = result.get("parent", {})
+        self.assertIsNone(new_parent.get("B"))
+        self.assertEqual(new_parent.get("A"), "B")
+        self.assertEqual(new_parent.get("C"), "B")
+
+    def test_graph_analyzer_error_missing_params(self) -> None:
+        vertices = [GraphVertexDescriptor("A"), GraphVertexDescriptor("B")]
+        edges = [GraphEdgeDescriptor("e1", "A", "B")]
+        state = GraphState("G", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "shortest_path", {})
+        self.assertIn("error", result)
+
+    def test_graph_analyzer_unsupported_operation(self) -> None:
+        vertices = [GraphVertexDescriptor("A")]
+        state = GraphState("G", vertices, [], directed=False)
+        result = GraphAnalyzer.analyze(state, "unknown_op", {})
+        self.assertIn("error", result)
+
+
+# Preserve legacy test case name expected by the runner
+class TestGraphUtils(TestGraph):
+    pass
 
 
 if __name__ == "__main__":
