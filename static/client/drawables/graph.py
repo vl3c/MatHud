@@ -16,15 +16,16 @@ class Graph(Drawable):
         self,
         name: str,
         *,
-        directed: bool,
-        graph_type: str = "graph",
         isolated_points: Optional[List["Point"]] = None,
         is_renderable: bool = False,
     ) -> None:
         super().__init__(name=name, is_renderable=is_renderable)
-        self.directed: bool = directed
-        self.graph_type: str = graph_type
         self._isolated_points: List["Point"] = list(isolated_points or [])
+
+    @property
+    def directed(self) -> bool:
+        """Whether the graph is directed. Subclasses override this."""
+        return False
 
     def get_class_name(self) -> str:
         return "Graph"
@@ -51,15 +52,10 @@ class Graph(Drawable):
         ...
 
     def get_state(self) -> Dict[str, Any]:
+        """Return minimal state for serialization. Subclasses add edge references."""
         return {
             "name": self.name,
-            "args": {
-                "directed": self.directed,
-                "graph_type": self.graph_type,
-                "vertices": self.vertices,
-                "edges": self.edges,
-                "adjacency_matrix": self.adjacency_matrix,
-            },
+            "args": {},
         }
 
     def remove_point(self, point: "Point") -> bool:
