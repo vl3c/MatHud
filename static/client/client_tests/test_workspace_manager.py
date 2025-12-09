@@ -19,8 +19,6 @@ class TestWorkspaceSegmentPersistence(unittest.TestCase):
 
         self.assertEqual(state["args"]["p1"], "O")
         self.assertEqual(state["args"]["p2"], "K")
-        self.assertEqual(state["args"]["p1_coords"], [point_o.x, point_o.y])
-        self.assertEqual(state["args"]["p2_coords"], [point_k.x, point_k.y])
 
     def test_legacy_segment_state_restores_original_orientation(self) -> None:
         point_o = Point(-70.0, -200.0, name="O")

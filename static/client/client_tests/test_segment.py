@@ -76,9 +76,6 @@ class TestSegment(unittest.TestCase):
             "args": {
                 "p1": "A",
                 "p2": "B",
-                "line_formula": self.segment.line_formula,
-                "p1_coords": [self.segment.point1.x, self.segment.point1.y],
-                "p2_coords": [self.segment.point2.x, self.segment.point2.y],
                 "label": {
                     "text": "",
                     "visible": False,
@@ -119,16 +116,14 @@ class TestSegment(unittest.TestCase):
         self.assertEqual(x2, 255)
         self.assertEqual(y2, 243)
 
-    def test_segment_state_updates_after_point_translation(self) -> None:
+    def test_segment_line_formula_updates_after_point_translation(self) -> None:
         # Move only the first endpoint as a polygon translation would.
         self.segment.point1.translate(1, 2)
 
-        # Ensure get_state refreshes analytic data based on the shared points.
-        state = self.segment.get_state()
-        refreshed_formula = state["args"]["line_formula"]
+        # Recalculate line formula to reflect moved point.
+        self.segment.line_formula = self.segment._calculate_line_algebraic_formula()
 
-        self.assertEqual(refreshed_formula, "y = 1.0 * x + 1.0")
-        self.assertEqual(self.segment.line_formula, refreshed_formula)
+        self.assertEqual(self.segment.line_formula, "y = 1.0 * x + 1.0")
 
     def test_draw(self) -> None:
         # This test would check if draw calls create_svg_element with expected arguments

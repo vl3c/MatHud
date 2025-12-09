@@ -24,12 +24,15 @@ class DirectedGraph(Graph):
     ) -> None:
         super().__init__(
             name=name,
-            directed=True,
             graph_type="graph",
             isolated_points=isolated_points,
             is_renderable=True,
         )
         self._vectors: List["Vector"] = list(vectors or [])
+
+    @property
+    def directed(self) -> bool:
+        return True
 
     @property
     def vectors(self) -> List["Vector"]:

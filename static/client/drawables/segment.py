@@ -90,19 +90,12 @@ class Segment(Drawable):
     def get_state(self) -> Dict[str, Any]:
         # Keep endpoint ordering consistent with in-memory references so downstream
         # consumers (workspace saves, dependency checks) preserve segment identity.
-        point1_name: str = self.point1.name
-        point2_name: str = self.point2.name
-        # Refresh the cached line formula so state reflects any upstream point updates.
-        self.line_formula = self._calculate_line_algebraic_formula()
         self._sync_label_position()
         state: Dict[str, Any] = {
             "name": self.name,
             "args": {
-                "p1": point1_name,
-                "p2": point2_name,
-                "line_formula": self.line_formula,
-                "p1_coords": [self.point1.x, self.point1.y],
-                "p2_coords": [self.point2.x, self.point2.y],
+                "p1": self.point1.name,
+                "p2": self.point2.name,
                 "label": {
                     "text": self.label.text,
                     "visible": bool(getattr(self.label, "visible", True)),

@@ -70,27 +70,13 @@ class Vector(Drawable):
         return 'Vector'
 
     def get_state(self) -> Dict[str, Any]:
-        origin_point = self.segment.point1
-        tip_point = self.segment.point2
-        origin: str = origin_point.name
-        tip: str = tip_point.name
-        # Segment state recomputes analytic helpers like the line formula.
-        segment_state = self.segment.get_state()
-        segment_args = segment_state.get("args", {})
-        line_formula = segment_args.get("line_formula")
-        origin_coords = segment_args.get("p1_coords", [origin_point.x, origin_point.y])
-        tip_coords = segment_args.get("p2_coords", [tip_point.x, tip_point.y])
-        state: Dict[str, Any] = {
+        return {
             "name": self.name,
             "args": {
-                "origin": origin,
-                "tip": tip,
-                "line_formula": line_formula,
-                "origin_coords": origin_coords,
-                "tip_coords": tip_coords,
+                "origin": self.segment.point1.name,
+                "tip": self.segment.point2.name,
             },
         }
-        return state
     
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
         # Check if the vector has already been deep copied
