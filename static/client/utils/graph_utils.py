@@ -23,7 +23,15 @@ Use Cases:
 
 from __future__ import annotations
 
-from typing import Callable, Dict, FrozenSet, Generic, List, Optional, Sequence, Set, Tuple, TypeVar
+from typing import TYPE_CHECKING, Callable, Dict, FrozenSet, Generic, List, Optional, Sequence, Set, Tuple, TypeVar
+
+from geometry.graph_state import GraphEdgeDescriptor, GraphVertexDescriptor
+
+if TYPE_CHECKING:
+    from drawables.label import Label
+    from drawables.point import Point
+    from drawables.segment import Segment
+    from drawables.vector import Vector
 
 V = TypeVar("V")
 
@@ -82,6 +90,131 @@ class GraphUtils:
     All methods work with generic vertex identifiers and Edge objects,
     independent of geometric interpretation.
     """
+
+    # ------------------------------------------------------------------
+    # Drawable extraction helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _extract_weight_from_label(label: Optional["Label"]) -> Optional[float]:
+        """Parse a numeric weight from a label if present."""
+        if label is None:
+            return None
+        raw = getattr(label, "text", "")
+        try:
+            normalized = str(raw).strip()
+            if normalized == "":
+                return None
+            return float(normalized)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _add_vertex_descriptor(
+        vertices: Dict[str, GraphVertexDescriptor],
+        point: "Point",
+    ) -> None:
+        """Ensure a point is represented as a vertex descriptor keyed by its name."""
+        if point.name in vertices:
+            return
+        vertices[point.name] = GraphVertexDescriptor(
+            point.name,
+            name=point.name,
+            x=point.x,
+            y=point.y,
+            color=getattr(point, "color", None),
+        )
+
+    @staticmethod
+    def drawables_to_descriptors(
+        segments: Sequence["Segment"],
+        vectors: Sequence["Vector"],
+        isolated_points: Optional[Sequence["Point"]] = None,
+    ) -> Tuple[List[GraphVertexDescriptor], List[GraphEdgeDescriptor]]:
+        """Convert drawables into graph descriptors with weights.
+
+        Args:
+            segments: Undirected edge drawables; weights come from segment labels.
+            vectors: Directed edge drawables; weights come from the underlying segment labels.
+            isolated_points: Points not referenced by an edge.
+
+        Returns:
+            Tuple of (vertices, edges) where vertices are GraphVertexDescriptor objects
+            keyed by point names and edges are GraphEdgeDescriptor objects with optional
+            weights, colors, and label references.
+        """
+        vertices: Dict[str, GraphVertexDescriptor] = {}
+        edges: List[GraphEdgeDescriptor] = []
+
+        for idx, segment in enumerate(segments):
+            GraphUtils._add_vertex_descriptor(vertices, segment.point1)
+            GraphUtils._add_vertex_descriptor(vertices, segment.point2)
+            label = getattr(segment, "label", None)
+            edge_id = segment.name or f"segment_{idx}"
+            edges.append(
+                GraphEdgeDescriptor(
+                    edge_id,
+                    segment.point1.name,
+                    segment.point2.name,
+                    weight=GraphUtils._extract_weight_from_label(label),
+                    name=segment.name or None,
+                    color=getattr(segment, "color", None),
+                    directed=False,
+                    segment_name=segment.name or None,
+                    label_name=getattr(label, "name", None) or None,
+                )
+            )
+
+        offset = len(edges)
+        for j, vector in enumerate(vectors):
+            origin = vector.origin
+            tip = vector.tip
+            GraphUtils._add_vertex_descriptor(vertices, origin)
+            GraphUtils._add_vertex_descriptor(vertices, tip)
+            label = getattr(getattr(vector, "segment", None), "label", None)
+            edge_id = vector.name or f"vector_{offset + j}"
+            edges.append(
+                GraphEdgeDescriptor(
+                    edge_id,
+                    origin.name,
+                    tip.name,
+                    weight=GraphUtils._extract_weight_from_label(label),
+                    name=vector.name or None,
+                    color=getattr(vector, "color", None) or getattr(getattr(vector, "segment", None), "color", None),
+                    directed=True,
+                    vector_name=vector.name or None,
+                    label_name=getattr(label, "name", None) or None,
+                )
+            )
+
+        if isolated_points:
+            for point in isolated_points:
+                GraphUtils._add_vertex_descriptor(vertices, point)
+
+        return list(vertices.values()), edges
+
+    @staticmethod
+    def adjacency_matrix_from_descriptors(
+        vertices: Sequence[GraphVertexDescriptor],
+        edges: Sequence[GraphEdgeDescriptor],
+        *,
+        directed: bool = False,
+    ) -> List[List[float]]:
+        """Build an adjacency matrix from descriptors (weight default = 1.0)."""
+        index: Dict[str, int] = {v.id: idx for idx, v in enumerate(vertices)}
+        size = len(vertices)
+        matrix: List[List[float]] = [[0.0 for _ in range(size)] for _ in range(size)]
+
+        for edge in edges:
+            if edge.source not in index or edge.target not in index:
+                continue
+            w = float(edge.weight) if edge.weight is not None else 1.0
+            i = index[edge.source]
+            j = index[edge.target]
+            matrix[i][j] = w
+            if not directed:
+                matrix[j][i] = w
+
+        return matrix
     
     @staticmethod
     def build_adjacency_map(edges: Sequence[Edge[V]]) -> Dict[V, Set[V]]:
