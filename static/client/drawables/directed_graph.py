@@ -25,9 +25,10 @@ class DirectedGraph(Graph):
         super().__init__(
             name=name,
             isolated_points=isolated_points,
-            is_renderable=True,
+            is_renderable=False,
         )
         self._vectors: List["Vector"] = list(vectors or [])
+        self._cached_descriptors: Optional[tuple[List[GraphVertexDescriptor], List[GraphEdgeDescriptor], List[List[float]]]] = None
 
     @property
     def directed(self) -> bool:
@@ -44,16 +45,23 @@ class DirectedGraph(Graph):
     # ------------------------------------------------------------------
     # Computed graph data from vectors
     # ------------------------------------------------------------------
+    def _invalidate_cache(self) -> None:
+        self._cached_descriptors = None
+
     def _compute_descriptors(self) -> tuple[List[GraphVertexDescriptor], List[GraphEdgeDescriptor], List[List[float]]]:
+        if self._cached_descriptors is not None:
+            return self._cached_descriptors
         vertices, edges = GraphUtils.drawables_to_descriptors([], self._vectors, isolated_points=self._isolated_points)
         vertices = sorted(vertices, key=lambda v: v.id)
         adjacency_matrix = GraphUtils.adjacency_matrix_from_descriptors(vertices, edges, directed=True)
-        return vertices, edges, adjacency_matrix
+        self._cached_descriptors = (vertices, edges, adjacency_matrix)
+        return self._cached_descriptors
 
     def remove_vector(self, vector: "Vector") -> bool:
         """Remove a vector reference from this graph."""
         if vector in self._vectors:
             self._vectors.remove(vector)
+            self._invalidate_cache()
             return True
         return False
 
