@@ -97,6 +97,54 @@ class TestSegmentManager(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.segment_manager.update_segment("AB")
 
+    def test_create_segment_from_points_creates_new_segment(self) -> None:
+        """Test that create_segment_from_points creates a segment with the given Point objects."""
+        p1 = Point(0.0, 0.0, name="X")
+        p2 = Point(1.0, 0.0, name="Y")
+        
+        segment = self.segment_manager.create_segment_from_points(p1, p2)
+        
+        self.assertIs(segment.point1, p1)
+        self.assertIs(segment.point2, p2)
+        self.assertEqual(segment.name, "XY")
+
+    def test_create_segment_from_points_returns_existing_if_same_points(self) -> None:
+        """Test that it returns existing segment if it references the same Point objects."""
+        p1 = Point(0.0, 0.0, name="A")
+        p2 = Point(1.0, 0.0, name="B")
+        
+        segment1 = self.segment_manager.create_segment_from_points(p1, p2)
+        segment2 = self.segment_manager.create_segment_from_points(p1, p2)
+        
+        self.assertIs(segment1, segment2)
+
+    def test_create_segment_from_points_returns_existing_if_same_points_reversed(self) -> None:
+        """Test that it returns existing segment if points are reversed but same objects."""
+        p1 = Point(0.0, 0.0, name="A")
+        p2 = Point(1.0, 0.0, name="B")
+        
+        segment1 = self.segment_manager.create_segment_from_points(p1, p2)
+        segment2 = self.segment_manager.create_segment_from_points(p2, p1)
+        
+        self.assertIs(segment1, segment2)
+
+    def test_create_segment_from_points_creates_new_if_different_points_same_coords(self) -> None:
+        """Test that it creates a new segment if existing segment has different Point objects."""
+        old_p1 = Point(0.0, 0.0, name="A")
+        old_p2 = Point(1.0, 0.0, name="B")
+        old_segment = Segment(old_p1, old_p2)
+        self.drawables.add(old_segment)
+        
+        new_p1 = Point(0.0, 0.0, name="X")
+        new_p2 = Point(1.0, 0.0, name="Y")
+        
+        new_segment = self.segment_manager.create_segment_from_points(new_p1, new_p2)
+        
+        self.assertIsNot(new_segment, old_segment)
+        self.assertIs(new_segment.point1, new_p1)
+        self.assertIs(new_segment.point2, new_p2)
+        self.assertEqual(new_segment.name, "XY")
+
 
 if __name__ == "__main__":
     unittest.main()

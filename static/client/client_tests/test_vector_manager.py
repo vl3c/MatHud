@@ -86,6 +86,44 @@ class TestVectorManager(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.vector_manager.update_vector("AB")
 
+    def test_create_vector_from_points_creates_new_vector(self) -> None:
+        """Test that create_vector_from_points creates a vector with the given Point objects."""
+        origin = Point(0.0, 0.0, name="X")
+        tip = Point(1.0, 0.0, name="Y")
+        
+        vector = self.vector_manager.create_vector_from_points(origin, tip)
+        
+        self.assertIs(vector.origin, origin)
+        self.assertIs(vector.tip, tip)
+        self.assertEqual(vector.name, "XY")
+
+    def test_create_vector_from_points_returns_existing_if_same_points(self) -> None:
+        """Test that it returns existing vector if it references the same Point objects."""
+        origin = Point(0.0, 0.0, name="A")
+        tip = Point(1.0, 0.0, name="B")
+        
+        vector1 = self.vector_manager.create_vector_from_points(origin, tip)
+        vector2 = self.vector_manager.create_vector_from_points(origin, tip)
+        
+        self.assertIs(vector1, vector2)
+
+    def test_create_vector_from_points_creates_new_if_different_points_same_coords(self) -> None:
+        """Test that it creates a new vector if existing vector has different Point objects."""
+        old_origin = Point(0.0, 0.0, name="A")
+        old_tip = Point(1.0, 0.0, name="B")
+        old_vector = Vector(old_origin, old_tip)
+        self.drawables.add(old_vector)
+        
+        new_origin = Point(0.0, 0.0, name="X")
+        new_tip = Point(1.0, 0.0, name="Y")
+        
+        new_vector = self.vector_manager.create_vector_from_points(new_origin, new_tip)
+        
+        self.assertIsNot(new_vector, old_vector)
+        self.assertIs(new_vector.origin, new_origin)
+        self.assertIs(new_vector.tip, new_tip)
+        self.assertEqual(new_vector.name, "XY")
+
 
 if __name__ == "__main__":
     unittest.main()

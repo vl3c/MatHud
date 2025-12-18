@@ -252,7 +252,10 @@ class SegmentManager:
         """
         existing_segment = self.get_segment_by_coordinates(p1.x, p1.y, p2.x, p2.y)
         if existing_segment:
-            return existing_segment
+            if existing_segment.point1 is p1 and existing_segment.point2 is p2:
+                return existing_segment
+            if existing_segment.point1 is p2 and existing_segment.point2 is p1:
+                return existing_segment
         
         color_value = str(color).strip() if color is not None else ""
         sanitized_label_text = Label.validate_text(label_text or "") if label_text is not None else ""
