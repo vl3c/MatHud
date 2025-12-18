@@ -223,6 +223,53 @@ class SegmentManager:
             self.canvas.draw()
             
         return segment
+
+    def create_segment_from_points(
+        self,
+        p1: "Point",
+        p2: "Point",
+        name: str = "",
+        color: Optional[str] = None,
+        label_text: Optional[str] = None,
+        label_visible: Optional[bool] = None,
+    ) -> Segment:
+        """Create a segment from existing Point objects.
+        
+        Unlike create_segment which takes coordinates, this method directly uses
+        the provided Point objects, ensuring the segment references the exact
+        points without any floating-point lookup issues.
+        
+        Args:
+            p1: The first endpoint Point object
+            p2: The second endpoint Point object
+            name: Optional name for the segment
+            color: Optional color for the segment
+            label_text: Optional label text to attach to the segment
+            label_visible: Optional visibility flag for the attached label
+            
+        Returns:
+            Segment: The newly created segment object
+        """
+        existing_segment = self.get_segment_by_coordinates(p1.x, p1.y, p2.x, p2.y)
+        if existing_segment:
+            return existing_segment
+        
+        color_value = str(color).strip() if color is not None else ""
+        sanitized_label_text = Label.validate_text(label_text or "") if label_text is not None else ""
+        label_visibility = bool(label_visible) if label_visible is not None else False
+        
+        if color_value:
+            segment = Segment(p1, p2, color=color_value, label_text=sanitized_label_text, label_visible=label_visibility)
+        else:
+            segment = Segment(p1, p2, label_text=sanitized_label_text, label_visible=label_visibility)
+        
+        self.drawables.add(segment)
+        self.dependency_manager.analyze_drawable_for_dependencies(segment)
+        
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+            
+        return segment
         
     def delete_segment(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> bool:
         """
