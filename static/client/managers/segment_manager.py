@@ -256,6 +256,10 @@ class SegmentManager:
                 return existing_segment
             if existing_segment.point1 is p2 and existing_segment.point2 is p1:
                 return existing_segment
+            # Existing segment has same coords but different Point objects.
+            # Remove stale segment to avoid duplicate rendering.
+            self.drawables.remove(existing_segment)
+            self.dependency_manager.remove_drawable(existing_segment)
         
         color_value = str(color).strip() if color is not None else ""
         sanitized_label_text = Label.validate_text(label_text or "") if label_text is not None else ""

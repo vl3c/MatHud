@@ -208,6 +208,10 @@ class VectorManager:
         if existing_vector:
             if existing_vector.origin is origin and existing_vector.tip is tip:
                 return existing_vector
+            # Existing vector has same coords but different Point objects.
+            # Remove stale vector to avoid duplicate rendering.
+            self.drawables.remove(existing_vector)
+            self.dependency_manager.remove_drawable(existing_vector)
         
         color_value = str(color).strip() if color is not None else ""
         if color_value:

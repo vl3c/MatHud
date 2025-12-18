@@ -130,3 +130,48 @@ class TestSegment(unittest.TestCase):
         # Might require a more complex setup or mocking to verify SVG output
         pass
 
+    def test_get_state_includes_coordinates_for_cache_invalidation(self) -> None:
+        """Verify get_state includes point coordinates so render cache invalidates on move."""
+        state = self.segment.get_state()
+        
+        # Must include coordinate lists for render signature
+        self.assertIn("_p1_coords", state)
+        self.assertIn("_p2_coords", state)
+        self.assertEqual(state["_p1_coords"], [self.p1.x, self.p1.y])
+        self.assertEqual(state["_p2_coords"], [self.p2.x, self.p2.y])
+
+    def test_get_state_changes_when_points_move(self) -> None:
+        """Verify get_state signature changes when point coordinates change."""
+        state_before = self.segment.get_state()
+        
+        # Move a point
+        self.p1.x = 100.0
+        self.p1.y = 200.0
+        
+        state_after = self.segment.get_state()
+        
+        # Coordinates in state should reflect new position
+        self.assertEqual(state_after["_p1_coords"], [100.0, 200.0])
+        # And be different from before
+        self.assertNotEqual(state_before["_p1_coords"], state_after["_p1_coords"])
+
+    def test_same_name_different_coords_produces_different_state(self) -> None:
+        """Two segments with same name but different coords must have different states."""
+        # Original segment AB at (0,0) to (3,4)
+        state1 = self.segment.get_state()
+        
+        # Create another segment with same point names but different coordinates
+        other_p1 = Point(500, 600, name="A", color="red")
+        other_p2 = Point(700, 800, name="B", color="red")
+        other_segment = Segment(other_p1, other_p2, color="blue")
+        state2 = other_segment.get_state()
+        
+        # Names are the same
+        self.assertEqual(state1["name"], state2["name"])
+        self.assertEqual(state1["args"]["p1"], state2["args"]["p1"])
+        self.assertEqual(state1["args"]["p2"], state2["args"]["p2"])
+        
+        # But coordinates differ, so render cache should invalidate
+        self.assertNotEqual(state1["_p1_coords"], state2["_p1_coords"])
+        self.assertNotEqual(state1["_p2_coords"], state2["_p2_coords"])
+

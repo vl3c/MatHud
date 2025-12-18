@@ -102,6 +102,9 @@ class Segment(Drawable):
                     "font_size": getattr(self.label, "font_size", point_label_font_size),
                 },
             },
+            # Include coordinates for render cache invalidation
+            "_p1_coords": [self.point1.x, self.point1.y],
+            "_p2_coords": [self.point2.x, self.point2.y],
         }
         return state
 
