@@ -70,14 +70,16 @@ class GraphManager:
 
         segments_created: List["Segment"] = []
         vectors_created: List["Vector"] = []
+        is_tree = isinstance(state, TreeState)
         for edge in state.edges:
-            segment_obj, vector_obj = self._create_edge(edge, state.directed, id_to_point)
+            edge_directed = state.directed if is_tree else None
+            segment_obj, vector_obj = self._create_edge(edge, state.directed, id_to_point, force_directed=edge_directed)
             if segment_obj:
                 segments_created.append(segment_obj)
             if vector_obj:
                 vectors_created.append(vector_obj)
 
-        if isinstance(state, TreeState):
+        if is_tree:
             graph = Tree(
                 state.name,
                 root=getattr(state, "root", None),
@@ -175,12 +177,28 @@ class GraphManager:
 
         resolved_directed = directed if directed is not None else graph_type in ("dag", "directed")
 
+        resolved_root: Optional[str] = None
+        if root is not None:
+            try:
+                root_idx = int(root)
+                if 0 <= root_idx < len(id_list):
+                    resolved_root = id_list[root_idx]
+            except (ValueError, TypeError):
+                pass
+            if resolved_root is None:
+                for vd in vertex_descriptors:
+                    if vd.name == root or vd.id == root:
+                        resolved_root = vd.id
+                        break
+            if resolved_root is None and id_list:
+                resolved_root = id_list[0]
+
         if graph_type == "tree":
             return TreeState(
                 name=name,
                 vertices=vertex_descriptors,
                 edges=edge_descriptors,
-                root=root,
+                root=resolved_root,
                 layout=layout,
                 placement_box=placement_box,
                 metadata=metadata,
@@ -331,10 +349,14 @@ class GraphManager:
         edge: GraphEdgeDescriptor,
         default_directed: bool,
         id_to_point: Dict[str, "Point"],
+        force_directed: Optional[bool] = None,
     ) -> Tuple[Optional["Segment"], Optional["Vector"]]:
         source_point = id_to_point[edge.source]
         target_point = id_to_point[edge.target]
-        directed = edge.directed if edge.directed is not None else default_directed
+        if force_directed is not None:
+            directed = force_directed
+        else:
+            directed = edge.directed if edge.directed is not None else default_directed
         color_value = edge.color
 
         label_text: Optional[str] = None
@@ -343,14 +365,11 @@ class GraphManager:
 
         if directed:
             vector_name = edge.name or ""
-            vector = self.vector_manager.create_vector(
-                source_point.x,
-                source_point.y,
-                target_point.x,
-                target_point.y,
+            vector = self.vector_manager.create_vector_from_points(
+                source_point,
+                target_point,
                 name=vector_name,
                 color=color_value,
-                extra_graphics=False,
             )
             if label_text:
                 try:
@@ -360,15 +379,11 @@ class GraphManager:
                     pass
             segment: Optional["Segment"] = None
         else:
-            segment_name = edge.name or ""
-            segment = self.segment_manager.create_segment(
-                source_point.x,
-                source_point.y,
-                target_point.x,
-                target_point.y,
-                name=segment_name,
+            segment = self.segment_manager.create_segment_from_points(
+                source_point,
+                target_point,
+                name=edge.name or "",
                 color=color_value,
-                extra_graphics=False,
                 label_text=label_text if label_text is not None else "",
                 label_visible=label_text is not None,
             )
