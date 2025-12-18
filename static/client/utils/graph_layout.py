@@ -35,13 +35,23 @@ def layout_vertices(
         return {}
 
     box = _default_box(placement_box, canvas_width, canvas_height)
-    strategy = (layout or "circular").lower()
+    strategy = (layout or "").lower()
+    
     if strategy == "grid":
         return _grid_layout(vertex_ids, box)
-    if strategy in ("hierarchical", "tree") and root_id is not None:
-        return _hierarchical_layout(vertex_ids, edges, box, root_id)
+    if strategy == "circular":
+        return _circular_layout(vertex_ids, box)
     if strategy == "radial" and root_id is not None:
         return _radial_layout(vertex_ids, edges, box, root_id)
+    if strategy in ("hierarchical", "tree") and root_id is not None:
+        return _tree_layout(vertex_ids, edges, box, root_id)
+    if strategy == "force":
+        return _force_directed_layout(vertex_ids, edges, box)
+    
+    if root_id is not None:
+        return _tree_layout(vertex_ids, edges, box, root_id)
+    if edges:
+        return _force_directed_layout(vertex_ids, edges, box)
     return _circular_layout(vertex_ids, box)
 
 
@@ -122,6 +132,161 @@ def _radial_layout(
     if missing:
         extra = _circular_layout(missing, box)
         positions.update(extra)
+    return positions
+
+
+def _tree_layout(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    box: Dict[str, float],
+    root_id: str,
+) -> Dict[str, Tuple[float, float]]:
+    """Proper tree layout with children centered under parents.
+    
+    Uses a simplified Reingold-Tilford approach:
+    1. Build tree structure (parent/children)
+    2. Compute subtree widths bottom-up
+    3. Assign x-positions top-down with centering
+    4. Root at top, equal layer heights
+    """
+    adjacency = GraphUtils.build_adjacency_map(edges)
+    rooted = GraphUtils.root_tree(adjacency, root_id)
+    if rooted is None:
+        return _circular_layout(vertex_ids, box)
+    
+    parent, children = rooted
+    depths = GraphUtils.node_depths(root_id, adjacency) or {}
+    max_depth = max(depths.values()) if depths else 0
+    
+    subtree_widths: Dict[str, float] = {}
+    min_node_spacing = 1.0
+    
+    def compute_subtree_width(node: str) -> float:
+        node_children = children.get(node, [])
+        if not node_children:
+            subtree_widths[node] = min_node_spacing
+            return min_node_spacing
+        total = sum(compute_subtree_width(c) for c in node_children)
+        subtree_widths[node] = total
+        return total
+    
+    compute_subtree_width(root_id)
+    
+    total_width = subtree_widths.get(root_id, min_node_spacing)
+    scale_x = box["width"] / total_width if total_width > 0 else 1.0
+    layer_count = max_depth + 1
+    layer_height = box["height"] / max(layer_count, 1)
+    
+    positions: Dict[str, Tuple[float, float]] = {}
+    
+    def assign_positions(node: str, left_x: float, depth: int) -> None:
+        node_width = subtree_widths.get(node, min_node_spacing)
+        center_x = left_x + (node_width * scale_x) / 2.0
+        y = box["y"] + box["height"] - (depth + 0.5) * layer_height
+        positions[node] = (center_x, y)
+        
+        node_children = children.get(node, [])
+        child_left = left_x
+        for child in node_children:
+            child_width = subtree_widths.get(child, min_node_spacing)
+            assign_positions(child, child_left, depth + 1)
+            child_left += child_width * scale_x
+    
+    assign_positions(root_id, box["x"], 0)
+    
+    missing = [v for v in vertex_ids if v not in positions]
+    if missing:
+        extra = _circular_layout(missing, box)
+        positions.update(extra)
+    
+    return positions
+
+
+def _force_directed_layout(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    box: Dict[str, float],
+    iterations: int = 50,
+) -> Dict[str, Tuple[float, float]]:
+    """Force-directed layout that places neighbors close and minimizes edge crossings.
+    
+    Uses spring-electrical model:
+    - All nodes repel each other (prevents overlap)
+    - Connected nodes attract each other (keeps neighbors close)
+    - Iterates until positions stabilize
+    """
+    n = len(vertex_ids)
+    if n == 0:
+        return {}
+    if n == 1:
+        cx, cy = _center(box)
+        return {vertex_ids[0]: (cx, cy)}
+    
+    positions = _circular_layout(vertex_ids, box)
+    
+    adjacency = GraphUtils.build_adjacency_map(edges)
+    
+    area = box["width"] * box["height"]
+    k = math.sqrt(area / n)
+    
+    temp = box["width"] / 10.0
+    cooling = temp / (iterations + 1)
+    
+    for _ in range(iterations):
+        displacement: Dict[str, Tuple[float, float]] = {vid: (0.0, 0.0) for vid in vertex_ids}
+        
+        for i, v1 in enumerate(vertex_ids):
+            x1, y1 = positions[v1]
+            for v2 in vertex_ids[i + 1:]:
+                x2, y2 = positions[v2]
+                dx = x1 - x2
+                dy = y1 - y2
+                dist = math.sqrt(dx * dx + dy * dy)
+                if dist < 0.01:
+                    dist = 0.01
+                    dx = 0.01
+                repulsion = (k * k) / dist
+                fx = (dx / dist) * repulsion
+                fy = (dy / dist) * repulsion
+                d1x, d1y = displacement[v1]
+                d2x, d2y = displacement[v2]
+                displacement[v1] = (d1x + fx, d1y + fy)
+                displacement[v2] = (d2x - fx, d2y - fy)
+        
+        for edge in edges:
+            if edge.source not in positions or edge.target not in positions:
+                continue
+            x1, y1 = positions[edge.source]
+            x2, y2 = positions[edge.target]
+            dx = x2 - x1
+            dy = y2 - y1
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist < 0.01:
+                continue
+            attraction = (dist * dist) / k
+            fx = (dx / dist) * attraction
+            fy = (dy / dist) * attraction
+            d1x, d1y = displacement[edge.source]
+            d2x, d2y = displacement[edge.target]
+            displacement[edge.source] = (d1x + fx, d1y + fy)
+            displacement[edge.target] = (d2x - fx, d2y - fy)
+        
+        for vid in vertex_ids:
+            dx, dy = displacement[vid]
+            disp_len = math.sqrt(dx * dx + dy * dy)
+            if disp_len > 0:
+                capped = min(disp_len, temp)
+                dx = (dx / disp_len) * capped
+                dy = (dy / disp_len) * capped
+            x, y = positions[vid]
+            new_x = max(box["x"], min(box["x"] + box["width"], x + dx))
+            new_y = max(box["y"], min(box["y"] + box["height"], y + dy))
+            positions[vid] = (new_x, new_y)
+        
+        temp -= cooling
+        if temp < 0:
+            temp = 0.01
+    
     return positions
 
 
