@@ -194,12 +194,15 @@ class GraphManager:
                 resolved_root = id_list[0]
 
         if graph_type == "tree":
+            # Default to hierarchical tree layout for trees unless explicitly overridden
+            # "radial" is only used if explicitly requested AND user clearly wants radial
+            tree_layout = layout if layout in ("radial", "hierarchical", "tree") else "tree"
             return TreeState(
                 name=name,
                 vertices=vertex_descriptors,
                 edges=edge_descriptors,
                 root=resolved_root,
-                layout=layout,
+                layout=tree_layout,
                 placement_box=placement_box,
                 metadata=metadata,
             )

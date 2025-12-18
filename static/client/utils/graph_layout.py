@@ -70,10 +70,11 @@ def layout_vertices(
     Compute vertex positions using the specified layout strategy.
     
     Selection priority:
-    1. Explicit layout name (grid, circular, radial, tree, force)
-    2. If root provided → tree layout
-    3. If edges exist → force-directed layout
-    4. Otherwise → circular layout
+    1. Auto-detect tree structure → use tree layout (overrides circular/force)
+    2. Explicit layout name (grid, circular, radial, tree, force)
+    3. If root provided → tree layout
+    4. If edges exist → force-directed layout
+    5. Otherwise → circular layout
     """
     if not vertex_ids:
         return {}
@@ -81,24 +82,113 @@ def layout_vertices(
     box = _default_box(placement_box, canvas_width, canvas_height)
     strategy = (layout or "").lower()
     
-    # Explicit layout selection
+    # Explicit layout selection (radial, hierarchical, tree are always respected)
+    # Grid is overridden for trees since grid + many edges = overlapping mess
     if strategy == "grid":
+        if _is_tree_structure(vertex_ids, edges):
+            effective_root = root_id or _infer_root(vertex_ids, edges)
+            if effective_root:
+                return _tree_layout(vertex_ids, edges, box, effective_root)
         return _grid_layout(vertex_ids, box)
+    if strategy == "radial":
+        effective_root = root_id or _infer_root(vertex_ids, edges)
+        if effective_root:
+            return _radial_layout(vertex_ids, edges, box, effective_root)
+    if strategy in ("hierarchical", "tree"):
+        effective_root = root_id or _infer_root(vertex_ids, edges)
+        if effective_root:
+            return _tree_layout(vertex_ids, edges, box, effective_root)
+    
+    # Auto-detect tree: override circular/force/unspecified with tree layout for tree structures
+    if strategy in ("circular", "force", "") and _is_tree_structure(vertex_ids, edges):
+        effective_root = root_id or _infer_root(vertex_ids, edges)
+        if effective_root:
+            return _tree_layout(vertex_ids, edges, box, effective_root)
+    
+    # Remaining explicit layouts
     if strategy == "circular":
         return _circular_layout(vertex_ids, box)
-    if strategy == "radial" and root_id is not None:
-        return _radial_layout(vertex_ids, edges, box, root_id)
-    if strategy in ("hierarchical", "tree") and root_id is not None:
-        return _tree_layout(vertex_ids, edges, box, root_id)
     if strategy == "force":
         return _force_directed_layout(vertex_ids, edges, box)
     
-    # Auto-selection based on graph structure
+    # Auto-selection for unspecified layout
     if root_id is not None:
         return _tree_layout(vertex_ids, edges, box, root_id)
     if edges:
         return _force_directed_layout(vertex_ids, edges, box)
     return _circular_layout(vertex_ids, box)
+
+
+def _is_tree_structure(vertex_ids: List[str], edges: List[Edge[str]]) -> bool:
+    """
+    Detect if the graph has a tree structure.
+    
+    A tree has:
+    - Exactly n-1 edges for n vertices
+    - A clear root (vertex with no incoming edges)
+    - All vertices reachable from root
+    """
+    n = len(vertex_ids)
+    if n == 0:
+        return False
+    if len(edges) != n - 1:
+        return False
+    
+    # Check for a root (vertex with no incoming edges)
+    vertex_set = set(vertex_ids)
+    has_incoming = {e.target for e in edges if e.target in vertex_set}
+    roots = [v for v in vertex_ids if v not in has_incoming]
+    
+    if len(roots) != 1:
+        return False
+    
+    # Verify all vertices are reachable from root (connected tree)
+    root = roots[0]
+    adjacency: Dict[str, List[str]] = {v: [] for v in vertex_ids}
+    for e in edges:
+        if e.source in adjacency:
+            adjacency[e.source].append(e.target)
+    
+    visited: set[str] = set()
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        if node in visited:
+            continue
+        visited.add(node)
+        stack.extend(adjacency.get(node, []))
+    
+    return len(visited) == n
+
+
+def _infer_root(vertex_ids: List[str], edges: List[Edge[str]]) -> Optional[str]:
+    """
+    Infer root vertex for tree layout when none is provided.
+    
+    Finds a vertex with no incoming edges (only outgoing).
+    Falls back to first vertex if all have incoming edges.
+    """
+    if not vertex_ids:
+        return None
+    if not edges:
+        return vertex_ids[0]
+    
+    # Find vertices with incoming edges
+    has_incoming: set[str] = set()
+    all_vertices: set[str] = set(vertex_ids)
+    
+    for edge in edges:
+        if edge.target in all_vertices:
+            has_incoming.add(edge.target)
+    
+    # Root candidates: vertices with no incoming edges
+    candidates = [v for v in vertex_ids if v not in has_incoming]
+    
+    if candidates:
+        return candidates[0]
+    
+    # Fallback to first vertex (cyclic graph)
+    return vertex_ids[0]
 
 
 # =============================================================================
