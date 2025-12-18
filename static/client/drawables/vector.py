@@ -76,6 +76,9 @@ class Vector(Drawable):
                 "origin": self.segment.point1.name,
                 "tip": self.segment.point2.name,
             },
+            # Include coordinates for render cache invalidation
+            "_origin_coords": [self.segment.point1.x, self.segment.point1.y],
+            "_tip_coords": [self.segment.point2.x, self.segment.point2.y],
         }
     
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:

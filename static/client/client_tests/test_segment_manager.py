@@ -145,6 +145,25 @@ class TestSegmentManager(unittest.TestCase):
         self.assertIs(new_segment.point2, new_p2)
         self.assertEqual(new_segment.name, "XY")
 
+    def test_create_segment_from_points_removes_stale_segment(self) -> None:
+        """Test that stale segment is removed when new one with same coords is created."""
+        old_p1 = Point(0.0, 0.0, name="A")
+        old_p2 = Point(1.0, 0.0, name="B")
+        old_segment = Segment(old_p1, old_p2)
+        self.drawables.add(old_segment)
+        
+        initial_count = len(self.drawables.Segments)
+        
+        new_p1 = Point(0.0, 0.0, name="X")
+        new_p2 = Point(1.0, 0.0, name="Y")
+        new_segment = self.segment_manager.create_segment_from_points(new_p1, new_p2)
+        
+        # Old segment should be removed, only new one should exist
+        final_count = len(self.drawables.Segments)
+        self.assertEqual(final_count, initial_count)
+        self.assertIn(new_segment, self.drawables.Segments)
+        self.assertNotIn(old_segment, self.drawables.Segments)
+
 
 if __name__ == "__main__":
     unittest.main()
