@@ -82,6 +82,8 @@ class TestSegment(unittest.TestCase):
                     "font_size": self.segment.label.font_size,
                 },
             },
+            "_p1_coords": [self.p1.x, self.p1.y],
+            "_p2_coords": [self.p2.x, self.p2.y],
         }
         self.assertEqual(state, expected_state)
 
