@@ -1767,7 +1767,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             },
                             "directed": {"type": ["boolean", "null"]},
                             "root": {"type": ["string", "null"], "description": "Root id for trees."},
-                            "layout": {"type": ["string", "null"], "description": "Layout hint such as circular, grid, radial, hierarchical."},
+                            "layout": {"type": ["string", "null"], "description": "Layout hint: 'tree' or 'hierarchical' for top-down tree display (default for trees), 'radial' for concentric rings from root, 'circular' for nodes on a circle, 'grid' for rectangular grid, 'force' for force-directed."},
                             "placement_box": {
                                 "type": ["object", "null"],
                                 "properties": {
