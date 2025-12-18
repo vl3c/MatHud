@@ -493,9 +493,18 @@ class SegmentManager:
                             delete_children=True, delete_parents=False
                         )
                 else:
-                    # Handle non-segment children
-                    # Consider calling unregister_dependency here too if appropriate
-                    print(f"Warning: Child {child} of {segment.name} is not a segment. Dependency handling might be needed.")
+                    # Handle non-segment children.
+                    #
+                    # Graph drawables are intentionally registered as children of segments so they can
+                    # remove internal references when a segment is deleted (via DrawableDependencyManager.remove_drawable).
+                    # They are not part of the segment-splitting child-segment recursion and should be ignored here.
+                    child_class = child.get_class_name() if hasattr(child, "get_class_name") else ""
+                    if child_class in ("Graph", "DirectedGraph", "UndirectedGraph", "Tree"):
+                        continue
+
+                    # Keep this silent for other non-segment children; they are handled by the rest of the deletion
+                    # logic (vectors, triangles, rectangles, etc.).
+                    continue
             
         # Handle recursive deletion of parents if requested
         if delete_parents:
