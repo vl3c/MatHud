@@ -141,8 +141,10 @@ class GraphManager:
         for idx, edge in enumerate(edges):
             src_idx = int(edge.get("source", 0))
             tgt_idx = int(edge.get("target", 0))
-            src_id = id_list[src_idx] if src_idx < len(id_list) else f"v{src_idx}"
-            tgt_id = id_list[tgt_idx] if tgt_idx < len(id_list) else f"v{tgt_idx}"
+            if src_idx < 0 or src_idx >= len(id_list) or tgt_idx < 0 or tgt_idx >= len(id_list):
+                continue
+            src_id = id_list[src_idx]
+            tgt_id = id_list[tgt_idx]
             edge_descriptors.append(
                 GraphEdgeDescriptor(
                     f"e{idx}",
@@ -160,14 +162,12 @@ class GraphManager:
             for i in range(n):
                 for j in range(n):
                     weight = adjacency_matrix[i][j]
-                    if weight:
-                        src = id_list[i] if i < len(id_list) else f"v{i}"
-                        tgt = id_list[j] if j < len(id_list) else f"v{j}"
+                    if weight and i < len(id_list) and j < len(id_list):
                         edge_descriptors.append(
                             GraphEdgeDescriptor(
                                 f"m{i}_{j}",
-                                src,
-                                tgt,
+                                id_list[i],
+                                id_list[j],
                                 weight=float(weight),
                                 directed=True,
                             )
