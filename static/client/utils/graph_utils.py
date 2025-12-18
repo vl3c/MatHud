@@ -699,12 +699,13 @@ class GraphUtils:
 
     @staticmethod
     def topological_sort(adjacency: Dict[V, Set[V]]) -> Optional[List[V]]:
-        in_deg: Dict[V, int] = {v: 0 for v in adjacency}
-        for targets in adjacency.values():
+        adj = {k: set(v) for k, v in adjacency.items()}
+        in_deg: Dict[V, int] = {v: 0 for v in adj}
+        for targets in adj.values():
             for t in targets:
                 in_deg[t] = in_deg.get(t, 0) + 1
-                if t not in adjacency:
-                    adjacency[t] = set()
+                if t not in adj:
+                    adj[t] = set()
 
         queue: List[V] = [v for v, d in in_deg.items() if d == 0]
         order: List[V] = []
@@ -712,12 +713,12 @@ class GraphUtils:
         while queue:
             current = queue.pop()
             order.append(current)
-            for neighbor in adjacency[current]:
+            for neighbor in adj[current]:
                 in_deg[neighbor] -= 1
                 if in_deg[neighbor] == 0:
                     queue.append(neighbor)
 
-        if len(order) != len(adjacency):
+        if len(order) != len(adj):
             return None
         return order
 
