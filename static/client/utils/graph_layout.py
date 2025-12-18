@@ -389,19 +389,19 @@ def _force_directed_layout(
     vertex_ids: List[str],
     edges: List[Edge[str]],
     box: Dict[str, float],
-    iterations: int = 50,
+    iterations: int = 100,
 ) -> Dict[str, Tuple[float, float]]:
     """
     Spring-electrical model for general graph layout.
     
     Algorithm (Fruchterman-Reingold):
-    1. Initialize positions (circular)
+    1. Initialize positions (circular, scaled to 80% of box)
     2. Each iteration:
-       a. Compute repulsion between all pairs (Coulomb's law: k²/d)
-       b. Compute attraction along edges (Hooke's law: d²/k)
+       a. Compute repulsion between all pairs (k²/d)
+       b. Compute attraction along edges (d/k)
        c. Apply displacement capped by temperature
        d. Cool temperature (simulated annealing)
-    3. Clamp positions to bounding box
+    3. Clamp positions to bounding box with margin
     """
     n = len(vertex_ids)
     if n == 0:
@@ -410,21 +410,31 @@ def _force_directed_layout(
         cx, cy = _center(box)
         return {vertex_ids[0]: (cx, cy)}
     
-    # Initialize with circular layout for determinism
-    positions = _circular_layout(vertex_ids, box)
+    # Use a smaller inner box to keep nodes away from edges
+    margin = min(box["width"], box["height"]) * 0.1
+    inner_box = {
+        "x": box["x"] + margin,
+        "y": box["y"] + margin,
+        "width": box["width"] - 2 * margin,
+        "height": box["height"] - 2 * margin,
+    }
     
-    # Optimal distance between nodes
-    area = box["width"] * box["height"]
-    k = math.sqrt(area / n)
+    # Initialize with circular layout in inner box
+    positions = _circular_layout(vertex_ids, inner_box)
     
-    # Simulated annealing parameters
-    temp = box["width"] / 10.0
-    cooling = temp / (iterations + 1)
+    # Optimal distance between nodes (Fruchterman-Reingold)
+    area = inner_box["width"] * inner_box["height"]
+    k = math.sqrt(area / n) * 0.75
+    
+    # Simulated annealing: start with larger movements, cool down
+    temp = min(inner_box["width"], inner_box["height"]) / 5.0
+    min_temp = temp * 0.01
+    cooling_factor = (min_temp / temp) ** (1.0 / iterations)
     
     for _ in range(iterations):
         displacement = _compute_forces(vertex_ids, edges, positions, k)
-        positions = _apply_displacement(vertex_ids, positions, displacement, temp, box)
-        temp = max(temp - cooling, 0.01)
+        positions = _apply_displacement(vertex_ids, positions, displacement, temp, inner_box)
+        temp *= cooling_factor
     
     return positions
 
@@ -439,7 +449,7 @@ def _compute_forces(
     Compute net force on each vertex from repulsion and attraction.
     
     Repulsion: All pairs repel with force k²/distance (Coulomb-like)
-    Attraction: Connected pairs attract with force distance²/k (spring-like)
+    Attraction: Connected pairs attract with force distance/k (spring-like)
     """
     displacement: Dict[str, Tuple[float, float]] = {vid: (0.0, 0.0) for vid in vertex_ids}
     
@@ -450,7 +460,8 @@ def _compute_forces(
             x2, y2 = positions[v2]
             dx, dy, dist = _vector_between(x1, y1, x2, y2)
             
-            repulsion = (k * k) / dist
+            # Repulsion: inversely proportional to distance
+            repulsion = (k * k) / (dist * dist + 0.1)
             fx = (dx / dist) * repulsion
             fy = (dy / dist) * repulsion
             
@@ -470,7 +481,8 @@ def _compute_forces(
         if dist < 0.01:
             continue
         
-        attraction = (dist * dist) / k
+        # Attraction: proportional to distance (spring)
+        attraction = dist / k
         fx = (dx / dist) * attraction
         fy = (dy / dist) * attraction
         
