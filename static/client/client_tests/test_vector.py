@@ -58,6 +58,8 @@ class TestVector(unittest.TestCase):
                 "origin": "O",
                 "tip": "T",
             },
+            "_origin_coords": [self.origin.x, self.origin.y],
+            "_tip_coords": [self.tip.x, self.tip.y],
         }
         self.assertEqual(state, expected_state)
 
@@ -114,8 +116,8 @@ class TestVector(unittest.TestCase):
         state1 = self.vector.get_state()
         
         # Create another vector with same point names but different coordinates
-        other_origin = Point(500, 600, name="A", color="red")
-        other_tip = Point(700, 800, name="B", color="red")
+        other_origin = Point(500, 600, name="O", color="red")
+        other_tip = Point(700, 800, name="T", color="red")
         other_vector = Vector(other_origin, other_tip, color="blue")
         state2 = other_vector.get_state()
         

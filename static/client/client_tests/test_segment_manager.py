@@ -152,17 +152,25 @@ class TestSegmentManager(unittest.TestCase):
         old_segment = Segment(old_p1, old_p2)
         self.drawables.add(old_segment)
         
+        # Verify old segment is findable by coordinates
+        found = self.segment_manager.get_segment_by_coordinates(0.0, 0.0, 1.0, 0.0)
+        self.assertIs(found, old_segment, "Old segment should be findable by coordinates")
+        
         initial_count = len(self.drawables.Segments)
+        self.assertEqual(initial_count, 1)
         
         new_p1 = Point(0.0, 0.0, name="X")
         new_p2 = Point(1.0, 0.0, name="Y")
         new_segment = self.segment_manager.create_segment_from_points(new_p1, new_p2)
         
-        # Old segment should be removed, only new one should exist
+        # Should have exactly 1 segment
         final_count = len(self.drawables.Segments)
-        self.assertEqual(final_count, initial_count)
-        self.assertIn(new_segment, self.drawables.Segments)
-        self.assertNotIn(old_segment, self.drawables.Segments)
+        self.assertEqual(final_count, 1, f"Expected 1 segment, got {final_count}")
+        
+        # The remaining segment should reference the NEW points (not old points)
+        remaining = self.drawables.Segments[0]
+        self.assertIs(remaining.point1, new_p1, "Remaining segment should reference new_p1")
+        self.assertIs(remaining.point2, new_p2, "Remaining segment should reference new_p2")
 
 
 if __name__ == "__main__":
