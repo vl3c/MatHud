@@ -206,7 +206,8 @@ class VectorManager:
         """
         existing_vector = self.get_vector(origin.x, origin.y, tip.x, tip.y)
         if existing_vector:
-            return existing_vector
+            if existing_vector.origin is origin and existing_vector.tip is tip:
+                return existing_vector
         
         color_value = str(color).strip() if color is not None else ""
         if color_value:
