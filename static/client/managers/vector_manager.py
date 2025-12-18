@@ -44,6 +44,7 @@ from utils.math_utils import MathUtils
 
 if TYPE_CHECKING:
     from canvas import Canvas
+    from drawables.point import Point
     from managers.drawables_container import DrawablesContainer
     from managers.drawable_dependency_manager import DrawableDependencyManager
     from managers.drawable_manager_proxy import DrawableManagerProxy
@@ -180,7 +181,46 @@ class VectorManager:
             self.canvas.draw()
             
         return new_vector
+
+    def create_vector_from_points(
+        self,
+        origin: "Point",
+        tip: "Point",
+        name: str = "",
+        color: Optional[str] = None,
+    ) -> Vector:
+        """Create a vector from existing Point objects.
         
+        Unlike create_vector which takes coordinates, this method directly uses
+        the provided Point objects, ensuring the vector references the exact
+        points without any floating-point lookup issues.
+        
+        Args:
+            origin: The origin Point object
+            tip: The tip Point object
+            name: Optional name for the vector
+            color: Optional color for the vector
+            
+        Returns:
+            Vector: The newly created vector object
+        """
+        existing_vector = self.get_vector(origin.x, origin.y, tip.x, tip.y)
+        if existing_vector:
+            return existing_vector
+        
+        color_value = str(color).strip() if color is not None else ""
+        if color_value:
+            new_vector = Vector(origin, tip, color=color_value)
+        else:
+            new_vector = Vector(origin, tip)
+        
+        self.drawables.add(new_vector)
+        
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+            
+        return new_vector
+
     def delete_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float) -> bool:
         """
         Delete a vector by its origin and tip coordinates.
