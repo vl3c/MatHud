@@ -60,7 +60,7 @@ class AIInterface:
     """
     
     # Timeout in milliseconds for AI responses
-    AI_RESPONSE_TIMEOUT_MS: int = 10000
+    AI_RESPONSE_TIMEOUT_MS: int = 20000
     # Extended timeout for reasoning models (2 minutes)
     REASONING_TIMEOUT_MS: int = 120000
     
