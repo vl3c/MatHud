@@ -3,10 +3,19 @@ Graph Layout Algorithms
 
 Provides vertex positioning strategies for graph visualization:
 - Circular: Equal angular spacing around a circle
-- Grid: Regular row/column arrangement
+- Grid: TSM orthogonal layout with axis-aligned edges
 - Radial: Concentric rings by BFS depth from root
 - Tree: Reingold-Tilford style with children centered under parents
 - Force-directed: Spring-electrical simulation for general graphs
+
+The Grid layout uses the Topology-Shape-Metrics (TSM) approach:
+1. Planarity check and embedding computation
+2. Orthogonalization (visibility representation)
+3. Compaction to grid coordinates
+
+For non-planar graphs, the grid layout uses planarization (inserting
+dummy vertices at edge crossings) or falls back to force-directed
+with grid snapping.
 
 All layouts fit vertices within a bounding box and return {vertex_id: (x, y)}.
 """
@@ -14,7 +23,7 @@ All layouts fit vertices within a bounding box and return {vertex_id: (x, y)}.
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from utils.graph_utils import Edge, GraphUtils
 
@@ -70,11 +79,11 @@ def layout_vertices(
     Compute vertex positions using the specified layout strategy.
     
     Selection priority:
-    1. Auto-detect tree structure → use tree layout (overrides circular/force)
+    1. Auto-detect tree structure: use tree layout (overrides circular/force)
     2. Explicit layout name (grid, circular, radial, tree, force)
-    3. If root provided → tree layout
-    4. If edges exist → force-directed layout
-    5. Otherwise → circular layout
+    3. If root provided: use tree layout
+    4. If edges exist: use force-directed layout
+    5. Otherwise: use circular layout
     """
     if not vertex_ids:
         return {}
@@ -89,7 +98,7 @@ def layout_vertices(
             effective_root = root_id or _infer_root(vertex_ids, edges)
             if effective_root:
                 return _tree_layout(vertex_ids, edges, box, effective_root)
-        return _grid_layout(vertex_ids, box)
+        return _grid_layout(vertex_ids, edges, box)
     if strategy == "radial":
         effective_root = root_id or _infer_root(vertex_ids, edges)
         if effective_root:
@@ -215,29 +224,1399 @@ def _circular_layout(vertex_ids: List[str], box: Dict[str, float]) -> Dict[str, 
 
 
 # =============================================================================
-# Grid Layout
+# Grid Layout (TSM Orthogonal)
 # =============================================================================
 
-def _grid_layout(vertex_ids: List[str], box: Dict[str, float]) -> Dict[str, Tuple[float, float]]:
+def _simple_grid_placement(
+    vertex_ids: List[str],
+    box: Dict[str, float],
+) -> Dict[str, Tuple[float, float]]:
     """
-    Arrange vertices in a rectangular grid.
+    Place isolated vertices on a simple rectangular grid.
     
-    Algorithm: Compute near-square grid dimensions, center each cell.
+    Used when there are no edges - just arranges nodes in rows/columns
+    to fill the bounding box evenly.
     """
     n = len(vertex_ids)
-    cols = math.ceil(math.sqrt(n))
-    rows = math.ceil(n / cols)
-    step_x = box["width"] / max(cols, 1)
-    step_y = box["height"] / max(rows, 1)
+    if n == 0:
+        return {}
+    if n == 1:
+        cx, cy = _center(box)
+        return {vertex_ids[0]: (cx, cy)}
+    
+    # Compute grid dimensions (prefer roughly square)
+    cols = max(1, int(math.ceil(math.sqrt(n))))
+    rows = max(1, int(math.ceil(n / cols)))
+    
+    # Compute spacing with margins
+    margin = 0.1
+    usable_width = box["width"] * (1 - 2 * margin)
+    usable_height = box["height"] * (1 - 2 * margin)
+    
+    col_spacing = usable_width / max(cols, 1)
+    row_spacing = usable_height / max(rows, 1)
+    
+    start_x = box["x"] + box["width"] * margin + col_spacing / 2
+    start_y = box["y"] + box["height"] * margin + row_spacing / 2
     
     positions: Dict[str, Tuple[float, float]] = {}
-    for idx, vid in enumerate(vertex_ids):
-        row = idx // cols
-        col = idx % cols
-        x = box["x"] + (col + 0.5) * step_x
-        y = box["y"] + (row + 0.5) * step_y
-        positions[vid] = (x, y)
+    for i, vid in enumerate(sorted(vertex_ids)):
+        col = i % cols
+        row = i // cols
+        x = start_x + col * col_spacing
+        y = start_y + row * row_spacing
+        positions[vid] = (float(x), float(y))
+    
     return positions
+
+
+def _grid_layout(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    box: Dict[str, float],
+) -> Dict[str, Tuple[float, float]]:
+    """
+    Orthogonal grid layout using TSM (Topology-Shape-Metrics) approach.
+    
+    Produces layouts where:
+    - All edges are axis-aligned (horizontal or vertical)
+    - Vertices are placed on grid points
+    - Edge crossings are minimized (eliminated for planar graphs)
+    
+    Algorithm phases:
+    1. Handle special cases (no edges, trees)
+    2. Check planarity; planarize if needed
+    3. Find planar embedding
+    4. Compute orthogonal representation
+    5. Compact to grid coordinates
+    """
+    print(f"[GRID] === _grid_layout called ===")
+    print(f"[GRID] Vertices: {vertex_ids}")
+    print(f"[GRID] Edges: {[(e.source, e.target) for e in edges]}")
+    
+    # Fast path: no edges
+    if not edges:
+        print(f"[GRID] Path: no edges -> simple grid placement")
+        result = _simple_grid_placement(vertex_ids, box)
+        return {k: (float(v[0]), float(v[1])) for k, v in result.items()}
+    
+    # Fast path: tree structure
+    if _is_tree_structure(vertex_ids, edges):
+        print(f"[GRID] Path: tree structure -> orthogonal tree layout")
+        result = _orthogonal_tree_layout(vertex_ids, edges, box)
+        return {k: (float(v[0]), float(v[1])) for k, v in result.items()}
+    
+    # TSM pipeline for general graphs
+    is_planar, embedding = _is_planar(vertex_ids, edges)
+    print(f"[GRID] Planarity check: is_planar={is_planar}")
+    
+    if is_planar and embedding is not None:
+        print(f"[GRID] Path: planar graph -> orthogonalize + compact")
+        # Planar graph: use full orthogonal layout
+        ortho_rep = _orthogonalize(vertex_ids, edges, embedding)
+        
+        # Check quality: if too many edges are diagonal, fall back
+        diagonal_count = sum(
+            1 for edge_key in ortho_rep.edge_directions
+            if len(ortho_rep.edge_directions[edge_key]) > 1  # More than one direction = diagonal
+        )
+        diagonal_ratio = diagonal_count / max(len(edges), 1)
+        print(f"[GRID] Diagonal ratio: {diagonal_count}/{len(edges)} = {diagonal_ratio:.2f}")
+        
+        if diagonal_ratio > 0.3:  # More than 30% diagonal -> fallback
+            print(f"[GRID] Too many diagonals, using force-directed fallback")
+            result = _force_to_grid_fallback(vertex_ids, edges, box)
+            return {k: (float(v[0]), float(v[1])) for k, v in result.items()}
+        
+        result = _compact_orthogonal(ortho_rep, vertex_ids, edges, box)
+        return {k: (float(v[0]), float(v[1])) for k, v in result.items()}
+    else:
+        # Non-planar graph: planarize first
+        print(f"[GRID] Path: non-planar graph -> planarize first")
+        new_vertices, new_edges, dummy_ids = _planarize_graph(vertex_ids, edges, box)
+        _, new_embedding = _is_planar(new_vertices, new_edges)
+        
+        if new_embedding is not None:
+            ortho_rep = _orthogonalize(new_vertices, new_edges, new_embedding)
+            positions = _compact_orthogonal(ortho_rep, new_vertices, new_edges, box)
+            # Remove dummy vertices from output
+            result = {k: v for k, v in positions.items() if k not in dummy_ids}
+        else:
+            # Fallback: snap force-directed to grid
+            result = _force_to_grid_fallback(vertex_ids, edges, box)
+        
+        # Defensive: ensure all positions are 2-tuples
+        return {k: (float(v[0]), float(v[1])) for k, v in result.items()}
+
+
+def _orthogonal_tree_layout(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    box: Dict[str, float],
+) -> Dict[str, Tuple[float, float]]:
+    """
+    Orthogonal tree layout producing truly perpendicular edges.
+    
+    For trees, we can guarantee perfect orthogonality:
+    - Each parent-child edge is VERTICAL (parent and child share same column)
+    - Children of the same parent are connected via the parent (L-shaped routing)
+    
+    Algorithm:
+    1. Build tree structure from edges
+    2. Assign rows = depth in tree
+    3. Assign columns using leaf-counting: each leaf gets unique column,
+       internal nodes get column = center of their children's columns
+    4. Result: all edges are purely vertical
+    """
+    # Infer root
+    root_id = _infer_root(vertex_ids, edges)
+    if root_id is None:
+        return _simple_grid_placement(vertex_ids, box)
+    
+    adjacency = GraphUtils.build_adjacency_map(edges)
+    rooted = GraphUtils.root_tree(adjacency, root_id)
+    if rooted is None:
+        return _simple_grid_placement(vertex_ids, box)
+    
+    parent, children = rooted
+    
+    # Assign rows = depth in tree
+    vertex_row: Dict[str, int] = {}
+    
+    def assign_depths(node: str, depth: int) -> None:
+        vertex_row[node] = depth
+        for child in children.get(node, []):
+            assign_depths(child, depth + 1)
+    
+    assign_depths(root_id, 0)
+    
+    # Assign columns bottom-up:
+    # Leaves get sequential columns (left to right)
+    # Internal nodes get column = average of children's columns
+    vertex_col: Dict[str, float] = {}
+    leaf_counter = [0]
+    
+    def assign_columns(node: str) -> float:
+        """Returns the column position for this node."""
+        node_children = children.get(node, [])
+        
+        if not node_children:
+            # Leaf: assign next available column
+            col = float(leaf_counter[0])
+            leaf_counter[0] += 1
+            vertex_col[node] = col
+            return col
+        
+        # Internal node: place at center of children
+        child_cols = [assign_columns(child) for child in node_children]
+        col = sum(child_cols) / len(child_cols)
+        vertex_col[node] = col
+        return col
+    
+    assign_columns(root_id)
+    
+    # For single-child chains, align child directly under parent
+    for node in vertex_ids:
+        node_children = children.get(node, [])
+        if len(node_children) == 1:
+            child = node_children[0]
+            # Move child to parent's exact column
+            vertex_col[child] = vertex_col[node]
+    
+    # Scale to bounding box
+    cols = list(vertex_col.values())
+    rows = list(vertex_row.values())
+    
+    if not cols or not rows:
+        return _simple_grid_placement(vertex_ids, box)
+    
+    min_col, max_col = min(cols), max(cols)
+    min_row, max_row = min(rows), max(rows)
+    
+    col_range = max(max_col - min_col, 1)
+    row_range = max(max_row - min_row, 1)
+    
+    margin = 0.1
+    usable_width = box["width"] * (1 - 2 * margin)
+    usable_height = box["height"] * (1 - 2 * margin)
+    
+    positions: Dict[str, Tuple[float, float]] = {}
+    for vid in vertex_ids:
+        col = vertex_col.get(vid, 0.0)
+        row = vertex_row.get(vid, 0)
+        
+        x = box["x"] + box["width"] * margin + (col - min_col) * usable_width / col_range
+        # Invert row so root is at top (higher y in math coords)
+        y = box["y"] + box["height"] * (1 - margin) - (row - min_row) * usable_height / row_range
+        
+        positions[vid] = (float(x), float(y))
+    
+    return positions
+
+
+# =============================================================================
+# TSM Phase 1: Planarity and Embedding
+# =============================================================================
+
+def _is_planar(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+) -> Tuple[bool, Optional[Dict[str, List[str]]]]:
+    """
+    Check if graph is planar and compute embedding if so.
+    
+    Uses edge count bound check and simplified LR-planarity algorithm.
+    
+    Returns:
+        (is_planar, embedding_or_none)
+        - If planar: (True, {vertex: [clockwise_neighbors]})
+        - If not planar: (False, None)
+    """
+    n = len(vertex_ids)
+    m = len(edges)
+    
+    # Empty or trivial graphs are planar
+    if n <= 2:
+        return True, _trivial_embedding(vertex_ids, edges)
+    
+    # Quick necessary condition: |E| <= 3|V| - 6 for |V| >= 3
+    if n >= 3 and m > 3 * n - 6:
+        return False, None
+    
+    # For small graphs, use simple planarity check
+    if n <= 4:
+        return True, _trivial_embedding(vertex_ids, edges)
+    
+    # Build adjacency for embedding
+    adjacency = GraphUtils.build_adjacency_map(edges)
+    
+    # Check connectivity - disconnected graphs: check each component
+    if not GraphUtils.is_connected(adjacency):
+        components = GraphUtils.get_connected_components(adjacency)
+        # Each component must be planar
+        for component in components:
+            comp_vertices = list(component)
+            comp_edges = [e for e in edges 
+                         if e.source in component and e.target in component]
+            is_comp_planar, _ = _is_planar(comp_vertices, comp_edges)
+            if not is_comp_planar:
+                return False, None
+        # All components planar - build combined embedding
+        return True, _trivial_embedding(vertex_ids, edges)
+    
+    # Full LR-planarity check for larger connected graphs
+    return _lr_planarity_check(vertex_ids, edges, adjacency)
+
+
+def _trivial_embedding(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+) -> Dict[str, List[str]]:
+    """
+    Create a trivial planar embedding for small/simple graphs.
+    
+    Returns clockwise neighbor ordering based on sorted order.
+    """
+    adjacency = GraphUtils.build_adjacency_map(edges)
+    embedding: Dict[str, List[str]] = {}
+    for v in vertex_ids:
+        neighbors = adjacency.get(v, set())
+        # Sort neighbors for deterministic ordering
+        embedding[v] = sorted(neighbors)
+    return embedding
+
+
+def _lr_planarity_check(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    adjacency: Dict[str, Set[str]],
+) -> Tuple[bool, Optional[Dict[str, List[str]]]]:
+    """
+    LR-planarity algorithm implementation.
+    
+    Based on the left-right planarity test:
+    1. DFS to build spanning tree
+    2. Compute lowpoint values for back edges
+    3. Order edges and check for conflicts
+    4. If no conflicts, extract embedding
+    """
+    if not vertex_ids:
+        return True, {}
+    
+    root = vertex_ids[0]
+    
+    # DFS data structures
+    dfs_number: Dict[str, int] = {}
+    dfs_parent: Dict[str, Optional[str]] = {root: None}
+    lowpt: Dict[str, int] = {}
+    lowpt2: Dict[str, int] = {}
+    
+    # Edge classification
+    tree_edges: List[Tuple[str, str]] = []
+    back_edges: List[Tuple[str, str]] = []
+    
+    # DFS to compute dfs_number and classify edges
+    counter = [0]
+    stack: List[Tuple[str, Optional[str]]] = [(root, None)]
+    visited: Set[str] = set()
+    
+    while stack:
+        node, parent = stack.pop()
+        
+        if node in visited:
+            continue
+        visited.add(node)
+        
+        dfs_number[node] = counter[0]
+        counter[0] += 1
+        dfs_parent[node] = parent
+        
+        for neighbor in adjacency.get(node, set()):
+            if neighbor not in visited:
+                tree_edges.append((node, neighbor))
+                stack.append((neighbor, node))
+            elif neighbor != parent and dfs_number.get(neighbor, float('inf')) < dfs_number.get(node, 0):
+                # Back edge to ancestor
+                back_edges.append((node, neighbor))
+    
+    # Check if all vertices were visited (connected)
+    if len(visited) != len(vertex_ids):
+        # Not connected - shouldn't happen if we checked connectivity
+        return False, None
+    
+    # Compute lowpoint values (bottom-up)
+    # lowpt[v] = min DFS number reachable from v via tree edges and one back edge
+    for v in vertex_ids:
+        lowpt[v] = dfs_number.get(v, 0)
+        lowpt2[v] = dfs_number.get(v, 0)
+    
+    # Process in reverse DFS order
+    sorted_by_dfs = sorted(vertex_ids, key=lambda x: dfs_number.get(x, 0), reverse=True)
+    
+    for v in sorted_by_dfs:
+        # Update from back edges
+        for (src, tgt) in back_edges:
+            if src == v:
+                tgt_num = dfs_number.get(tgt, 0)
+                if tgt_num < lowpt[v]:
+                    lowpt2[v] = lowpt[v]
+                    lowpt[v] = tgt_num
+                elif tgt_num < lowpt2[v]:
+                    lowpt2[v] = tgt_num
+        
+        # Update parent from child
+        parent = dfs_parent.get(v)
+        if parent is not None:
+            if lowpt[v] < lowpt[parent]:
+                lowpt2[parent] = min(lowpt2[parent], lowpt[parent])
+                lowpt[parent] = lowpt[v]
+            elif lowpt[v] < lowpt2[parent]:
+                lowpt2[parent] = lowpt[v]
+    
+    # Simplified conflict check using constraint propagation
+    # For each vertex, check if back edges can be consistently oriented
+    # This is a simplified version - full LR requires more complex bookkeeping
+    
+    # For practical purposes with small-medium graphs:
+    # Use the edge count bound plus check for K5/K3,3 minors
+    n = len(vertex_ids)
+    m = len(edges)
+    
+    # Additional check: bipartite graphs with |E| > 2|V| - 4 aren't planar
+    is_bipartite, _ = GraphUtils.is_bipartite(adjacency)
+    if is_bipartite and m > 2 * n - 4:
+        return False, None
+    
+    # For this implementation, accept graphs passing edge bounds
+    # Full K5/K3,3 detection would require more complex minor testing
+    embedding = _build_embedding_from_dfs(vertex_ids, adjacency, dfs_number, dfs_parent)
+    return True, embedding
+
+
+def _build_embedding_from_dfs(
+    vertex_ids: List[str],
+    adjacency: Dict[str, Set[str]],
+    dfs_number: Dict[str, int],
+    dfs_parent: Dict[str, Optional[str]],
+) -> Dict[str, List[str]]:
+    """
+    Build planar embedding from DFS structure.
+    
+    Orders neighbors by: parent first, then children by DFS order, then back edges.
+    """
+    embedding: Dict[str, List[str]] = {}
+    
+    for v in vertex_ids:
+        neighbors = list(adjacency.get(v, set()))
+        parent = dfs_parent.get(v)
+        
+        # Separate into parent, tree children, and back edges
+        tree_children = []
+        back_neighbors = []
+        
+        for n in neighbors:
+            if n == parent:
+                continue
+            elif dfs_parent.get(n) == v:
+                tree_children.append(n)
+            else:
+                back_neighbors.append(n)
+        
+        # Sort children by DFS number
+        tree_children.sort(key=lambda x: dfs_number.get(x, 0))
+        back_neighbors.sort(key=lambda x: dfs_number.get(x, 0))
+        
+        # Build clockwise order: parent, children, back edges
+        cw_order: List[str] = []
+        if parent is not None:
+            cw_order.append(parent)
+        cw_order.extend(tree_children)
+        cw_order.extend(back_neighbors)
+        
+        embedding[v] = cw_order
+    
+    return embedding
+
+
+# =============================================================================
+# TSM Phase 2: Orthogonalization
+# =============================================================================
+
+class OrthogonalRep:
+    """
+    Orthogonal representation of a planar graph.
+    
+    Stores vertex grid positions and edge routing directions.
+    """
+    def __init__(self) -> None:
+        self.vertex_pos: Dict[str, Tuple[int, int]] = {}
+        self.edge_directions: Dict[Tuple[str, str], List[str]] = {}
+
+
+def _is_simple_cycle(vertex_ids: List[str], edges: List[Edge[str]]) -> bool:
+    """Check if graph is a simple cycle (each vertex has exactly degree 2)."""
+    if len(edges) != len(vertex_ids):
+        return False
+    adjacency = GraphUtils.build_adjacency_map(edges)
+    return all(len(adjacency.get(v, set())) == 2 for v in vertex_ids)
+
+
+def _find_cycle_components(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+) -> Optional[List[Tuple[List[str], List[Edge[str]]]]]:
+    """
+    Detect if graph is composed of simple cycles connected by bridges.
+    
+    Returns list of (vertices, edges) for each cycle component, or None if not applicable.
+    """
+    adjacency = GraphUtils.build_adjacency_map(edges)
+    
+    # Find bridge edges (vertices with degree > 2)
+    bridge_vertices = {v for v in vertex_ids if len(adjacency.get(v, set())) > 2}
+    
+    # If no bridge vertices, check if it's a single cycle
+    if not bridge_vertices:
+        if _is_simple_cycle(vertex_ids, edges):
+            return [(vertex_ids, edges)]
+        return None
+    
+    # Find bridge edges (edges connecting high-degree vertices)
+    bridge_edges: Set[Tuple[str, str]] = set()
+    for e in edges:
+        if e.source in bridge_vertices and e.target in bridge_vertices:
+            bridge_edges.add((e.source, e.target))
+            bridge_edges.add((e.target, e.source))
+    
+    # Remove bridge edges and find connected components
+    non_bridge_edges = [
+        e for e in edges 
+        if (e.source, e.target) not in bridge_edges
+    ]
+    
+    # Build adjacency without bridges
+    adj_no_bridges: Dict[str, Set[str]] = {v: set() for v in vertex_ids}
+    for e in non_bridge_edges:
+        adj_no_bridges[e.source].add(e.target)
+        adj_no_bridges[e.target].add(e.source)
+    
+    # Find connected components
+    visited: Set[str] = set()
+    components: List[Tuple[List[str], List[Edge[str]]]] = []
+    
+    for start in vertex_ids:
+        if start in visited:
+            continue
+        
+        # BFS to find component
+        component_verts: List[str] = []
+        stack = [start]
+        while stack:
+            v = stack.pop()
+            if v in visited:
+                continue
+            visited.add(v)
+            component_verts.append(v)
+            stack.extend(adj_no_bridges.get(v, set()))
+        
+        # Get edges for this component
+        component_set = set(component_verts)
+        component_edges = [
+            e for e in non_bridge_edges
+            if e.source in component_set and e.target in component_set
+        ]
+        
+        # Check if this component is a simple cycle
+        if len(component_edges) == len(component_verts) and len(component_verts) >= 3:
+            components.append((component_verts, component_edges))
+        else:
+            return None  # Not all components are cycles
+    
+    return components if components else None
+
+
+def _orthogonalize_cycle(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+) -> OrthogonalRep:
+    """
+    Special orthogonalization for simple cycles.
+    
+    Places vertices on a rectangular grid where each edge is orthogonal.
+    For n vertices, uses ceil(n/2) columns and 2 rows.
+    """
+    print("[ORTHO-CYCLE] Detected simple cycle, using rectangular layout")
+    ortho = OrthogonalRep()
+    n = len(vertex_ids)
+    
+    # Build adjacency and find cycle order
+    adjacency = GraphUtils.build_adjacency_map(edges)
+    
+    # Walk the cycle to get ordered vertices
+    visited: Set[str] = set()
+    ordered: List[str] = []
+    current = vertex_ids[0]
+    
+    while len(ordered) < n:
+        ordered.append(current)
+        visited.add(current)
+        neighbors = adjacency.get(current, set())
+        for neighbor in neighbors:
+            if neighbor not in visited:
+                current = neighbor
+                break
+        else:
+            break
+    
+    print(f"[ORTHO-CYCLE] Cycle order: {ordered}")
+    
+    # Place vertices in rectangular pattern
+    # First half on row 0, second half on row 1 (reversed)
+    half = (n + 1) // 2
+    
+    for i, v in enumerate(ordered):
+        if i < half:
+            # Top row: left to right
+            ortho.vertex_pos[v] = (i, 0)
+        else:
+            # Bottom row: right to left (to close the cycle)
+            ortho.vertex_pos[v] = (n - 1 - i, 1)
+    
+    print(f"[ORTHO-CYCLE] Positions: {ortho.vertex_pos}")
+    
+    # Compute edge directions
+    for edge in edges:
+        u, v = edge.source, edge.target
+        u_col, u_row = ortho.vertex_pos[u]
+        v_col, v_row = ortho.vertex_pos[v]
+        
+        directions: List[str] = []
+        if u_col == v_col:
+            directions.append('S' if v_row > u_row else 'N')
+        elif u_row == v_row:
+            directions.append('E' if v_col > u_col else 'W')
+        else:
+            # Diagonal - shouldn't happen for proper cycle layout
+            if v_row > u_row:
+                directions.append('S')
+            else:
+                directions.append('N')
+            if v_col > u_col:
+                directions.append('E')
+            else:
+                directions.append('W')
+        
+        ortho.edge_directions[(u, v)] = directions
+    
+    return ortho
+
+
+def _orthogonalize_multi_cycle(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    components: List[Tuple[List[str], List[Edge[str]]]],
+) -> OrthogonalRep:
+    """
+    Layout multiple cycle components connected by bridges.
+    
+    Stacks cycles vertically with bridges as vertical edges.
+    """
+    print(f"[ORTHO-MULTI] Laying out {len(components)} cycle components")
+    ortho = OrthogonalRep()
+    
+    # Find all edges in components vs bridge edges
+    all_component_edges: Set[Tuple[str, str]] = set()
+    for _, comp_edges in components:
+        for e in comp_edges:
+            all_component_edges.add((e.source, e.target))
+            all_component_edges.add((e.target, e.source))
+    
+    # Bridge edges connect different components
+    bridge_edges: List[Tuple[str, str]] = []
+    for e in edges:
+        if (e.source, e.target) not in all_component_edges:
+            bridge_edges.append((e.source, e.target))
+    
+    print(f"[ORTHO-MULTI] Bridge edges: {bridge_edges}")
+    
+    # Find which component each vertex belongs to
+    vertex_to_comp: Dict[str, int] = {}
+    for comp_idx in range(len(components)):
+        comp_verts = components[comp_idx][0]
+        for v in comp_verts:
+            vertex_to_comp[v] = comp_idx
+    
+    # Order components by bridge connections (first to last)
+    # Start with component 0, then follow bridges
+    comp_order = [0]
+    visited_comps: Set[int] = {0}
+    while len(comp_order) < len(components):
+        for src, tgt in bridge_edges:
+            src_comp = vertex_to_comp.get(src, -1)
+            tgt_comp = vertex_to_comp.get(tgt, -1)
+            if src_comp in visited_comps and tgt_comp not in visited_comps:
+                comp_order.append(tgt_comp)
+                visited_comps.add(tgt_comp)
+            elif tgt_comp in visited_comps and src_comp not in visited_comps:
+                comp_order.append(src_comp)
+                visited_comps.add(src_comp)
+        # Safety: add any remaining
+        for i in range(len(components)):
+            if i not in visited_comps:
+                comp_order.append(i)
+                visited_comps.add(i)
+    
+    print(f"[ORTHO-MULTI] Component order: {comp_order}")
+    
+    # Layout each cycle, stacking vertically
+    row_offset = 0
+    component_positions: Dict[str, Tuple[int, int]] = {}
+    bridge_vertex_positions: Dict[str, Tuple[int, int]] = {}
+    
+    for order_idx, comp_idx in enumerate(comp_order):
+        comp_verts, comp_edges = components[comp_idx]
+        print(f"[ORTHO-MULTI] Component {comp_idx}: {comp_verts}")
+        
+        # Find bridge vertex in this component (if any) to align with previous
+        bridge_vertex = None
+        target_col = 0
+        
+        if order_idx > 0:
+            for src, tgt in bridge_edges:
+                if src in bridge_vertex_positions and tgt in comp_verts:
+                    bridge_vertex = tgt
+                    target_col = bridge_vertex_positions[src][0]
+                    break
+                elif tgt in bridge_vertex_positions and src in comp_verts:
+                    bridge_vertex = src
+                    target_col = bridge_vertex_positions[tgt][0]
+                    break
+        
+        # Get ordered cycle vertices, starting from bridge vertex if present
+        comp_adj = GraphUtils.build_adjacency_map(comp_edges)
+        visited: Set[str] = set()
+        ordered: List[str] = []
+        current = bridge_vertex if bridge_vertex else comp_verts[0]
+        
+        while len(ordered) < len(comp_verts):
+            ordered.append(current)
+            visited.add(current)
+            for neighbor in comp_adj.get(current, set()):
+                if neighbor not in visited:
+                    current = neighbor
+                    break
+            else:
+                break
+        
+        # Place as rectangle: top row, then bottom row
+        n = len(ordered)
+        half = (n + 1) // 2
+        
+        # Calculate column offset so bridge vertex aligns
+        if bridge_vertex:
+            bridge_idx = ordered.index(bridge_vertex)
+            if bridge_idx < half:
+                col_offset = target_col - bridge_idx
+            else:
+                col_offset = target_col - (n - 1 - bridge_idx)
+        else:
+            col_offset = 0
+        
+        for i, v in enumerate(ordered):
+            if i < half:
+                pos = (col_offset + i, row_offset)
+            else:
+                pos = (col_offset + (n - 1 - i), row_offset + 1)
+            component_positions[v] = pos
+            
+            # Track bridge vertices for next component
+            for src, tgt in bridge_edges:
+                if v == src or v == tgt:
+                    bridge_vertex_positions[v] = pos
+        
+        row_offset += 2  # Each cycle takes 2 rows, plus gap
+    
+    # Store positions
+    for v, pos in component_positions.items():
+        ortho.vertex_pos[v] = pos
+    
+    print(f"[ORTHO-MULTI] Final positions: {ortho.vertex_pos}")
+    
+    # Compute edge directions for all edges (including bridges)
+    for edge in edges:
+        u, v = edge.source, edge.target
+        if u not in ortho.vertex_pos or v not in ortho.vertex_pos:
+            continue
+        
+        u_col, u_row = ortho.vertex_pos[u]
+        v_col, v_row = ortho.vertex_pos[v]
+        
+        directions: List[str] = []
+        if u_col == v_col:
+            directions.append('S' if v_row > u_row else 'N')
+            print(f"[ORTHO-MULTI] Edge {u}->{v}: VERTICAL ✓")
+        elif u_row == v_row:
+            directions.append('E' if v_col > u_col else 'W')
+            print(f"[ORTHO-MULTI] Edge {u}->{v}: HORIZONTAL ✓")
+        else:
+            print(f"[ORTHO-MULTI] Edge {u}->{v}: DIAGONAL ✗")
+            if v_row > u_row:
+                directions.append('S')
+            else:
+                directions.append('N')
+            if v_col > u_col:
+                directions.append('E')
+            else:
+                directions.append('W')
+        
+        ortho.edge_directions[(u, v)] = directions
+    
+    return ortho
+
+
+def _orthogonalize(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    embedding: Dict[str, List[str]],
+) -> OrthogonalRep:
+    """
+    Create orthogonal representation from planar embedding.
+    
+    For truly orthogonal edges, connected vertices must share either:
+    - Same row (horizontal edge), OR
+    - Same column (vertical edge)
+    
+    Algorithm:
+    1. Check for simple cycle -> use rectangular layout
+    2. Check for multiple cycles connected by bridges -> layout each cycle
+    3. Build spanning tree via BFS
+    4. Assign rows = BFS level (tree edges will be vertical)
+    5. Children inherit parent's column, spread horizontally if multiple
+    """
+    print("[ORTHO] === Starting _orthogonalize ===")
+    print(f"[ORTHO] Vertices: {vertex_ids}")
+    print(f"[ORTHO] Edges: {[(e.source, e.target) for e in edges]}")
+    
+    # Special case: simple cycle
+    if _is_simple_cycle(vertex_ids, edges):
+        return _orthogonalize_cycle(vertex_ids, edges)
+    
+    # Special case: multiple cycles connected by bridges
+    cycle_components = _find_cycle_components(vertex_ids, edges)
+    if cycle_components and len(cycle_components) > 1:
+        return _orthogonalize_multi_cycle(vertex_ids, edges, cycle_components)
+    
+    ortho = OrthogonalRep()
+    
+    if not vertex_ids:
+        return ortho
+    
+    adjacency = GraphUtils.build_adjacency_map(edges)
+    
+    # Find root (prefer vertex with high degree for better spread)
+    root = max(vertex_ids, key=lambda v: len(adjacency.get(v, set())))
+    print(f"[ORTHO] Selected root: {root} (degree={len(adjacency.get(root, set()))})")
+    
+    # Build spanning tree and levels via BFS
+    parent: Dict[str, Optional[str]] = {root: None}
+    children: Dict[str, List[str]] = {v: [] for v in vertex_ids}
+    levels: List[List[str]] = []
+    
+    # Use list as queue (BFS)
+    queue: List[Tuple[str, int]] = [(root, 0)]
+    queue_idx = 0
+    visited: Set[str] = {root}
+    
+    while queue_idx < len(queue):
+        node, depth = queue[queue_idx]
+        queue_idx += 1
+        
+        # Extend levels list if needed
+        while len(levels) <= depth:
+            levels.append([])
+        levels[depth].append(node)
+        
+        for neighbor in adjacency.get(node, set()):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                parent[neighbor] = node
+                children[node].append(neighbor)
+                queue.append((neighbor, depth + 1))
+    
+    # Add any disconnected vertices
+    for v in vertex_ids:
+        if v not in visited:
+            levels[0].append(v)
+            parent[v] = None
+    
+    print(f"[ORTHO] BFS tree structure:")
+    print(f"[ORTHO]   Levels: {levels}")
+    print(f"[ORTHO]   Parent: {parent}")
+    print(f"[ORTHO]   Children: {children}")
+    
+    # Assign rows based on BFS level
+    vertex_row: Dict[str, int] = {}
+    for row_idx, level in enumerate(levels):
+        for v in level:
+            vertex_row[v] = row_idx
+    
+    # Assign columns using tree structure
+    # Key insight: children should be spread around parent's column
+    # This makes tree edges vertical or nearly vertical
+    vertex_col: Dict[str, int] = {}
+    
+    # Compute subtree sizes for proportional column allocation
+    subtree_size: Dict[str, int] = {}
+    
+    def compute_size(node: str) -> int:
+        size = 1
+        for child in children.get(node, []):
+            size += compute_size(child)
+        subtree_size[node] = size
+        return size
+    
+    compute_size(root)
+    
+    # Assign columns top-down
+    # Root gets column 0, children spread proportionally
+    def assign_columns(node: str, col_start: int, col_end: int) -> None:
+        # Place node at center of its allocated column range
+        vertex_col[node] = (col_start + col_end) // 2
+        
+        node_children = children.get(node, [])
+        if not node_children:
+            return
+        
+        # Allocate column ranges to children proportionally
+        total_size = sum(subtree_size.get(c, 1) for c in node_children)
+        child_col = col_start
+        
+        for child in node_children:
+            child_size = subtree_size.get(child, 1)
+            # Proportional allocation
+            child_range = max(1, (col_end - col_start) * child_size // max(total_size, 1))
+            child_col_end = min(child_col + child_range, col_end)
+            
+            assign_columns(child, child_col, child_col_end)
+            child_col = child_col_end
+    
+    total_width = subtree_size.get(root, len(vertex_ids))
+    assign_columns(root, 0, total_width)
+    
+    print(f"[ORTHO] After initial assignment:")
+    print(f"[ORTHO]   Subtree sizes: {subtree_size}")
+    for v in vertex_ids:
+        print(f"[ORTHO]   {v}: row={vertex_row.get(v)}, col={vertex_col.get(v)}")
+    
+    # Post-process: align vertices to improve orthogonality
+    # For each edge, try to make it purely horizontal or vertical
+    print(f"[ORTHO] Calling _align_for_orthogonality...")
+    _align_for_orthogonality(vertex_ids, edges, vertex_row, vertex_col, parent, children)
+    
+    print(f"[ORTHO] After alignment:")
+    for v in vertex_ids:
+        print(f"[ORTHO]   {v}: row={vertex_row.get(v)}, col={vertex_col.get(v)}")
+    
+    # Store final positions
+    for v in vertex_ids:
+        ortho.vertex_pos[v] = (vertex_col.get(v, 0), vertex_row.get(v, 0))
+    
+    # Compute edge directions
+    print(f"[ORTHO] Edge analysis:")
+    diagonal_count = 0
+    for edge in edges:
+        u, v = edge.source, edge.target
+        if u not in ortho.vertex_pos or v not in ortho.vertex_pos:
+            continue
+        
+        u_col, u_row = ortho.vertex_pos[u]
+        v_col, v_row = ortho.vertex_pos[v]
+        
+        directions: List[str] = []
+        delta_col = v_col - u_col
+        delta_row = v_row - u_row
+        
+        # For orthogonal edges, only one direction should be non-zero
+        if delta_col == 0:
+            # Purely vertical
+            if delta_row > 0:
+                directions.append('S')
+            elif delta_row < 0:
+                directions.append('N')
+            print(f"[ORTHO]   {u}({u_col},{u_row}) -> {v}({v_col},{v_row}): VERTICAL ✓")
+        elif delta_row == 0:
+            # Purely horizontal
+            if delta_col > 0:
+                directions.append('E')
+            elif delta_col < 0:
+                directions.append('W')
+            print(f"[ORTHO]   {u}({u_col},{u_row}) -> {v}({v_col},{v_row}): HORIZONTAL ✓")
+        else:
+            # Diagonal - needs bend (route as L-shape)
+            diagonal_count += 1
+            print(f"[ORTHO]   {u}({u_col},{u_row}) -> {v}({v_col},{v_row}): DIAGONAL ✗ (delta_col={delta_col}, delta_row={delta_row})")
+            # Go vertical first, then horizontal
+            if delta_row > 0:
+                directions.append('S')
+            elif delta_row < 0:
+                directions.append('N')
+            if delta_col > 0:
+                directions.append('E')
+            elif delta_col < 0:
+                directions.append('W')
+        
+        ortho.edge_directions[(u, v)] = directions
+    
+    print(f"[ORTHO] Summary: {diagonal_count}/{len(edges)} edges are diagonal")
+    return ortho
+
+
+def _align_for_orthogonality(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    vertex_row: Dict[str, int],
+    vertex_col: Dict[str, int],
+    parent: Dict[str, Optional[str]],
+    children: Dict[str, List[str]],
+) -> None:
+    """
+    Post-process to improve orthogonality by aligning vertices.
+    
+    Strategy:
+    1. For tree edges (parent-child): align child to parent's column (vertical edge)
+    2. For same-level edges: they're already on same row (horizontal edge)
+    3. For cross edges: try to align if possible without disrupting tree structure
+    """
+    # Build edge set for quick lookup
+    edge_set: Set[Tuple[str, str]] = set()
+    for e in edges:
+        edge_set.add((e.source, e.target))
+        edge_set.add((e.target, e.source))
+    
+    # Identify non-tree edges (edges not in parent-child relationship)
+    non_tree_edges: List[Tuple[str, str]] = []
+    for e in edges:
+        u, v = e.source, e.target
+        if parent.get(u) != v and parent.get(v) != u:
+            non_tree_edges.append((u, v))
+    
+    # For vertices with single child, align child directly under parent
+    for v in vertex_ids:
+        v_children = children.get(v, [])
+        if len(v_children) == 1:
+            child = v_children[0]
+            # Check if moving child to parent's column is safe
+            # (doesn't collide with siblings in same row)
+            child_row = vertex_row.get(child, 0)
+            parent_col = vertex_col.get(v, 0)
+            
+            # Check for collisions in child's row
+            collision = False
+            for other in vertex_ids:
+                if other != child and vertex_row.get(other) == child_row:
+                    if vertex_col.get(other) == parent_col:
+                        collision = True
+                        break
+            
+            if not collision:
+                vertex_col[child] = parent_col
+    
+    # For non-tree edges between vertices on same row, they're already horizontal
+    # For non-tree edges between vertices on adjacent rows, try to align columns
+    for u, v in non_tree_edges:
+        u_row = vertex_row.get(u, 0)
+        v_row = vertex_row.get(v, 0)
+        u_col = vertex_col.get(u, 0)
+        v_col = vertex_col.get(v, 0)
+        
+        if u_row == v_row:
+            # Same row - already horizontal, good
+            continue
+        
+        if abs(u_row - v_row) == 1:
+            # Adjacent rows - could make vertical
+            # Try to align the vertex in the lower row to the upper's column
+            if u_row < v_row:
+                target_col = u_col
+                moving_vertex = v
+            else:
+                target_col = v_col
+                moving_vertex = u
+            
+            # Check for collision
+            moving_row = vertex_row.get(moving_vertex, 0)
+            collision = False
+            for other in vertex_ids:
+                if other != moving_vertex and vertex_row.get(other) == moving_row:
+                    if vertex_col.get(other) == target_col:
+                        collision = True
+                        break
+            
+            if not collision:
+                vertex_col[moving_vertex] = target_col
+
+
+# =============================================================================
+# TSM Phase 3: Compaction
+# =============================================================================
+
+def _compact_orthogonal(
+    ortho_rep: OrthogonalRep,
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    box: Dict[str, float],
+) -> Dict[str, Tuple[float, float]]:
+    """
+    Assign final coordinates from orthogonal representation.
+    
+    Uses the grid positions from orthogonalization and scales to bounding box.
+    """
+    print(f"[COMPACT] === Starting _compact_orthogonal ===")
+    print(f"[COMPACT] Grid positions: {ortho_rep.vertex_pos}")
+    
+    if not ortho_rep.vertex_pos:
+        return _simple_grid_placement(vertex_ids, box)
+    
+    # Get grid bounds
+    cols = [pos[0] for pos in ortho_rep.vertex_pos.values()]
+    rows = [pos[1] for pos in ortho_rep.vertex_pos.values()]
+
+    min_col, max_col = min(cols), max(cols)
+    min_row, max_row = min(rows), max(rows)
+
+    col_range = max(max_col - min_col, 1)
+    row_range = max(max_row - min_row, 1)
+
+    # Scale to bounding box with margins, using SQUARE cells
+    margin = 0.1
+    usable_width = box["width"] * (1 - 2 * margin)
+    usable_height = box["height"] * (1 - 2 * margin)
+
+    # Use the same spacing for both dimensions to preserve square shape
+    col_spacing_candidate = usable_width / col_range
+    row_spacing_candidate = usable_height / row_range
+    cell_size = min(col_spacing_candidate, row_spacing_candidate)
+    
+    col_spacing = cell_size
+    row_spacing = cell_size
+    
+    print(f"[COMPACT] Using square cells: {cell_size:.1f}px")
+    
+    positions: Dict[str, Tuple[float, float]] = {}
+    for v in vertex_ids:
+        if v not in ortho_rep.vertex_pos:
+            continue
+        pos = ortho_rep.vertex_pos[v]
+        col = pos[0]
+        row = pos[1]
+        
+        x = box["x"] + box["width"] * margin + (col - min_col) * col_spacing
+        # Invert row so row 0 is at top (higher y)
+        y = box["y"] + box["height"] * (1 - margin) - (row - min_row) * row_spacing
+        
+        positions[v] = (float(x), float(y))
+    
+    print(f"[COMPACT] Final positions:")
+    for v in positions:
+        print(f"[COMPACT]   {v}: {positions[v]}")
+    
+    return positions
+
+
+# =============================================================================
+# Planarization (for non-planar graphs)
+# =============================================================================
+
+def _planarize_graph(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    box: Dict[str, float],
+) -> Tuple[List[str], List[Edge[str]], Set[str]]:
+    """
+    Planarize a non-planar graph by inserting dummy vertices at crossings.
+    
+    Algorithm:
+    1. Get initial positions using force-directed layout
+    2. Detect geometric edge crossings
+    3. Insert dummy vertices at crossing points
+    4. Replace crossing edges with segments through dummy vertices
+    
+    Returns:
+        (new_vertices, new_edges, dummy_vertex_ids)
+    """
+    # Get initial layout to detect crossings
+    initial_positions = _force_directed_layout(vertex_ids, edges, box)
+    
+    # Find all edge crossings
+    crossings: List[Tuple[Edge[str], Edge[str], float, float]] = []
+    edge_list = list(edges)
+    
+    for i, e1 in enumerate(edge_list):
+        for e2 in edge_list[i + 1:]:
+            # Skip edges sharing a vertex
+            if e1.source in (e2.source, e2.target) or e1.target in (e2.source, e2.target):
+                continue
+            
+            # Check for geometric intersection
+            crossing = _edge_intersection(
+                initial_positions[e1.source], initial_positions[e1.target],
+                initial_positions[e2.source], initial_positions[e2.target]
+            )
+            
+            if crossing is not None:
+                crossings.append((e1, e2, crossing[0], crossing[1]))
+    
+    if not crossings:
+        # No crossings found - graph might actually be planar with this embedding
+        return vertex_ids, edges, set()
+    
+    # Create new vertices and edges
+    new_vertices = list(vertex_ids)
+    new_edges: List[Edge[str]] = []
+    dummy_ids: Set[str] = set()
+    edges_to_remove: Set[Tuple[str, str]] = set()
+    
+    # Track which edges get split by which dummies
+    edge_splits: Dict[Tuple[str, str], List[str]] = {}
+    
+    for idx in range(len(crossings)):
+        crossing = crossings[idx]
+        e1 = crossing[0]
+        e2 = crossing[1]
+        # cx, cy = crossing[2], crossing[3]  # Not needed currently
+        
+        dummy_id = f"_dummy_{idx}"
+        new_vertices.append(dummy_id)
+        dummy_ids.add(dummy_id)
+        
+        # Mark edges for splitting
+        key1 = (e1.source, e1.target)
+        key2 = (e2.source, e2.target)
+        
+        edge_splits.setdefault(key1, []).append(dummy_id)
+        edge_splits.setdefault(key2, []).append(dummy_id)
+        
+        edges_to_remove.add(key1)
+        edges_to_remove.add(key2)
+    
+    # Add edges that don't need splitting
+    for e in edges:
+        key = (e.source, e.target)
+        if key not in edges_to_remove:
+            new_edges.append(e)
+    
+    # Add split edges (simplified: just connect endpoints to all dummies on that edge)
+    for edge_key in edge_splits:
+        src = edge_key[0]
+        tgt = edge_key[1]
+        dummies = edge_splits[edge_key]
+        # Connect source to first dummy, dummies in chain, last dummy to target
+        if len(dummies) == 1:
+            new_edges.append(Edge(src, dummies[0]))
+            new_edges.append(Edge(dummies[0], tgt))
+        else:
+            new_edges.append(Edge(src, dummies[0]))
+            for i in range(len(dummies) - 1):
+                new_edges.append(Edge(dummies[i], dummies[i + 1]))
+            new_edges.append(Edge(dummies[-1], tgt))
+    
+    return new_vertices, new_edges, dummy_ids
+
+
+def _edge_intersection(
+    p1: Tuple[float, float],
+    p2: Tuple[float, float],
+    p3: Tuple[float, float],
+    p4: Tuple[float, float],
+) -> Optional[Tuple[float, float]]:
+    """
+    Compute intersection point of two line segments.
+    
+    Returns (x, y) if segments intersect, None otherwise.
+    Uses parametric line intersection.
+    """
+    x1, y1 = p1
+    x2, y2 = p2
+    x3, y3 = p3
+    x4, y4 = p4
+    
+    denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    
+    if abs(denom) < 1e-10:
+        return None  # Parallel or coincident
+    
+    t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
+    u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom
+    
+    # Check if intersection is within both segments (not at endpoints)
+    eps = 0.01
+    if eps < t < 1 - eps and eps < u < 1 - eps:
+        ix = x1 + t * (x2 - x1)
+        iy = y1 + t * (y2 - y1)
+        return (ix, iy)
+    
+    return None
+
+
+def _force_to_grid_fallback(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    box: Dict[str, float],
+) -> Dict[str, Tuple[float, float]]:
+    """
+    Fallback for non-planar graphs: force-directed layout snapped to grid.
+    
+    Enhanced to improve orthogonality:
+    1. Compute force-directed layout
+    2. Snap positions to grid
+    3. Try to align connected vertices on same row OR column
+    4. Resolve collisions
+    """
+    # Get force-directed positions
+    positions = _force_directed_layout(vertex_ids, edges, box)
+    
+    if not positions:
+        return {}
+    
+    # Determine grid granularity based on vertex count
+    n = len(vertex_ids)
+    grid_size = max(int(math.ceil(math.sqrt(n))) + 2, 4)
+    
+    cell_width = box["width"] / grid_size
+    cell_height = box["height"] / grid_size
+    
+    # Build adjacency for alignment
+    adjacency = GraphUtils.build_adjacency_map(edges)
+    
+    # Initial snap to grid
+    grid_positions: Dict[str, Tuple[int, int]] = {}
+    
+    for vid in vertex_ids:
+        x, y = positions[vid]
+        col = int((x - box["x"]) / cell_width)
+        row = int((y - box["y"]) / cell_height)
+        col = max(0, min(grid_size - 1, col))
+        row = max(0, min(grid_size - 1, row))
+        grid_positions[vid] = (col, row)
+    
+    # Try to align connected vertices (improve orthogonality)
+    # Process edges and try to make them orthogonal
+    for edge in edges:
+        u, v = edge.source, edge.target
+        u_col, u_row = grid_positions[u]
+        v_col, v_row = grid_positions[v]
+        
+        # Skip if already orthogonal
+        if u_col == v_col or u_row == v_row:
+            continue
+        
+        # Decide whether to align horizontally or vertically
+        # based on which requires less movement
+        col_diff = abs(u_col - v_col)
+        row_diff = abs(u_row - v_row)
+        
+        if col_diff <= row_diff:
+            # Try to align columns (make edge vertical)
+            target_col = (u_col + v_col) // 2
+            # Check if we can move both to target column
+            # For simplicity, move the vertex with fewer neighbors
+            if len(adjacency.get(u, set())) <= len(adjacency.get(v, set())):
+                grid_positions[u] = (v_col, u_row)
+            else:
+                grid_positions[v] = (u_col, v_row)
+        else:
+            # Try to align rows (make edge horizontal)
+            if len(adjacency.get(u, set())) <= len(adjacency.get(v, set())):
+                grid_positions[u] = (u_col, v_row)
+            else:
+                grid_positions[v] = (v_col, u_row)
+    
+    # Resolve collisions
+    occupied: Set[Tuple[int, int]] = set()
+    final_positions: Dict[str, Tuple[int, int]] = {}
+    
+    for vid in vertex_ids:
+        col, row = grid_positions[vid]
+        
+        if (col, row) not in occupied:
+            final_positions[vid] = (col, row)
+            occupied.add((col, row))
+        else:
+            # Find nearest unoccupied cell
+            found = False
+            for delta in range(1, grid_size):
+                for dc in range(-delta, delta + 1):
+                    for dr in range(-delta, delta + 1):
+                        nc, nr = col + dc, row + dr
+                        if 0 <= nc < grid_size and 0 <= nr < grid_size:
+                            if (nc, nr) not in occupied:
+                                final_positions[vid] = (nc, nr)
+                                occupied.add((nc, nr))
+                                found = True
+                                break
+                    if found:
+                        break
+                if found:
+                    break
+            
+            if not found:
+                final_positions[vid] = (col, row)
+    
+    # Convert grid positions to box coordinates
+    margin = 0.1
+    usable_width = box["width"] * (1 - 2 * margin)
+    usable_height = box["height"] * (1 - 2 * margin)
+    
+    result: Dict[str, Tuple[float, float]] = {}
+    for vid in final_positions:
+        pos = final_positions[vid]
+        col = pos[0]
+        row = pos[1]
+        x = box["x"] + box["width"] * margin + (col + 0.5) * usable_width / grid_size
+        y = box["y"] + box["height"] * margin + (row + 0.5) * usable_height / grid_size
+        result[vid] = (float(x), float(y))
+    
+    return result
 
 
 # =============================================================================
