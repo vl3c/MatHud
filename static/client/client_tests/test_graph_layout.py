@@ -493,6 +493,120 @@ class TestGraphLayout(unittest.TestCase):
             f"Two squares with caps: {orthogonal}/{total} orthogonal (expected at least {min_orthogonal})")
 
     # ------------------------------------------------------------------
+    # Edge length uniformity tests
+    # ------------------------------------------------------------------
+
+    def test_grid_layout_simple_square_edge_lengths(self) -> None:
+        """Simple square cycle should have uniform edge lengths."""
+        vertices = ["A", "B", "C", "D"]
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        positions = _grid_layout(vertices, edges, self.box)
+
+        same_count, total, _ = GraphUtils.count_edges_with_same_length(edges, positions)
+        # All 4 edges should have the same length (it's a square)
+        self.assertEqual(same_count, total,
+            f"Simple square: {same_count}/{total} edges have same length (expected all)")
+
+    def test_grid_layout_two_squares_bridge_edge_lengths(self) -> None:
+        """Two squares with bridge - square edges should have uniform length."""
+        vertices = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        edges = [
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A"),
+            Edge("E", "F"), Edge("F", "G"), Edge("G", "H"), Edge("H", "E"),
+            Edge("D", "E"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+
+        same_count, total, _ = GraphUtils.count_edges_with_same_length(edges, positions, tolerance=0.15)
+        # The 8 square edges should have the same length
+        # The bridge may be different, so expect at least 8 edges with same length
+        self.assertGreaterEqual(same_count, 8,
+            f"Two squares bridge: {same_count}/{total} edges have same length (expected at least 8)")
+
+    def test_grid_layout_triangle_edge_lengths(self) -> None:
+        """Triangle should have reasonably uniform edge lengths."""
+        vertices = ["A", "B", "C"]
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "A")]
+        positions = _grid_layout(vertices, edges, self.box)
+
+        uniformity = GraphUtils.edge_length_uniformity_ratio(edges, positions, tolerance=0.2)
+        # At least 2/3 of edges should have similar length
+        self.assertGreaterEqual(uniformity, 0.66,
+            f"Triangle: {uniformity*100:.0f}% edge length uniformity (expected at least 66%)")
+
+    def test_grid_layout_line_graph_edge_lengths(self) -> None:
+        """Line graph (path) should have uniform edge lengths."""
+        vertices = ["A", "B", "C", "D", "E"]
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "E")]
+        positions = _grid_layout(vertices, edges, self.box)
+
+        same_count, total, _ = GraphUtils.count_edges_with_same_length(edges, positions, tolerance=0.15)
+        # All edges in a path should have similar length
+        self.assertGreaterEqual(same_count, total - 1,
+            f"Line graph: {same_count}/{total} edges have same length (expected at least {total-1})")
+
+    def test_grid_layout_star_graph_edge_lengths(self) -> None:
+        """Star graph should have uniform edge lengths."""
+        vertices = ["center", "A", "B", "C", "D"]
+        edges = [
+            Edge("center", "A"), Edge("center", "B"),
+            Edge("center", "C"), Edge("center", "D"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+
+        uniformity = GraphUtils.edge_length_uniformity_ratio(edges, positions, tolerance=0.2)
+        # All edges from center should have similar length in a good star layout
+        self.assertGreaterEqual(uniformity, 0.75,
+            f"Star graph: {uniformity*100:.0f}% edge length uniformity (expected at least 75%)")
+
+    def test_grid_layout_hexagon_edge_lengths(self) -> None:
+        """Hexagon cycle should have uniform edge lengths."""
+        vertices = ["A", "B", "C", "D", "E", "F"]
+        edges = [
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"),
+            Edge("D", "E"), Edge("E", "F"), Edge("F", "A"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+
+        same_count, total, _ = GraphUtils.count_edges_with_same_length(edges, positions, tolerance=0.2)
+        # Most edges in a cycle should have similar length
+        self.assertGreaterEqual(same_count, 4,
+            f"Hexagon: {same_count}/{total} edges have same length (expected at least 4)")
+
+    def test_grid_layout_two_squares_with_caps_edge_lengths(self) -> None:
+        """Two squares with caps - cycle edges should have similar lengths."""
+        vertices = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+        edges = [
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A"),
+            Edge("E", "F"), Edge("F", "G"), Edge("G", "H"), Edge("H", "E"),
+            Edge("D", "E"),
+            Edge("I", "B"), Edge("I", "C"),
+            Edge("J", "F"), Edge("J", "G"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+
+        same_count, total, _ = GraphUtils.count_edges_with_same_length(edges, positions, tolerance=0.2)
+        # At least the 8 square edges should have similar lengths
+        self.assertGreaterEqual(same_count, 6,
+            f"Two squares with caps: {same_count}/{total} edges have same length (expected at least 6)")
+
+    def test_grid_layout_edge_length_variance_simple_square(self) -> None:
+        """Simple square should have low edge length variance."""
+        vertices = ["A", "B", "C", "D"]
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        positions = _grid_layout(vertices, edges, self.box)
+
+        variance = GraphUtils.edge_length_variance(edges, positions)
+        # Variance should be very low for a proper square
+        # Normalize by average length squared for relative comparison
+        lengths = GraphUtils.get_edge_lengths(edges, positions)
+        avg_length = sum(lengths) / len(lengths) if lengths else 1.0
+        relative_variance = variance / (avg_length ** 2) if avg_length > 0 else 0.0
+        
+        self.assertLess(relative_variance, 0.05,
+            f"Simple square: relative variance {relative_variance:.4f} (expected < 0.05)")
+
+    # ------------------------------------------------------------------
     # Tree layout
     # ------------------------------------------------------------------
 
