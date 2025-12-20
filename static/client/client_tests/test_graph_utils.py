@@ -837,6 +837,269 @@ class TestGraph(unittest.TestCase):
         result = GraphAnalyzer.analyze(state, "unknown_op", {})
         self.assertIn("error", result)
 
+    # ------------------------------------------------------------------
+    # segments_cross
+    # ------------------------------------------------------------------
+
+    def test_segments_cross_basic_crossing(self) -> None:
+        """Two segments that cross in the middle."""
+        p1, p2 = (0.0, 0.0), (2.0, 2.0)
+        p3, p4 = (0.0, 2.0), (2.0, 0.0)
+        self.assertTrue(GraphUtils.segments_cross(p1, p2, p3, p4))
+
+    def test_segments_cross_no_crossing_parallel(self) -> None:
+        """Parallel segments don't cross."""
+        p1, p2 = (0.0, 0.0), (2.0, 0.0)
+        p3, p4 = (0.0, 1.0), (2.0, 1.0)
+        self.assertFalse(GraphUtils.segments_cross(p1, p2, p3, p4))
+
+    def test_segments_cross_no_crossing_separate(self) -> None:
+        """Non-parallel segments that don't intersect."""
+        p1, p2 = (0.0, 0.0), (1.0, 1.0)
+        p3, p4 = (2.0, 0.0), (3.0, 1.0)
+        self.assertFalse(GraphUtils.segments_cross(p1, p2, p3, p4))
+
+    def test_segments_cross_touching_at_endpoint(self) -> None:
+        """Segments touching at an endpoint don't count as crossing."""
+        p1, p2 = (0.0, 0.0), (1.0, 1.0)
+        p3, p4 = (1.0, 1.0), (2.0, 0.0)
+        self.assertFalse(GraphUtils.segments_cross(p1, p2, p3, p4))
+
+    def test_segments_cross_t_intersection(self) -> None:
+        """T-intersection where one segment ends on another."""
+        p1, p2 = (0.0, 0.0), (2.0, 0.0)
+        p3, p4 = (1.0, -1.0), (1.0, 0.0)
+        self.assertFalse(GraphUtils.segments_cross(p1, p2, p3, p4))
+
+    def test_segments_cross_collinear_overlapping(self) -> None:
+        """Collinear overlapping segments don't cross (parallel)."""
+        p1, p2 = (0.0, 0.0), (2.0, 0.0)
+        p3, p4 = (1.0, 0.0), (3.0, 0.0)
+        self.assertFalse(GraphUtils.segments_cross(p1, p2, p3, p4))
+
+    # ------------------------------------------------------------------
+    # count_edge_crossings
+    # ------------------------------------------------------------------
+
+    def test_count_edge_crossings_square_no_crossings(self) -> None:
+        """Square has no edge crossings."""
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        positions = {"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (1.0, 1.0), "D": (0.0, 1.0)}
+        self.assertEqual(GraphUtils.count_edge_crossings(edges, positions), 0)
+
+    def test_count_edge_crossings_crossing_diagonals(self) -> None:
+        """Two crossing diagonals have 1 crossing."""
+        edges = [Edge("A", "C"), Edge("B", "D")]
+        positions = {"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (1.0, 1.0), "D": (0.0, 1.0)}
+        self.assertEqual(GraphUtils.count_edge_crossings(edges, positions), 1)
+
+    def test_count_edge_crossings_k4_complete(self) -> None:
+        """K4 with vertices at corners has 1 crossing (diagonals)."""
+        edges = [
+            Edge("A", "B"), Edge("A", "C"), Edge("A", "D"),
+            Edge("B", "C"), Edge("B", "D"), Edge("C", "D"),
+        ]
+        positions = {"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (1.0, 1.0), "D": (0.0, 1.0)}
+        # A-C and B-D cross
+        self.assertEqual(GraphUtils.count_edge_crossings(edges, positions), 1)
+
+    def test_count_edge_crossings_shared_vertex_no_crossing(self) -> None:
+        """Edges sharing a vertex don't count as crossing."""
+        edges = [Edge("A", "B"), Edge("B", "C")]
+        positions = {"A": (0.0, 0.0), "B": (1.0, 1.0), "C": (2.0, 0.0)}
+        self.assertEqual(GraphUtils.count_edge_crossings(edges, positions), 0)
+
+    # ------------------------------------------------------------------
+    # is_edge_orthogonal
+    # ------------------------------------------------------------------
+
+    def test_is_edge_orthogonal_horizontal(self) -> None:
+        """Horizontal edge is orthogonal."""
+        self.assertTrue(GraphUtils.is_edge_orthogonal((0.0, 0.0), (5.0, 0.0)))
+
+    def test_is_edge_orthogonal_vertical(self) -> None:
+        """Vertical edge is orthogonal."""
+        self.assertTrue(GraphUtils.is_edge_orthogonal((0.0, 0.0), (0.0, 5.0)))
+
+    def test_is_edge_orthogonal_diagonal_45(self) -> None:
+        """45-degree diagonal is not orthogonal."""
+        self.assertFalse(GraphUtils.is_edge_orthogonal((0.0, 0.0), (5.0, 5.0)))
+
+    def test_is_edge_orthogonal_slight_deviation(self) -> None:
+        """Slight deviation from horizontal is still orthogonal within tolerance."""
+        # 0.5% deviation on a length of 100 is 0.5, within 1% tolerance
+        self.assertTrue(GraphUtils.is_edge_orthogonal((0.0, 0.0), (100.0, 0.5)))
+
+    def test_is_edge_orthogonal_large_deviation(self) -> None:
+        """Large deviation from horizontal is not orthogonal."""
+        self.assertFalse(GraphUtils.is_edge_orthogonal((0.0, 0.0), (100.0, 10.0)))
+
+    # ------------------------------------------------------------------
+    # count_orthogonal_edges
+    # ------------------------------------------------------------------
+
+    def test_count_orthogonal_edges_all_orthogonal(self) -> None:
+        """Square with all orthogonal edges."""
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        positions = {"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (1.0, 1.0), "D": (0.0, 1.0)}
+        ortho, total = GraphUtils.count_orthogonal_edges(edges, positions)
+        self.assertEqual(ortho, 4)
+        self.assertEqual(total, 4)
+
+    def test_count_orthogonal_edges_none_orthogonal(self) -> None:
+        """Diamond shape has no orthogonal edges."""
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        # Rotated 45 degrees
+        positions = {"A": (1.0, 0.0), "B": (2.0, 1.0), "C": (1.0, 2.0), "D": (0.0, 1.0)}
+        ortho, total = GraphUtils.count_orthogonal_edges(edges, positions)
+        self.assertEqual(ortho, 0)
+        self.assertEqual(total, 4)
+
+    def test_count_orthogonal_edges_mixed(self) -> None:
+        """Triangle with one horizontal edge."""
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "A")]
+        positions = {"A": (0.0, 0.0), "B": (2.0, 0.0), "C": (1.0, 1.0)}
+        ortho, total = GraphUtils.count_orthogonal_edges(edges, positions)
+        self.assertEqual(ortho, 1)  # Only A-B is horizontal
+        self.assertEqual(total, 3)
+
+    # ------------------------------------------------------------------
+    # edges_overlap (non-adjacent edges)
+    # ------------------------------------------------------------------
+
+    def test_edges_overlap_collinear_overlapping(self) -> None:
+        """Collinear segments with overlapping spans."""
+        p1, p2 = (0.0, 0.0), (3.0, 0.0)
+        p3, p4 = (2.0, 0.0), (5.0, 0.0)
+        self.assertTrue(GraphUtils.edges_overlap(p1, p2, p3, p4))
+
+    def test_edges_overlap_collinear_no_overlap(self) -> None:
+        """Collinear segments without overlapping spans."""
+        p1, p2 = (0.0, 0.0), (1.0, 0.0)
+        p3, p4 = (2.0, 0.0), (3.0, 0.0)
+        self.assertFalse(GraphUtils.edges_overlap(p1, p2, p3, p4))
+
+    def test_edges_overlap_collinear_touching(self) -> None:
+        """Collinear segments touching at one point don't overlap."""
+        p1, p2 = (0.0, 0.0), (1.0, 0.0)
+        p3, p4 = (1.0, 0.0), (2.0, 0.0)
+        self.assertFalse(GraphUtils.edges_overlap(p1, p2, p3, p4))
+
+    def test_edges_overlap_not_collinear(self) -> None:
+        """Non-collinear segments don't overlap."""
+        p1, p2 = (0.0, 0.0), (1.0, 0.0)
+        p3, p4 = (0.0, 1.0), (1.0, 1.0)
+        self.assertFalse(GraphUtils.edges_overlap(p1, p2, p3, p4))
+
+    def test_edges_overlap_vertical(self) -> None:
+        """Vertical collinear overlapping segments."""
+        p1, p2 = (0.0, 0.0), (0.0, 3.0)
+        p3, p4 = (0.0, 2.0), (0.0, 5.0)
+        self.assertTrue(GraphUtils.edges_overlap(p1, p2, p3, p4))
+
+    # ------------------------------------------------------------------
+    # point_on_segment
+    # ------------------------------------------------------------------
+
+    def test_point_on_segment_inside(self) -> None:
+        """Point strictly inside segment."""
+        self.assertTrue(GraphUtils.point_on_segment((1.0, 0.0), (0.0, 0.0), (2.0, 0.0)))
+
+    def test_point_on_segment_at_start(self) -> None:
+        """Point at segment start is not inside."""
+        self.assertFalse(GraphUtils.point_on_segment((0.0, 0.0), (0.0, 0.0), (2.0, 0.0)))
+
+    def test_point_on_segment_at_end(self) -> None:
+        """Point at segment end is not inside."""
+        self.assertFalse(GraphUtils.point_on_segment((2.0, 0.0), (0.0, 0.0), (2.0, 0.0)))
+
+    def test_point_on_segment_outside_collinear(self) -> None:
+        """Point collinear but outside segment."""
+        self.assertFalse(GraphUtils.point_on_segment((3.0, 0.0), (0.0, 0.0), (2.0, 0.0)))
+
+    def test_point_on_segment_not_collinear(self) -> None:
+        """Point not on the line."""
+        self.assertFalse(GraphUtils.point_on_segment((1.0, 1.0), (0.0, 0.0), (2.0, 0.0)))
+
+    def test_point_on_segment_diagonal(self) -> None:
+        """Point on diagonal segment."""
+        self.assertTrue(GraphUtils.point_on_segment((1.0, 1.0), (0.0, 0.0), (2.0, 2.0)))
+
+    def test_point_on_segment_vertical(self) -> None:
+        """Point on vertical segment."""
+        self.assertTrue(GraphUtils.point_on_segment((0.0, 1.0), (0.0, 0.0), (0.0, 2.0)))
+
+    # ------------------------------------------------------------------
+    # adjacent_edges_overlap
+    # ------------------------------------------------------------------
+
+    def test_adjacent_edges_overlap_point_inside(self) -> None:
+        """Adjacent edges where one endpoint lies on the other edge."""
+        # Edge 1: (0,0) to (2,0), Edge 2: (1,0) to (3,0)
+        # They share the region from (1,0) to (2,0) conceptually,
+        # but more importantly, (1,0) lies on edge 1
+        p1, p2 = (0.0, 0.0), (2.0, 0.0)  # edge 1
+        p3, p4 = (1.0, 0.0), (3.0, 0.0)  # edge 2
+        self.assertTrue(GraphUtils.adjacent_edges_overlap(p1, p2, p3, p4, True))
+
+    def test_adjacent_edges_overlap_no_overlap(self) -> None:
+        """Adjacent edges that meet at a vertex without overlap."""
+        # L-shape: (0,0)-(1,0) and (1,0)-(1,1)
+        p1, p2 = (0.0, 0.0), (1.0, 0.0)
+        p3, p4 = (1.0, 0.0), (1.0, 1.0)
+        self.assertFalse(GraphUtils.adjacent_edges_overlap(p1, p2, p3, p4, True))
+
+    def test_adjacent_edges_overlap_cap_on_edge(self) -> None:
+        """Cap vertex lies on the main edge (I on B-C scenario)."""
+        # B-C is (0,0) to (2,0), I is at (1,0)
+        # Edge I-B: (1,0) to (0,0)
+        # Edge B-C: (0,0) to (2,0)
+        # I lies on B-C
+        p1, p2 = (1.0, 0.0), (0.0, 0.0)  # I-B
+        p3, p4 = (0.0, 0.0), (2.0, 0.0)  # B-C
+        self.assertTrue(GraphUtils.adjacent_edges_overlap(p1, p2, p3, p4, True))
+
+    def test_adjacent_edges_overlap_collinear_extending(self) -> None:
+        """Adjacent collinear edges that extend in same direction."""
+        # A-B: (0,0) to (1,0), B-C: (1,0) to (2,0)
+        # These share only the endpoint, no overlap
+        p1, p2 = (0.0, 0.0), (1.0, 0.0)
+        p3, p4 = (1.0, 0.0), (2.0, 0.0)
+        self.assertFalse(GraphUtils.adjacent_edges_overlap(p1, p2, p3, p4, True))
+
+    # ------------------------------------------------------------------
+    # count_edge_overlaps
+    # ------------------------------------------------------------------
+
+    def test_count_edge_overlaps_no_overlaps(self) -> None:
+        """Square layout has no overlapping edges."""
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        positions = {"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (1.0, 1.0), "D": (0.0, 1.0)}
+        self.assertEqual(GraphUtils.count_edge_overlaps(edges, positions), 0)
+
+    def test_count_edge_overlaps_collinear_non_adjacent(self) -> None:
+        """Non-adjacent collinear overlapping edges."""
+        edges = [Edge("A", "B"), Edge("C", "D")]
+        # A-B and C-D overlap on the x-axis
+        positions = {"A": (0.0, 0.0), "B": (3.0, 0.0), "C": (2.0, 0.0), "D": (5.0, 0.0)}
+        self.assertEqual(GraphUtils.count_edge_overlaps(edges, positions), 1)
+
+    def test_count_edge_overlaps_adjacent_with_cap(self) -> None:
+        """Adjacent edges with cap vertex on main edge."""
+        # B at (0,0), C at (2,0), I at (1,0)
+        # I connects to B and C
+        edges = [Edge("B", "C"), Edge("I", "B"), Edge("I", "C")]
+        positions = {"B": (0.0, 0.0), "C": (2.0, 0.0), "I": (1.0, 0.0)}
+        # I-B overlaps with B-C, I-C overlaps with B-C
+        overlaps = GraphUtils.count_edge_overlaps(edges, positions)
+        self.assertEqual(overlaps, 2)
+
+    def test_count_edge_overlaps_triangle_no_overlap(self) -> None:
+        """Regular triangle has no overlapping edges."""
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "A")]
+        positions = {"A": (0.0, 0.0), "B": (2.0, 0.0), "C": (1.0, 1.732)}
+        self.assertEqual(GraphUtils.count_edge_overlaps(edges, positions), 0)
+
 
 # Preserve legacy test case name expected by the runner
 class TestGraphUtils(TestGraph):
