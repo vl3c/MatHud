@@ -2103,6 +2103,23 @@ def _compute_optimization_grid_size(n_vertices: int, n_edges: int) -> int:
     return max(int(math.ceil(math.sqrt(n_vertices))) * multiplier, 12)
 
 
+def _count_total_orthogonal_grid(
+    edges: List[Edge[str]],
+    grid_pos: Dict[str, Tuple[int, int]],
+) -> int:
+    """Count total number of orthogonal edges in grid positions."""
+    count = 0
+    for e in edges:
+        p1 = grid_pos.get(e.source)
+        p2 = grid_pos.get(e.target)
+        if p1 is None or p2 is None:
+            continue
+        # Orthogonal if same row or same column
+        if p1[0] == p2[0] or p1[1] == p2[1]:
+            count += 1
+    return count
+
+
 def _find_best_crossing_move(
     crossing_pair: Tuple[Edge[str], Edge[str]],
     grid_pos: Dict[str, Tuple[int, int]],
@@ -2114,14 +2131,21 @@ def _find_best_crossing_move(
     """
     Find the best vertex move to eliminate a crossing.
     
+    Considers GLOBAL orthogonality - won't accept moves that decrease
+    total orthogonal edge count unless they eliminate crossings.
+    
     Returns (vertex, new_position, new_crossing_count) or None if no improvement.
     """
     e1 = crossing_pair[0]
     e2 = crossing_pair[1]
     involved = [e1.source, e1.target, e2.source, e2.target]
     
+    # Track current global orthogonality
+    current_global_ortho = _count_total_orthogonal_grid(edges, grid_pos)
+    
     best_move = None
-    best_move_score = (best_crossing_count, 0)
+    # Score: (crossings, -global_ortho) - minimize crossings, maximize orthogonality
+    best_move_score = (best_crossing_count, -current_global_ortho)
     
     for v in involved:
         old_pos = grid_pos[v]
@@ -2131,15 +2155,22 @@ def _find_best_crossing_move(
             grid_pos[v] = new_pos
             new_float_pos = _from_grid_coords(grid_pos, box, grid_size)
             new_crossing_count = len(_find_crossing_pairs(edges, new_float_pos))
-            new_ortho = _count_orthogonal_for_vertex(v, new_pos, edges, grid_pos)
+            # Count GLOBAL orthogonality, not just local
+            new_global_ortho = _count_total_orthogonal_grid(edges, grid_pos)
             grid_pos[v] = old_pos
             
-            move_score = (new_crossing_count, -new_ortho)
+            move_score = (new_crossing_count, -new_global_ortho)
             
+            # Only accept if:
+            # 1. Reduces crossings AND doesn't decrease global orthogonality too much
+            # 2. Or eliminates all crossings
             if new_crossing_count < best_crossing_count:
-                if best_move is None or move_score < best_move_score:
-                    best_move = (v, new_pos, new_crossing_count)
-                    best_move_score = move_score
+                # Accept if orthogonality doesn't decrease by more than 1
+                ortho_loss = current_global_ortho - new_global_ortho
+                if new_crossing_count == 0 or ortho_loss <= 1:
+                    if best_move is None or move_score < best_move_score:
+                        best_move = (v, new_pos, new_crossing_count)
+                        best_move_score = move_score
     
     return best_move
 
@@ -2155,9 +2186,13 @@ def _try_expanded_search(
     """
     Try to reduce crossings using expanded search radius.
     
+    Considers global orthogonality - won't accept moves that significantly
+    decrease total orthogonal edge count.
+    
     Returns (improved, new_crossing_count, best_grid_pos).
     """
     best_grid_pos = dict(grid_pos)
+    current_global_ortho = _count_total_orthogonal_grid(edges, grid_pos)
     
     for v in vertex_ids:
         old_pos = grid_pos[v]
@@ -2167,8 +2202,11 @@ def _try_expanded_search(
             grid_pos[v] = new_pos
             new_float_pos = _from_grid_coords(grid_pos, box, grid_size)
             new_crossing_count = len(_find_crossing_pairs(edges, new_float_pos))
+            new_global_ortho = _count_total_orthogonal_grid(edges, grid_pos)
             
-            if new_crossing_count < best_crossing_count:
+            # Accept if crossings reduced AND orthogonality not significantly hurt
+            ortho_loss = current_global_ortho - new_global_ortho
+            if new_crossing_count < best_crossing_count and ortho_loss <= 1:
                 return True, new_crossing_count, dict(grid_pos)
             else:
                 grid_pos[v] = old_pos
