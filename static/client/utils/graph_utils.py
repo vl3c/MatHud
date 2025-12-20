@@ -1055,3 +1055,90 @@ class GraphUtils:
 
         return new_parent, new_children
 
+    # =========================================================================
+    # Geometric Edge Crossing Detection
+    # =========================================================================
+
+    @staticmethod
+    def segments_cross(
+        p1: Tuple[float, float],
+        p2: Tuple[float, float],
+        p3: Tuple[float, float],
+        p4: Tuple[float, float],
+        eps: float = 0.01,
+    ) -> bool:
+        """
+        Check if line segment p1-p2 crosses segment p3-p4.
+        
+        Uses parametric line intersection to detect if segments cross at an
+        interior point (not at endpoints).
+        
+        Args:
+            p1: First endpoint of segment 1
+            p2: Second endpoint of segment 1
+            p3: First endpoint of segment 2
+            p4: Second endpoint of segment 2
+            eps: Epsilon for endpoint exclusion (default 0.01)
+        
+        Returns:
+            True if segments cross at an interior point, False otherwise.
+        """
+        x1, y1 = p1
+        x2, y2 = p2
+        x3, y3 = p3
+        x4, y4 = p4
+        
+        denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        if abs(denom) < 1e-10:
+            return False  # Parallel or coincident
+        
+        t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
+        u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom
+        
+        # Check if intersection is strictly inside both segments (not at endpoints)
+        return eps < t < 1 - eps and eps < u < 1 - eps
+
+    @staticmethod
+    def count_edge_crossings(
+        edges: List["Edge[V]"],
+        positions: Dict[V, Tuple[float, float]],
+    ) -> int:
+        """
+        Count the number of edge pairs that cross in a graph layout.
+        
+        Two edges cross if they intersect at a point that is not a shared
+        endpoint. Edges that share a vertex are not counted as crossing.
+        
+        Args:
+            edges: List of edges in the graph
+            positions: Mapping from vertex to (x, y) coordinates
+        
+        Returns:
+            Number of crossing edge pairs.
+        """
+        crossings = 0
+        edge_list = list(edges)
+        
+        for i in range(len(edge_list)):
+            e1 = edge_list[i]
+            p1 = positions.get(e1.source)
+            p2 = positions.get(e1.target)
+            if p1 is None or p2 is None:
+                continue
+            
+            for j in range(i + 1, len(edge_list)):
+                e2 = edge_list[j]
+                # Skip edges sharing a vertex
+                if e1.source in (e2.source, e2.target) or e1.target in (e2.source, e2.target):
+                    continue
+                
+                p3 = positions.get(e2.source)
+                p4 = positions.get(e2.target)
+                if p3 is None or p4 is None:
+                    continue
+                
+                if GraphUtils.segments_cross(p1, p2, p3, p4):
+                    crossings += 1
+        
+        return crossings
+

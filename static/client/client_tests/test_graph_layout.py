@@ -15,7 +15,7 @@ from utils.graph_layout import (
     _infer_root,
     _is_tree_structure,
 )
-from utils.graph_utils import Edge
+from utils.graph_utils import Edge, GraphUtils
 
 
 class TestGraphLayout(unittest.TestCase):
@@ -241,6 +241,56 @@ class TestGraphLayout(unittest.TestCase):
         ]
         is_planar, embedding = _is_planar(vertices, edges)
         self.assertFalse(is_planar)
+
+    # ------------------------------------------------------------------
+    # Grid layout edge crossing tests
+    # ------------------------------------------------------------------
+
+    def test_grid_layout_simple_square_no_crossings(self) -> None:
+        """Simple square cycle should have no edge crossings."""
+        vertices = ["A", "B", "C", "D"]
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        crossings = GraphUtils.count_edge_crossings(edges, positions)
+        self.assertEqual(crossings, 0, f"Simple square has {crossings} edge crossings")
+
+    def test_grid_layout_two_squares_bridge_no_crossings(self) -> None:
+        """Two square cycles connected by bridge should have no edge crossings."""
+        vertices = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        edges = [
+            # Square 1: A-B-C-D
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A"),
+            # Square 2: E-F-G-H
+            Edge("E", "F"), Edge("F", "G"), Edge("G", "H"), Edge("H", "E"),
+            # Bridge: D-E
+            Edge("D", "E"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        crossings = GraphUtils.count_edge_crossings(edges, positions)
+        self.assertEqual(crossings, 0, f"Two squares with bridge has {crossings} edge crossings")
+
+    def test_grid_layout_two_squares_with_caps_no_crossings(self) -> None:
+        """Two squares with diagonal caps connected by bridge should minimize crossings."""
+        vertices = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+        edges = [
+            # Square 1: A-B-C-D
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A"),
+            # Square 2: E-F-G-H
+            Edge("E", "F"), Edge("F", "G"), Edge("G", "H"), Edge("H", "E"),
+            # Bridge: D-E
+            Edge("D", "E"),
+            # Cap I connects to B and C
+            Edge("I", "B"), Edge("I", "C"),
+            # Cap J connects to F and G
+            Edge("J", "F"), Edge("J", "G"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        crossings = GraphUtils.count_edge_crossings(edges, positions)
+        # This graph is planar, so should have 0 crossings with good layout
+        self.assertEqual(crossings, 0, f"Two squares with caps has {crossings} edge crossings")
 
     # ------------------------------------------------------------------
     # Tree layout
