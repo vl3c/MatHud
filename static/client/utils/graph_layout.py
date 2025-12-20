@@ -323,20 +323,24 @@ def _grid_layout(
         diagonal_ratio = diagonal_count / max(len(edges), 1)
         print(f"[GRID] Diagonal ratio: {diagonal_count}/{len(edges)} = {diagonal_ratio:.2f}")
         
-        if diagonal_ratio > 0.3:  # More than 30% diagonal -> fallback
+        if diagonal_ratio > 0.7:  # More than 70% diagonal -> fallback
+            # Only fall back for very poor layouts; rely on elimination to fix moderate cases
             print(f"[GRID] Too many diagonals, using force-directed fallback")
             result = _force_to_grid_fallback(vertex_ids, edges, box)
         else:
             result = _compact_orthogonal(ortho_rep, vertex_ids, edges, box)
         
-        # Check for crossings and eliminate if needed
+        # Check for crossings/overlaps and eliminate if needed
         result = {k: (float(v[0]), float(v[1])) for k, v in result.items()}
         crossings = GraphUtils.count_edge_crossings(edges, result)
-        if crossings > 0:
-            print(f"[GRID] Detected {crossings} crossings, running elimination...")
+        overlaps = GraphUtils.count_edge_overlaps(edges, result)
+        
+        if crossings > 0 or overlaps > 0:
+            print(f"[GRID] Detected {crossings} crossings, {overlaps} overlaps, running elimination...")
             result = _eliminate_crossings(vertex_ids, edges, result, box)
             final_crossings = GraphUtils.count_edge_crossings(edges, result)
-            print(f"[GRID] After elimination: {final_crossings} crossings")
+            final_overlaps = GraphUtils.count_edge_overlaps(edges, result)
+            print(f"[GRID] After elimination: {final_crossings} crossings, {final_overlaps} overlaps")
         
         return result
     else:
@@ -355,7 +359,17 @@ def _grid_layout(
             result = _force_to_grid_fallback(vertex_ids, edges, box)
         
         # Defensive: ensure all positions are 2-tuples
-        return {k: (float(v[0]), float(v[1])) for k, v in result.items()}
+        result = {k: (float(v[0]), float(v[1])) for k, v in result.items()}
+        
+        # Check for overlaps and eliminate if needed (non-planar graphs can still have overlaps)
+        overlaps = GraphUtils.count_edge_overlaps(edges, result)
+        if overlaps > 0:
+            print(f"[GRID] Non-planar: Detected {overlaps} overlaps, running elimination...")
+            result = _eliminate_crossings(vertex_ids, edges, result, box)
+            final_overlaps = GraphUtils.count_edge_overlaps(edges, result)
+            print(f"[GRID] After elimination: {final_overlaps} overlaps")
+        
+        return result
 
 
 def _orthogonal_tree_layout(
@@ -1516,35 +1530,45 @@ def _find_crossing_pairs(
     positions: Dict[str, Tuple[float, float]],
 ) -> List[Tuple[Edge[str], Edge[str]]]:
     """
-    Find all pairs of edges that cross each other.
-    
-    Returns list of (edge1, edge2) tuples where the edges cross at an interior point.
-    Edges that share a vertex are not considered crossing.
+    Find all pairs of edges that cross or overlap each other.
+
+    Returns list of (edge1, edge2) tuples where the edges:
+    - Cross at an interior point (non-adjacent edges)
+    - Are collinear and overlap (non-adjacent edges)
+    - Share a vertex but one vertex lies on the other edge (adjacent edges)
     """
     crossing_pairs: List[Tuple[Edge[str], Edge[str]]] = []
     edge_list = list(edges)
-    
+
     for i in range(len(edge_list)):
         e1 = edge_list[i]
         p1 = positions.get(e1.source)
         p2 = positions.get(e1.target)
         if p1 is None or p2 is None:
             continue
-        
+
         for j in range(i + 1, len(edge_list)):
             e2 = edge_list[j]
-            # Skip edges sharing a vertex
-            if e1.source in (e2.source, e2.target) or e1.target in (e2.source, e2.target):
-                continue
-            
             p3 = positions.get(e2.source)
             p4 = positions.get(e2.target)
             if p3 is None or p4 is None:
                 continue
-            
-            if GraphUtils.segments_cross(p1, p2, p3, p4):
-                crossing_pairs.append((e1, e2))
-    
+
+            # Check if edges share a vertex
+            shares_vertex = (
+                e1.source in (e2.source, e2.target) or
+                e1.target in (e2.source, e2.target)
+            )
+
+            if shares_vertex:
+                # Check for adjacent edge overlap
+                if _adjacent_edges_overlap(p1, p2, p3, p4):
+                    crossing_pairs.append((e1, e2))
+            else:
+                # Check for crossing OR collinear overlap
+                if GraphUtils.segments_cross(p1, p2, p3, p4) or _edges_collinear_overlap(p1, p2, p3, p4):
+                    crossing_pairs.append((e1, e2))
+
     return crossing_pairs
 
 
@@ -1602,6 +1626,99 @@ def _from_grid_coords(
     return positions
 
 
+def _edges_collinear_overlap(
+    p1: Tuple[float, float],
+    p2: Tuple[float, float],
+    p3: Tuple[float, float],
+    p4: Tuple[float, float],
+) -> bool:
+    """
+    Check if two edges are collinear and overlap (share more than just an endpoint).
+    
+    Two edges overlap if they are on the same line and their projections overlap.
+    """
+    # Check if all 4 points are collinear
+    def cross_product(o: Tuple[float, float], a: Tuple[float, float], b: Tuple[float, float]) -> float:
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    
+    eps = 1e-9
+    
+    # Check collinearity: all 4 points must be on the same line
+    if abs(cross_product(p1, p2, p3)) > eps or abs(cross_product(p1, p2, p4)) > eps:
+        return False
+    
+    # They are collinear - check if projections overlap
+    # Project onto the axis with larger span
+    dx = abs(p2[0] - p1[0])
+    dy = abs(p2[1] - p1[1])
+    
+    if dx > dy:
+        # Project onto x-axis
+        min1, max1 = min(p1[0], p2[0]), max(p1[0], p2[0])
+        min2, max2 = min(p3[0], p4[0]), max(p3[0], p4[0])
+    else:
+        # Project onto y-axis
+        min1, max1 = min(p1[1], p2[1]), max(p1[1], p2[1])
+        min2, max2 = min(p3[1], p4[1]), max(p3[1], p4[1])
+    
+    # Check if intervals overlap (more than just touching at endpoints)
+    overlap = min(max1, max2) - max(min1, min2)
+    return overlap > eps
+
+
+def _point_on_segment(
+    point: Tuple[float, float],
+    seg_start: Tuple[float, float],
+    seg_end: Tuple[float, float],
+    eps: float = 1e-9,
+) -> bool:
+    """
+    Check if a point lies strictly inside a segment (not at endpoints).
+    """
+    px, py = point
+    x1, y1 = seg_start
+    x2, y2 = seg_end
+    
+    # Check collinearity using cross product
+    cross = (px - x1) * (y2 - y1) - (py - y1) * (x2 - x1)
+    if abs(cross) > eps:
+        return False
+    
+    # Check if point is between endpoints (strictly inside)
+    dx = abs(x2 - x1)
+    dy = abs(y2 - y1)
+    
+    if dx > dy:
+        min_v, max_v = min(x1, x2), max(x1, x2)
+        return min_v + eps < px < max_v - eps
+    else:
+        min_v, max_v = min(y1, y2), max(y1, y2)
+        return min_v + eps < py < max_v - eps
+
+
+def _adjacent_edges_overlap(
+    p1: Tuple[float, float],
+    p2: Tuple[float, float],
+    p3: Tuple[float, float],
+    p4: Tuple[float, float],
+) -> bool:
+    """
+    Check if two edges that share a vertex overlap.
+    
+    Returns True if the non-shared vertex of one edge lies on the other edge.
+    """
+    # Check if any non-shared point lies on the other segment
+    if _point_on_segment(p1, p3, p4):
+        return True
+    if _point_on_segment(p2, p3, p4):
+        return True
+    if _point_on_segment(p3, p1, p2):
+        return True
+    if _point_on_segment(p4, p1, p2):
+        return True
+    return False
+
+
 def _count_crossings_for_vertex(
     vertex: str,
     pos: Tuple[int, int],
@@ -1610,24 +1727,24 @@ def _count_crossings_for_vertex(
     grid_size: int,
 ) -> int:
     """
-    Count how many edge crossings would occur if vertex is at the given position.
+    Count how many edge crossings or overlaps would occur if vertex is at the given position.
     
-    Only counts crossings involving edges incident to the vertex.
+    Counts:
+    - Crossing edges (non-adjacent)
+    - Collinear overlapping edges (non-adjacent)
+    - Adjacent edge overlaps (vertex on another edge)
     """
     # Temporarily set the vertex position
     old_pos = grid_pos.get(vertex)
     grid_pos[vertex] = pos
     
     # Convert to float positions for crossing detection
-    # Use a unit box for simplicity since we only care about relative positions
     float_pos: Dict[str, Tuple[float, float]] = {}
     for vid, gpos in grid_pos.items():
         float_pos[vid] = (float(gpos[0]), float(gpos[1]))
     
-    # Count crossings for edges incident to this vertex
-    crossings = 0
+    problems = 0
     incident_edges = [e for e in edges if e.source == vertex or e.target == vertex]
-    other_edges = [e for e in edges if e.source != vertex and e.target != vertex]
     
     for e1 in incident_edges:
         p1 = float_pos.get(e1.source)
@@ -1635,9 +1752,8 @@ def _count_crossings_for_vertex(
         if p1 is None or p2 is None:
             continue
         
-        for e2 in other_edges:
-            # Skip edges sharing a vertex with e1
-            if e1.source in (e2.source, e2.target) or e1.target in (e2.source, e2.target):
+        for e2 in edges:
+            if e1 == e2:
                 continue
             
             p3 = float_pos.get(e2.source)
@@ -1645,14 +1761,87 @@ def _count_crossings_for_vertex(
             if p3 is None or p4 is None:
                 continue
             
-            if GraphUtils.segments_cross(p1, p2, p3, p4):
-                crossings += 1
+            # Check if edges share a vertex
+            shares_vertex = (
+                e1.source in (e2.source, e2.target) or
+                e1.target in (e2.source, e2.target)
+            )
+            
+            if shares_vertex:
+                # Check for adjacent edge overlap (vertex on segment)
+                if _adjacent_edges_overlap(p1, p2, p3, p4):
+                    problems += 1
+            else:
+                # Check for crossing OR collinear overlap
+                if GraphUtils.segments_cross(p1, p2, p3, p4) or _edges_collinear_overlap(p1, p2, p3, p4):
+                    problems += 1
     
     # Restore old position
     if old_pos is not None:
         grid_pos[vertex] = old_pos
     
-    return crossings
+    return problems
+
+
+def _count_orthogonal_for_vertex(
+    vertex: str,
+    pos: Tuple[int, int],
+    edges: List[Edge[str]],
+    grid_pos: Dict[str, Tuple[int, int]],
+) -> int:
+    """
+    Count how many orthogonal edges the vertex would have at the given position.
+    
+    An edge is orthogonal if the vertices share the same row or column.
+    """
+    col, row = pos
+    orthogonal = 0
+    
+    # Check edges incident to this vertex
+    for e in edges:
+        if e.source == vertex:
+            other = e.target
+        elif e.target == vertex:
+            other = e.source
+        else:
+            continue
+        
+        other_pos = grid_pos.get(other)
+        if other_pos is None:
+            continue
+        
+        other_col, other_row = other_pos
+        # Orthogonal if same row OR same column
+        if col == other_col or row == other_row:
+            orthogonal += 1
+    
+    return orthogonal
+
+
+def _score_position(
+    vertex: str,
+    pos: Tuple[int, int],
+    edges: List[Edge[str]],
+    grid_pos: Dict[str, Tuple[int, int]],
+    grid_size: int,
+) -> Tuple[int, int]:
+    """
+    Score a position for a vertex.
+    
+    Returns (crossings, -orthogonal) so that sorting gives:
+    - First priority: minimize crossings
+    - Second priority: maximize orthogonal edges (negative for sorting)
+    """
+    crossings = _count_crossings_for_vertex(vertex, pos, edges, grid_pos, grid_size)
+    
+    # Temporarily set position to count orthogonal edges
+    old_pos = grid_pos.get(vertex)
+    grid_pos[vertex] = pos
+    orthogonal = _count_orthogonal_for_vertex(vertex, pos, edges, grid_pos)
+    if old_pos is not None:
+        grid_pos[vertex] = old_pos
+    
+    return (crossings, -orthogonal)  # Negative so higher orthogonal is better
 
 
 def _find_best_position(
@@ -1661,30 +1850,33 @@ def _find_best_position(
     grid_pos: Dict[str, Tuple[int, int]],
     grid_size: int,
     search_radius: int = 3,
+    optimize_orthogonality: bool = True,
 ) -> Tuple[int, int]:
     """
-    Find the best grid position for a vertex that minimizes edge crossings.
+    Find the best grid position for a vertex.
+    
+    Optimizes for:
+    1. Minimum edge crossings (primary)
+    2. Maximum orthogonal edges (secondary, if optimize_orthogonality=True)
     
     Searches positions within search_radius of the current position.
-    Returns the position with the fewest crossings, or current position if no improvement.
     """
     current_pos = grid_pos.get(vertex)
     if current_pos is None:
         return (0, 0)
     
     current_col, current_row = current_pos
-    current_crossings = _count_crossings_for_vertex(vertex, current_pos, edges, grid_pos, grid_size)
-    
-    if current_crossings == 0:
-        return current_pos  # Already optimal
+    current_score = _score_position(vertex, current_pos, edges, grid_pos, grid_size)
     
     best_pos = current_pos
-    best_crossings = current_crossings
+    best_score = current_score
     
     # Get occupied positions (excluding current vertex)
     occupied = {gpos for vid, gpos in grid_pos.items() if vid != vertex}
     
-    # Search nearby positions
+    # Collect candidate positions
+    candidates: List[Tuple[Tuple[int, int], Tuple[int, int]]] = []
+    
     for dc in range(-search_radius, search_radius + 1):
         for dr in range(-search_radius, search_radius + 1):
             if dc == 0 and dr == 0:
@@ -1702,11 +1894,21 @@ def _find_best_position(
                 continue
             
             new_pos = (new_col, new_row)
-            new_crossings = _count_crossings_for_vertex(vertex, new_pos, edges, grid_pos, grid_size)
-            
-            if new_crossings < best_crossings:
-                best_crossings = new_crossings
-                best_pos = new_pos
+            score = _score_position(vertex, new_pos, edges, grid_pos, grid_size)
+            candidates.append((new_pos, score))
+    
+    # Find best candidate
+    for pos, score in candidates:
+        if optimize_orthogonality:
+            # Compare full score (crossings, -orthogonal)
+            if score < best_score:
+                best_score = score
+                best_pos = pos
+        else:
+            # Only compare crossings
+            if score[0] < best_score[0]:
+                best_score = score
+                best_pos = pos
     
     return best_pos
 
@@ -1738,8 +1940,9 @@ def _eliminate_crossings(
         Improved positions with fewer/no crossings
     """
     # Determine grid size based on vertex count
+    # Use larger grid to allow more flexibility for orthogonal placement
     n = len(vertex_ids)
-    grid_size = max(int(math.ceil(math.sqrt(n))) * 2, 6)
+    grid_size = max(int(math.ceil(math.sqrt(n))) * 3, 10)
     
     # Convert to grid coordinates
     grid_pos = _to_grid_coords(positions, box, grid_size)
@@ -1813,6 +2016,114 @@ def _eliminate_crossings(
             if not improved:
                 print(f"[CROSSING-ELIM] No improvement possible, stopping at {best_crossing_count} crossings")
                 break
+    
+    # Phase 2: Optimize orthogonality while maintaining 0 crossings
+    if best_crossing_count == 0:
+        grid_pos = dict(best_grid_pos)
+        
+        # Count initial orthogonal edges
+        float_pos = _from_grid_coords(grid_pos, box, grid_size)
+        initial_ortho = GraphUtils.count_orthogonal_edges(edges, float_pos)
+        print(f"[ORTHO-OPT] Starting orthogonality optimization: {initial_ortho[0]}/{initial_ortho[1]} edges orthogonal")
+        
+        # Build adjacency for neighbor-aware optimization
+        adjacency: Dict[str, List[str]] = {v: [] for v in vertex_ids}
+        for e in edges:
+            adjacency[e.source].append(e.target)
+            adjacency[e.target].append(e.source)
+        
+        for ortho_iter in range(max_iterations):
+            improved = False
+            
+            for v in vertex_ids:
+                old_pos = grid_pos[v]
+                old_col, old_row = old_pos
+                
+                # Find position that maximizes orthogonality without creating crossings
+                best_ortho_pos = old_pos
+                best_ortho_count = _count_orthogonal_for_vertex(v, old_pos, edges, grid_pos)
+                
+                # Get occupied positions
+                occupied = {gpos for vid, gpos in grid_pos.items() if vid != v}
+                
+                # Strategy 1: Search nearby positions (wider radius)
+                search_radius = grid_size // 2
+                for dc in range(-search_radius, search_radius + 1):
+                    for dr in range(-search_radius, search_radius + 1):
+                        if dc == 0 and dr == 0:
+                            continue
+                        
+                        new_col = old_col + dc
+                        new_row = old_row + dr
+                        
+                        if new_col < 0 or new_col >= grid_size or new_row < 0 or new_row >= grid_size:
+                            continue
+                        
+                        if (new_col, new_row) in occupied:
+                            continue
+                        
+                        new_pos = (new_col, new_row)
+                        
+                        # Check that this doesn't create crossings
+                        crossings = _count_crossings_for_vertex(v, new_pos, edges, grid_pos, grid_size)
+                        if crossings > 0:
+                            continue
+                        
+                        # Count orthogonal edges at new position
+                        grid_pos[v] = new_pos
+                        ortho_count = _count_orthogonal_for_vertex(v, new_pos, edges, grid_pos)
+                        grid_pos[v] = old_pos
+                        
+                        if ortho_count > best_ortho_count:
+                            best_ortho_count = ortho_count
+                            best_ortho_pos = new_pos
+                
+                # Strategy 2: Try aligning with each neighbor
+                for neighbor in adjacency[v]:
+                    neighbor_pos = grid_pos[neighbor]
+                    n_col, n_row = neighbor_pos
+                    
+                    # Try same row as neighbor
+                    for test_col in range(grid_size):
+                        if (test_col, n_row) in occupied or (test_col, n_row) == old_pos:
+                            continue
+                        new_pos = (test_col, n_row)
+                        crossings = _count_crossings_for_vertex(v, new_pos, edges, grid_pos, grid_size)
+                        if crossings > 0:
+                            continue
+                        grid_pos[v] = new_pos
+                        ortho_count = _count_orthogonal_for_vertex(v, new_pos, edges, grid_pos)
+                        grid_pos[v] = old_pos
+                        if ortho_count > best_ortho_count:
+                            best_ortho_count = ortho_count
+                            best_ortho_pos = new_pos
+                    
+                    # Try same column as neighbor
+                    for test_row in range(grid_size):
+                        if (n_col, test_row) in occupied or (n_col, test_row) == old_pos:
+                            continue
+                        new_pos = (n_col, test_row)
+                        crossings = _count_crossings_for_vertex(v, new_pos, edges, grid_pos, grid_size)
+                        if crossings > 0:
+                            continue
+                        grid_pos[v] = new_pos
+                        ortho_count = _count_orthogonal_for_vertex(v, new_pos, edges, grid_pos)
+                        grid_pos[v] = old_pos
+                        if ortho_count > best_ortho_count:
+                            best_ortho_count = ortho_count
+                            best_ortho_pos = new_pos
+                
+                if best_ortho_pos != old_pos:
+                    grid_pos[v] = best_ortho_pos
+                    best_grid_pos = dict(grid_pos)
+                    improved = True
+            
+            if not improved:
+                break
+        
+        final_float_pos = _from_grid_coords(best_grid_pos, box, grid_size)
+        final_ortho = GraphUtils.count_orthogonal_edges(edges, final_float_pos)
+        print(f"[ORTHO-OPT] Final: {final_ortho[0]}/{final_ortho[1]} edges orthogonal")
     
     # Return best result found
     return _from_grid_coords(best_grid_pos, box, grid_size)
