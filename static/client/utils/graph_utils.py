@@ -23,6 +23,7 @@ Use Cases:
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Callable, Dict, FrozenSet, Generic, List, Optional, Sequence, Set, Tuple, TypeVar
 
 from geometry.graph_state import GraphEdgeDescriptor, GraphVertexDescriptor
@@ -1400,4 +1401,103 @@ class GraphUtils:
                         overlaps += 1
         
         return overlaps
+
+    @staticmethod
+    def compute_edge_length(
+        p1: Tuple[float, float],
+        p2: Tuple[float, float],
+    ) -> float:
+        """Compute Euclidean length of an edge."""
+        dx = p2[0] - p1[0]
+        dy = p2[1] - p1[1]
+        return math.sqrt(dx * dx + dy * dy)
+
+    @staticmethod
+    def get_edge_lengths(
+        edges: List[Edge[str]],
+        positions: Dict[str, Tuple[float, float]],
+    ) -> List[float]:
+        """Get list of edge lengths for all edges."""
+        lengths: List[float] = []
+        for e in edges:
+            p1 = positions.get(e.source)
+            p2 = positions.get(e.target)
+            if p1 is not None and p2 is not None:
+                lengths.append(GraphUtils.compute_edge_length(p1, p2))
+        return lengths
+
+    @staticmethod
+    def count_edges_with_same_length(
+        edges: List[Edge[str]],
+        positions: Dict[str, Tuple[float, float]],
+        tolerance: float = 0.1,
+    ) -> Tuple[int, int, float]:
+        """
+        Count edges that have the same length (within tolerance).
+        
+        Args:
+            edges: List of edges
+            positions: Vertex positions
+            tolerance: Relative tolerance for length comparison (0.1 = 10%)
+            
+        Returns:
+            (count_of_most_common_length, total_edges, most_common_length)
+        """
+        lengths = GraphUtils.get_edge_lengths(edges, positions)
+        if not lengths:
+            return 0, 0, 0.0
+        
+        # Group lengths by similarity
+        groups: List[List[float]] = []
+        for length in lengths:
+            found_group = False
+            for group in groups:
+                # Check if this length is similar to the group's first element
+                if abs(length - group[0]) <= tolerance * group[0]:
+                    group.append(length)
+                    found_group = True
+                    break
+            if not found_group:
+                groups.append([length])
+        
+        # Find largest group
+        largest_group = max(groups, key=len) if groups else []
+        most_common_length = sum(largest_group) / len(largest_group) if largest_group else 0.0
+        
+        return len(largest_group), len(lengths), most_common_length
+
+    @staticmethod
+    def edge_length_variance(
+        edges: List[Edge[str]],
+        positions: Dict[str, Tuple[float, float]],
+    ) -> float:
+        """
+        Compute variance of edge lengths.
+        
+        Lower variance means more uniform edge lengths.
+        Returns 0.0 if fewer than 2 edges.
+        """
+        lengths = GraphUtils.get_edge_lengths(edges, positions)
+        if len(lengths) < 2:
+            return 0.0
+        
+        mean = sum(lengths) / len(lengths)
+        variance = sum((l - mean) ** 2 for l in lengths) / len(lengths)
+        return variance
+
+    @staticmethod
+    def edge_length_uniformity_ratio(
+        edges: List[Edge[str]],
+        positions: Dict[str, Tuple[float, float]],
+        tolerance: float = 0.1,
+    ) -> float:
+        """
+        Compute what fraction of edges have the most common length.
+        
+        Returns a value between 0 and 1, where 1 means all edges have the same length.
+        """
+        same_count, total, _ = GraphUtils.count_edges_with_same_length(edges, positions, tolerance)
+        if total == 0:
+            return 1.0
+        return same_count / total
 
