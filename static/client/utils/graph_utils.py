@@ -1213,3 +1213,191 @@ class GraphUtils:
         
         return (orthogonal, total)
 
+    @staticmethod
+    def edges_overlap(
+        p1: Tuple[float, float],
+        p2: Tuple[float, float],
+        p3: Tuple[float, float],
+        p4: Tuple[float, float],
+        eps: float = 1e-9,
+    ) -> bool:
+        """
+        Check if two edges are collinear and overlap (share more than just an endpoint).
+        
+        Two edges overlap if they lie on the same line and their projections
+        onto that line overlap by more than just a point.
+        
+        Args:
+            p1, p2: Endpoints of first edge
+            p3, p4: Endpoints of second edge
+            eps: Tolerance for floating-point comparisons
+        
+        Returns:
+            True if the edges are collinear and overlap.
+        """
+        # Cross product to check collinearity
+        def cross_product(
+            o: Tuple[float, float],
+            a: Tuple[float, float],
+            b: Tuple[float, float],
+        ) -> float:
+            return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+        
+        # Check if all 4 points are collinear
+        if abs(cross_product(p1, p2, p3)) > eps or abs(cross_product(p1, p2, p4)) > eps:
+            return False
+        
+        # They are collinear - check if projections overlap
+        dx = abs(p2[0] - p1[0])
+        dy = abs(p2[1] - p1[1])
+        
+        if dx > dy:
+            # Project onto x-axis
+            min1, max1 = min(p1[0], p2[0]), max(p1[0], p2[0])
+            min2, max2 = min(p3[0], p4[0]), max(p3[0], p4[0])
+        else:
+            # Project onto y-axis
+            min1, max1 = min(p1[1], p2[1]), max(p1[1], p2[1])
+            min2, max2 = min(p3[1], p4[1]), max(p3[1], p4[1])
+        
+        # Check if intervals overlap (more than just touching at endpoints)
+        overlap = min(max1, max2) - max(min1, min2)
+        return overlap > eps
+
+    @staticmethod
+    def point_on_segment(
+        point: Tuple[float, float],
+        seg_start: Tuple[float, float],
+        seg_end: Tuple[float, float],
+        eps: float = 1e-9,
+    ) -> bool:
+        """
+        Check if a point lies strictly inside a segment (not at endpoints).
+        
+        Args:
+            point: The point to check
+            seg_start, seg_end: Segment endpoints
+            eps: Tolerance for floating-point comparisons
+        
+        Returns:
+            True if point is on the segment interior (not at endpoints).
+        """
+        px, py = point
+        x1, y1 = seg_start
+        x2, y2 = seg_end
+        
+        # Check collinearity using cross product
+        cross = (px - x1) * (y2 - y1) - (py - y1) * (x2 - x1)
+        if abs(cross) > eps:
+            return False
+        
+        # Check if point is between endpoints (strictly inside)
+        dx = abs(x2 - x1)
+        dy = abs(y2 - y1)
+        
+        if dx > dy:
+            # Use x-coordinate
+            min_x, max_x = min(x1, x2), max(x1, x2)
+            return min_x + eps < px < max_x - eps
+        else:
+            # Use y-coordinate
+            min_y, max_y = min(y1, y2), max(y1, y2)
+            return min_y + eps < py < max_y - eps
+
+    @staticmethod
+    def adjacent_edges_overlap(
+        p1: Tuple[float, float],
+        p2: Tuple[float, float],
+        p3: Tuple[float, float],
+        p4: Tuple[float, float],
+        shared_is_p2_and_p3: bool,
+        eps: float = 1e-9,
+    ) -> bool:
+        """
+        Check if two edges that share a vertex overlap.
+        
+        Two adjacent edges overlap if they are collinear and the non-shared
+        vertex of one edge lies on the other edge.
+        
+        Args:
+            p1, p2: Endpoints of first edge
+            p3, p4: Endpoints of second edge
+            shared_is_p2_and_p3: True if p2==p3 is the shared vertex,
+                                 False if some other combination
+            eps: Tolerance for floating-point comparisons
+        
+        Returns:
+            True if the adjacent edges overlap.
+        """
+        # Determine shared and non-shared vertices based on which are equal
+        # We need to check if the non-shared vertex of one edge lies on the other
+        
+        # Check if p1 (non-shared from edge1) lies on edge2 (p3-p4)
+        if GraphUtils.point_on_segment(p1, p3, p4, eps):
+            return True
+        
+        # Check if p4 (non-shared from edge2) lies on edge1 (p1-p2)
+        if GraphUtils.point_on_segment(p4, p1, p2, eps):
+            return True
+        
+        # Also check p2 on edge2 and p3 on edge1 for other shared vertex cases
+        if GraphUtils.point_on_segment(p2, p3, p4, eps):
+            return True
+        if GraphUtils.point_on_segment(p3, p1, p2, eps):
+            return True
+        
+        return False
+
+    @staticmethod
+    def count_edge_overlaps(
+        edges: List["Edge[V]"],
+        positions: Dict[V, Tuple[float, float]],
+    ) -> int:
+        """
+        Count the number of edge pairs that overlap in a graph layout.
+        
+        Two edges overlap if:
+        1. They don't share a vertex and are collinear with overlapping spans, OR
+        2. They share a vertex and the non-shared vertex of one lies on the other
+        
+        Args:
+            edges: List of edges in the graph
+            positions: Mapping from vertex to (x, y) coordinates
+        
+        Returns:
+            Number of overlapping edge pairs.
+        """
+        overlaps = 0
+        edge_list = list(edges)
+        
+        for i in range(len(edge_list)):
+            e1 = edge_list[i]
+            p1 = positions.get(e1.source)
+            p2 = positions.get(e1.target)
+            if p1 is None or p2 is None:
+                continue
+            
+            for j in range(i + 1, len(edge_list)):
+                e2 = edge_list[j]
+                p3 = positions.get(e2.source)
+                p4 = positions.get(e2.target)
+                if p3 is None or p4 is None:
+                    continue
+                
+                # Check if edges share a vertex
+                shares_vertex = (
+                    e1.source in (e2.source, e2.target) or
+                    e1.target in (e2.source, e2.target)
+                )
+                
+                if shares_vertex:
+                    # Check for adjacent edge overlap
+                    if GraphUtils.adjacent_edges_overlap(p1, p2, p3, p4, True):
+                        overlaps += 1
+                else:
+                    # Check for non-adjacent edge overlap
+                    if GraphUtils.edges_overlap(p1, p2, p3, p4):
+                        overlaps += 1
+        
+        return overlaps
+
