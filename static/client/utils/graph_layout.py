@@ -81,13 +81,8 @@ def _center_graph_in_box(
     dx = box_center_x - graph_center_x
     dy = box_center_y - graph_center_y
 
-    print(f"[CENTER] Graph bounds: x=[{graph_min_x:.1f}, {graph_max_x:.1f}], y=[{graph_min_y:.1f}, {graph_max_y:.1f}]")
-    print(f"[CENTER] Box center: ({box_center_x:.1f}, {box_center_y:.1f}), Graph center: ({graph_center_x:.1f}, {graph_center_y:.1f})")
-    print(f"[CENTER] Translation: dx={dx:.1f}, dy={dy:.1f}")
-
     # If already centered (within tolerance), skip
     if abs(dx) < 1.0 and abs(dy) < 1.0:
-        print(f"[CENTER] Already centered, skipping")
         return positions
     
     # Apply translation to all positions
@@ -353,13 +348,7 @@ def _optimize_layout_if_needed(
     needs_optimization = crossings > 0 or overlaps > 0 or ortho_ratio < 0.7
     
     if needs_optimization:
-        print(f"[GRID] Detected {crossings} crossings, {overlaps} overlaps, {ortho_count}/{total_edges} orthogonal, running optimization...")
         result = _eliminate_crossings(vertex_ids, edges, result, box)
-        final_crossings = GraphUtils.count_edge_crossings(edges, result)
-        final_overlaps = GraphUtils.count_edge_overlaps(edges, result)
-        final_ortho_result = GraphUtils.count_orthogonal_edges(edges, result)
-        final_ortho = final_ortho_result[0]
-        print(f"[GRID] After optimization: {final_crossings} crossings, {final_overlaps} overlaps, {final_ortho}/{total_edges} orthogonal")
     
     return result
 
@@ -390,10 +379,8 @@ def _layout_planar_graph(
     
     diagonal_count = _count_diagonal_edges(ortho_rep)
     diagonal_ratio = diagonal_count / max(len(edges), 1)
-    print(f"[GRID] Diagonal ratio: {diagonal_count}/{len(edges)} = {diagonal_ratio:.2f}")
     
     if diagonal_ratio > 0.7:
-        print(f"[GRID] Too many diagonals, using force-directed fallback")
         result = _force_to_grid_fallback(vertex_ids, edges, box)
     else:
         result = _compact_orthogonal(ortho_rep, vertex_ids, edges, box)
@@ -427,10 +414,7 @@ def _layout_non_planar_graph(
     # Eliminate overlaps if present
     overlaps = GraphUtils.count_edge_overlaps(edges, result)
     if overlaps > 0:
-        print(f"[GRID] Non-planar: Detected {overlaps} overlaps, running elimination...")
         result = _eliminate_crossings(vertex_ids, edges, result, box)
-        final_overlaps = GraphUtils.count_edge_overlaps(edges, result)
-        print(f"[GRID] After elimination: {final_overlaps} overlaps")
     
     return result
 
@@ -445,32 +429,22 @@ def _grid_layout(
 
     Produces layouts with axis-aligned edges and minimized crossings.
     """
-    print(f"[GRID] === _grid_layout called ===")
-    print(f"[GRID] Box: x={box['x']:.1f}, y={box['y']:.1f}, w={box['width']:.1f}, h={box['height']:.1f}")
-    print(f"[GRID] Vertices: {vertex_ids}")
-    print(f"[GRID] Edges: {[(e.source, e.target) for e in edges]}")
-    
     # Fast path: no edges
     if not edges:
-        print(f"[GRID] Path: no edges -> simple grid placement")
         return _ensure_float_positions(_simple_grid_placement(vertex_ids, box))
     
     # Fast path: tree structure
     if _is_tree_structure(vertex_ids, edges):
-        print(f"[GRID] Path: tree structure -> orthogonal tree layout")
         return _ensure_float_positions(_orthogonal_tree_layout(vertex_ids, edges, box))
     
     # TSM pipeline for general graphs
     planarity_result = _is_planar(vertex_ids, edges)
     is_planar = planarity_result[0]
     embedding = planarity_result[1]
-    print(f"[GRID] Planarity check: is_planar={is_planar}")
     
     if is_planar and embedding is not None:
-        print(f"[GRID] Path: planar graph -> orthogonalize + compact")
         return _layout_planar_graph(vertex_ids, edges, embedding, box)
     else:
-        print(f"[GRID] Path: non-planar graph -> planarize first")
         return _layout_non_planar_graph(vertex_ids, edges, box)
 
 
@@ -977,17 +951,14 @@ def _orthogonalize_cycle(
     
     Places vertices on a rectangular grid where each edge is orthogonal.
     """
-    print("[ORTHO-CYCLE] Detected simple cycle, using rectangular layout")
     ortho = OrthogonalRep()
     
     adjacency = GraphUtils.build_adjacency_map(edges)
     ordered = _walk_cycle(vertex_ids[0], adjacency, len(vertex_ids))
-    print(f"[ORTHO-CYCLE] Cycle order: {ordered}")
     
     ortho.vertex_pos = _layout_cycle_as_rectangle(ordered, col_offset=0, row_offset=0)
-    print(f"[ORTHO-CYCLE] Positions: {ortho.vertex_pos}")
     
-    ortho.edge_directions = _compute_edge_directions(edges, ortho.vertex_pos, "[ORTHO-CYCLE]")
+    ortho.edge_directions = _compute_edge_directions(edges, ortho.vertex_pos)
     
     return ortho
 
@@ -1098,7 +1069,6 @@ def _layout_cycle_as_rectangle(
 def _compute_edge_directions(
     edges: List[Edge[str]],
     vertex_pos: Dict[str, Tuple[int, int]],
-    log_prefix: str = "[ORTHO]",
 ) -> Dict[Tuple[str, str], List[str]]:
     """Compute edge directions from vertex positions."""
     edge_directions: Dict[Tuple[str, str], List[str]] = {}
@@ -1118,12 +1088,9 @@ def _compute_edge_directions(
         directions: List[str] = []
         if u_col == v_col:
             directions.append('S' if v_row > u_row else 'N')
-            print(f"{log_prefix} Edge {u}->{v}: VERTICAL ✓")
         elif u_row == v_row:
             directions.append('E' if v_col > u_col else 'W')
-            print(f"{log_prefix} Edge {u}->{v}: HORIZONTAL ✓")
         else:
-            print(f"{log_prefix} Edge {u}->{v}: DIAGONAL ✗")
             if v_row > u_row:
                 directions.append('S')
             else:
@@ -1147,16 +1114,13 @@ def _orthogonalize_multi_cycle(
     
     Stacks cycles vertically with bridges as vertical edges.
     """
-    print(f"[ORTHO-MULTI] Laying out {len(components)} cycle components")
     ortho = OrthogonalRep()
 
     bridge_result = _identify_bridge_edges(edges, components)
     bridge_edges = bridge_result[1]
-    print(f"[ORTHO-MULTI] Bridge edges: {bridge_edges}")
     
     vertex_to_comp = _build_vertex_to_component_map(components)
     comp_order = _order_components_by_bridges(components, bridge_edges, vertex_to_comp)
-    print(f"[ORTHO-MULTI] Component order: {comp_order}")
     
     row_offset = 0
     component_positions: Dict[str, Tuple[int, int]] = {}
@@ -1166,7 +1130,6 @@ def _orthogonalize_multi_cycle(
         comp = components[comp_idx]
         comp_verts = comp[0]
         comp_edges = comp[1]
-        print(f"[ORTHO-MULTI] Component {comp_idx}: {comp_verts}")
         
         # Find bridge vertex to align with previous component
         bridge_vertex = None
@@ -1213,9 +1176,8 @@ def _orthogonalize_multi_cycle(
         row_offset += 2
     
     ortho.vertex_pos = component_positions
-    print(f"[ORTHO-MULTI] Final positions: {ortho.vertex_pos}")
     
-    ortho.edge_directions = _compute_edge_directions(edges, ortho.vertex_pos, "[ORTHO-MULTI]")
+    ortho.edge_directions = _compute_edge_directions(edges, ortho.vertex_pos)
     
     return ortho
 
@@ -1348,16 +1310,13 @@ def _compute_edge_directions_with_stats(
                 directions.append('S')
             elif delta_row < 0:
                 directions.append('N')
-            print(f"[ORTHO]   {u}({u_col},{u_row}) -> {v}({v_col},{v_row}): VERTICAL ✓")
         elif delta_row == 0:
             if delta_col > 0:
                 directions.append('E')
             elif delta_col < 0:
                 directions.append('W')
-            print(f"[ORTHO]   {u}({u_col},{u_row}) -> {v}({v_col},{v_row}): HORIZONTAL ✓")
         else:
             diagonal_count += 1
-            print(f"[ORTHO]   {u}({u_col},{u_row}) -> {v}({v_col},{v_row}): DIAGONAL ✗ (delta_col={delta_col}, delta_row={delta_row})")
             if delta_row > 0:
                 directions.append('S')
             elif delta_row < 0:
@@ -1382,10 +1341,6 @@ def _orthogonalize(
     
     Uses BFS tree layout with proportional column assignment.
     """
-    print("[ORTHO] === Starting _orthogonalize ===")
-    print(f"[ORTHO] Vertices: {vertex_ids}")
-    print(f"[ORTHO] Edges: {[(e.source, e.target) for e in edges]}")
-    
     # Special case: simple cycle
     if _is_simple_cycle(vertex_ids, edges):
         return _orthogonalize_cycle(vertex_ids, edges)
@@ -1401,14 +1356,9 @@ def _orthogonalize(
     
     adjacency = GraphUtils.build_adjacency_map(edges)
     root = max(vertex_ids, key=lambda v: len(adjacency.get(v, set())))
-    print(f"[ORTHO] Selected root: {root} (degree={len(adjacency.get(root, set()))})")
     
     # Build BFS tree
     tree = _build_bfs_tree(root, vertex_ids, adjacency)
-    print(f"[ORTHO] BFS tree structure:")
-    print(f"[ORTHO]   Levels: {tree.levels}")
-    print(f"[ORTHO]   Parent: {tree.parent}")
-    print(f"[ORTHO]   Children: {tree.children}")
     
     # Assign rows from BFS levels
     vertex_row: Dict[str, int] = {}
@@ -1420,28 +1370,16 @@ def _orthogonalize(
     subtree_size = _compute_subtree_sizes(root, tree.children)
     vertex_col = _assign_columns_by_subtree(root, tree.children, subtree_size)
     
-    print(f"[ORTHO] After initial assignment:")
-    print(f"[ORTHO]   Subtree sizes: {subtree_size}")
-    for v in vertex_ids:
-        print(f"[ORTHO]   {v}: row={vertex_row.get(v)}, col={vertex_col.get(v)}")
-    
     # Align for orthogonality
-    print(f"[ORTHO] Calling _align_for_orthogonality...")
     _align_for_orthogonality(vertex_ids, edges, vertex_row, vertex_col, tree.parent, tree.children)
-    
-    print(f"[ORTHO] After alignment:")
-    for v in vertex_ids:
-        print(f"[ORTHO]   {v}: row={vertex_row.get(v)}, col={vertex_col.get(v)}")
     
     # Store final positions
     for v in vertex_ids:
         ortho.vertex_pos[v] = (vertex_col.get(v, 0), vertex_row.get(v, 0))
     
     # Compute edge directions
-    print(f"[ORTHO] Edge analysis:")
-    ortho.edge_directions, diagonal_count = _compute_edge_directions_with_stats(edges, ortho.vertex_pos)
+    ortho.edge_directions, _ = _compute_edge_directions_with_stats(edges, ortho.vertex_pos)
     
-    print(f"[ORTHO] Summary: {diagonal_count}/{len(edges)} edges are diagonal")
     return ortho
 
 
@@ -1549,9 +1487,6 @@ def _compact_orthogonal(
     
     Uses the grid positions from orthogonalization and scales to bounding box.
     """
-    print(f"[COMPACT] === Starting _compact_orthogonal ===")
-    print(f"[COMPACT] Grid positions: {ortho_rep.vertex_pos}")
-    
     if not ortho_rep.vertex_pos:
         return _simple_grid_placement(vertex_ids, box)
     
@@ -1578,8 +1513,6 @@ def _compact_orthogonal(
     col_spacing = cell_size
     row_spacing = cell_size
     
-    print(f"[COMPACT] Using square cells: {cell_size:.1f}px")
-    
     positions: Dict[str, Tuple[float, float]] = {}
     for v in vertex_ids:
         if v not in ortho_rep.vertex_pos:
@@ -1593,10 +1526,6 @@ def _compact_orthogonal(
         y = box["y"] + box["height"] * (1 - margin) - (row - min_row) * row_spacing
         
         positions[v] = (float(x), float(y))
-    
-    print(f"[COMPACT] Final positions:")
-    for v in positions:
-        print(f"[COMPACT]   {v}: {positions[v]}")
     
     return positions
 
@@ -2310,14 +2239,11 @@ def _phase1_eliminate_crossings(
     best_grid_pos = dict(grid_pos)
     best_crossing_count = len(_find_crossing_pairs(edges, _from_grid_coords(grid_pos, box, grid_size)))
     
-    print(f"[CROSSING-ELIM] Starting with {best_crossing_count} crossings, grid_size={grid_size}")
-    
     for iteration in range(max_iterations):
         float_pos = _from_grid_coords(grid_pos, box, grid_size)
         crossing_pairs = _find_crossing_pairs(edges, float_pos)
         
         if not crossing_pairs:
-            print(f"[CROSSING-ELIM] Eliminated all crossings after {iteration} iterations")
             break
         
         improved = False
@@ -2335,7 +2261,6 @@ def _phase1_eliminate_crossings(
                 best_crossing_count = new_crossing_count
                 best_grid_pos = dict(grid_pos)
                 improved = True
-                print(f"[CROSSING-ELIM] Iteration {iteration}: moved {v}, crossings now {new_crossing_count}")
                 break
         
         if improved:
@@ -2351,7 +2276,6 @@ def _phase1_eliminate_crossings(
         grid_pos = dict(best_grid_pos)
         
         if not improved:
-            print(f"[CROSSING-ELIM] No improvement possible, stopping at {best_crossing_count} crossings")
             break
     
     return best_grid_pos, best_crossing_count
@@ -2476,10 +2400,6 @@ def _phase2_optimize_orthogonality(
     
     Returns optimized grid positions.
     """
-    float_pos = _from_grid_coords(grid_pos, box, grid_size)
-    initial_ortho = GraphUtils.count_orthogonal_edges(edges, float_pos)
-    print(f"[ORTHO-OPT] Starting orthogonality optimization: {initial_ortho[0]}/{initial_ortho[1]} edges orthogonal")
-    
     # Build adjacency
     adjacency: Dict[str, List[str]] = {v: [] for v in vertex_ids}
     for e in edges:
@@ -2517,10 +2437,6 @@ def _phase2_optimize_orthogonality(
         
         if not improved:
             break
-    
-    final_float_pos = _from_grid_coords(best_grid_pos, box, grid_size)
-    final_ortho = GraphUtils.count_orthogonal_edges(edges, final_float_pos)
-    print(f"[ORTHO-OPT] Final: {final_ortho[0]}/{final_ortho[1]} edges orthogonal")
     
     return best_grid_pos
 
@@ -2624,11 +2540,6 @@ def _normalize_orthogonal_edge_lengths(
     # Use median as target spacing
     target_spacing = sorted(all_gaps)[len(all_gaps) // 2]
     
-    print(f"[EDGE-NORM] Rows: {len(sorted_ys)}, Cols: {len(sorted_xs)}")
-    print(f"[EDGE-NORM] Y gaps: {[round(g, 1) for g in y_gaps]}")
-    print(f"[EDGE-NORM] X gaps: {[round(g, 1) for g in x_gaps]}")
-    print(f"[EDGE-NORM] Target spacing: {target_spacing:.1f}")
-    
     # Create mapping from old coordinates to new uniform coordinates
     new_y_coords: Dict[float, float] = {}
     if sorted_ys:
@@ -2654,8 +2565,6 @@ def _normalize_orthogonal_edge_lengths(
         new_x = new_x_coords.get(rounded_x, x)
         new_y = new_y_coords.get(rounded_y, y)
         new_positions[vid] = (float(new_x), float(new_y))
-    
-    print(f"[EDGE-NORM] Applied uniform spacing")
     
     return new_positions
 
@@ -2779,16 +2688,12 @@ def _equalize_edge_lengths(
     """
     initial_lengths = _get_ortho_edge_lengths(grid_pos, edges)
     if not initial_lengths:
-        print(f"[EDGE-EQ] No orthogonal edges to equalize")
         return grid_pos
 
     target_length = max(1, round(sum(initial_lengths) / len(initial_lengths)))
     initial_variance = _length_variance(initial_lengths)
-    print(f"[EDGE-EQ] Starting: {len(initial_lengths)} ortho edges, target={target_length}, variance={initial_variance:.2f}")
-    print(f"[EDGE-EQ] Initial lengths: {initial_lengths}")
 
     if initial_variance < 0.01:
-        print(f"[EDGE-EQ] Variance already low, skipping")
         return grid_pos
 
     best_pos = dict(grid_pos)
@@ -2888,7 +2793,6 @@ def _equalize_edge_lengths(
                             best_new_variance = result_var
 
             if best_new_pos != old_pos and best_new_variance < best_variance:
-                print(f"[EDGE-EQ] Moving {vid} from {old_pos} to {best_new_pos}, variance: {best_variance:.2f} -> {best_new_variance:.2f}")
                 grid_pos[vid] = best_new_pos
                 best_pos = dict(grid_pos)
                 best_variance = best_new_variance
@@ -2897,12 +2801,6 @@ def _equalize_edge_lengths(
 
         if not improved:
             break
-
-    final_lengths = _get_ortho_edge_lengths(best_pos, edges)
-    final_variance = _length_variance(final_lengths)
-    print(f"[EDGE-EQ] Tried {positions_tried} positions, found {improvements_found} improvements")
-    print(f"[EDGE-EQ] Final lengths: {final_lengths}")
-    print(f"[EDGE-EQ] Final variance: {final_variance:.2f}")
 
     return best_pos
 
