@@ -1100,6 +1100,138 @@ class TestGraph(unittest.TestCase):
         positions = {"A": (0.0, 0.0), "B": (2.0, 0.0), "C": (1.0, 1.732)}
         self.assertEqual(GraphUtils.count_edge_overlaps(edges, positions), 0)
 
+    # ------------------------------------------------------------------
+    # Edge length functions
+    # ------------------------------------------------------------------
+
+    def test_compute_edge_length_horizontal(self) -> None:
+        """Horizontal edge length."""
+        length = GraphUtils.compute_edge_length((0.0, 0.0), (3.0, 0.0))
+        self.assertAlmostEqual(length, 3.0, places=5)
+
+    def test_compute_edge_length_vertical(self) -> None:
+        """Vertical edge length."""
+        length = GraphUtils.compute_edge_length((0.0, 0.0), (0.0, 4.0))
+        self.assertAlmostEqual(length, 4.0, places=5)
+
+    def test_compute_edge_length_diagonal(self) -> None:
+        """Diagonal edge length (3-4-5 triangle)."""
+        length = GraphUtils.compute_edge_length((0.0, 0.0), (3.0, 4.0))
+        self.assertAlmostEqual(length, 5.0, places=5)
+
+    def test_compute_edge_length_zero(self) -> None:
+        """Same point gives zero length."""
+        length = GraphUtils.compute_edge_length((5.0, 5.0), (5.0, 5.0))
+        self.assertAlmostEqual(length, 0.0, places=5)
+
+    def test_get_edge_lengths_empty(self) -> None:
+        """Empty edges list."""
+        lengths = GraphUtils.get_edge_lengths([], {})
+        self.assertEqual(lengths, [])
+
+    def test_get_edge_lengths_single(self) -> None:
+        """Single edge."""
+        edges = [Edge("A", "B")]
+        positions = {"A": (0.0, 0.0), "B": (5.0, 0.0)}
+        lengths = GraphUtils.get_edge_lengths(edges, positions)
+        self.assertEqual(len(lengths), 1)
+        self.assertAlmostEqual(lengths[0], 5.0, places=5)
+
+    def test_get_edge_lengths_multiple(self) -> None:
+        """Multiple edges."""
+        edges = [Edge("A", "B"), Edge("B", "C")]
+        positions = {"A": (0.0, 0.0), "B": (3.0, 0.0), "C": (3.0, 4.0)}
+        lengths = GraphUtils.get_edge_lengths(edges, positions)
+        self.assertEqual(len(lengths), 2)
+        self.assertAlmostEqual(lengths[0], 3.0, places=5)
+        self.assertAlmostEqual(lengths[1], 4.0, places=5)
+
+    def test_get_edge_lengths_missing_position(self) -> None:
+        """Missing vertex position is skipped."""
+        edges = [Edge("A", "B"), Edge("B", "C")]
+        positions = {"A": (0.0, 0.0), "B": (3.0, 0.0)}  # C missing
+        lengths = GraphUtils.get_edge_lengths(edges, positions)
+        self.assertEqual(len(lengths), 1)
+
+    def test_count_edges_with_same_length_all_same(self) -> None:
+        """All edges have the same length."""
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        positions = {"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (1.0, 1.0), "D": (0.0, 1.0)}
+        same_count, total, avg_len = GraphUtils.count_edges_with_same_length(edges, positions)
+        self.assertEqual(same_count, 4)
+        self.assertEqual(total, 4)
+        self.assertAlmostEqual(avg_len, 1.0, places=5)
+
+    def test_count_edges_with_same_length_mixed(self) -> None:
+        """Mixed edge lengths."""
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D")]
+        # A-B: 1.0, B-C: 1.0, C-D: 2.0
+        positions = {"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (2.0, 0.0), "D": (4.0, 0.0)}
+        same_count, total, _ = GraphUtils.count_edges_with_same_length(edges, positions)
+        self.assertEqual(same_count, 2)  # Two edges of length 1.0
+        self.assertEqual(total, 3)
+
+    def test_count_edges_with_same_length_empty(self) -> None:
+        """Empty edges."""
+        same_count, total, avg_len = GraphUtils.count_edges_with_same_length([], {})
+        self.assertEqual(same_count, 0)
+        self.assertEqual(total, 0)
+        self.assertAlmostEqual(avg_len, 0.0, places=5)
+
+    def test_count_edges_with_same_length_tolerance(self) -> None:
+        """Edges within tolerance are grouped together."""
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D")]
+        # A-B: 1.0, B-C: 1.05, C-D: 1.1 (all within 10% tolerance)
+        positions = {"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (2.05, 0.0), "D": (3.15, 0.0)}
+        same_count, total, _ = GraphUtils.count_edges_with_same_length(edges, positions, tolerance=0.1)
+        self.assertEqual(same_count, 3)  # All edges within tolerance
+
+    def test_edge_length_variance_uniform(self) -> None:
+        """Uniform edge lengths have zero variance."""
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        positions = {"A": (0.0, 0.0), "B": (2.0, 0.0), "C": (2.0, 2.0), "D": (0.0, 2.0)}
+        variance = GraphUtils.edge_length_variance(edges, positions)
+        self.assertAlmostEqual(variance, 0.0, places=5)
+
+    def test_edge_length_variance_mixed(self) -> None:
+        """Mixed edge lengths have positive variance."""
+        edges = [Edge("A", "B"), Edge("B", "C")]
+        # A-B: 1.0, B-C: 3.0
+        positions = {"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (4.0, 0.0)}
+        variance = GraphUtils.edge_length_variance(edges, positions)
+        # Mean = 2.0, variance = ((1-2)^2 + (3-2)^2) / 2 = 1.0
+        self.assertAlmostEqual(variance, 1.0, places=5)
+
+    def test_edge_length_variance_single_edge(self) -> None:
+        """Single edge has zero variance."""
+        edges = [Edge("A", "B")]
+        positions = {"A": (0.0, 0.0), "B": (5.0, 0.0)}
+        variance = GraphUtils.edge_length_variance(edges, positions)
+        self.assertAlmostEqual(variance, 0.0, places=5)
+
+    def test_edge_length_uniformity_ratio_all_same(self) -> None:
+        """All same length gives ratio 1.0."""
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        positions = {"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (1.0, 1.0), "D": (0.0, 1.0)}
+        ratio = GraphUtils.edge_length_uniformity_ratio(edges, positions)
+        self.assertAlmostEqual(ratio, 1.0, places=5)
+
+    def test_edge_length_uniformity_ratio_half(self) -> None:
+        """Half same length gives ratio 0.5."""
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "E")]
+        # A-B: 1, B-C: 1, C-D: 2, D-E: 2
+        positions = {
+            "A": (0.0, 0.0), "B": (1.0, 0.0), "C": (2.0, 0.0),
+            "D": (4.0, 0.0), "E": (6.0, 0.0)
+        }
+        ratio = GraphUtils.edge_length_uniformity_ratio(edges, positions, tolerance=0.1)
+        self.assertAlmostEqual(ratio, 0.5, places=5)
+
+    def test_edge_length_uniformity_ratio_empty(self) -> None:
+        """Empty edges gives ratio 1.0."""
+        ratio = GraphUtils.edge_length_uniformity_ratio([], {})
+        self.assertAlmostEqual(ratio, 1.0, places=5)
+
 
 # Preserve legacy test case name expected by the runner
 class TestGraphUtils(TestGraph):
