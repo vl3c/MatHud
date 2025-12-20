@@ -1401,77 +1401,81 @@ def _align_for_orthogonality(
     Post-process to improve orthogonality by aligning vertices.
     
     Strategy:
-    1. For tree edges (parent-child): align child to parent's column (vertical edge)
-    2. For same-level edges: they're already on same row (horizontal edge)
-    3. For cross edges: try to align if possible without disrupting tree structure
+    1. Identify vertices with many non-tree edges (K4-like structures)
+    2. Try to position root vertex among its children for better alignment
+    3. For each diagonal edge, try moving one endpoint to align
     """
-    # Build edge set for quick lookup
-    edge_set: Set[Tuple[str, str]] = set()
-    for e in edges:
-        edge_set.add((e.source, e.target))
-        edge_set.add((e.target, e.source))
+    # Build adjacency for quick lookup
+    adjacency = GraphUtils.build_adjacency_map(edges)
     
-    # Identify non-tree edges (edges not in parent-child relationship)
+    # Identify non-tree edges
     non_tree_edges: List[Tuple[str, str]] = []
     for e in edges:
         u, v = e.source, e.target
         if parent.get(u) != v and parent.get(v) != u:
             non_tree_edges.append((u, v))
     
-    # For vertices with single child, align child directly under parent
+    # Helper to check if position is occupied
+    def is_occupied(row: int, col: int, exclude: str) -> bool:
+        for vid in vertex_ids:
+            if vid != exclude:
+                if vertex_row.get(vid) == row and vertex_col.get(vid) == col:
+                    return True
+        return False
+    
+    # Strategy 1: For root with many children, try to position root among children
     for v in vertex_ids:
         v_children = children.get(v, [])
-        if len(v_children) == 1:
-            child = v_children[0]
-            # Check if moving child to parent's column is safe
-            # (doesn't collide with siblings in same row)
-            child_row = vertex_row.get(child, 0)
-            parent_col = vertex_col.get(v, 0)
+        if len(v_children) >= 3:
+            # This vertex has many children - likely K4-like
+            # Try to move it to a column that aligns with at least one child
+            v_row = vertex_row.get(v, 0)
+            child_cols = [vertex_col.get(c, 0) for c in v_children]
             
-            # Check for collisions in child's row
-            collision = False
-            for other in vertex_ids:
-                if other != child and vertex_row.get(other) == child_row:
-                    if vertex_col.get(other) == parent_col:
-                        collision = True
-                        break
-            
-            if not collision:
-                vertex_col[child] = parent_col
+            # Try each child's column
+            for target_col in child_cols:
+                if not is_occupied(v_row, target_col, v):
+                    vertex_col[v] = target_col
+                    break
     
-    # For non-tree edges between vertices on same row, they're already horizontal
-    # For non-tree edges between vertices on adjacent rows, try to align columns
+    # Strategy 2: For each diagonal edge, try to make it orthogonal
     for u, v in non_tree_edges:
         u_row = vertex_row.get(u, 0)
         v_row = vertex_row.get(v, 0)
         u_col = vertex_col.get(u, 0)
         v_col = vertex_col.get(v, 0)
         
-        if u_row == v_row:
-            # Same row - already horizontal, good
+        if u_row == v_row or u_col == v_col:
+            # Already orthogonal
             continue
         
-        if abs(u_row - v_row) == 1:
-            # Adjacent rows - could make vertical
-            # Try to align the vertex in the lower row to the upper's column
-            if u_row < v_row:
-                target_col = u_col
-                moving_vertex = v
-            else:
-                target_col = v_col
-                moving_vertex = u
+        # Try to align by moving the vertex with fewer neighbors
+        u_degree = len(adjacency.get(u, set()))
+        v_degree = len(adjacency.get(v, set()))
+        
+        if u_degree <= v_degree:
+            # Try moving u to v's column (vertical) or v's row (horizontal)
+            if not is_occupied(u_row, v_col, u):
+                vertex_col[u] = v_col
+            elif not is_occupied(v_row, u_col, u):
+                vertex_row[u] = v_row
+        else:
+            # Try moving v to u's column (vertical) or u's row (horizontal)
+            if not is_occupied(v_row, u_col, v):
+                vertex_col[v] = u_col
+            elif not is_occupied(u_row, v_col, v):
+                vertex_row[v] = u_row
+    
+    # Strategy 3: Single child alignment (keep existing logic)
+    for v in vertex_ids:
+        v_children = children.get(v, [])
+        if len(v_children) == 1:
+            child = v_children[0]
+            child_row = vertex_row.get(child, 0)
+            parent_col = vertex_col.get(v, 0)
             
-            # Check for collision
-            moving_row = vertex_row.get(moving_vertex, 0)
-            collision = False
-            for other in vertex_ids:
-                if other != moving_vertex and vertex_row.get(other) == moving_row:
-                    if vertex_col.get(other) == target_col:
-                        collision = True
-                        break
-            
-            if not collision:
-                vertex_col[moving_vertex] = target_col
+            if not is_occupied(child_row, parent_col, child):
+                vertex_col[child] = parent_col
 
 
 # =============================================================================
@@ -2128,10 +2132,11 @@ def _find_best_crossing_move(
     best_crossing_count: int,
 ) -> Optional[Tuple[str, Tuple[int, int], int]]:
     """
-    Find the best vertex move to eliminate a crossing.
+    Find the best vertex move to eliminate a crossing/overlap.
     
-    Considers GLOBAL orthogonality - won't accept moves that decrease
-    total orthogonal edge count unless they eliminate crossings.
+    Priority order:
+    1. Eliminate overlaps (always accept, overlaps are worst)
+    2. Preserve orthogonality when eliminating crossings
     
     Returns (vertex, new_position, new_crossing_count) or None if no improvement.
     """
@@ -2139,12 +2144,14 @@ def _find_best_crossing_move(
     e2 = crossing_pair[1]
     involved = [e1.source, e1.target, e2.source, e2.target]
     
-    # Track current global orthogonality
+    # Track current state
+    current_float_pos = _from_grid_coords(grid_pos, box, grid_size)
+    current_overlaps = GraphUtils.count_edge_overlaps(edges, current_float_pos)
     current_global_ortho = _count_total_orthogonal_grid(edges, grid_pos)
     
     best_move = None
-    # Score: (crossings, -global_ortho) - minimize crossings, maximize orthogonality
-    best_move_score = (best_crossing_count, -current_global_ortho)
+    # Score: (overlaps, crossings, -global_ortho) - prioritize overlap elimination
+    best_move_score = (current_overlaps, best_crossing_count, -current_global_ortho)
     
     for v in involved:
         old_pos = grid_pos[v]
@@ -2154,22 +2161,29 @@ def _find_best_crossing_move(
             grid_pos[v] = new_pos
             new_float_pos = _from_grid_coords(grid_pos, box, grid_size)
             new_crossing_count = len(_find_crossing_pairs(edges, new_float_pos))
-            # Count GLOBAL orthogonality, not just local
+            new_overlaps = GraphUtils.count_edge_overlaps(edges, new_float_pos)
             new_global_ortho = _count_total_orthogonal_grid(edges, grid_pos)
             grid_pos[v] = old_pos
             
-            move_score = (new_crossing_count, -new_global_ortho)
+            move_score = (new_overlaps, new_crossing_count, -new_global_ortho)
+            ortho_loss = current_global_ortho - new_global_ortho
             
-            # Only accept if:
-            # 1. Reduces crossings AND doesn't decrease global orthogonality too much
-            # 2. Or eliminates all crossings
-            if new_crossing_count < best_crossing_count:
-                # Accept if orthogonality doesn't decrease by more than 1
-                ortho_loss = current_global_ortho - new_global_ortho
-                if new_crossing_count == 0 or ortho_loss <= 1:
-                    if best_move is None or move_score < best_move_score:
-                        best_move = (v, new_pos, new_crossing_count)
-                        best_move_score = move_score
+            # Decide whether to accept the move
+            accept = False
+            
+            if new_overlaps < current_overlaps:
+                # Reduces overlaps - ALWAYS accept (overlaps are worst)
+                accept = True
+            elif new_crossing_count < best_crossing_count:
+                # Reduces crossings - only if orthogonality preserved
+                if ortho_loss <= 0:
+                    accept = True
+                elif new_crossing_count == 0 and ortho_loss <= 1:
+                    accept = True
+            
+            if accept and (best_move is None or move_score < best_move_score):
+                best_move = (v, new_pos, new_crossing_count)
+                best_move_score = move_score
     
     return best_move
 
@@ -2183,14 +2197,15 @@ def _try_expanded_search(
     best_crossing_count: int,
 ) -> Tuple[bool, int, Dict[str, Tuple[int, int]]]:
     """
-    Try to reduce crossings using expanded search radius.
+    Try to reduce crossings/overlaps using expanded search radius.
     
-    Considers global orthogonality - won't accept moves that significantly
-    decrease total orthogonal edge count.
+    Priority: overlaps > crossings > orthogonality
     
     Returns (improved, new_crossing_count, best_grid_pos).
     """
     best_grid_pos = dict(grid_pos)
+    current_float_pos = _from_grid_coords(grid_pos, box, grid_size)
+    current_overlaps = GraphUtils.count_edge_overlaps(edges, current_float_pos)
     current_global_ortho = _count_total_orthogonal_grid(edges, grid_pos)
     
     for v in vertex_ids:
@@ -2201,11 +2216,21 @@ def _try_expanded_search(
             grid_pos[v] = new_pos
             new_float_pos = _from_grid_coords(grid_pos, box, grid_size)
             new_crossing_count = len(_find_crossing_pairs(edges, new_float_pos))
+            new_overlaps = GraphUtils.count_edge_overlaps(edges, new_float_pos)
             new_global_ortho = _count_total_orthogonal_grid(edges, grid_pos)
             
-            # Accept if crossings reduced AND orthogonality not significantly hurt
             ortho_loss = current_global_ortho - new_global_ortho
-            if new_crossing_count < best_crossing_count and ortho_loss <= 1:
+            accept = False
+            
+            if new_overlaps < current_overlaps:
+                # Reduces overlaps - ALWAYS accept
+                accept = True
+            elif new_crossing_count < best_crossing_count:
+                # Reduces crossings - only if orthogonality preserved
+                if ortho_loss <= 0 or (new_crossing_count == 0 and ortho_loss <= 1):
+                    accept = True
+            
+            if accept:
                 return True, new_crossing_count, dict(grid_pos)
             else:
                 grid_pos[v] = old_pos
