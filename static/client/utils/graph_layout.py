@@ -49,6 +49,54 @@ def _center(box: Dict[str, float]) -> Tuple[float, float]:
     return box["x"] + box["width"] / 2.0, box["y"] + box["height"] / 2.0
 
 
+def _center_graph_in_box(
+    positions: Dict[str, Tuple[float, float]],
+    box: Dict[str, float],
+) -> Dict[str, Tuple[float, float]]:
+    """
+    Translate all positions so the graph is centered in the bounding box.
+
+    This ensures the graph is always visible in the viewport.
+    """
+    if not positions:
+        return positions
+
+    # Compute current bounds of the graph
+    xs = [pos[0] for pos in positions.values()]
+    ys = [pos[1] for pos in positions.values()]
+
+    graph_min_x = min(xs)
+    graph_max_x = max(xs)
+    graph_min_y = min(ys)
+    graph_max_y = max(ys)
+
+    graph_center_x = (graph_min_x + graph_max_x) / 2.0
+    graph_center_y = (graph_min_y + graph_max_y) / 2.0
+
+    # Compute center of the target box
+    box_center_x = box["x"] + box["width"] / 2.0
+    box_center_y = box["y"] + box["height"] / 2.0
+
+    # Calculate translation
+    dx = box_center_x - graph_center_x
+    dy = box_center_y - graph_center_y
+
+    print(f"[CENTER] Graph bounds: x=[{graph_min_x:.1f}, {graph_max_x:.1f}], y=[{graph_min_y:.1f}, {graph_max_y:.1f}]")
+    print(f"[CENTER] Box center: ({box_center_x:.1f}, {box_center_y:.1f}), Graph center: ({graph_center_x:.1f}, {graph_center_y:.1f})")
+    print(f"[CENTER] Translation: dx={dx:.1f}, dy={dy:.1f}")
+
+    # If already centered (within tolerance), skip
+    if abs(dx) < 1.0 and abs(dy) < 1.0:
+        print(f"[CENTER] Already centered, skipping")
+        return positions
+    
+    # Apply translation to all positions
+    return {
+        vid: (pos[0] + dx, pos[1] + dy)
+        for vid, pos in positions.items()
+    }
+
+
 def _add_missing_vertices(
     positions: Dict[str, Tuple[float, float]],
     vertex_ids: List[str],
@@ -84,6 +132,8 @@ def layout_vertices(
     3. If root provided: use tree layout
     4. If edges exist: use force-directed layout
     5. Otherwise: use circular layout
+    
+    Final step: Center the graph in the placement box to ensure visibility.
     """
     if not vertex_ids:
         return {}
@@ -91,41 +141,46 @@ def layout_vertices(
     box = _default_box(placement_box, canvas_width, canvas_height)
     strategy = (layout or "").lower()
     
+    positions: Optional[Dict[str, Tuple[float, float]]] = None
+    
     # Explicit layout selection (radial, hierarchical, tree are always respected)
     # Grid is overridden for trees since grid + many edges = overlapping mess
     if strategy == "grid":
         if _is_tree_structure(vertex_ids, edges):
             effective_root = root_id or _infer_root(vertex_ids, edges)
             if effective_root:
-                return _tree_layout(vertex_ids, edges, box, effective_root)
-        return _grid_layout(vertex_ids, edges, box)
-    if strategy == "radial":
+                positions = _tree_layout(vertex_ids, edges, box, effective_root)
+        if positions is None:
+            positions = _grid_layout(vertex_ids, edges, box)
+    elif strategy == "radial":
         effective_root = root_id or _infer_root(vertex_ids, edges)
         if effective_root:
-            return _radial_layout(vertex_ids, edges, box, effective_root)
-    if strategy in ("hierarchical", "tree"):
+            positions = _radial_layout(vertex_ids, edges, box, effective_root)
+    elif strategy in ("hierarchical", "tree"):
         effective_root = root_id or _infer_root(vertex_ids, edges)
         if effective_root:
-            return _tree_layout(vertex_ids, edges, box, effective_root)
-    
-    # Auto-detect tree: override circular/force/unspecified with tree layout for tree structures
-    if strategy in ("circular", "force", "") and _is_tree_structure(vertex_ids, edges):
+            positions = _tree_layout(vertex_ids, edges, box, effective_root)
+    elif strategy in ("circular", "force", "") and _is_tree_structure(vertex_ids, edges):
+        # Auto-detect tree: override circular/force/unspecified with tree layout
         effective_root = root_id or _infer_root(vertex_ids, edges)
         if effective_root:
-            return _tree_layout(vertex_ids, edges, box, effective_root)
+            positions = _tree_layout(vertex_ids, edges, box, effective_root)
     
     # Remaining explicit layouts
-    if strategy == "circular":
-        return _circular_layout(vertex_ids, box)
-    if strategy == "force":
-        return _force_directed_layout(vertex_ids, edges, box)
+    if positions is None:
+        if strategy == "circular":
+            positions = _circular_layout(vertex_ids, box)
+        elif strategy == "force":
+            positions = _force_directed_layout(vertex_ids, edges, box)
+        elif root_id is not None:
+            positions = _tree_layout(vertex_ids, edges, box, root_id)
+        elif edges:
+            positions = _force_directed_layout(vertex_ids, edges, box)
+        else:
+            positions = _circular_layout(vertex_ids, box)
     
-    # Auto-selection for unspecified layout
-    if root_id is not None:
-        return _tree_layout(vertex_ids, edges, box, root_id)
-    if edges:
-        return _force_directed_layout(vertex_ids, edges, box)
-    return _circular_layout(vertex_ids, box)
+    # Final step: Center the graph in the placement box to ensure visibility
+    return _center_graph_in_box(positions, box)
 
 
 def _is_tree_structure(vertex_ids: List[str], edges: List[Edge[str]]) -> bool:
@@ -387,10 +442,11 @@ def _grid_layout(
 ) -> Dict[str, Tuple[float, float]]:
     """
     Orthogonal grid layout using TSM (Topology-Shape-Metrics) approach.
-    
+
     Produces layouts with axis-aligned edges and minimized crossings.
     """
     print(f"[GRID] === _grid_layout called ===")
+    print(f"[GRID] Box: x={box['x']:.1f}, y={box['y']:.1f}, w={box['width']:.1f}, h={box['height']:.1f}")
     print(f"[GRID] Vertices: {vertex_ids}")
     print(f"[GRID] Edges: {[(e.source, e.target) for e in edges]}")
     
