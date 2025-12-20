@@ -293,6 +293,63 @@ class TestGraphLayout(unittest.TestCase):
         self.assertEqual(crossings, 0, f"Two squares with caps has {crossings} edge crossings")
 
     # ------------------------------------------------------------------
+    # Grid layout orthogonality tests
+    # ------------------------------------------------------------------
+
+    def test_grid_layout_simple_square_orthogonality(self) -> None:
+        """Simple square cycle should have all edges orthogonal."""
+        vertices = ["A", "B", "C", "D"]
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        orthogonal, total = GraphUtils.count_orthogonal_edges(edges, positions)
+        # All 4 edges should be orthogonal
+        self.assertEqual(orthogonal, total, 
+            f"Simple square: {orthogonal}/{total} edges orthogonal (expected all)")
+
+    def test_grid_layout_two_squares_bridge_orthogonality(self) -> None:
+        """Two square cycles connected by bridge should have all edges orthogonal."""
+        vertices = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        edges = [
+            # Square 1: A-B-C-D
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A"),
+            # Square 2: E-F-G-H
+            Edge("E", "F"), Edge("F", "G"), Edge("G", "H"), Edge("H", "E"),
+            # Bridge: D-E
+            Edge("D", "E"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        orthogonal, total = GraphUtils.count_orthogonal_edges(edges, positions)
+        # All 9 edges should be orthogonal
+        self.assertEqual(orthogonal, total,
+            f"Two squares with bridge: {orthogonal}/{total} edges orthogonal (expected all)")
+
+    def test_grid_layout_two_squares_with_caps_orthogonality(self) -> None:
+        """Two squares with caps - most edges should be orthogonal."""
+        vertices = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+        edges = [
+            # Square 1: A-B-C-D
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A"),
+            # Square 2: E-F-G-H
+            Edge("E", "F"), Edge("F", "G"), Edge("G", "H"), Edge("H", "E"),
+            # Bridge: D-E
+            Edge("D", "E"),
+            # Cap I connects to B and C
+            Edge("I", "B"), Edge("I", "C"),
+            # Cap J connects to F and G
+            Edge("J", "F"), Edge("J", "G"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        orthogonal, total = GraphUtils.count_orthogonal_edges(edges, positions)
+        # At minimum, the cycle edges (8) + bridge (1) should be orthogonal = 9
+        # The cap edges (4) may or may not be orthogonal depending on layout
+        min_orthogonal = 9  # The two squares + bridge
+        self.assertGreaterEqual(orthogonal, min_orthogonal,
+            f"Two squares with caps: {orthogonal}/{total} orthogonal (expected at least {min_orthogonal})")
+
+    # ------------------------------------------------------------------
     # Tree layout
     # ------------------------------------------------------------------
 

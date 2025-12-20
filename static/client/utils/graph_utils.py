@@ -1142,3 +1142,74 @@ class GraphUtils:
         
         return crossings
 
+    @staticmethod
+    def is_edge_orthogonal(
+        p1: Tuple[float, float],
+        p2: Tuple[float, float],
+        tolerance: float = 0.01,
+    ) -> bool:
+        """
+        Check if an edge is orthogonal (horizontal or vertical).
+        
+        An edge is orthogonal if the x-coordinates are equal (vertical)
+        or the y-coordinates are equal (horizontal), within tolerance.
+        
+        Args:
+            p1: First endpoint (x, y)
+            p2: Second endpoint (x, y)
+            tolerance: Relative tolerance for coordinate comparison
+        
+        Returns:
+            True if the edge is horizontal or vertical.
+        """
+        x1, y1 = p1
+        x2, y2 = p2
+        
+        dx = abs(x2 - x1)
+        dy = abs(y2 - y1)
+        
+        # Use relative tolerance based on edge length
+        edge_length = max(dx, dy, 1.0)
+        tol = tolerance * edge_length
+        
+        # Horizontal: same y (within tolerance)
+        if dy < tol:
+            return True
+        # Vertical: same x (within tolerance)
+        if dx < tol:
+            return True
+        
+        return False
+
+    @staticmethod
+    def count_orthogonal_edges(
+        edges: List["Edge[V]"],
+        positions: Dict[V, Tuple[float, float]],
+        tolerance: float = 0.01,
+    ) -> Tuple[int, int]:
+        """
+        Count orthogonal vs total edges in a graph layout.
+        
+        Args:
+            edges: List of edges in the graph
+            positions: Mapping from vertex to (x, y) coordinates
+            tolerance: Relative tolerance for orthogonality check
+        
+        Returns:
+            Tuple of (orthogonal_count, total_count)
+        """
+        orthogonal = 0
+        total = 0
+        
+        for edge in edges:
+            p1 = positions.get(edge.source)
+            p2 = positions.get(edge.target)
+            if p1 is None or p2 is None:
+                continue
+            
+            total += 1
+            if GraphUtils.is_edge_orthogonal(p1, p2, tolerance):
+                orthogonal += 1
+        
+        return (orthogonal, total)
+
