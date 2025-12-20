@@ -292,6 +292,149 @@ class TestGraphLayout(unittest.TestCase):
         # This graph is planar, so should have 0 crossings with good layout
         self.assertEqual(crossings, 0, f"Two squares with caps has {crossings} edge crossings")
 
+    def test_grid_layout_two_k4_bridge_no_crossings(self) -> None:
+        """Two K4 (complete) graphs connected by bridge should have no crossings."""
+        vertices = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        edges = [
+            # K4 #1: A-B-C-D (all connected)
+            Edge("A", "B"), Edge("A", "C"), Edge("A", "D"),
+            Edge("B", "C"), Edge("B", "D"),
+            Edge("C", "D"),
+            # K4 #2: E-F-G-H (all connected)
+            Edge("E", "F"), Edge("E", "G"), Edge("E", "H"),
+            Edge("F", "G"), Edge("F", "H"),
+            Edge("G", "H"),
+            # Bridge: D-E
+            Edge("D", "E"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        crossings = GraphUtils.count_edge_crossings(edges, positions)
+        # Two K4s with bridge is planar, so should have 0 crossings
+        self.assertEqual(crossings, 0, f"Two K4 with bridge has {crossings} edge crossings")
+
+    # ------------------------------------------------------------------
+    # Grid layout edge overlap tests
+    # ------------------------------------------------------------------
+
+    def test_grid_layout_simple_square_no_overlaps(self) -> None:
+        """Simple square cycle should have no overlapping edges."""
+        vertices = ["A", "B", "C", "D"]
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        overlaps = GraphUtils.count_edge_overlaps(edges, positions)
+        self.assertEqual(overlaps, 0, f"Simple square has {overlaps} edge overlaps")
+
+    def test_grid_layout_two_squares_bridge_no_overlaps(self) -> None:
+        """Two square cycles connected by bridge should have no overlapping edges."""
+        vertices = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        edges = [
+            # Square 1: A-B-C-D
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A"),
+            # Square 2: E-F-G-H
+            Edge("E", "F"), Edge("F", "G"), Edge("G", "H"), Edge("H", "E"),
+            # Bridge: D-E
+            Edge("D", "E"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        overlaps = GraphUtils.count_edge_overlaps(edges, positions)
+        self.assertEqual(overlaps, 0, f"Two squares with bridge has {overlaps} edge overlaps")
+
+    def test_grid_layout_two_squares_with_caps_no_overlaps(self) -> None:
+        """Two squares with caps should have no overlapping edges."""
+        vertices = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
+        edges = [
+            # Square 1: A-B-C-D
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A"),
+            # Square 2: E-F-G-H
+            Edge("E", "F"), Edge("F", "G"), Edge("G", "H"), Edge("H", "E"),
+            # Bridge: D-E
+            Edge("D", "E"),
+            # Cap I connects to B and C
+            Edge("I", "B"), Edge("I", "C"),
+            # Cap J connects to F and G
+            Edge("J", "F"), Edge("J", "G"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        overlaps = GraphUtils.count_edge_overlaps(edges, positions)
+        self.assertEqual(overlaps, 0, f"Two squares with caps has {overlaps} edge overlaps")
+
+    def test_grid_layout_two_k4_bridge_no_overlaps(self) -> None:
+        """Two K4 (complete) graphs connected by bridge should have no overlaps."""
+        vertices = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        edges = [
+            # K4 #1: A-B-C-D (all connected)
+            Edge("A", "B"), Edge("A", "C"), Edge("A", "D"),
+            Edge("B", "C"), Edge("B", "D"),
+            Edge("C", "D"),
+            # K4 #2: E-F-G-H (all connected)
+            Edge("E", "F"), Edge("E", "G"), Edge("E", "H"),
+            Edge("F", "G"), Edge("F", "H"),
+            Edge("G", "H"),
+            # Bridge: D-E
+            Edge("D", "E"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        overlaps = GraphUtils.count_edge_overlaps(edges, positions)
+        self.assertEqual(overlaps, 0, f"Two K4 with bridge has {overlaps} edge overlaps")
+
+    def test_grid_layout_k5_no_overlaps(self) -> None:
+        """K5 (non-planar) should have no overlapping edges even with crossings."""
+        vertices = ["A", "B", "C", "D", "E"]
+        # K5: every vertex connects to every other
+        edges = [
+            Edge("A", "B"), Edge("A", "C"), Edge("A", "D"), Edge("A", "E"),
+            Edge("B", "C"), Edge("B", "D"), Edge("B", "E"),
+            Edge("C", "D"), Edge("C", "E"),
+            Edge("D", "E"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        overlaps = GraphUtils.count_edge_overlaps(edges, positions)
+        self.assertEqual(overlaps, 0, f"K5 has {overlaps} edge overlaps")
+
+    def test_grid_layout_line_graph_no_overlaps(self) -> None:
+        """Linear path graph should have no overlapping edges."""
+        # A - B - C - D - E (a path that could be collinear)
+        vertices = ["A", "B", "C", "D", "E"]
+        edges = [
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "E"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        overlaps = GraphUtils.count_edge_overlaps(edges, positions)
+        self.assertEqual(overlaps, 0, f"Line graph has {overlaps} edge overlaps")
+
+    def test_grid_layout_star_graph_no_overlaps(self) -> None:
+        """Star graph (one center connected to many) should have no overlapping edges."""
+        # Center connects to 5 outer vertices
+        vertices = ["Center", "A", "B", "C", "D", "E"]
+        edges = [
+            Edge("Center", "A"), Edge("Center", "B"), Edge("Center", "C"),
+            Edge("Center", "D"), Edge("Center", "E"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        overlaps = GraphUtils.count_edge_overlaps(edges, positions)
+        self.assertEqual(overlaps, 0, f"Star graph has {overlaps} edge overlaps")
+
+    def test_grid_layout_triangle_with_extensions_no_overlaps(self) -> None:
+        """Triangle with vertices extended from edges should have no overlapping edges."""
+        # Triangle A-B-C with D connected to A and B (could create D on edge A-B)
+        vertices = ["A", "B", "C", "D"]
+        edges = [
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "A"),
+            Edge("D", "A"), Edge("D", "B"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        overlaps = GraphUtils.count_edge_overlaps(edges, positions)
+        self.assertEqual(overlaps, 0, f"Triangle with extensions has {overlaps} edge overlaps")
+
     # ------------------------------------------------------------------
     # Grid layout orthogonality tests
     # ------------------------------------------------------------------
