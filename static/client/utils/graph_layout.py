@@ -1083,7 +1083,6 @@ def _compute_edge_directions(
 
 
 def _orthogonalize_multi_cycle(
-    vertex_ids: List[str],
     edges: List[Edge[str]],
     components: List[Tuple[List[str], List[Edge[str]]]],
 ) -> OrthogonalRep:
@@ -1338,7 +1337,7 @@ def _orthogonalize(
     # Special case: multiple cycles connected by bridges
     cycle_components = _find_cycle_components(vertex_ids, edges)
     if cycle_components and len(cycle_components) > 1:
-        return _orthogonalize_multi_cycle(vertex_ids, edges, cycle_components)
+        return _orthogonalize_multi_cycle(edges, cycle_components)
     
     ortho = OrthogonalRep()
     if not vertex_ids:
