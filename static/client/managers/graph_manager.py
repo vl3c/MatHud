@@ -331,20 +331,16 @@ class GraphManager:
         # Use current visible bounds as placement box if not provided
         # This ensures the graph is placed in the visible viewport
         placement_box = state.placement_box
-        print(f"[GRAPH] _resolve_positions called, state.placement_box={placement_box}")
         if not placement_box:  # Catches None, {}, and empty values
             try:
                 visible_bounds = self.canvas.coordinate_mapper.get_visible_bounds()
-                print(f"[GRAPH] Got visible_bounds: {visible_bounds}")
                 placement_box = {
                     "x": visible_bounds.get("left", 0.0),
                     "y": visible_bounds.get("bottom", 0.0),
                     "width": visible_bounds.get("right", 1000.0) - visible_bounds.get("left", 0.0),
                     "height": visible_bounds.get("top", 800.0) - visible_bounds.get("bottom", 0.0),
                 }
-                print(f"[GRAPH] Using visible bounds as placement_box: {placement_box}")
-            except Exception as e:
-                print(f"[GRAPH] Failed to get visible bounds: {type(e).__name__}: {e}")
+            except (AttributeError, KeyError):
                 placement_box = None
 
         edges_for_layout = [Edge(e.source, e.target) for e in state.edges]
