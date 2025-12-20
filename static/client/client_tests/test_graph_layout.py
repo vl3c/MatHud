@@ -1064,6 +1064,297 @@ class TestGraphLayoutLegacy(TestGraphLayout):
     pass
 
 
+class TestGraphLayoutVisibility(unittest.TestCase):
+    """Tests that verify all vertices are placed within the visible canvas area."""
+
+    def _assert_all_vertices_in_box(
+        self,
+        positions: dict,
+        box: dict,
+        msg: str = "",
+    ) -> None:
+        """Assert all vertex positions are within the bounding box."""
+        for vid, pos in positions.items():
+            x, y = pos[0], pos[1]
+            self.assertGreaterEqual(
+                x, box["x"],
+                f"{msg} Vertex {vid} x={x} is less than box x={box['x']}"
+            )
+            self.assertLessEqual(
+                x, box["x"] + box["width"],
+                f"{msg} Vertex {vid} x={x} exceeds box right={box['x'] + box['width']}"
+            )
+            self.assertGreaterEqual(
+                y, box["y"],
+                f"{msg} Vertex {vid} y={y} is less than box y={box['y']}"
+            )
+            self.assertLessEqual(
+                y, box["y"] + box["height"],
+                f"{msg} Vertex {vid} y={y} exceeds box top={box['y'] + box['height']}"
+            )
+
+    # ------------------------------------------------------------------
+    # Visibility tests with default box (origin at 0,0)
+    # ------------------------------------------------------------------
+
+    def test_grid_layout_visibility_origin_box(self) -> None:
+        """Grid layout vertices should be within box at origin."""
+        box = {"x": 0.0, "y": 0.0, "width": 500.0, "height": 400.0}
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
+        positions = layout_vertices(
+            ["A", "B", "C", "D"],
+            edges,
+            layout="grid",
+            placement_box=box,
+            canvas_width=500.0,
+            canvas_height=400.0,
+        )
+        self._assert_all_vertices_in_box(positions, box, "Grid layout (origin):")
+
+    def test_circular_layout_visibility_origin_box(self) -> None:
+        """Circular layout vertices should be within box at origin."""
+        box = {"x": 0.0, "y": 0.0, "width": 500.0, "height": 400.0}
+        edges = [Edge("A", "B"), Edge("B", "C")]
+        positions = layout_vertices(
+            ["A", "B", "C", "D", "E"],
+            edges,
+            layout="circular",
+            placement_box=box,
+            canvas_width=500.0,
+            canvas_height=400.0,
+        )
+        self._assert_all_vertices_in_box(positions, box, "Circular layout (origin):")
+
+    def test_tree_layout_visibility_origin_box(self) -> None:
+        """Tree layout vertices should be within box at origin."""
+        box = {"x": 0.0, "y": 0.0, "width": 500.0, "height": 400.0}
+        edges = [Edge("R", "A"), Edge("R", "B"), Edge("A", "C"), Edge("A", "D")]
+        positions = layout_vertices(
+            ["R", "A", "B", "C", "D"],
+            edges,
+            layout="tree",
+            placement_box=box,
+            canvas_width=500.0,
+            canvas_height=400.0,
+            root_id="R",
+        )
+        self._assert_all_vertices_in_box(positions, box, "Tree layout (origin):")
+
+    def test_radial_layout_visibility_origin_box(self) -> None:
+        """Radial layout vertices should be within box at origin."""
+        box = {"x": 0.0, "y": 0.0, "width": 500.0, "height": 400.0}
+        edges = [Edge("R", "A"), Edge("R", "B"), Edge("A", "C")]
+        positions = layout_vertices(
+            ["R", "A", "B", "C"],
+            edges,
+            layout="radial",
+            placement_box=box,
+            canvas_width=500.0,
+            canvas_height=400.0,
+            root_id="R",
+        )
+        self._assert_all_vertices_in_box(positions, box, "Radial layout (origin):")
+
+    def test_force_layout_visibility_origin_box(self) -> None:
+        """Force-directed layout vertices should be within box at origin."""
+        box = {"x": 0.0, "y": 0.0, "width": 500.0, "height": 400.0}
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "A"), Edge("A", "D")]
+        positions = layout_vertices(
+            ["A", "B", "C", "D"],
+            edges,
+            layout="force",
+            placement_box=box,
+            canvas_width=500.0,
+            canvas_height=400.0,
+        )
+        self._assert_all_vertices_in_box(positions, box, "Force layout (origin):")
+
+    # ------------------------------------------------------------------
+    # Visibility tests with offset box (simulating panned viewport)
+    # ------------------------------------------------------------------
+
+    def test_grid_layout_visibility_offset_box(self) -> None:
+        """Grid layout vertices should be within offset box."""
+        box = {"x": -500.0, "y": -300.0, "width": 1000.0, "height": 600.0}
+        edges = [
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A"),
+            Edge("E", "F"), Edge("F", "G"), Edge("G", "H"), Edge("H", "E"),
+            Edge("D", "E"),
+        ]
+        positions = layout_vertices(
+            ["A", "B", "C", "D", "E", "F", "G", "H"],
+            edges,
+            layout="grid",
+            placement_box=box,
+            canvas_width=1000.0,
+            canvas_height=600.0,
+        )
+        self._assert_all_vertices_in_box(positions, box, "Grid layout (offset):")
+
+    def test_circular_layout_visibility_offset_box(self) -> None:
+        """Circular layout vertices should be within offset box."""
+        box = {"x": -400.0, "y": -200.0, "width": 800.0, "height": 400.0}
+        edges = []
+        positions = layout_vertices(
+            ["A", "B", "C", "D", "E", "F"],
+            edges,
+            layout="circular",
+            placement_box=box,
+            canvas_width=800.0,
+            canvas_height=400.0,
+        )
+        self._assert_all_vertices_in_box(positions, box, "Circular layout (offset):")
+
+    def test_tree_layout_visibility_offset_box(self) -> None:
+        """Tree layout vertices should be within offset box."""
+        box = {"x": -300.0, "y": -250.0, "width": 600.0, "height": 500.0}
+        edges = [
+            Edge("R", "A"), Edge("R", "B"), Edge("R", "C"),
+            Edge("A", "D"), Edge("A", "E"),
+            Edge("B", "F"),
+        ]
+        positions = layout_vertices(
+            ["R", "A", "B", "C", "D", "E", "F"],
+            edges,
+            layout="tree",
+            placement_box=box,
+            canvas_width=600.0,
+            canvas_height=500.0,
+            root_id="R",
+        )
+        self._assert_all_vertices_in_box(positions, box, "Tree layout (offset):")
+
+    def test_radial_layout_visibility_offset_box(self) -> None:
+        """Radial layout vertices should be within offset box."""
+        box = {"x": -250.0, "y": -200.0, "width": 500.0, "height": 400.0}
+        edges = [Edge("R", "A"), Edge("R", "B"), Edge("A", "C"), Edge("B", "D")]
+        positions = layout_vertices(
+            ["R", "A", "B", "C", "D"],
+            edges,
+            layout="radial",
+            placement_box=box,
+            canvas_width=500.0,
+            canvas_height=400.0,
+            root_id="R",
+        )
+        self._assert_all_vertices_in_box(positions, box, "Radial layout (offset):")
+
+    def test_force_layout_visibility_offset_box(self) -> None:
+        """Force-directed layout vertices should be within offset box."""
+        box = {"x": -350.0, "y": -275.0, "width": 700.0, "height": 550.0}
+        edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A"), Edge("A", "C")]
+        positions = layout_vertices(
+            ["A", "B", "C", "D"],
+            edges,
+            layout="force",
+            placement_box=box,
+            canvas_width=700.0,
+            canvas_height=550.0,
+        )
+        self._assert_all_vertices_in_box(positions, box, "Force layout (offset):")
+
+    # ------------------------------------------------------------------
+    # Visibility tests with complex graphs
+    # ------------------------------------------------------------------
+
+    def test_grid_layout_visibility_k5_nonplanar(self) -> None:
+        """K5 (non-planar) vertices should be within box."""
+        box = {"x": -400.0, "y": -300.0, "width": 800.0, "height": 600.0}
+        vertices = ["A", "B", "C", "D", "E"]
+        edges = [
+            Edge("A", "B"), Edge("A", "C"), Edge("A", "D"), Edge("A", "E"),
+            Edge("B", "C"), Edge("B", "D"), Edge("B", "E"),
+            Edge("C", "D"), Edge("C", "E"),
+            Edge("D", "E"),
+        ]
+        positions = layout_vertices(
+            vertices,
+            edges,
+            layout="grid",
+            placement_box=box,
+            canvas_width=800.0,
+            canvas_height=600.0,
+        )
+        self._assert_all_vertices_in_box(positions, box, "K5 grid layout:")
+
+    def test_grid_layout_visibility_two_squares_bridge(self) -> None:
+        """Two squares connected by bridge should be within box."""
+        box = {"x": -500.0, "y": -400.0, "width": 1000.0, "height": 800.0}
+        edges = [
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A"),
+            Edge("E", "F"), Edge("F", "G"), Edge("G", "H"), Edge("H", "E"),
+            Edge("D", "E"),
+        ]
+        positions = layout_vertices(
+            ["A", "B", "C", "D", "E", "F", "G", "H"],
+            edges,
+            layout="grid",
+            placement_box=box,
+            canvas_width=1000.0,
+            canvas_height=800.0,
+        )
+        self._assert_all_vertices_in_box(positions, box, "Two squares bridge:")
+
+    def test_tree_layout_visibility_deep_tree(self) -> None:
+        """Deep tree vertices should be within box."""
+        box = {"x": -300.0, "y": -400.0, "width": 600.0, "height": 800.0}
+        # Create a tree with depth 5
+        edges = [
+            Edge("L0", "L1a"), Edge("L0", "L1b"),
+            Edge("L1a", "L2a"), Edge("L1a", "L2b"),
+            Edge("L1b", "L2c"),
+            Edge("L2a", "L3a"),
+            Edge("L3a", "L4a"),
+        ]
+        vertices = ["L0", "L1a", "L1b", "L2a", "L2b", "L2c", "L3a", "L4a"]
+        positions = layout_vertices(
+            vertices,
+            edges,
+            layout="tree",
+            placement_box=box,
+            canvas_width=600.0,
+            canvas_height=800.0,
+            root_id="L0",
+        )
+        self._assert_all_vertices_in_box(positions, box, "Deep tree:")
+
+    def test_radial_layout_visibility_star_graph(self) -> None:
+        """Star graph in radial layout should be within box."""
+        box = {"x": -250.0, "y": -250.0, "width": 500.0, "height": 500.0}
+        center = "C"
+        leaves = ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"]
+        edges = [Edge(center, leaf) for leaf in leaves]
+        positions = layout_vertices(
+            [center] + leaves,
+            edges,
+            layout="radial",
+            placement_box=box,
+            canvas_width=500.0,
+            canvas_height=500.0,
+            root_id=center,
+        )
+        self._assert_all_vertices_in_box(positions, box, "Star graph radial:")
+
+    def test_hierarchical_layout_visibility(self) -> None:
+        """Hierarchical layout vertices should be within box."""
+        box = {"x": -200.0, "y": -300.0, "width": 400.0, "height": 600.0}
+        edges = [
+            Edge("CEO", "VP1"), Edge("CEO", "VP2"),
+            Edge("VP1", "M1"), Edge("VP1", "M2"),
+            Edge("VP2", "M3"),
+        ]
+        positions = layout_vertices(
+            ["CEO", "VP1", "VP2", "M1", "M2", "M3"],
+            edges,
+            layout="hierarchical",
+            placement_box=box,
+            canvas_width=400.0,
+            canvas_height=600.0,
+            root_id="CEO",
+        )
+        self._assert_all_vertices_in_box(positions, box, "Hierarchical layout:")
+
+
 if __name__ == "__main__":
     unittest.main()
 

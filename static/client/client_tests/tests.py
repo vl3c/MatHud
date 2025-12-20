@@ -28,7 +28,7 @@ from .test_function_calling import TestProcessFunctionCalls
 from .test_math_functions import TestMathFunctions
 from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
 from .test_geometry_utils import TestGeometryUtils
-from .test_graph_layout import TestGraphLayout
+from .test_graph_layout import TestGraphLayout, TestGraphLayoutVisibility
 from .test_graph_manager import TestGraphManager
 from .test_graph_utils import TestGraphUtils
 from .test_path_elements import TestPathElements
@@ -172,6 +172,7 @@ class Tests:
             TestPeriodicityEdgeCases,
             TestGeometryUtils,
             TestGraphLayout,
+            TestGraphLayoutVisibility,
             TestGraphManager,
             TestGraphUtils,
             TestPathElements,
