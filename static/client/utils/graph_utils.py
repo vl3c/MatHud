@@ -1448,12 +1448,15 @@ class GraphUtils:
             return 0, 0, 0.0
         
         # Group lengths by similarity
+        # Add small epsilon for floating point comparison robustness
+        eps = 1e-9
         groups: List[List[float]] = []
         for length in lengths:
             found_group = False
             for group in groups:
                 # Check if this length is similar to the group's first element
-                if abs(length - group[0]) <= tolerance * group[0]:
+                # Use relative tolerance plus small epsilon for floating point safety
+                if abs(length - group[0]) <= tolerance * group[0] + eps:
                     group.append(length)
                     found_group = True
                     break
