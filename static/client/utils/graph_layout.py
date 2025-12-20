@@ -326,10 +326,19 @@ def _grid_layout(
         if diagonal_ratio > 0.3:  # More than 30% diagonal -> fallback
             print(f"[GRID] Too many diagonals, using force-directed fallback")
             result = _force_to_grid_fallback(vertex_ids, edges, box)
-            return {k: (float(v[0]), float(v[1])) for k, v in result.items()}
+        else:
+            result = _compact_orthogonal(ortho_rep, vertex_ids, edges, box)
         
-        result = _compact_orthogonal(ortho_rep, vertex_ids, edges, box)
-        return {k: (float(v[0]), float(v[1])) for k, v in result.items()}
+        # Check for crossings and eliminate if needed
+        result = {k: (float(v[0]), float(v[1])) for k, v in result.items()}
+        crossings = GraphUtils.count_edge_crossings(edges, result)
+        if crossings > 0:
+            print(f"[GRID] Detected {crossings} crossings, running elimination...")
+            result = _eliminate_crossings(vertex_ids, edges, result, box)
+            final_crossings = GraphUtils.count_edge_crossings(edges, result)
+            print(f"[GRID] After elimination: {final_crossings} crossings")
+        
+        return result
     else:
         # Non-planar graph: planarize first
         print(f"[GRID] Path: non-planar graph -> planarize first")
@@ -1496,6 +1505,317 @@ def _edge_intersection(
         return (ix, iy)
     
     return None
+
+
+# =============================================================================
+# Crossing Elimination
+# =============================================================================
+
+def _find_crossing_pairs(
+    edges: List[Edge[str]],
+    positions: Dict[str, Tuple[float, float]],
+) -> List[Tuple[Edge[str], Edge[str]]]:
+    """
+    Find all pairs of edges that cross each other.
+    
+    Returns list of (edge1, edge2) tuples where the edges cross at an interior point.
+    Edges that share a vertex are not considered crossing.
+    """
+    crossing_pairs: List[Tuple[Edge[str], Edge[str]]] = []
+    edge_list = list(edges)
+    
+    for i in range(len(edge_list)):
+        e1 = edge_list[i]
+        p1 = positions.get(e1.source)
+        p2 = positions.get(e1.target)
+        if p1 is None or p2 is None:
+            continue
+        
+        for j in range(i + 1, len(edge_list)):
+            e2 = edge_list[j]
+            # Skip edges sharing a vertex
+            if e1.source in (e2.source, e2.target) or e1.target in (e2.source, e2.target):
+                continue
+            
+            p3 = positions.get(e2.source)
+            p4 = positions.get(e2.target)
+            if p3 is None or p4 is None:
+                continue
+            
+            if GraphUtils.segments_cross(p1, p2, p3, p4):
+                crossing_pairs.append((e1, e2))
+    
+    return crossing_pairs
+
+
+def _to_grid_coords(
+    positions: Dict[str, Tuple[float, float]],
+    box: Dict[str, float],
+    grid_size: int,
+) -> Dict[str, Tuple[int, int]]:
+    """
+    Convert float positions to integer grid coordinates.
+    
+    Maps positions within the bounding box to a grid of the specified size.
+    """
+    if not positions:
+        return {}
+    
+    cell_width = box["width"] / grid_size
+    cell_height = box["height"] / grid_size
+    
+    grid_pos: Dict[str, Tuple[int, int]] = {}
+    for vid, pos in positions.items():
+        x, y = pos
+        col = int((x - box["x"]) / cell_width)
+        row = int((y - box["y"]) / cell_height)
+        col = max(0, min(grid_size - 1, col))
+        row = max(0, min(grid_size - 1, row))
+        grid_pos[vid] = (col, row)
+    
+    return grid_pos
+
+
+def _from_grid_coords(
+    grid_pos: Dict[str, Tuple[int, int]],
+    box: Dict[str, float],
+    grid_size: int,
+) -> Dict[str, Tuple[float, float]]:
+    """
+    Convert integer grid coordinates back to float positions.
+    
+    Places vertices at the center of their grid cells.
+    """
+    if not grid_pos:
+        return {}
+    
+    cell_width = box["width"] / grid_size
+    cell_height = box["height"] / grid_size
+    
+    positions: Dict[str, Tuple[float, float]] = {}
+    for vid, gpos in grid_pos.items():
+        col, row = gpos
+        x = box["x"] + (col + 0.5) * cell_width
+        y = box["y"] + (row + 0.5) * cell_height
+        positions[vid] = (float(x), float(y))
+    
+    return positions
+
+
+def _count_crossings_for_vertex(
+    vertex: str,
+    pos: Tuple[int, int],
+    edges: List[Edge[str]],
+    grid_pos: Dict[str, Tuple[int, int]],
+    grid_size: int,
+) -> int:
+    """
+    Count how many edge crossings would occur if vertex is at the given position.
+    
+    Only counts crossings involving edges incident to the vertex.
+    """
+    # Temporarily set the vertex position
+    old_pos = grid_pos.get(vertex)
+    grid_pos[vertex] = pos
+    
+    # Convert to float positions for crossing detection
+    # Use a unit box for simplicity since we only care about relative positions
+    float_pos: Dict[str, Tuple[float, float]] = {}
+    for vid, gpos in grid_pos.items():
+        float_pos[vid] = (float(gpos[0]), float(gpos[1]))
+    
+    # Count crossings for edges incident to this vertex
+    crossings = 0
+    incident_edges = [e for e in edges if e.source == vertex or e.target == vertex]
+    other_edges = [e for e in edges if e.source != vertex and e.target != vertex]
+    
+    for e1 in incident_edges:
+        p1 = float_pos.get(e1.source)
+        p2 = float_pos.get(e1.target)
+        if p1 is None or p2 is None:
+            continue
+        
+        for e2 in other_edges:
+            # Skip edges sharing a vertex with e1
+            if e1.source in (e2.source, e2.target) or e1.target in (e2.source, e2.target):
+                continue
+            
+            p3 = float_pos.get(e2.source)
+            p4 = float_pos.get(e2.target)
+            if p3 is None or p4 is None:
+                continue
+            
+            if GraphUtils.segments_cross(p1, p2, p3, p4):
+                crossings += 1
+    
+    # Restore old position
+    if old_pos is not None:
+        grid_pos[vertex] = old_pos
+    
+    return crossings
+
+
+def _find_best_position(
+    vertex: str,
+    edges: List[Edge[str]],
+    grid_pos: Dict[str, Tuple[int, int]],
+    grid_size: int,
+    search_radius: int = 3,
+) -> Tuple[int, int]:
+    """
+    Find the best grid position for a vertex that minimizes edge crossings.
+    
+    Searches positions within search_radius of the current position.
+    Returns the position with the fewest crossings, or current position if no improvement.
+    """
+    current_pos = grid_pos.get(vertex)
+    if current_pos is None:
+        return (0, 0)
+    
+    current_col, current_row = current_pos
+    current_crossings = _count_crossings_for_vertex(vertex, current_pos, edges, grid_pos, grid_size)
+    
+    if current_crossings == 0:
+        return current_pos  # Already optimal
+    
+    best_pos = current_pos
+    best_crossings = current_crossings
+    
+    # Get occupied positions (excluding current vertex)
+    occupied = {gpos for vid, gpos in grid_pos.items() if vid != vertex}
+    
+    # Search nearby positions
+    for dc in range(-search_radius, search_radius + 1):
+        for dr in range(-search_radius, search_radius + 1):
+            if dc == 0 and dr == 0:
+                continue  # Skip current position
+            
+            new_col = current_col + dc
+            new_row = current_row + dr
+            
+            # Check bounds
+            if new_col < 0 or new_col >= grid_size or new_row < 0 or new_row >= grid_size:
+                continue
+            
+            # Check for overlap with other vertices
+            if (new_col, new_row) in occupied:
+                continue
+            
+            new_pos = (new_col, new_row)
+            new_crossings = _count_crossings_for_vertex(vertex, new_pos, edges, grid_pos, grid_size)
+            
+            if new_crossings < best_crossings:
+                best_crossings = new_crossings
+                best_pos = new_pos
+    
+    return best_pos
+
+
+def _eliminate_crossings(
+    vertex_ids: List[str],
+    edges: List[Edge[str]],
+    positions: Dict[str, Tuple[float, float]],
+    box: Dict[str, float],
+    max_iterations: int = 50,
+) -> Dict[str, Tuple[float, float]]:
+    """
+    Iteratively eliminate edge crossings by repositioning vertices.
+    
+    Algorithm:
+    1. Convert positions to grid coordinates
+    2. Find all crossing edge pairs
+    3. For each crossing, try moving involved vertices to eliminate it
+    4. Repeat until no crossings or max iterations reached
+    
+    Args:
+        vertex_ids: List of vertex identifiers
+        edges: List of edges
+        positions: Current vertex positions
+        box: Bounding box for the layout
+        max_iterations: Maximum number of improvement iterations
+    
+    Returns:
+        Improved positions with fewer/no crossings
+    """
+    # Determine grid size based on vertex count
+    n = len(vertex_ids)
+    grid_size = max(int(math.ceil(math.sqrt(n))) * 2, 6)
+    
+    # Convert to grid coordinates
+    grid_pos = _to_grid_coords(positions, box, grid_size)
+    
+    # Track best result
+    best_grid_pos = dict(grid_pos)
+    best_crossing_count = len(_find_crossing_pairs(edges, _from_grid_coords(grid_pos, box, grid_size)))
+    
+    print(f"[CROSSING-ELIM] Starting with {best_crossing_count} crossings, grid_size={grid_size}")
+    
+    for iteration in range(max_iterations):
+        # Get current positions as floats for crossing detection
+        float_pos = _from_grid_coords(grid_pos, box, grid_size)
+        crossing_pairs = _find_crossing_pairs(edges, float_pos)
+        
+        if not crossing_pairs:
+            print(f"[CROSSING-ELIM] Eliminated all crossings after {iteration} iterations")
+            break
+        
+        # Try to fix crossings
+        improved = False
+        
+        for e1, e2 in crossing_pairs:
+            # Get the 4 vertices involved in this crossing
+            involved = [e1.source, e1.target, e2.source, e2.target]
+            
+            # Try moving each vertex to find a better position
+            for v in involved:
+                old_pos = grid_pos[v]
+                new_pos = _find_best_position(v, edges, grid_pos, grid_size)
+                
+                if new_pos != old_pos:
+                    grid_pos[v] = new_pos
+                    
+                    # Check if this improved the total crossing count
+                    new_float_pos = _from_grid_coords(grid_pos, box, grid_size)
+                    new_crossing_count = len(_find_crossing_pairs(edges, new_float_pos))
+                    
+                    if new_crossing_count < best_crossing_count:
+                        best_crossing_count = new_crossing_count
+                        best_grid_pos = dict(grid_pos)
+                        improved = True
+                        print(f"[CROSSING-ELIM] Iteration {iteration}: moved {v}, crossings now {new_crossing_count}")
+                        break
+                    else:
+                        # Revert if not an improvement
+                        grid_pos[v] = old_pos
+            
+            if improved:
+                break  # Restart crossing detection with updated positions
+        
+        if not improved:
+            # Try expanding search radius
+            for v in vertex_ids:
+                old_pos = grid_pos[v]
+                new_pos = _find_best_position(v, edges, grid_pos, grid_size, search_radius=5)
+                
+                if new_pos != old_pos:
+                    grid_pos[v] = new_pos
+                    new_float_pos = _from_grid_coords(grid_pos, box, grid_size)
+                    new_crossing_count = len(_find_crossing_pairs(edges, new_float_pos))
+                    
+                    if new_crossing_count < best_crossing_count:
+                        best_crossing_count = new_crossing_count
+                        best_grid_pos = dict(grid_pos)
+                        improved = True
+                        break
+                    else:
+                        grid_pos[v] = old_pos
+            
+            if not improved:
+                print(f"[CROSSING-ELIM] No improvement possible, stopping at {best_crossing_count} crossings")
+                break
+    
+    # Return best result found
+    return _from_grid_coords(best_grid_pos, box, grid_size)
 
 
 def _force_to_grid_fallback(
