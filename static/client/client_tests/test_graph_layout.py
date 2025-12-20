@@ -492,6 +492,32 @@ class TestGraphLayout(unittest.TestCase):
         self.assertGreaterEqual(orthogonal, min_orthogonal,
             f"Two squares with caps: {orthogonal}/{total} orthogonal (expected at least {min_orthogonal})")
 
+    def test_grid_layout_two_k4_bridge_orthogonality(self) -> None:
+        """Two K4 (complete squares) connected by bridge - at least perimeter edges orthogonal.
+        
+        K4 has 6 edges: 4 perimeter + 2 diagonals. The diagonals cannot all be
+        orthogonal, but the 8 perimeter edges + bridge should be mostly orthogonal.
+        """
+        vertices = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        edges = [
+            # K4 #1: A-B-C-D with diagonals A-C, B-D
+            Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A"),
+            Edge("A", "C"), Edge("B", "D"),
+            # K4 #2: E-F-G-H with diagonals E-G, F-H
+            Edge("E", "F"), Edge("F", "G"), Edge("G", "H"), Edge("H", "E"),
+            Edge("E", "G"), Edge("F", "H"),
+            # Bridge: D-E
+            Edge("D", "E"),
+        ]
+        positions = _grid_layout(vertices, edges, self.box)
+        
+        orthogonal, total = GraphUtils.count_orthogonal_edges(edges, positions)
+        # 13 edges total: 8 perimeter + 4 diagonals + 1 bridge
+        # Expect at least 7 orthogonal (perimeter edges minus some realistic loss)
+        min_orthogonal = 7
+        self.assertGreaterEqual(orthogonal, min_orthogonal,
+            f"Two K4 with bridge: {orthogonal}/{total} orthogonal (expected at least {min_orthogonal})")
+
     # ------------------------------------------------------------------
     # Edge length uniformity tests
     # ------------------------------------------------------------------
