@@ -45,6 +45,42 @@ class GraphAnalyzer:
         return None
 
     @staticmethod
+    def _resolve_root(state: GraphState, adjacency: Dict[str, set[str]], params: Optional[Dict[str, Any]]) -> Optional[str]:
+        """Resolve root from params or state, handling old internal ID format."""
+        params = params or {}
+        root = params.get("root") or getattr(state, "root", None)
+        if root is None:
+            # No root specified, use first vertex from state if available
+            if state.vertices:
+                return state.vertices[0].id
+            if adjacency:
+                return next(iter(adjacency.keys()))
+            return None
+        # If root is already in adjacency, use it directly
+        if root in adjacency:
+            return root
+        # Handle old format: internal IDs like "v0", "v1"
+        if isinstance(root, str) and root.startswith("v") and root[1:].isdigit():
+            idx = int(root[1:])
+            # First try state.vertices (more reliable ordering)
+            if state.vertices and 0 <= idx < len(state.vertices):
+                candidate = state.vertices[idx].id
+                if candidate in adjacency:
+                    return candidate
+            # Fall back to sorted adjacency keys
+            vertex_ids = sorted(adjacency.keys())
+            if 0 <= idx < len(vertex_ids):
+                return vertex_ids[idx]
+        # Try matching root against vertex names in state
+        for v in state.vertices:
+            if v.name == root and v.id in adjacency:
+                return v.id
+        # Fallback: return first vertex from adjacency
+        if adjacency:
+            return next(iter(adjacency.keys()))
+        return None
+
+    @staticmethod
     def analyze(state: GraphState, operation: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         params = params or {}
         directed = bool(state.directed)
@@ -121,7 +157,7 @@ class GraphAnalyzer:
             return {"order": order}
 
         if operation == "levels":
-            root = params.get("root") or getattr(state, "root", None)
+            root = GraphAnalyzer._resolve_root(state, adjacency, params)
             levels = GraphUtils.tree_levels(root, adjacency) if root else None
             return {"levels": levels}
 
@@ -133,49 +169,53 @@ class GraphAnalyzer:
             return result
 
         if operation == "lca":
-            root = params.get("root") or getattr(state, "root", None)
+            root = GraphAnalyzer._resolve_root(state, adjacency, params)
             a = params.get("a")
             b = params.get("b")
             if root is None or a is None or b is None:
-                return {"error": "root, a, and b are required for lca"}
+                return {"error": f"root, a, and b are required for lca (root={root!r}, a={a!r}, b={b!r})"}
             rooted = GraphUtils.root_tree(adjacency, root)
             if rooted is None:
-                return {"error": "invalid tree structure"}
+                adj_keys = list(adjacency.keys())[:5]
+                return {"error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"}
             parent, children = rooted
             depths = GraphUtils.node_depths(root, adjacency) or {}
             lca_node = GraphUtils.lowest_common_ancestor(parent, depths, a, b)
             return {"lca": lca_node}
 
         if operation == "balance_children":
-            root = params.get("root") or getattr(state, "root", None)
+            root = GraphAnalyzer._resolve_root(state, adjacency, params)
             if root is None:
-                return {"error": "root is required for balance_children"}
+                return {"error": f"root is required for balance_children (adjacency has {len(adjacency)} vertices)"}
             rooted = GraphUtils.root_tree(adjacency, root)
             if rooted is None:
-                return {"error": "invalid tree structure"}
+                adj_keys = list(adjacency.keys())[:5]
+                return {"error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"}
             _, children = rooted
             balanced = GraphUtils.balance_children(root, children)
             return {"children": balanced}
 
         if operation == "invert_children":
-            root = params.get("root") or getattr(state, "root", None)
+            root = GraphAnalyzer._resolve_root(state, adjacency, params)
             if root is None:
-                return {"error": "root is required for invert_children"}
+                return {"error": f"root is required for invert_children (adjacency has {len(adjacency)} vertices)"}
             rooted = GraphUtils.root_tree(adjacency, root)
             if rooted is None:
-                return {"error": "invalid tree structure"}
+                adj_keys = list(adjacency.keys())[:5]
+                return {"error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"}
             _, children = rooted
             inverted = GraphUtils.invert_children(children)
             return {"children": inverted}
 
         if operation == "reroot":
-            root = params.get("root") or getattr(state, "root", None)
+            root = GraphAnalyzer._resolve_root(state, adjacency, params)
             new_root = params.get("new_root")
             if root is None or new_root is None:
-                return {"error": "root and new_root are required for reroot"}
+                return {"error": f"root and new_root are required for reroot (root={root!r}, new_root={new_root!r})"}
             rooted = GraphUtils.root_tree(adjacency, root)
             if rooted is None:
-                return {"error": "invalid tree structure"}
+                adj_keys = list(adjacency.keys())[:5]
+                return {"error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"}
             parent, children = rooted
             rerooted = GraphUtils.reroot_tree(parent, children, new_root)
             if rerooted is None:
