@@ -388,6 +388,41 @@ class TestRunner:
                     "new_label_visible": True,
                 },
             },
+            # 3-layer binary tree in the lower-left quadrant
+            {
+                "function_name": "generate_graph",
+                "arguments": {
+                    "name": "BinaryTree",
+                    "graph_type": "tree",
+                    "directed": True,
+                    "root": "R",
+                    "layout": "tree",
+                    "placement_box": {
+                        "x": -500,
+                        "y": -350,
+                        "width": 300,
+                        "height": 325
+                    },
+                    "vertices": [
+                        {"name": "R", "x": None, "y": None, "color": None, "label": None},
+                        {"name": "L1", "x": None, "y": None, "color": None, "label": None},
+                        {"name": "L2", "x": None, "y": None, "color": None, "label": None},
+                        {"name": "L1A", "x": None, "y": None, "color": None, "label": None},
+                        {"name": "L1B", "x": None, "y": None, "color": None, "label": None},
+                        {"name": "L2A", "x": None, "y": None, "color": None, "label": None},
+                        {"name": "L2B", "x": None, "y": None, "color": None, "label": None}
+                    ],
+                    "edges": [
+                        {"source": 0, "target": 1, "weight": None, "name": "R_L1", "color": None, "directed": True},
+                        {"source": 0, "target": 2, "weight": None, "name": "R_L2", "color": None, "directed": True},
+                        {"source": 1, "target": 3, "weight": None, "name": "L1_L1A", "color": None, "directed": True},
+                        {"source": 1, "target": 4, "weight": None, "name": "L1_L1B", "color": None, "directed": True},
+                        {"source": 2, "target": 5, "weight": None, "name": "L2_L2A", "color": None, "directed": True},
+                        {"source": 2, "target": 6, "weight": None, "name": "L2_L2B", "color": None, "directed": True}
+                    ],
+                    "adjacency_matrix": None
+                }
+            },
             {
                 "function_name": "clear_canvas",
                 "arguments": {}
