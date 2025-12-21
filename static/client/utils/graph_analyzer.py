@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from geometry.graph_state import GraphEdgeDescriptor, GraphState, TreeState
+from utils.geometry_utils import GeometryUtils
 from utils.graph_utils import Edge, GraphUtils
 
 
@@ -221,6 +222,41 @@ class GraphAnalyzer:
             if rerooted is None:
                 return {"error": "reroot failed"}
             return {"parent": rerooted[0], "children": rerooted[1]}
+
+        if operation == "convex_hull":
+            # Extract vertex positions from state
+            positions: List[Tuple[float, float]] = []
+            vertex_at_pos: Dict[Tuple[float, float], str] = {}
+            for v in state.vertices:
+                if v.x is not None and v.y is not None:
+                    pos = (float(v.x), float(v.y))
+                    positions.append(pos)
+                    vertex_at_pos[pos] = v.id
+            if len(positions) < 3:
+                # Convert tuples to lists for JSON serialization
+                hull_as_lists = [list(p) for p in positions]
+                return {"hull": hull_as_lists, "hull_vertices": [vertex_at_pos.get(p, "") for p in positions]}
+            hull = GeometryUtils.convex_hull(positions)
+            hull_vertices = [vertex_at_pos.get(p, "") for p in hull]
+            # Convert tuples to lists for JSON serialization
+            hull_as_lists = [list(p) for p in hull]
+            return {"hull": hull_as_lists, "hull_vertices": hull_vertices}
+
+        if operation == "point_in_hull":
+            x = params.get("x")
+            y = params.get("y")
+            if x is None or y is None:
+                return {"error": "x and y coordinates are required for point_in_hull"}
+            positions = [
+                (float(v.x), float(v.y))
+                for v in state.vertices
+                if v.x is not None and v.y is not None
+            ]
+            hull = GeometryUtils.convex_hull(positions)
+            inside = GeometryUtils.point_in_convex_hull((float(x), float(y)), hull)
+            # Convert tuples to lists for JSON serialization
+            hull_as_lists = [list(p) for p in hull]
+            return {"inside": inside, "hull": hull_as_lists}
 
         return {"error": f"Unsupported operation '{operation}'"}
 
