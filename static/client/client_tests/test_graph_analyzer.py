@@ -742,6 +742,135 @@ class TestAnalyzeGraphGridGraph(unittest.TestCase):
         self.assertEqual(len(path), 3)  # Corner to corner in 2 steps
 
 
+class TestAnalyzeGraphConvexHull(unittest.TestCase):
+    """Tests for convex_hull operation in analyze_graph."""
+
+    def test_convex_hull_triangle_graph(self) -> None:
+        """3 vertices forming triangle, hull = all 3."""
+        vertices = [
+            GraphVertexDescriptor("A", x=0.0, y=0.0),
+            GraphVertexDescriptor("B", x=2.0, y=0.0),
+            GraphVertexDescriptor("C", x=1.0, y=2.0),
+        ]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B"),
+            GraphEdgeDescriptor("e2", "B", "C"),
+            GraphEdgeDescriptor("e3", "C", "A"),
+        ]
+        state = GraphState("Triangle", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "convex_hull", {})
+
+        self.assertNotIn("error", result)
+        hull = result.get("hull", [])
+        hull_vertices = result.get("hull_vertices", [])
+        self.assertEqual(len(hull), 3)
+        self.assertEqual(len(hull_vertices), 3)
+        self.assertEqual(set(hull_vertices), {"A", "B", "C"})
+
+    def test_convex_hull_with_interior_vertex(self) -> None:
+        """4 vertices, 1 inside, hull = 3 outer."""
+        vertices = [
+            GraphVertexDescriptor("A", x=0.0, y=0.0),
+            GraphVertexDescriptor("B", x=2.0, y=0.0),
+            GraphVertexDescriptor("C", x=1.0, y=2.0),
+            GraphVertexDescriptor("D", x=1.0, y=0.5),  # interior point
+        ]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B"),
+            GraphEdgeDescriptor("e2", "B", "C"),
+            GraphEdgeDescriptor("e3", "C", "A"),
+            GraphEdgeDescriptor("e4", "A", "D"),
+        ]
+        state = GraphState("TriangleWithCenter", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "convex_hull", {})
+
+        hull_vertices = result.get("hull_vertices", [])
+        self.assertEqual(len(hull_vertices), 3)
+        self.assertNotIn("D", hull_vertices)
+
+    def test_convex_hull_collinear_vertices(self) -> None:
+        """Line of vertices, hull = 2 endpoints."""
+        vertices = [
+            GraphVertexDescriptor("A", x=0.0, y=0.0),
+            GraphVertexDescriptor("B", x=1.0, y=0.0),
+            GraphVertexDescriptor("C", x=2.0, y=0.0),
+        ]
+        edges = [
+            GraphEdgeDescriptor("e1", "A", "B"),
+            GraphEdgeDescriptor("e2", "B", "C"),
+        ]
+        state = GraphState("Line", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "convex_hull", {})
+
+        hull = result.get("hull", [])
+        self.assertEqual(len(hull), 2)
+
+    def test_convex_hull_empty_graph(self) -> None:
+        """Graph with no positioned vertices."""
+        vertices = [
+            GraphVertexDescriptor("A"),  # no x, y
+            GraphVertexDescriptor("B"),
+        ]
+        state = GraphState("Empty", vertices, [], directed=False)
+        result = GraphAnalyzer.analyze(state, "convex_hull", {})
+
+        hull = result.get("hull", [])
+        self.assertEqual(len(hull), 0)
+
+
+class TestAnalyzeGraphPointInHull(unittest.TestCase):
+    """Tests for point_in_hull operation in analyze_graph."""
+
+    def test_point_inside_graph_hull(self) -> None:
+        """Point inside hull returns True."""
+        vertices = [
+            GraphVertexDescriptor("A", x=0.0, y=0.0),
+            GraphVertexDescriptor("B", x=2.0, y=0.0),
+            GraphVertexDescriptor("C", x=1.0, y=2.0),
+        ]
+        edges = [GraphEdgeDescriptor("e1", "A", "B")]
+        state = GraphState("Triangle", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "point_in_hull", {"x": 1.0, "y": 0.5})
+
+        self.assertNotIn("error", result)
+        self.assertTrue(result.get("inside"))
+
+    def test_point_outside_graph_hull(self) -> None:
+        """Point outside hull returns False."""
+        vertices = [
+            GraphVertexDescriptor("A", x=0.0, y=0.0),
+            GraphVertexDescriptor("B", x=2.0, y=0.0),
+            GraphVertexDescriptor("C", x=1.0, y=2.0),
+        ]
+        edges = [GraphEdgeDescriptor("e1", "A", "B")]
+        state = GraphState("Triangle", vertices, edges, directed=False)
+        result = GraphAnalyzer.analyze(state, "point_in_hull", {"x": 5.0, "y": 5.0})
+
+        self.assertFalse(result.get("inside"))
+
+    def test_point_in_hull_missing_params(self) -> None:
+        """Missing x or y returns error."""
+        vertices = [GraphVertexDescriptor("A", x=0.0, y=0.0)]
+        state = GraphState("G", vertices, [], directed=False)
+        result = GraphAnalyzer.analyze(state, "point_in_hull", {"x": 1.0})
+
+        self.assertIn("error", result)
+
+    def test_point_on_hull_boundary(self) -> None:
+        """Point on hull boundary returns True."""
+        vertices = [
+            GraphVertexDescriptor("A", x=0.0, y=0.0),
+            GraphVertexDescriptor("B", x=2.0, y=0.0),
+            GraphVertexDescriptor("C", x=1.0, y=2.0),
+        ]
+        edges = [GraphEdgeDescriptor("e1", "A", "B")]
+        state = GraphState("Triangle", vertices, edges, directed=False)
+        # Midpoint of edge A-B
+        result = GraphAnalyzer.analyze(state, "point_in_hull", {"x": 1.0, "y": 0.0})
+
+        self.assertTrue(result.get("inside"))
+
+
 if __name__ == "__main__":
     unittest.main()
 

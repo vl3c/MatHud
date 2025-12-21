@@ -537,6 +537,120 @@ class TestGeometryUtils(unittest.TestCase):
         self.assertIsNone(GeometryUtils.path_math_coordinates_from_segments(segments))
 
 
+class TestConvexHull(unittest.TestCase):
+    """Tests for GeometryUtils.convex_hull."""
+
+    def test_triangle(self) -> None:
+        """3 non-collinear points, all on hull."""
+        points = [(0.0, 0.0), (2.0, 0.0), (1.0, 2.0)]
+        hull = GeometryUtils.convex_hull(points)
+        self.assertEqual(len(hull), 3)
+        self.assertEqual(set(hull), set(points))
+
+    def test_square(self) -> None:
+        """4 corners of a square, all on hull."""
+        points = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+        hull = GeometryUtils.convex_hull(points)
+        self.assertEqual(len(hull), 4)
+        self.assertEqual(set(hull), set(points))
+
+    def test_pentagon_with_interior(self) -> None:
+        """5 points, 1 interior point excluded from hull."""
+        # Outer square + center point
+        points = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0), (1.0, 1.0)]
+        hull = GeometryUtils.convex_hull(points)
+        self.assertEqual(len(hull), 4)
+        self.assertNotIn((1.0, 1.0), hull)
+
+    def test_collinear(self) -> None:
+        """Collinear points degenerate to 2 endpoints."""
+        points = [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 0.0)]
+        hull = GeometryUtils.convex_hull(points)
+        self.assertEqual(len(hull), 2)
+        self.assertIn((0.0, 0.0), hull)
+        self.assertIn((3.0, 0.0), hull)
+
+    def test_duplicates(self) -> None:
+        """Duplicate points handled correctly."""
+        points = [(0.0, 0.0), (1.0, 0.0), (1.0, 0.0), (0.5, 1.0), (0.0, 0.0)]
+        hull = GeometryUtils.convex_hull(points)
+        self.assertEqual(len(hull), 3)
+
+    def test_fewer_than_3_unique(self) -> None:
+        """Fewer than 3 unique points returns input."""
+        points = [(0.0, 0.0), (1.0, 0.0)]
+        hull = GeometryUtils.convex_hull(points)
+        self.assertEqual(len(hull), 2)
+
+    def test_single_point(self) -> None:
+        """Single point returns that point."""
+        points = [(5.0, 5.0)]
+        hull = GeometryUtils.convex_hull(points)
+        self.assertEqual(hull, [(5.0, 5.0)])
+
+    def test_empty_input(self) -> None:
+        """Empty input returns empty list."""
+        hull = GeometryUtils.convex_hull([])
+        self.assertEqual(hull, [])
+
+    def test_ccw_order(self) -> None:
+        """Hull vertices are in counter-clockwise order."""
+        points = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]
+        hull = GeometryUtils.convex_hull(points)
+        # For CCW, cross product of consecutive edges should be positive
+        n = len(hull)
+        for i in range(n):
+            o = hull[i]
+            a = hull[(i + 1) % n]
+            b = hull[(i + 2) % n]
+            cross = GeometryUtils._cross_product(o, a, b)
+            self.assertGreater(cross, 0)
+
+
+class TestPointInConvexHull(unittest.TestCase):
+    """Tests for GeometryUtils.point_in_convex_hull."""
+
+    def setUp(self) -> None:
+        # Simple triangle hull
+        self.triangle_hull = [(0.0, 0.0), (2.0, 0.0), (1.0, 2.0)]
+
+    def test_inside_triangle(self) -> None:
+        """Point inside triangle returns True."""
+        self.assertTrue(GeometryUtils.point_in_convex_hull((1.0, 0.5), self.triangle_hull))
+
+    def test_outside_triangle(self) -> None:
+        """Point outside triangle returns False."""
+        self.assertFalse(GeometryUtils.point_in_convex_hull((3.0, 0.0), self.triangle_hull))
+        self.assertFalse(GeometryUtils.point_in_convex_hull((-1.0, 0.0), self.triangle_hull))
+        self.assertFalse(GeometryUtils.point_in_convex_hull((1.0, 3.0), self.triangle_hull))
+
+    def test_on_edge(self) -> None:
+        """Point on boundary edge returns True."""
+        # Midpoint of bottom edge
+        self.assertTrue(GeometryUtils.point_in_convex_hull((1.0, 0.0), self.triangle_hull))
+
+    def test_on_vertex(self) -> None:
+        """Point on vertex returns True."""
+        self.assertTrue(GeometryUtils.point_in_convex_hull((0.0, 0.0), self.triangle_hull))
+        self.assertTrue(GeometryUtils.point_in_convex_hull((2.0, 0.0), self.triangle_hull))
+        self.assertTrue(GeometryUtils.point_in_convex_hull((1.0, 2.0), self.triangle_hull))
+
+    def test_empty_hull(self) -> None:
+        """Empty hull returns False."""
+        self.assertFalse(GeometryUtils.point_in_convex_hull((0.0, 0.0), []))
+
+    def test_two_point_hull(self) -> None:
+        """Hull with 2 points (degenerate) returns False."""
+        hull = [(0.0, 0.0), (1.0, 0.0)]
+        self.assertFalse(GeometryUtils.point_in_convex_hull((0.5, 0.0), hull))
+
+    def test_square_hull(self) -> None:
+        """Test with square hull."""
+        hull = GeometryUtils.convex_hull([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
+        self.assertTrue(GeometryUtils.point_in_convex_hull((1.0, 1.0), hull))
+        self.assertFalse(GeometryUtils.point_in_convex_hull((3.0, 1.0), hull))
+
+
 if __name__ == "__main__":
     unittest.main()
 
