@@ -27,7 +27,7 @@ from .test_segments_bounded_colored_area import TestSegmentsBoundedColoredArea
 from .test_function_calling import TestProcessFunctionCalls
 from .test_math_functions import TestMathFunctions
 from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
-from .test_geometry_utils import TestGeometryUtils
+from .test_geometry_utils import TestGeometryUtils, TestConvexHull, TestPointInConvexHull
 from .test_graph_layout import TestGraphLayout, TestGraphLayoutVisibility
 from .test_graph_manager import TestGraphManager
 from .test_graph_analyzer import (
@@ -44,6 +44,8 @@ from .test_graph_analyzer import (
     TestAnalyzeGraphEdgeCases,
     TestAnalyzeGraphCompleteGraph,
     TestAnalyzeGraphGridGraph,
+    TestAnalyzeGraphConvexHull,
+    TestAnalyzeGraphPointInHull,
 )
 from .test_graph_utils import TestGraphUtils
 from .test_path_elements import TestPathElements
@@ -186,6 +188,8 @@ class Tests:
             TestPeriodicityDetection,
             TestPeriodicityEdgeCases,
             TestGeometryUtils,
+            TestConvexHull,
+            TestPointInConvexHull,
             TestGraphLayout,
             TestGraphLayoutVisibility,
             TestGraphManager,
@@ -203,6 +207,8 @@ class Tests:
             TestAnalyzeGraphEdgeCases,
             TestAnalyzeGraphCompleteGraph,
             TestAnalyzeGraphGridGraph,
+            TestAnalyzeGraphConvexHull,
+            TestAnalyzeGraphPointInHull,
             TestPathElements,
             TestIntersections,
             TestRegion,
