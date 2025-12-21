@@ -2,7 +2,7 @@
 
 MatHud is an interactive mathematical visualization tool that combines a drawing canvas with an AI assistant to help understand and solve real-world mathematical problems. It serves as a heads-up display system for mathematical analysis, allowing users to visualize, analyze, and solve problems in real-time.
 
-![MatHud - Interactive Mathematics Visualization Tool](MatHud%20-%20Screenshot%202025-06-28.png)
+![MatHud - Interactive Mathematics Visualization Tool](MatHud%20-%20Screenshot%202025-12-21.png)
 
 ## 1. Key Capabilities
 
