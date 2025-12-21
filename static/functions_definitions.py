@@ -1846,7 +1846,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "analyze_graph",
-                    "description": "Analyzes a graph or tree for operations like shortest path, MST, bridges, articulation points, Euler status, bipartite check, BFS/DFS orders, levels, diameter, or LCA. Accepts an existing graph name or an inline graph spec.",
+                    "description": "Analyzes a graph or tree for operations like shortest path, MST, bridges, articulation points, Euler status, bipartite check, BFS/DFS orders, levels, diameter, LCA, convex hull of vertices, or point-in-hull containment. Accepts an existing graph name.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -1854,9 +1854,9 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "graph_name": {"type": "string", "description": "Existing graph name to analyze (must exist on canvas)."},
                             "operation": {
                                 "type": "string",
-                                "enum": ["shortest_path", "mst", "topological_sort", "bridges", "articulation_points", "euler_status", "bipartite", "bfs", "dfs", "levels", "diameter", "lca", "balance_children", "invert_children", "reroot"]
+                                "enum": ["shortest_path", "mst", "topological_sort", "bridges", "articulation_points", "euler_status", "bipartite", "bfs", "dfs", "levels", "diameter", "lca", "balance_children", "invert_children", "reroot", "convex_hull", "point_in_hull"]
                             },
-                            "params": {"type": ["object", "null"], "description": "Operation-specific parameters (start, goal, root, a, b, new_root, etc.)."}
+                            "params": {"type": ["object", "null"], "description": "Operation-specific parameters (start, goal, root, a, b, new_root, x, y for point_in_hull, etc.)."}
                         },
                         "required": ["graph_name", "operation"],
                         "additionalProperties": False
