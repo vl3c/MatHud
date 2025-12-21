@@ -1354,6 +1354,33 @@ class TestGraphLayoutVisibility(unittest.TestCase):
         )
         self._assert_all_vertices_in_box(positions, box, "Hierarchical layout:")
 
+    def test_binary_tree_3_layers_placement_box(self) -> None:
+        """3-layer binary tree should fit within specified placement box."""
+        # Box from x: -500 to -200, y: -350 to -25
+        box = {"x": -500.0, "y": -350.0, "width": 300.0, "height": 325.0}
+        vertices = ["R", "L1", "L2", "L1A", "L1B", "L2A", "L2B"]
+        edges = [
+            Edge("R", "L1"), Edge("R", "L2"),
+            Edge("L1", "L1A"), Edge("L1", "L1B"),
+            Edge("L2", "L2A"), Edge("L2", "L2B"),
+        ]
+        positions = layout_vertices(
+            vertices,
+            edges,
+            layout="tree",
+            placement_box=box,
+            canvas_width=1000.0,
+            canvas_height=800.0,
+            root_id="R",
+        )
+        self._assert_all_vertices_in_box(positions, box, "3-layer binary tree:")
+        # Verify all 7 vertices are positioned
+        self.assertEqual(len(positions), 7)
+        # Verify root is at top (highest y within box)
+        root_y = positions["R"][1]
+        for vid in ["L1", "L2", "L1A", "L1B", "L2A", "L2B"]:
+            self.assertLessEqual(positions[vid][1], root_y)
+
 
 if __name__ == "__main__":
     unittest.main()
