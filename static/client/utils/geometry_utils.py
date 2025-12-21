@@ -181,6 +181,91 @@ class GeometryUtils:
         return [(float(point.x), float(point.y)) for point in ordered_points]
 
     # -------------------------------------------------------------------------
+    # Convex hull utilities
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _cross_product(
+        o: Tuple[float, float],
+        a: Tuple[float, float],
+        b: Tuple[float, float],
+    ) -> float:
+        """Cross product of vectors OA and OB.
+        
+        Positive value indicates counter-clockwise turn from OA to OB.
+        Negative value indicates clockwise turn.
+        Zero indicates collinear points.
+        """
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    @staticmethod
+    def convex_hull(
+        points: Sequence[Tuple[float, float]],
+    ) -> List[Tuple[float, float]]:
+        """Compute convex hull using Andrew's monotone chain algorithm.
+        
+        Args:
+            points: Sequence of (x, y) coordinate tuples.
+            
+        Returns:
+            List of hull vertices in counter-clockwise order.
+            Returns empty list if fewer than 3 unique points after deduplication.
+            Returns 2 endpoints for collinear point sets.
+        """
+        # Remove duplicates and sort lexicographically
+        sorted_points = sorted(set(points))
+        n = len(sorted_points)
+        
+        if n < 3:
+            return list(sorted_points)
+        
+        # Build lower hull (left to right)
+        lower: List[Tuple[float, float]] = []
+        for p in sorted_points:
+            while len(lower) >= 2 and GeometryUtils._cross_product(lower[-2], lower[-1], p) <= 0:
+                lower.pop()
+            lower.append(p)
+        
+        # Build upper hull (right to left)
+        upper: List[Tuple[float, float]] = []
+        for p in reversed(sorted_points):
+            while len(upper) >= 2 and GeometryUtils._cross_product(upper[-2], upper[-1], p) <= 0:
+                upper.pop()
+            upper.append(p)
+        
+        # Concatenate, removing duplicate endpoints
+        return lower[:-1] + upper[:-1]
+
+    @staticmethod
+    def point_in_convex_hull(
+        point: Tuple[float, float],
+        hull: Sequence[Tuple[float, float]],
+    ) -> bool:
+        """Check if a point is inside or on the boundary of a convex hull.
+        
+        Args:
+            point: The (x, y) point to test.
+            hull: Convex hull vertices in counter-clockwise order.
+            
+        Returns:
+            True if point is inside or on the boundary of the hull.
+            False if point is outside or hull has fewer than 3 vertices.
+        """
+        n = len(hull)
+        if n < 3:
+            return False
+        
+        # For a CCW hull, point is inside if it's on the left side (or on)
+        # of every edge when traversing CCW
+        for i in range(n):
+            o = hull[i]
+            a = hull[(i + 1) % n]
+            cross = GeometryUtils._cross_product(o, a, point)
+            if cross < 0:
+                return False
+        return True
+
+    # -------------------------------------------------------------------------
     # Open path helpers
     # -------------------------------------------------------------------------
 
