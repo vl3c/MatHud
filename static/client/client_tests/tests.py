@@ -30,6 +30,21 @@ from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicit
 from .test_geometry_utils import TestGeometryUtils
 from .test_graph_layout import TestGraphLayout, TestGraphLayoutVisibility
 from .test_graph_manager import TestGraphManager
+from .test_graph_analyzer import (
+    TestAnalyzeGraphShortestPath,
+    TestAnalyzeGraphMST,
+    TestAnalyzeGraphTopologicalSort,
+    TestAnalyzeGraphBridges,
+    TestAnalyzeGraphArticulationPoints,
+    TestAnalyzeGraphEulerStatus,
+    TestAnalyzeGraphBipartite,
+    TestAnalyzeGraphBFSDFS,
+    TestAnalyzeGraphTreeOperations,
+    TestAnalyzeGraphTreeTransforms,
+    TestAnalyzeGraphEdgeCases,
+    TestAnalyzeGraphCompleteGraph,
+    TestAnalyzeGraphGridGraph,
+)
 from .test_graph_utils import TestGraphUtils
 from .test_path_elements import TestPathElements
 from .test_intersections import TestIntersections
@@ -175,6 +190,19 @@ class Tests:
             TestGraphLayoutVisibility,
             TestGraphManager,
             TestGraphUtils,
+            TestAnalyzeGraphShortestPath,
+            TestAnalyzeGraphMST,
+            TestAnalyzeGraphTopologicalSort,
+            TestAnalyzeGraphBridges,
+            TestAnalyzeGraphArticulationPoints,
+            TestAnalyzeGraphEulerStatus,
+            TestAnalyzeGraphBipartite,
+            TestAnalyzeGraphBFSDFS,
+            TestAnalyzeGraphTreeOperations,
+            TestAnalyzeGraphTreeTransforms,
+            TestAnalyzeGraphEdgeCases,
+            TestAnalyzeGraphCompleteGraph,
+            TestAnalyzeGraphGridGraph,
             TestPathElements,
             TestIntersections,
             TestRegion,

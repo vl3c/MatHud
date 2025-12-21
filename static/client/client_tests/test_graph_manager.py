@@ -357,6 +357,77 @@ class TestGraphManager(unittest.TestCase):
         self.assertIn(segment.point1, self.points_created)
         self.assertIn(segment.point2, self.points_created)
 
+    def test_tree_root_stored_as_point_name(self) -> None:
+        """Test that tree root is stored as actual point name, not internal vertex ID.
+
+        This is critical for analyze_graph operations (levels, lca, etc.) which
+        build adjacency maps keyed by point names.
+        """
+        state = self.graph_manager.build_graph_state(
+            name="root_name_test",
+            graph_type="tree",
+            vertices=[
+                {"name": "A"},
+                {"name": "B"},
+                {"name": "C"},
+            ],
+            edges=[
+                {"source": 0, "target": 1},
+                {"source": 0, "target": 2},
+            ],
+            adjacency_matrix=None,
+            directed=None,
+            root="A",
+            layout=None,
+            placement_box=None,
+            metadata=None,
+        )
+
+        graph = self.graph_manager.create_graph(state)
+
+        # Root should be the point name "A", not internal ID "v0"
+        self.assertIsInstance(graph, Tree)
+        self.assertEqual(graph.root, "A")
+
+    def test_capture_state_translates_old_root_format(self) -> None:
+        """Test that capture_state translates old internal root IDs to point names.
+
+        Trees created before the root translation fix have root stored as "v0", "v1", etc.
+        The capture_state method should translate these to actual point names for
+        analyze_graph compatibility.
+        """
+        # Create tree with the fix (root stored as point name)
+        state = self.graph_manager.build_graph_state(
+            name="backward_compat_test",
+            graph_type="tree",
+            vertices=[
+                {"name": "X"},
+                {"name": "Y"},
+                {"name": "Z"},
+            ],
+            edges=[
+                {"source": 0, "target": 1},
+                {"source": 0, "target": 2},
+            ],
+            adjacency_matrix=None,
+            directed=None,
+            root="X",
+            layout=None,
+            placement_box=None,
+            metadata=None,
+        )
+
+        graph = self.graph_manager.create_graph(state)
+        self.assertIsInstance(graph, Tree)
+
+        # Simulate old format by setting root to internal ID
+        graph.root = "v0"
+
+        # Capture state should translate "v0" back to the point name "X"
+        captured = self.graph_manager.capture_state("backward_compat_test")
+        self.assertIsNotNone(captured)
+        self.assertEqual(captured.root, "X")
+
 
 if __name__ == "__main__":
     unittest.main()
