@@ -1,24 +1,22 @@
 # Bug Fixes
 
 # Basic Mathematical Tools
-- implement full matrix operations (addition, multiplication, inverse, determinants, row operations)
+- add row operations / row-reduction workflows (rref, row swaps, etc.)
 - add eigenvalue and eigenvector computation
 - add complex number utilities plus base-n calculations and conversions (binary, octal, hexadecimal)
-- expand number theory functions (prime factorization, gcd, lcm, modular arithmetic)
+- expand number theory functions (prime factorization, modular arithmetic)
 - add truth tables and boolean algebra workflows for logic and circuit analysis
 - add table view for function values and lightweight tabular data exploration
 - add list and spreadsheet structures for numeric and symbolic data (support formulas, basic stats, and function links)
-- add coordinate conversion tools (polar ↔ rectangular)
-- add unit conversions (angle, base, engineering/scientific notation)
+- add coordinate conversion tools (polar <-> rectangular)
 
 # Advanced Mathematical Tools
 - add sequence and series calculations (summation, products, convergence tests)
 - add differential equations solver with visualization of direction fields and solution families
 - add numerical methods (Newton's method, Simpson's rule, trapezoidal rule, numerical ODE solvers)
 - add eigenvalue and eigenvector calculations for advanced linear algebra
-- add symbolic manipulation tools for algebraic expressions (simplify, expand, rationalize)
-- add summation and product operators for discrete analysis (Σ, Π)
-- add coordinate and vector operations (dot, cross, magnitude, normalization)
+- add rationalize support (and document it)
+- add summation and product operators for discrete analysis (Sigma, Pi)
 
 # Statistics and Analysis
 - add probability distribution tools and statistical hypothesis testing workflows
@@ -31,7 +29,6 @@
 - add cumulative frequency tables and graph generation
 
 # 2D Graphing Enhancements
-- add piecewise function support and graphing
 - add implicit function plotting
 - add conic section specialized tools
 - add inequality graphing and systems of inequalities with shading controls
