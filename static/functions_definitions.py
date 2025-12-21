@@ -1770,11 +1770,12 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "layout": {"type": ["string", "null"], "description": "Layout hint: 'tree' or 'hierarchical' for top-down tree display (default for trees), 'radial' for concentric rings from root, 'circular' for nodes on a circle, 'grid' for rectangular grid, 'force' for force-directed."},
                             "placement_box": {
                                 "type": ["object", "null"],
+                                "description": "Bounding box for vertex placement. Defined from bottom-left corner in math coordinates (y increases upward). Box spans from (x, y) to (x + width, y + height).",
                                 "properties": {
-                                    "x": {"type": "number", "description": "Left X of the placement box"},
-                                    "y": {"type": "number", "description": "Top Y of the placement box"},
-                                    "width": {"type": "number"},
-                                    "height": {"type": "number"}
+                                    "x": {"type": "number", "description": "Left edge X coordinate (bottom-left corner)"},
+                                    "y": {"type": "number", "description": "Bottom edge Y coordinate (bottom-left corner, in math coords where y increases upward)"},
+                                    "width": {"type": "number", "description": "Box width extending rightward (positive X direction)"},
+                                    "height": {"type": "number", "description": "Box height extending upward (positive Y direction)"}
                                 },
                                 "required": ["x", "y", "width", "height"],
                                 "additionalProperties": False
