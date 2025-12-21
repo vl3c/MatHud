@@ -44,6 +44,12 @@ class UndirectedGraph(Graph):
     def _invalidate_cache(self) -> None:
         self._cached_descriptors = None
 
+    def remove_point(self, point: "Point") -> bool:
+        removed = super().remove_point(point)
+        if removed:
+            self._invalidate_cache()
+        return removed
+
     def _compute_descriptors(self) -> tuple[List[GraphVertexDescriptor], List[GraphEdgeDescriptor], List[List[float]]]:
         if self._cached_descriptors is not None:
             return self._cached_descriptors
