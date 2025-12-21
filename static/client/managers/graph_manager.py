@@ -80,9 +80,12 @@ class GraphManager:
                 vectors_created.append(vector_obj)
 
         if is_tree:
+            # Translate internal vertex ID to actual point name for root
+            internal_root = getattr(state, "root", None)
+            root_point_name = vertex_name_map.get(internal_root) if internal_root else None
             graph = Tree(
                 state.name,
-                root=getattr(state, "root", None),
+                root=root_point_name,
                 segments=segments_created,
                 isolated_points=list(id_to_point.values()),
             )
@@ -294,11 +297,25 @@ class GraphManager:
         )
 
         if isinstance(graph, Tree):
+            # Translate root to vertex descriptor ID if needed
+            stored_root = getattr(graph, "root", None)
+            resolved_root = stored_root
+            if stored_root is not None:
+                # Check if stored root matches a vertex descriptor ID (point name)
+                vertex_ids = {vd.id for vd in vertex_descriptors}
+                if stored_root not in vertex_ids:
+                    # Old format: root is internal ID like "v0"
+                    # Try to extract index and map to isolated points
+                    if stored_root.startswith("v") and stored_root[1:].isdigit():
+                        idx = int(stored_root[1:])
+                        isolated_pts = getattr(graph, "_isolated_points", [])
+                        if 0 <= idx < len(isolated_pts):
+                            resolved_root = isolated_pts[idx].name
             return TreeState(
                 graph.name,
                 vertex_descriptors,
                 edge_descriptors,
-                root=getattr(graph, "root", None),
+                root=resolved_root,
                 metadata=getattr(graph, "metadata", {}),
                 adjacency_matrix=adjacency_matrix,
             )
