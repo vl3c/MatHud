@@ -115,6 +115,12 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 2. Server-Side Testing (`server_tests/` and `run_server_tests.py`)
 3. Renderer Performance Harness (`static/client/performance/renderer_performance.py`): deterministic workload runner invoked from the browser console to record draw/pan/zoom timings, DOM node counts, and telemetry. Baseline captures from 2025-11-08/09 report Canvas2D averages (draw 71 ms, pan 155.5 ms, zoom 160 ms) and SVG averages (draw 78 ms, pan 84 ms, zoom 90 ms) using `run_renderer_performance(iterations=2)`.
 
+### Graph and Tree Tools
+1. Graph and tree tools overview (generate, delete, analyze)
+2. `generate_graph`: Create a graph/tree/DAG with optional layout and weights
+3. `delete_graph`: Remove a graph/tree and its associated drawables
+4. `analyze_graph`: Run graph and tree analysis operations (shortest path, MST, topological sort, BFS/DFS, etc.)
+
 ---
 
 ## Detailed Documentation
@@ -3762,6 +3768,46 @@ In addition to server-specific suites, the runner also executes CPython-based re
 The server tests are organized in the `server_tests/`
 
 ### Graph and Tree Tools
-- `generate_graph(name?, graph_type, vertices, edges, adjacency_matrix?, directed?, root?, layout?, placement_box?)`: Programmatically place a graph or tree on the canvas. Directed edges become vectors; undirected edges become segments. Optional weights render as midpoint labels. A placement box keeps the layout from overlapping existing content. Adjacency matrices (if provided) use row/column order matching the vertices array (0-based).
-- `delete_graph(name)`: Remove a graph or tree and its associated points, edges, and weight labels.
-- `analyze_graph(operation, graph_name, params?)`: Analyze an existing graph by name (must already be on canvas). Operations include shortest path (weighted/unweighted), MST, topological sort, bridges, articulation points, Euler status, bipartite check, BFS/DFS orders, levels, diameter, LCA, balance/invert children, or reroot. Returns computed data plus vector/segment names to highlight.
+- `generate_graph(name?, graph_type, vertices, edges, adjacency_matrix?, directed?, root?, layout?, placement_box?)`: Programmatically place a graph, tree, or DAG on the canvas.
+- `delete_graph(name)`: Remove a graph/tree and its associated points, edges, and weight labels.
+- `analyze_graph(operation, graph_name, params?)`: Analyze an existing graph by name (must already exist on canvas).
+
+Notes:
+1. In this section, "graph" means graph theory vertices and edges (not function plotting and not dependency graphs).
+2. Vertices are created as points on the canvas. Undirected edges render as segments; directed edges render as vectors.
+3. If an edge has a numeric weight, it is rendered as a midpoint label on the segment/vector.
+
+#### Creation (`generate_graph`)
+Key behaviors:
+1. **Graph types**: `graph` (general), `tree` (rooted), `dag` (directed acyclic graph).
+2. **Vertices**: You can provide explicit coordinates per vertex, or omit them and let the layout engine place vertices automatically.
+3. **Edges**: Edges reference vertices by index (0-based) in the provided vertices list. If you provide an adjacency matrix instead, row/column order follows that same vertex order.
+4. **Placement box**: `placement_box` is in math coordinates (y increases upward). It constrains the layout so the graph lands in a predictable region.
+5. **Layout**: `layout` is a hint. Supported modes include `tree`/`hierarchical`, `radial`, `circular`, `grid`, and `force`. Trees default to a top-down tree layout unless you explicitly request `radial`.
+
+#### Analysis (`analyze_graph`)
+Supported `operation` values:
+1. Path/structure: `shortest_path`, `mst`, `topological_sort`, `bfs`, `dfs`, `levels`, `diameter`, `lca`
+2. Connectivity: `bridges`, `articulation_points`, `bipartite`, `euler_status`
+3. Tree transforms: `balance_children`, `invert_children`, `reroot`
+4. Geometry on graph vertices: `convex_hull`, `point_in_hull`
+
+Common `params` usage (high-level):
+1. `shortest_path`: requires `start` and `goal` (use the vertex names you see on the canvas, like `A` and `D`). If any weights exist, the shortest path uses weighted cost.
+2. `bfs` / `dfs`: use `start`.
+3. `levels`: uses `root` (or the stored tree root).
+4. `lca`: uses `root`, `a`, `b`.
+5. `reroot`: uses `new_root` (and optionally `root`).
+6. `point_in_hull`: uses numeric `x` and `y`.
+
+Return data:
+1. Operations return structured data like `path`, `cost`, `edges`, `order`, `levels`, etc.
+2. Many operations also return `highlight_vectors`: a list of edge names (segment/vector names) that can be highlighted by the client.
+
+Examples (as user prompts):
+1. Create and analyze shortest path:
+   - "Create an undirected weighted graph named G1 with vertices A, B, C, D and edges A-B (1), B-C (2), A-C (4), C-D (1)."
+   - "On graph G1, find the shortest path from A to D and highlight the edges."
+2. Compute an MST:
+   - "Create an undirected weighted graph named G2 with vertices A, B, C, D, E and edges A-B (3), A-C (1), B-C (7), B-D (5), C-D (2), D-E (7), C-E (8)."
+   - "On graph G2, compute the minimum spanning tree and highlight the MST edges."

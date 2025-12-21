@@ -6,6 +6,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Interactive math-space canvas rendered through Canvas2D, SVG, and an experimental WebGL backend
 - AI-powered mathematical assistant
 - Real-time geometric visualization and analysis
+- Graph theory graphs (graphs, trees, DAGs): create, auto-layout, render weighted edges, and run analyses (shortest path, MST, topological sort, bridges, BFS/DFS, tree operations)
 - Support for mathematical expressions and calculations
 - Linear algebra expression evaluation with MathJS-backed matrix operations
 - Visual problem-solving with multimodal AI
@@ -173,6 +174,10 @@ static/client/
 │   ├── point.py                       # Point geometric object
 │   ├── segment.py                     # Line segment object
 │   ├── vector.py                      # Vector object
+│   ├── graph.py                       # Base graph container (abstract)
+│   ├── undirected_graph.py            # Undirected graph container (segments + isolated points)
+│   ├── directed_graph.py              # Directed graph container (vectors + isolated points)
+│   ├── tree.py                        # Rooted tree container (specialized undirected graph)
 │   ├── triangle.py                    # Triangle object
 │   ├── rectangle.py                   # Rectangle object
 │   ├── circle.py                      # Circle object
@@ -207,11 +212,15 @@ static/client/
 │   ├── ellipse_manager.py             # Ellipse operations
 │   ├── angle_manager.py               # Angle operations
 │   ├── function_manager.py            # Function plotting management
-│   └── colored_area_manager.py        # Colored area management
+│   ├── colored_area_manager.py        # Colored area management
+│   └── graph_manager.py               # Graph and tree creation/deletion + state capture
 ├── utils/                             # Utility modules
 │   ├── math_utils.py                  # Mathematical utility functions
 │   ├── computation_utils.py           # Computational helper functions
 │   ├── geometry_utils.py              # Geometric utility functions
+│   ├── graph_utils.py                 # Graph theory algorithms and helpers
+│   ├── graph_layout.py                # Graph layout algorithms (tree, radial, circular, grid, force)
+│   ├── graph_analyzer.py              # Graph analysis dispatcher (shortest path, MST, etc.)
 │   └── style_utils.py                 # Style and UI utility functions
 ├── name_generator/                    # Automatic name generation for objects
 │   ├── base.py                        # Base name generator class
@@ -253,7 +262,7 @@ server_tests/
 - **`requirements.txt`**: Python dependencies (openai, flask, flask-session, cachelib, python-dotenv, selenium, geckodriver-autoinstaller, requests, types-requests, mypy)
 - **`.env`**: Environment variables (OpenAI API key, auth flags) - create this in the project root
 - **`app.py`**: Main entry point including threaded server startup and graceful shutdown handling
-- **`static/functions_definitions.py`**: Defines 42 AI functions with full JSON schema
+- **`static/functions_definitions.py`**: Defines 60+ AI functions with full JSON schema
 - **`templates/index.html`**: Main HTML template with canvas, chat interface, AI model selector, and vision toggle
 
 ## Data Directories

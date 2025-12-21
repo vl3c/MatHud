@@ -70,6 +70,26 @@ Load the workspace named 'CalculusHomework'.
 List all saved workspaces.
 Delete the workspace 'OldDraft'.
 
+# Graph theory (graphs, trees, DAGs)
+# Notes:
+# - "plot" is for function plots. "graph" here means vertices and edges (graph theory).
+# - When you ask for analysis like shortest path, use the vertex names you see on the canvas (often A, B, C, ...).
+# - Directed edges render as vectors; undirected edges render as segments. Weighted edges display midpoint labels.
+Create an undirected weighted graph named G1 with vertices A, B, C, D and edges A-B weight 1, B-C weight 2, A-C weight 4, C-D weight 1.
+On graph G1, find the shortest path from A to D and highlight the edges. Also tell me the total cost if weights are present.
+Delete graph G1.
+
+Create an undirected weighted graph named G2 with vertices A, B, C, D, E and edges A-B (3), A-C (1), B-C (7), B-D (5), C-D (2), D-E (7), C-E (8).
+On graph G2, compute the minimum spanning tree (MST) and highlight the MST edges.
+
+Create a DAG named D1 with vertices A, B, C, D and edges A->B, A->C, B->D, C->D.
+On graph D1, run a topological sort and explain the ordering.
+
+Create a rooted tree named T1 with root A and edges A-B, A-C, B-D, B-E, C-F, C-G.
+On graph T1, show the vertex levels from the root.
+On graph T1, find the LCA of D and E.
+On graph T1, reroot the tree to C and show the new parent/children relationships.
+
 # Complex/Multi-step Prompts
 Create a point K at (0,0) and point L at (100,0). Draw a segment KL. Now, create a point M at (50, 50*sqrt(3)). Draw segments KM and LM. What is the measure of angle KML?
 Plot the function y = x^2. Find its derivative. Then, plot the tangent line to y=x^2 at x=2.
