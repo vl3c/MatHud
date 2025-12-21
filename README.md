@@ -9,9 +9,10 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 1. Draw and manipulate geometric objects (points, segments, vectors, polygons, circles, ellipses, angles) directly on the canvas.
 2. Ask the assistant to solve algebra, calculus, trigonometry, statistics, and linear algebra problems with LaTeX-formatted explanations.
 3. Plot functions, compare intersections, shade bounded regions, and translate/rotate objects to explore relationships visually.
-4. Save, list, load, and delete named workspaces so projects can be resumed or shared later.
-5. Share the current canvas with the assistant using Vision mode to get feedback grounded in your drawing.
-6. Trigger client-side tests from the UI or chat to verify canvas behavior without leaving the app.
+4. Create and analyze graph theory graphs (graphs, trees, DAGs).
+5. Save, list, load, and delete named workspaces so projects can be resumed or shared later.
+6. Share the current canvas with the assistant using Vision mode to get feedback grounded in your drawing.
+7. Trigger client-side tests from the UI or chat to verify canvas behavior without leaving the app.
 
 ## 2. Architecture Overview
 
@@ -85,6 +86,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 1. Type a request in the chat input and press Enter or click **Send**. The assistant inspects the current canvas state and can call functions on your behalf.
 2. Responses support Markdown and LaTeX; MathJax renders inline (`\( ... \)`) and block (`$$ ... $$`) math.
 3. Sample prompts that map directly to available tools:
+   Note: In this section, "plot" refers to function plots. "graph" refers to graph theory vertices/edges (not dependency graphs).
    1. `create point at (2, 3) named A`
    2. `draw a segment from (0,0) to (3,4) called s1`
    3. `plot y = sin(x) from -pi to pi`
@@ -92,8 +94,11 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
    5. `derive x^3 + 2x - 1`
    6. `solve system of equations: x + y = 5, x - y = 1`
    7. `evaluate linear algebra expression with matrices A=[[1,2],[3,4]]; compute inv(A)`
-   8. `save workspace as "demo"` / `load workspace "demo"`
-   9. `run tests`
+   8. `create an undirected weighted graph named G1 with vertices A,B,C,D and edges A-B (1), B-C (2), A-C (4), C-D (1)`
+   9. `on graph G1, find the shortest path from A to D and highlight the edges`
+   10. `create a DAG named D1 with vertices A,B,C,D and edges A->B, A->C, B->D, C->D; then topologically sort it`
+   11. `save workspace as "demo"` / `load workspace "demo"`
+   12. `run tests`
 
 ### 5.3 Vision Mode
 
