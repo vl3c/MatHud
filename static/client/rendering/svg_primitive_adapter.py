@@ -12,6 +12,7 @@ from rendering.primitives import (
     StrokeStyle,
     TextAlignment,
 )
+from rendering.helpers.label_overlap_resolver import ScreenOffsetLabelOverlapResolver
 from rendering.shared_drawable_renderers import Point2D
 
 
@@ -123,6 +124,7 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         for key in self._pool:
             self._active_indices[key] = 0
         self._staged_fragment = self._create_fragment()
+        self._screen_offset_label_overlap = ScreenOffsetLabelOverlapResolver(padding_px=0.0)
         self._record_adapter_event("frame_begin")
 
     def end_frame(self) -> None:
@@ -737,6 +739,69 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         screen_space: bool = False,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
+        rotation_deg = 0.0
+        if isinstance(metadata, dict):
+            label_meta = metadata.get("label")
+            if isinstance(label_meta, dict):
+                try:
+                    rotation_deg = float(label_meta.get("rotation_degrees", 0.0))
+                except Exception:
+                    rotation_deg = 0.0
+
+        if screen_space and (not (math.isfinite(rotation_deg) and rotation_deg != 0.0)) and isinstance(metadata, dict):
+            point_meta = metadata.get("point_label")
+            if isinstance(point_meta, dict):
+                font_size_raw = getattr(font, "size", None)
+                try:
+                    font_size = float(font_size_raw)
+                except Exception:
+                    font_size = 0.0
+                if math.isfinite(font_size) and font_size > 0:
+                    layout_line_height = font_size + 2.0
+                    if layout_line_height < 1.0:
+                        layout_line_height = 1.0
+                    try:
+                        line_index = int(point_meta.get("layout_line_index", 0) or 0)
+                    except Exception:
+                        line_index = 0
+                    try:
+                        line_count = int(point_meta.get("layout_line_count", 1) or 1)
+                    except Exception:
+                        line_count = 1
+                    try:
+                        max_line_len = int(point_meta.get("layout_max_line_len", len(text)) or len(text))
+                    except Exception:
+                        max_line_len = len(text)
+                    if line_count <= 0:
+                        line_count = 1
+                    if max_line_len < 0:
+                        max_line_len = 0
+
+                    group = point_meta.get("layout_group")
+                    if group is None:
+                        group = (str(text), float(position[0]), float(position[1]))
+                    else:
+                        try:
+                            hash(group)
+                        except Exception:
+                            group = (str(text), float(position[0]), float(position[1]))
+
+                    baseline_y0 = float(position[1]) - float(line_index) * layout_line_height
+                    block_top = baseline_y0 - font_size
+                    block_bottom = block_top + float(line_count) * layout_line_height
+                    approx_width = 0.6 * font_size * float(max_line_len)
+                    if approx_width < 1.0:
+                        approx_width = 1.0
+                    base_rect = (float(position[0]), float(position[0]) + approx_width, block_top, block_bottom)
+
+                    resolver = getattr(self, "_screen_offset_label_overlap", None)
+                    if resolver is None:
+                        resolver = ScreenOffsetLabelOverlapResolver(padding_px=0.0)
+                        self._screen_offset_label_overlap = resolver
+                    dy = resolver.get_or_place_dy(group, base_rect, step=layout_line_height)
+                    if dy:
+                        position = (position[0], position[1] + dy)
+
         elem = svg.text(text, x=str(position[0]), y=str(position[1]), fill=color)
         elem.setAttribute("font-size", str(font.size))
         elem.setAttribute("font-family", font.family)
@@ -756,15 +821,8 @@ class SvgPrimitiveAdapter(RendererPrimitives):
                 elem.style[key] = value
         
         transform_value = None
-        if isinstance(metadata, dict):
-            label_meta = metadata.get("label")
-            if isinstance(label_meta, dict):
-                try:
-                    rotation_deg = float(label_meta.get("rotation_degrees", 0.0))
-                except Exception:
-                    rotation_deg = 0.0
-                if math.isfinite(rotation_deg) and rotation_deg != 0.0:
-                    transform_value = f"rotate({-rotation_deg} {position[0]} {position[1]})"
+        if math.isfinite(rotation_deg) and rotation_deg != 0.0:
+            transform_value = f"rotate({-rotation_deg} {position[0]} {position[1]})"
         if transform_value:
             elem.setAttribute("transform", transform_value)
         else:

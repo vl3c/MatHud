@@ -123,6 +123,11 @@ def _screen_offset_draw_text_with_anchor_coords(
     if math.isfinite(rotation_degrees) and rotation_degrees != 0.0:
         metadata_overrides = {"label": {"rotation_degrees": rotation_degrees}}
 
+    try:
+        layout_group = id(label)
+    except Exception:
+        layout_group = None
+
     draw_point_style_label_with_coords(
         primitives,
         anchor_screen_x=float(screen_x),
@@ -135,6 +140,7 @@ def _screen_offset_draw_text_with_anchor_coords(
         style=style,
         coord_precision=int(getattr(mode, "coord_precision", 3) or 3),
         non_selectable=bool(getattr(mode, "non_selectable", False)),
+        layout_group=layout_group,
         metadata_overrides=metadata_overrides,
     )
 
@@ -160,6 +166,21 @@ def _screen_offset_draw_text_lines(
         return
 
     lines = get_label_lines(label)
+    line_count = len(lines)
+    max_line_len = 0
+    for line in lines:
+        try:
+            line_len = len(str(line))
+        except Exception:
+            line_len = 0
+        if line_len > max_line_len:
+            max_line_len = line_len
+
+    try:
+        layout_group = id(label)
+    except Exception:
+        layout_group = None
+
     line_height = float(font_size) * 1.2
     base_draw_x = screen_x + offset_x
     base_draw_y = screen_y + offset_y
@@ -171,6 +192,10 @@ def _screen_offset_draw_text_lines(
             "point_label": {
                 "math_position": (float(position.x), float(position.y)),
                 "screen_offset": (float(offset_x), float(offset_y + line_offset_y)),
+                "layout_group": layout_group,
+                "layout_line_index": int(index),
+                "layout_line_count": int(line_count),
+                "layout_max_line_len": int(max_line_len),
             },
             "label": {"rotation_degrees": rotation_degrees},
         }

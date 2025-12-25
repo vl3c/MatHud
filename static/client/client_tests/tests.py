@@ -23,6 +23,7 @@ from .test_function_segment_bounded_colored_area import TestFunctionSegmentBound
 from .test_closed_shape_colored_area import TestClosedShapeColoredArea
 from .test_linear_algebra_utils import TestLinearAlgebraUtils
 from .test_label import TestLabel
+from .test_label_overlap_resolver import TestLabelOverlapResolver
 from .test_segments_bounded_colored_area import TestSegmentsBoundedColoredArea
 from .test_function_calling import TestProcessFunctionCalls
 from .test_math_functions import TestMathFunctions
@@ -161,6 +162,7 @@ class Tests:
             # TestRendererPerformance,
             # TestRendererPrimitives,
             TestRendererLogic,
+            TestLabelOverlapResolver,
             TestVectorRenderer,
             TestAngleRenderer,
             TestEllipseRenderer,

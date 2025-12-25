@@ -161,8 +161,7 @@ class WorkspaceManager:
                 continue
 
             try:
-                if hasattr(label, "visible"):
-                    label.visible = bool(args.get("visible", True))
+                label.visible = bool(args.get("visible", True))
             except Exception:
                 pass
 

@@ -20,6 +20,7 @@ def draw_point_style_label_with_coords(
     style: Dict[str, Any],
     coord_precision: int = 3,
     non_selectable: bool = True,
+    layout_group: Optional[Any] = None,
     metadata_overrides: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Draw a point-style label with coordinates.
@@ -52,8 +53,13 @@ def draw_point_style_label_with_coords(
         "point_label": {
             "math_position": (float(anchor_math_x), float(anchor_math_y)),
             "screen_offset": (float(radius), float(-radius)),
+            "layout_line_index": 0,
+            "layout_line_count": 1,
+            "layout_max_line_len": int(len(label_text)),
         }
     }
+    if layout_group is not None:
+        label_metadata["point_label"]["layout_group"] = layout_group
     if metadata_overrides:
         label_metadata.update(metadata_overrides)
 
