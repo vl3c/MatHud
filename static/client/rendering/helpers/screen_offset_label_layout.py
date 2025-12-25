@@ -339,7 +339,7 @@ class _ScreenOffsetLabelLayoutSolver:
             prefer_positive[g] = self._prefer_positive_direction(g)
         return groups
 
-    def _pick_best_dy(self, mover: Any) -> float:
+    def _pick_best_dy(self, mover: Any, *, ignore: Any = None) -> float:
         base = self._base_rect[mover]
         step_px = self._step[mover]
         max_steps = self._max_steps
@@ -348,7 +348,7 @@ class _ScreenOffsetLabelLayoutSolver:
 
         def count_for(candidate_dy: float) -> int:
             candidate_rect = shift_rect_y(base, candidate_dy)
-            count, _ = _count_overlaps(grid, candidate_rect)
+            count, _ = _count_overlaps(grid, candidate_rect, ignore=ignore)
             return count
 
         def is_preferred(candidate_dy: float) -> bool:
@@ -400,6 +400,50 @@ class _ScreenOffsetLabelLayoutSolver:
 
         return float(best_dy)
 
+    def _choose_mover_with_lookahead(self, collision_set: Set[Any]) -> Tuple[Any, float]:
+        """Choose which label in a collision set to move, minimizing final abs(dy).
+
+        Decision tuple (lexicographic):
+        - overlaps after moving (prefer fewer)
+        - abs(best_dy) (prefer smaller total displacement from dy=0)
+        - abs(best_dy - current_dy) (prefer smaller change)
+        - -order (prefer later labels on ties for stability)
+        """
+        grid = self._grid
+        dy = self._dy
+        order = self._order
+
+        best_group: Any = None
+        best_dy: float = 0.0
+        best_key: Optional[Tuple[int, float, float, int]] = None
+
+        for candidate in collision_set:
+            current_dy = float(dy.get(candidate, 0.0) or 0.0)
+            if grid.get_rect(candidate) is None:
+                continue
+
+            candidate_best_dy = float(self._pick_best_dy(candidate, ignore=candidate))
+            candidate_rect = shift_rect_y(self._base_rect[candidate], candidate_best_dy)
+            overlaps, _ = _count_overlaps(grid, candidate_rect, ignore=candidate)
+
+            key = (
+                int(overlaps),
+                float(abs(candidate_best_dy)),
+                float(abs(candidate_best_dy - current_dy)),
+                -int(order.get(candidate, 0)),
+            )
+            if best_key is None or key < best_key:
+                best_key = key
+                best_group = candidate
+                best_dy = candidate_best_dy
+
+        if best_group is None:
+            # Fallback to the old behavior.
+            mover = min(collision_set, key=lambda item: _mover_key(item, dy, order))
+            return mover, float(dy.get(mover, 0.0) or 0.0)
+
+        return best_group, float(best_dy)
+
     def _resolve(self, groups: List[Any]) -> None:
         grid = self._grid
         dy = self._dy
@@ -423,25 +467,24 @@ class _ScreenOffsetLabelLayoutSolver:
                 iterations += 1
                 continue
 
-            collision_set = set(overlapping_groups)
+            # Reuse the returned set to keep allocations down.
+            collision_set = overlapping_groups
             collision_set.add(g)
-            mover = min(collision_set, key=lambda item: _mover_key(item, dy, order))
+            mover, best_dy = self._choose_mover_with_lookahead(collision_set)
 
             if grid.get_rect(mover) is None:
                 iterations += 1
                 continue
 
-            grid.remove(mover)
-            dy[mover] = self._pick_best_dy(mover)
+            dy[mover] = float(best_dy)
             new_rect = shift_rect_y(self._base_rect[mover], dy[mover])
-            grid.add(mover, new_rect)
+            grid.update(mover, new_rect)
 
             # Re-enqueue potentially affected labels.
             _, new_overlapping = _count_overlaps(grid, new_rect, ignore=mover)
-            affected = set(overlapping_groups)
+            affected = collision_set
             affected.update(new_overlapping)
             affected.add(mover)
-            affected.add(g)
             for item in affected:
                 if item not in in_stack:
                     stack.append(item)
