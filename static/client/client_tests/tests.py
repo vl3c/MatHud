@@ -92,6 +92,7 @@ from .test_drawable_renderers import (
     TestAngleRenderer,
     TestEllipseRenderer,
     TestLabelRenderer,
+    TestPointLabelRenderer,
     TestSegmentLabelRenderer,
     TestRendererEdgeCases as TestDrawableRendererEdgeCases,
 )
@@ -164,6 +165,7 @@ class Tests:
             TestAngleRenderer,
             TestEllipseRenderer,
             TestLabelRenderer,
+            TestPointLabelRenderer,
             TestSegmentLabelRenderer,
             TestDrawableRendererEdgeCases,
             TestFunctionRenderable,

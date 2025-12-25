@@ -11,6 +11,7 @@ from constants import (
     label_vanish_threshold_px,
 )
 from drawables.label import Label
+from drawables.label_render_mode import LabelRenderMode
 from managers.drawables_container import DrawablesContainer
 from managers.label_manager import LabelManager
 from coordinate_mapper import CoordinateMapper
@@ -330,4 +331,28 @@ class TestLabel(unittest.TestCase):
             math.isclose(updated_spacing, expected_spacing, rel_tol=1e-6, abs_tol=1e-6),
             msg=f"Expected spacing {expected_spacing}, got {updated_spacing}",
         )
+
+    def test_label_render_mode_serialization_roundtrip(self) -> None:
+        state = {
+            "kind": "screen_offset",
+            "text_format": "text_with_anchor_coords",
+            "coord_precision": 3,
+            "offset_from_point_radius": True,
+            "non_selectable": True,
+            "font_size_source": "style",
+            "font_size_key": "point_label_font_size",
+            "font_family_key": "point_label_font_family",
+            "offset_px_x": 0.0,
+            "offset_px_y": 0.0,
+        }
+        restored = LabelRenderMode.from_state(state)
+        self.assertEqual(restored.to_state(), state)
+
+    def test_label_get_state_includes_render_mode(self) -> None:
+        label = Label(1.0, 2.0, "demo")
+        state = label.get_state()
+        args = state.get("args", {})
+        render_mode = args.get("render_mode")
+        self.assertIsInstance(render_mode, dict)
+        self.assertEqual(render_mode.get("kind"), "world")
 

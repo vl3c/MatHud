@@ -80,6 +80,8 @@ class TestSegment(unittest.TestCase):
                     "text": "",
                     "visible": False,
                     "font_size": self.segment.label.font_size,
+                    "rotation_degrees": 0.0,
+                    "render_mode": self.segment.label.render_mode.to_state(),
                 },
             },
             "_p1_coords": [self.p1.x, self.p1.y],

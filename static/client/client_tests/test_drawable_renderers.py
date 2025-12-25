@@ -322,6 +322,47 @@ class TestLabelRenderer(unittest.TestCase):
             self.assertLess(font.size, 16)
 
 
+class TestPointLabelRenderer(unittest.TestCase):
+    def setUp(self) -> None:
+        self.mapper = CoordinateMapper(640, 480)
+        self.primitives = RecordingPrimitives()
+        self.style = {
+            "point_radius": 5.0,
+            "point_label_font_size": point_label_font_size,
+        }
+
+    def test_point_label_renders_with_coords_and_metadata(self) -> None:
+        point = Point(1, 2, name="A", color="#123456")
+
+        shared.render_point_helper(self.primitives, point, self.mapper, self.style)
+
+        text_calls = [call for call in self.primitives.calls if call[0] == "draw_text"]
+        self.assertEqual(len(text_calls), 1)
+
+        _, args, kwargs = text_calls[0]
+        text = args[0]
+        color = args[3]
+        style_overrides = args[5]
+
+        self.assertEqual(text, "A(1.0, 2.0)")
+        self.assertEqual(color, "#123456")
+
+        self.assertTrue(kwargs.get("screen_space"), "Expected screen_space=True for point labels")
+        metadata = kwargs.get("metadata")
+        self.assertIsNotNone(metadata)
+
+        point_label_meta = metadata.get("point_label")
+        self.assertIsNotNone(point_label_meta)
+        self.assertEqual(point_label_meta.get("math_position"), (1.0, 2.0))
+        self.assertEqual(point_label_meta.get("screen_offset"), (5.0, -5.0))
+
+        self.assertIsInstance(style_overrides, dict)
+        self.assertEqual(style_overrides.get("user-select"), "none")
+        self.assertEqual(style_overrides.get("-webkit-user-select"), "none")
+        self.assertEqual(style_overrides.get("-moz-user-select"), "none")
+        self.assertEqual(style_overrides.get("-ms-user-select"), "none")
+
+
 class TestSegmentLabelRenderer(unittest.TestCase):
     def setUp(self) -> None:
         self.mapper = CoordinateMapper(640, 480)
@@ -448,6 +489,7 @@ __all__ = [
     "TestAngleRenderer",
     "TestEllipseRenderer",
     "TestLabelRenderer",
+    "TestPointLabelRenderer",
     "TestSegmentLabelRenderer",
     "TestRendererEdgeCases",
 ]
