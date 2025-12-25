@@ -166,20 +166,8 @@ def _screen_offset_draw_text_lines(
         return
 
     lines = get_label_lines(label)
-    line_count = len(lines)
-    max_line_len = 0
-    for line in lines:
-        try:
-            line_len = len(str(line))
-        except Exception:
-            line_len = 0
-        if line_len > max_line_len:
-            max_line_len = line_len
-
-    try:
-        layout_group = id(label)
-    except Exception:
-        layout_group = None
+    line_count, max_line_len = _screen_offset_line_metrics(lines)
+    layout_group = _screen_offset_layout_group(label)
 
     line_height = float(font_size) * 1.2
     base_draw_x = screen_x + offset_x
@@ -209,6 +197,26 @@ def _screen_offset_draw_text_lines(
             screen_space=True,
             metadata=metadata,
         )
+
+
+def _screen_offset_layout_group(label):
+    try:
+        return id(label)
+    except Exception:
+        return None
+
+
+def _screen_offset_line_metrics(lines):
+    line_count = len(lines)
+    max_line_len = 0
+    for line in lines:
+        try:
+            line_len = len(str(line))
+        except Exception:
+            line_len = 0
+        if line_len > max_line_len:
+            max_line_len = line_len
+    return line_count, max_line_len
 
 
 def _render_screen_offset_label(primitives, label, coordinate_mapper, style, mode):

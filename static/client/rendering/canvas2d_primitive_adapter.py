@@ -10,7 +10,7 @@ from rendering.primitives import (
     StrokeStyle,
     TextAlignment,
 )
-from rendering.helpers.label_overlap_resolver import ScreenOffsetLabelOverlapResolver
+from rendering.helpers.screen_offset_label_layout import make_label_text_call, solve_dy_for_text_calls
 from rendering.shared_drawable_renderers import Point2D
 
 
@@ -33,6 +33,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self._batch_depth: int = 0
         self._telemetry = telemetry
         self._line_batch: Optional[Dict[str, Any]] = None
+        self._deferred_screen_offset_text_calls: List[Any] = []
 
     def set_telemetry(self, telemetry: Any) -> None:
         self._telemetry = telemetry
@@ -286,8 +287,6 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         screen_space: bool = False,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        self._flush_polygon_batch()
-        self._ensure_text_brush(color, font, alignment)
         rotation_rad = 0.0
         rotation_deg = 0.0
         if isinstance(metadata, dict):
@@ -300,59 +299,44 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
                 if math.isfinite(rotation_deg) and rotation_deg != 0.0:
                     rotation_rad = math.radians(rotation_deg)
 
-        if screen_space and rotation_rad == 0.0 and isinstance(metadata, dict):
-            point_meta = metadata.get("point_label")
-            if isinstance(point_meta, dict):
-                font_size_raw = getattr(font, "size", None)
-                try:
-                    font_size = float(font_size_raw)
-                except Exception:
-                    font_size = 0.0
-                if math.isfinite(font_size) and font_size > 0:
-                    layout_line_height = font_size + 2.0
-                    if layout_line_height < 1.0:
-                        layout_line_height = 1.0
-                    try:
-                        line_index = int(point_meta.get("layout_line_index", 0) or 0)
-                    except Exception:
-                        line_index = 0
-                    try:
-                        line_count = int(point_meta.get("layout_line_count", 1) or 1)
-                    except Exception:
-                        line_count = 1
-                    try:
-                        max_line_len = int(point_meta.get("layout_max_line_len", len(text)) or len(text))
-                    except Exception:
-                        max_line_len = len(text)
-                    if line_count <= 0:
-                        line_count = 1
-                    if max_line_len < 0:
-                        max_line_len = 0
+        if screen_space and rotation_rad == 0.0:
+            call = make_label_text_call(
+                order=len(self._deferred_screen_offset_text_calls),
+                text=text,
+                position=(float(position[0]), float(position[1])),
+                font=font,
+                color=color,
+                alignment=alignment,
+                style_overrides=style_overrides,
+                metadata=metadata,
+            )
+            if call is not None:
+                self._deferred_screen_offset_text_calls.append(call)
+                return
 
-                    group = point_meta.get("layout_group")
-                    if group is None:
-                        group = (str(text), float(position[0]), float(position[1]))
-                    else:
-                        try:
-                            hash(group)
-                        except Exception:
-                            group = (str(text), float(position[0]), float(position[1]))
+        self._draw_text_immediate(
+            text,
+            position,
+            font,
+            color,
+            alignment,
+            style_overrides,
+            rotation_rad=rotation_rad,
+        )
 
-                    baseline_y0 = float(position[1]) - float(line_index) * layout_line_height
-                    block_top = baseline_y0 - font_size
-                    block_bottom = block_top + float(line_count) * layout_line_height
-                    approx_width = 0.6 * font_size * float(max_line_len)
-                    if approx_width < 1.0:
-                        approx_width = 1.0
-                    base_rect = (float(position[0]), float(position[0]) + approx_width, block_top, block_bottom)
-
-                    resolver = getattr(self, "_screen_offset_label_overlap", None)
-                    if resolver is None:
-                        resolver = ScreenOffsetLabelOverlapResolver(padding_px=0.0)
-                        self._screen_offset_label_overlap = resolver
-                    dy = resolver.get_or_place_dy(group, base_rect, step=layout_line_height)
-                    if dy:
-                        position = (position[0], position[1] + dy)
+    def _draw_text_immediate(
+        self,
+        text: str,
+        position: Point2D,
+        font: FontStyle,
+        color: str,
+        alignment: TextAlignment,
+        style_overrides: Optional[Dict[str, Any]] = None,
+        *,
+        rotation_rad: float = 0.0,
+    ) -> None:
+        self._flush_polygon_batch()
+        self._ensure_text_brush(color, font, alignment)
         if rotation_rad:
             self.ctx.save()
             self.ctx.translate(position[0], position[1])
@@ -398,13 +382,32 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self._shape_depth = 0
         self._batch_depth = 0
         self._pending_alpha_reset = False
-        self._screen_offset_label_overlap = ScreenOffsetLabelOverlapResolver(padding_px=0.0)
+        self._deferred_screen_offset_text_calls = []
         self._record_event("frame_begin")
 
     def end_frame(self) -> None:
         self._flush_polygon_batch()
         self._flush_line_batch()
         self._reset_alpha_if_needed(force=True)
+        deferred = getattr(self, "_deferred_screen_offset_text_calls", None)
+        if deferred:
+            dy_by_group = solve_dy_for_text_calls(deferred)
+            for call in deferred:
+                dy = float(dy_by_group.get(call.group, 0.0) or 0.0)
+                if dy:
+                    pos = (call.position[0], call.position[1] + dy)
+                else:
+                    pos = call.position
+                self._draw_text_immediate(
+                    call.text,
+                    pos,
+                    call.font,
+                    call.color,
+                    call.alignment,
+                    call.style_overrides,
+                    rotation_rad=0.0,
+                )
+            self._deferred_screen_offset_text_calls = []
         self._record_event("frame_end")
 
     def begin_batch(self, plan: Any = None) -> None:
