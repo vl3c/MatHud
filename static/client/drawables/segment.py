@@ -30,8 +30,8 @@ from copy import deepcopy
 from typing import Any, Dict, Optional, Tuple, cast
 
 from constants import default_color, point_label_font_size
+from drawables.attached_label import AttachedLabel
 from drawables.drawable import Drawable
-from drawables.label import Label
 from drawables.point import Point
 from drawables.position import Position
 from utils.math_utils import MathUtils
@@ -69,13 +69,14 @@ class Segment(Drawable):
         name: str = self.point1.name + self.point2.name
         super().__init__(name=name, color=color)
         midpoint_x, midpoint_y = self._get_midpoint()
-        self.label: Label = Label(
+        self.label = AttachedLabel(
             midpoint_x,
             midpoint_y,
             str(label_text or ""),
             color=self.color,
             font_size=point_label_font_size,
             visible=bool(label_visible),
+            text_format="text_only",
         )
 
     def get_class_name(self) -> str:
@@ -91,6 +92,13 @@ class Segment(Drawable):
         # Keep endpoint ordering consistent with in-memory references so downstream
         # consumers (workspace saves, dependency checks) preserve segment identity.
         self._sync_label_position()
+        render_mode = None
+        try:
+            mode_obj = getattr(self.label, "render_mode", None)
+            if mode_obj is not None and hasattr(mode_obj, "to_state"):
+                render_mode = mode_obj.to_state()
+        except Exception:
+            render_mode = None
         state: Dict[str, Any] = {
             "name": self.name,
             "args": {
@@ -100,6 +108,8 @@ class Segment(Drawable):
                     "text": self.label.text,
                     "visible": bool(getattr(self.label, "visible", True)),
                     "font_size": getattr(self.label, "font_size", point_label_font_size),
+                    "rotation_degrees": getattr(self.label, "rotation_degrees", 0.0),
+                    "render_mode": render_mode,
                 },
             },
             # Include coordinates for render cache invalidation
@@ -131,6 +141,7 @@ class Segment(Drawable):
             new_segment.label.update_font_size(getattr(self.label, "font_size", point_label_font_size))
             new_segment.label.update_rotation(getattr(self.label, "rotation_degrees", 0.0))
             new_segment.label.update_color(getattr(self.label, "color", self.color))
+            new_segment.label.render_mode = getattr(self.label, "render_mode", new_segment.label.render_mode)
         except Exception:
             pass
         new_segment.name = self.name

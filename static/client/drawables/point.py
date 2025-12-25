@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Any, Dict, cast
 
 from constants import default_color
+from drawables.attached_label import AttachedLabel
 from drawables.drawable import Drawable
 from drawables.position import Position
 from utils.math_utils import MathUtils
@@ -51,6 +52,19 @@ class Point(Drawable):
         self._x: float = float(x)
         self._y: float = float(y)
         super().__init__(name=name, color=color)
+        self.label = AttachedLabel(
+            self._x,
+            self._y,
+            str(self.name or ""),
+            color=self.color,
+            text_format="text_with_anchor_coords",
+            coord_precision=3,
+            offset_from_point_radius=True,
+            non_selectable=True,
+            font_size_source="style",
+            font_size_key="point_label_font_size",
+            font_family_key="point_label_font_family",
+        )
     
     def get_class_name(self) -> str:
         return 'Point'
@@ -76,19 +90,23 @@ class Point(Drawable):
     def translate(self, x_offset: float, y_offset: float) -> None:
         self.x += x_offset
         self.y += y_offset
+        self._sync_label_position()
 
     def update_position(self, x: float, y: float) -> None:
         """Update both coordinates at once to keep math-space state consistent."""
         self.x = float(x)
         self.y = float(y)
+        self._sync_label_position()
 
     def update_color(self, color: str) -> None:
         """Update the visual color metadata for the point."""
         self.color = color
+        self._sync_label_color()
 
     def update_name(self, name: str) -> None:
         """Rename the point using the Drawable base property."""
         self.name = name
+        self._sync_label_text()
 
     def rotate(self, angle: float) -> None:
         pass
@@ -119,6 +137,7 @@ class Point(Drawable):
     @x.setter
     def x(self, value: float) -> None:
         self._x = float(value)
+        self._sync_label_position()
 
     @property  
     def y(self) -> float:
@@ -128,6 +147,28 @@ class Point(Drawable):
     @y.setter
     def y(self, value: float) -> None:
         self._y = float(value)
+        self._sync_label_position()
+
+    def _sync_label_position(self) -> None:
+        try:
+            if hasattr(self, "label"):
+                self.label.update_position(self._x, self._y)
+        except Exception:
+            return
+
+    def _sync_label_text(self) -> None:
+        try:
+            if hasattr(self, "label"):
+                self.label.update_text(str(self.name or ""))
+        except Exception:
+            return
+
+    def _sync_label_color(self) -> None:
+        try:
+            if hasattr(self, "label"):
+                self.label.update_color(str(self.color))
+        except Exception:
+            return
 
     def zoom(self) -> None:
         """Empty zoom method for backward compatibility.

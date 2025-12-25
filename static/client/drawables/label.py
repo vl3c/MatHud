@@ -20,6 +20,7 @@ from constants import (
     label_text_max_length,
 )
 from drawables.drawable import Drawable
+from drawables.label_render_mode import LabelRenderMode, _WorldLabelMode
 from drawables.position import Position
 
 
@@ -38,6 +39,7 @@ class Label(Drawable):
         rotation_degrees: Optional[float] = None,
         reference_scale_factor: Optional[float] = None,
         visible: bool = True,
+        render_mode: Optional[LabelRenderMode] = None,
     ) -> None:
         self._position: Position = Position(float(x), float(y))
         super().__init__(name=name, color=color or default_color)
@@ -51,6 +53,7 @@ class Label(Drawable):
         )
         self._reference_scale_factor: float = self._normalize_reference_scale(reference_scale_factor)
         self._visible: bool = bool(visible)
+        self._render_mode: LabelRenderMode = render_mode if render_mode is not None else _WorldLabelMode()
         self.set_text(text)
 
     def get_class_name(self) -> str:
@@ -112,6 +115,9 @@ class Label(Drawable):
         self._rotation_degrees += delta
 
     def get_state(self) -> Dict[str, Any]:
+        render_mode = getattr(self, "_render_mode", None)
+        if render_mode is None:
+            render_mode = _WorldLabelMode()
         return {
             "name": self.name,
             "args": {
@@ -122,12 +128,16 @@ class Label(Drawable):
                 "rotation_degrees": self._rotation_degrees,
                 "reference_scale_factor": self._reference_scale_factor,
                 "visible": self._visible,
+                "render_mode": render_mode.to_state(),
             },
         }
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Label:
         if id(self) in memo:
             return cast(Label, memo[id(self)])
+        render_mode = getattr(self, "_render_mode", None)
+        if render_mode is None:
+            render_mode = _WorldLabelMode()
         clone = Label(
             self._position.x,
             self._position.y,
@@ -138,6 +148,7 @@ class Label(Drawable):
             rotation_degrees=self._rotation_degrees,
             reference_scale_factor=self._reference_scale_factor,
             visible=self._visible,
+            render_mode=render_mode,
         )
         memo[id(self)] = clone
         return clone
@@ -202,6 +213,17 @@ class Label(Drawable):
 
     def update_reference_scale(self, reference_scale_factor: Optional[float]) -> None:
         self._reference_scale_factor = self._normalize_reference_scale(reference_scale_factor)
+
+    @property
+    def render_mode(self) -> LabelRenderMode:
+        render_mode = getattr(self, "_render_mode", None)
+        if render_mode is None:
+            render_mode = _WorldLabelMode()
+        return render_mode
+
+    @render_mode.setter
+    def render_mode(self, value: Optional[LabelRenderMode]) -> None:
+        self._render_mode = value if value is not None else _WorldLabelMode()
 
     def _normalize_reference_scale(self, value: Optional[float]) -> float:
         try:
