@@ -2,54 +2,241 @@ from __future__ import annotations
 
 import math
 
-from constants import default_font_family, label_min_screen_font_px, label_vanish_threshold_px
-from rendering.helpers.font_helpers import _coerce_font_size, _compute_zoom_adjusted_font_size
+from constants import default_font_family
+from rendering.helpers.screen_offset_label_helper import draw_point_style_label_with_coords
+from rendering.helpers.world_label_helper import get_label_lines, render_world_label_at_screen_point
 from rendering.primitives import FontStyle, TextAlignment
 
 
-def _get_label_lines(label):
+def _normalize_font_size(value, default_value):
     try:
-        lines = list(getattr(label, "lines", []))
+        size_float = float(value)
     except Exception:
-        lines = []
-    if not lines:
-        text_value = str(getattr(label, "text", ""))
-        lines = text_value.split("\n") if text_value else [""]
-    return lines
+        return default_value
+    if not math.isfinite(size_float) or size_float <= 0:
+        return default_value
+    if size_float.is_integer():
+        return int(size_float)
+    return size_float
 
 
-def _compute_label_font(label, style, coordinate_mapper):
-    raw_font_size = getattr(label, "font_size", style.get("label_font_size", 14))
-    fallback_font = style.get("label_font_size", 14)
-    base_font_size = _coerce_font_size(raw_font_size, fallback_font)
-    effective_font_size = _compute_zoom_adjusted_font_size(base_font_size, label, coordinate_mapper)
-
-    if effective_font_size <= 0:
-        return None, base_font_size, effective_font_size
-
-    if math.isfinite(effective_font_size) and effective_font_size.is_integer():
-        font_size_final = int(effective_font_size)
-    else:
-        font_size_final = effective_font_size
-
-    font_family = style.get("label_font_family", style.get("font_family", default_font_family))
-    font = FontStyle(family=font_family, size=font_size_final)
-    return font, base_font_size, effective_font_size
+def _screen_offset_get_position(label):
+    return getattr(label, "position", None)
 
 
-def _build_label_metadata(index, position, offset_y, rotation_degrees, label, base_font_size):
+def _screen_offset_try_math_to_screen(position, coordinate_mapper):
+    try:
+        return coordinate_mapper.math_to_screen(position.x, position.y)
+    except Exception:
+        return None
+
+
+def _screen_offset_compute_offset(mode, style):
+    """Return (radius, offset_x, offset_y)."""
+    radius = 0.0
+    if bool(getattr(mode, "offset_from_point_radius", True)):
+        radius_raw = style.get("point_radius", 0) or 0
+        try:
+            radius = float(radius_raw)
+        except Exception:
+            radius = 0.0
+        return radius, float(radius), float(-radius)
+    return (
+        radius,
+        float(getattr(mode, "offset_px_x", 0.0) or 0.0),
+        float(getattr(mode, "offset_px_y", 0.0) or 0.0),
+    )
+
+
+def _screen_offset_compute_font_size(label, mode, style):
+    font_size_source = str(getattr(mode, "font_size_source", "label") or "label")
+    if font_size_source == "style":
+        font_size_key = str(getattr(mode, "font_size_key", "point_label_font_size") or "point_label_font_size")
+        font_size_value = style.get(font_size_key, 10)
+        return _normalize_font_size(font_size_value, 10)
+    font_size_value = getattr(label, "font_size", style.get("label_font_size", 14))
+    return _normalize_font_size(font_size_value, 14)
+
+
+def _screen_offset_compute_font_family(mode, style):
+    font_family_key = str(getattr(mode, "font_family_key", "label_font_family") or "label_font_family")
+    return style.get(font_family_key, style.get("font_family", default_font_family))
+
+
+def _screen_offset_build_font(label, mode, style):
+    font_size = _screen_offset_compute_font_size(label, mode, style)
+    font_family = _screen_offset_compute_font_family(mode, style)
+    return font_size, FontStyle(family=font_family, size=font_size)
+
+
+def _screen_offset_color(label, style):
+    return str(getattr(label, "color", style.get("label_text_color", "#000")))
+
+
+def _screen_offset_alignment():
+    return TextAlignment(horizontal="left", vertical="alphabetic")
+
+
+def _screen_offset_rotation_degrees(label):
+    try:
+        rotation_degrees = float(getattr(label, "rotation_degrees", 0.0))
+    except Exception:
+        rotation_degrees = 0.0
+    if not math.isfinite(rotation_degrees):
+        rotation_degrees = 0.0
+    return rotation_degrees
+
+
+def _screen_offset_style_overrides(mode):
+    if not bool(getattr(mode, "non_selectable", False)):
+        return None
     return {
-        "label": {
-            "line_index": index,
-            "math_position": (position.x, position.y),
-            "screen_offset": (0.0, float(offset_y)),
-            "rotation_degrees": rotation_degrees,
-            "reference_scale_factor": getattr(label, "reference_scale_factor", 1.0),
-            "base_font_size": base_font_size,
-            "min_font_size": label_min_screen_font_px,
-            "vanish_threshold_px": label_vanish_threshold_px,
-        }
+        "user-select": "none",
+        "-webkit-user-select": "none",
+        "-moz-user-select": "none",
+        "-ms-user-select": "none",
     }
+
+
+def _screen_offset_text_format(mode):
+    return str(getattr(mode, "text_format", "text_only") or "text_only")
+
+
+def _screen_offset_draw_text_with_anchor_coords(
+    primitives,
+    *,
+    label,
+    position,
+    screen_x,
+    screen_y,
+    radius,
+    color,
+    style,
+    rotation_degrees,
+    mode,
+):
+    base_text = str(getattr(label, "text", "") or "")
+    if not base_text:
+        return
+
+    metadata_overrides = None
+    if math.isfinite(rotation_degrees) and rotation_degrees != 0.0:
+        metadata_overrides = {"label": {"rotation_degrees": rotation_degrees}}
+
+    draw_point_style_label_with_coords(
+        primitives,
+        anchor_screen_x=float(screen_x),
+        anchor_screen_y=float(screen_y),
+        anchor_math_x=float(position.x),
+        anchor_math_y=float(position.y),
+        label=base_text,
+        radius=float(radius),
+        color=color,
+        style=style,
+        coord_precision=int(getattr(mode, "coord_precision", 3) or 3),
+        non_selectable=bool(getattr(mode, "non_selectable", False)),
+        metadata_overrides=metadata_overrides,
+    )
+
+
+def _screen_offset_draw_text_lines(
+    primitives,
+    *,
+    label,
+    position,
+    screen_x,
+    screen_y,
+    offset_x,
+    offset_y,
+    font,
+    font_size,
+    color,
+    alignment,
+    style_overrides,
+    rotation_degrees,
+):
+    text_value = str(getattr(label, "text", "") or "")
+    if not text_value:
+        return
+
+    lines = get_label_lines(label)
+    line_height = float(font_size) * 1.2
+    base_draw_x = screen_x + offset_x
+    base_draw_y = screen_y + offset_y
+
+    for index, line in enumerate(lines):
+        current_text = str(line)
+        line_offset_y = index * line_height
+        metadata = {
+            "point_label": {
+                "math_position": (float(position.x), float(position.y)),
+                "screen_offset": (float(offset_x), float(offset_y + line_offset_y)),
+            },
+            "label": {"rotation_degrees": rotation_degrees},
+        }
+        primitives.draw_text(
+            current_text,
+            (base_draw_x, base_draw_y + line_offset_y),
+            font,
+            color,
+            alignment,
+            style_overrides,
+            screen_space=True,
+            metadata=metadata,
+        )
+
+
+def _render_screen_offset_label(primitives, label, coordinate_mapper, style, mode):
+    position = _screen_offset_get_position(label)
+    if position is None:
+        return
+
+    screen_point = _screen_offset_try_math_to_screen(position, coordinate_mapper)
+    if not screen_point:
+        return
+    screen_x, screen_y = screen_point
+
+    radius, offset_x, offset_y = _screen_offset_compute_offset(mode, style)
+
+    # Keep these computed even if some branches do not use them; this keeps the
+    # behavior stable and makes debugging easier.
+    font_size, font = _screen_offset_build_font(label, mode, style)
+    color = _screen_offset_color(label, style)
+    alignment = _screen_offset_alignment()
+    rotation_degrees = _screen_offset_rotation_degrees(label)
+    style_overrides = _screen_offset_style_overrides(mode)
+
+    text_format = _screen_offset_text_format(mode)
+    if text_format == "text_with_anchor_coords":
+        _screen_offset_draw_text_with_anchor_coords(
+            primitives,
+            label=label,
+            position=position,
+            screen_x=screen_x,
+            screen_y=screen_y,
+            radius=radius,
+            color=color,
+            style=style,
+            rotation_degrees=rotation_degrees,
+            mode=mode,
+        )
+        return
+
+    _screen_offset_draw_text_lines(
+        primitives,
+        label=label,
+        position=position,
+        screen_x=screen_x,
+        screen_y=screen_y,
+        offset_x=offset_x,
+        offset_y=offset_y,
+        font=font,
+        font_size=font_size,
+        color=color,
+        alignment=alignment,
+        style_overrides=style_overrides,
+        rotation_degrees=rotation_degrees,
+    )
 
 
 def render_label_helper(primitives, label, coordinate_mapper, style):
@@ -69,34 +256,17 @@ def render_label_helper(primitives, label, coordinate_mapper, style):
         return
     screen_x, screen_y = screen_point
 
-    font, base_font_size, effective_font_size = _compute_label_font(label, style, coordinate_mapper)
-    if font is None:
+    render_mode = getattr(label, "render_mode", None)
+    if getattr(render_mode, "kind", None) == "screen_offset":
+        _render_screen_offset_label(primitives, label, coordinate_mapper, style, render_mode)
         return
 
-    color = str(getattr(label, "color", style.get("label_text_color", "#000")))
-    alignment = TextAlignment(horizontal="left", vertical="alphabetic")
-    lines = _get_label_lines(label)
-
-    size_numeric = font.size if isinstance(font.size, (int, float)) else effective_font_size
-    line_height = float(size_numeric) * 1.2
-
-    try:
-        rotation_degrees = float(getattr(label, "rotation_degrees", 0.0))
-    except Exception:
-        rotation_degrees = 0.0
-    if not math.isfinite(rotation_degrees):
-        rotation_degrees = 0.0
-
-    for index, line in enumerate(lines):
-        current_text = str(line)
-        offset_y = index * line_height
-        metadata = _build_label_metadata(index, position, offset_y, rotation_degrees, label, base_font_size)
-        primitives.draw_text(
-            current_text,
-            (screen_x, screen_y + offset_y),
-            font,
-            color,
-            alignment,
-            metadata=metadata,
-        )
+    render_world_label_at_screen_point(
+        primitives,
+        label,
+        coordinate_mapper,
+        style,
+        screen_x=screen_x,
+        screen_y=screen_y,
+    )
 
