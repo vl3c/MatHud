@@ -75,7 +75,7 @@ from .test_vector import TestVector
 from .test_angle import TestAngle
 from .test_angle_manager import TestAngleManager
 from .test_arc_manager import TestArcManager
-from .test_workspace_manager import TestWorkspaceSegmentPersistence
+from .test_workspace_manager import TestWorkspaceLabelRestore, TestWorkspaceSegmentPersistence
 from .test_zoom import (
     TestZoomXAxisRange,
     TestZoomYAxisRange,
@@ -184,6 +184,7 @@ class Tests:
             TestLabelEdgeCases,
             TestCartesianEdgeCases,
             TestWorkspaceSegmentPersistence,
+            TestWorkspaceLabelRestore,
             TestMathFunctions,
             TestPeriodicityDetection,
             TestPeriodicityEdgeCases,
