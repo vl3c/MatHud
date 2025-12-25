@@ -49,6 +49,7 @@ from constants import (
     default_area_opacity,
     default_closed_shape_resolution,
 )
+from drawables.label_render_mode import LabelRenderMode
 from utils.math_utils import MathUtils
 from managers.polygon_type import PolygonType
 from utils.polygon_canonicalizer import (
@@ -125,6 +126,59 @@ class WorkspaceManager:
                 name=item_state.get("name", "")
             )
 
+    def _create_labels(self, state: Dict[str, Any]) -> None:
+        """Create standalone labels from workspace state."""
+        labels_state = state.get("Labels")
+        if not labels_state:
+            return
+        for item_state in labels_state:
+            args = item_state.get("args", {}) if isinstance(item_state, dict) else {}
+            if not isinstance(args, dict):
+                continue
+            pos = args.get("position", {}) if isinstance(args.get("position", {}), dict) else {}
+            try:
+                x = float(pos.get("x", 0.0))
+                y = float(pos.get("y", 0.0))
+            except Exception:
+                continue
+            text = str(args.get("text", "") or "")
+            name = str(item_state.get("name", "") or "")
+            color = args.get("color", None)
+            font_size = args.get("font_size", None)
+            rotation_degrees = args.get("rotation_degrees", None)
+
+            try:
+                label = self.canvas.create_label(
+                    x,
+                    y,
+                    text,
+                    name=name,
+                    color=color,
+                    font_size=font_size,
+                    rotation_degrees=rotation_degrees,
+                )
+            except Exception:
+                continue
+
+            try:
+                if hasattr(label, "visible"):
+                    label.visible = bool(args.get("visible", True))
+            except Exception:
+                pass
+
+            try:
+                if hasattr(label, "update_reference_scale"):
+                    label.update_reference_scale(args.get("reference_scale_factor", None))
+            except Exception:
+                pass
+
+            try:
+                render_mode_raw = args.get("render_mode", None)
+                if render_mode_raw is not None:
+                    label.render_mode = LabelRenderMode.from_state(render_mode_raw)
+            except Exception:
+                pass
+
     def _create_segments(self, state: Dict[str, Any]) -> None:
         """Create segments from workspace state."""
         if "Segments" not in state:
@@ -142,7 +196,7 @@ class WorkspaceManager:
             label_args: Dict[str, Any] = args.get("label", {}) if isinstance(args.get("label", {}), dict) else {}
             label_text: str = str(label_args.get("text", "") or "")
             label_visible: bool = bool(label_args.get("visible", False))
-            self.canvas.create_segment(
+            segment = self.canvas.create_segment(
                 p1.x,
                 p1.y,
                 p2.x,
@@ -151,6 +205,23 @@ class WorkspaceManager:
                 label_text=label_text,
                 label_visible=label_visible,
             )
+
+            try:
+                embedded_label = getattr(segment, "label", None)
+                if embedded_label is None:
+                    continue
+
+                if "font_size" in label_args and label_args.get("font_size") is not None:
+                    embedded_label.update_font_size(float(label_args.get("font_size")))
+
+                if "rotation_degrees" in label_args and label_args.get("rotation_degrees") is not None:
+                    embedded_label.update_rotation(float(label_args.get("rotation_degrees")))
+
+                render_mode_raw = label_args.get("render_mode")
+                if isinstance(render_mode_raw, dict):
+                    embedded_label.render_mode = LabelRenderMode.from_state(render_mode_raw)
+            except Exception:
+                continue
 
     def _get_point_from_state(
         self,
@@ -533,6 +604,7 @@ class WorkspaceManager:
         
         # Create objects in the correct dependency order
         self._create_points(state)
+        self._create_labels(state)
         self._create_segments(state)
         self._create_vectors(state)
         self._create_triangles(state)
