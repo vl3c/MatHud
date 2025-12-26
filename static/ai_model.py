@@ -10,7 +10,7 @@ Dependencies:
 
 from __future__ import annotations
 
-from typing import Dict, Literal, TypedDict
+from typing import Dict, Literal, Optional, TypedDict
 
 
 class ModelConfig(TypedDict, total=False):
@@ -18,6 +18,7 @@ class ModelConfig(TypedDict, total=False):
 
     has_vision: bool
     is_reasoning_model: bool
+    reasoning_effort: str
 
 
 ModelConfigDict = Dict[str, ModelConfig]
@@ -28,6 +29,8 @@ ModelIdentifier = Literal[
     "gpt-4o",
     "gpt-4o-mini",
     "gpt-5-chat-latest",
+    "gpt-5.2-chat-latest",
+    "gpt-5.2",
     "gpt-5-nano",
     "gpt-3.5-turbo",
     "o3",
@@ -48,6 +51,15 @@ class AIModel:
         "gpt-5-chat-latest": {
             "has_vision": True,
             "is_reasoning_model": True,
+        },
+        "gpt-5.2-chat-latest": {
+            "has_vision": True,
+            "is_reasoning_model": True,
+        },
+        "gpt-5.2": {
+            "has_vision": True,
+            "is_reasoning_model": True,
+            "reasoning_effort": "medium",
         },
         "o3": {
             "has_vision": False,
@@ -88,19 +100,27 @@ class AIModel:
         },
     }
 
-    DEFAULT_MODEL = "gpt-5-chat-latest"
+    DEFAULT_MODEL = "gpt-5.2"
 
-    def __init__(self, identifier: str, has_vision: bool, is_reasoning_model: bool = False) -> None:
+    def __init__(
+        self,
+        identifier: str,
+        has_vision: bool,
+        is_reasoning_model: bool = False,
+        reasoning_effort: Optional[str] = None,
+    ) -> None:
         """Initialize AIModel instance.
         
         Args:
             identifier: Model identifier string (e.g., 'gpt-4.1')
             has_vision: Boolean indicating vision capability support
             is_reasoning_model: Boolean indicating if model uses Responses API with reasoning
+            reasoning_effort: Optional reasoning effort setting for reasoning models (e.g., 'medium')
         """
         self.id: str = identifier
         self.has_vision: bool = has_vision
         self.is_reasoning_model: bool = is_reasoning_model
+        self.reasoning_effort: Optional[str] = reasoning_effort
     
     @staticmethod
     def from_identifier(identifier: str) -> AIModel:
@@ -117,6 +137,7 @@ class AIModel:
             identifier=identifier,
             has_vision=config.get("has_vision", False),
             is_reasoning_model=config.get("is_reasoning_model", False),
+            reasoning_effort=config.get("reasoning_effort"),
         )
 
     @staticmethod

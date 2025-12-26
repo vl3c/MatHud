@@ -485,6 +485,7 @@ def register_routes(app: MatHudFlask) -> None:
         """Reset the AI conversation history for a new session."""
         try:
             app.ai_api.reset_conversation()
+            app.responses_api.reset_conversation()
             app.log_manager.log_new_session()
             return AppManager.make_response(message='New conversation started.')
         except Exception as e:
@@ -561,6 +562,7 @@ def register_routes(app: MatHudFlask) -> None:
 
         if ai_model:
             app.ai_api.set_model(ai_model)
+            app.responses_api.set_model(ai_model)
 
         app.log_manager.log_user_message(message)
 
@@ -573,6 +575,42 @@ def register_routes(app: MatHudFlask) -> None:
         )
 
         try:
+            # Route to appropriate API based on model type. This matters for
+            # streaming fallback (client retries via /send_message).
+            model = app.ai_api.get_model()
+            if model.is_reasoning_model:
+                stream = app.responses_api.create_response_stream(message)
+                final_event: Optional[StreamEventDict] = None
+                for event in stream:
+                    if isinstance(event, dict) and event.get("type") == "final":
+                        final_event = cast(StreamEventDict, event)
+                        break
+
+                if final_event is None:
+                    return AppManager.make_response(
+                        message="No final response event produced",
+                        status="error",
+                        code=500,
+                    )
+
+                ai_message = str(final_event.get("ai_message", ""))
+                ai_tool_calls_raw = final_event.get("ai_tool_calls")
+                ai_tool_calls: List[Dict[str, Any]] = (
+                    [cast(Dict[str, Any], call) for call in ai_tool_calls_raw if isinstance(call, dict)]
+                    if isinstance(ai_tool_calls_raw, list)
+                    else []
+                )
+                finish_reason = final_event.get("finish_reason")
+
+                app.log_manager.log_ai_response(ai_message)
+                app.log_manager.log_ai_tool_calls(ai_tool_calls)
+
+                return AppManager.make_response(data=cast(JsonObject, {
+                    "ai_message": ai_message,
+                    "ai_tool_calls": cast(JsonValue, ai_tool_calls),
+                    "finish_reason": finish_reason,
+                }))
+
             choice = app.ai_api.create_chat_completion(message)
             ai_message, ai_tool_calls = _process_ai_response(app, choice)
             finish_reason = getattr(choice, 'finish_reason', None)

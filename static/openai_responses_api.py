@@ -205,27 +205,59 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         }
 
     def _create_api_stream_with_fallback(self) -> Any:
-        """Create API stream, falling back if reasoning summary not supported."""
-        try:
-            return self.client.responses.create(
-                model=self.model.id,
-                input=self._convert_messages_to_input(),
-                tools=self._convert_tools_for_responses_api(),
-                max_output_tokens=self.max_tokens,
-                reasoning={"summary": "detailed"},
-                stream=True,
-            )
-        except Exception as e:
-            if "reasoning.summary" in str(e) or "unsupported_value" in str(e):
-                self._log("[Responses API] Reasoning summary not available, proceeding without it")
-                return self.client.responses.create(
-                    model=self.model.id,
-                    input=self._convert_messages_to_input(),
-                    tools=self._convert_tools_for_responses_api(),
-                    max_output_tokens=self.max_tokens,
-                    stream=True,
+        """Create API stream, falling back if some reasoning params are not supported.
+
+        Notes:
+        - Some models may not support `reasoning.summary`.
+        - GPT-5.2 defaults to reasoning.effort="none"; MatHud sets effort to "medium" for `gpt-5.2`.
+        - If the API rejects a reasoning sub-parameter, retry with a reduced set of reasoning params.
+        """
+        base_kwargs: Dict[str, Any] = {
+            "model": self.model.id,
+            "input": self._convert_messages_to_input(),
+            "tools": self._convert_tools_for_responses_api(),
+            "max_output_tokens": self.max_tokens,
+            "stream": True,
+        }
+
+        reasoning: Dict[str, Any] = {"summary": "detailed"}
+        if getattr(self.model, "reasoning_effort", None):
+            reasoning["effort"] = self.model.reasoning_effort
+
+        reasoning_attempts: List[Optional[Dict[str, Any]]] = []
+        if reasoning:
+            reasoning_attempts.append(reasoning)
+            if "effort" in reasoning and "summary" in reasoning:
+                reasoning_attempts.append({"effort": reasoning["effort"]})
+                reasoning_attempts.append({"summary": reasoning["summary"]})
+            reasoning_attempts.append(None)
+
+        last_exc: Optional[Exception] = None
+        for attempt in reasoning_attempts:
+            try:
+                if attempt is None:
+                    if "reasoning" in base_kwargs:
+                        del base_kwargs["reasoning"]
+                    return self.client.responses.create(**base_kwargs)
+
+                base_kwargs["reasoning"] = attempt
+                return self.client.responses.create(**base_kwargs)
+            except Exception as exc:
+                last_exc = exc
+                error_text = str(exc).lower()
+
+                is_reasoning_param_error = (
+                    ("reasoning.summary" in error_text)
+                    or ("reasoning.effort" in error_text)
+                    or ("unsupported_value" in error_text and "reasoning" in error_text)
+                    or ("invalid_request_error" in error_text and "reasoning" in error_text)
                 )
-            raise
+                if is_reasoning_param_error:
+                    self._log(f"[Responses API] Reasoning params rejected ({attempt}), retrying: {exc}")
+                    continue
+                raise
+
+        raise last_exc if last_exc is not None else RuntimeError("Failed to create Responses API stream")
 
     def _process_stream_events(self, stream: Any, state: Dict[str, Any]) -> Iterator[StreamEvent]:
         """Process all events from the stream."""
