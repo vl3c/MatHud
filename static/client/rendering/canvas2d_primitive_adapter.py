@@ -17,6 +17,10 @@ from rendering.shared_drawable_renderers import Point2D
 class Canvas2DPrimitiveAdapter(RendererPrimitives):
     """RendererPrimitives implementation for Canvas 2D."""
 
+    FONT_SIZE_QUANTUM_PX: float = 0.25
+    MAX_FONT_CACHE_ENTRIES: int = 512
+    _FONT_SIZE_EPS: float = 1e-6
+
     def __init__(self, canvas_el: Any, *, telemetry: Optional[Any] = None) -> None:
         self.canvas_el = canvas_el
         self.ctx = canvas_el.getContext("2d")
@@ -25,6 +29,8 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self._global_alpha: float = 1.0
         self._pending_alpha_reset: bool = False
         self._font_cache: Dict[Tuple[Any, ...], str] = {}
+        self._font_cache_keys: List[Tuple[Any, ...]] = []
+        self._font_cache_eviction_cursor: int = 0
         self._font_state: Dict[str, Any] = {"font": None}
         self._text_color: Optional[str] = None
         self._text_align: Optional[str] = None
@@ -348,11 +354,12 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self._record_event("text_draw_calls")
 
     def _resolve_font_string(self, font: FontStyle) -> str:
-        key = (font.weight or "", font.size, font.family or "")
+        size_key, size_px = self._quantize_font_size(font.size)
+        key = (font.weight or "", size_key, font.family or "")
         cached = self._font_cache.get(key)
         if cached is not None:
             return cached
-        size_component = self._format_px(font.size)
+        size_component = self._format_px(size_px)
         parts: List[str] = []
         if font.weight:
             parts.append(str(font.weight))
@@ -361,7 +368,72 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
             parts.append(font.family)
         font_string = " ".join(parts)
         self._font_cache[key] = font_string
+        self._font_cache_keys.append(key)
+        self._evict_font_cache_if_needed()
         return font_string
+
+    def _coerce_font_size_float(self, size: Any) -> Optional[float]:
+        if isinstance(size, str):
+            stripped = size.strip()
+            if stripped.endswith("px"):
+                stripped = stripped[:-2].strip()
+            if not stripped:
+                return None
+            try:
+                return float(stripped)
+            except Exception:
+                return None
+        try:
+            return float(size)
+        except Exception:
+            return None
+
+    def _quantize_font_size(self, size: Any) -> Tuple[Any, Any]:
+        size_value = self._coerce_font_size_float(size)
+        if size_value is None:
+            return size, size
+        if not math.isfinite(size_value) or size_value <= 0:
+            return size, size
+        nearest_int = round(size_value)
+        if abs(size_value - nearest_int) <= self._FONT_SIZE_EPS:
+            coerced = int(nearest_int)
+            return coerced, coerced
+        quantum = float(self.FONT_SIZE_QUANTUM_PX)
+        if quantum <= 0:
+            return size_value, size_value
+        k = int(round(size_value / quantum))
+        quantized = float(k) * quantum
+        nearest_int_q = round(quantized)
+        if abs(quantized - nearest_int_q) <= self._FONT_SIZE_EPS:
+            coerced_q = int(nearest_int_q)
+            return coerced_q, coerced_q
+        quantized = round(quantized, 6)
+        return quantized, quantized
+
+    def _evict_font_cache_if_needed(self) -> None:
+        try:
+            max_entries = int(self.MAX_FONT_CACHE_ENTRIES)
+        except Exception:
+            max_entries = 512
+        if max_entries <= 0:
+            return
+        cache = self._font_cache
+        if len(cache) <= max_entries:
+            return
+        keys = self._font_cache_keys
+        cursor = int(self._font_cache_eviction_cursor)
+        while len(cache) > max_entries and cursor < len(keys):
+            key = keys[cursor]
+            cursor += 1
+            if key in cache:
+                try:
+                    del cache[key]
+                except Exception:
+                    pass
+        self._font_cache_eviction_cursor = cursor
+        if cursor > 2048 and cursor > (len(keys) // 2):
+            self._font_cache_keys = keys[cursor:]
+            self._font_cache_eviction_cursor = 0
 
     def _reset_alpha_if_needed(self, *, force: bool = False) -> None:
         if not (self._pending_alpha_reset or force):

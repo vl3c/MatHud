@@ -129,6 +129,9 @@ class CanvasEventHandler:
         self.touch_start_positions: List[Any] = []
         self.initial_pinch_distance: Optional[float] = None
         self.last_pinch_distance: Optional[float] = None
+        # Zoom draw scheduling (wheel + pinch): avoid blocking by drawing at most once per frame
+        self._zoom_draw_scheduled: bool = False
+        self._zoom_settle_timeout_id: Optional[Any] = None
         self.bind_events()
     
     def bind_events(self) -> None:
@@ -174,9 +177,50 @@ class CanvasEventHandler:
         try:
             self._update_zoom_point(event)
             self._adjust_scale_factor(event.deltaY)
-            self.canvas.draw(True)
+            self._schedule_zoom_redraw()
         except Exception as e:
             print(f"Error handling wheel event: {str(e)}")
+
+    def _schedule_zoom_redraw(self) -> None:
+        """Schedule a zoom redraw (apply_zoom=True) and a trailing settle redraw (apply_zoom=False).
+
+        This prevents multiple synchronous full redraws per wheel/touch event burst which can
+        block the UI thread when many labels become visible again during zoom-in.
+        """
+        if not self._zoom_draw_scheduled:
+            self._zoom_draw_scheduled = True
+
+            def _raf_callback(_ts: Any = None) -> None:
+                self._zoom_draw_scheduled = False
+                try:
+                    self.canvas.draw(True)
+                except Exception:
+                    pass
+
+            try:
+                window.requestAnimationFrame(_raf_callback)
+            except Exception:
+                _raf_callback()
+
+        # Debounce a final full-detail draw after zoom events stop.
+        timeout_id = self._zoom_settle_timeout_id
+        if timeout_id is not None:
+            try:
+                window.clearTimeout(timeout_id)
+            except Exception:
+                pass
+
+        def _settle_callback() -> None:
+            try:
+                self.canvas.draw(False)
+            except Exception:
+                pass
+
+        try:
+            # 80ms is enough to coalesce typical wheel bursts without feeling laggy.
+            self._zoom_settle_timeout_id = window.setTimeout(_settle_callback, 80)
+        except Exception:
+            self._zoom_settle_timeout_id = None
     
     def _update_zoom_point(self, event: Any) -> None:
         """Update the zoom point based on mouse position."""
@@ -527,11 +571,11 @@ class CanvasEventHandler:
                 if scale_change > 1.02:  # Zoom in threshold
                     self.canvas.scale_factor *= 1.02
                     self.canvas.zoom_direction = -1
-                    self.canvas.draw(True)
+                    self._schedule_zoom_redraw()
                 elif scale_change < 0.98:  # Zoom out threshold
                     self.canvas.scale_factor *= 0.98
                     self.canvas.zoom_direction = 1
-                    self.canvas.draw(True)
+                    self._schedule_zoom_redraw()
                     
             self.last_pinch_distance = current_distance
             

@@ -7,6 +7,30 @@ from constants import default_font_family, label_min_screen_font_px, label_vanis
 from rendering.helpers.font_helpers import _coerce_font_size, _compute_zoom_adjusted_font_size
 from rendering.primitives import FontStyle, TextAlignment
 
+_FONT_SIZE_QUANTUM_PX: float = 0.25
+_FONT_SIZE_EPS: float = 1e-6
+
+
+def _quantize_font_size_px(value: Any) -> Any:
+    try:
+        size_float = float(value)
+    except Exception:
+        return value
+    if not math.isfinite(size_float) or size_float <= 0:
+        return value
+    nearest_int = round(size_float)
+    if abs(size_float - nearest_int) <= _FONT_SIZE_EPS:
+        return int(nearest_int)
+    quantum = float(_FONT_SIZE_QUANTUM_PX)
+    if quantum <= 0:
+        return size_float
+    k = int(round(size_float / quantum))
+    quantized = float(k) * quantum
+    nearest_int_q = round(quantized)
+    if abs(quantized - nearest_int_q) <= _FONT_SIZE_EPS:
+        return int(nearest_int_q)
+    return round(quantized, 6)
+
 
 def get_label_lines(label: Any):
     try:
@@ -31,7 +55,7 @@ def compute_world_label_font(label: Any, style: dict, coordinate_mapper: Any):
     if math.isfinite(effective_font_size) and effective_font_size.is_integer():
         font_size_final = int(effective_font_size)
     else:
-        font_size_final = effective_font_size
+        font_size_final = _quantize_font_size_px(effective_font_size)
 
     font_family = style.get("label_font_family", style.get("font_family", default_font_family))
     font = FontStyle(family=font_family, size=font_size_final)

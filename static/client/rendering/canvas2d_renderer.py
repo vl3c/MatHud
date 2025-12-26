@@ -456,10 +456,45 @@ class Canvas2DRenderer(RendererProtocol):
         return drawable.__class__.__name__
 
     def drain_telemetry(self) -> Dict[str, Any]:
-        return self._telemetry.drain()
+        snapshot = self._telemetry.drain()
+        snapshot.update(self._collect_cache_metrics())
+        return snapshot
 
     def peek_telemetry(self) -> Dict[str, Any]:
-        return self._telemetry.snapshot()
+        snapshot = self._telemetry.snapshot()
+        snapshot.update(self._collect_cache_metrics())
+        return snapshot
+
+    def _collect_cache_metrics(self) -> Dict[str, Any]:
+        metrics: Dict[str, Any] = {}
+        try:
+            primitives = getattr(self, "_shared_primitives", None)
+            font_cache = getattr(primitives, "_font_cache", None) if primitives is not None else None
+            if isinstance(font_cache, dict):
+                metrics["font_cache_entries"] = int(len(font_cache))
+        except Exception:
+            pass
+
+        plan_cache = getattr(self, "_plan_cache", None)
+        if isinstance(plan_cache, dict):
+            try:
+                metrics["plan_cache_entries"] = int(len(plan_cache))
+            except Exception:
+                pass
+            try:
+                total_commands = 0
+                for entry in plan_cache.values():
+                    plan = entry.get("plan") if isinstance(entry, dict) else None
+                    commands = getattr(plan, "commands", None)
+                    try:
+                        total_commands += int(len(commands)) if commands is not None else 0
+                    except Exception:
+                        pass
+                metrics["plan_cache_total_commands"] = int(total_commands)
+            except Exception:
+                pass
+
+        return metrics
 
     def _should_use_layer_compositing(self) -> bool:
         try:
