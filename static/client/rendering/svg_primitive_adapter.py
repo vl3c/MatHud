@@ -12,7 +12,7 @@ from rendering.primitives import (
     StrokeStyle,
     TextAlignment,
 )
-from rendering.helpers.screen_offset_label_layout import make_label_text_call, solve_dy_for_text_calls
+from rendering.helpers.screen_offset_label_layout import make_label_text_call, solve_dy_with_hide_for_text_calls
 from rendering.shared_drawable_renderers import Point2D
 
 
@@ -154,8 +154,10 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         deferred = getattr(self, "_deferred_screen_offset_text_calls", None)
         if not deferred:
             return
-        dy_by_group = solve_dy_for_text_calls(deferred)
+        dy_by_group, hidden_groups = solve_dy_with_hide_for_text_calls(deferred)
         for call in deferred:
+            if call.group in hidden_groups:
+                continue
             dy = float(dy_by_group.get(call.group, 0.0) or 0.0)
             if dy:
                 position = (call.position[0], call.position[1] + dy)

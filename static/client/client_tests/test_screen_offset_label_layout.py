@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from rendering.helpers.screen_offset_label_layout import LabelBlock, make_label_text_call, solve_dy
+from rendering.helpers.screen_offset_label_layout import LabelBlock, make_label_text_call, solve_dy, solve_dy_with_hide_for_text_calls
 
 
 class TestScreenOffsetLabelLayout(unittest.TestCase):
@@ -107,5 +107,122 @@ class TestScreenOffsetLabelLayout(unittest.TestCase):
         )
         self.assertIsNotNone(call)
         self.assertEqual(call.group, ("hi", 1.0, 2.0))
+
+    def test_hide_groups_when_abs_dy_exceeds_factor(self) -> None:
+        class _Font:
+            def __init__(self, size: float) -> None:
+                self.size = size
+
+        font_size = 10.0
+        calls = []
+        for idx in range(9):
+            group = f"G{idx}"
+            metadata = {
+                "point_label": {
+                    "layout_group": group,
+                    "layout_line_index": 0,
+                    "layout_line_count": 1,
+                    "layout_max_line_len": 1,
+                    "screen_offset": (0.0, 0.0),
+                }
+            }
+            call = make_label_text_call(
+                order=idx,
+                text="x",
+                position=(0.0, 0.0),
+                font=_Font(font_size),
+                color="#000",
+                alignment=None,
+                style_overrides=None,
+                metadata=metadata,
+            )
+            self.assertIsNotNone(call)
+            if call is not None:
+                calls.append(call)
+
+        dy, hidden = solve_dy_with_hide_for_text_calls(calls, max_abs_dy_factor=3.0, max_passes=2)
+        # Hard bound: visible labels must have abs(dy) <= 3*font_size.
+        for idx in range(9):
+            group = f"G{idx}"
+            if group in hidden:
+                continue
+            self.assertTrue(abs(float(dy.get(group, 0.0))) <= 3.0 * font_size)
+
+    def test_proximity_hide_hides_later_label_when_anchors_are_too_close(self) -> None:
+        class _Font:
+            def __init__(self, size: float) -> None:
+                self.size = size
+
+        font_size = 10.0
+        # Width ~= 0.6 * font_size * max_line_len = 60.0 when max_line_len=10
+        # Threshold = (wA+wB)/4 = 30.0. Set anchor distance < 30.0 to trigger hide.
+        common_meta = {
+            "layout_line_index": 0,
+            "layout_line_count": 1,
+            "layout_max_line_len": 10,
+        }
+        call_a = make_label_text_call(
+            order=0,
+            text="abcdefghij",
+            position=(0.0, 0.0),
+            font=_Font(font_size),
+            color="#000",
+            alignment=None,
+            style_overrides=None,
+            metadata={"point_label": {**common_meta, "layout_group": "A", "screen_offset": (0.0, 0.0)}},
+        )
+        call_b = make_label_text_call(
+            order=10,
+            text="abcdefghij",
+            position=(0.0, 0.0),
+            font=_Font(font_size),
+            color="#000",
+            alignment=None,
+            style_overrides=None,
+            metadata={"point_label": {**common_meta, "layout_group": "B", "screen_offset": (-10.0, 0.0)}},
+        )
+        self.assertIsNotNone(call_a)
+        self.assertIsNotNone(call_b)
+        dy, hidden = solve_dy_with_hide_for_text_calls([call_a, call_b], max_abs_dy_factor=3.0)
+        self.assertIn("B", hidden)
+        self.assertNotIn("A", hidden)
+        self.assertIn("A", dy)
+
+    def test_proximity_hide_does_not_trigger_when_anchors_are_far(self) -> None:
+        class _Font:
+            def __init__(self, size: float) -> None:
+                self.size = size
+
+        font_size = 10.0
+        common_meta = {
+            "layout_line_index": 0,
+            "layout_line_count": 1,
+            "layout_max_line_len": 10,
+        }
+        call_a = make_label_text_call(
+            order=0,
+            text="abcdefghij",
+            position=(0.0, 0.0),
+            font=_Font(font_size),
+            color="#000",
+            alignment=None,
+            style_overrides=None,
+            metadata={"point_label": {**common_meta, "layout_group": "A", "screen_offset": (0.0, 0.0)}},
+        )
+        call_b = make_label_text_call(
+            order=10,
+            text="abcdefghij",
+            position=(0.0, 0.0),
+            font=_Font(font_size),
+            color="#000",
+            alignment=None,
+            style_overrides=None,
+            metadata={"point_label": {**common_meta, "layout_group": "B", "screen_offset": (-100.0, 0.0)}},
+        )
+        self.assertIsNotNone(call_a)
+        self.assertIsNotNone(call_b)
+        dy, hidden = solve_dy_with_hide_for_text_calls([call_a, call_b], max_abs_dy_factor=3.0)
+        # They may still overlap in rect-space, but proximity rule should not hide.
+        self.assertNotIn("B", hidden)
 
 

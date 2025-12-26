@@ -41,6 +41,7 @@ class LabelTextCall:
         "order",
         "text",
         "position",
+        "anchor_screen",
         "font",
         "color",
         "alignment",
@@ -60,6 +61,7 @@ class LabelTextCall:
         order: int,
         text: str,
         position: Tuple[float, float],
+        anchor_screen: Tuple[float, float],
         font: Any,
         color: str,
         alignment: Any,
@@ -75,6 +77,7 @@ class LabelTextCall:
         self.order = order
         self.text = text
         self.position = position
+        self.anchor_screen = anchor_screen
         self.font = font
         self.color = color
         self.alignment = alignment
@@ -216,6 +219,18 @@ def make_label_text_call(
     if max_line_len < 0:
         max_line_len = 0
 
+    offset_raw = point_meta.get("screen_offset", (0.0, 0.0))
+    if isinstance(offset_raw, (list, tuple)) and len(offset_raw) == 2:
+        offset_x = _coerce_float(offset_raw[0], 0.0)
+        offset_y = _coerce_float(offset_raw[1], 0.0)
+    else:
+        offset_x = 0.0
+        offset_y = 0.0
+
+    pos_x = float(position[0])
+    pos_y = float(position[1])
+    anchor_screen = (pos_x - offset_x, pos_y - offset_y)
+
     fallback_group = (str(text), float(position[0]), float(position[1]))
     group = _safe_hashable_group(point_meta.get("layout_group"), fallback=fallback_group)
 
@@ -223,7 +238,8 @@ def make_label_text_call(
         group=group,
         order=int(order),
         text=str(text),
-        position=(float(position[0]), float(position[1])),
+        position=(pos_x, pos_y),
+        anchor_screen=anchor_screen,
         font=font,
         color=str(color),
         alignment=alignment,
@@ -606,5 +622,322 @@ def solve_dy_for_text_calls(
             )
         )
     return solve_dy(blocks, max_steps=max_steps, iteration_cap=iteration_cap, cell_size=cell_size)
+
+
+def solve_dy_with_hide_for_text_calls(
+    calls: List[LabelTextCall],
+    *,
+    max_abs_dy_factor: float = 3.0,
+    max_passes: int = 2,
+    max_steps: int = 10,
+    iteration_cap: int = 5000,
+    cell_size: float = 32.0,
+) -> Tuple[Dict[Any, float], Set[Any]]:
+    """Solve dy for screen_offset labels and hide labels under hard constraints.
+
+    This is performance-oriented:
+    - Treat max abs(dy) as a hard visibility bound (do not search beyond it).
+    - If a label cannot be placed collision-free within the bound, hide it immediately.
+
+    max_passes is accepted for backward compatibility but is not used; the algorithm
+    performs a single constrained solve and returns (dy_by_group, hidden_groups).
+    """
+    if not calls:
+        return {}, set()
+
+    factor = _coerce_float(max_abs_dy_factor, 3.0)
+    if factor <= 0:
+        factor = 3.0
+    cap_steps = _coerce_int(max_steps, 10)
+    if cap_steps < 0:
+        cap_steps = 0
+    cap_iters = _coerce_int(iteration_cap, 5000)
+    if cap_iters <= 0:
+        cap_iters = 1
+
+    # Pick a representative call per group (same as solve_dy_for_text_calls) so we can
+    # compute group-level constraints cheaply.
+    by_group: Dict[Any, LabelTextCall] = {}
+    for call in calls:
+        existing = by_group.get(call.group)
+        if existing is None:
+            by_group[call.group] = call
+            continue
+        if call.line_index < existing.line_index:
+            by_group[call.group] = call
+        elif call.line_index == existing.line_index and call.order > existing.order:
+            by_group[call.group] = call
+
+    base_rect: Dict[Any, Rect] = {}
+    step_px: Dict[Any, float] = {}
+    font_size_px: Dict[Any, float] = {}
+    k_max: Dict[Any, int] = {}
+    order: Dict[Any, int] = {}
+    anchor: Dict[Any, Tuple[float, float]] = {}
+    width: Dict[Any, float] = {}
+    prefer_positive: Dict[Any, bool] = {}
+
+    for group, rep in by_group.items():
+        rect = compute_block_rect(rep)
+        base_rect[group] = rect
+        w = float(rect[1]) - float(rect[0])
+        if w < 0:
+            w = 0.0
+        width[group] = w
+
+        order[group] = int(rep.order)
+        anchor[group] = (float(rep.anchor_screen[0]), float(rep.anchor_screen[1]))
+
+        fs = _coerce_float(getattr(rep, "font_size", 0.0), 0.0)
+        lh = _coerce_float(getattr(rep, "line_height", 0.0), 0.0)
+        if fs <= 0 or lh <= 0:
+            fs = max(fs, 0.0)
+            lh = max(lh, 0.0)
+        font_size_px[group] = fs
+        step_px[group] = lh
+
+        max_abs_dy = factor * fs if fs > 0 else 0.0
+        if lh > 0 and max_abs_dy > 0:
+            km = int(max_abs_dy // lh)
+        else:
+            km = 0
+        if km < 0:
+            km = 0
+        if cap_steps > 0:
+            km = min(km, cap_steps)
+        k_max[group] = km
+
+        # Direction preference: baseline anchor sits in lower half -> prefer +dy (down).
+        center_y = (float(rect[2]) + float(rect[3])) * 0.5
+        baseline_y = float(rect[2]) + fs
+        prefer_positive[group] = bool(baseline_y >= center_y)
+
+    # Spatial hash seeded at dy=0 for all groups.
+    grid = SpatialHash2D(cell_size=cell_size)
+    dy: Dict[Any, float] = {}
+    hidden: Set[Any] = set()
+    for g in base_rect:
+        dy[g] = 0.0
+        grid.add(g, base_rect[g])
+
+    def hide_group(g: Any) -> None:
+        if g in hidden:
+            return
+        hidden.add(g)
+        try:
+            grid.remove(g)
+        except Exception:
+            pass
+
+    def anchor_too_close(a: Any, b: Any) -> bool:
+        ax, ay = anchor.get(a, (0.0, 0.0))
+        bx, by = anchor.get(b, (0.0, 0.0))
+        dx = ax - bx
+        dyv = ay - by
+        dist2 = dx * dx + dyv * dyv
+        # threshold = 0.5 * ((widthA + widthB) / 2) = (widthA + widthB) / 4
+        thresh = (float(width.get(a, 0.0)) + float(width.get(b, 0.0))) * 0.25
+        if thresh <= 0:
+            return False
+        return dist2 < (thresh * thresh)
+
+    def pick_best_dy_for(g: Any, *, ignore: Any) -> Tuple[float, int]:
+        rect0 = base_rect[g]
+        step = float(step_px.get(g, 0.0) or 0.0)
+        max_k = int(k_max.get(g, 0) or 0)
+        pref_pos = bool(prefer_positive.get(g, True))
+
+        if step <= 0 or max_k < 0:
+            max_k = 0
+            step = 0.0
+
+        def is_preferred(candidate: float) -> bool:
+            if candidate == 0.0:
+                return True
+            return candidate > 0.0 if pref_pos else candidate < 0.0
+
+        def better(a: float, b: float, oa: int, ob: int) -> float:
+            if oa != ob:
+                return a if oa < ob else b
+            abs_a = abs(a)
+            abs_b = abs(b)
+            if abs_a != abs_b:
+                return a if abs_a < abs_b else b
+            ap = is_preferred(a)
+            bp = is_preferred(b)
+            if ap != bp:
+                return a if ap else b
+            return a
+
+        best_dy = dy.get(g, 0.0) or 0.0
+        best_overlaps = 10 ** 9
+        for k in range(0, max_k + 1):
+            if k == 0:
+                candidates = (0.0,)
+            else:
+                first = k * step if pref_pos else -k * step
+                candidates = (first, -first)
+            for cand in candidates:
+                cand_rect = shift_rect_y(rect0, cand)
+                overlaps, _ = _count_overlaps(grid, cand_rect, ignore=ignore)
+                if best_overlaps == 10 ** 9:
+                    best_overlaps = overlaps
+                    best_dy = cand
+                    if overlaps == 0:
+                        return float(best_dy), 0
+                    continue
+                choice = better(best_dy, cand, best_overlaps, overlaps)
+                if choice != best_dy:
+                    best_dy = choice
+                    best_overlaps = overlaps if choice == cand else best_overlaps
+                if best_overlaps == 0 and k == 0:
+                    return float(best_dy), 0
+            if best_overlaps == 0:
+                return float(best_dy), 0
+        return float(best_dy), int(best_overlaps)
+
+    # Process later labels first.
+    stack = sorted(list(base_rect.keys()), key=lambda g: int(order.get(g, 0)))
+    in_stack: Set[Any] = set(stack)
+
+    iterations = 0
+    while stack and iterations < cap_iters:
+        g = stack.pop()
+        in_stack.discard(g)
+        if g in hidden:
+            iterations += 1
+            continue
+        current_rect = grid.get_rect(g)
+        if current_rect is None:
+            iterations += 1
+            continue
+
+        overlaps, overlapping = _count_overlaps(grid, current_rect, ignore=g)
+        if overlaps == 0:
+            iterations += 1
+            continue
+
+        # Proximity hide rule for tiny-anchor-distance collisions.
+        to_hide: List[Any] = []
+        for other in list(overlapping):
+            if other in hidden:
+                overlapping.discard(other)
+                continue
+            if anchor_too_close(g, other):
+                later = g if int(order.get(g, 0)) >= int(order.get(other, 0)) else other
+                to_hide.append(later)
+        if to_hide:
+            for h in to_hide:
+                hide_group(h)
+            iterations += 1
+            # Re-enqueue neighbors because the grid changed.
+            for item in overlapping:
+                if item not in hidden and item not in in_stack:
+                    stack.append(item)
+                    in_stack.add(item)
+            continue
+
+        # Recompute overlaps after any proximity filtering.
+        current_rect = grid.get_rect(g)
+        if current_rect is None:
+            iterations += 1
+            continue
+        overlaps, overlapping = _count_overlaps(grid, current_rect, ignore=g)
+        if overlaps == 0:
+            iterations += 1
+            continue
+
+        collision_set = overlapping
+        collision_set.add(g)
+
+        # Lookahead mover selection under the hard dy bound.
+        best_group: Any = None
+        best_dy: float = 0.0
+        best_overlaps: int = 10 ** 9
+        best_key: Optional[Tuple[int, float, float, int]] = None
+        for cand in collision_set:
+            if cand in hidden or grid.get_rect(cand) is None:
+                continue
+            cand_best_dy, cand_overlaps = pick_best_dy_for(cand, ignore=cand)
+            key = (
+                int(cand_overlaps),
+                float(abs(cand_best_dy)),
+                float(abs(cand_best_dy - float(dy.get(cand, 0.0) or 0.0))),
+                -int(order.get(cand, 0)),
+            )
+            if best_key is None or key < best_key:
+                best_key = key
+                best_group = cand
+                best_dy = float(cand_best_dy)
+                best_overlaps = int(cand_overlaps)
+
+        if best_group is None:
+            iterations += 1
+            continue
+
+        if best_overlaps != 0:
+            # Nothing can be placed without overlap inside the bound; hide the later label.
+            later = max(collision_set, key=lambda x: int(order.get(x, 0)))
+            hide_group(later)
+            iterations += 1
+            continue
+
+        dy[best_group] = float(best_dy)
+        grid.update(best_group, shift_rect_y(base_rect[best_group], dy[best_group]))
+
+        # Re-enqueue affected labels.
+        affected = collision_set
+        for item in affected:
+            if item not in hidden and item not in in_stack:
+                stack.append(item)
+                in_stack.add(item)
+
+        iterations += 1
+
+    # Relaxation within bounds: pull labels toward dy=0 when safe.
+    groups_by_disp = sorted([g for g in dy.keys() if g not in hidden], key=lambda x: abs(dy.get(x, 0.0)), reverse=True)
+    for g in groups_by_disp:
+        current = float(dy.get(g, 0.0) or 0.0)
+        if current == 0.0:
+            continue
+        # Temporarily remove g for overlap checking.
+        grid.remove(g)
+        rect0 = base_rect[g]
+        step = float(step_px.get(g, 0.0) or 0.0)
+        max_k = int(k_max.get(g, 0) or 0)
+        pref_pos = bool(prefer_positive.get(g, True))
+        if step <= 0 or max_k < 0:
+            max_k = 0
+            step = 0.0
+        current_k = int(abs(current) // step) if step > 0 else 0
+        limit_k = min(current_k, max_k)
+        chosen = current
+        for k in range(0, limit_k + 1):
+            cand_abs = float(k) * step
+            if cand_abs >= abs(current) and cand_abs != 0.0:
+                continue
+            if cand_abs == 0.0:
+                candidates = (0.0,)
+            else:
+                first = cand_abs if pref_pos else -cand_abs
+                candidates = (first, -first)
+            found = False
+            for cand in candidates:
+                cand_rect = shift_rect_y(rect0, cand)
+                overlaps, _ = _count_overlaps(grid, cand_rect, ignore=g)
+                if overlaps == 0:
+                    chosen = cand
+                    found = True
+                    break
+            if found:
+                break
+        dy[g] = float(chosen)
+        grid.add(g, shift_rect_y(rect0, dy[g]))
+
+    # Remove hidden groups from dy.
+    for h in hidden:
+        dy.pop(h, None)
+
+    return dict(dy), hidden
 
 
