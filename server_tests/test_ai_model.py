@@ -38,6 +38,21 @@ class TestAIModel(unittest.TestCase):
         self.assertTrue(model.has_vision)
         self.assertTrue(model.is_reasoning_model)
 
+    def test_from_identifier_gpt52_chat_latest(self) -> None:
+        """Test GPT-5.2-chat-latest is a reasoning model with vision."""
+        model = AIModel.from_identifier("gpt-5.2-chat-latest")
+        self.assertEqual(model.id, "gpt-5.2-chat-latest")
+        self.assertTrue(model.has_vision)
+        self.assertTrue(model.is_reasoning_model)
+
+    def test_from_identifier_gpt52_medium_reasoning(self) -> None:
+        """Test GPT-5.2 has medium reasoning effort configured."""
+        model = AIModel.from_identifier("gpt-5.2")
+        self.assertEqual(model.id, "gpt-5.2")
+        self.assertTrue(model.has_vision)
+        self.assertTrue(model.is_reasoning_model)
+        self.assertEqual(model.reasoning_effort, "medium")
+
     def test_from_identifier_o3(self) -> None:
         """Test o3 is a reasoning model without vision."""
         model = AIModel.from_identifier("o3")
@@ -88,11 +103,12 @@ class TestAIModel(unittest.TestCase):
         self.assertFalse(model.is_reasoning_model)
 
     def test_get_default_model(self) -> None:
-        """Test default model is GPT-5-chat-latest."""
+        """Test default model is GPT-5.2 with medium reasoning."""
         model = AIModel.get_default_model()
         self.assertEqual(model.id, AIModel.DEFAULT_MODEL)
-        self.assertEqual(model.id, "gpt-5-chat-latest")
+        self.assertEqual(model.id, "gpt-5.2")
         self.assertTrue(model.is_reasoning_model)
+        self.assertEqual(model.reasoning_effort, "medium")
 
     def test_str_representation(self) -> None:
         """Test string representation returns model identifier."""
@@ -101,7 +117,7 @@ class TestAIModel(unittest.TestCase):
 
     def test_all_reasoning_models_identified(self) -> None:
         """Test that all reasoning models are correctly identified."""
-        reasoning_models = ["gpt-5-chat-latest", "o3", "o4-mini"]
+        reasoning_models = ["gpt-5-chat-latest", "gpt-5.2-chat-latest", "gpt-5.2", "o3", "o4-mini"]
         for model_id in reasoning_models:
             model = AIModel.from_identifier(model_id)
             self.assertTrue(

@@ -681,6 +681,27 @@ class TestOpenAIResponsesAPIModelRouting(unittest.TestCase):
         self.assertTrue(api.model.is_reasoning_model)
         self.assertTrue(api.model.has_vision)
 
+    @patch('static.openai_api_base.OpenAI')
+    def test_set_model_to_gpt52_chat_latest(self, mock_openai: Mock) -> None:
+        """Test setting model to GPT-5.2-chat-latest."""
+        api = OpenAIResponsesAPI()
+        api.set_model("gpt-5.2-chat-latest")
+
+        self.assertEqual(api.model.id, "gpt-5.2-chat-latest")
+        self.assertTrue(api.model.is_reasoning_model)
+        self.assertTrue(api.model.has_vision)
+
+    @patch('static.openai_api_base.OpenAI')
+    def test_set_model_to_gpt52_medium_reasoning(self, mock_openai: Mock) -> None:
+        """Test setting model to GPT-5.2 with medium reasoning effort."""
+        api = OpenAIResponsesAPI()
+        api.set_model("gpt-5.2")
+
+        self.assertEqual(api.model.id, "gpt-5.2")
+        self.assertTrue(api.model.is_reasoning_model)
+        self.assertTrue(api.model.has_vision)
+        self.assertEqual(api.model.reasoning_effort, "medium")
+
 
 if __name__ == '__main__':
     unittest.main()

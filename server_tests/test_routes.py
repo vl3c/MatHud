@@ -178,32 +178,15 @@ class TestRoutes(unittest.TestCase):
 
     def test_new_conversation_route(self) -> None:
         """Test the new_conversation route resets the AI conversation history."""
-        # First, send a message to create some conversation history
-        with patch.object(self.app.ai_api.client.chat.completions, 'create') as mock_create:
-            class MockMessage:
-                content = "Test response"
-                tool_calls = None
-            
-            class MockChoice:
-                message = MockMessage()
-                finish_reason = "stop"
-
-            class MockResponse:
-                choices = [MockChoice()]
-
-            mock_create.return_value = MockResponse()
-            
-            test_message = {
-                'message': json.dumps({
-                    'user_message': 'test message',
-                    'use_vision': False
-                }),
-                'svg_state': None
-            }
-            self.client.post('/send_message', json=test_message)
+        # Simulate existing conversation history in both APIs (standard + reasoning).
+        self.app.ai_api.messages.append({"role": "user", "content": "test message"})
+        self.app.ai_api.messages.append({"role": "assistant", "content": "Test response"})
+        self.app.responses_api.messages.append({"role": "user", "content": "test message"})
+        self.app.responses_api.messages.append({"role": "assistant", "content": "Test response"})
 
         # Check that the conversation history has more than the initial developer message
         self.assertGreater(len(self.app.ai_api.messages), 1)
+        self.assertGreater(len(self.app.responses_api.messages), 1)
 
         # Now, call the new_conversation route
         response = self.client.post('/new_conversation')
@@ -217,6 +200,8 @@ class TestRoutes(unittest.TestCase):
         # Check that the conversation history has been reset
         self.assertEqual(len(self.app.ai_api.messages), 1)
         self.assertEqual(self.app.ai_api.messages[0]["role"], "developer")
+        self.assertEqual(len(self.app.responses_api.messages), 1)
+        self.assertEqual(self.app.responses_api.messages[0]["role"], "developer")
 
     def test_error_handling(self) -> None:
         """Test error handling in routes."""
@@ -341,7 +326,7 @@ class TestAPIRouting(unittest.TestCase):
         """Test that all expected models are configured."""
         from static.ai_model import AIModel
         
-        reasoning_models = ["gpt-5-chat-latest", "o3", "o4-mini"]
+        reasoning_models = ["gpt-5-chat-latest", "gpt-5.2-chat-latest", "gpt-5.2", "o3", "o4-mini"]
         standard_models = ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "gpt-5-nano", "gpt-3.5-turbo"]
         
         for model_id in reasoning_models:
