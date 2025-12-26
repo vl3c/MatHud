@@ -14,6 +14,7 @@ from .test_drawable_name_generator import TestDrawableNameGenerator
 from .test_drawables_container import TestDrawablesContainer
 from .test_ellipse import TestEllipse
 from .test_event_handler import TestCanvasEventHandlerTouch
+from .test_chat_message_menu import TestChatMessageMenu
 from .test_throttle import TestThrottle
 from .test_window_mocks import TestWindowMocks
 from .test_expression_validator import TestExpressionValidator
@@ -163,6 +164,7 @@ class Tests:
             # TestRendererPerformance,
             # TestRendererPrimitives,
             TestRendererLogic,
+            TestChatMessageMenu,
             TestLabelOverlapResolver,
             TestScreenOffsetLabelLayout,
             TestVectorRenderer,

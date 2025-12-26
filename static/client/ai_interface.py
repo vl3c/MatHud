@@ -93,6 +93,9 @@ class AIInterface:
         self._needs_continuation_separator: bool = False  # Add newline before next text after tool calls
         # Timeout state
         self._response_timeout_id: Optional[int] = None
+        # Chat message menu state
+        self._open_message_menu: Optional[Any] = None  # DOMNode
+        self._message_menu_global_bound: bool = False
 
     def run_tests(self) -> Dict[str, Any]:
         """Run unit tests for the AIInterface class and return results to the AI as the function result."""
@@ -156,6 +159,205 @@ class AIInterface:
             # MathJax not available or error occurred, continue silently
             pass
 
+    def _set_raw_message_text(self, message_container: Any, raw_text: str) -> None:
+        """Attach raw message source text to a message container for later actions (copy, etc.)."""
+        try:
+            # Store on the element object itself to avoid parsing rendered HTML.
+            setattr(message_container, "_raw_message_text", raw_text)
+        except Exception:
+            pass
+
+    def _get_raw_message_text(self, message_container: Any) -> str:
+        """Return the stored raw message text from the container, or empty string if missing."""
+        try:
+            value = getattr(message_container, "_raw_message_text", "")
+            if isinstance(value, str):
+                return value
+            return str(value)
+        except Exception:
+            return ""
+
+    def _copy_text_to_clipboard(self, text: str) -> bool:
+        """Copy text to clipboard using the modern API with a fallback for older contexts."""
+        if text is None:
+            text = ""
+        if not isinstance(text, str):
+            try:
+                text = str(text)
+            except Exception:
+                text = ""
+
+        # Prefer navigator.clipboard when available (may require secure context).
+        try:
+            navigator = getattr(window, "navigator", None)
+            clipboard = getattr(navigator, "clipboard", None) if navigator is not None else None
+            write_text = getattr(clipboard, "writeText", None) if clipboard is not None else None
+            if callable(write_text):
+                write_text(text)
+                return True
+        except Exception:
+            pass
+
+        # Fallback: temporary textarea + execCommand('copy')
+        try:
+            textarea = html.TEXTAREA()
+            textarea.value = text
+            textarea.attrs["readonly"] = "readonly"
+            textarea.style.position = "fixed"
+            textarea.style.left = "0"
+            textarea.style.top = "0"
+            textarea.style.opacity = "0"
+
+            # Append to DOM, select content, copy, then remove.
+            document <= textarea
+            try:
+                textarea.focus()
+            except Exception:
+                pass
+            try:
+                textarea.select()
+            except Exception:
+                pass
+            try:
+                textarea.setSelectionRange(0, len(text))
+            except Exception:
+                pass
+
+            copied = False
+            try:
+                copied = bool(window.document.execCommand("copy"))
+            except Exception:
+                try:
+                    copied = bool(document.execCommand("copy"))
+                except Exception:
+                    copied = False
+
+            try:
+                textarea.remove()
+            except Exception:
+                pass
+
+            return copied
+        except Exception:
+            return False
+
+    def _bind_message_menu_global_handlers(self) -> None:
+        """Bind global document handlers needed for message menus (close on outside click)."""
+        if self._message_menu_global_bound:
+            return
+        try:
+            document.bind("click", self._on_document_click_close_message_menu)
+            self._message_menu_global_bound = True
+        except Exception:
+            self._message_menu_global_bound = False
+
+    def _on_document_click_close_message_menu(self, _event: Any) -> None:
+        """Close any open message menu when clicking outside of it."""
+        try:
+            if self._open_message_menu is not None:
+                self._hide_message_menu(self._open_message_menu)
+        except Exception:
+            self._open_message_menu = None
+
+    def _hide_message_menu(self, menu: Any) -> None:
+        try:
+            menu.style.display = "none"
+        except Exception:
+            pass
+        if self._open_message_menu is menu:
+            self._open_message_menu = None
+
+    def _show_message_menu(self, menu: Any) -> None:
+        try:
+            if self._open_message_menu is not None and self._open_message_menu is not menu:
+                self._hide_message_menu(self._open_message_menu)
+        except Exception:
+            self._open_message_menu = None
+
+        try:
+            menu.style.display = "block"
+        except Exception:
+            pass
+        self._open_message_menu = menu
+
+    def _toggle_message_menu(self, menu: Any) -> None:
+        try:
+            current_display = getattr(menu.style, "display", "")
+        except Exception:
+            current_display = ""
+
+        if current_display == "none" or not current_display:
+            self._show_message_menu(menu)
+        else:
+            self._hide_message_menu(menu)
+
+    def _attach_message_menu(self, message_container: Any) -> None:
+        """Attach the per-message '...' menu to the message container (idempotent)."""
+        try:
+            if bool(getattr(message_container, "_has_message_menu", False)):
+                return
+            setattr(message_container, "_has_message_menu", True)
+        except Exception:
+            # If we cannot track state on the element, continue anyway.
+            pass
+
+        self._bind_message_menu_global_handlers()
+
+        menu_button = html.BUTTON("...", Class="chat-message-menu-button")
+        try:
+            menu_button.attrs["type"] = "button"
+            menu_button.attrs["title"] = "Message options"
+            menu_button.attrs["aria-label"] = "Message options"
+        except Exception:
+            pass
+
+        menu = html.DIV(Class="chat-message-menu")
+        try:
+            menu.style.display = "none"
+        except Exception:
+            pass
+
+        copy_item = html.BUTTON("Copy message text", Class="chat-message-menu-item")
+        try:
+            copy_item.attrs["type"] = "button"
+        except Exception:
+            pass
+
+        def _stop_propagation(ev: Any) -> None:
+            try:
+                ev.stopPropagation()
+            except Exception:
+                pass
+
+        def _on_menu_button_click(ev: Any) -> None:
+            _stop_propagation(ev)
+            self._toggle_message_menu(menu)
+
+        def _on_menu_click(ev: Any) -> None:
+            _stop_propagation(ev)
+
+        def _on_copy_click(ev: Any) -> None:
+            _stop_propagation(ev)
+            raw_text = self._get_raw_message_text(message_container)
+            self._copy_text_to_clipboard(raw_text)
+            self._hide_message_menu(menu)
+
+        try:
+            menu_button.bind("click", _on_menu_button_click)
+            menu.bind("click", _on_menu_click)
+            copy_item.bind("click", _on_copy_click)
+        except Exception:
+            pass
+
+        menu <= copy_item
+
+        # Add button + menu to the message container (positioned by CSS).
+        try:
+            message_container <= menu_button
+            message_container <= menu
+        except Exception:
+            pass
+
     
     def _create_message_element(self, sender: str, message: str, message_type: str = "normal") -> Any:  # DOMNode
         """Create a styled message element with markdown support."""
@@ -178,6 +380,10 @@ class AIInterface:
             # Assemble the message
             message_container <= sender_label
             message_container <= content_element
+
+            # Store the raw source text for copy actions (do not rely on rendered HTML)
+            self._set_raw_message_text(message_container, message)
+            self._attach_message_menu(message_container)
             
             return message_container
             
@@ -213,6 +419,9 @@ class AIInterface:
                 document["chat-history"] <= container
                 self._stream_message_container = container
                 self._stream_content_element = content
+                # Initialize raw text storage for streaming content
+                self._set_raw_message_text(container, "")
+                self._attach_message_menu(container)
             except Exception as e:
                 print(f"Error creating streaming element: {e}")
 
@@ -246,6 +455,9 @@ class AIInterface:
                 self._reasoning_summary = summary
                 self._stream_message_container = container
                 self._stream_content_element = response_content
+                # Initialize raw text storage for reasoning responses
+                self._set_raw_message_text(container, "")
+                self._attach_message_menu(container)
             except Exception as e:
                 print(f"Error creating reasoning element: {e}")
 
@@ -298,6 +510,8 @@ class AIInterface:
                 self._ensure_stream_message_element()
             if self._stream_content_element is not None:
                 self._stream_content_element.text = self._stream_buffer
+            if self._stream_message_container is not None:
+                self._set_raw_message_text(self._stream_message_container, self._stream_buffer)
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
         except Exception as e:
             print(f"Error handling stream token: {e}")
@@ -311,6 +525,8 @@ class AIInterface:
             
             # If we have reasoning content and actual text, create a combined element
             if self._reasoning_buffer and self._stream_message_container is not None:
+                # Preserve raw source for copy actions
+                self._set_raw_message_text(self._stream_message_container, text_to_render)
                 if text_to_render and self._stream_content_element is not None:
                     # Update the response content with parsed markdown
                     parsed_content = self._parse_markdown_to_html(text_to_render)

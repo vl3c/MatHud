@@ -326,10 +326,12 @@ input, select, textarea, button {
 .chat-message {
     margin-bottom: 16px;
     padding: 12px 16px;
+    padding-right: 48px; /* Space for per-message menu button */
     border-radius: var(--radius);
     background: var(--background-color);
     border: 1px solid var(--border-color);
     line-height: 1.6;
+    position: relative; /* Anchor for the per-message menu */
 }
 
 .chat-message.normal {
@@ -354,6 +356,74 @@ input, select, textarea, button {
 .chat-content {
     display: inline-block;
     word-wrap: break-word;
+}
+
+/* Per-message menu button and dropdown */
+.chat-message-menu-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--surface-color);
+    color: var(--text-secondary);
+    font-size: 18px;
+    line-height: 26px;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.chat-message:hover .chat-message-menu-button,
+.chat-message:focus-within .chat-message-menu-button {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+@media (hover: none) {
+    .chat-message .chat-message-menu-button {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
+
+.chat-message-menu-button:hover {
+    background: var(--background-color);
+    color: var(--text-primary);
+}
+
+.chat-message-menu {
+    position: absolute;
+    top: 40px;
+    right: 8px;
+    min-width: 160px;
+    padding: 6px;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    z-index: 100;
+}
+
+.chat-message-menu-item {
+    width: 100%;
+    display: block;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    text-align: left;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.chat-message-menu-item:hover {
+    background: var(--background-color);
 }
 
 /* Hide empty chat content to avoid blank lines */
@@ -832,6 +902,7 @@ input, select, textarea, button {
     .chat-message {
         margin-bottom: 12px; /* Reduced margin */
         padding: 10px 12px; /* Reduced padding */
+        padding-right: 44px; /* Space for per-message menu button */
     }
 }
 
