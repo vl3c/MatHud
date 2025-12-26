@@ -92,30 +92,31 @@ class Segment(Drawable):
         # Keep endpoint ordering consistent with in-memory references so downstream
         # consumers (workspace saves, dependency checks) preserve segment identity.
         self._sync_label_position()
-        render_mode = None
-        try:
-            mode_obj = getattr(self.label, "render_mode", None)
-            if mode_obj is not None and hasattr(mode_obj, "to_state"):
-                render_mode = mode_obj.to_state()
-        except Exception:
-            render_mode = None
         state: Dict[str, Any] = {
             "name": self.name,
             "args": {
                 "p1": self.point1.name,
                 "p2": self.point2.name,
-                "label": {
-                    "text": self.label.text,
-                    "visible": bool(getattr(self.label, "visible", True)),
-                    "font_size": getattr(self.label, "font_size", point_label_font_size),
-                    "rotation_degrees": getattr(self.label, "rotation_degrees", 0.0),
-                    "render_mode": render_mode,
-                },
             },
             # Include coordinates for render cache invalidation
             "_p1_coords": [self.point1.x, self.point1.y],
             "_p2_coords": [self.point2.x, self.point2.y],
         }
+        # Keep attached label state minimal in the exported canvas state.
+        # Only include label metadata when there is non-empty label text.
+        try:
+            label_text = str(getattr(self.label, "text", "") or "")
+        except Exception:
+            label_text = ""
+        if label_text:
+            try:
+                label_visible = bool(getattr(self.label, "visible", False))
+            except Exception:
+                label_visible = False
+            state["args"]["label"] = {
+                "text": label_text,
+                "visible": label_visible,
+            }
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:

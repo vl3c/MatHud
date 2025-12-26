@@ -76,18 +76,19 @@ class TestSegment(unittest.TestCase):
             "args": {
                 "p1": "A",
                 "p2": "B",
-                "label": {
-                    "text": "",
-                    "visible": False,
-                    "font_size": self.segment.label.font_size,
-                    "rotation_degrees": 0.0,
-                    "render_mode": self.segment.label.render_mode.to_state(),
-                },
             },
             "_p1_coords": [self.p1.x, self.p1.y],
             "_p2_coords": [self.p2.x, self.p2.y],
         }
         self.assertEqual(state, expected_state)
+
+    def test_get_state_includes_minimal_label_only_when_text_non_empty(self) -> None:
+        segment = Segment(self.p1, self.p2, color="blue", label_text="mid", label_visible=True)
+        state = segment.get_state()
+
+        self.assertIn("label", state["args"])
+        self.assertEqual(state["args"]["label"], {"text": "mid", "visible": True})
+        self.assertEqual(set(state["args"]["label"].keys()), {"text", "visible"})
 
     def test_deepcopy(self) -> None:
         segment_copy = copy.deepcopy(self.segment)
