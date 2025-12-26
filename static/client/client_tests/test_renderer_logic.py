@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 
 from rendering import cached_render_plan as optimized
 from rendering import shared_drawable_renderers as shared
 from rendering import style_manager
+from rendering.canvas2d_renderer import Canvas2DRenderer
+from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
+from rendering.primitives import FontStyle
 
 
 class CoordinateMapperStub:
@@ -80,6 +84,59 @@ class TestRendererLogic(unittest.TestCase):
         label_meta = metadata["point_label"]
         self.assertEqual(label_meta["math_position"], (point.x, point.y))
         self.assertEqual(label_meta["screen_offset"], (float(style["point_radius"]), float(-style["point_radius"])) )
+
+    def test_canvas2d_font_cache_quantizes_similar_sizes(self) -> None:
+        canvas_el = SimpleNamespace(getContext=lambda _kind: SimpleNamespace())
+        adapter = Canvas2DPrimitiveAdapter(canvas_el)
+        adapter.MAX_FONT_CACHE_ENTRIES = 128
+
+        f1 = FontStyle(family="Arial", size=9.60, weight=None)
+        f2 = FontStyle(family="Arial", size=9.62, weight=None)
+        s1 = adapter._resolve_font_string(f1)
+        s2 = adapter._resolve_font_string(f2)
+
+        self.assertEqual(s1, s2)
+        self.assertLessEqual(len(adapter._font_cache), 1)
+
+    def test_canvas2d_font_cache_is_bounded(self) -> None:
+        canvas_el = SimpleNamespace(getContext=lambda _kind: SimpleNamespace())
+        adapter = Canvas2DPrimitiveAdapter(canvas_el)
+        adapter.MAX_FONT_CACHE_ENTRIES = 64
+
+        for i in range(512):
+            size = 10.0 + (i * 0.25)
+            adapter._resolve_font_string(FontStyle(family="Arial", size=size, weight=None))
+
+        self.assertLessEqual(len(adapter._font_cache), 64)
+
+    def test_canvas2d_zoom_cycle_does_not_grow_font_cache_metrics(self) -> None:
+        renderer = Canvas2DRenderer.__new__(Canvas2DRenderer)
+        renderer._telemetry = SimpleNamespace(snapshot=lambda: {}, drain=lambda: {})
+        renderer._plan_cache = {}
+
+        canvas_el = SimpleNamespace(getContext=lambda _kind: SimpleNamespace())
+        primitives = Canvas2DPrimitiveAdapter(canvas_el)
+        primitives.MAX_FONT_CACHE_ENTRIES = 64
+        renderer._shared_primitives = primitives
+
+        base_size = 24.0
+        scales = [max(0.01, 1.0 - (i / 100.0)) for i in range(100)]
+        cycle = scales + list(reversed(scales))
+
+        for scale in cycle:
+            primitives._resolve_font_string(FontStyle(family="Arial", size=base_size * scale, weight=None))
+
+        snap1 = renderer.peek_telemetry()
+        self.assertIn("font_cache_entries", snap1)
+        self.assertLessEqual(int(snap1.get("font_cache_entries", 0) or 0), 64)
+
+        for scale in cycle:
+            primitives._resolve_font_string(FontStyle(family="Arial", size=base_size * scale, weight=None))
+
+        snap2 = renderer.peek_telemetry()
+        self.assertIn("font_cache_entries", snap2)
+        self.assertLessEqual(int(snap2.get("font_cache_entries", 0) or 0), 64)
+        self.assertEqual(int(snap1.get("font_cache_entries", 0) or 0), int(snap2.get("font_cache_entries", 0) or 0))
 
 
 __all__ = ["TestRendererLogic"]
