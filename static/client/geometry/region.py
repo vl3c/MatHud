@@ -10,13 +10,22 @@ from __future__ import annotations
 import math
 from typing import Any, List, Optional, Tuple
 
-from utils.geometry_utils import GeometryUtils
 from .path import (
     LineSegment,
     CircularArc,
     EllipticalArc,
     CompositePath,
 )
+
+_GEOMETRY_UTILS = None
+
+
+def _get_geometry_utils():
+    global _GEOMETRY_UTILS
+    if _GEOMETRY_UTILS is None:
+        from utils.geometry_utils import GeometryUtils as _GeometryUtils
+        _GEOMETRY_UTILS = _GeometryUtils
+    return _GEOMETRY_UTILS
 
 
 class Region:
@@ -83,6 +92,7 @@ class Region:
     def _path_area(self, path: CompositePath) -> float:
         """Calculate the signed area enclosed by a path using Green's theorem."""
         total_area = 0.0
+        GeometryUtils = _get_geometry_utils()
         
         for element in path:
             if isinstance(element, LineSegment):

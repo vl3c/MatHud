@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import List, Tuple
 
-from utils.geometry_utils import GeometryUtils
 from .path_element import PathElement
 from .line_segment import LineSegment
 from .circular_arc import CircularArc
@@ -19,9 +18,20 @@ from .composite_path import CompositePath
 
 Point = Tuple[float, float]
 
+_GEOMETRY_UTILS = None
+
+
+def _get_geometry_utils():
+    global _GEOMETRY_UTILS
+    if _GEOMETRY_UTILS is None:
+        from utils.geometry_utils import GeometryUtils as _GeometryUtils
+        _GEOMETRY_UTILS = _GeometryUtils
+    return _GEOMETRY_UTILS
+
 
 def line_line_intersection(seg1: LineSegment, seg2: LineSegment) -> List[Point]:
     """Find intersection point between two line segments."""
+    GeometryUtils = _get_geometry_utils()
     return GeometryUtils.line_line_intersection(
         seg1.start_point(), seg1.end_point(),
         seg2.start_point(), seg2.end_point()
@@ -30,6 +40,7 @@ def line_line_intersection(seg1: LineSegment, seg2: LineSegment) -> List[Point]:
 
 def line_circle_intersection(seg: LineSegment, arc: CircularArc) -> List[Point]:
     """Find intersection points between a line segment and a circular arc."""
+    GeometryUtils = _get_geometry_utils()
     return GeometryUtils.line_circle_intersection(
         seg.start_point(), seg.end_point(),
         arc.center, arc.radius,
@@ -39,6 +50,7 @@ def line_circle_intersection(seg: LineSegment, arc: CircularArc) -> List[Point]:
 
 def line_ellipse_intersection(seg: LineSegment, arc: EllipticalArc) -> List[Point]:
     """Find intersection points between a line segment and an elliptical arc."""
+    GeometryUtils = _get_geometry_utils()
     return GeometryUtils.line_ellipse_intersection(
         seg.start_point(), seg.end_point(),
         arc.center, arc.radius_x, arc.radius_y, arc.rotation,
@@ -48,6 +60,7 @@ def line_ellipse_intersection(seg: LineSegment, arc: EllipticalArc) -> List[Poin
 
 def circle_circle_intersection(arc1: CircularArc, arc2: CircularArc) -> List[Point]:
     """Find intersection points between two circular arcs."""
+    GeometryUtils = _get_geometry_utils()
     return GeometryUtils.circle_circle_intersection(
         arc1.center, arc1.radius, arc1.start_angle, arc1.end_angle, arc1.clockwise,
         arc2.center, arc2.radius, arc2.start_angle, arc2.end_angle, arc2.clockwise
@@ -56,6 +69,7 @@ def circle_circle_intersection(arc1: CircularArc, arc2: CircularArc) -> List[Poi
 
 def circle_ellipse_intersection(circle: CircularArc, ellipse: EllipticalArc) -> List[Point]:
     """Find intersection points between a circular arc and an elliptical arc."""
+    GeometryUtils = _get_geometry_utils()
     return GeometryUtils.circle_ellipse_intersection(
         circle.center, circle.radius, circle.start_angle, circle.end_angle, circle.clockwise,
         ellipse.center, ellipse.radius_x, ellipse.radius_y, ellipse.rotation,
@@ -65,6 +79,7 @@ def circle_ellipse_intersection(circle: CircularArc, ellipse: EllipticalArc) -> 
 
 def ellipse_ellipse_intersection(arc1: EllipticalArc, arc2: EllipticalArc) -> List[Point]:
     """Find intersection points between two elliptical arcs."""
+    GeometryUtils = _get_geometry_utils()
     return GeometryUtils.ellipse_ellipse_intersection(
         arc1.center, arc1.radius_x, arc1.radius_y, arc1.rotation,
         arc1.start_angle, arc1.end_angle, arc1.clockwise,
@@ -100,6 +115,7 @@ def element_element_intersection(elem1: PathElement, elem2: PathElement) -> List
 def path_path_intersections(path1: CompositePath, path2: CompositePath) -> List[Point]:
     """Find all intersection points between two composite paths."""
     results: List[Point] = []
+    GeometryUtils = _get_geometry_utils()
     
     for elem1 in path1:
         for elem2 in path2:
