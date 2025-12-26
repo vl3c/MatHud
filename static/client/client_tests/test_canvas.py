@@ -2429,6 +2429,143 @@ class TestCanvas(unittest.TestCase):
         self.assertTrue(self.canvas.delete_colored_area(colored_area.name))
         self.assertNotIn(colored_area, self.canvas.get_drawables())
 
+    def test_delete_function_deletes_dependent_colored_areas_after_undo_redo(self) -> None:
+        """Deleting a function should also delete any colored areas that depend on it (even after undo/redo)."""
+        func = self.canvas.draw_function("x^2", "f1")
+        area = self.canvas.create_colored_area(
+            func.name,
+            "x_axis",
+            left_bound=-5,
+            right_bound=5,
+            color="red",
+        )
+        self.assertIsNotNone(area)
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("FunctionsBoundedColoredArea")), 1)
+
+        self.assertTrue(self.canvas.undo())
+        self.assertTrue(self.canvas.redo())
+
+        self.assertIsNotNone(self.canvas.get_function(func.name))
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("FunctionsBoundedColoredArea")), 1)
+
+        self.assertTrue(self.canvas.delete_function(func.name))
+        self.assertIsNone(self.canvas.get_function(func.name))
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("FunctionsBoundedColoredArea")), 0)
+
+    def test_delete_segment_deletes_dependent_colored_areas(self) -> None:
+        """Deleting a segment should delete any colored areas that depend on it."""
+        s1 = self.canvas.create_segment(0, 0, 10, 0, name="AB", extra_graphics=False)
+        s2 = self.canvas.create_segment(0, 5, 10, 5, name="CD", extra_graphics=False)
+        self.assertIsNotNone(s1)
+        self.assertIsNotNone(s2)
+
+        area = self.canvas.create_colored_area(s1.name, s2.name, color="red")
+        self.assertIsNotNone(area)
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("SegmentsBoundedColoredArea")), 1)
+
+        self.assertTrue(self.canvas.delete_segment(0, 0, 10, 0))
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("SegmentsBoundedColoredArea")), 0)
+
+    def test_delete_polygon_deletes_dependent_region_colored_areas(self) -> None:
+        """Deleting a polygon should delete any region colored areas built from that polygon."""
+        vertices = [(0, 0), (10, 0), (0, 10)]
+        triangle = self.canvas.create_polygon(vertices, polygon_type=PolygonType.TRIANGLE, name="T1")
+        self.assertIsNotNone(triangle)
+        triangle_name = getattr(triangle, "name", "")
+        self.assertTrue(bool(triangle_name))
+
+        area = self.canvas.create_region_colored_area(triangle_name=triangle_name, color="blue")
+        self.assertIsNotNone(area)
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")), 1)
+
+        self.assertTrue(self.canvas.delete_polygon(polygon_type=PolygonType.TRIANGLE, name=triangle_name))
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")), 0)
+
+    def test_delete_polygon_deletes_dependent_expression_region_colored_areas(self) -> None:
+        """Deleting a polygon should delete any region-expression colored areas that reference it by name."""
+        vertices = [(0, 0), (10, 0), (0, 10)]
+        triangle = self.canvas.create_polygon(vertices, polygon_type=PolygonType.TRIANGLE, name="T1")
+        self.assertIsNotNone(triangle)
+        triangle_name = getattr(triangle, "name", "")
+        self.assertTrue(bool(triangle_name))
+
+        area = self.canvas.create_region_colored_area(expression=triangle_name, color="blue")
+        self.assertIsNotNone(area)
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")), 1)
+
+        self.assertTrue(self.canvas.delete_polygon(polygon_type=PolygonType.TRIANGLE, name=triangle_name))
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")), 0)
+
+    def test_delete_segment_deletes_dependent_expression_region_colored_areas(self) -> None:
+        """Deleting a segment should delete any region-expression colored areas that reference it by name."""
+        seg = self.canvas.create_segment(0, 0, 10, 0, name="AB", extra_graphics=False)
+        self.assertIsNotNone(seg)
+        seg_name = getattr(seg, "name", "")
+        self.assertTrue(bool(seg_name))
+
+        area = self.canvas.create_region_colored_area(expression=seg_name, color="blue")
+        self.assertIsNotNone(area)
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")), 1)
+
+        self.assertTrue(self.canvas.delete_segment(0, 0, 10, 0))
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")), 0)
+
+    def test_delete_circle_deletes_dependent_region_colored_areas(self) -> None:
+        """Deleting a circle should delete any region colored areas that depend on it."""
+        circle = self.canvas.create_circle(0, 0, 5, name="C1", extra_graphics=False)
+        self.assertIsNotNone(circle)
+        circle_name = getattr(circle, "name", "")
+        self.assertTrue(bool(circle_name))
+
+        area = self.canvas.create_region_colored_area(circle_name=circle_name, color="blue")
+        self.assertIsNotNone(area)
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")), 1)
+
+        self.assertTrue(self.canvas.delete_circle(circle_name))
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")), 0)
+
+    def test_delete_ellipse_deletes_dependent_region_colored_areas(self) -> None:
+        """Deleting an ellipse should delete any region colored areas that depend on it."""
+        ellipse = self.canvas.create_ellipse(0, 0, 5, 3, name="E1", extra_graphics=False)
+        self.assertIsNotNone(ellipse)
+        ellipse_name = getattr(ellipse, "name", "")
+        self.assertTrue(bool(ellipse_name))
+
+        area = self.canvas.create_region_colored_area(ellipse_name=ellipse_name, color="blue")
+        self.assertIsNotNone(area)
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")), 1)
+
+        self.assertTrue(self.canvas.delete_ellipse(ellipse_name))
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")), 0)
+
+    def test_delete_circle_arc_deletes_dependent_expression_region_colored_areas(self) -> None:
+        """Deleting a circle arc should delete any region-expression colored areas that reference it by name."""
+        arc = self.canvas.create_circle_arc(
+            point1_name="A",
+            point1_x=1,
+            point1_y=0,
+            point2_name="B",
+            point2_x=0,
+            point2_y=1,
+            center_x=0,
+            center_y=0,
+            radius=1,
+            arc_name="ArcMin_AB",
+            use_major_arc=False,
+            extra_graphics=False,
+        )
+        self.assertIsNotNone(arc)
+
+        arc_name = getattr(arc, "name", "")
+        self.assertTrue(bool(arc_name))
+
+        area = self.canvas.create_region_colored_area(expression=arc_name, color="blue")
+        self.assertIsNotNone(area)
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")), 1)
+
+        self.assertTrue(self.canvas.delete_circle_arc(arc_name))
+        self.assertEqual(len(self.canvas.get_drawables_by_class_name("ClosedShapeColoredArea")), 0)
+
     def test_angle_deletion_on_point_deletion(self) -> None:
         """Test that angles are automatically deleted when their constituent points are deleted."""
         # Create points for angle

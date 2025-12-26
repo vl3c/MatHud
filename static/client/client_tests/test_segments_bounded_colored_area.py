@@ -173,8 +173,23 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         area_copy = copy.deepcopy(area)
         
         self.assertIsNot(area_copy, area)
-        self.assertEqual(area_copy.segment1, area.segment1)
-        self.assertEqual(area_copy.segment2, area.segment2)
+
+        # Boundaries should be deep-copied (important for undo/redo integrity),
+        # but should preserve equivalent values.
+        self.assertIsNot(area_copy.segment1, area.segment1)
+        self.assertEqual(area_copy.segment1.name, area.segment1.name)
+        self.assertEqual(area_copy.segment1.point1.x, area.segment1.point1.x)
+        self.assertEqual(area_copy.segment1.point1.y, area.segment1.point1.y)
+        self.assertEqual(area_copy.segment1.point2.x, area.segment1.point2.x)
+        self.assertEqual(area_copy.segment1.point2.y, area.segment1.point2.y)
+
+        self.assertIsNot(area_copy.segment2, area.segment2)
+        self.assertEqual(area_copy.segment2.name, area.segment2.name)
+        self.assertEqual(area_copy.segment2.point1.x, area.segment2.point1.x)
+        self.assertEqual(area_copy.segment2.point1.y, area.segment2.point1.y)
+        self.assertEqual(area_copy.segment2.point2.x, area.segment2.point2.x)
+        self.assertEqual(area_copy.segment2.point2.y, area.segment2.point2.y)
+
         self.assertEqual(area_copy.color, area.color)
         self.assertEqual(area_copy.opacity, area.opacity)
 
