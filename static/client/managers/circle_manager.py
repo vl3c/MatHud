@@ -207,6 +207,13 @@ class CircleManager:
 
         if hasattr(self.drawable_manager, "arc_manager") and self.drawable_manager.arc_manager:
             self.drawable_manager.arc_manager.handle_circle_removed(name)
+
+        # Delete any colored areas that depend on this circle (region areas, circle segments, etc.).
+        if hasattr(self.drawable_manager, "delete_colored_areas_for_circle"):
+            try:
+                self.drawable_manager.delete_colored_areas_for_circle(circle, archive=False)
+            except Exception:
+                pass
         
         # Remove from drawables
         self.drawables.remove(circle)

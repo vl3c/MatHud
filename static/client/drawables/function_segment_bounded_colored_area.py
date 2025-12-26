@@ -16,6 +16,7 @@ Dependencies:
 
 from __future__ import annotations
 
+import copy
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 from drawables.colored_area import ColoredArea
@@ -205,12 +206,12 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
 		if id(self) in memo:
 			return cast(FunctionSegmentBoundedColoredArea, memo[id(self)])
 			
-		# Create new instance using __init__
 		new_area: FunctionSegmentBoundedColoredArea = FunctionSegmentBoundedColoredArea(
-			func=self.func,  # Function will be properly deep copied by its own __deepcopy__
-			segment=self.segment,  # Segment will be properly deep copied by its own __deepcopy__  
+			func=copy.deepcopy(self.func, memo),
+			segment=copy.deepcopy(self.segment, memo),
 			color=self.color,
 			opacity=self.opacity
 		)
+		new_area.name = self.name
 		memo[id(self)] = new_area
 		return new_area 

@@ -212,7 +212,7 @@ class FunctionManager:
         self.drawables.remove(function)
             
         # Also delete any colored areas associated with this function
-        self.canvas.drawable_manager.delete_colored_areas_for_function(function)
+        self.canvas.drawable_manager.delete_colored_areas_for_function(function, archive=False)
         
         # Redraw the canvas
         if self.canvas.draw_enabled:

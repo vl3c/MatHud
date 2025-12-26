@@ -85,13 +85,15 @@ class SegmentsBoundedColoredArea(ColoredArea):
         if id(self) in memo:
             return cast(SegmentsBoundedColoredArea, memo[id(self)])
             
-        # Create new instance using __init__
+        new_segment1 = copy.deepcopy(self.segment1, memo)
+        new_segment2 = copy.deepcopy(self.segment2, memo) if self.segment2 else None
+
         new_area: SegmentsBoundedColoredArea = SegmentsBoundedColoredArea(
-            segment1=self.segment1,
-            segment2=self.segment2,
-            
+            segment1=new_segment1,
+            segment2=new_segment2,
             color=self.color,
             opacity=self.opacity
         )
+        new_area.name = self.name
         memo[id(self)] = new_area
         return new_area 

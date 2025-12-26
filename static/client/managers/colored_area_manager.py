@@ -43,7 +43,7 @@ State Management:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from constants import (
     closed_shape_resolution_minimum,
@@ -212,6 +212,7 @@ class ColoredAreaManager:
 
         # Add to drawables
         self.drawables.add(colored_area)
+        self.dependency_manager.analyze_drawable_for_dependencies(colored_area)
         
         if self.canvas.draw_enabled:
             self.canvas.draw()
@@ -418,7 +419,12 @@ class ColoredAreaManager:
             
         return True
         
-    def delete_colored_areas_for_function(self, func: Union[str, Function]) -> bool:
+    def delete_colored_areas_for_function(
+        self,
+        func: Union[str, Function],
+        *,
+        archive: bool = True,
+    ) -> bool:
         """
         Deletes all colored areas associated with a function
         
@@ -449,8 +455,8 @@ class ColoredAreaManager:
                 areas_to_delete.append(area)
         
         if areas_to_delete:
-            # Archive for undo
-            self.canvas.undo_redo_manager.archive()
+            if archive:
+                self.canvas.undo_redo_manager.archive()
             
             # Now delete the areas
             for area in areas_to_delete:
@@ -463,7 +469,160 @@ class ColoredAreaManager:
             
         return False
         
-    def delete_colored_areas_for_segment(self, segment: Union[str, Segment]) -> bool:
+    def _expression_references_drawable_name(self, expression: str, drawable_name: str) -> bool:
+        if not expression or not drawable_name:
+            return False
+        try:
+            from utils.area_expression_evaluator import AreaExpressionEvaluator
+
+            tokens = AreaExpressionEvaluator._tokenize(expression)
+            return drawable_name in tokens
+        except Exception:
+            return drawable_name in expression
+
+    def delete_region_expression_colored_areas_referencing_name(
+        self,
+        drawable_name: str,
+        *,
+        archive: bool = True,
+    ) -> bool:
+        """Delete any region-expression colored areas that reference a specific drawable name."""
+        if not drawable_name:
+            return False
+
+        areas_to_delete: List["Drawable"] = []
+        for area in getattr(self.drawables, "ClosedShapeColoredAreas", []):
+            if getattr(area, "shape_type", None) != "region":
+                continue
+            expression = getattr(area, "expression", None)
+            if not expression:
+                continue
+            if self._expression_references_drawable_name(str(expression), drawable_name):
+                areas_to_delete.append(area)
+
+        if not areas_to_delete:
+            return False
+
+        if archive:
+            self.canvas.undo_redo_manager.archive()
+
+        for area in areas_to_delete:
+            self.drawables.remove(area)
+
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+
+        return True
+
+    def delete_colored_areas_for_circle(
+        self,
+        circle: Union[str, "Drawable"],
+        *,
+        archive: bool = True,
+    ) -> bool:
+        circle_name = circle if isinstance(circle, str) else getattr(circle, "name", "")
+        if not circle_name:
+            return False
+
+        areas_to_delete: List["Drawable"] = []
+        seen_ids: set[int] = set()
+
+        def add(area: "Drawable") -> None:
+            area_id = id(area)
+            if area_id in seen_ids:
+                return
+            seen_ids.add(area_id)
+            areas_to_delete.append(area)
+
+        for area in getattr(self.drawables, "ClosedShapeColoredAreas", []):
+            area_circle = getattr(area, "circle", None)
+            if getattr(area_circle, "name", None) == circle_name:
+                add(area)
+                continue
+            if getattr(area, "shape_type", None) == "region":
+                expression = getattr(area, "expression", None)
+                if expression and self._expression_references_drawable_name(str(expression), circle_name):
+                    add(area)
+
+        if not areas_to_delete:
+            return False
+
+        if archive:
+            self.canvas.undo_redo_manager.archive()
+
+        for area in areas_to_delete:
+            self.drawables.remove(area)
+
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+
+        return True
+
+    def delete_colored_areas_for_ellipse(
+        self,
+        ellipse: Union[str, "Drawable"],
+        *,
+        archive: bool = True,
+    ) -> bool:
+        ellipse_name = ellipse if isinstance(ellipse, str) else getattr(ellipse, "name", "")
+        if not ellipse_name:
+            return False
+
+        areas_to_delete: List["Drawable"] = []
+        seen_ids: set[int] = set()
+
+        def add(area: "Drawable") -> None:
+            area_id = id(area)
+            if area_id in seen_ids:
+                return
+            seen_ids.add(area_id)
+            areas_to_delete.append(area)
+
+        for area in getattr(self.drawables, "ClosedShapeColoredAreas", []):
+            area_ellipse = getattr(area, "ellipse", None)
+            if getattr(area_ellipse, "name", None) == ellipse_name:
+                add(area)
+                continue
+            if getattr(area, "shape_type", None) == "region":
+                expression = getattr(area, "expression", None)
+                if expression and self._expression_references_drawable_name(str(expression), ellipse_name):
+                    add(area)
+
+        if not areas_to_delete:
+            return False
+
+        if archive:
+            self.canvas.undo_redo_manager.archive()
+
+        for area in areas_to_delete:
+            self.drawables.remove(area)
+
+        if self.canvas.draw_enabled:
+            self.canvas.draw()
+
+        return True
+
+    def delete_colored_areas_for_circle_arc(
+        self,
+        arc: Union[str, "Drawable"],
+        *,
+        archive: bool = True,
+    ) -> bool:
+        arc_name = arc if isinstance(arc, str) else getattr(arc, "name", "")
+        if not arc_name:
+            return False
+
+        return self.delete_region_expression_colored_areas_referencing_name(
+            arc_name,
+            archive=archive,
+        )
+
+    def delete_colored_areas_for_segment(
+        self,
+        segment: Union[str, Segment],
+        *,
+        archive: bool = True,
+    ) -> bool:
         """
         Deletes all colored areas associated with a segment
         
@@ -496,9 +655,20 @@ class ColoredAreaManager:
             if hasattr(area, "uses_segment") and area.uses_segment(segment):
                 areas_to_delete.append(area)
         
+        # Also remove region-expression areas that reference this segment by name.
+        for area in getattr(self.drawables, "ClosedShapeColoredAreas", []):
+            if getattr(area, "shape_type", None) != "region":
+                continue
+            expression = getattr(area, "expression", None)
+            if not expression:
+                continue
+            if self._expression_references_drawable_name(str(expression), segment.name):
+                areas_to_delete.append(area)
+
         if areas_to_delete:
-            # Archive for undo
-            self.canvas.undo_redo_manager.archive()
+            # Archive for undo unless this is part of a larger archived operation.
+            if archive:
+                self.canvas.undo_redo_manager.archive()
             
             # Now delete the areas
             for area in areas_to_delete:

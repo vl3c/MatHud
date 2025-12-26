@@ -297,6 +297,14 @@ class SegmentManager:
             
         # Archive before deletion
         self.canvas.undo_redo_manager.archive()
+
+        # Delete any colored areas that depend on this segment.
+        # This keeps region/area drawables from becoming orphaned when a boundary segment is removed.
+        if hasattr(self.drawable_manager, "delete_colored_areas_for_segment"):
+            try:
+                self.drawable_manager.delete_colored_areas_for_segment(segment, archive=False)
+            except Exception:
+                pass
         
         # Handle deletion of dependent angles using the dependency manager
         if segment:

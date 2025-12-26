@@ -409,15 +409,18 @@ class FunctionsBoundedColoredArea(ColoredArea):
         if id(self) in memo:
             return cast(FunctionsBoundedColoredArea, memo[id(self)])
             
-        # Create new instance using __init__
+        new_func1 = copy.deepcopy(self.func1, memo)
+        new_func2 = copy.deepcopy(self.func2, memo)
+
         new_area: FunctionsBoundedColoredArea = FunctionsBoundedColoredArea(
-            func1=self.func1,
-            func2=self.func2,
+            func1=new_func1,
+            func2=new_func2,
             left_bound=self.left_bound,
             right_bound=self.right_bound,
             color=self.color,
             opacity=self.opacity,
-            num_sample_points=self.num_sample_points
+            num_sample_points=self.num_sample_points,
         )
+        new_area.name = self.name
         memo[id(self)] = new_area
         return new_area 

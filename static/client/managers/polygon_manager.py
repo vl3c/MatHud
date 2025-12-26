@@ -227,6 +227,17 @@ class PolygonManager:
 
         self.canvas.undo_redo_manager.archive()
 
+        # Remove any expression-based region colored areas that reference this polygon by name.
+        polygon_name = getattr(target, "name", "")
+        if polygon_name and hasattr(self.drawable_manager, "delete_region_expression_colored_areas_referencing_name"):
+            try:
+                self.drawable_manager.delete_region_expression_colored_areas_referencing_name(
+                    polygon_name,
+                    archive=False,
+                )
+            except Exception:
+                pass
+
         removed = self.drawables.remove(target)
         if removed:
             for segment in self._iter_polygon_segments(target):

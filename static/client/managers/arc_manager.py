@@ -484,6 +484,13 @@ class ArcManager:
 
         self.canvas.undo_redo_manager.archive()
 
+        # Delete any region-expression colored areas that reference this arc.
+        if hasattr(self.drawable_manager, "delete_colored_areas_for_circle_arc"):
+            try:
+                self.drawable_manager.delete_colored_areas_for_circle_arc(arc, archive=False)
+            except Exception:
+                pass
+
         self.dependency_manager.unregister_dependency(arc, arc.point1)
         self.dependency_manager.unregister_dependency(arc, arc.point2)
         if arc.circle:

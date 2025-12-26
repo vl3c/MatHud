@@ -217,6 +217,13 @@ class EllipseManager:
             
         # Archive before deletion
         self.canvas.undo_redo_manager.archive()
+
+        # Delete any colored areas that depend on this ellipse (region areas, ellipse segments, etc.).
+        if hasattr(self.drawable_manager, "delete_colored_areas_for_ellipse"):
+            try:
+                self.drawable_manager.delete_colored_areas_for_ellipse(ellipse, archive=False)
+            except Exception:
+                pass
         
         # Remove from drawables
         self.drawables.remove(ellipse)
