@@ -32,7 +32,7 @@ StreamEvent = Dict[str, Any]
 class OpenAIAPIBase:
     """Base class for OpenAI API implementations."""
     
-    DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. DO NOT try to perform calculations by yourself, use the tools provided instead. Always analyze the canvas state before proceeding. Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
+    DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. DO NOT try to perform calculations by yourself, use the tools provided instead. Always analyze the canvas state before proceeding. Canvas state is included with user messages, but after tool calls you may not receive updated state. If you need to re-check the live canvas state between actions, call get_current_canvas_state. Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
 
     @staticmethod
     def _initialize_api_key() -> str:

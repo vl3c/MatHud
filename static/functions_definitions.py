@@ -146,6 +146,20 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "get_current_canvas_state",
+                    "description": "Returns the current serialized canvas state (drawables, cartesian state, computations) without modifying the canvas",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "run_tests",
                     "description": "Runs the test suite for the canvas",
                     "strict": True,

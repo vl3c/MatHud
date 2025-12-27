@@ -94,6 +94,24 @@ class TestProcessFunctionCalls(unittest.TestCase):
         self.assertIn('x+y for x:5, y:1', results)
         self.assertEqual(results['x+y for x:5, y:1'], 6)
 
+    def test_get_current_canvas_state_tool_returns_envelope(self) -> None:
+        workspace_manager = WorkspaceManager(self.canvas)
+        available_functions = FunctionRegistry.get_available_functions(self.canvas, workspace_manager)
+        undoable_functions = FunctionRegistry.get_undoable_functions()
+        calls = [{"function_name": "get_current_canvas_state", "arguments": {}}]
+
+        results = ProcessFunctionCalls.get_results(calls, available_functions, undoable_functions, self.canvas)
+
+        self.assertTrue(ProcessFunctionCalls.validate_results(results))
+        self.assertIn("get_current_canvas_state()", results)
+        payload = results["get_current_canvas_state()"]
+        self.assertIsInstance(payload, dict)
+        self.assertEqual(payload.get("type"), "canvas_state")
+
+        state = payload.get("value")
+        self.assertIsInstance(state, dict)
+        self.assertEqual(state.get("Cartesian_System_Visibility"), "cartesian_state")
+
     def test_evaluate_expression_invalid_function(self) -> None:
         # Testing with an invalid function expression
         expression = "NonExistentFunction(10)"
