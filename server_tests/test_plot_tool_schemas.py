@@ -55,8 +55,8 @@ class TestPlotToolSchemas(unittest.TestCase):
             "representation",
             "distribution_type",
             "distribution_params",
-            "left_bound",
-            "right_bound",
+            "plot_bounds",
+            "shade_bounds",
             "curve_color",
             "fill_color",
             "fill_opacity",
@@ -68,12 +68,15 @@ class TestPlotToolSchemas(unittest.TestCase):
         self.assertIn("representation", props)
         self.assertIn("distribution_type", props)
         self.assertIn("distribution_params", props)
-        self.assertIn("left_bound", props)
-        self.assertIn("right_bound", props)
+        self.assertIn("plot_bounds", props)
+        self.assertIn("shade_bounds", props)
         self.assertIn("curve_color", props)
         self.assertIn("fill_color", props)
         self.assertIn("fill_opacity", props)
         self.assertIn("bar_count", props)
+
+        self.assertNotIn("left_bound", props)
+        self.assertNotIn("right_bound", props)
 
         representation = _require_dict(props.get("representation"), "representation")
         self.assertEqual(representation.get("type"), "string")
@@ -93,6 +96,22 @@ class TestPlotToolSchemas(unittest.TestCase):
         sigma = _require_dict(dp_props.get("sigma"), "distribution_params.sigma")
         self.assertEqual(mean.get("type"), ["number", "null"])
         self.assertEqual(sigma.get("type"), ["number", "null"])
+
+        plot_bounds = _require_dict(props.get("plot_bounds"), "plot_bounds")
+        self.assertEqual(plot_bounds.get("type"), ["object", "null"])
+        self.assertEqual(plot_bounds.get("additionalProperties"), False)
+        self.assertEqual(plot_bounds.get("required"), ["left_bound", "right_bound"])
+        pb_props = _require_dict(plot_bounds.get("properties"), "plot_bounds.properties")
+        self.assertEqual(_require_dict(pb_props.get("left_bound"), "plot_bounds.left_bound").get("type"), ["number", "null"])
+        self.assertEqual(_require_dict(pb_props.get("right_bound"), "plot_bounds.right_bound").get("type"), ["number", "null"])
+
+        shade_bounds = _require_dict(props.get("shade_bounds"), "shade_bounds")
+        self.assertEqual(shade_bounds.get("type"), ["object", "null"])
+        self.assertEqual(shade_bounds.get("additionalProperties"), False)
+        self.assertEqual(shade_bounds.get("required"), ["left_bound", "right_bound"])
+        sb_props = _require_dict(shade_bounds.get("properties"), "shade_bounds.properties")
+        self.assertEqual(_require_dict(sb_props.get("left_bound"), "shade_bounds.left_bound").get("type"), ["number", "null"])
+        self.assertEqual(_require_dict(sb_props.get("right_bound"), "shade_bounds.right_bound").get("type"), ["number", "null"])
 
     def test_plot_bars_schema(self) -> None:
         tool = _find_tool("plot_bars")

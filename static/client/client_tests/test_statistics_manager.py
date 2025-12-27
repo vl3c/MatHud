@@ -22,8 +22,8 @@ class TestStatisticsManager(unittest.TestCase):
             representation="continuous",
             distribution_type="normal",
             distribution_params={"mean": 0.0, "sigma": 1.0},
-            left_bound=None,
-            right_bound=None,
+            plot_bounds=None,
+            shade_bounds=None,
             curve_color=None,
             fill_color=None,
             fill_opacity=None,
@@ -51,8 +51,8 @@ class TestStatisticsManager(unittest.TestCase):
             representation="continuous",
             distribution_type="normal",
             distribution_params={"mean": 0.0, "sigma": 1.0},
-            left_bound=None,
-            right_bound=None,
+            plot_bounds=None,
+            shade_bounds=None,
             curve_color=None,
             fill_color=None,
             fill_opacity=None,
@@ -72,8 +72,8 @@ class TestStatisticsManager(unittest.TestCase):
                 representation="continuous",
                 distribution_type="normal",
                 distribution_params={"mean": 0.0, "sigma": 0.0},
-                left_bound=None,
-                right_bound=None,
+                plot_bounds=None,
+                shade_bounds=None,
                 curve_color=None,
                 fill_color=None,
                 fill_opacity=None,
@@ -86,8 +86,8 @@ class TestStatisticsManager(unittest.TestCase):
             representation="continuous",
             distribution_type="normal",
             distribution_params={"mean": 0.0, "sigma": 1.0},
-            left_bound=None,
-            right_bound=None,
+            plot_bounds=None,
+            shade_bounds=None,
             curve_color=None,
             fill_color=None,
             fill_opacity=None,
@@ -98,8 +98,8 @@ class TestStatisticsManager(unittest.TestCase):
             representation="continuous",
             distribution_type="normal",
             distribution_params={"mean": 0.0, "sigma": 1.0},
-            left_bound=None,
-            right_bound=None,
+            plot_bounds=None,
+            shade_bounds=None,
             curve_color=None,
             fill_color=None,
             fill_opacity=None,
@@ -118,8 +118,8 @@ class TestStatisticsManager(unittest.TestCase):
             representation="discrete",
             distribution_type="normal",
             distribution_params={"mean": 0.0, "sigma": 1.0},
-            left_bound=-2.0,
-            right_bound=2.0,
+            plot_bounds={"left_bound": -2.0, "right_bound": 2.0},
+            shade_bounds=None,
             curve_color=None,
             fill_color=None,
             fill_opacity=None,
@@ -143,8 +143,8 @@ class TestStatisticsManager(unittest.TestCase):
             representation="discrete",
             distribution_type="normal",
             distribution_params={"mean": 0.0, "sigma": 1.0},
-            left_bound=-2.0,
-            right_bound=2.0,
+            plot_bounds={"left_bound": -2.0, "right_bound": 2.0},
+            shade_bounds=None,
             curve_color=None,
             fill_color=None,
             fill_opacity=None,
@@ -248,8 +248,8 @@ class TestStatisticsManager(unittest.TestCase):
                 representation="invalid",
                 distribution_type="normal",
                 distribution_params={"mean": 0.0, "sigma": 1.0},
-                left_bound=None,
-                right_bound=None,
+                plot_bounds=None,
+                shade_bounds=None,
                 curve_color=None,
                 fill_color=None,
                 fill_opacity=None,
@@ -263,8 +263,8 @@ class TestStatisticsManager(unittest.TestCase):
                 representation="continuous",
                 distribution_type="poisson",
                 distribution_params={"mean": 0.0, "sigma": 1.0},
-                left_bound=None,
-                right_bound=None,
+                plot_bounds=None,
+                shade_bounds=None,
                 curve_color=None,
                 fill_color=None,
                 fill_opacity=None,
@@ -277,8 +277,8 @@ class TestStatisticsManager(unittest.TestCase):
             representation="continuous",
             distribution_type="normal",
             distribution_params=None,
-            left_bound=None,
-            right_bound=None,
+            plot_bounds=None,
+            shade_bounds=None,
             curve_color=None,
             fill_color=None,
             fill_opacity=None,
@@ -286,6 +286,7 @@ class TestStatisticsManager(unittest.TestCase):
         )
         self.assertEqual(result["distribution_params"], {"mean": 0.0, "sigma": 1.0})
         self.assertEqual(result["bounds"], {"left": -4.0, "right": 4.0})
+        self.assertEqual(result["shade_bounds"], {"left": -4.0, "right": 4.0})
 
     def test_plot_distribution_rejects_invalid_bounds(self) -> None:
         with self.assertRaises(ValueError):
@@ -294,8 +295,8 @@ class TestStatisticsManager(unittest.TestCase):
                 representation="continuous",
                 distribution_type="normal",
                 distribution_params={"mean": 0.0, "sigma": 1.0},
-                left_bound=1.0,
-                right_bound=1.0,
+                plot_bounds={"left_bound": 1.0, "right_bound": 1.0},
+                shade_bounds=None,
                 curve_color=None,
                 fill_color=None,
                 fill_opacity=None,
@@ -308,11 +309,65 @@ class TestStatisticsManager(unittest.TestCase):
                 representation="continuous",
                 distribution_type="normal",
                 distribution_params={"mean": 0.0, "sigma": 1.0},
-                left_bound=float("inf"),
-                right_bound=1.0,
+                plot_bounds={"left_bound": float("inf"), "right_bound": 1.0},
+                shade_bounds=None,
                 curve_color=None,
                 fill_color=None,
                 fill_opacity=None,
+                bar_count=None,
+            )
+
+    def test_plot_distribution_shade_bounds_limits_fill_area(self) -> None:
+        result = self.canvas.plot_distribution(
+            name="Shade",
+            representation="continuous",
+            distribution_type="normal",
+            distribution_params={"mean": 0.0, "sigma": 1.0},
+            plot_bounds={"left_bound": -4.0, "right_bound": 4.0},
+            shade_bounds={"left_bound": -2.0, "right_bound": 2.0},
+            curve_color=None,
+            fill_color="lightblue",
+            fill_opacity=0.5,
+            bar_count=None,
+        )
+
+        self.assertEqual(result["bounds"], {"left": -4.0, "right": 4.0})
+        self.assertEqual(result["shade_bounds"], {"left": -2.0, "right": 2.0})
+
+        areas = self.canvas.get_drawables_by_class_name("FunctionsBoundedColoredArea")
+        by_name = {a.name: a for a in areas}
+        area = by_name[result["fill_area_name"]]
+        self.assertAlmostEqual(float(getattr(area, "left_bound", 999.0)), -2.0)
+        self.assertAlmostEqual(float(getattr(area, "right_bound", -999.0)), 2.0)
+
+    def test_plot_distribution_shade_bounds_clamps_into_plot_bounds(self) -> None:
+        result = self.canvas.plot_distribution(
+            name="ShadeClamp",
+            representation="continuous",
+            distribution_type="normal",
+            distribution_params={"mean": 0.0, "sigma": 1.0},
+            plot_bounds={"left_bound": -4.0, "right_bound": 4.0},
+            shade_bounds={"left_bound": -10.0, "right_bound": 10.0},
+            curve_color=None,
+            fill_color="lightblue",
+            fill_opacity=0.5,
+            bar_count=None,
+        )
+        self.assertEqual(result["bounds"], {"left": -4.0, "right": 4.0})
+        self.assertEqual(result["shade_bounds"], {"left": -4.0, "right": 4.0})
+
+    def test_plot_distribution_shade_bounds_invalid_after_clamp_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            self.canvas.plot_distribution(
+                name="ShadeBad",
+                representation="continuous",
+                distribution_type="normal",
+                distribution_params={"mean": 0.0, "sigma": 1.0},
+                plot_bounds={"left_bound": -4.0, "right_bound": 4.0},
+                shade_bounds={"left_bound": 10.0, "right_bound": 11.0},
+                curve_color=None,
+                fill_color="lightblue",
+                fill_opacity=0.5,
                 bar_count=None,
             )
 
@@ -322,8 +377,8 @@ class TestStatisticsManager(unittest.TestCase):
             representation="discrete",
             distribution_type="normal",
             distribution_params={"mean": 0.0, "sigma": 1.0},
-            left_bound=-1.0,
-            right_bound=1.0,
+            plot_bounds={"left_bound": -1.0, "right_bound": 1.0},
+            shade_bounds=None,
             curve_color=None,
             fill_color=None,
             fill_opacity=None,
@@ -341,8 +396,8 @@ class TestStatisticsManager(unittest.TestCase):
                         representation="discrete",
                         distribution_type="normal",
                         distribution_params={"mean": 0.0, "sigma": 1.0},
-                        left_bound=-1.0,
-                        right_bound=1.0,
+                        plot_bounds={"left_bound": -1.0, "right_bound": 1.0},
+                        shade_bounds=None,
                         curve_color=None,
                         fill_color=None,
                         fill_opacity=None,
@@ -355,8 +410,8 @@ class TestStatisticsManager(unittest.TestCase):
             representation="discrete",
             distribution_type="normal",
             distribution_params={"mean": 0.0, "sigma": 1.0},
-            left_bound=-1.0,
-            right_bound=1.0,
+            plot_bounds={"left_bound": -1.0, "right_bound": 1.0},
+            shade_bounds=None,
             curve_color=None,
             fill_color="  ",
             fill_opacity=None,
@@ -374,8 +429,8 @@ class TestStatisticsManager(unittest.TestCase):
             representation="discrete",
             distribution_type="normal",
             distribution_params={"mean": 0.0, "sigma": 1.0},
-            left_bound=-1.0,
-            right_bound=1.0,
+            plot_bounds={"left_bound": -1.0, "right_bound": 1.0},
+            shade_bounds=None,
             curve_color=None,
             fill_color=None,
             fill_opacity=10.0,
@@ -391,8 +446,8 @@ class TestStatisticsManager(unittest.TestCase):
             representation="discrete",
             distribution_type="normal",
             distribution_params={"mean": 0.0, "sigma": 1.0},
-            left_bound=-1.0,
-            right_bound=1.0,
+            plot_bounds={"left_bound": -1.0, "right_bound": 1.0},
+            shade_bounds=None,
             curve_color=None,
             fill_color=None,
             fill_opacity=-1.0,
@@ -408,8 +463,8 @@ class TestStatisticsManager(unittest.TestCase):
             representation="discrete",
             distribution_type="normal",
             distribution_params={"mean": 0.0, "sigma": 1.0},
-            left_bound=-1.0,
-            right_bound=1.0,
+            plot_bounds={"left_bound": -1.0, "right_bound": 1.0},
+            shade_bounds=None,
             curve_color=None,
             fill_color=None,
             fill_opacity=float("inf"),

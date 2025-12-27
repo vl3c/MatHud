@@ -47,8 +47,8 @@ class StatisticsManager:
         representation: str,
         distribution_type: str,
         distribution_params: Optional[Dict[str, Any]],
-        left_bound: Optional[float],
-        right_bound: Optional[float],
+        plot_bounds: Optional[Dict[str, Any]],
+        shade_bounds: Optional[Dict[str, Any]],
         curve_color: Optional[str],
         fill_color: Optional[str],
         fill_opacity: Optional[float],
@@ -63,7 +63,10 @@ class StatisticsManager:
             raise ValueError("representation must be 'continuous' or 'discrete'")
 
         mean, sigma = self._parse_normal_params(distribution_params)
-        resolved_left, resolved_right = self._resolve_bounds(mean, sigma, left_bound, right_bound)
+        plot_bounds_dict = plot_bounds if isinstance(plot_bounds, dict) else {}
+        plot_left_raw = plot_bounds_dict.get("left_bound")
+        plot_right_raw = plot_bounds_dict.get("right_bound")
+        resolved_left, resolved_right = self._resolve_bounds(mean, sigma, plot_left_raw, plot_right_raw)
 
         plot_name = self._generate_unique_name(
             self.name_generator.filter_string(name or "") or "normal_plot"
@@ -96,11 +99,30 @@ class StatisticsManager:
         )
         function_name = getattr(function_obj, "name", function_name)
 
+        shade_left = resolved_left
+        shade_right = resolved_right
+        shade_bounds_dict = shade_bounds if isinstance(shade_bounds, dict) else {}
+        if shade_bounds_dict:
+            shade_left_raw = shade_bounds_dict.get("left_bound")
+            shade_right_raw = shade_bounds_dict.get("right_bound")
+            if shade_left_raw is not None:
+                shade_left = float(shade_left_raw)
+            if shade_right_raw is not None:
+                shade_right = float(shade_right_raw)
+            if not math.isfinite(shade_left) or not math.isfinite(shade_right):
+                raise ValueError("shade_bounds left_bound and right_bound must be finite")
+
+        # Clamp shade interval into plot interval.
+        shade_left = max(resolved_left, shade_left)
+        shade_right = min(resolved_right, shade_right)
+        if shade_left >= shade_right:
+            raise ValueError("shade_bounds must define a non-empty interval within plot_bounds")
+
         area = self.colored_area_manager.create_colored_area(
             drawable1_name=function_name,
             drawable2_name=None,
-            left_bound=resolved_left,
-            right_bound=resolved_right,
+            left_bound=shade_left,
+            right_bound=shade_right,
             color=self._normalize_fill_color(fill_color),
             opacity=self._normalize_fill_opacity(fill_opacity),
         )
@@ -134,6 +156,7 @@ class StatisticsManager:
             "distribution_type": dist,
             "distribution_params": {"mean": mean, "sigma": sigma},
             "bounds": {"left": resolved_left, "right": resolved_right},
+            "shade_bounds": {"left": shade_left, "right": shade_right},
             "function_name": function_name,
             "fill_area_name": fill_area_name,
         }

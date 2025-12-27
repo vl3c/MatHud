@@ -1870,7 +1870,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "plot_distribution",
-                    "description": "Plots a probability distribution on the canvas. Choose representation 'continuous' for a function curve or 'discrete' for bar rectangles. Creates a tracked plot composite for reliable deletion.",
+                    "description": "Plots a probability distribution on the canvas. Choose representation 'continuous' for a function curve or 'discrete' for bar rectangles. For continuous plots, you can optionally draw the curve over plot_bounds while shading only over shade_bounds (clamped into plot_bounds). Creates a tracked plot composite for reliable deletion.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -1905,13 +1905,37 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "required": ["mean", "sigma"],
                                 "additionalProperties": False
                             },
-                            "left_bound": {
-                                "type": ["number", "null"],
-                                "description": "Optional left bound for plotting and filling. Defaults to mean - 4*sigma when null."
+                            "plot_bounds": {
+                                "type": ["object", "null"],
+                                "description": "Optional bounds for plotting the curve. If null, or either side is null, defaults to mean +/- 4*sigma.",
+                                "properties": {
+                                    "left_bound": {
+                                        "type": ["number", "null"],
+                                        "description": "Optional left bound for plotting the curve. Defaults to mean - 4*sigma when null."
+                                    },
+                                    "right_bound": {
+                                        "type": ["number", "null"],
+                                        "description": "Optional right bound for plotting the curve. Defaults to mean + 4*sigma when null."
+                                    }
+                                },
+                                "required": ["left_bound", "right_bound"],
+                                "additionalProperties": False
                             },
-                            "right_bound": {
-                                "type": ["number", "null"],
-                                "description": "Optional right bound for plotting and filling. Defaults to mean + 4*sigma when null."
+                            "shade_bounds": {
+                                "type": ["object", "null"],
+                                "description": "Continuous only. Optional bounds for shading under the curve. If null, defaults to plot_bounds. Bounds are clamped into plot_bounds.",
+                                "properties": {
+                                    "left_bound": {
+                                        "type": ["number", "null"],
+                                        "description": "Optional left bound for shading under the curve. If null, defaults to plot_bounds.left_bound."
+                                    },
+                                    "right_bound": {
+                                        "type": ["number", "null"],
+                                        "description": "Optional right bound for shading under the curve. If null, defaults to plot_bounds.right_bound."
+                                    }
+                                },
+                                "required": ["left_bound", "right_bound"],
+                                "additionalProperties": False
                             },
                             "curve_color": {
                                 "type": ["string", "null"],
@@ -1935,8 +1959,8 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "representation",
                             "distribution_type",
                             "distribution_params",
-                            "left_bound",
-                            "right_bound",
+                            "plot_bounds",
+                            "shade_bounds",
                             "curve_color",
                             "fill_color",
                             "fill_opacity",
