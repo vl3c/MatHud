@@ -177,6 +177,7 @@ class SvgRenderer(RendererProtocol):
         self._register_shape("drawables.piecewise_function", "PiecewiseFunction", self._render_function)
         self._register_shape("drawables.triangle", "Triangle", self._render_triangle)
         self._register_shape("drawables.rectangle", "Rectangle", self._render_rectangle)
+        self._register_shape("drawables.bar", "Bar", self._render_drawable)
         self._register_shape(
             "drawables.functions_bounded_colored_area",
             "FunctionsBoundedColoredArea",

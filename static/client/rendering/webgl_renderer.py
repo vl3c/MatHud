@@ -93,6 +93,11 @@ class WebGLRenderer(RendererProtocol):
             self.register(LabelDrawable, self._render_label)
         except Exception:
             pass
+        try:
+            from drawables.bar import Bar as BarDrawable
+            self.register(BarDrawable, self._render_drawable)
+        except Exception:
+            pass
 
     def begin_frame(self) -> None:
         self._shared_primitives.begin_frame()
