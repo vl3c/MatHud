@@ -14,6 +14,11 @@ Plot the function y = x^2 from x = -5 to 5.
 Graph the equation f(x) = sin(x) * 2.
 Draw a circle radius 300 around origin, draw two circles radius 100 around (-105.0, 121.0) and (126.0, 124.0), and draw an ellipse of width 200 and height 100 around (-1.0, -168.0)
 
+# Plotting and Statistics
+Plot a continuous normal distribution named Shifted with mean 2 and sigma 0.5. Shade from 1.5 to 2.5. Use curve color "#d62728" and fill color "#ff9896".
+Plot two discrete normal distributions: DiscA (mean 0, sigma 1, bounds [-3, 3], bar_count 24) and DiscB (mean 1, sigma 0.7, bounds [-3, 3], bar_count 24). Use different colors for each, then zoom to show both.
+Plot a bar chart named Poll with values [10, 20, 5], labels below ["A", "B", "C"], labels above ["10", "20", "5"], bar_width 2.0, bar_spacing 0.5, fill color "#222", fill opacity 0.5, stroke color "#111". Zoom so everything is visible.
+
 # Geometric Property Calculations
 What is the distance between point A and segment DE's midpoint?
 Calculate the length of segment DE.
