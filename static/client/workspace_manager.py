@@ -50,6 +50,10 @@ from constants import (
     default_closed_shape_resolution,
 )
 from drawables.label_render_mode import LabelRenderMode
+from drawables.bars_plot import BarsPlot
+from drawables.continuous_plot import ContinuousPlot
+from drawables.discrete_plot import DiscretePlot
+from drawables.plot import Plot
 from utils.math_utils import MathUtils
 from managers.polygon_type import PolygonType
 from utils.polygon_canonicalizer import (
@@ -105,8 +109,17 @@ class WorkspaceManager:
         req.bind('complete', on_complete)
         req.bind('error', lambda e: f'Error saving workspace: {e.text}')
         
+        state = self.canvas.get_canvas_state()
+        # Bars are derived from DiscretePlot parameters and are rebuilt on load.
+        # Do not persist them in saved workspaces.
+        try:
+            if isinstance(state, dict) and "Bars" in state:
+                del state["Bars"]
+        except Exception:
+            pass
+
         data: Dict[str, Any] = {
-            'state': self.canvas.get_canvas_state(),
+            'state': state,
             'name': name
         }
         
@@ -451,6 +464,134 @@ class WorkspaceManager:
                     )
                     continue
 
+    def _create_plots(self, state: Dict[str, Any]) -> None:
+        """
+        Restore plot composites (ContinuousPlot/DiscretePlot) from workspace state.
+
+        Plot composites are non-renderable bookkeeping objects that reference other drawables.
+        They must be restored after polygons, functions, and colored areas.
+        """
+        plot_items = []
+
+        for item_state in state.get("ContinuousPlots", []) or []:
+            plot_items.append(("continuous", item_state))
+        for item_state in state.get("DiscretePlots", []) or []:
+            plot_items.append(("discrete", item_state))
+        for item_state in state.get("BarsPlots", []) or []:
+            plot_items.append(("bars", item_state))
+        for item_state in state.get("Plots", []) or []:
+            plot_items.append(("legacy", item_state))
+
+        if not plot_items:
+            return
+
+        drawables = getattr(getattr(self.canvas, "drawable_manager", None), "drawables", None)
+        if drawables is None or not hasattr(drawables, "add"):
+            return
+
+        for kind, item_state in plot_items:
+            if not isinstance(item_state, dict):
+                continue
+            args = item_state.get("args", {}) if isinstance(item_state.get("args", {}), dict) else {}
+            name = str(item_state.get("name", "") or "")
+            plot_type = str(args.get("plot_type", "") or "distribution")
+            distribution_type = args.get("distribution_type", None)
+            distribution_params = args.get("distribution_params", None)
+            bounds = args.get("bounds", None)
+            metadata = args.get("metadata", None)
+
+            try:
+                if kind == "continuous":
+                    plot = ContinuousPlot(
+                        name,
+                        plot_type=plot_type,
+                        distribution_type=distribution_type,
+                        function_name=args.get("function_name"),
+                        fill_area_name=args.get("fill_area_name"),
+                        distribution_params=distribution_params,
+                        bounds=bounds,
+                        metadata=metadata,
+                    )
+                elif kind == "discrete":
+                    plot = DiscretePlot(
+                        name,
+                        plot_type=plot_type,
+                        distribution_type=distribution_type,
+                        bar_count=args.get("bar_count"),
+                        bar_labels=args.get("bar_labels"),
+                        curve_color=args.get("curve_color"),
+                        fill_color=args.get("fill_color"),
+                        fill_opacity=args.get("fill_opacity"),
+                        rectangle_names=args.get("rectangle_names"),
+                        fill_area_names=args.get("fill_area_names"),
+                        distribution_params=distribution_params,
+                        bounds=bounds,
+                        metadata=metadata,
+                    )
+                elif kind == "bars":
+                    plot = BarsPlot(
+                        name,
+                        plot_type=plot_type,
+                        values=args.get("values") or [],
+                        labels_below=args.get("labels_below") or [],
+                        labels_above=args.get("labels_above"),
+                        bar_spacing=args.get("bar_spacing"),
+                        bar_width=args.get("bar_width"),
+                        x_start=args.get("x_start"),
+                        y_base=args.get("y_base"),
+                        stroke_color=args.get("stroke_color"),
+                        fill_color=args.get("fill_color"),
+                        fill_opacity=args.get("fill_opacity"),
+                        bounds=bounds,
+                        metadata=metadata,
+                    )
+                else:
+                    # Legacy Plot saved before subclasses existed.
+                    if args.get("rectangle_names") or args.get("fill_area_names"):
+                        plot = DiscretePlot(
+                            name,
+                            plot_type=plot_type,
+                            distribution_type=distribution_type,
+                            bar_count=args.get("bar_count"),
+                            bar_labels=args.get("bar_labels"),
+                            curve_color=args.get("curve_color"),
+                            fill_color=args.get("fill_color"),
+                            fill_opacity=args.get("fill_opacity"),
+                            rectangle_names=args.get("rectangle_names"),
+                            fill_area_names=args.get("fill_area_names"),
+                            distribution_params=distribution_params,
+                            bounds=bounds,
+                            metadata=metadata,
+                        )
+                    elif args.get("function_name") or args.get("fill_area_name"):
+                        plot = ContinuousPlot(
+                            name,
+                            plot_type=plot_type,
+                            distribution_type=distribution_type,
+                            function_name=args.get("function_name"),
+                            fill_area_name=args.get("fill_area_name"),
+                            distribution_params=distribution_params,
+                            bounds=bounds,
+                            metadata=metadata,
+                        )
+                    else:
+                        plot = Plot(
+                            name,
+                            plot_type=plot_type,
+                            distribution_type=distribution_type,
+                            distribution_params=distribution_params,
+                            bounds=bounds,
+                            metadata=metadata,
+                        )
+            except Exception as exc:
+                print(f"Warning: Could not restore plot '{name}': {exc}")
+                continue
+
+            try:
+                drawables.add(plot)
+            except Exception:
+                continue
+
     def _restore_closed_shape_area(self, item_state: Dict[str, Any]):
         shape_args = item_state.get("args", {})
         color = shape_args.get("color", default_area_fill_color)
@@ -615,9 +756,68 @@ class WorkspaceManager:
         self._create_piecewise_functions(state)
         # Create colored areas after functions since they may depend on functions
         self._create_colored_areas(state)
+        # Restore plot composites after functions, polygons, and colored areas.
+        self._create_plots(state)
+        self._materialize_discrete_plot_bars()
+        self._materialize_bars_plot_bars()
+        if getattr(self.canvas, "draw_enabled", False):
+            try:
+                self.canvas.draw()
+            except Exception:
+                pass
         # Create angles after segments since they depend on segments  
         self._create_angles(state)
         self._restore_computations(state)
+
+    def _materialize_discrete_plot_bars(self) -> None:
+        """
+        Build Bar drawables for restored DiscretePlot objects.
+
+        Bars are derived from DiscretePlot params and are not persisted in saved workspaces.
+        """
+        stats_manager = getattr(getattr(self.canvas, "drawable_manager", None), "statistics_manager", None)
+        if stats_manager is None or not hasattr(stats_manager, "materialize_discrete_plot"):
+            return
+
+        drawables = getattr(getattr(self.canvas, "drawable_manager", None), "drawables", None)
+        if drawables is None or not hasattr(drawables, "get_by_class_name"):
+            return
+
+        try:
+            discrete_plots = list(drawables.get_by_class_name("DiscretePlot"))
+        except Exception:
+            discrete_plots = []
+
+        for plot in discrete_plots:
+            try:
+                stats_manager.materialize_discrete_plot(plot)
+            except Exception:
+                continue
+
+    def _materialize_bars_plot_bars(self) -> None:
+        """
+        Build Bar drawables for restored BarsPlot objects.
+
+        Bars are derived from BarsPlot params and are not persisted in saved workspaces.
+        """
+        stats_manager = getattr(getattr(self.canvas, "drawable_manager", None), "statistics_manager", None)
+        if stats_manager is None or not hasattr(stats_manager, "materialize_bars_plot"):
+            return
+
+        drawables = getattr(getattr(self.canvas, "drawable_manager", None), "drawables", None)
+        if drawables is None or not hasattr(drawables, "get_by_class_name"):
+            return
+
+        try:
+            bars_plots = list(drawables.get_by_class_name("BarsPlot"))
+        except Exception:
+            bars_plots = []
+
+        for plot in bars_plots:
+            try:
+                stats_manager.materialize_bars_plot(plot)
+            except Exception:
+                continue
 
     def load_workspace(self, name: Optional[str] = None) -> str:
         """
