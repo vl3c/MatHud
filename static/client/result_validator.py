@@ -80,6 +80,9 @@ class ResultValidator:
     def _is_allowed_value(value: Any, *, allow_list: bool) -> bool:
         """Determine if a result value is permitted."""
 
+        if value is None:
+            return bool(allow_list)
+
         if isinstance(value, (str, int, float, bool)):
             return True
 
