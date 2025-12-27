@@ -499,12 +499,73 @@ class Canvas:
 
     def get_canvas_state(self) -> Dict[str, Any]:
         state = self.get_drawables_state()
+        self._prune_plot_derived_bars_from_state(state)
         cartesian_state = self.get_cartesian2axis_state()
         if cartesian_state is not None:
             state.update(cartesian_state)
         if self.computations:  # Add computations to state if they exist
             state["computations"] = self.computations
         return state
+
+    def _prune_plot_derived_bars_from_state(self, state: Dict[str, Any]) -> None:
+        """
+        Remove derived Bar drawables that can be rebuilt from plot composites.
+
+        Plot tools like plot_distribution (discrete) and plot_bars create many Bar
+        drawables for rendering, but those are derived from DiscretePlot/BarsPlot
+        parameters and make serialized canvas state extremely verbose.
+        """
+        try:
+            if not isinstance(state, dict):
+                return
+
+            bars_state = state.get("Bars")
+            if not isinstance(bars_state, list) or not bars_state:
+                return
+
+            prefixes: List[str] = []
+
+            discrete_plots = state.get("DiscretePlots")
+            if isinstance(discrete_plots, list):
+                for item in discrete_plots:
+                    if not isinstance(item, dict):
+                        continue
+                    name = item.get("name")
+                    if isinstance(name, str) and name:
+                        prefixes.append(f"{name}_bar_")
+
+            bars_plots = state.get("BarsPlots")
+            if isinstance(bars_plots, list):
+                for item in bars_plots:
+                    if not isinstance(item, dict):
+                        continue
+                    name = item.get("name")
+                    if isinstance(name, str) and name:
+                        prefixes.append(f"{name}_bar_")
+
+            if not prefixes:
+                return
+
+            kept: List[Any] = []
+            for item in bars_state:
+                if not isinstance(item, dict):
+                    kept.append(item)
+                    continue
+                bar_name = item.get("name")
+                if not isinstance(bar_name, str):
+                    kept.append(item)
+                    continue
+                if any(bar_name.startswith(prefix) for prefix in prefixes):
+                    continue
+                kept.append(item)
+
+            if kept:
+                state["Bars"] = kept
+            else:
+                state.pop("Bars", None)
+        except Exception:
+            # Best-effort pruning only; never break callers.
+            return
 
     def get_point(self, x: float, y: float) -> Optional[Point]:
         """Get a point at the specified coordinates"""

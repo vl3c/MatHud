@@ -232,7 +232,6 @@ class StatisticsManager:
             "plot_name": plot_name,
             "plot_type": "bars",
             "bar_count": len(values),
-            "bar_names": [f"{plot_name}_bar_{i}" for i in range(len(values))],
         }
 
     def delete_plot(self, name: str) -> bool:
@@ -500,7 +499,6 @@ class StatisticsManager:
             raise ValueError("Invalid bounds for discrete plot")
 
         bar_manager = getattr(getattr(self.canvas, "drawable_manager", None), "bar_manager", None)
-        created_names: List[str] = []
         for i in range(n):
             x_left = left_bound + i * width
             x_right = x_left + width
@@ -539,7 +537,6 @@ class StatisticsManager:
                         label_text=None,
                     )
                 )
-            created_names.append(bar_name)
 
         plot = DiscretePlot(
             plot_name,
@@ -563,7 +560,6 @@ class StatisticsManager:
             "distribution_params": {"mean": mean, "sigma": sigma},
             "bounds": {"left": left_bound, "right": right_bound},
             "bar_count": n,
-            "bar_names": list(created_names),
         }
 
     def _resolve_bar_count(self, bar_count: Optional[float]) -> int:
