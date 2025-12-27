@@ -2024,7 +2024,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "delete_plot",
-                    "description": "Deletes a previously created plot composite by name, including the underlying curve and filled area.",
+                    "description": "Deletes a previously created plot composite by name, including any underlying components (curve and filled area, or derived bars).",
                     "strict": True,
                     "parameters": {
                         "type": "object",
