@@ -66,6 +66,8 @@ from managers.angle_manager import AngleManager
 from managers.label_manager import LabelManager
 from managers.arc_manager import ArcManager
 from managers.graph_manager import GraphManager
+from managers.statistics_manager import StatisticsManager
+from managers.bar_manager import BarManager
 from drawables.closed_shape_colored_area import ClosedShapeColoredArea
 
 if TYPE_CHECKING:
@@ -170,6 +172,10 @@ class DrawableManager:
             canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
         )
 
+        self.bar_manager: BarManager = BarManager(
+            canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
+        )
+
         self.arc_manager: ArcManager = ArcManager(
             canvas,
             self.drawables,
@@ -188,6 +194,15 @@ class DrawableManager:
             self.segment_manager,
             self.vector_manager,
             self.proxy,
+        )
+
+        self.statistics_manager: StatisticsManager = StatisticsManager(
+            canvas,
+            self.drawables,
+            self.name_generator,
+            self.dependency_manager,
+            self.function_manager,
+            self.colored_area_manager,
         )
         
         # No need for the loop that sets drawable_manager anymore
@@ -776,6 +791,66 @@ class DrawableManager:
 
     def create_drawables_from_new_connections(self) -> None:
         self.polygon_manager.create_triangles_from_segments()
+
+    # ------------------- Plot Methods -------------------
+    def plot_distribution(
+        self,
+        *,
+        name: Optional[str],
+        representation: str,
+        distribution_type: str,
+        distribution_params: Optional[Dict[str, Any]],
+        left_bound: Optional[float],
+        right_bound: Optional[float],
+        curve_color: Optional[str],
+        fill_color: Optional[str],
+        fill_opacity: Optional[float],
+        bar_count: Optional[float],
+    ) -> Dict[str, Any]:
+        return self.statistics_manager.plot_distribution(
+            name=name,
+            representation=representation,
+            distribution_type=distribution_type,
+            distribution_params=distribution_params,
+            left_bound=left_bound,
+            right_bound=right_bound,
+            curve_color=curve_color,
+            fill_color=fill_color,
+            fill_opacity=fill_opacity,
+            bar_count=bar_count,
+        )
+
+    def plot_bars(
+        self,
+        *,
+        name: Optional[str],
+        values: List[float],
+        labels_below: List[str],
+        labels_above: Optional[List[str]],
+        bar_spacing: Optional[float],
+        bar_width: Optional[float],
+        stroke_color: Optional[str],
+        fill_color: Optional[str],
+        fill_opacity: Optional[float],
+        x_start: Optional[float],
+        y_base: Optional[float],
+    ) -> Dict[str, Any]:
+        return self.statistics_manager.plot_bars(
+            name=name,
+            values=values,
+            labels_below=labels_below,
+            labels_above=labels_above,
+            bar_spacing=bar_spacing,
+            bar_width=bar_width,
+            stroke_color=stroke_color,
+            fill_color=fill_color,
+            fill_opacity=fill_opacity,
+            x_start=x_start,
+            y_base=y_base,
+        )
+
+    def delete_plot(self, name: str) -> bool:
+        return bool(self.statistics_manager.delete_plot(name))
 
     # ------------------- Graph Methods -------------------
     def create_graph(self, graph_state: "GraphState") -> "Drawable":
