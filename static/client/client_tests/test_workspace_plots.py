@@ -10,6 +10,42 @@ class TestWorkspacePlotsRestore(unittest.TestCase):
     def _names_for_class(self, canvas: Canvas, class_name: str) -> list[str]:
         return [d.name for d in canvas.get_drawables_by_class_name(class_name)]
 
+    def test_canvas_state_omits_derived_plot_bars(self) -> None:
+        canvas = Canvas(500, 500, draw_enabled=False)
+        canvas.plot_distribution(
+            name="MyBars",
+            representation="discrete",
+            distribution_type="normal",
+            distribution_params={"mean": 0.0, "sigma": 1.0},
+            plot_bounds={"left_bound": -2.0, "right_bound": 2.0},
+            shade_bounds=None,
+            curve_color=None,
+            fill_color=None,
+            fill_opacity=None,
+            bar_count=5,
+        )
+        canvas.plot_bars(
+            name="Poll",
+            values=[10.0, 20.0, 5.0],
+            labels_below=["A", "B", "C"],
+            labels_above=["10", "20", "5"],
+            bar_spacing=0.5,
+            bar_width=2.0,
+            stroke_color="#111",
+            fill_color="#222",
+            fill_opacity=0.5,
+            x_start=1.0,
+            y_base=0.0,
+        )
+
+        state = canvas.get_canvas_state()
+        self.assertIsInstance(state, dict)
+        bars = state.get("Bars", [])
+        self.assertTrue(
+            not bars,
+            "Expected canvas_state to omit derived Bars for plot composites (DiscretePlot/BarsPlot).",
+        )
+
     def test_bars_plot_state_omits_empty_base_fields(self) -> None:
         canvas = Canvas(500, 500, draw_enabled=False)
         canvas.plot_bars(

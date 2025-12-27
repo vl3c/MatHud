@@ -128,14 +128,13 @@ class TestStatisticsManager(unittest.TestCase):
 
         self.assertEqual(result["plot_name"], "MyBars")
         self.assertEqual(result["representation"], "discrete")
-        self.assertIn("bar_names", result)
-        self.assertEqual(len(result["bar_names"]), 5)
+        self.assertEqual(result["bar_count"], 5)
 
         self.assertIn("MyBars", self._names_for_class("DiscretePlot"))
 
-        bar_names = self._names_for_class("Bar")
-        for bar_name in result["bar_names"]:
-            self.assertIn(bar_name, bar_names)
+        bar_names = set(self._names_for_class("Bar"))
+        for i in range(result["bar_count"]):
+            self.assertIn(f"{result['plot_name']}_bar_{i}", bar_names)
 
     def test_delete_plot_discrete_removes_bars(self) -> None:
         result = self.canvas.plot_distribution(
@@ -150,12 +149,13 @@ class TestStatisticsManager(unittest.TestCase):
             fill_opacity=None,
             bar_count=5,
         )
+        expected_bar_names = [f"{result['plot_name']}_bar_{i}" for i in range(result["bar_count"])]
 
         self.assertTrue(self.canvas.delete_plot("MyBars"))
         self.assertNotIn("MyBars", self._names_for_class("DiscretePlot"))
 
-        bar_names = self._names_for_class("Bar")
-        for bar_name in result["bar_names"]:
+        bar_names = set(self._names_for_class("Bar"))
+        for bar_name in expected_bar_names:
             self.assertNotIn(bar_name, bar_names)
 
     def test_plot_bars_creates_components_and_labels(self) -> None:
@@ -385,7 +385,7 @@ class TestStatisticsManager(unittest.TestCase):
             bar_count=None,
         )
         self.assertEqual(result["bar_count"], 24)
-        self.assertEqual(len(result["bar_names"]), 24)
+        self.assertEqual(len(self._names_for_class("Bar")), 24)
 
     def test_plot_distribution_discrete_rejects_invalid_bar_count(self) -> None:
         for bar_count in (0, -1, 1.5, float("inf")):
@@ -419,7 +419,7 @@ class TestStatisticsManager(unittest.TestCase):
         )
         bars = self.canvas.get_drawables_by_class_name("Bar")
         by_name = {b.name: b for b in bars}
-        b0 = by_name[result["bar_names"][0]]
+        b0 = by_name[f"{result['plot_name']}_bar_0"]
         self.assertEqual(getattr(b0, "fill_color", None), default_area_fill_color)
         self.assertAlmostEqual(float(getattr(b0, "fill_opacity", -1.0)), float(default_area_opacity))
 
@@ -438,7 +438,7 @@ class TestStatisticsManager(unittest.TestCase):
         )
         bars = self.canvas.get_drawables_by_class_name("Bar")
         by_name = {b.name: b for b in bars}
-        bar = by_name[result["bar_names"][0]]
+        bar = by_name[f"{result['plot_name']}_bar_0"]
         self.assertAlmostEqual(float(getattr(bar, "fill_opacity", -1.0)), 1.0)
 
         result2 = self.canvas.plot_distribution(
@@ -455,7 +455,7 @@ class TestStatisticsManager(unittest.TestCase):
         )
         bars2 = self.canvas.get_drawables_by_class_name("Bar")
         by_name2 = {b.name: b for b in bars2}
-        bar2 = by_name2[result2["bar_names"][0]]
+        bar2 = by_name2[f"{result2['plot_name']}_bar_0"]
         self.assertAlmostEqual(float(getattr(bar2, "fill_opacity", -1.0)), 0.0)
 
         result3 = self.canvas.plot_distribution(
@@ -472,7 +472,7 @@ class TestStatisticsManager(unittest.TestCase):
         )
         bars3 = self.canvas.get_drawables_by_class_name("Bar")
         by_name3 = {b.name: b for b in bars3}
-        bar3 = by_name3[result3["bar_names"][0]]
+        bar3 = by_name3[f"{result3['plot_name']}_bar_0"]
         self.assertAlmostEqual(float(getattr(bar3, "fill_opacity", -1.0)), float(default_area_opacity))
 
     def test_materialize_discrete_plot_creates_bars_and_is_idempotent(self) -> None:
