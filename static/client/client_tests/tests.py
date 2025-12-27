@@ -26,6 +26,7 @@ from .test_linear_algebra_utils import TestLinearAlgebraUtils
 from .test_label import TestLabel
 from .test_label_overlap_resolver import TestLabelOverlapResolver
 from .test_screen_offset_label_layout import TestScreenOffsetLabelLayout
+from .test_bar_manager import TestBarManager
 from .test_segments_bounded_colored_area import TestSegmentsBoundedColoredArea
 from .test_function_calling import TestProcessFunctionCalls
 from .test_math_functions import TestMathFunctions
@@ -167,6 +168,7 @@ class Tests:
             TestChatMessageMenu,
             TestLabelOverlapResolver,
             TestScreenOffsetLabelLayout,
+            TestBarManager,
             TestVectorRenderer,
             TestAngleRenderer,
             TestEllipseRenderer,
