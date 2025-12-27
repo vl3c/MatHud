@@ -1865,6 +1865,178 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 }
             },
             # END GRAPH FUNCTIONS
+            # START PLOT FUNCTIONS
+            {
+                "type": "function",
+                "function": {
+                    "name": "plot_distribution",
+                    "description": "Plots a probability distribution on the canvas. Choose representation 'continuous' for a function curve or 'discrete' for bar rectangles. Creates a tracked plot composite for reliable deletion.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional plot name. If null, a name will be generated."
+                            },
+                            "representation": {
+                                "type": "string",
+                                "enum": ["continuous", "discrete"],
+                                "description": "Plot representation. 'continuous' draws a smooth curve. 'discrete' draws bars (rectangles)."
+                            },
+                            "distribution_type": {
+                                "type": "string",
+                                "enum": ["normal"],
+                                "description": "Distribution to plot. v1 supports only 'normal' (Gaussian)."
+                            },
+                            "distribution_params": {
+                                "type": ["object", "null"],
+                                "description": "Parameters for the selected distribution type. For 'normal', provide mean and sigma.",
+                                "properties": {
+                                    "mean": {
+                                        "type": ["number", "null"],
+                                        "description": "Mean (mu) for the normal distribution. Defaults to 0 if null."
+                                    },
+                                    "sigma": {
+                                        "type": ["number", "null"],
+                                        "description": "Standard deviation (sigma) for the normal distribution. Defaults to 1 if null. Must be > 0."
+                                    }
+                                },
+                                "required": ["mean", "sigma"],
+                                "additionalProperties": False
+                            },
+                            "left_bound": {
+                                "type": ["number", "null"],
+                                "description": "Optional left bound for plotting and filling. Defaults to mean - 4*sigma when null."
+                            },
+                            "right_bound": {
+                                "type": ["number", "null"],
+                                "description": "Optional right bound for plotting and filling. Defaults to mean + 4*sigma when null."
+                            },
+                            "curve_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the plotted curve."
+                            },
+                            "fill_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional fill color for the area under the curve. Defaults to the standard area fill color."
+                            },
+                            "fill_opacity": {
+                                "type": ["number", "null"],
+                                "description": "Optional fill opacity (0 to 1). Defaults to the standard area opacity."
+                            },
+                            "bar_count": {
+                                "type": ["number", "null"],
+                                "description": "Discrete only. Number of bars to draw across the bounds. If null, a default is used."
+                            }
+                        },
+                        "required": [
+                            "name",
+                            "representation",
+                            "distribution_type",
+                            "distribution_params",
+                            "left_bound",
+                            "right_bound",
+                            "curve_color",
+                            "fill_color",
+                            "fill_opacity",
+                            "bar_count"
+                        ],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "plot_bars",
+                    "description": "Plots a bar chart from tabular data (values with labels). Creates a tracked plot composite for reliable deletion.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional plot name. If null, a name will be generated."
+                            },
+                            "values": {
+                                "type": "array",
+                                "items": {"type": "number"},
+                                "description": "Bar heights (math-space units). Must have at least one entry."
+                            },
+                            "labels_below": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Label under each bar. Must have one label per value."
+                            },
+                            "labels_above": {
+                                "type": ["array", "null"],
+                                "items": {"type": "string"},
+                                "description": "Optional label above each bar (for example, formatted values). If provided, must have one label per value."
+                            },
+                            "bar_spacing": {
+                                "type": ["number", "null"],
+                                "description": "Optional spacing between bars in math-space units. Defaults to 0.2."
+                            },
+                            "bar_width": {
+                                "type": ["number", "null"],
+                                "description": "Optional bar width in math-space units. Defaults to 1.0."
+                            },
+                            "stroke_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional stroke color for each bar."
+                            },
+                            "fill_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional fill color for each bar."
+                            },
+                            "fill_opacity": {
+                                "type": ["number", "null"],
+                                "description": "Optional fill opacity (0 to 1)."
+                            },
+                            "x_start": {
+                                "type": ["number", "null"],
+                                "description": "Optional left x coordinate for the first bar. Defaults to 0."
+                            },
+                            "y_base": {
+                                "type": ["number", "null"],
+                                "description": "Optional baseline y coordinate for bars. Defaults to 0."
+                            }
+                        },
+                        "required": [
+                            "name",
+                            "values",
+                            "labels_below",
+                            "labels_above",
+                            "bar_spacing",
+                            "bar_width",
+                            "stroke_color",
+                            "fill_color",
+                            "fill_opacity",
+                            "x_start",
+                            "y_base"
+                        ],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "delete_plot",
+                    "description": "Deletes a previously created plot composite by name, including the underlying curve and filled area.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"}
+                        },
+                        "required": ["name"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            # END PLOT FUNCTIONS
             # START ANGLE FUNCTIONS
             {
                 "type": "function",
