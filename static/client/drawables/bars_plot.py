@@ -57,6 +57,19 @@ class BarsPlot(Plot):
 
     def get_state(self) -> Dict[str, Any]:
         state = super().get_state()
+
+        # Prune empty base Plot fields to keep BarsPlot state compact.
+        args = state.get("args", None)
+        if isinstance(args, dict):
+            if args.get("distribution_type") is None:
+                args.pop("distribution_type", None)
+            if not args.get("distribution_params"):
+                args.pop("distribution_params", None)
+            if not args.get("bounds"):
+                args.pop("bounds", None)
+            if not args.get("metadata"):
+                args.pop("metadata", None)
+
         state["args"].update(
             {
                 "values": list(self.values),
