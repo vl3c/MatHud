@@ -270,7 +270,11 @@ class WebDriverManager:
             // Set SVG attributes
             svg.setAttribute('width', arguments[0]);
             svg.setAttribute('height', arguments[1]);
-            svg.setAttribute('viewBox', '0 0 ' + arguments[0] + ' ' + arguments[1]);
+            // Preserve an injected viewBox when present; otherwise default to pixel-space viewBox.
+            var existingViewBox = svg.getAttribute('viewBox');
+            if (!existingViewBox) {
+                svg.setAttribute('viewBox', '0 0 ' + arguments[0] + ' ' + arguments[1]);
+            }
             svg.style.width = '100%';
             svg.style.height = '100%';
             
