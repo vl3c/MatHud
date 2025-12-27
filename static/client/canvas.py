@@ -729,6 +729,66 @@ class Canvas:
             )
         )
 
+    # ------------------- Plot Methods -------------------
+    def plot_distribution(
+        self,
+        *,
+        name: Optional[str] = None,
+        representation: str = "continuous",
+        distribution_type: str = "normal",
+        distribution_params: Optional[Dict[str, Any]] = None,
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
+        curve_color: Optional[str] = None,
+        fill_color: Optional[str] = None,
+        fill_opacity: Optional[float] = None,
+        bar_count: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        return self.drawable_manager.plot_distribution(
+            name=name,
+            representation=representation,
+            distribution_type=distribution_type,
+            distribution_params=distribution_params,
+            left_bound=left_bound,
+            right_bound=right_bound,
+            curve_color=curve_color,
+            fill_color=fill_color,
+            fill_opacity=fill_opacity,
+            bar_count=bar_count,
+        )
+
+    def plot_bars(
+        self,
+        *,
+        name: Optional[str] = None,
+        values: Optional[List[float]] = None,
+        labels_below: Optional[List[str]] = None,
+        labels_above: Optional[List[str]] = None,
+        bar_spacing: Optional[float] = None,
+        bar_width: Optional[float] = None,
+        stroke_color: Optional[str] = None,
+        fill_color: Optional[str] = None,
+        fill_opacity: Optional[float] = None,
+        x_start: Optional[float] = None,
+        y_base: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        return self.drawable_manager.plot_bars(
+            name=name,
+            values=values or [],
+            labels_below=labels_below or [],
+            labels_above=labels_above,
+            bar_spacing=bar_spacing,
+            bar_width=bar_width,
+            stroke_color=stroke_color,
+            fill_color=fill_color,
+            fill_opacity=fill_opacity,
+            x_start=x_start,
+            y_base=y_base,
+        )
+
+    def delete_plot(self, name: str) -> bool:
+        return bool(self.drawable_manager.delete_plot(name))
+
     # ------------------- Graph Methods -------------------
     def create_graph(self, graph_state: "GraphState") -> "Drawable":
         return self.drawable_manager.create_graph(graph_state)

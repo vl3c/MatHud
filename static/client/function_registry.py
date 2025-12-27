@@ -146,6 +146,11 @@ class FunctionRegistry:
             "delete_graph": canvas.delete_graph,
             "analyze_graph": canvas.analyze_graph,
 
+            # ===== PLOT OPERATIONS =====
+            "plot_distribution": canvas.plot_distribution,
+            "plot_bars": canvas.plot_bars,
+            "delete_plot": canvas.delete_plot,
+
             # ===== ANGLE OPERATIONS =====
             "create_angle": canvas.create_angle,
             "delete_angle": canvas.delete_angle,
@@ -240,6 +245,11 @@ class FunctionRegistry:
             # Graph operations
             "generate_graph",
             "delete_graph",
+
+            # Plot operations
+            "plot_distribution",
+            "plot_bars",
+            "delete_plot",
 
             # Angle operations
             "create_angle",
