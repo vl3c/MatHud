@@ -5,10 +5,13 @@ from typing import Any, Dict, List
 
 from drawables_aggregator import Position
 from canvas import Canvas
+from constants import successful_call_message
+from function_registry import FunctionRegistry
 from process_function_calls import ProcessFunctionCalls
 from .simple_mock import SimpleMock
 from utils.linear_algebra_utils import LinearAlgebraUtils
 from utils.linear_algebra_utils import LinearAlgebraResult
+from workspace_manager import WorkspaceManager
 
 
 class TestProcessFunctionCalls(unittest.TestCase):
@@ -448,3 +451,105 @@ class TestProcessFunctionCalls(unittest.TestCase):
         # Testing result validation with an empty dictionary
         results: Dict[str, Any] = {}
         self.assertTrue(ProcessFunctionCalls.validate_results(results))
+
+
+class TestProcessFunctionCallsPlotTools(unittest.TestCase):
+    def setUp(self) -> None:
+        self.canvas = Canvas(500, 500, draw_enabled=False)
+        self.workspace_manager = WorkspaceManager(self.canvas)
+        self.available_functions = FunctionRegistry.get_available_functions(self.canvas, self.workspace_manager)
+        self.undoable_functions = FunctionRegistry.get_undoable_functions()
+
+    def test_plot_tools_execute_and_results_validate(self) -> None:
+        self.assertIn("plot_distribution", self.undoable_functions)
+        self.assertIn("plot_bars", self.undoable_functions)
+
+        calls = [
+            {
+                "function_name": "plot_distribution",
+                "arguments": {
+                    "name": "ToolPlot",
+                    "representation": "discrete",
+                    "distribution_type": "normal",
+                    "distribution_params": {"mean": 0.0, "sigma": 1.0},
+                    "left_bound": -1.0,
+                    "right_bound": 1.0,
+                    "curve_color": None,
+                    "fill_color": None,
+                    "fill_opacity": None,
+                    "bar_count": 3,
+                },
+            },
+            {
+                "function_name": "plot_bars",
+                "arguments": {
+                    "name": "ToolBars",
+                    "values": [1.0, 2.0],
+                    "labels_below": ["A", "B"],
+                    "labels_above": ["1", "2"],
+                    "bar_spacing": 0.2,
+                    "bar_width": 1.0,
+                    "stroke_color": None,
+                    "fill_color": None,
+                    "fill_opacity": None,
+                    "x_start": 0.0,
+                    "y_base": 0.0,
+                },
+            },
+        ]
+
+        before = len(getattr(self.canvas.undo_redo_manager, "undo_stack", []))
+
+        results = ProcessFunctionCalls.get_results(
+            calls,
+            self.available_functions,
+            self.undoable_functions,
+            self.canvas,
+        )
+
+        after = len(getattr(self.canvas.undo_redo_manager, "undo_stack", []))
+        self.assertTrue(ProcessFunctionCalls.validate_results(results))
+        # These calls are undoable; the processor should archive once up front.
+        self.assertEqual(after, before + 1)
+        self.assertEqual(set(results.values()), {successful_call_message})
+
+        self.assertIn("ToolPlot", [d.name for d in self.canvas.get_drawables_by_class_name("DiscretePlot")])
+        self.assertIn("ToolBars", [d.name for d in self.canvas.get_drawables_by_class_name("BarsPlot")])
+
+    def test_delete_plot_executes_and_results_validate(self) -> None:
+        self.assertIn("delete_plot", self.undoable_functions)
+
+        self.canvas.plot_distribution(
+            name="ToDelete",
+            representation="discrete",
+            distribution_type="normal",
+            distribution_params={"mean": 0.0, "sigma": 1.0},
+            left_bound=-1.0,
+            right_bound=1.0,
+            curve_color=None,
+            fill_color=None,
+            fill_opacity=None,
+            bar_count=3,
+        )
+        self.assertIn("ToDelete", [d.name for d in self.canvas.get_drawables_by_class_name("DiscretePlot")])
+
+        before = len(getattr(self.canvas.undo_redo_manager, "undo_stack", []))
+
+        calls = [
+            {
+                "function_name": "delete_plot",
+                "arguments": {"name": "ToDelete"},
+            }
+        ]
+        results = ProcessFunctionCalls.get_results(
+            calls,
+            self.available_functions,
+            self.undoable_functions,
+            self.canvas,
+        )
+
+        after = len(getattr(self.canvas.undo_redo_manager, "undo_stack", []))
+        self.assertTrue(ProcessFunctionCalls.validate_results(results))
+        self.assertEqual(after, before + 1)
+        self.assertEqual(set(results.values()), {successful_call_message})
+        self.assertNotIn("ToDelete", [d.name for d in self.canvas.get_drawables_by_class_name("DiscretePlot")])

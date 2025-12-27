@@ -28,7 +28,7 @@ from .test_label_overlap_resolver import TestLabelOverlapResolver
 from .test_screen_offset_label_layout import TestScreenOffsetLabelLayout
 from .test_bar_manager import TestBarManager
 from .test_segments_bounded_colored_area import TestSegmentsBoundedColoredArea
-from .test_function_calling import TestProcessFunctionCalls
+from .test_function_calling import TestProcessFunctionCalls, TestProcessFunctionCallsPlotTools
 from .test_math_functions import TestMathFunctions
 from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
 from .test_geometry_utils import TestGeometryUtils, TestConvexHull, TestPointInConvexHull
@@ -82,6 +82,7 @@ from .test_angle import TestAngle
 from .test_angle_manager import TestAngleManager
 from .test_arc_manager import TestArcManager
 from .test_workspace_manager import TestWorkspaceLabelRestore, TestWorkspaceSegmentPersistence
+from .test_workspace_plots import TestWorkspacePlotsRestore
 from .test_zoom import (
     TestZoomXAxisRange,
     TestZoomYAxisRange,
@@ -102,6 +103,7 @@ from .test_drawable_renderers import (
     TestSegmentLabelRenderer,
     TestRendererEdgeCases as TestDrawableRendererEdgeCases,
 )
+from .test_bar_renderer import TestBarRenderer
 from .test_function_renderables import (
     TestFunctionRenderable,
     TestFunctionsBoundedAreaRenderable,
@@ -171,6 +173,7 @@ class Tests:
             TestLabelOverlapResolver,
             TestScreenOffsetLabelLayout,
             TestBarManager,
+            TestBarRenderer,
             TestVectorRenderer,
             TestAngleRenderer,
             TestEllipseRenderer,
@@ -197,6 +200,7 @@ class Tests:
             TestCartesianEdgeCases,
             TestWorkspaceSegmentPersistence,
             TestWorkspaceLabelRestore,
+            TestWorkspacePlotsRestore,
             TestMathFunctions,
             TestPeriodicityDetection,
             TestPeriodicityEdgeCases,
@@ -271,6 +275,7 @@ class Tests:
             TestZoomEdgeCases,
             TestExpressionValidator,
             TestProcessFunctionCalls,
+            TestProcessFunctionCallsPlotTools,
             TestLabel,
             TestCustomDrawableNames,
             TestThrottle,
