@@ -14,6 +14,7 @@ from drawables.circle import Circle
 from drawables.vector import Vector
 from drawables.angle import Angle
 from drawables.function import Function
+from drawables.bar import Bar
 
 from rendering.canvas2d_renderer import Canvas2DRenderer
 from rendering.svg_renderer import SvgRenderer
@@ -486,6 +487,15 @@ class TestRendererPrimitives(unittest.TestCase):
         self.vector_ab = Vector(self.point_a, self.point_b, color="teal")
         self.angle_abc = Angle(self.point_b, self.point_a, self.point_c, color="magenta")
         self.function = Function("x", name="f", color="brown")
+
+    def test_canvas2d_registers_bar_drawable(self) -> None:
+        renderer = Canvas2DRenderer()
+        self.assertIn(Bar, getattr(renderer, "_handlers_by_type", {}))
+
+    def test_svg_registers_bar_drawable(self) -> None:
+        renderer = SvgRenderer()
+        renderer.register_default_drawables()
+        self.assertIn(Bar, getattr(renderer, "_handlers_by_type", {}))
 
     def test_svg_primitives_render_shapes(self) -> None:
         log: List[Any] = []

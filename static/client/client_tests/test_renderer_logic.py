@@ -3,12 +3,15 @@ from __future__ import annotations
 import unittest
 from types import SimpleNamespace
 
+from drawables.bar import Bar
 from rendering import cached_render_plan as optimized
 from rendering import shared_drawable_renderers as shared
 from rendering import style_manager
 from rendering.canvas2d_renderer import Canvas2DRenderer
 from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
 from rendering.primitives import FontStyle
+from rendering.svg_renderer import SvgRenderer
+from rendering.webgl_renderer import WebGLRenderer
 
 
 class CoordinateMapperStub:
@@ -45,6 +48,22 @@ class PrimitiveRecorder(shared.RendererPrimitives):
 
 
 class TestRendererLogic(unittest.TestCase):
+    def test_renderers_register_bar_drawable(self) -> None:
+        canvas2d = Canvas2DRenderer.__new__(Canvas2DRenderer)
+        canvas2d._handlers_by_type = {}
+        canvas2d.register_default_drawables()
+        self.assertIn(Bar, canvas2d._handlers_by_type)
+
+        svg = SvgRenderer.__new__(SvgRenderer)
+        svg._handlers_by_type = {}
+        svg.register_default_drawables()
+        self.assertIn(Bar, svg._handlers_by_type)
+
+        webgl = WebGLRenderer.__new__(WebGLRenderer)
+        webgl._handlers_by_type = {}
+        webgl.register_default_drawables()
+        self.assertIn(Bar, webgl._handlers_by_type)
+
     def test_style_manager_returns_independent_copy(self) -> None:
         style_a = style_manager.get_renderer_style()
         style_b = style_manager.get_renderer_style()

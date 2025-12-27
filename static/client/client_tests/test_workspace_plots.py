@@ -10,6 +10,38 @@ class TestWorkspacePlotsRestore(unittest.TestCase):
     def _names_for_class(self, canvas: Canvas, class_name: str) -> list[str]:
         return [d.name for d in canvas.get_drawables_by_class_name(class_name)]
 
+    def test_bars_plot_state_omits_empty_base_fields(self) -> None:
+        canvas = Canvas(500, 500, draw_enabled=False)
+        canvas.plot_bars(
+            name="Poll",
+            values=[10.0, 20.0, 5.0],
+            labels_below=["A", "B", "C"],
+            labels_above=["10", "20", "5"],
+            bar_spacing=0.5,
+            bar_width=2.0,
+            stroke_color="#111",
+            fill_color="#222",
+            fill_opacity=0.5,
+            x_start=1.0,
+            y_base=0.0,
+        )
+
+        state = canvas.get_canvas_state()
+        self.assertIsInstance(state, dict)
+        plots = state.get("BarsPlots")
+        self.assertIsInstance(plots, list)
+        self.assertTrue(plots, "Expected BarsPlots to contain at least one plot state.")
+
+        plot0 = plots[0]
+        self.assertIsInstance(plot0, dict)
+        args = plot0.get("args")
+        self.assertIsInstance(args, dict)
+
+        self.assertNotIn("distribution_type", args)
+        self.assertNotIn("distribution_params", args)
+        self.assertNotIn("bounds", args)
+        self.assertNotIn("metadata", args)
+
     def test_restore_workspace_rebuilds_plot_bars_and_supports_delete_plot(self) -> None:
         canvas1 = Canvas(500, 500, draw_enabled=False)
         canvas1.plot_distribution(
