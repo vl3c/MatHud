@@ -64,6 +64,15 @@ def render_bar_helper(primitives, bar, coordinate_mapper, style):
     except Exception:
         return
 
+    # Use point_label metadata so the optimized renderer can reproject labels with a
+    # constant pixel offset on zoom/pan (same approach as segment AttachedLabel).
+    try:
+        mx = (x_left + x_right) / 2.0
+        my_top = max(y_bottom, y_top)
+        my_bottom = min(y_bottom, y_top)
+    except Exception:
+        return
+
     padding_px = style.get("bar_label_padding_px", 6) if isinstance(style, dict) else 6
     font = _resolve_label_font(style)
     color = style.get("label_color", "#000") if isinstance(style, dict) else "#000"
@@ -71,6 +80,12 @@ def render_bar_helper(primitives, bar, coordinate_mapper, style):
     if label_above_text is not None:
         above = str(label_above_text)
         if above.strip():
+            above_meta = {
+                "point_label": {
+                    "math_position": (float(mx), float(my_top)),
+                    "screen_offset": (0.0, float(-padding_px)),
+                }
+            }
             primitives.draw_text(
                 above,
                 (cx, top_y - float(padding_px)),
@@ -78,11 +93,18 @@ def render_bar_helper(primitives, bar, coordinate_mapper, style):
                 str(color),
                 TextAlignment(horizontal="center", vertical="bottom"),
                 screen_space=True,
+                metadata=above_meta,
             )
 
     if label_below_text is not None:
         below = str(label_below_text)
         if below.strip():
+            below_meta = {
+                "point_label": {
+                    "math_position": (float(mx), float(my_bottom)),
+                    "screen_offset": (0.0, float(padding_px)),
+                }
+            }
             primitives.draw_text(
                 below,
                 (cx, bottom_y + float(padding_px)),
@@ -90,6 +112,7 @@ def render_bar_helper(primitives, bar, coordinate_mapper, style):
                 str(color),
                 TextAlignment(horizontal="center", vertical="top"),
                 screen_space=True,
+                metadata=below_meta,
             )
 
 

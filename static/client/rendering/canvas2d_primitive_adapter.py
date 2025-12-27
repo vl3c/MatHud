@@ -115,9 +115,14 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self._record_event("fill_calls")
 
     def _ensure_text_brush(self, color: str, font: FontStyle, alignment: TextAlignment) -> None:
-        if color != self._text_color:
+        # Canvas2D uses a single fillStyle for both filled shapes and text.
+        # Keep our cached fill state in sync when rendering text, otherwise later
+        # shape fills may incorrectly skip setting fillStyle (eg after zoom redraws).
+        current_fill = self._fill_state.get("color")
+        if color != current_fill:
             self.ctx.fillStyle = color
-            self._text_color = color
+            self._fill_state["color"] = color
+        self._text_color = color
         font_string = self._resolve_font_string(font)
         if font_string != self._font_state["font"]:
             self.ctx.font = font_string
@@ -219,6 +224,20 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self.ctx.arc(center[0], center[1], coerced_radius, 0, 2 * math.pi)
         self._fill_path()
         if stroke:
+            # FillStyle.opacity should apply to the fill only. Canvas2D globalAlpha affects
+            # both fill and stroke, so ensure stroke remains opaque.
+            fill_opacity = getattr(fill, "opacity", None)
+            if fill_opacity is not None:
+                try:
+                    fill_opacity_f = float(fill_opacity)
+                except Exception:
+                    fill_opacity_f = None
+                if fill_opacity_f is not None and fill_opacity_f != 1.0:
+                    if self._global_alpha != 1.0:
+                        self.ctx.globalAlpha = 1.0
+                        self._global_alpha = 1.0
+                        self._record_event("alpha_sets")
+                    self._pending_alpha_reset = False
             self._apply_stroke_style(stroke)
             self._stroke_path()
         self._reset_alpha_if_needed()
@@ -675,6 +694,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
             self._polygon_batch = None
             return
         self._apply_fill_style(fill)
+        fill_opacity = getattr(fill, "opacity", None)
         for polygon in polygons:
             if len(polygon) < 3:
                 continue
@@ -686,8 +706,31 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
             self.ctx.closePath()
             self.ctx.fill()
             self._record_event("fill_calls")
-            if stroke:
-                self._apply_stroke_style(stroke)
+        if stroke:
+            # FillStyle.opacity should apply to the fill only. Canvas2D globalAlpha affects
+            # both fill and stroke, so ensure stroke remains opaque.
+            if fill_opacity is not None:
+                try:
+                    fill_opacity_f = float(fill_opacity)
+                except Exception:
+                    fill_opacity_f = None
+                if fill_opacity_f is not None and fill_opacity_f != 1.0:
+                    if self._global_alpha != 1.0:
+                        self.ctx.globalAlpha = 1.0
+                        self._global_alpha = 1.0
+                        self._record_event("alpha_sets")
+                    self._pending_alpha_reset = False
+
+            self._apply_stroke_style(stroke)
+            for polygon in polygons:
+                if len(polygon) < 3:
+                    continue
+                self.ctx.beginPath()
+                self._record_event("begin_path_calls")
+                self.ctx.moveTo(polygon[0][0], polygon[0][1])
+                for x, y in polygon[1:]:
+                    self.ctx.lineTo(x, y)
+                self.ctx.closePath()
                 self.ctx.stroke()
                 self._record_event("stroke_calls")
         self._polygon_batch = None
