@@ -1,6 +1,6 @@
 # MatHud - Mathematics Heads-Up Display
 
-MatHud is an interactive mathematical visualization tool that combines a drawing canvas with an AI assistant to help understand and solve real-world mathematical problems. It serves as a heads-up display system for mathematical analysis, allowing users to visualize, analyze, and solve problems in real-time.
+MatHud pairs an interactive drawing canvas with an AI assistant to help visualize, analyze, and solve real-world geometry, algebra, and calculus problems in real-time.
 
 ![MatHud - Interactive Mathematics Visualization Tool](MatHud%20-%20Screenshot%202025-12-21.png)
 
@@ -118,7 +118,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 ### 5.5 Testing
 
 1. Server tests: run `python run_server_tests.py` (add `--with-auth` to exercise authenticated flows).
-2. Client tests: click **Run Tests** in the UI or ask the assistant to “run tests”. Results stream back into the chat after execution (`static/client/test_runner.py`).
+2. Client tests: click **Run Tests** in the UI or ask the assistant to "run tests". Results stream back into the chat after execution (`static/client/test_runner.py`).
 
 ## 6. Rendering Notes
 
