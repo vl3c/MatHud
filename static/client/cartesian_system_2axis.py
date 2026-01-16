@@ -88,6 +88,7 @@ class Cartesian2Axis(Drawable):
         self.doubling_repeat_trigger_ratio: float = 2.5
         self.max_progression_steps: int = 8
         self.min_tick_spacing: float = 1e-6
+        self.visible: bool = True
         super().__init__(name=self.name, color=color)
 
     # Canvas removed; mapper is the single source of truth
@@ -293,7 +294,25 @@ class Cartesian2Axis(Drawable):
             "default_tick_spacing": default_spacing,
             "current_tick_spacing_repr": spacing_str,
             "min_tick_spacing": min_spacing,
+            "visible": self.visible,
         }
+
+    def set_state(self, state: Dict[str, Any]) -> None:
+        """Restore coordinate system state from persistence.
+
+        Args:
+            state: Dictionary containing coordinate system settings
+        """
+        if "visible" in state:
+            self.visible = bool(state["visible"])
+        if "current_tick_spacing" in state:
+            self.current_tick_spacing = self._safe_float(
+                state["current_tick_spacing"], self.default_tick_spacing
+            )
+        if "default_tick_spacing" in state:
+            self.default_tick_spacing = self._safe_float(
+                state["default_tick_spacing"], 100.0
+            )
 
     def _get_axis_origin(self, axis: str) -> float:
         """Get the origin position for the specified axis"""

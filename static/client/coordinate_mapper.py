@@ -454,16 +454,14 @@ class CoordinateMapper:
             self.canvas_width = canvas.width
             self.canvas_height = canvas.height
             
-        # Handle origin - Canvas may use cartesian2axis.origin or center
-        if hasattr(canvas, 'cartesian2axis') and hasattr(canvas.cartesian2axis, 'origin'):
-            cartesian_origin: Any = canvas.cartesian2axis.origin
-            self.origin = Position(cartesian_origin.x, cartesian_origin.y)
+        # Handle origin - Use canvas.center as the base origin (before offset)
+        # Note: cartesian2axis.origin already includes offset via math_to_screen,
+        # so we must use canvas.center to avoid double-counting offset
+        canvas_center: Any = getattr(canvas, 'center', None)
+        if canvas_center:
+            self.origin = Position(canvas_center.x, canvas_center.y)
         else:
-            canvas_center: Any = getattr(canvas, 'center', None)
-            if canvas_center:
-                self.origin = Position(canvas_center.x, canvas_center.y)
-            else:
-                self.origin = Position(self.canvas_width / 2, self.canvas_height / 2)
+            self.origin = Position(self.canvas_width / 2, self.canvas_height / 2)
                 
         # Handle zoom state if available
         if hasattr(canvas, 'zoom_point'):

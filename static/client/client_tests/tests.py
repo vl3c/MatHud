@@ -139,6 +139,11 @@ from .test_area_expression_evaluator import (
     TestAreaCalculation,
     TestRegionGeneration,
 )
+from .test_polar_grid import TestPolarGrid, TestPolarGridConversions
+from .test_coordinate_system_manager import (
+    TestCoordinateSystemManager,
+    TestCoordinateSystemManagerCanvasIntegration,
+)
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
@@ -293,6 +298,10 @@ class Tests:
             TestRenderColoredAreaHelper,
             TestAreaCalculation,
             TestRegionGeneration,
+            TestPolarGrid,
+            TestPolarGridConversions,
+            TestCoordinateSystemManager,
+            TestCoordinateSystemManagerCanvasIntegration,
         ]
 
         for test_case in test_cases:

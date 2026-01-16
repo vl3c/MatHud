@@ -58,6 +58,7 @@ from managers.undo_redo_manager import UndoRedoManager
 from managers.drawable_manager import DrawableManager
 from managers.drawable_dependency_manager import DrawableDependencyManager
 from managers.transformations_manager import TransformationsManager
+from managers.coordinate_system_manager import CoordinateSystemManager
 from managers.polygon_type import PolygonType
 from constants import DEFAULT_RENDERER_MODE
 from rendering.factory import create_renderer
@@ -122,6 +123,7 @@ class Canvas:
         self.drawable_manager: DrawableManager = DrawableManager(self)
         self.dependency_manager: DrawableDependencyManager = self.drawable_manager.dependency_manager
         self.transformations_manager: TransformationsManager = TransformationsManager(self)
+        self.coordinate_system_manager: CoordinateSystemManager = CoordinateSystemManager(self)
 
         # Initialize renderer lazily to avoid hard dependency in non-browser tests
         if renderer is not None:
@@ -261,9 +263,14 @@ class Canvas:
                     except Exception:
                         pass
                 try:
-                    if apply_zoom and hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
-                        self.cartesian2axis._invalidate_cache_on_zoom()
-                    renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
+                    if apply_zoom:
+                        self.coordinate_system_manager.invalidate_cache_on_zoom()
+                    if self.coordinate_system_manager.is_cartesian():
+                        if self.cartesian2axis.visible:
+                            renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
+                    else:
+                        if self.coordinate_system_manager.polar_grid.visible:
+                            renderer.render_polar(self.coordinate_system_manager.polar_grid, self.coordinate_mapper)
                 except Exception:
                     pass
 
@@ -497,12 +504,58 @@ class Canvas:
     def get_cartesian2axis_state(self) -> Dict[str, Any]:
         return cast(Dict[str, Any], self.cartesian2axis.get_state())
 
+    def set_coordinate_system(self, mode: str) -> bool:
+        """Set the coordinate system mode.
+        
+        Args:
+            mode: The mode to set ("cartesian" or "polar")
+            
+        Returns:
+            True if mode was set successfully
+        """
+        try:
+            self.coordinate_system_manager.set_mode(mode)
+            return True
+        except ValueError:
+            return False
+
+    def get_coordinate_system(self) -> str:
+        """Get the current coordinate system mode.
+
+        Returns:
+            The current mode ("cartesian" or "polar")
+        """
+        return self.coordinate_system_manager.mode
+
+    def set_grid_visible(self, visible: bool) -> bool:
+        """Set the visibility of the active coordinate grid.
+
+        Args:
+            visible: Whether the grid should be visible
+
+        Returns:
+            True if visibility was set successfully
+        """
+        self.coordinate_system_manager.set_grid_visible(visible)
+        return True
+
+    def is_grid_visible(self) -> bool:
+        """Check if the active coordinate grid is visible.
+
+        Returns:
+            True if the active grid is visible, False otherwise
+        """
+        return self.coordinate_system_manager.is_grid_visible()
+
     def get_canvas_state(self) -> Dict[str, Any]:
         state = self.get_drawables_state()
         self._prune_plot_derived_bars_from_state(state)
         cartesian_state = self.get_cartesian2axis_state()
         if cartesian_state is not None:
             state.update(cartesian_state)
+        coord_system_state = self.coordinate_system_manager.get_state()
+        if coord_system_state:
+            state["coordinate_system"] = coord_system_state
         if self.computations:  # Add computations to state if they exist
             state["computations"] = self.computations
         return state

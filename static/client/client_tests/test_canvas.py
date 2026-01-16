@@ -117,7 +117,7 @@ class TestCanvas(unittest.TestCase):
         self.canvas.add_drawable(self.mock_point1)
         self.canvas.add_drawable(self.mock_segment1)
         state = self.canvas.get_canvas_state()
-        self.assertEqual(state, {'Points': ['point1_state'], 'Segments': ['segment1_state'], 'Cartesian_System_Visibility': 'cartesian_state'})
+        self.assertEqual(state, {'Points': ['point1_state'], 'Segments': ['segment1_state'], 'Cartesian_System_Visibility': 'cartesian_state', 'coordinate_system': {'mode': 'cartesian'}})
 
     def test_clear(self) -> None:
         self.canvas.add_drawable(self.mock_point1)

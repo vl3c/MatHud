@@ -742,6 +742,19 @@ class WorkspaceManager:
         """
         self.canvas.clear()
         
+        # Always reset to cartesian first (for legacy workspaces without coordinate_system)
+        # Then restore the saved mode if present
+        if hasattr(self.canvas, "coordinate_system_manager"):
+            try:
+                # Default to cartesian
+                self.canvas.coordinate_system_manager.set_state({"mode": "cartesian"})
+                # Then apply saved state if present
+                coord_system_state = state.get("coordinate_system")
+                if coord_system_state:
+                    self.canvas.coordinate_system_manager.set_state(coord_system_state)
+            except Exception:
+                pass
+        
         # Create objects in the correct dependency order
         self._create_points(state)
         self._create_labels(state)
