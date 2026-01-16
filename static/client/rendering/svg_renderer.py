@@ -238,6 +238,9 @@ class SvgRenderer(RendererProtocol):
         if self._use_offscreen_surface:
             self._push_offscreen_to_main()
             self._prune_unused_plan_entries()
+        # Clear grid SVG elements if grid was not rendered this frame (visibility off)
+        if not self._cartesian_rendered_this_frame and self._cartesian_cache:
+            self.invalidate_cartesian_cache()
         self._telemetry.end_frame()
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
