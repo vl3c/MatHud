@@ -1931,6 +1931,37 @@ class MathUtils:
         return best_diagonal[0], best_diagonal[1]
 
     @staticmethod
+    def rectangular_to_polar(x: float, y: float) -> Tuple[float, float]:
+        """Convert rectangular (Cartesian) coordinates to polar coordinates.
+        
+        Args:
+            x: The x-coordinate in rectangular system
+            y: The y-coordinate in rectangular system
+            
+        Returns:
+            Tuple of (r, theta) where r is the radius and theta is the angle in radians.
+            Theta is in the range (-pi, pi].
+        """
+        r = math.sqrt(x * x + y * y)
+        theta = math.atan2(y, x)
+        return (r, theta)
+
+    @staticmethod
+    def polar_to_rectangular(r: float, theta: float) -> Tuple[float, float]:
+        """Convert polar coordinates to rectangular (Cartesian) coordinates.
+        
+        Args:
+            r: The radius (distance from origin)
+            theta: The angle in radians from the positive x-axis
+            
+        Returns:
+            Tuple of (x, y) coordinates in rectangular system
+        """
+        x = r * math.cos(theta)
+        y = r * math.sin(theta)
+        return (x, y)
+
+    @staticmethod
     def detect_function_periodicity(
         eval_func: Any,
         test_range: float = 20.0,
