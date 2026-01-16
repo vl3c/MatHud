@@ -38,6 +38,37 @@ class FunctionRegistry:
     """
 
     @staticmethod
+    def _convert_coordinates(coord1: float, coord2: float, from_system: str, to_system: str) -> Dict[str, Any]:
+        """Convert coordinates between rectangular/cartesian and polar systems.
+        
+        Args:
+            coord1: First coordinate (x for rect-to-polar, r for polar-to-rect)
+            coord2: Second coordinate (y for rect-to-polar, theta for polar-to-rect)
+            from_system: Source system ("rectangular", "cartesian", or "polar")
+            to_system: Target system ("rectangular", "cartesian", or "polar")
+            
+        Returns:
+            Dict with converted coordinates
+        """
+        # Normalize "cartesian" to "rectangular" for consistency
+        if from_system == "cartesian":
+            from_system = "rectangular"
+        if to_system == "cartesian":
+            to_system = "rectangular"
+        
+        if from_system == to_system:
+            return {"coord1": coord1, "coord2": coord2, "system": to_system}
+        
+        if from_system == "rectangular" and to_system == "polar":
+            r, theta = MathUtils.rectangular_to_polar(coord1, coord2)
+            return {"r": r, "theta": theta, "theta_degrees": theta * 180 / 3.141592653589793}
+        elif from_system == "polar" and to_system == "rectangular":
+            x, y = MathUtils.polar_to_rectangular(coord1, coord2)
+            return {"x": x, "y": y}
+        else:
+            return {"error": f"Invalid conversion: {from_system} to {to_system}"}
+
+    @staticmethod
     def get_available_functions(canvas: "Canvas", workspace_manager: "WorkspaceManager", ai_interface: Optional["AIInterface"] = None) -> Dict[str, Any]:
         """Get the complete dictionary of all available functions with their implementations.
         
@@ -159,6 +190,11 @@ class FunctionRegistry:
             
             # ===== AREA CALCULATION =====
             "calculate_area": lambda expression: ProcessFunctionCalls.calculate_area(expression, canvas),
+            
+            # ===== COORDINATE SYSTEM OPERATIONS =====
+            "set_coordinate_system": canvas.set_coordinate_system,
+            "convert_coordinates": FunctionRegistry._convert_coordinates,
+            "set_grid_visible": canvas.set_grid_visible,
         }
 
         # Add testing functions if ai_interface is provided

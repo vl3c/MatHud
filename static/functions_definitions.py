@@ -2189,6 +2189,80 @@ FUNCTIONS: List[Dict[str, Any]] = [
                         "additionalProperties": False
                     }
                 }
-            }
+            },
             # END AREA CALCULATION FUNCTIONS
+            # START COORDINATE SYSTEM FUNCTIONS
+            {
+                "type": "function",
+                "function": {
+                    "name": "set_coordinate_system",
+                    "description": "Sets the coordinate system mode for the canvas grid. Choose 'cartesian' for the standard x-y grid or 'polar' for a polar coordinate grid with concentric circles and radial lines.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "mode": {
+                                "type": "string",
+                                "enum": ["cartesian", "polar"],
+                                "description": "The coordinate system mode: 'cartesian' for x-y grid, 'polar' for polar grid"
+                            }
+                        },
+                        "required": ["mode"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "convert_coordinates",
+                    "description": "Converts coordinates between rectangular (Cartesian) and polar coordinate systems. For rectangular to polar: returns (r, theta) where r is radius and theta is angle in radians. For polar to rectangular: returns (x, y) coordinates.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "coord1": {
+                                "type": "number",
+                                "description": "First coordinate: x for rectangular-to-polar, r (radius) for polar-to-rectangular"
+                            },
+                            "coord2": {
+                                "type": "number",
+                                "description": "Second coordinate: y for rectangular-to-polar, theta (angle in radians) for polar-to-rectangular"
+                            },
+                            "from_system": {
+                                "type": "string",
+                                "enum": ["rectangular", "cartesian", "polar"],
+                                "description": "The source coordinate system ('rectangular' and 'cartesian' are equivalent)"
+                            },
+                            "to_system": {
+                                "type": "string",
+                                "enum": ["rectangular", "cartesian", "polar"],
+                                "description": "The target coordinate system ('rectangular' and 'cartesian' are equivalent)"
+                            }
+                        },
+                        "required": ["coord1", "coord2", "from_system", "to_system"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "set_grid_visible",
+                    "description": "Sets the visibility of the active coordinate grid (Cartesian or Polar). Use this to show or hide the grid lines without changing the coordinate system mode.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "visible": {
+                                "type": "boolean",
+                                "description": "Whether the grid should be visible (true to show, false to hide)"
+                            }
+                        },
+                        "required": ["visible"],
+                        "additionalProperties": False
+                    }
+                }
+            }
+            # END COORDINATE SYSTEM FUNCTIONS
         ]
