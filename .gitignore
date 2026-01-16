@@ -13,6 +13,7 @@ venv/
 # VS Code
 .vscode
 .cursor
+.claude
 
 # Logs
 logs/
