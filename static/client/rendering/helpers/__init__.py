@@ -14,6 +14,7 @@ from rendering.helpers.vector_renderer import render_vector_helper
 from rendering.helpers.label_renderer import render_label_helper
 from rendering.helpers.angle_renderer import render_angle_helper
 from rendering.helpers.cartesian_renderer import render_cartesian_helper
+from rendering.helpers.polar_renderer import render_polar_helper
 from rendering.helpers.function_renderer import render_function_helper
 from rendering.helpers.bar_renderer import render_bar_helper
 from rendering.helpers.colored_area_renderer import (
@@ -46,6 +47,7 @@ __all__ = [
     "render_label_helper",
     "render_angle_helper",
     "render_cartesian_helper",
+    "render_polar_helper",
     "render_function_helper",
     "render_bar_helper",
     "render_colored_area_helper",

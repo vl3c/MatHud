@@ -1074,3 +1074,34 @@ def build_plan_for_cartesian(
     plan.update_map_state(map_state)
     return plan
 
+
+def build_plan_for_polar(
+    polar_grid: Any,
+    coordinate_mapper: Any,
+    style: Dict[str, Any],
+    *,
+    supports_transform: bool = True,
+) -> OptimizedPrimitivePlan:
+    key = _drawable_key(polar_grid, "polar")
+    recorder = _RecordingPrimitives(key)
+    cached_mapper = _CachedCoordinateMapper(coordinate_mapper)
+    shared.render_polar_helper(recorder, polar_grid, cached_mapper, style)
+    map_state = _capture_map_state(coordinate_mapper)
+    effective_supports_transform = supports_transform and not recorder.uses_screen_space()
+    plan = OptimizedPrimitivePlan(
+        drawable=polar_grid,
+        commands=list(recorder.commands),
+        plan_key=key,
+        metadata={
+            "class_name": "PolarGrid",
+            "map_state": map_state,
+            "screen_bounds": recorder.get_bounds(),
+            "supports_transform": effective_supports_transform,
+            "uses_screen_space": recorder.uses_screen_space(),
+            "display_map_state": map_state,
+        },
+        usage_counts=recorder.get_usage_counts(),
+    )
+    plan.update_map_state(map_state)
+    return plan
+

@@ -64,6 +64,13 @@ _BASE_STYLE: Dict[str, Any] = {
     "cartesian_label_color": "grey",
     "cartesian_font_family": default_font_family,
 
+    "polar_axis_color": default_color,
+    "polar_circle_color": "lightgrey",
+    "polar_radial_color": "lightgrey",
+    "polar_label_color": "grey",
+    "polar_label_font_size": 8,
+    "polar_font_family": default_font_family,
+
     "fill_style": "rgba(0, 0, 0, 0)",
     "font_family": default_font_family,
     "canvas_background_color": "#ffffff",

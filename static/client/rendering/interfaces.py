@@ -29,6 +29,9 @@ class RendererProtocol(Protocol):
     def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
         ...
 
+    def render_polar(self, polar_grid: Any, coordinate_mapper: Any) -> None:
+        ...
+
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
         ...
 
