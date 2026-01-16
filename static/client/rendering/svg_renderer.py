@@ -8,6 +8,7 @@ from browser import document, svg, window
 from rendering.cached_render_plan import (
     OptimizedPrimitivePlan,
     build_plan_for_cartesian,
+    build_plan_for_polar,
     build_plan_for_drawable,
 )
 from rendering.interfaces import RendererProtocol
@@ -332,6 +333,73 @@ class SvgRenderer(RendererProtocol):
         if self._skip_invisible_cartesian(plan_context, drawable_name, width, height):
             return
         self._apply_cartesian_plan(plan_context, drawable_name)
+
+    # ----------------------- Polar Grid -----------------------
+    def render_polar(self, polar_grid: Any, coordinate_mapper: Any) -> None:
+        width, height = self._get_surface_dimensions()
+        self._assign_polar_dimensions(polar_grid, width, height)
+        drawable_name = "PolarGrid"
+        map_state = self._capture_map_state(coordinate_mapper)
+        signature = self._compute_drawable_signature(polar_grid, coordinate_mapper)
+        plan_context = self._resolve_polar_plan(
+            polar_grid, coordinate_mapper, map_state, signature, drawable_name
+        )
+        if plan_context is None:
+            return
+        self._cartesian_rendered_this_frame = True
+        if self._skip_invisible_cartesian(plan_context, drawable_name, width, height):
+            return
+        self._apply_cartesian_plan(plan_context, drawable_name)
+
+    def _assign_polar_dimensions(self, polar_grid: Any, width: int, height: int) -> None:
+        setattr(polar_grid, "width", width)
+        setattr(polar_grid, "height", height)
+
+    def _resolve_polar_plan(
+        self,
+        polar_grid: Any,
+        coordinate_mapper: Any,
+        map_state: Dict[str, float],
+        signature: Optional[Any],
+        drawable_name: str,
+    ) -> Optional[Dict[str, Any]]:
+        plan_entry = self._cartesian_cache
+        if self._is_cached_plan_valid(plan_entry, signature):
+            plan = plan_entry["plan"]
+            plan.update_map_state(map_state)
+            self._mark_screen_space_plan_dirty(plan)
+        else:
+            if plan_entry is not None:
+                self._drop_plan_group(plan_entry.get("plan"))
+            plan = self._build_polar_plan_with_metrics(
+                polar_grid, coordinate_mapper, map_state, drawable_name
+            )
+            if plan is None:
+                self._cartesian_cache = None
+                return None
+            self._cartesian_cache = {"plan": plan, "signature": signature}
+        return self._create_cartesian_plan_context(plan)
+
+    def _build_polar_plan_with_metrics(
+        self,
+        polar_grid: Any,
+        coordinate_mapper: Any,
+        map_state: Dict[str, float],
+        drawable_name: str,
+    ) -> Optional[OptimizedPrimitivePlan]:
+        build_start = self._telemetry.mark_time()
+        try:
+            plan = build_plan_for_polar(polar_grid, coordinate_mapper, self.style, supports_transform=False)
+        except Exception:
+            raise
+        build_elapsed = self._telemetry.elapsed_since(build_start)
+        if plan is None:
+            self._telemetry.record_plan_miss(drawable_name)
+            return None
+        self._telemetry.record_plan_build(drawable_name, build_elapsed)
+        plan.update_map_state(map_state)
+        self._mark_screen_space_plan_dirty(plan)
+        return plan
 
     # ----------------------- Colored Areas: FunctionsBoundedColoredArea -----------------------
     def register_functions_bounded_colored_area(self, cls: type) -> None:

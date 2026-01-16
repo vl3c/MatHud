@@ -9,6 +9,7 @@ from rendering.style_manager import get_renderer_style
 from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
 from rendering.cached_render_plan import (
     build_plan_for_cartesian,
+    build_plan_for_polar,
     build_plan_for_drawable,
 )
 
@@ -43,6 +44,25 @@ class WebGLRenderer(RendererProtocol):
         if not self._should_apply_plan(plan, width, height):
             return
         plan.apply(self._shared_primitives)
+
+    def render_polar(self, polar_grid: Any, coordinate_mapper: Any) -> None:
+        width, height = self._prepare_polar_dimensions(polar_grid)
+        plan = self._build_polar_plan(polar_grid, coordinate_mapper)
+        if plan is None:
+            return
+        if not self._should_apply_plan(plan, width, height):
+            return
+        plan.apply(self._shared_primitives)
+
+    def _prepare_polar_dimensions(self, polar_grid: Any) -> Tuple[int, int]:
+        width = self.canvas_el.width
+        height = self.canvas_el.height
+        setattr(polar_grid, "width", width)
+        setattr(polar_grid, "height", height)
+        return width, height
+
+    def _build_polar_plan(self, polar_grid: Any, coordinate_mapper: Any) -> Any:
+        return build_plan_for_polar(polar_grid, coordinate_mapper, self.style, supports_transform=False)
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
         self._handlers_by_type[cls] = handler

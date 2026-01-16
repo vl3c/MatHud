@@ -11,6 +11,7 @@ from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
 from rendering.cached_render_plan import (
     OptimizedPrimitivePlan,
     build_plan_for_cartesian,
+    build_plan_for_polar,
     build_plan_for_drawable,
 )
 
@@ -184,6 +185,78 @@ class Canvas2DRenderer(RendererProtocol):
         plan.apply(self._shared_primitives)
         apply_elapsed = self._telemetry.elapsed_since(apply_start)
         self._telemetry.record_plan_apply(drawable_name, apply_elapsed, cartesian=True)
+
+    def render_polar(self, polar_grid: Any, coordinate_mapper: Any) -> None:
+        self._resize_to_container()
+        self._sync_offscreen_size()
+        width = self.canvas_el.width
+        height = self.canvas_el.height
+        self._assign_polar_dimensions(polar_grid, width, height)
+        drawable_name = "PolarGrid"
+        map_state = self._capture_map_state(coordinate_mapper)
+        signature = self._compute_drawable_signature(polar_grid, coordinate_mapper)
+        plan = self._resolve_polar_plan(
+            polar_grid, coordinate_mapper, map_state, signature, drawable_name
+        )
+        if plan is None:
+            return
+        apply_start = self._telemetry.mark_time()
+        if not plan.is_visible(width, height):
+            self._telemetry.record_plan_skip(drawable_name)
+            return
+        plan.apply(self._shared_primitives)
+        apply_elapsed = self._telemetry.elapsed_since(apply_start)
+        self._telemetry.record_plan_apply(drawable_name, apply_elapsed, cartesian=True)
+
+    def _assign_polar_dimensions(self, polar_grid: Any, width: int, height: int) -> None:
+        setattr(polar_grid, "width", width)
+        setattr(polar_grid, "height", height)
+
+    def _resolve_polar_plan(
+        self,
+        polar_grid: Any,
+        coordinate_mapper: Any,
+        map_state: Dict[str, float],
+        signature: Optional[Any],
+        drawable_name: str,
+    ) -> Optional[OptimizedPrimitivePlan]:
+        plan_entry = self._cartesian_cache
+        if self._is_cached_plan_valid(plan_entry, signature):
+            plan = plan_entry["plan"]
+            plan.update_map_state(map_state)
+            self._mark_screen_space_plan_dirty(plan)
+        else:
+            if plan_entry is not None:
+                self._drop_plan_group(plan_entry.get("plan"))
+            plan = self._build_polar_plan_with_metrics(
+                polar_grid, coordinate_mapper, map_state, drawable_name
+            )
+            if plan is None:
+                self._cartesian_cache = None
+                return None
+            self._cartesian_cache = {"plan": plan, "signature": signature}
+        return plan
+
+    def _build_polar_plan_with_metrics(
+        self,
+        polar_grid: Any,
+        coordinate_mapper: Any,
+        map_state: Dict[str, float],
+        drawable_name: str,
+    ) -> Optional[OptimizedPrimitivePlan]:
+        build_start = self._telemetry.mark_time()
+        try:
+            plan = build_plan_for_polar(polar_grid, coordinate_mapper, self.style, supports_transform=False)
+        except Exception:
+            raise
+        build_elapsed = self._telemetry.elapsed_since(build_start)
+        if plan is None:
+            self._telemetry.record_plan_miss(drawable_name)
+            return None
+        self._telemetry.record_plan_build(drawable_name, build_elapsed)
+        plan.update_map_state(map_state)
+        self._mark_screen_space_plan_dirty(plan)
+        return plan
 
     def begin_frame(self) -> None:
         self._telemetry.begin_frame()
@@ -650,5 +723,14 @@ class Canvas2DRenderer(RendererProtocol):
             and cache_entry.get("signature") == signature
             and isinstance(cache_entry.get("plan"), OptimizedPrimitivePlan)
         )
+
+    def _drop_plan_group(self, plan_obj: Optional[OptimizedPrimitivePlan]) -> None:
+        """No-op for Canvas2D since there are no DOM groups to manage."""
+        pass
+
+    def _mark_screen_space_plan_dirty(self, plan: OptimizedPrimitivePlan) -> None:
+        """Mark a screen-space plan as needing reapplication."""
+        if getattr(plan, "uses_screen_space", lambda: False)():
+            plan.mark_dirty()
 
 
