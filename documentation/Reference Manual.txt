@@ -33,8 +33,9 @@ This document contains comprehensive documentation extracted from all files in t
 7. Test Runner (`test_runner.py`)
 8. Client-Side Workspace Manager (`workspace_manager.py`)
 9. Cartesian System (`cartesian_system_2axis.py`)
-10. Expression Validator (`expression_validator.py`)
-11. Markdown Parser (`markdown_parser.py`)
+10. Polar Grid System (`polar_grid.py`)
+11. Expression Validator (`expression_validator.py`)
+12. Markdown Parser (`markdown_parser.py`)
 
 ### Drawable Classes
 1. Base Drawable (`drawables/drawable.py`)
@@ -63,6 +64,7 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 4. Drawable Dependency Manager (`managers/drawable_dependency_manager.py`)
 5. Undo Redo Manager (`managers/undo_redo_manager.py`)
 6. Transformations Manager (`managers/transformations_manager.py`)
+7. Coordinate System Manager (`managers/coordinate_system_manager.py`)
 
 ### Specialized Managers
 1. Point Manager (`managers/point_manager.py`)
@@ -658,6 +660,72 @@ Attributes:
 - `_draw_ticks(step)`: Draw tick marks and numerical labels on both axes
 - `_draw_grid(step)`: Render grid lines for visual coordinate reference
 - `_calculate_tick_spacing()`: Calculate appropriate tick spacing for current zoom level
+
+#### Polar Grid System (`polar_grid.py`)
+
+**File Header:**
+```
+MatHud Polar Coordinate Grid System
+
+Implements a polar coordinate grid with concentric circles and radial lines for
+visualization. Provides the visual foundation for polar coordinate work.
+
+Key Features:
+    - Dynamic radial spacing with zoom-adaptive circle intervals
+    - Radial lines at configurable angular intervals (default 30 degrees)
+    - Angle labels at outer edge in degrees
+    - Radial distance labels along the positive x-axis
+    - Origin marker at coordinate system center
+
+Visual Components:
+    - Concentric circles at regular radial intervals
+    - Radial lines from origin to viewport edge
+    - Angle labels (0, 30, 60, 90, etc.)
+    - Radius labels along one axis
+    - Origin marker ('O') at center
+
+Dependencies:
+    - drawables_aggregator: Drawable base class and Position utilities
+    - constants: Default styling and configuration values
+    - utils.math_utils: Mathematical calculations and number formatting
+```
+
+**Class Documentation:**
+```
+Polar coordinate grid with concentric circles and radial lines.
+
+Inherits from Drawable to provide polar coordinate visualization with
+automatic scaling, radial spacing calculation, and viewport management.
+
+Attributes:
+    width (float): Canvas width for coordinate system bounds
+    height (float): Canvas height for coordinate system bounds
+    origin (Position): Current origin position in screen coordinates
+    radial_spacing (float): Base radial spacing for circles
+    angular_divisions (int): Number of radial lines (default 12 for 30-degree steps)
+    show_angle_labels (bool): Whether to display angle labels
+    show_radius_labels (bool): Whether to display radius labels
+```
+
+**Key Methods:**
+- `__init__(coordinate_mapper, angular_divisions=12, radial_spacing=1.0, show_angle_labels=True, show_radius_labels=True, color=default_color)`: Initialize polar grid with a CoordinateMapper and configuration
+- `reset()`: Reset polar grid to initial state
+- `class_name`: Property returning 'PolarGrid'
+- `angular_divisions`: Property for number of radial lines (setter validates positive integer)
+- `radial_spacing`: Property for base radial spacing (setter validates positive number)
+- `show_angle_labels`: Property controlling angle label visibility
+- `show_radius_labels`: Property controlling radius label visibility
+- `angle_step`: Property calculating the angular step in radians between radial lines
+- `origin_screen`: Property returning the screen coordinates of the mathematical origin (0,0)
+- `max_radius_screen`: Property calculating the maximum visible radius from origin in screen units
+- `max_radius_math`: Property calculating the maximum visible radius in mathematical units
+- `display_spacing`: Property calculating the effective radial spacing in screen units, adjusted for zoom
+- `get_angle_labels()`: Generate angle labels for radial lines as (angle, label_text) tuples
+- `get_radial_circles()`: Generate radii for concentric circles in screen units
+- `draw()`: No-op (rendering handled via renderer)
+- `_invalidate_cache_on_zoom()`: Invalidate cached display spacing on zoom
+- `get_state()`: Serialize polar grid state for persistence
+- `set_state(state)`: Restore polar grid state from a dictionary
 
 #### Expression Validator (`expression_validator.py`)
 
@@ -2078,6 +2146,45 @@ object validation, and canvas integration.
 - `translate_object(name, x_offset, y_offset)`: Translates a drawable object by the specified offset
 - `rotate_object(name, angle)`: Rotates a drawable object by the specified angle
 
+#### Coordinate System Manager (`managers/coordinate_system_manager.py`)
+
+**File Header:**
+```
+MatHud Coordinate System Manager
+
+Manages the active coordinate system mode (Cartesian or Polar) and provides
+access to the appropriate grid object for rendering.
+```
+
+**Class Documentation:**
+```
+Manages coordinate system mode switching between Cartesian and Polar.
+
+Encapsulates the logic for determining which grid to render and provides
+state persistence for workspace save/restore.
+
+Attributes:
+    canvas: Reference to the parent Canvas
+    _mode: Current coordinate system mode ("cartesian" or "polar")
+    cartesian_grid: The Cartesian2Axis grid instance
+    polar_grid: The PolarGrid instance
+
+Class Attributes:
+    VALID_MODES: Tuple of valid mode values ("cartesian", "polar")
+```
+
+**Key Methods:**
+- `__init__(canvas)`: Initialize the coordinate system manager with a Canvas reference
+- `mode`: Property returning the current coordinate system mode
+- `set_mode(mode, redraw=True)`: Set the coordinate system mode ("cartesian" or "polar")
+- `get_active_grid()`: Get the currently active grid based on mode (Cartesian2Axis or PolarGrid)
+- `is_cartesian()`: Check if the current mode is Cartesian
+- `is_polar()`: Check if the current mode is Polar
+- `toggle_mode(redraw=True)`: Toggle between Cartesian and Polar modes, returns the new mode
+- `invalidate_cache_on_zoom()`: Invalidate grid caches when zoom changes (calls both grids)
+- `get_state()`: Get the state for workspace persistence (mode and polar_grid_state)
+- `set_state(state)`: Restore state from workspace data
+
 ### Specialized Managers
 
 #### Point Manager (`managers/point_manager.py`)
@@ -2701,6 +2808,8 @@ Class Attributes:
 - `calculate_point_discontinuities(function_string, left_bound=None, right_bound=None)`: Find point discontinuities in function
 - `triangle_matches_coordinates(triangle, x1, y1, x2, y2, x3, y3)`: Check if triangle matches given coordinates
 - `find_diagonal_points(points, rect_name_for_warning)`: Find diagonal points for rectangle construction
+- `rectangular_to_polar(x, y)`: Convert rectangular (Cartesian) coordinates to polar coordinates. Returns (r, theta) where r is the radius and theta is the angle in radians in the range (-pi, pi]
+- `polar_to_rectangular(r, theta)`: Convert polar coordinates to rectangular (Cartesian) coordinates. Returns (x, y) tuple
 
 #### Style Utils (`utils/style_utils.py`)
 

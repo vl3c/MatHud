@@ -8,7 +8,6 @@
 - add truth tables and boolean algebra workflows for logic and circuit analysis
 - add table view for function values and lightweight tabular data exploration
 - add list and spreadsheet structures for numeric and symbolic data (support formulas, basic stats, and function links)
-- add coordinate conversion tools (polar <-> rectangular)
 
 # Advanced Mathematical Tools
 - add sequence and series calculations (summation, products, convergence tests)

@@ -6,9 +6,11 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Interactive math-space canvas rendered through Canvas2D, SVG, and an experimental WebGL backend
 - AI-powered mathematical assistant
 - Real-time geometric visualization and analysis
+- Switchable coordinate systems: Cartesian 2D grid and Polar grid (concentric circles with radial lines)
 - Graph theory graphs (graphs, trees, DAGs): create, auto-layout, render weighted edges, and run analyses (shortest path, MST, topological sort, bridges, BFS/DFS, tree operations)
 - Support for mathematical expressions and calculations
 - Linear algebra expression evaluation with MathJS-backed matrix operations
+- Coordinate conversion utilities (rectangular to polar and vice versa)
 - Visual problem-solving with multimodal AI
 - Real-world problem analysis and modeling
 - Workspace management for saving and loading states
@@ -23,9 +25,10 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Complex Numbers: operations with real and imaginary components
 - Graphing Functions: plot functions, parametric equations, polar coordinates
 - Geometric Calculations: distance, angle, area, volume, intersections
+- Coordinate Conversion: rectangular to polar and polar to rectangular transformations
 - Equation Solving: linear equations, quadratic equations, systems of equations
 - Linear Algebra: matrix and vector arithmetic, transpose, inverse, determinant, dot/cross products, norms, traces, diagonal/identity/zeros/ones helpers, reshape/size queries, and grouped expressions evaluated via MathJS
-- Advanced Operations: 40+ AI tool definitions available in `static/functions_definitions.py` including canvas operations, geometric shape creation/deletion, mathematical operations, transformations, and workspace management
+- Advanced Operations: 70 AI tool definitions available in `static/functions_definitions.py` including canvas operations, geometric shape creation/deletion, mathematical operations, transformations, coordinate system management, and workspace management
 
 ## Geometric Shape Management
 - Points: create, delete, translate points with coordinates and labels
@@ -139,7 +142,7 @@ static/
 ├── webdriver_manager.py               # Selenium WebDriver management for vision system
 ├── workspace_manager.py               # Server-side workspace file operations
 ├── log_manager.py                     # Application logging system
-├── functions_definitions.py           # 42 AI function/tool definitions
+├── functions_definitions.py           # 70 AI function/tool definitions
 ├── ai_model.py                        # AI model configuration utilities
 ├── tool_call_processor.py             # Tool call processing utilities
 ├── style.css                          # Frontend CSS styling
@@ -165,7 +168,8 @@ static/client/
 ├── expression_evaluator.py            # Mathematical expression evaluation
 ├── expression_validator.py            # Expression syntax validation
 ├── result_validator.py                # Result validation utilities
-├── cartesian_system_2axis.py          # 2D coordinate system management
+├── cartesian_system_2axis.py          # 2D Cartesian coordinate system management
+├── polar_grid.py                      # Polar coordinate grid system
 ├── test_runner.py                     # Client-side test execution framework
 ├── constants.py                       # Application constants
 ├── geometry.py                        # Geometric utility functions
@@ -204,6 +208,7 @@ static/client/
 │   ├── drawable_dependency_manager.py # Object dependency tracking
 │   ├── undo_redo_manager.py           # Undo/redo functionality
 │   ├── transformations_manager.py     # Geometric transformations
+│   ├── coordinate_system_manager.py   # Coordinate system mode management (Cartesian/Polar)
 │   ├── point_manager.py               # Point creation/management
 │   ├── segment_manager.py             # Segment operations
 │   ├── vector_manager.py              # Vector operations
@@ -255,14 +260,20 @@ server_tests/
 ├── python_path_setup.py               # Test environment configuration
 ├── test_mocks.py                      # Server-side test mocking utilities
 ├── test_workspace_management.py       # Workspace operations tests
-└── test_routes.py                     # Flask route testing
+├── test_routes.py                     # Flask route testing
+├── test_polar_conversion.py           # Polar/rectangular coordinate conversion tests
+├── test_polar_grid.py                 # PolarGrid class logic tests
+├── test_coordinate_system_manager.py  # CoordinateSystemManager tests
+└── client_renderer/
+    ├── test_polar_renderer_plan.py    # Polar renderer plan generation tests
+    └── ...                            # Other renderer tests
 ```
 
 ## Key Configuration Files
 - **`requirements.txt`**: Python dependencies (openai, flask, flask-session, cachelib, python-dotenv, selenium, geckodriver-autoinstaller, requests, types-requests, mypy)
 - **`.env`**: Environment variables (OpenAI API key, auth flags) - create this in the project root
 - **`app.py`**: Main entry point including threaded server startup and graceful shutdown handling
-- **`static/functions_definitions.py`**: Defines 60+ AI functions with full JSON schema
+- **`static/functions_definitions.py`**: Defines 70 AI functions with full JSON schema
 - **`templates/index.html`**: Main HTML template with canvas, chat interface, AI model selector, and vision toggle
 
 ## Data Directories
@@ -328,6 +339,7 @@ server_tests/
 - **Supporting Managers**:
   - `UndoRedoManager`: Manages undo and redo operations for canvas actions.
   - `TransformationsManager`: Manages geometric transformations of objects.
+  - `CoordinateSystemManager`: Manages coordinate system mode switching between Cartesian and Polar grids.
   - `DrawableDependencyManager`: Tracks dependencies between drawable objects.
   - `DrawableManagerProxy`: A proxy to help manage initialization dependencies for `DrawableManager`.
   - `DrawablesContainer`: A data structure used by `DrawableManager` to hold drawable instances.
@@ -381,9 +393,10 @@ server_tests/
 - SVG rendering is performed by `SvgRenderer` based on math-only models and `CoordinateMapper`
 - The client-side `Canvas` orchestrates managers, the mapper, and the renderer; models remain immutable with respect to zoom/pan
 - `DrawableManager` and specialized managers create models with canvas-free constructors; managers pass models to the renderer
-- Zooming/panning centralized in `CoordinateMapper`; `Canvas.zoom_to_bounds` delegates to the mapper's `set_visible_bounds` helper before refreshing `Cartesian2Axis`
+- `CoordinateSystemManager` controls grid rendering mode (Cartesian or Polar); each mode has its own grid class
+- Zooming/panning centralized in `CoordinateMapper`; `Canvas.zoom_to_bounds` delegates to the mapper's `set_visible_bounds` helper before refreshing the active grid
 - Undo/Redo unchanged; `CanvasEventHandler` handles input and delegates to managers and renderer
-- Canvas state serialization (`Canvas.get_canvas_state()`) remains the source for persistence and vision
+- Canvas state serialization (`Canvas.get_canvas_state()`) includes coordinate system mode and persists for workspace save/restore
 
 ## Geometric Shape Management (Client-Side Brython)
 - Managed by specialized managers coordinated by `DrawableManager`; constructors are canvas-free
