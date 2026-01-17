@@ -10,6 +10,7 @@ from drawables.bar import Bar
 from drawables.discrete_plot import DiscretePlot
 from drawables.plot import Plot
 from utils.statistics.distributions import default_normal_bounds, normal_pdf_expression
+from utils.statistics.regression import fit_regression as _fit_regression, SUPPORTED_MODEL_TYPES
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from managers.drawable_dependency_manager import DrawableDependencyManager
     from managers.drawables_container import DrawablesContainer
     from managers.function_manager import FunctionManager
+    from managers.point_manager import PointManager
     from name_generator.drawable import DrawableNameGenerator
 
 
@@ -233,6 +235,151 @@ class StatisticsManager:
             "plot_type": "bars",
             "bar_count": len(values),
         }
+
+    def fit_regression(
+        self,
+        *,
+        name: Optional[str],
+        x_data: List[float],
+        y_data: List[float],
+        model_type: str,
+        degree: Optional[int],
+        plot_bounds: Optional[Dict[str, Any]],
+        curve_color: Optional[str],
+        show_points: Optional[bool],
+        point_color: Optional[str],
+    ) -> Dict[str, Any]:
+        """
+        Fit a regression model to data points and plot the resulting curve.
+
+        Creates a standalone Function for the fitted curve and optionally
+        Point markers for the data. No tracking entity is created - delete
+        the function with delete_function() and points individually.
+
+        Args:
+            name: Optional base name for the function and points
+            x_data: List of x values
+            y_data: List of y values
+            model_type: One of "linear", "polynomial", "exponential",
+                       "logarithmic", "power", "logistic", "sinusoidal"
+            degree: Polynomial degree (required for polynomial model)
+            plot_bounds: Optional bounds {left_bound, right_bound} for plotting
+            curve_color: Optional color for the curve
+            show_points: Whether to plot the data points (default True)
+            point_color: Optional color for data points
+
+        Returns:
+            Dict with function_name, expression, coefficients, r_squared,
+            model_type, bounds, and optionally point_names
+        """
+        # Validate model type
+        model = str(model_type or "").strip().lower()
+        if model not in SUPPORTED_MODEL_TYPES:
+            raise ValueError(
+                f"Unsupported model_type '{model_type}'. "
+                f"Supported: {', '.join(SUPPORTED_MODEL_TYPES)}"
+            )
+
+        # Validate degree for polynomial
+        if model == "polynomial":
+            if degree is None:
+                raise ValueError("degree is required for polynomial regression")
+            if not isinstance(degree, int) or degree < 1:
+                raise ValueError("degree must be a positive integer")
+
+        # Fit the regression model
+        result = _fit_regression(x_data, y_data, model, degree)
+        expression = result["expression"]
+        coefficients = result["coefficients"]
+        r_squared = result["r_squared"]
+
+        # Generate base name for function and points
+        default_name = f"{model}_fit"
+        base_name = self.name_generator.filter_string(name or "") or default_name
+
+        # Determine plot bounds
+        x_min = min(x_data)
+        x_max = max(x_data)
+        x_range = x_max - x_min
+        padding = x_range * 0.1 if x_range > 0 else 1.0
+
+        left_bound = x_min - padding
+        right_bound = x_max + padding
+
+        if plot_bounds is not None and isinstance(plot_bounds, dict):
+            if plot_bounds.get("left_bound") is not None:
+                left_bound = float(plot_bounds["left_bound"])
+            if plot_bounds.get("right_bound") is not None:
+                right_bound = float(plot_bounds["right_bound"])
+
+        if not math.isfinite(left_bound) or not math.isfinite(right_bound):
+            raise ValueError("plot_bounds must contain finite values")
+        if left_bound >= right_bound:
+            raise ValueError("left_bound must be less than right_bound")
+
+        # Draw the fitted function
+        function_name = self.name_generator.generate_function_name(base_name)
+        function_obj = self.function_manager.draw_function(
+            expression,
+            name=function_name,
+            left_bound=left_bound,
+            right_bound=right_bound,
+            color=curve_color,
+        )
+        function_name = getattr(function_obj, "name", function_name)
+
+        # Optionally plot the data points
+        point_names: List[str] = []
+        should_show_points = show_points if show_points is not None else True
+
+        if should_show_points:
+            point_manager = self._get_point_manager()
+            if point_manager is not None:
+                for i, (x, y) in enumerate(zip(x_data, y_data)):
+                    point_preferred = f"{base_name}_pt{i}"
+                    try:
+                        created_point = point_manager.create_point(
+                            x=x,
+                            y=y,
+                            name=point_preferred,
+                            color=point_color,
+                            extra_graphics=False,
+                        )
+                        if created_point is not None:
+                            point_names.append(created_point.name)
+                    except Exception:
+                        pass
+
+        # Trigger redraw
+        if getattr(self.canvas, "draw_enabled", False):
+            try:
+                self.canvas.draw()
+            except Exception:
+                pass
+
+        result_dict: Dict[str, Any] = {
+            "function_name": function_name,
+            "expression": expression,
+            "coefficients": coefficients,
+            "r_squared": r_squared,
+            "model_type": model,
+            "bounds": {"left": left_bound, "right": right_bound},
+        }
+
+        if point_names:
+            result_dict["point_names"] = point_names
+
+        return result_dict
+
+    def _get_point_manager(self) -> Optional["PointManager"]:
+        """Get the point manager from the canvas."""
+        try:
+            dm = getattr(self.canvas, "drawable_manager", None)
+            if dm is not None:
+                return getattr(dm, "point_manager", None)
+        except Exception:
+            pass
+        return None
 
     def delete_plot(self, name: str) -> bool:
         plot = self._get_plot_by_name(name)
