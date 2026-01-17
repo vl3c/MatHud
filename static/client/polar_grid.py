@@ -350,6 +350,7 @@ class PolarGrid(Drawable):
             "show_angle_labels": self.show_angle_labels,
             "show_radius_labels": self.show_radius_labels,
             "visible": self.visible,
+            "_current_radial_spacing": self._current_radial_spacing,
         }
 
     def set_state(self, state: Dict[str, Any]) -> None:
