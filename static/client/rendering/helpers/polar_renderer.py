@@ -8,6 +8,69 @@ from rendering.primitives import FontStyle, StrokeStyle, TextAlignment
 from utils.math_utils import MathUtils
 
 
+def _calculate_tick_precision(spacing: float) -> int:
+    """Calculate decimal places needed to distinguish adjacent tick labels.
+
+    Given the spacing between ticks, determines the minimum number of decimal
+    places required so that adjacent tick values format to different strings.
+
+    Args:
+        spacing: The spacing between adjacent ticks in math units
+
+    Returns:
+        Number of decimal places needed (0 for integers, positive for decimals)
+    """
+    if spacing <= 0 or not math.isfinite(spacing):
+        return 0
+    if spacing >= 1:
+        return 0
+    # For spacing < 1, calculate decimal places from -log10(spacing)
+    # e.g., spacing 0.1 → 1 decimal place
+    # e.g., spacing 0.02 → 2 decimal places
+    return max(0, int(math.ceil(-math.log10(spacing))))
+
+
+def _format_tick_value(value: float, precision: int) -> str:
+    """Format a tick value with the specified number of decimal places.
+
+    Uses scientific notation when precision > 4 to avoid verbose labels like
+    0.000107. Shows minimal significant figures to distinguish adjacent ticks.
+
+    Args:
+        value: The numeric value to format
+        precision: Number of decimal places to show
+
+    Returns:
+        Formatted string representation
+    """
+    if value == 0:
+        return "0"
+    if not math.isfinite(value):
+        return str(value)
+    # For very large values, use scientific notation
+    if abs(value) >= 1e6:
+        return f"{value:.1e}"
+    # For values needing many decimal places, use scientific notation
+    # This handles cases like 0.000107 → 1.1e-4 instead of verbose decimals
+    if precision > 4 or (abs(value) < 0.001 and abs(value) > 0):
+        # Use 2 significant figures for scientific notation
+        formatted = f"{value:.1e}"
+        # Clean up the exponent format (remove leading zeros)
+        if 'e' in formatted:
+            base, exp = formatted.split('e')
+            exp_sign = exp[0] if exp[0] in '+-' else '+'
+            exp_num = exp.lstrip('+-').lstrip('0') or '0'
+            formatted = f"{base}e{exp_sign}{exp_num}"
+        return formatted
+    if precision <= 0:
+        return str(int(round(value)))
+    formatted = f"{value:.{precision}f}"
+    # Strip trailing zeros but keep at least one decimal place if precision > 0
+    if '.' in formatted:
+        formatted = formatted.rstrip('0').rstrip('.')
+    return formatted
+
+
 def _draw_polar_axes(primitives, ox, oy, width_px, height_px, axis_stroke):
     """Draw the main x and y axes through the origin."""
     primitives.stroke_line((0.0, oy), (width_px, oy), axis_stroke)
@@ -93,16 +156,23 @@ def _draw_angle_labels(primitives, ox, oy, label_radius_screen, angular_step_deg
 
 def _draw_radius_labels(primitives, ox, oy, scale, display_spacing, max_radius_screen,
                         tick_font_float, font, label_color, label_alignment):
-    """Draw radius labels along the positive x-axis."""
+    """Draw radius labels along the positive x-axis.
+
+    Uses spacing-aware formatting to show minimum digits needed to distinguish
+    adjacent tick labels (e.g., 0.12 and 0.14 instead of 0.125345 and 0.145546).
+    """
     if display_spacing <= 0:
         return
+    # Calculate math spacing and precision needed
+    math_spacing = display_spacing / scale if scale > 0 else display_spacing
+    precision = _calculate_tick_precision(math_spacing)
     n = 1
     while True:
         radius_screen = n * display_spacing
         if radius_screen > max_radius_screen:
             break
         radius_math = radius_screen / scale if scale > 0 else radius_screen
-        label = MathUtils.format_number_for_cartesian(radius_math)
+        label = _format_tick_value(radius_math, precision)
         label_x = ox + radius_screen + 2
         label_y = oy + tick_font_float
         primitives.draw_text(label, (label_x, label_y), font, label_color, label_alignment)

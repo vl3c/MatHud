@@ -8,13 +8,76 @@ from rendering.primitives import FontStyle, StrokeStyle, TextAlignment
 from utils.math_utils import MathUtils
 
 
+def _calculate_tick_precision(spacing: float) -> int:
+    """Calculate decimal places needed to distinguish adjacent tick labels.
+
+    Given the spacing between ticks, determines the minimum number of decimal
+    places required so that adjacent tick values format to different strings.
+
+    Args:
+        spacing: The spacing between adjacent ticks in math units
+
+    Returns:
+        Number of decimal places needed (0 for integers, positive for decimals)
+    """
+    if spacing <= 0 or not math.isfinite(spacing):
+        return 0
+    if spacing >= 1:
+        return 0
+    # For spacing < 1, calculate decimal places from -log10(spacing)
+    # e.g., spacing 0.1 → 1 decimal place
+    # e.g., spacing 0.02 → 2 decimal places
+    return max(0, int(math.ceil(-math.log10(spacing))))
+
+
+def _format_tick_value(value: float, precision: int) -> str:
+    """Format a tick value with the specified number of decimal places.
+
+    Uses scientific notation when precision > 4 to avoid verbose labels like
+    0.000107. Shows minimal significant figures to distinguish adjacent ticks.
+
+    Args:
+        value: The numeric value to format
+        precision: Number of decimal places to show
+
+    Returns:
+        Formatted string representation
+    """
+    if value == 0:
+        return "0"
+    if not math.isfinite(value):
+        return str(value)
+    # For very large values, use scientific notation
+    if abs(value) >= 1e6:
+        return f"{value:.1e}"
+    # For values needing many decimal places, use scientific notation
+    # This handles cases like 0.000107 → 1.1e-4 instead of verbose decimals
+    if precision > 4 or (abs(value) < 0.001 and abs(value) > 0):
+        # Use 2 significant figures for scientific notation
+        formatted = f"{value:.1e}"
+        # Clean up the exponent format (remove leading zeros)
+        if 'e' in formatted:
+            base, exp = formatted.split('e')
+            exp_sign = exp[0] if exp[0] in '+-' else '+'
+            exp_num = exp.lstrip('+-').lstrip('0') or '0'
+            formatted = f"{base}e{exp_sign}{exp_num}"
+        return formatted
+    if precision <= 0:
+        return str(int(round(value)))
+    formatted = f"{value:.{precision}f}"
+    # Strip trailing zeros but keep at least one decimal place if precision > 0
+    if '.' in formatted:
+        formatted = formatted.rstrip('0').rstrip('.')
+    return formatted
+
+
 def _draw_cartesian_axes(primitives, ox, oy, width_px, height_px, axis_stroke):
     primitives.stroke_line((0.0, oy), (width_px, oy), axis_stroke)
     primitives.stroke_line((ox, 0.0), (ox, height_px), axis_stroke)
 
 
 def _draw_cartesian_tick_x(primitives, x_pos, ox, oy, scale, tick_size, tick_font_float, font,
-                           label_color, label_alignment, tick_stroke):
+                           label_color, label_alignment, tick_stroke, precision=6):
     primitives.stroke_line((x_pos, oy - tick_size), (x_pos, oy + tick_size), tick_stroke)
     if abs(x_pos - ox) < 1e-6:
         primitives.draw_text(
@@ -26,7 +89,7 @@ def _draw_cartesian_tick_x(primitives, x_pos, ox, oy, scale, tick_size, tick_fon
         )
     else:
         value = (x_pos - ox) / scale
-        label = MathUtils.format_number_for_cartesian(value)
+        label = _format_tick_value(value, precision)
         primitives.draw_text(
             label,
             (x_pos + 2, oy + tick_size + tick_font_float),
@@ -37,11 +100,11 @@ def _draw_cartesian_tick_x(primitives, x_pos, ox, oy, scale, tick_size, tick_fon
 
 
 def _draw_cartesian_tick_y(primitives, y_pos, ox, oy, scale, tick_size, font,
-                           label_color, label_alignment, tick_stroke):
+                           label_color, label_alignment, tick_stroke, precision=6):
     primitives.stroke_line((ox - tick_size, y_pos), (ox + tick_size, y_pos), tick_stroke)
     if abs(y_pos - oy) >= 1e-6:
         value = (oy - y_pos) / scale
-        label = MathUtils.format_number_for_cartesian(value)
+        label = _format_tick_value(value, precision)
         primitives.draw_text(
             label,
             (ox + tick_size + 2, y_pos - tick_size),
@@ -103,13 +166,16 @@ def _draw_cartesian_ticks_x(primitives, ox, oy, width_px, scale, display_tick, t
     if display_tick <= 0:
         return
     import math
+    # Calculate math spacing and precision needed for labels
+    math_spacing = display_tick / scale if scale > 0 else display_tick
+    precision = _calculate_tick_precision(math_spacing)
     start_n = int(math.ceil(-ox / display_tick))
     end_n = int(math.floor((width_px - ox) / display_tick))
     for n in range(start_n, end_n + 1):
         x = ox + n * display_tick
         if 0 <= x <= width_px:
             _draw_cartesian_tick_x(primitives, x, ox, oy, scale, tick_size, tick_font_float, font,
-                                   label_color, label_alignment, tick_stroke)
+                                   label_color, label_alignment, tick_stroke, precision)
         mid_x = x + display_tick * 0.5
         if 0 <= mid_x <= width_px:
             _draw_cartesian_mid_tick_x(primitives, mid_x, oy, mid_tick_size, tick_stroke)
@@ -120,13 +186,16 @@ def _draw_cartesian_ticks_y(primitives, ox, oy, height_px, scale, display_tick, 
     if display_tick <= 0:
         return
     import math
+    # Calculate math spacing and precision needed for labels
+    math_spacing = display_tick / scale if scale > 0 else display_tick
+    precision = _calculate_tick_precision(math_spacing)
     start_n = int(math.ceil(-oy / display_tick))
     end_n = int(math.floor((height_px - oy) / display_tick))
     for n in range(start_n, end_n + 1):
         y = oy + n * display_tick
         if 0 <= y <= height_px:
             _draw_cartesian_tick_y(primitives, y, ox, oy, scale, tick_size, font, label_color,
-                                   label_alignment, tick_stroke)
+                                   label_alignment, tick_stroke, precision)
         mid_y = y + display_tick * 0.5
         if 0 <= mid_y <= height_px:
             _draw_cartesian_mid_tick_y(primitives, mid_y, ox, mid_tick_size, tick_stroke)
