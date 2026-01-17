@@ -200,8 +200,72 @@ class FunctionRegistry:
         # Add testing functions if ai_interface is provided
         if ai_interface is not None:
             functions["run_tests"] = ai_interface.run_tests
+
+        # Add tool search function (makes request to backend)
+        functions["search_tools"] = FunctionRegistry._create_search_tools_handler()
             
         return functions
+
+    @staticmethod
+    def _create_search_tools_handler():
+        """Create a handler for the search_tools function.
+        
+        Returns a function that makes a request to the backend /search_tools endpoint.
+        """
+        def search_tools(query: str, max_results: int | None = None) -> dict:
+            """Search for tools matching a query description.
+
+            Args:
+                query: Description of what the user wants to accomplish.
+                max_results: Maximum number of tools to return (default: 10, max: 20).
+
+            Returns:
+                Dict with matching tool definitions.
+            """
+            # Handle None or invalid max_results
+            if max_results is None or not isinstance(max_results, int):
+                max_results = 10
+
+            # Default result structure
+            default_result: dict = {"tools": [], "count": 0, "query": query, "error": None}
+
+            # In Brython environment, use browser.ajax
+            try:
+                from browser import ajax
+                import json as json_module
+
+                # Use XMLHttpRequest directly for synchronous request (more reliable)
+                req = ajax.Ajax()
+                req.open("POST", "/search_tools", False)  # Synchronous
+                req.set_header("Content-Type", "application/json")
+
+                try:
+                    req.send(json_module.dumps({"query": query, "max_results": max_results}))
+                except Exception as e:
+                    default_result["error"] = f"Request send failed: {e}"
+                    return default_result
+                
+                # After synchronous send(), we can directly access status and text
+                if req.status == 200:
+                    try:
+                        response = json_module.loads(req.text)
+                        if response.get("status") == "success" and response.get("data"):
+                            return response["data"]
+                        else:
+                            default_result["error"] = response.get("message", "Unknown error")
+                    except Exception as e:
+                        default_result["error"] = f"Response parse error: {e}"
+                else:
+                    default_result["error"] = f"Request failed with status {req.status}"
+                
+                return default_result
+                
+            except ImportError:
+                # Not in Brython environment, return placeholder
+                default_result["error"] = "search_tools only available in browser environment"
+                return default_result
+        
+        return search_tools
 
     @staticmethod
     def get_undoable_functions() -> Tuple[str, ...]:
