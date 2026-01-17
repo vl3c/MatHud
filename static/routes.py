@@ -124,6 +124,84 @@ def handle_vision_capture(
             print(f"WebDriver capture failed: {exc}")
 
 
+def _intercept_search_tools(
+    app: MatHudFlask,
+    tool_calls: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Intercept search_tools calls and filter other tool calls.
+
+    When search_tools is called alongside other tools, this function:
+    1. Executes search_tools server-side
+    2. Injects the returned tools
+    3. Filters out tool calls not in the allowed set
+
+    Args:
+        app: The Flask application instance.
+        tool_calls: List of tool calls from the AI response.
+
+    Returns:
+        Filtered list of tool calls (only allowed tools).
+    """
+    from static.tool_search_service import ToolSearchService
+    from static.openai_api_base import ESSENTIAL_TOOLS
+
+    # Find search_tools call
+    search_tools_call = None
+    for call in tool_calls:
+        func_name = call.get('function_name') or call.get('function', {}).get('name')
+        if func_name == 'search_tools':
+            search_tools_call = call
+            break
+
+    if search_tools_call is None:
+        return tool_calls  # No search_tools, return as-is
+
+    # Extract query from search_tools arguments
+    args = search_tools_call.get('arguments', {})
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except json.JSONDecodeError:
+            args = {}
+
+    query = args.get('query', '')
+    max_results = args.get('max_results', 10)
+
+    if not query:
+        return tool_calls  # No query, return as-is
+
+    # Execute search_tools server-side
+    try:
+        service = ToolSearchService(client=app.ai_api.client)
+        result = service.search_tools(query=query, max_results=max_results or 10)
+
+        # Get allowed tool names from the search results
+        allowed_names = {
+            t.get('function', {}).get('name')
+            for t in result
+            if isinstance(t, dict)
+        }
+        # Add essential tools
+        allowed_names.update(ESSENTIAL_TOOLS)
+
+        # Inject tools into both APIs
+        if result:
+            app.ai_api.inject_tools(result, include_essentials=True)
+            app.responses_api.inject_tools(result, include_essentials=True)
+
+        # Filter tool_calls to only include allowed tools
+        filtered_calls = []
+        for call in tool_calls:
+            func_name = call.get('function_name') or call.get('function', {}).get('name')
+            if func_name in allowed_names:
+                filtered_calls.append(call)
+
+        return filtered_calls
+
+    except Exception:
+        return tool_calls  # On error, return original calls
+
+
 def _maybe_inject_search_tools(api: OpenAIAPIBase, tool_call_results: str) -> None:
     """Inject tools if search_tools was called in the previous turn.
 
@@ -415,8 +493,11 @@ def register_routes(app: MatHudFlask) -> None:
                                         for call in tool_calls
                                         if isinstance(call, dict)
                                     ]
+                                    # Intercept search_tools and filter other tool calls
                                     if dict_tool_calls:
-                                        app.log_manager.log_ai_tool_calls(dict_tool_calls)
+                                        filtered_calls = _intercept_search_tools(app, dict_tool_calls)
+                                        event_dict['ai_tool_calls'] = cast(JsonValue, filtered_calls)
+                                        app.log_manager.log_ai_tool_calls(filtered_calls)
                             except Exception:
                                 pass
                             # Reset tools if AI finished (not requesting more tool calls)
@@ -661,6 +742,9 @@ def register_routes(app: MatHudFlask) -> None:
                     if isinstance(ai_tool_calls_raw, list)
                     else []
                 )
+                # Intercept search_tools and filter other tool calls
+                if ai_tool_calls:
+                    ai_tool_calls = _intercept_search_tools(app, ai_tool_calls)
                 finish_reason = final_event.get("finish_reason")
 
                 app.log_manager.log_ai_response(ai_message)
@@ -675,6 +759,9 @@ def register_routes(app: MatHudFlask) -> None:
 
             choice = app.ai_api.create_chat_completion(message)
             ai_message, ai_tool_calls = _process_ai_response(app, choice)
+            # Intercept search_tools and filter other tool calls
+            if ai_tool_calls:
+                ai_tool_calls = _intercept_search_tools(app, ai_tool_calls)
             finish_reason = getattr(choice, 'finish_reason', None)
 
             _reset_tools_if_needed(finish_reason)
