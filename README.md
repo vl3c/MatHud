@@ -10,10 +10,11 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 2. Ask the assistant to solve algebra, calculus, trigonometry, statistics, and linear algebra problems with LaTeX-formatted explanations.
 3. Plot functions, compare intersections, shade bounded regions, and translate/rotate objects to explore relationships visually.
 4. Plot statistics visualizations (probability distributions and bar charts).
-5. Create and analyze graph theory graphs (graphs, trees, DAGs).
-6. Save, list, load, and delete named workspaces so projects can be resumed or shared later.
-7. Share the current canvas with the assistant using Vision mode to get feedback grounded in your drawing.
-8. Trigger client-side tests from the UI or chat to verify canvas behavior without leaving the app.
+5. Fit regression models to data (linear, polynomial, exponential, logarithmic, power, logistic, sinusoidal) and visualize fitted curves with R² statistics.
+6. Create and analyze graph theory graphs (graphs, trees, DAGs).
+7. Save, list, load, and delete named workspaces so projects can be resumed or shared later.
+8. Share the current canvas with the assistant using Vision mode to get feedback grounded in your drawing.
+9. Trigger client-side tests from the UI or chat to verify canvas behavior without leaving the app.
 
 ## 2. Architecture Overview
 
@@ -97,11 +98,12 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    7. `evaluate linear algebra expression with matrices A=[[1,2],[3,4]]; compute inv(A)`
    8. `plot a normal distribution with mean 0 and sigma 1, continuous, shade from -1 to 1`
    9. `plot a bar chart with values [10,20,5] and labels ["A","B","C"]`
-   10. `create an undirected weighted graph named G1 with vertices A,B,C,D and edges A-B (1), B-C (2), A-C (4), C-D (1)`
-   11. `on graph G1, find the shortest path from A to D and highlight the edges`
-   12. `create a DAG named D1 with vertices A,B,C,D and edges A->B, A->C, B->D, C->D; then topologically sort it`
-   13. `save workspace as "demo"` / `load workspace "demo"`
-   14. `run tests`
+   10. `fit a linear regression to x_data=[1,2,3,4,5] and y_data=[2,4,6,8,10], show points and report R²`
+   11. `create an undirected weighted graph named G1 with vertices A,B,C,D and edges A-B (1), B-C (2), A-C (4), C-D (1)`
+   12. `on graph G1, find the shortest path from A to D and highlight the edges`
+   13. `create a DAG named D1 with vertices A,B,C,D and edges A->B, A->C, B->D, C->D; then topologically sort it`
+   14. `save workspace as "demo"` / `load workspace "demo"`
+   15. `run tests`
 
 ### 5.3 Vision Mode
 

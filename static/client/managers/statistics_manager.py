@@ -347,8 +347,16 @@ class StatisticsManager:
                         )
                         if created_point is not None:
                             point_names.append(created_point.name)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        # Log point creation failure for debugging
+                        try:
+                            logger = getattr(self.canvas, "logger", None)
+                            if logger is not None:
+                                logger.debug(
+                                    f"Failed to create regression point {point_preferred}: {e}"
+                                )
+                        except Exception:
+                            pass
 
         # Trigger redraw
         if getattr(self.canvas, "draw_enabled", False):
