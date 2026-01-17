@@ -13,7 +13,7 @@ import logging
 import os
 from collections.abc import Sequence
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -27,6 +27,36 @@ _logger = logging.getLogger("mathud")
 MessageContent = Union[str, List[Dict[str, Any]]]
 MessageDict = Dict[str, Any]
 StreamEvent = Dict[str, Any]
+
+# Tool mode type
+ToolMode = Literal["full", "search"]
+
+# Essential tool names that should always be available after injection
+ESSENTIAL_TOOLS = frozenset({
+    "search_tools",
+    "undo",
+    "redo",
+    "get_current_canvas_state",
+})
+
+
+def _build_search_mode_tools() -> List[FunctionDefinition]:
+    """Build the minimal tool set for search mode.
+    
+    Returns:
+        List containing search_tools and essential tools only.
+    """
+    search_tools: List[FunctionDefinition] = []
+    for tool in FUNCTIONS:
+        func = tool.get("function", {})
+        name = func.get("name", "")
+        if name == "search_tools" or name in ESSENTIAL_TOOLS:
+            search_tools.append(tool)
+    return search_tools
+
+
+# Precomputed search mode tools
+SEARCH_MODE_TOOLS: List[FunctionDefinition] = _build_search_mode_tools()
 
 
 class OpenAIAPIBase:
@@ -57,18 +87,115 @@ class OpenAIAPIBase:
         temperature: float = 0.2,
         tools: Optional[Sequence[FunctionDefinition]] = None,
         max_tokens: int = 32000,
+        tool_mode: ToolMode = "full",
     ) -> None:
-        """Initialize OpenAI API client and conversation state."""
+        """Initialize OpenAI API client and conversation state.
+        
+        Args:
+            model: AI model to use. Defaults to the default model.
+            temperature: Sampling temperature.
+            tools: Custom tool definitions. Defaults to all FUNCTIONS.
+            max_tokens: Maximum tokens in response.
+            tool_mode: Tool mode - "full" for all tools, "search" for search_tools + essentials.
+        """
         self.client = OpenAI(api_key=self._initialize_api_key())
         self.model: AIModel = model if model is not None else AIModel.get_default_model()
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.tools: Sequence[FunctionDefinition] = (
-            list(tools) if tools is not None else list(FUNCTIONS)
-        )
+        self._tool_mode: ToolMode = tool_mode
+        self._custom_tools: Optional[Sequence[FunctionDefinition]] = tools
+        self._injected_tools: bool = False  # Track if tools were dynamically injected
+        self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
         self.messages: List[MessageDict] = [
             {"role": "developer", "content": OpenAIAPIBase.DEV_MSG}
         ]
+
+    def _resolve_tools(self) -> Sequence[FunctionDefinition]:
+        """Resolve the active tool set based on mode and custom tools.
+        
+        Returns:
+            The appropriate tool set for the current configuration.
+        """
+        if self._custom_tools is not None:
+            return list(self._custom_tools)
+        if self._tool_mode == "search":
+            return SEARCH_MODE_TOOLS
+        return list(FUNCTIONS)
+
+    def get_tool_mode(self) -> ToolMode:
+        """Get the current tool mode.
+        
+        Returns:
+            The current tool mode ("full" or "search").
+        """
+        return self._tool_mode
+
+    def set_tool_mode(self, mode: ToolMode) -> None:
+        """Set the tool mode and update available tools.
+        
+        Args:
+            mode: The tool mode to set ("full" or "search").
+        """
+        if mode not in ("full", "search"):
+            raise ValueError(f"Invalid tool mode: {mode}. Must be 'full' or 'search'.")
+        
+        if self._tool_mode != mode:
+            self._tool_mode = mode
+            # Only update tools if not using custom tools
+            if self._custom_tools is None:
+                self.tools = self._resolve_tools()
+                msg = f"Tool mode changed to: {mode} ({len(self.tools)} tools available)"
+                print(msg)
+                _logger.info(msg)
+
+    def inject_tools(self, tools: Sequence[FunctionDefinition], include_essentials: bool = True) -> None:
+        """Dynamically inject specific tools for the next API call.
+
+        This allows search results to directly influence which tools are available.
+        The injected tools replace the current tool set until reset.
+
+        Args:
+            tools: List of tool definitions to make available.
+            include_essentials: If True, also include essential tools (search_tools, undo, redo, get_current_canvas_state).
+        """
+        if not tools:
+            _logger.debug("inject_tools called with empty tools list, ignoring")
+            return
+
+        injected: List[FunctionDefinition] = list(tools)
+
+        if include_essentials:
+            # Add essential tools if not already present
+            injected_names = {t.get("function", {}).get("name") for t in injected}
+            for tool in FUNCTIONS:
+                func = tool.get("function", {})
+                name = func.get("name", "")
+                if name in ESSENTIAL_TOOLS and name not in injected_names:
+                    injected.append(tool)
+
+        self._injected_tools = True
+        self.tools = injected
+        msg = f"Injected {len(injected)} tools (essentials={'included' if include_essentials else 'excluded'})"
+        _logger.info(msg)
+
+    def reset_tools(self) -> None:
+        """Reset tools to the default set based on current tool mode.
+
+        Call this after using inject_tools to restore normal tool availability.
+        """
+        if self._injected_tools:
+            self._injected_tools = False
+            self.tools = self._resolve_tools()
+            msg = f"Tools reset to {self._tool_mode} mode ({len(self.tools)} tools)"
+            _logger.info(msg)
+
+    def has_injected_tools(self) -> bool:
+        """Check if tools were dynamically injected.
+
+        Returns:
+            True if tools have been injected via inject_tools(), False otherwise.
+        """
+        return self._injected_tools
 
     def get_model(self) -> AIModel:
         """Get the current AI model instance."""
