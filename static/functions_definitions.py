@@ -2074,6 +2074,82 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     }
                 }
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "fit_regression",
+                    "description": "Fits a regression model to data points and plots the resulting curve. Supported model types: linear (y = mx + b), polynomial (y = a0 + a1*x + ... + an*x^n), exponential (y = a*e^(bx)), logarithmic (y = a + b*ln(x)), power (y = a*x^b), logistic (y = L/(1+e^(-k(x-x0)))), and sinusoidal (y = a*sin(bx+c)+d). Returns the function_name, fitted expression, coefficients, R-squared, and point_names. Use delete_function to remove the curve; delete points individually.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional base name for the function and data points. If null, a name will be generated based on model type."
+                            },
+                            "x_data": {
+                                "type": "array",
+                                "items": {"type": "number"},
+                                "description": "Array of x values (independent variable). Must have at least 2 points (more for polynomial)."
+                            },
+                            "y_data": {
+                                "type": "array",
+                                "items": {"type": "number"},
+                                "description": "Array of y values (dependent variable). Must have same length as x_data."
+                            },
+                            "model_type": {
+                                "type": "string",
+                                "enum": ["linear", "polynomial", "exponential", "logarithmic", "power", "logistic", "sinusoidal"],
+                                "description": "Type of regression model to fit. Note: exponential and power require positive y values; logarithmic and power require positive x values."
+                            },
+                            "degree": {
+                                "type": ["integer", "null"],
+                                "description": "Polynomial degree (required for polynomial model, ignored otherwise). Must be >= 1 and less than the number of data points."
+                            },
+                            "plot_bounds": {
+                                "type": ["object", "null"],
+                                "description": "Optional bounds for plotting the fitted curve. Defaults to data range with 10% padding.",
+                                "properties": {
+                                    "left_bound": {
+                                        "type": ["number", "null"],
+                                        "description": "Left bound for plotting. Defaults to min(x_data) - 10% range."
+                                    },
+                                    "right_bound": {
+                                        "type": ["number", "null"],
+                                        "description": "Right bound for plotting. Defaults to max(x_data) + 10% range."
+                                    }
+                                },
+                                "required": ["left_bound", "right_bound"],
+                                "additionalProperties": False
+                            },
+                            "curve_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the fitted curve."
+                            },
+                            "show_points": {
+                                "type": ["boolean", "null"],
+                                "description": "Whether to plot the data points. Defaults to true."
+                            },
+                            "point_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for data points (if show_points is true)."
+                            }
+                        },
+                        "required": [
+                            "name",
+                            "x_data",
+                            "y_data",
+                            "model_type",
+                            "degree",
+                            "plot_bounds",
+                            "curve_color",
+                            "show_points",
+                            "point_color"
+                        ],
+                        "additionalProperties": False
+                    }
+                }
+            },
             # END PLOT FUNCTIONS
             # START ANGLE FUNCTIONS
             {
