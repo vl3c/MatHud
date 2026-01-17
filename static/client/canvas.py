@@ -903,6 +903,31 @@ class Canvas:
     def delete_plot(self, name: str) -> bool:
         return bool(self.drawable_manager.delete_plot(name))
 
+    def fit_regression(
+        self,
+        *,
+        name: Optional[str] = None,
+        x_data: Optional[List[float]] = None,
+        y_data: Optional[List[float]] = None,
+        model_type: str = "linear",
+        degree: Optional[int] = None,
+        plot_bounds: Optional[Dict[str, Any]] = None,
+        curve_color: Optional[str] = None,
+        show_points: Optional[bool] = None,
+        point_color: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return self.drawable_manager.fit_regression(
+            name=name,
+            x_data=x_data if x_data is not None else [],
+            y_data=y_data if y_data is not None else [],
+            model_type=model_type,
+            degree=degree,
+            plot_bounds=plot_bounds,
+            curve_color=curve_color,
+            show_points=show_points,
+            point_color=point_color,
+        )
+
     # ------------------- Graph Methods -------------------
     def create_graph(self, graph_state: "GraphState") -> "Drawable":
         return self.drawable_manager.create_graph(graph_state)

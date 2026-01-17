@@ -19,6 +19,14 @@ Plot a continuous normal distribution named Shifted with mean 2 and sigma 0.5. S
 Plot two discrete normal distributions: DiscA (mean 0, sigma 1, bounds [-3, 3], bar_count 24) and DiscB (mean 1, sigma 0.7, bounds [-3, 3], bar_count 24). Use different colors for each, then zoom to show both.
 Plot a bar chart named Poll with values [10, 20, 5], labels below ["A", "B", "C"], labels above ["10", "20", "5"], bar_width 2.0, bar_spacing 0.5, fill color "#222", fill opacity 0.5, stroke color "#111". Zoom so everything is visible.
 
+# Regression Analysis
+Fit a linear regression to x_data=[1,2,3,4,5] and y_data=[2.1,3.9,6.2,7.8,10.1]. Show the data points and fitted curve.
+Fit a quadratic polynomial (degree 2) to x_data=[0,1,2,3,4] and y_data=[0,1,4,9,16]. Report the R-squared value.
+Fit an exponential model to x_data=[0,1,2,3,4] and y_data=[1,2.7,7.4,20,55]. What are the fitted coefficients a and b?
+Fit a logarithmic regression to x_data=[1,2,3,4,5,6] and y_data=[0,0.7,1.1,1.4,1.6,1.8].
+Fit a sinusoidal model to the data x_data=[0,0.5,1,1.5,2,2.5,3] and y_data=[0,0.48,0.84,1.0,0.91,0.6,0.14]. Plot the curve with custom bounds from -1 to 4.
+Fit a logistic growth curve to x_data=[1,2,3,4,5,6,7,8,9,10] and y_data=[2,3,5,9,16,25,36,44,48,50]. What is the estimated carrying capacity (L)?
+
 # Geometric Property Calculations
 What is the distance between point A and segment DE's midpoint?
 Calculate the length of segment DE.
