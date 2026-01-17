@@ -1,47 +1,48 @@
 # Bug Fixes
 
-# Basic Mathematical Tools
+# Quick Wins (High Value, Easier Implementation)
+- add table view for function values and lightweight tabular data exploration
+- add scatter plot, histogram, and box plot visualization
+- add parametric graphing support (x(t), y(t))
+- add polar graph support for functions in polar coordinates (r = f(θ))
+- add implicit function plotting (f(x,y) = 0 style equations)
+- add tangent and normal line drawing at a point
+- add grid snapping and coordinate readout on graph hover
+- add rationalize support (and document it)
+
+# Core Mathematical Tools (Medium Effort)
 - add row operations / row-reduction workflows (rref, row swaps, etc.)
 - add eigenvalue and eigenvector computation
 - add complex number utilities plus base-n calculations and conversions (binary, octal, hexadecimal)
-- expand number theory functions (prime factorization, modular arithmetic)
-- add truth tables and boolean algebra workflows for logic and circuit analysis
-- add table view for function values and lightweight tabular data exploration
-- add list and spreadsheet structures for numeric and symbolic data (support formulas, basic stats, and function links)
-
-# Advanced Mathematical Tools
 - add sequence and series calculations (summation, products, convergence tests)
-- add differential equations solver with visualization of direction fields and solution families
-- add numerical methods (Newton's method, Simpson's rule, trapezoidal rule, numerical ODE solvers)
-- add eigenvalue and eigenvector calculations for advanced linear algebra
-- add rationalize support (and document it)
 - add summation and product operators for discrete analysis (Sigma, Pi)
-
-# Statistics and Analysis
-- add probability distribution tools and statistical hypothesis testing workflows
-- add regression analysis with multiple models (linear, polynomial, exponential, logarithmic, power, logistic, sinusoidal)
-- add scatter plot, histogram, box plot, and probability plot visualization
-- add confidence interval and ANOVA tools
-- add statistical tests (z-test, t-test, chi-square, F-test)
-- add financial mathematics (compound interest, annuities, amortization, bond valuation)
-- add data list correlation and covariance functions
-- add cumulative frequency tables and graph generation
-
-# 2D Graphing Enhancements
-- add implicit function plotting
+- add numerical methods (Newton's method, Simpson's rule, trapezoidal rule)
+- expand number theory functions (prime factorization, modular arithmetic)
 - add conic section specialized tools
 - add inequality graphing and systems of inequalities with shading controls
+
+# Statistics and Data Analysis
+- add statistical hypothesis testing workflows (z-test, t-test, chi-square, F-test)
+- add confidence interval and ANOVA tools
+- add data list correlation and covariance functions
+- add probability plot visualization (Q-Q plots, P-P plots)
+- add cumulative frequency tables and graph generation
+- add list and spreadsheet structures for numeric and symbolic data (support formulas, basic stats, and function links)
+
+# Advanced Visualization Features
+- add interactive tracing, root/extrema/intersection finding tools
 - add vector field visualization
-- add polar graph support for functions in polar coordinates
-- add parametric graphing support (x(t), y(t))
+- add dynamic sliders to manipulate parameters in real time
 - add recursive/sequence graphing mode
 - add animation capabilities for transformations and function changes
-- add interactive tracing, root/extrema/intersection finding tools
-- add shaded integration areas and tangent/normal line drawing
-- add grid snapping and coordinate readout on graph hover
 - add split screen and tabbed workspace modes to compare different graphs/calculations
-- add dynamic sliders to manipulate parameters in real time
 - add dual display (graph + table or graph + graph) modes
+
+# Advanced Mathematical Tools (Higher Effort)
+- add differential equations solver with visualization of direction fields and solution families
+- add numerical ODE solvers
+- add truth tables and boolean algebra workflows for logic and circuit analysis
+- add financial mathematics (compound interest, annuities, amortization, bond valuation)
 
 # Future 3D Features
 - add 3D graphing capabilities and 3D shape visualization
@@ -50,8 +51,5 @@
 - add rotation, zoom, and cross-section tools for 3D visualization
 - add vector field and gradient visualization in 3D space
 
-
 # Static Typing Rollout
-- annotate `static/functions_definitions.py` and supporting utilities (math utils, expression validator)
 - add type stubs or protocols for Brython `browser` module usage in client code
-- expand server coverage to `static/openai_api.py`, `static/log_manager.py`, and `static/routes.py` after defining shared response types
