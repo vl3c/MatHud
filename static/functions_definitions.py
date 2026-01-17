@@ -2263,6 +2263,31 @@ FUNCTIONS: List[Dict[str, Any]] = [
                         "additionalProperties": False
                     }
                 }
-            }
+            },
             # END COORDINATE SYSTEM FUNCTIONS
+            # START TOOL SEARCH FUNCTIONS
+            {
+                "type": "function",
+                "function": {
+                    "name": "search_tools",
+                    "description": "Search for the best tools to accomplish a task. Use this when you're unsure which specific tool to use. Provide a description of what you want to do, and receive the most relevant tool definitions.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Description of what you want to accomplish (e.g., 'draw a triangle with vertices at specific coordinates', 'calculate the derivative of a function')"
+                            },
+                            "max_results": {
+                                "type": ["integer", "null"],
+                                "description": "Maximum number of tools to return (default: 10, max: 20)"
+                            }
+                        },
+                        "required": ["query", "max_results"],
+                        "additionalProperties": False
+                    }
+                }
+            }
+            # END TOOL SEARCH FUNCTIONS
         ]
