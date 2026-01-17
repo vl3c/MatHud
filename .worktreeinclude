@@ -1,0 +1,10 @@
+# Files to copy from main repo to new worktrees
+# (only copies files that are also in .gitignore)
+
+# IDE / Editor configs
+.vscode/
+.cursor/
+.claude/
+
+# Environment variables
+.env

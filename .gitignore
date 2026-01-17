@@ -10,10 +10,6 @@ venv/
 # Jupyter notebook
 .ipynb_checkpoints
 
-# VS Code
-.vscode
-.cursor
-.claude
 
 # Logs
 logs/
