@@ -182,6 +182,7 @@ class FunctionRegistry:
             "plot_distribution": canvas.plot_distribution,
             "plot_bars": canvas.plot_bars,
             "delete_plot": canvas.delete_plot,
+            "fit_regression": canvas.fit_regression,
 
             # ===== ANGLE OPERATIONS =====
             "create_angle": canvas.create_angle,
@@ -351,6 +352,7 @@ class FunctionRegistry:
             "plot_distribution",
             "plot_bars",
             "delete_plot",
+            # Note: fit_regression is NOT undoable - it returns stats to the AI
 
             # Angle operations
             "create_angle",

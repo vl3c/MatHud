@@ -852,6 +852,31 @@ class DrawableManager:
     def delete_plot(self, name: str) -> bool:
         return bool(self.statistics_manager.delete_plot(name))
 
+    def fit_regression(
+        self,
+        *,
+        name: Optional[str],
+        x_data: List[float],
+        y_data: List[float],
+        model_type: str,
+        degree: Optional[int],
+        plot_bounds: Optional[Dict[str, Any]],
+        curve_color: Optional[str],
+        show_points: Optional[bool],
+        point_color: Optional[str],
+    ) -> Dict[str, Any]:
+        return self.statistics_manager.fit_regression(
+            name=name,
+            x_data=x_data,
+            y_data=y_data,
+            model_type=model_type,
+            degree=degree,
+            plot_bounds=plot_bounds,
+            curve_color=curve_color,
+            show_points=show_points,
+            point_color=point_color,
+        )
+
     # ------------------- Graph Methods -------------------
     def create_graph(self, graph_state: "GraphState") -> "Drawable":
         return self.graph_manager.create_graph(graph_state)
