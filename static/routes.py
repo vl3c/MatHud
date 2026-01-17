@@ -26,6 +26,7 @@ from flask import Response, flash, redirect, render_template, request, session, 
 from flask.typing import ResponseReturnValue
 
 from static.app_manager import AppManager, MatHudFlask
+from static.openai_api_base import OpenAIAPIBase
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
 from static.webdriver_manager import SvgState
 
@@ -123,15 +124,42 @@ def handle_vision_capture(
             print(f"WebDriver capture failed: {exc}")
 
 
+def _maybe_inject_search_tools(api: OpenAIAPIBase, tool_call_results: str) -> None:
+    """Inject tools if search_tools was called in the previous turn.
+
+    Parses the tool_call_results JSON and looks for a search_tools result.
+    If found, extracts the tools array and injects them into the API client.
+
+    Args:
+        api: The OpenAI API instance to inject tools into.
+        tool_call_results: JSON string containing tool call results.
+    """
+    try:
+        results = json.loads(tool_call_results)
+        if not isinstance(results, dict):
+            return
+
+        # Look for search_tools result - it has both "tools" and "query" keys
+        for tool_id, result in results.items():
+            if isinstance(result, dict) and "tools" in result and "query" in result:
+                # This is a search_tools result
+                tools = result.get("tools", [])
+                if tools and isinstance(tools, list):
+                    api.inject_tools(tools, include_essentials=True)
+                    return
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+
 def require_auth(f: F) -> F:
     """Decorator to require authentication for routes when deployed.
-    
+
     Only enforces authentication when running in deployed environments.
     In development mode, allows unrestricted access.
-    
+
     Args:
         f: The route function to protect
-        
+
     Returns:
         Wrapped function that checks authentication before proceeding
     """
@@ -358,6 +386,12 @@ def register_routes(app: MatHudFlask) -> None:
             init_webdriver_route,
         )
 
+        # Check for search_tools results and inject tools if found
+        tool_call_results_raw = message_json.get('tool_call_results')
+        if isinstance(tool_call_results_raw, str) and tool_call_results_raw:
+            _maybe_inject_search_tools(app.ai_api, tool_call_results_raw)
+            _maybe_inject_search_tools(app.responses_api, tool_call_results_raw)
+
         @stream_with_context
         def generate() -> Iterator[str]:
             try:
@@ -367,7 +401,7 @@ def register_routes(app: MatHudFlask) -> None:
                     stream = app.responses_api.create_response_stream(message)
                 else:
                     stream = app.ai_api.create_chat_completion_stream(message)
-                
+
                 for event in stream:
                     if isinstance(event, dict):
                         event_dict = cast(StreamEventDict, event)
@@ -385,11 +419,23 @@ def register_routes(app: MatHudFlask) -> None:
                                         app.log_manager.log_ai_tool_calls(dict_tool_calls)
                             except Exception:
                                 pass
+                            # Reset tools if AI finished (not requesting more tool calls)
+                            finish_reason = event_dict.get('finish_reason')
+                            if finish_reason != 'tool_calls':
+                                if app.ai_api.has_injected_tools():
+                                    app.ai_api.reset_tools()
+                                if app.responses_api.has_injected_tools():
+                                    app.responses_api.reset_tools()
                         yield json.dumps(event_dict) + "\n"
                     else:
                         yield json.dumps(event) + "\n"
             except Exception as exc:
                 print(f"[Routes /send_message] Streaming exception: {exc}")
+                # Reset tools on error
+                if app.ai_api.has_injected_tools():
+                    app.ai_api.reset_tools()
+                if app.responses_api.has_injected_tools():
+                    app.responses_api.reset_tools()
                 error_payload: StreamEventDict = {
                     "type": "final",
                     "ai_message": "I encountered an error processing your request. Please try again.",
@@ -574,6 +620,20 @@ def register_routes(app: MatHudFlask) -> None:
             init_webdriver_route,
         )
 
+        # Check for search_tools results and inject tools if found
+        tool_call_results_raw = message_json_raw.get('tool_call_results')
+        if isinstance(tool_call_results_raw, str) and tool_call_results_raw:
+            _maybe_inject_search_tools(app.ai_api, tool_call_results_raw)
+            _maybe_inject_search_tools(app.responses_api, tool_call_results_raw)
+
+        def _reset_tools_if_needed(finish_reason: Any) -> None:
+            """Reset tools if AI finished (not requesting more tool calls)."""
+            if finish_reason != 'tool_calls':
+                if app.ai_api.has_injected_tools():
+                    app.ai_api.reset_tools()
+                if app.responses_api.has_injected_tools():
+                    app.responses_api.reset_tools()
+
         try:
             # Route to appropriate API based on model type. This matters for
             # streaming fallback (client retries via /send_message).
@@ -587,6 +647,7 @@ def register_routes(app: MatHudFlask) -> None:
                         break
 
                 if final_event is None:
+                    _reset_tools_if_needed('error')
                     return AppManager.make_response(
                         message="No final response event produced",
                         status="error",
@@ -605,6 +666,7 @@ def register_routes(app: MatHudFlask) -> None:
                 app.log_manager.log_ai_response(ai_message)
                 app.log_manager.log_ai_tool_calls(ai_tool_calls)
 
+                _reset_tools_if_needed(finish_reason)
                 return AppManager.make_response(data=cast(JsonObject, {
                     "ai_message": ai_message,
                     "ai_tool_calls": cast(JsonValue, ai_tool_calls),
@@ -615,11 +677,67 @@ def register_routes(app: MatHudFlask) -> None:
             ai_message, ai_tool_calls = _process_ai_response(app, choice)
             finish_reason = getattr(choice, 'finish_reason', None)
 
+            _reset_tools_if_needed(finish_reason)
             return AppManager.make_response(data=cast(JsonObject, {
                 "ai_message": ai_message,
                 "ai_tool_calls": cast(JsonValue, ai_tool_calls),
                 "finish_reason": finish_reason,
             }))
+        except Exception as exc:
+            _reset_tools_if_needed('error')
+            return AppManager.make_response(
+                message=str(exc),
+                status='error',
+                code=500,
+            )
+
+    @app.route('/search_tools', methods=['POST'])
+    @require_auth
+    def search_tools_route() -> ResponseReturnValue:
+        """Search for tools matching a query description.
+        
+        Uses AI-powered semantic matching to find the most relevant tools
+        for a given task description.
+        
+        Request body:
+            query (str): Description of what the user wants to accomplish
+            max_results (int, optional): Maximum number of tools to return (default: 10)
+            
+        Returns:
+            JSON response with matching tool definitions
+        """
+        from static.tool_search_service import ToolSearchService
+
+        request_payload = request.get_json(silent=True)
+        if not isinstance(request_payload, dict):
+            return AppManager.make_response(
+                message='Invalid request body',
+                status='error',
+                code=400,
+            )
+
+        query = request_payload.get('query')
+        if not isinstance(query, str) or not query.strip():
+            return AppManager.make_response(
+                message='Query is required',
+                status='error',
+                code=400,
+            )
+
+        max_results_raw = request_payload.get('max_results')
+        max_results = 10  # default
+        if isinstance(max_results_raw, int):
+            max_results = max_results_raw
+        elif isinstance(max_results_raw, float):
+            max_results = int(max_results_raw)
+
+        try:
+            service = ToolSearchService(client=app.ai_api.client)
+            result = service.search_tools_formatted(
+                query=query,
+                max_results=max_results,
+            )
+            return AppManager.make_response(data=cast(JsonValue, result))
         except Exception as exc:
             return AppManager.make_response(
                 message=str(exc),
