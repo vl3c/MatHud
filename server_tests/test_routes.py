@@ -426,5 +426,209 @@ class TestStreamingResponseFormat(unittest.TestCase):
         self.assertEqual(reasoning_events[0]["text"], "Let me think...")
 
 
+class TestInterceptSearchTools(unittest.TestCase):
+    """Test the _intercept_search_tools function for filtering tool calls."""
+
+    def setUp(self) -> None:
+        """Set up test client before each test."""
+        self.original_require_auth: Optional[str] = os.environ.get('REQUIRE_AUTH')
+        os.environ['REQUIRE_AUTH'] = 'false'
+
+        self.app: MatHudFlask = AppManager.create_app()
+        self.app.config['TESTING'] = True
+
+    def tearDown(self) -> None:
+        """Clean up after each test."""
+        if self.original_require_auth is not None:
+            os.environ['REQUIRE_AUTH'] = self.original_require_auth
+        else:
+            os.environ.pop('REQUIRE_AUTH', None)
+
+    def test_no_search_tools_returns_unchanged(self) -> None:
+        """When no search_tools call, tool_calls should be returned unchanged."""
+        from static.routes import _intercept_search_tools
+
+        tool_calls = [
+            {'function_name': 'create_circle', 'arguments': {'x': 0, 'y': 0}},
+            {'function_name': 'create_point', 'arguments': {'x': 10, 'y': 20}},
+        ]
+
+        result = _intercept_search_tools(self.app, tool_calls)
+
+        self.assertEqual(result, tool_calls)
+        self.assertEqual(len(result), 2)
+
+    def test_empty_tool_calls_returns_empty(self) -> None:
+        """Empty tool_calls should return empty list."""
+        from static.routes import _intercept_search_tools
+
+        result = _intercept_search_tools(self.app, [])
+
+        self.assertEqual(result, [])
+
+    @patch('static.tool_search_service.ToolSearchService')
+    def test_filters_disallowed_tools(self, mock_service_class: Mock) -> None:
+        """Tools not in search results should be filtered out."""
+        from static.routes import _intercept_search_tools
+
+        # Mock search_tools to return only create_circle
+        mock_service = Mock()
+        mock_service.search_tools.return_value = [
+            {'function': {'name': 'create_circle'}},
+        ]
+        mock_service_class.return_value = mock_service
+
+        tool_calls = [
+            {'function_name': 'search_tools', 'arguments': {'query': 'draw circle'}},
+            {'function_name': 'create_circle', 'arguments': {'x': 0, 'y': 0}},
+            {'function_name': 'delete_all', 'arguments': {}},  # Not in search results
+        ]
+
+        result = _intercept_search_tools(self.app, tool_calls)
+
+        # search_tools and create_circle should be allowed (essentials include search_tools)
+        # delete_all should be filtered out
+        names = [c.get('function_name') for c in result]
+        self.assertIn('search_tools', names)
+        self.assertIn('create_circle', names)
+        self.assertNotIn('delete_all', names)
+
+    @patch('static.tool_search_service.ToolSearchService')
+    def test_essential_tools_always_allowed(self, mock_service_class: Mock) -> None:
+        """Essential tools should always be allowed even if not in search results."""
+        from static.routes import _intercept_search_tools
+        from static.openai_api_base import ESSENTIAL_TOOLS
+
+        # Mock search_tools to return only create_circle (no essentials)
+        mock_service = Mock()
+        mock_service.search_tools.return_value = [
+            {'function': {'name': 'create_circle'}},
+        ]
+        mock_service_class.return_value = mock_service
+
+        tool_calls = [
+            {'function_name': 'search_tools', 'arguments': {'query': 'draw'}},
+            {'function_name': 'undo', 'arguments': {}},  # Essential tool
+            {'function_name': 'create_circle', 'arguments': {}},
+        ]
+
+        result = _intercept_search_tools(self.app, tool_calls)
+
+        names = [c.get('function_name') for c in result]
+        self.assertIn('undo', names)  # Essential should be allowed
+        self.assertIn('create_circle', names)
+
+    def test_empty_query_returns_unchanged(self) -> None:
+        """search_tools with empty query should return tool_calls unchanged."""
+        from static.routes import _intercept_search_tools
+
+        tool_calls = [
+            {'function_name': 'search_tools', 'arguments': {'query': ''}},
+            {'function_name': 'create_circle', 'arguments': {}},
+        ]
+
+        result = _intercept_search_tools(self.app, tool_calls)
+
+        # Should return unchanged because query is empty
+        self.assertEqual(result, tool_calls)
+
+    @patch('static.tool_search_service.ToolSearchService')
+    def test_service_error_returns_unchanged(self, mock_service_class: Mock) -> None:
+        """On ToolSearchService error, original tool_calls should be returned."""
+        from static.routes import _intercept_search_tools
+
+        mock_service = Mock()
+        mock_service.search_tools.side_effect = Exception("API Error")
+        mock_service_class.return_value = mock_service
+
+        tool_calls = [
+            {'function_name': 'search_tools', 'arguments': {'query': 'draw'}},
+            {'function_name': 'create_circle', 'arguments': {}},
+            {'function_name': 'delete_all', 'arguments': {}},
+        ]
+
+        result = _intercept_search_tools(self.app, tool_calls)
+
+        # On error, should return original calls unchanged
+        self.assertEqual(result, tool_calls)
+
+    @patch('static.tool_search_service.ToolSearchService')
+    def test_handles_json_string_arguments(self, mock_service_class: Mock) -> None:
+        """Should handle arguments as JSON string (from some API responses)."""
+        from static.routes import _intercept_search_tools
+
+        mock_service = Mock()
+        mock_service.search_tools.return_value = [
+            {'function': {'name': 'create_point'}},
+        ]
+        mock_service_class.return_value = mock_service
+
+        tool_calls = [
+            {
+                'function_name': 'search_tools',
+                'arguments': '{"query": "point", "max_results": 5}'  # JSON string
+            },
+            {'function_name': 'create_point', 'arguments': {}},
+        ]
+
+        result = _intercept_search_tools(self.app, tool_calls)
+
+        names = [c.get('function_name') for c in result]
+        self.assertIn('search_tools', names)
+        self.assertIn('create_point', names)
+
+    @patch('static.tool_search_service.ToolSearchService')
+    def test_handles_alternative_function_key(self, mock_service_class: Mock) -> None:
+        """Should handle tool calls with 'function' key instead of 'function_name'."""
+        from static.routes import _intercept_search_tools
+
+        mock_service = Mock()
+        mock_service.search_tools.return_value = [
+            {'function': {'name': 'create_circle'}},
+        ]
+        mock_service_class.return_value = mock_service
+
+        # Some API responses use 'function' key with nested 'name'
+        tool_calls = [
+            {'function': {'name': 'search_tools'}, 'arguments': {'query': 'circle'}},
+            {'function': {'name': 'create_circle'}, 'arguments': {}},
+            {'function': {'name': 'delete_all'}, 'arguments': {}},
+        ]
+
+        result = _intercept_search_tools(self.app, tool_calls)
+
+        # Extract names using the same logic as the function
+        names = [
+            c.get('function_name') or c.get('function', {}).get('name')
+            for c in result
+        ]
+        self.assertIn('search_tools', names)
+        self.assertIn('create_circle', names)
+        self.assertNotIn('delete_all', names)
+
+    @patch('static.tool_search_service.ToolSearchService')
+    def test_injects_tools_into_both_apis(self, mock_service_class: Mock) -> None:
+        """Should inject tools into both ai_api and responses_api."""
+        from static.routes import _intercept_search_tools
+
+        mock_service = Mock()
+        returned_tools = [{'function': {'name': 'create_circle'}}]
+        mock_service.search_tools.return_value = returned_tools
+        mock_service_class.return_value = mock_service
+
+        # Spy on inject_tools
+        with patch.object(self.app.ai_api, 'inject_tools') as mock_ai_inject, \
+             patch.object(self.app.responses_api, 'inject_tools') as mock_resp_inject:
+
+            tool_calls = [
+                {'function_name': 'search_tools', 'arguments': {'query': 'circle'}},
+            ]
+
+            _intercept_search_tools(self.app, tool_calls)
+
+            mock_ai_inject.assert_called_once_with(returned_tools, include_essentials=True)
+            mock_resp_inject.assert_called_once_with(returned_tools, include_essentials=True)
+
+
 if __name__ == '__main__':
     unittest.main() 
