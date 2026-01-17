@@ -54,6 +54,7 @@ from .test_graph_analyzer import (
 from .test_graph_utils import TestGraphUtils
 from .test_statistics_distributions import TestStatisticsDistributions
 from .test_statistics_manager import TestStatisticsManager
+from .test_regression import TestRegressionCanvas
 from .test_path_elements import TestPathElements
 from .test_intersections import TestIntersections
 from .test_region import TestRegion, TestAreaUtilities
@@ -218,6 +219,7 @@ class Tests:
             TestGraphUtils,
             TestStatisticsDistributions,
             TestStatisticsManager,
+            TestRegressionCanvas,
             TestAnalyzeGraphShortestPath,
             TestAnalyzeGraphMST,
             TestAnalyzeGraphTopologicalSort,
