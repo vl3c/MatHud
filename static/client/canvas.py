@@ -45,15 +45,9 @@ from cartesian_system_2axis import Cartesian2Axis
 from coordinate_mapper import CoordinateMapper
 from utils.math_utils import MathUtils
 from utils.style_utils import StyleUtils
-from utils.geometry_utils import GeometryUtils
 from utils.graph_analyzer import GraphAnalyzer
 from utils.computation_utils import ComputationUtils
-from geometry.graph_state import (
-    GraphEdgeDescriptor,
-    GraphState,
-    GraphVertexDescriptor,
-    TreeState,
-)
+from geometry.graph_state import GraphState
 from managers.undo_redo_manager import UndoRedoManager
 from managers.drawable_manager import DrawableManager
 from managers.drawable_dependency_manager import DrawableDependencyManager
