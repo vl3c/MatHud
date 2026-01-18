@@ -13,6 +13,7 @@ The manager handles different curve types:
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 from constants import default_color
@@ -167,13 +168,11 @@ class TangentManager:
         except Exception as e:
             raise ValueError(f"Cannot evaluate function at x={x}: {e}")
 
-        if not isinstance(y, (int, float)) or not hasattr(y, '__float__'):
+        if not isinstance(y, (int, float)):
             raise ValueError(f"Function returns non-numeric value at x={x}")
         y = float(y)
-        if not (hasattr(y, '__abs__') and y == y):  # Check for NaN
-            import math
-            if math.isnan(y):
-                raise ValueError(f"Function is undefined at x={x}")
+        if math.isnan(y):
+            raise ValueError(f"Function is undefined at x={x}")
 
         # Compute derivative numerically
         slope = MathUtils.numerical_derivative_at(func.function, x)
