@@ -145,6 +145,10 @@ class FunctionRegistry:
             "delete_parametric_function": canvas.delete_parametric_function,
             "update_parametric_function": canvas.update_parametric_function,
 
+            # ===== TANGENT AND NORMAL LINES =====
+            "draw_tangent_line": canvas.create_tangent_line,
+            "draw_normal_line": canvas.create_normal_line,
+
             # ===== OBJECT TRANSFORMATIONS =====
             "translate_object": canvas.translate_object,
             "rotate_object": canvas.rotate_object,
@@ -343,6 +347,10 @@ class FunctionRegistry:
             "draw_parametric_function",
             "delete_parametric_function",
             "update_parametric_function",
+
+            # Tangent and normal line operations
+            "draw_tangent_line",
+            "draw_normal_line",
 
             # Object transformations
             "translate_object",

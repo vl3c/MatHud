@@ -1207,6 +1207,54 @@ class Canvas:
             )
         )
 
+    def create_tangent_line(
+        self,
+        curve_name: str,
+        parameter: float,
+        name: Optional[str] = None,
+        length: Optional[float] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
+        """Create a tangent line segment to a curve at a specified point.
+
+        Args:
+            curve_name: Name of the target curve (function, parametric, circle, or ellipse)
+            parameter: Location on curve (x for functions, t for parametric, angle for circle/ellipse)
+            name: Optional name for the created segment
+            length: Total length of tangent segment (default: 4.0 math units)
+            color: Display color (default: same as curve or default_color)
+
+        Returns:
+            The created Segment drawable
+        """
+        return self.drawable_manager.create_tangent_line(
+            curve_name, parameter, name=name, length=length, color=color
+        )
+
+    def create_normal_line(
+        self,
+        curve_name: str,
+        parameter: float,
+        name: Optional[str] = None,
+        length: Optional[float] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
+        """Create a normal line segment to a curve at a specified point.
+
+        Args:
+            curve_name: Name of the target curve (function, parametric, circle, or ellipse)
+            parameter: Location on curve (x for functions, t for parametric, angle for circle/ellipse)
+            name: Optional name for the created segment
+            length: Total length of normal segment (default: 4.0 math units)
+            color: Display color (default: same as curve or default_color)
+
+        Returns:
+            The created Segment drawable
+        """
+        return self.drawable_manager.create_normal_line(
+            curve_name, parameter, name=name, length=length, color=color
+        )
+
     def translate_object(self, name: str, x_offset: float, y_offset: float) -> bool:
         """Translates a drawable object by the specified offset"""
         return bool(self.transformations_manager.translate_object(name, x_offset, y_offset))
