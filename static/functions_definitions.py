@@ -1187,6 +1187,95 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "draw_parametric_function",
+                    "description": "Plots a parametric curve defined by x(t) and y(t) expressions. Use this for curves that cannot be expressed as y=f(x), such as circles, spirals, Lissajous figures, and other complex shapes. The parameter t ranges from t_min to t_max (default 0 to 2*pi for periodic curves).",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "x_expression": {
+                                "type": "string",
+                                "description": "Mathematical expression for x as a function of t. Example: 'cos(t)' for a circle, 't*cos(t)' for a spiral."
+                            },
+                            "y_expression": {
+                                "type": "string",
+                                "description": "Mathematical expression for y as a function of t. Example: 'sin(t)' for a circle, 't*sin(t)' for a spiral."
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name or label for the parametric curve. Useful for referencing later."
+                            },
+                            "t_min": {
+                                "type": ["number", "null"],
+                                "description": "Minimum value of parameter t. Default is 0."
+                            },
+                            "t_max": {
+                                "type": ["number", "null"],
+                                "description": "Maximum value of parameter t. Default is 2*pi (~6.283) for periodic curves."
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the plotted curve."
+                            }
+                        },
+                        "required": ["x_expression", "y_expression", "name", "t_min", "t_max", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "delete_parametric_function",
+                    "description": "Removes the plotted parametric function with the given name from the canvas.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the parametric function to delete."
+                            }
+                        },
+                        "required": ["name"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "update_parametric_function",
+                    "description": "Updates editable properties of an existing parametric function (color, t_min, t_max). Provide null for fields to leave them unchanged.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Existing name of the parametric function to edit."
+                            },
+                            "new_color": {
+                                "type": ["string", "null"],
+                                "description": "Optional new color for the curve."
+                            },
+                            "new_t_min": {
+                                "type": ["number", "null"],
+                                "description": "Optional new minimum value of parameter t."
+                            },
+                            "new_t_max": {
+                                "type": ["number", "null"],
+                                "description": "Optional new maximum value of parameter t."
+                            }
+                        },
+                        "required": ["name", "new_color", "new_t_min", "new_t_max"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "evaluate_expression",
                     "description": "Evaluates a mathematical expression provided as a string and returns the numerical result. The expression can include variables like x, y; constants like e, pi; mathematical operations and functions like sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pi, e, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, mean, median, mode, stdev, variance, random, randint.",
                     "parameters": {
