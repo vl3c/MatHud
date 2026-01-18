@@ -53,6 +53,7 @@ from managers.segment_manager import SegmentManager
 from managers.vector_manager import VectorManager
 from managers.function_manager import FunctionManager
 from managers.piecewise_function_manager import PiecewiseFunctionManager
+from managers.parametric_function_manager import ParametricFunctionManager
 from managers.circle_manager import CircleManager
 from managers.ellipse_manager import EllipseManager
 from managers.polygon_manager import PolygonManager
@@ -148,7 +149,11 @@ class DrawableManager:
         self.piecewise_function_manager: PiecewiseFunctionManager = PiecewiseFunctionManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
         )
-        
+
+        self.parametric_function_manager: ParametricFunctionManager = ParametricFunctionManager(
+            canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
+        )
+
         self.circle_manager: CircleManager = CircleManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager, 
             self.point_manager, self.proxy
@@ -576,7 +581,53 @@ class DrawableManager:
                 new_color=new_color,
             )
         )
-    
+
+    # ------------------- Parametric Function Methods -------------------
+
+    def get_parametric_function(self, name: str) -> Optional["Drawable"]:
+        """Get a parametric function by its name."""
+        return self.parametric_function_manager.get_parametric_function(name)
+
+    def draw_parametric_function(
+        self,
+        x_expression: str,
+        y_expression: str,
+        name: Optional[str] = None,
+        t_min: float = 0.0,
+        t_max: Optional[float] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
+        """Create a new parametric function with the specified expressions."""
+        return self.parametric_function_manager.draw_parametric_function(
+            x_expression,
+            y_expression,
+            name=name,
+            t_min=t_min,
+            t_max=t_max,
+            color=color,
+        )
+
+    def delete_parametric_function(self, name: str) -> bool:
+        """Delete a parametric function by its name."""
+        return bool(self.parametric_function_manager.delete_parametric_function(name))
+
+    def update_parametric_function(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+        new_t_min: Optional[float] = None,
+        new_t_max: Optional[float] = None,
+    ) -> bool:
+        """Update editable properties of a parametric function."""
+        return bool(
+            self.parametric_function_manager.update_parametric_function(
+                name,
+                new_color=new_color,
+                new_t_min=new_t_min,
+                new_t_max=new_t_max,
+            )
+        )
+
     # ------------------- Circle Methods -------------------
     
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional["Circle"]:

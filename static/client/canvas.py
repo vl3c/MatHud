@@ -1163,6 +1163,50 @@ class Canvas:
             )
         )
 
+    def get_parametric_function(self, name: str) -> Optional["Drawable"]:
+        """Get a parametric function by its name."""
+        return self.drawable_manager.get_parametric_function(name)
+
+    def draw_parametric_function(
+        self,
+        x_expression: str,
+        y_expression: str,
+        name: Optional[str] = None,
+        t_min: float = 0.0,
+        t_max: Optional[float] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
+        """Draw a parametric function on the canvas."""
+        return self.drawable_manager.draw_parametric_function(
+            x_expression,
+            y_expression,
+            name=name,
+            t_min=t_min,
+            t_max=t_max,
+            color=color,
+        )
+
+    def delete_parametric_function(self, name: str) -> bool:
+        """Delete a parametric function by its name."""
+        return bool(self.drawable_manager.delete_parametric_function(name))
+
+    def update_parametric_function(
+        self,
+        name: str,
+        new_color: Optional[str] = None,
+        new_t_min: Optional[float] = None,
+        new_t_max: Optional[float] = None,
+    ) -> bool:
+        """Update editable properties of a parametric function."""
+        return bool(
+            self.drawable_manager.update_parametric_function(
+                name,
+                new_color=new_color,
+                new_t_min=new_t_min,
+                new_t_max=new_t_max,
+            )
+        )
+
     def translate_object(self, name: str, x_offset: float, y_offset: float) -> bool:
         """Translates a drawable object by the specified offset"""
         return bool(self.transformations_manager.translate_object(name, x_offset, y_offset))

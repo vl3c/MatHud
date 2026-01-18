@@ -158,14 +158,29 @@ class DrawableNameGenerator:
     
     def generate_function_name(self, preferred_name: Optional[str]) -> str:
         """Generate a unique function name, using preferred_name if possible.
-        
+
         Args:
             preferred_name (str): Preferred function name
-            
+
         Returns:
             str: Unique function name
         """
         return self.function_generator.generate_function_name(preferred_name)
+
+    def generate_parametric_function_name(self, preferred_name: Optional[str]) -> str:
+        """Generate a unique parametric function name.
+
+        Uses the same letter sequence as regular functions (f, g, h, ...)
+        but with '_param' suffix to distinguish parametric functions
+        (e.g., f_param, g_param, f1_param).
+
+        Args:
+            preferred_name: Preferred name (if provided and available, uses as-is)
+
+        Returns:
+            Unique parametric function name
+        """
+        return self.function_generator.generate_parametric_function_name(preferred_name)
 
     def generate_label_name(self, preferred_name: Optional[str]) -> str:
         """Generate a unique label name, using preferred_name when provided."""

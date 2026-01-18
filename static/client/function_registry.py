@@ -139,7 +139,12 @@ class FunctionRegistry:
             "draw_piecewise_function": canvas.draw_piecewise_function,
             "delete_piecewise_function": canvas.delete_piecewise_function,
             "update_piecewise_function": canvas.update_piecewise_function,
-            
+
+            # ===== PARAMETRIC FUNCTION PLOTTING =====
+            "draw_parametric_function": canvas.draw_parametric_function,
+            "delete_parametric_function": canvas.delete_parametric_function,
+            "update_parametric_function": canvas.update_parametric_function,
+
             # ===== OBJECT TRANSFORMATIONS =====
             "translate_object": canvas.translate_object,
             "rotate_object": canvas.rotate_object,
@@ -333,7 +338,12 @@ class FunctionRegistry:
             "draw_piecewise_function",
             "delete_piecewise_function",
             "update_piecewise_function",
-            
+
+            # Parametric function operations
+            "draw_parametric_function",
+            "delete_parametric_function",
+            "update_parametric_function",
+
             # Object transformations
             "translate_object",
             "rotate_object",
