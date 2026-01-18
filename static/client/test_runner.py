@@ -188,6 +188,28 @@ class TestRunner:
                 "function_name": "draw_function",
                 "arguments": {"function_string": "tan(x)", "name": "f5", "left_bound": -5, "right_bound": 5, "color": "orange"}
             },
+            # Parametric functions: blue circle and red spiral that meets it
+            # Names auto-generated as f_param, g_param using new naming scheme
+            {
+                "function_name": "draw_parametric_function",
+                "arguments": {
+                    "x_expression": "50*cos(t)",
+                    "y_expression": "50*sin(t)",
+                    "t_min": 0,
+                    "t_max": 6.283185307179586,  # 2*pi
+                    "color": "blue"
+                }
+            },
+            {
+                "function_name": "draw_parametric_function",
+                "arguments": {
+                    "x_expression": "t*cos(t)",
+                    "y_expression": "t*sin(t)",
+                    "t_min": 0,
+                    "t_max": 50,  # Spiral meets circle when t=50 (radius=50)
+                    "color": "red"
+                }
+            },
             {
                 "function_name": "create_circle_arc",
                 "arguments": {
