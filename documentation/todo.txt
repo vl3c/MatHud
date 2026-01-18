@@ -3,7 +3,6 @@
 # Quick Wins (High Value, Easier Implementation)
 - add table view for function values and lightweight tabular data exploration
 - add scatter plot, histogram, and box plot visualization
-- add parametric graphing support (x(t), y(t))
 - add polar graph support for functions in polar coordinates (r = f(θ))
 - add implicit function plotting (f(x,y) = 0 style equations)
 - add tangent and normal line drawing at a point

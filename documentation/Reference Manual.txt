@@ -269,6 +269,9 @@ Attributes:
 - `update_circle_arc(name, new_color=None, use_major_arc=None)`: Update arc styling or switch between the minor and major arc sweep.
 - `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", extra_graphics=True)`: Create an ellipse with specified parameters
 - `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a mathematical function on the canvas
+- `draw_parametric_function(x_expression, y_expression, name=None, t_min=0, t_max=2*pi, color=None)`: Draw a parametric curve defined by x(t) and y(t) expressions. Use for curves that cannot be expressed as y=f(x), such as circles, spirals, Lissajous figures, and other complex shapes.
+- `delete_parametric_function(name)`: Remove a parametric function by name
+- `update_parametric_function(name, new_color=None, new_t_min=None, new_t_max=None)`: Update editable properties of an existing parametric function
 - `plot_distribution(name=None, representation="continuous", distribution_type="normal", distribution_params=None, plot_bounds=None, shade_bounds=None, curve_color=None, fill_color=None, fill_opacity=None, bar_count=None)`: Plot a probability distribution. For representation="continuous", `plot_bounds` controls the curve domain, while `shade_bounds` controls the shaded interval under the curve (clamped into `plot_bounds`). For representation="discrete", `plot_bounds` controls the bar span and `shade_bounds` is ignored. Discrete distribution plots create a `DiscretePlot` composite plus derived `Bar` drawables for rendering; derived bars are regenerated on workspace load and may be omitted from serialized canvas state to keep prompts compact.
 - `plot_bars(name=None, values=None, labels_below=None, labels_above=None, bar_spacing=None, bar_width=None, stroke_color=None, fill_color=None, fill_opacity=None, x_start=None, y_base=None)`: Plot a bar chart (`BarsPlot` composite plus derived `Bar` drawables). Derived bars are regenerated on workspace load and may be omitted from serialized canvas state to keep prompts compact.
 - `fit_regression(name=None, x_data=None, y_data=None, model_type="linear", degree=None, plot_bounds=None, curve_color=None, show_points=True, point_color=None)`: Fit a regression model to data and plot the resulting curve. Supported model types: "linear" (y=mx+b), "polynomial" (y=a0+a1*x+...+an*x^n, requires `degree`), "exponential" (y=a*e^(bx), requires positive y), "logarithmic" (y=a+b*ln(x), requires positive x), "power" (y=a*x^b, requires positive x and y), "logistic" (y=L/(1+e^(-k(x-x0)))), and "sinusoidal" (y=a*sin(bx+c)+d, requires at least 4 points). Returns function_name, expression, coefficients, r_squared, model_type, bounds, and optionally point_names. Use `delete_function` to remove the curve; delete points individually.
@@ -1821,6 +1824,10 @@ This class coordinates specialized managers for each drawable type:
 - `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a function on the canvas
 - `delete_function(name)`: Delete a function by its name
 - `update_function(name, new_color=None, new_left_bound=None, new_right_bound=None)`: Update a function's color or bounds
+- `get_parametric_function(name)`: Get a parametric function by its name
+- `draw_parametric_function(x_expression, y_expression, name=None, t_min=0, t_max=2*pi, color=None)`: Draw a parametric curve defined by x(t) and y(t)
+- `delete_parametric_function(name)`: Delete a parametric function by its name
+- `update_parametric_function(name, new_color=None, new_t_min=None, new_t_max=None)`: Update a parametric function's color or parameter bounds
 - `get_circle(center_x, center_y, radius)`: Get a circle by its center coordinates and radius
 - `get_circle_by_name(name)`: Get a circle by its name
 - `create_circle(center_x, center_y, radius, name="", extra_graphics=True)`: Create a circle with specified center and radius
@@ -2559,6 +2566,27 @@ parsing through visualization to deletion with proper cleanup of dependencies.
 - `get_function(name)`: Get a function by its name
 - `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a function on the canvas or update existing function
 - `delete_function(name)`: Delete a function by its name with cleanup of associated colored areas
+
+#### Parametric Function Manager (`managers/parametric_function_manager.py`)
+
+**File Header:**
+```
+Parametric Function Manager for MatHud
+
+Manages parametric function drawables, handling creation, retrieval, update, and deletion
+operations with proper undo/redo archiving.
+
+Parametric functions represent curves defined by x(t) and y(t) expressions over a
+parameter range, enabling representation of complex curves like circles, spirals,
+and Lissajous figures that cannot be expressed as y = f(x).
+```
+
+**Key Methods:**
+- `__init__(canvas, drawables, name_generator, dependency_manager, proxy)`: Initialize the ParametricFunctionManager with dependencies
+- `get_parametric_function(name)`: Retrieve a parametric function by its name
+- `draw_parametric_function(x_expression, y_expression, name=None, t_min=0, t_max=2*pi, color=None)`: Create a new parametric curve
+- `delete_parametric_function(name)`: Delete a parametric function by its name
+- `update_parametric_function(name, new_color=None, new_t_min=None, new_t_max=None)`: Update editable properties
 
 #### Colored Area Manager (`managers/colored_area_manager.py`)
 
