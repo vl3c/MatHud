@@ -5,7 +5,6 @@
 - add scatter plot, histogram, and box plot visualization
 - add polar graph support for functions in polar coordinates (r = f(θ))
 - add implicit function plotting (f(x,y) = 0 style equations)
-- add tangent and normal line drawing at a point
 - add grid snapping and coordinate readout on graph hover
 - add rationalize support (and document it)
 
