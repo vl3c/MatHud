@@ -2016,5 +2016,183 @@ class MathUtils:
             estimated_periods = deviation_count
             estimated_period = test_range / estimated_periods
             return True, estimated_period
-        
+
         return False, None
+
+    @staticmethod
+    def numerical_derivative_at(
+        func: Any,
+        x: float,
+        h: float = 1e-7,
+    ) -> Optional[float]:
+        """
+        Calculate the numerical derivative of a function at a specific point.
+
+        Uses the central difference method: f'(x) ≈ (f(x+h) - f(x-h)) / (2h)
+
+        Args:
+            func: Callable that takes a float and returns a float
+            x: Point at which to calculate the derivative
+            h: Step size for the finite difference (default: 1e-7)
+
+        Returns:
+            The derivative value, or None if calculation fails
+        """
+        try:
+            y_plus = func(x + h)
+            y_minus = func(x - h)
+
+            if not (math.isfinite(y_plus) and math.isfinite(y_minus)):
+                return None
+
+            derivative = (y_plus - y_minus) / (2 * h)
+
+            if not math.isfinite(derivative):
+                return None
+
+            return float(derivative)
+        except Exception:
+            return None
+
+    @staticmethod
+    def tangent_line_endpoints(
+        slope: Optional[float],
+        point: Tuple[float, float],
+        length: float,
+    ) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+        """
+        Calculate endpoints of a tangent line segment centered at a point.
+
+        Args:
+            slope: Slope of the tangent line, or None for vertical line
+            point: (x, y) coordinates of the tangent point
+            length: Total length of the line segment
+
+        Returns:
+            Tuple of two (x, y) endpoints of the line segment
+        """
+        half_length = length / 2
+        px, py = point
+
+        if slope is None:
+            # Vertical line
+            return (px, py - half_length), (px, py + half_length)
+
+        # Calculate dx from: length/2 = sqrt(dx^2 + (slope*dx)^2) = dx * sqrt(1 + slope^2)
+        dx = half_length / math.sqrt(1 + slope ** 2)
+        dy = slope * dx
+
+        return (px - dx, py - dy), (px + dx, py + dy)
+
+    @staticmethod
+    def normal_slope(tangent_slope: Optional[float]) -> Optional[float]:
+        """
+        Calculate the slope of the normal line given the tangent slope.
+
+        The normal line is perpendicular to the tangent line.
+
+        Args:
+            tangent_slope: Slope of the tangent line, or None for vertical tangent
+
+        Returns:
+            Slope of the normal line, or None for vertical normal
+        """
+        if tangent_slope is None:
+            # Vertical tangent -> horizontal normal
+            return 0.0
+        if abs(tangent_slope) < MathUtils.EPSILON:
+            # Horizontal tangent -> vertical normal
+            return None
+        return -1.0 / tangent_slope
+
+    @staticmethod
+    def circle_tangent_slope_at_angle(
+        center_x: float,
+        center_y: float,
+        radius: float,
+        angle: float,
+    ) -> Tuple[Tuple[float, float], Optional[float]]:
+        """
+        Calculate the tangent slope at a point on a circle specified by angle.
+
+        Args:
+            center_x: X-coordinate of circle center
+            center_y: Y-coordinate of circle center
+            radius: Circle radius
+            angle: Angle in radians from positive x-axis
+
+        Returns:
+            Tuple of (tangent_point, slope) where tangent_point is (x, y)
+            and slope is None for vertical tangent
+        """
+        # Point on circle
+        px = center_x + radius * math.cos(angle)
+        py = center_y + radius * math.sin(angle)
+
+        # Tangent is perpendicular to radius
+        # Radius direction: (cos(angle), sin(angle))
+        # Tangent direction: (-sin(angle), cos(angle))
+        # Slope = dy/dx = cos(angle) / (-sin(angle)) = -cos(angle)/sin(angle)
+
+        sin_a = math.sin(angle)
+        cos_a = math.cos(angle)
+
+        if abs(sin_a) < MathUtils.EPSILON:
+            # sin(angle) ≈ 0 means angle ≈ 0 or π, tangent is vertical
+            slope: Optional[float] = None
+        else:
+            slope = -cos_a / sin_a
+
+        return (px, py), slope
+
+    @staticmethod
+    def ellipse_tangent_slope_at_angle(
+        center_x: float,
+        center_y: float,
+        radius_x: float,
+        radius_y: float,
+        angle: float,
+        rotation_degrees: float = 0.0,
+    ) -> Tuple[Tuple[float, float], Optional[float]]:
+        """
+        Calculate the tangent slope at a point on an ellipse specified by parameter angle.
+
+        Args:
+            center_x: X-coordinate of ellipse center
+            center_y: Y-coordinate of ellipse center
+            radius_x: Horizontal radius (semi-major axis)
+            radius_y: Vertical radius (semi-minor axis)
+            angle: Parameter angle in radians (not geometric angle)
+            rotation_degrees: Rotation of ellipse in degrees
+
+        Returns:
+            Tuple of (tangent_point, slope) where tangent_point is (x, y)
+            and slope is None for vertical tangent
+        """
+        rot_rad = math.radians(rotation_degrees)
+        cos_r = math.cos(rot_rad)
+        sin_r = math.sin(rot_rad)
+
+        # Point in local (unrotated) coordinates
+        local_x = radius_x * math.cos(angle)
+        local_y = radius_y * math.sin(angle)
+
+        # Derivative in local coordinates: dx/dt = -a*sin(t), dy/dt = b*cos(t)
+        local_dx = -radius_x * math.sin(angle)
+        local_dy = radius_y * math.cos(angle)
+
+        # Transform point to world coordinates
+        world_x = local_x * cos_r - local_y * sin_r + center_x
+        world_y = local_x * sin_r + local_y * cos_r + center_y
+
+        # Transform tangent vector to world coordinates
+        world_dx = local_dx * cos_r - local_dy * sin_r
+        world_dy = local_dx * sin_r + local_dy * cos_r
+
+        # Calculate slope
+        if abs(world_dx) < MathUtils.EPSILON:
+            slope: Optional[float] = None
+        else:
+            slope = world_dy / world_dx
+
+        return (world_x, world_y), slope

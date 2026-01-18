@@ -69,6 +69,7 @@ from managers.arc_manager import ArcManager
 from managers.graph_manager import GraphManager
 from managers.statistics_manager import StatisticsManager
 from managers.bar_manager import BarManager
+from managers.tangent_manager import TangentManager
 from drawables.closed_shape_colored_area import ClosedShapeColoredArea
 
 if TYPE_CHECKING:
@@ -209,7 +210,16 @@ class DrawableManager:
             self.function_manager,
             self.colored_area_manager,
         )
-        
+
+        self.tangent_manager: TangentManager = TangentManager(
+            canvas,
+            self.drawables,
+            self.segment_manager,
+            self.name_generator,
+            self.dependency_manager,
+            self.proxy,
+        )
+
         # No need for the loop that sets drawable_manager anymore
         # The proxy handles forwarding calls to the appropriate managers
         
@@ -1089,5 +1099,55 @@ class DrawableManager:
         segment = self.segment_manager.get_segment_by_name(name)
         if segment is not None:
             return segment
-        
+
         return None
+
+    # ------------------- Tangent and Normal Line Methods -------------------
+
+    def create_tangent_line(
+        self,
+        curve_name: str,
+        parameter: float,
+        name: Optional[str] = None,
+        length: Optional[float] = None,
+        color: Optional[str] = None,
+    ) -> "Segment":
+        """Create a tangent line segment to a curve at a specified point.
+
+        Args:
+            curve_name: Name of the target curve (function, parametric, circle, or ellipse)
+            parameter: Location on curve (x for functions, t for parametric, angle for circle/ellipse)
+            name: Optional name for the created segment
+            length: Total length of tangent segment (default: 4.0 math units)
+            color: Display color (default: same as curve or default_color)
+
+        Returns:
+            The created Segment drawable
+        """
+        return self.tangent_manager.create_tangent_line(
+            curve_name, parameter, name=name, length=length, color=color
+        )
+
+    def create_normal_line(
+        self,
+        curve_name: str,
+        parameter: float,
+        name: Optional[str] = None,
+        length: Optional[float] = None,
+        color: Optional[str] = None,
+    ) -> "Segment":
+        """Create a normal line segment to a curve at a specified point.
+
+        Args:
+            curve_name: Name of the target curve (function, parametric, circle, or ellipse)
+            parameter: Location on curve (x for functions, t for parametric, angle for circle/ellipse)
+            name: Optional name for the created segment
+            length: Total length of normal segment (default: 4.0 math units)
+            color: Display color (default: same as curve or default_color)
+
+        Returns:
+            The created Segment drawable
+        """
+        return self.tangent_manager.create_normal_line(
+            curve_name, parameter, name=name, length=length, color=color
+        )

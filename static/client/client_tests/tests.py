@@ -74,6 +74,15 @@ from .test_parametric_function import (
     TestExpressionValidatorParametric,
 )
 from .test_parametric_function_manager import TestParametricFunctionManager
+from .test_tangent_manager import (
+    TestTangentToFunction,
+    TestNormalToFunction,
+    TestTangentToCircle,
+    TestTangentToEllipse,
+    TestTangentToParametricFunction,
+    TestMathUtilsTangentFunctions,
+    TestUndoRedo as TestTangentUndoRedo,
+)
 from .test_polygon_canonicalizer import TestPolygonCanonicalizer
 from .test_triangle import TestTriangle
 from .test_quadrilateral import TestQuadrilateral
@@ -261,6 +270,13 @@ class Tests:
             TestParametricFunctionRenderable,
             TestExpressionValidatorParametric,
             TestParametricFunctionManager,
+            TestTangentToFunction,
+            TestNormalToFunction,
+            TestTangentToCircle,
+            TestTangentToEllipse,
+            TestTangentToParametricFunction,
+            TestMathUtilsTangentFunctions,
+            TestTangentUndoRedo,
             TestVector,
             TestTriangle,
             TestQuadrilateral,
