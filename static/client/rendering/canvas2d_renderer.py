@@ -317,6 +317,11 @@ class Canvas2DRenderer(RendererProtocol):
         except Exception:
             pass
         try:
+            from drawables.parametric_function import ParametricFunction as ParametricFunctionDrawable
+            self.register(ParametricFunctionDrawable, self._render_function)
+        except Exception:
+            pass
+        try:
             from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea as FunctionsAreaDrawable
             self.register(FunctionsAreaDrawable, self._render_functions_bounded_colored_area)
         except Exception:
@@ -506,6 +511,7 @@ class Canvas2DRenderer(RendererProtocol):
         return class_name in (
             "Function",
             "PiecewiseFunction",
+            "ParametricFunction",
             "FunctionsBoundedColoredArea",
             "FunctionSegmentBoundedColoredArea",
             "PolarGrid",

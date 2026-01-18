@@ -442,6 +442,21 @@ class WorkspaceManager:
                 color=item_state["args"].get("color"),
             )
 
+    def _create_parametric_functions(self, state: Dict[str, Any]) -> None:
+        """Create parametric functions from workspace state."""
+        if "ParametricFunctions" not in state:
+            return
+        for item_state in state["ParametricFunctions"]:
+            args = item_state.get("args", {})
+            self.canvas.draw_parametric_function(
+                args.get("x_expression", "t"),
+                args.get("y_expression", "t"),
+                name=item_state.get("name", ""),
+                t_min=args.get("t_min", 0.0),
+                t_max=args.get("t_max"),
+                color=args.get("color"),
+            )
+
     def _create_colored_areas(self, state: Dict[str, Any]) -> None:
         """Create colored areas from workspace state."""
         handlers = {
@@ -767,6 +782,7 @@ class WorkspaceManager:
         self._create_ellipses(state)
         self._create_functions(state)
         self._create_piecewise_functions(state)
+        self._create_parametric_functions(state)
         # Create colored areas after functions since they may depend on functions
         self._create_colored_areas(state)
         # Restore plot composites after functions, polygons, and colored areas.

@@ -68,6 +68,12 @@ from .test_circle_manager import TestCircleManager
 from .test_ellipse_manager import TestEllipseManager
 from .test_colored_area_manager import TestColoredAreaManager
 from .test_function_manager import TestFunctionManager
+from .test_parametric_function import (
+    TestParametricFunction,
+    TestParametricFunctionRenderable,
+    TestExpressionValidatorParametric,
+)
+from .test_parametric_function_manager import TestParametricFunctionManager
 from .test_polygon_canonicalizer import TestPolygonCanonicalizer
 from .test_triangle import TestTriangle
 from .test_quadrilateral import TestQuadrilateral
@@ -251,6 +257,10 @@ class Tests:
             TestColoredAreaManager,
             TestTransformationsManager,
             TestFunctionManager,
+            TestParametricFunction,
+            TestParametricFunctionRenderable,
+            TestExpressionValidatorParametric,
+            TestParametricFunctionManager,
             TestVector,
             TestTriangle,
             TestQuadrilateral,

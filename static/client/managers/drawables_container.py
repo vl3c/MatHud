@@ -363,6 +363,11 @@ class DrawablesContainer:
         return self.get_by_class_name('PiecewiseFunction')
 
     @property
+    def ParametricFunctions(self) -> List["Drawable"]:
+        """Get all ParametricFunction objects."""
+        return self.get_by_class_name('ParametricFunction')
+
+    @property
     def Labels(self) -> List["Drawable"]:
         """Get all Label objects."""
         return self.get_by_class_name('Label')

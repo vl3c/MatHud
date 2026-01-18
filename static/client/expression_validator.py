@@ -571,11 +571,11 @@ class ExpressionValidator(ast.NodeVisitor):
     def parse_function_string(function_string: str, use_mathjs: bool = False) -> Callable[[float], Any]:
         """
         Parse a function string into a callable function object.
-        
+
         Args:
             function_string (str): Mathematical function expression
             use_mathjs (bool): Whether to use Math.js parsing (slower but more powerful)
-            
+
         Returns:
             callable: Function that can be called with x value
         """
@@ -583,3 +583,74 @@ class ExpressionValidator(ast.NodeVisitor):
             return ExpressionValidator._parse_with_mathjs(function_string)
         else:
             return ExpressionValidator._parse_with_python(function_string)
+
+    @staticmethod
+    def _get_variables_and_functions_parametric(t: float) -> Dict[str, Any]:
+        """Create a dictionary with variables and functions for parametric expression evaluation.
+
+        Similar to _get_variables_and_functions but uses 't' as the parameter variable
+        instead of 'x', for parametric curves like x(t), y(t).
+        """
+        from utils.math_utils import MathUtils
+        return {
+            't': t,
+            'sin': math.sin,
+            'cos': math.cos,
+            'tan': math.tan,
+            'sqrt': MathUtils.sqrt,
+            'log': math.log,
+            'log10': math.log10,
+            'log2': math.log2,
+            'factorial': math.factorial,
+            'asin': math.asin,
+            'acos': math.acos,
+            'atan': math.atan,
+            'sinh': math.sinh,
+            'cosh': math.cosh,
+            'tanh': math.tanh,
+            'exp': math.exp,
+            'abs': abs,
+            'pi': math.pi,
+            'e': math.e,
+            'pow': MathUtils.pow,
+            'ceil': math.ceil,
+            'floor': math.floor,
+            'trunc': math.trunc,
+            'max': max,
+            'min': min,
+            'round': MathUtils.round,
+        }
+
+    @staticmethod
+    def _parse_parametric_with_python(expression_string: str) -> Callable[[float], float]:
+        """Parse a parametric expression string using Python's built-in evaluation.
+
+        Uses 't' as the parameter variable instead of 'x'.
+        """
+        expression_string = ExpressionValidator.fix_math_expression(expression_string, python_compatible=True)
+        ExpressionValidator.validate_expression_tree(expression_string)
+
+        tree = ast.parse(expression_string, mode='eval')
+        compiled_code = compile(tree, '<string>', mode='eval')
+
+        def evaluator(t: float) -> float:
+            variables = ExpressionValidator._get_variables_and_functions_parametric(t)
+            return eval(compiled_code, variables)
+
+        return evaluator
+
+    @staticmethod
+    def parse_parametric_expression(expression_string: str) -> Callable[[float], float]:
+        """
+        Parse a parametric expression string into a callable function object.
+
+        The expression should use 't' as the parameter variable.
+        Examples: "cos(t)", "t*sin(t)", "3*t + 1"
+
+        Args:
+            expression_string (str): Mathematical expression using 't' as parameter
+
+        Returns:
+            callable: Function that can be called with t value and returns a float
+        """
+        return ExpressionValidator._parse_parametric_with_python(expression_string)

@@ -143,23 +143,88 @@ class FunctionNameGenerator(NameGenerator):
     
     def generate_function_name(self, preferred_name: Optional[str]) -> str:
         """Generate a unique function name, using preferred_name if possible.
-        
+
         Args:
             preferred_name (str): Preferred function name
-            
+
         Returns:
             str: Unique function name
         """
         if not preferred_name:
             return self._generate_unique_function_name()
-            
+
         function_names: List[str] = self.get_drawable_names('Function')
-        
+
         # Extract name before parenthesis if present
         clean_name: str = self._extract_function_name_before_parenthesis(preferred_name)
-        
+
         # Find an available function name
         return self._find_available_function_name(clean_name, function_names)
+
+    def _try_parametric_function_name(
+        self, letter: str, number: int, existing_names: List[str]
+    ) -> Optional[str]:
+        """Try a parametric function name with the given letter and number.
+
+        Args:
+            letter: Function letter (f, g, h, etc.)
+            number: Number suffix (0 for no suffix)
+            existing_names: List of existing parametric function names
+
+        Returns:
+            Parametric function name if available, None otherwise
+        """
+        func_name: str = f"{letter}{number if number > 0 else ''}_param"
+        if func_name not in existing_names:
+            return func_name
+        return None
+
+    def _generate_unique_parametric_function_name(self) -> str:
+        """Generate a unique parametric function name using alphabetical sequence.
+
+        Follows the same pattern as regular functions (f, g, h, ...)
+        but with '_param' suffix (f_param, g_param, f1_param, ...).
+
+        Returns:
+            Unique parametric function name
+        """
+        func_alphabet: str = 'fghijklmnopqrstuvwxyzabcde'
+        parametric_names: List[str] = self.get_drawable_names('ParametricFunction')
+
+        for number in count():
+            for letter in func_alphabet:
+                name: Optional[str] = self._try_parametric_function_name(
+                    letter, number, parametric_names
+                )
+                if name:
+                    return name
+
+        raise ValueError("All parametric function names are taken")
+
+    def generate_parametric_function_name(self, preferred_name: Optional[str]) -> str:
+        """Generate a unique parametric function name.
+
+        Uses the same letter sequence as regular functions (f, g, h, ...)
+        but with '_param' suffix to distinguish parametric functions
+        (e.g., f_param, g_param, f1_param).
+
+        Args:
+            preferred_name: Preferred name (if provided and available, uses as-is)
+
+        Returns:
+            Unique parametric function name
+        """
+        if not preferred_name:
+            return self._generate_unique_parametric_function_name()
+
+        # If a preferred name is provided, check if it's available
+        parametric_names: List[str] = self.get_drawable_names('ParametricFunction')
+
+        if preferred_name not in parametric_names:
+            return preferred_name
+
+        # Preferred name taken, generate a unique one
+        return self._generate_unique_parametric_function_name()
 
     def reset_state(self) -> None:
         """Reset any internal state for function naming (if any in the future)."""
