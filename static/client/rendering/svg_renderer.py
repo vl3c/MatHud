@@ -176,6 +176,7 @@ class SvgRenderer(RendererProtocol):
         self._register_shape("drawables.angle", "Angle", self._render_angle)
         self._register_shape("drawables.function", "Function", self._render_function)
         self._register_shape("drawables.piecewise_function", "PiecewiseFunction", self._render_function)
+        self._register_shape("drawables.parametric_function", "ParametricFunction", self._render_function)
         self._register_shape("drawables.triangle", "Triangle", self._render_triangle)
         self._register_shape("drawables.rectangle", "Rectangle", self._render_rectangle)
         self._register_shape("drawables.bar", "Bar", self._render_drawable)
@@ -555,6 +556,7 @@ class SvgRenderer(RendererProtocol):
         return class_name in (
             "Function",
             "PiecewiseFunction",
+            "ParametricFunction",
             "FunctionsBoundedColoredArea",
             "FunctionSegmentBoundedColoredArea",
             "PolarGrid",
