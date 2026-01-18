@@ -1276,6 +1276,76 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "draw_tangent_line",
+                    "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles and ellipses, it's the angle in radians from the positive x-axis.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "curve_name": {
+                                "type": "string",
+                                "description": "Name of the curve to draw tangent to (function, parametric function, circle, or ellipse)"
+                            },
+                            "parameter": {
+                                "type": "number",
+                                "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, or angle (radians) for circles/ellipses"
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the tangent line segment"
+                            },
+                            "length": {
+                                "type": ["number", "null"],
+                                "description": "Total length of the tangent segment in math units (default: 4.0)"
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the tangent line (default: same as curve)"
+                            }
+                        },
+                        "required": ["curve_name", "parameter", "name", "length", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "draw_normal_line",
+                    "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles and ellipses, it's the angle in radians from the positive x-axis.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "curve_name": {
+                                "type": "string",
+                                "description": "Name of the curve to draw normal to (function, parametric function, circle, or ellipse)"
+                            },
+                            "parameter": {
+                                "type": "number",
+                                "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, or angle (radians) for circles/ellipses"
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the normal line segment"
+                            },
+                            "length": {
+                                "type": ["number", "null"],
+                                "description": "Total length of the normal segment in math units (default: 4.0)"
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the normal line (default: same as curve)"
+                            }
+                        },
+                        "required": ["curve_name", "parameter", "name", "length", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "evaluate_expression",
                     "description": "Evaluates a mathematical expression provided as a string and returns the numerical result. The expression can include variables like x, y; constants like e, pi; mathematical operations and functions like sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pi, e, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, mean, median, mode, stdev, variance, random, randint.",
                     "parameters": {
