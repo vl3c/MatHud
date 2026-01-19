@@ -26,13 +26,12 @@ Dependencies:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, Dict, List, Tuple
 
 import math
 
 from constants import default_color
 from drawables_aggregator import Drawable, Position
-from utils.math_utils import MathUtils
 
 
 class PolarGrid(Drawable):
