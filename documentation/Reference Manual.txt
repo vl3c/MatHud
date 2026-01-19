@@ -2828,6 +2828,14 @@ Class Attributes:
 - `round(value, ndigits=0)`: Round number to specified digits
 - `gcd(*values)`: Calculate greatest common divisor
 - `lcm(*values)`: Calculate least common multiple
+- `is_prime(n)`: Check if a number is prime
+- `prime_factors(n)`: Get prime factorization with multiplicity (e.g., prime_factors(12) → [2, 2, 3])
+- `mod_pow(base, exp, mod)`: Modular exponentiation (base^exp mod mod)
+- `mod_inverse(a, mod)`: Modular multiplicative inverse (raises ValueError if inverse doesn't exist)
+- `next_prime(n)`: Find the smallest prime >= n
+- `prev_prime(n)`: Find the largest prime <= n (raises ValueError if n < 2)
+- `totient(n)`: Euler's totient function (count of integers 1..n coprime to n)
+- `divisors(n)`: Get all positive divisors of n in sorted order
 - `mean(values)`: Calculate arithmetic mean
 - `median(values)`: Calculate median value
 - `mode(values)`: Calculate mode of values

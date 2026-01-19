@@ -55,6 +55,16 @@ Calculate the circumference of Circle1.
 Is the angle PQR a right angle, assuming P=(0,5), Q=(0,0), R=(5,0)?
 Create point J at (20, -10). Define segment DJ. Measure the angle formed by segments DE and DJ.
 
+# Number Theory
+Is 97 a prime number?
+What is the prime factorization of 360?
+Calculate 2^100 mod 1000000007.
+Find the modular inverse of 3 mod 7.
+What is the next prime after 100?
+What is the largest prime less than or equal to 100?
+What is Euler's totient of 100?
+List all divisors of 60.
+
 # Calculus and Algebra
 Evaluate the expression 3*A.x + 10.
 Calculate 2^5 + sqrt(16).
