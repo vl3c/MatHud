@@ -29,7 +29,7 @@ from .test_screen_offset_label_layout import TestScreenOffsetLabelLayout
 from .test_bar_manager import TestBarManager
 from .test_segments_bounded_colored_area import TestSegmentsBoundedColoredArea
 from .test_function_calling import TestProcessFunctionCalls, TestProcessFunctionCallsPlotTools
-from .test_math_functions import TestMathFunctions
+from .test_math_functions import TestMathFunctions, TestNumberTheory
 from .test_periodicity_detection import TestPeriodicityDetection, TestPeriodicityEdgeCases
 from .test_geometry_utils import TestGeometryUtils, TestConvexHull, TestPointInConvexHull
 from .test_graph_layout import TestGraphLayout, TestGraphLayoutVisibility
@@ -117,8 +117,10 @@ from .test_drawable_renderers import (
     TestLabelRenderer,
     TestPointLabelRenderer,
     TestSegmentLabelRenderer,
+    TestCircleArcRenderer,
     TestRendererEdgeCases as TestDrawableRendererEdgeCases,
 )
+from .test_point_manager import TestPointManagerUpdates
 from .test_bar_renderer import TestBarRenderer
 from .test_function_renderables import (
     TestFunctionRenderable,
@@ -201,7 +203,9 @@ class Tests:
             TestLabelRenderer,
             TestPointLabelRenderer,
             TestSegmentLabelRenderer,
+            TestCircleArcRenderer,
             TestDrawableRendererEdgeCases,
+            TestPointManagerUpdates,
             TestFunctionRenderable,
             TestFunctionsBoundedAreaRenderable,
             TestSegmentsBoundedAreaRenderable,
@@ -223,6 +227,7 @@ class Tests:
             TestWorkspaceLabelRestore,
             TestWorkspacePlotsRestore,
             TestMathFunctions,
+            TestNumberTheory,
             TestPeriodicityDetection,
             TestPeriodicityEdgeCases,
             TestGeometryUtils,

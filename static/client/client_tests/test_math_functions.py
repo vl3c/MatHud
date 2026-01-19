@@ -1634,3 +1634,331 @@ class TestMathFunctions(unittest.TestCase):
         self.assertNotEqual(p_diag1.y, p_diag2.y)
         self.assertEqual(p_diag1.name, "A")
         self.assertEqual(p_diag2.name, "C")
+
+
+class TestNumberTheory(unittest.TestCase):
+    """Tests for number theory functions in MathUtils."""
+
+    # ========== is_prime tests ==========
+    def test_is_prime_basic_primes(self) -> None:
+        """Test is_prime with small prime numbers."""
+        primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
+        for p in primes:
+            self.assertTrue(MathUtils.is_prime(p), f"{p} should be prime")
+
+    def test_is_prime_basic_composites(self) -> None:
+        """Test is_prime with composite numbers."""
+        composites = [4, 6, 8, 9, 10, 12, 14, 15, 16, 18, 20, 21, 22, 24, 25]
+        for c in composites:
+            self.assertFalse(MathUtils.is_prime(c), f"{c} should not be prime")
+
+    def test_is_prime_edge_cases(self) -> None:
+        """Test is_prime with edge cases."""
+        self.assertFalse(MathUtils.is_prime(0), "0 is not prime")
+        self.assertFalse(MathUtils.is_prime(1), "1 is not prime")
+        self.assertTrue(MathUtils.is_prime(2), "2 is prime")
+        self.assertTrue(MathUtils.is_prime(97), "97 is prime")
+
+    def test_is_prime_large_prime(self) -> None:
+        """Test is_prime with a larger prime."""
+        self.assertTrue(MathUtils.is_prime(7919), "7919 is prime")
+        self.assertTrue(MathUtils.is_prime(104729), "104729 is prime")
+
+    def test_is_prime_negative_raises(self) -> None:
+        """Test is_prime raises ValueError for negative input."""
+        with self.assertRaises(ValueError):
+            MathUtils.is_prime(-1)
+
+    def test_is_prime_float_input(self) -> None:
+        """Test is_prime handles float input that equals an integer."""
+        self.assertTrue(MathUtils.is_prime(7.0), "7.0 should be treated as 7")
+        with self.assertRaises(TypeError):
+            MathUtils.is_prime(7.5)
+
+    # ========== prime_factors tests ==========
+    def test_prime_factors_basic(self) -> None:
+        """Test prime_factors with basic cases."""
+        self.assertEqual(MathUtils.prime_factors(12), [2, 2, 3])
+        self.assertEqual(MathUtils.prime_factors(15), [3, 5])
+        self.assertEqual(MathUtils.prime_factors(8), [2, 2, 2])
+        self.assertEqual(MathUtils.prime_factors(17), [17])
+
+    def test_prime_factors_edge_cases(self) -> None:
+        """Test prime_factors with edge cases."""
+        self.assertEqual(MathUtils.prime_factors(1), [])
+        self.assertEqual(MathUtils.prime_factors(2), [2])
+        self.assertEqual(MathUtils.prime_factors(360), [2, 2, 2, 3, 3, 5])
+
+    def test_prime_factors_invalid_input(self) -> None:
+        """Test prime_factors raises ValueError for invalid input."""
+        with self.assertRaises(ValueError):
+            MathUtils.prime_factors(0)
+        with self.assertRaises(ValueError):
+            MathUtils.prime_factors(-5)
+
+    # ========== mod_pow tests ==========
+    def test_mod_pow_basic(self) -> None:
+        """Test mod_pow with basic cases."""
+        self.assertEqual(MathUtils.mod_pow(2, 10, 1000), 24)
+        self.assertEqual(MathUtils.mod_pow(3, 5, 7), 5)
+        self.assertEqual(MathUtils.mod_pow(5, 3, 13), 8)
+
+    def test_mod_pow_edge_cases(self) -> None:
+        """Test mod_pow with edge cases."""
+        self.assertEqual(MathUtils.mod_pow(2, 0, 5), 1)  # Any number to the 0 is 1
+        self.assertEqual(MathUtils.mod_pow(0, 5, 7), 0)  # 0 to any power is 0
+        self.assertEqual(MathUtils.mod_pow(7, 1, 5), 2)  # 7 mod 5 = 2
+
+    def test_mod_pow_large_exponent(self) -> None:
+        """Test mod_pow with a large exponent."""
+        self.assertEqual(MathUtils.mod_pow(2, 100, 1000000007), 976371285)
+
+    def test_mod_pow_invalid_input(self) -> None:
+        """Test mod_pow raises errors for invalid input."""
+        with self.assertRaises(ValueError):
+            MathUtils.mod_pow(2, -1, 5)  # Negative exponent
+        with self.assertRaises(ValueError):
+            MathUtils.mod_pow(2, 3, 0)  # Zero modulus
+        with self.assertRaises(ValueError):
+            MathUtils.mod_pow(2, 3, -5)  # Negative modulus
+
+    # ========== mod_inverse tests ==========
+    def test_mod_inverse_basic(self) -> None:
+        """Test mod_inverse with basic cases."""
+        self.assertEqual(MathUtils.mod_inverse(3, 7), 5)  # 3*5 = 15 ≡ 1 (mod 7)
+        self.assertEqual(MathUtils.mod_inverse(2, 5), 3)  # 2*3 = 6 ≡ 1 (mod 5)
+        self.assertEqual(MathUtils.mod_inverse(7, 11), 8)  # 7*8 = 56 ≡ 1 (mod 11)
+
+    def test_mod_inverse_verify(self) -> None:
+        """Verify mod_inverse results are correct."""
+        test_cases = [(3, 7), (2, 5), (7, 11), (5, 13), (11, 17)]
+        for a, mod in test_cases:
+            inv = MathUtils.mod_inverse(a, mod)
+            self.assertEqual((a * inv) % mod, 1, f"({a} * {inv}) % {mod} should be 1")
+
+    def test_mod_inverse_no_inverse(self) -> None:
+        """Test mod_inverse raises ValueError when inverse doesn't exist."""
+        with self.assertRaises(ValueError):
+            MathUtils.mod_inverse(2, 4)  # gcd(2, 4) = 2 != 1
+        with self.assertRaises(ValueError):
+            MathUtils.mod_inverse(6, 9)  # gcd(6, 9) = 3 != 1
+
+    def test_mod_inverse_invalid_input(self) -> None:
+        """Test mod_inverse raises errors for invalid input."""
+        with self.assertRaises(ValueError):
+            MathUtils.mod_inverse(3, 0)  # Zero modulus
+        with self.assertRaises(ValueError):
+            MathUtils.mod_inverse(3, -5)  # Negative modulus
+
+    # ========== next_prime tests ==========
+    def test_next_prime_basic(self) -> None:
+        """Test next_prime with basic cases."""
+        self.assertEqual(MathUtils.next_prime(14), 17)
+        self.assertEqual(MathUtils.next_prime(17), 17)  # 17 is already prime
+        self.assertEqual(MathUtils.next_prime(18), 19)
+
+    def test_next_prime_edge_cases(self) -> None:
+        """Test next_prime with edge cases."""
+        self.assertEqual(MathUtils.next_prime(0), 2)
+        self.assertEqual(MathUtils.next_prime(1), 2)
+        self.assertEqual(MathUtils.next_prime(2), 2)
+        self.assertEqual(MathUtils.next_prime(-10), 2)
+
+    def test_next_prime_sequence(self) -> None:
+        """Test next_prime produces correct sequence."""
+        expected = [2, 3, 5, 7, 11, 13, 17, 19, 23]
+        for i, exp in enumerate(expected):
+            if i == 0:
+                self.assertEqual(MathUtils.next_prime(0), exp)
+            else:
+                self.assertEqual(MathUtils.next_prime(expected[i-1] + 1), exp)
+
+    # ========== prev_prime tests ==========
+    def test_prev_prime_basic(self) -> None:
+        """Test prev_prime with basic cases."""
+        self.assertEqual(MathUtils.prev_prime(14), 13)
+        self.assertEqual(MathUtils.prev_prime(13), 13)  # 13 is already prime
+        self.assertEqual(MathUtils.prev_prime(20), 19)
+
+    def test_prev_prime_edge_cases(self) -> None:
+        """Test prev_prime with edge cases."""
+        self.assertEqual(MathUtils.prev_prime(2), 2)
+        self.assertEqual(MathUtils.prev_prime(3), 3)
+
+    def test_prev_prime_no_prime(self) -> None:
+        """Test prev_prime raises ValueError when no prime exists."""
+        with self.assertRaises(ValueError):
+            MathUtils.prev_prime(1)
+        with self.assertRaises(ValueError):
+            MathUtils.prev_prime(0)
+        with self.assertRaises(ValueError):
+            MathUtils.prev_prime(-5)
+
+    # ========== totient tests ==========
+    def test_totient_basic(self) -> None:
+        """Test totient with basic cases."""
+        self.assertEqual(MathUtils.totient(1), 1)
+        self.assertEqual(MathUtils.totient(2), 1)
+        self.assertEqual(MathUtils.totient(12), 4)  # coprimes: 1, 5, 7, 11
+        self.assertEqual(MathUtils.totient(10), 4)  # coprimes: 1, 3, 7, 9
+
+    def test_totient_primes(self) -> None:
+        """Test totient for prime numbers (should be p-1)."""
+        primes = [2, 3, 5, 7, 11, 13, 17, 19, 23]
+        for p in primes:
+            self.assertEqual(MathUtils.totient(p), p - 1, f"totient({p}) should be {p-1}")
+
+    def test_totient_prime_powers(self) -> None:
+        """Test totient for prime powers (p^k -> p^(k-1) * (p-1))."""
+        self.assertEqual(MathUtils.totient(4), 2)   # 2^2 -> 2^1 * 1 = 2
+        self.assertEqual(MathUtils.totient(8), 4)   # 2^3 -> 2^2 * 1 = 4
+        self.assertEqual(MathUtils.totient(9), 6)   # 3^2 -> 3^1 * 2 = 6
+        self.assertEqual(MathUtils.totient(27), 18) # 3^3 -> 3^2 * 2 = 18
+
+    def test_totient_100(self) -> None:
+        """Test totient(100)."""
+        self.assertEqual(MathUtils.totient(100), 40)
+
+    def test_totient_invalid_input(self) -> None:
+        """Test totient raises ValueError for invalid input."""
+        with self.assertRaises(ValueError):
+            MathUtils.totient(0)
+        with self.assertRaises(ValueError):
+            MathUtils.totient(-5)
+
+    # ========== divisors tests ==========
+    def test_divisors_basic(self) -> None:
+        """Test divisors with basic cases."""
+        self.assertEqual(MathUtils.divisors(1), [1])
+        self.assertEqual(MathUtils.divisors(6), [1, 2, 3, 6])
+        self.assertEqual(MathUtils.divisors(12), [1, 2, 3, 4, 6, 12])
+        self.assertEqual(MathUtils.divisors(60), [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60])
+
+    def test_divisors_primes(self) -> None:
+        """Test divisors for prime numbers."""
+        primes = [2, 3, 5, 7, 11, 13]
+        for p in primes:
+            self.assertEqual(MathUtils.divisors(p), [1, p], f"divisors({p}) should be [1, {p}]")
+
+    def test_divisors_perfect_square(self) -> None:
+        """Test divisors for perfect squares."""
+        self.assertEqual(MathUtils.divisors(16), [1, 2, 4, 8, 16])
+        self.assertEqual(MathUtils.divisors(36), [1, 2, 3, 4, 6, 9, 12, 18, 36])
+
+    def test_divisors_invalid_input(self) -> None:
+        """Test divisors raises ValueError for invalid input."""
+        with self.assertRaises(ValueError):
+            MathUtils.divisors(0)
+        with self.assertRaises(ValueError):
+            MathUtils.divisors(-10)
+
+    # ========== MathUtils.evaluate() integration tests ==========
+    # These tests verify the AI path works (MathUtils.evaluate -> Python functions)
+    # This catches the bug where Python-only functions weren't accessible via evaluate()
+
+    def test_evaluate_is_prime(self) -> None:
+        """Test is_prime is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("is_prime(97)")
+        self.assertEqual(result, "True", "is_prime(97) via evaluate() should return 'True'")
+
+        result = MathUtils.evaluate("is_prime(100)")
+        self.assertEqual(result, "False", "is_prime(100) via evaluate() should return 'False'")
+
+        result = MathUtils.evaluate("is_prime(2)")
+        self.assertEqual(result, "True", "is_prime(2) via evaluate() should return 'True'")
+
+    def test_evaluate_prime_factors(self) -> None:
+        """Test prime_factors is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("prime_factors(12)")
+        self.assertEqual(result, "[2, 2, 3]", "prime_factors(12) via evaluate()")
+
+        result = MathUtils.evaluate("prime_factors(360)")
+        self.assertEqual(result, "[2, 2, 2, 3, 3, 5]", "prime_factors(360) via evaluate()")
+
+        result = MathUtils.evaluate("prime_factors(17)")
+        self.assertEqual(result, "[17]", "prime_factors(17) via evaluate()")
+
+    def test_evaluate_mod_pow(self) -> None:
+        """Test mod_pow is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("mod_pow(2, 10, 1000)")
+        self.assertEqual(int(result), 24, "mod_pow(2, 10, 1000) via evaluate()")
+
+        result = MathUtils.evaluate("mod_pow(3, 5, 7)")
+        self.assertEqual(int(result), 5, "mod_pow(3, 5, 7) via evaluate()")
+
+        result = MathUtils.evaluate("mod_pow(2, 100, 1000000007)")
+        self.assertEqual(int(result), 976371285, "mod_pow with large exponent via evaluate()")
+
+    def test_evaluate_mod_inverse(self) -> None:
+        """Test mod_inverse is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("mod_inverse(3, 7)")
+        self.assertEqual(int(result), 5, "mod_inverse(3, 7) via evaluate()")
+
+        result = MathUtils.evaluate("mod_inverse(2, 5)")
+        self.assertEqual(int(result), 3, "mod_inverse(2, 5) via evaluate()")
+
+    def test_evaluate_next_prime(self) -> None:
+        """Test next_prime is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("next_prime(14)")
+        self.assertEqual(int(result), 17, "next_prime(14) via evaluate()")
+
+        result = MathUtils.evaluate("next_prime(17)")
+        self.assertEqual(int(result), 17, "next_prime(17) should return 17 (already prime)")
+
+    def test_evaluate_prev_prime(self) -> None:
+        """Test prev_prime is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("prev_prime(14)")
+        self.assertEqual(int(result), 13, "prev_prime(14) via evaluate()")
+
+        result = MathUtils.evaluate("prev_prime(13)")
+        self.assertEqual(int(result), 13, "prev_prime(13) should return 13 (already prime)")
+
+    def test_evaluate_totient(self) -> None:
+        """Test totient is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("totient(100)")
+        self.assertEqual(int(result), 40, "totient(100) via evaluate()")
+
+        result = MathUtils.evaluate("totient(12)")
+        self.assertEqual(int(result), 4, "totient(12) via evaluate()")
+
+    def test_evaluate_divisors(self) -> None:
+        """Test divisors is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("divisors(12)")
+        self.assertEqual(result, "[1, 2, 3, 4, 6, 12]", "divisors(12) via evaluate()")
+
+        result = MathUtils.evaluate("divisors(60)")
+        self.assertEqual(result, "[1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]", "divisors(60) via evaluate()")
+
+    def test_evaluate_number_theory_returns_proper_types(self) -> None:
+        """Test that evaluate() returns proper string types for booleans and lists."""
+        # Boolean results should be "True" or "False" strings
+        result = MathUtils.evaluate("is_prime(7)")
+        self.assertIsInstance(result, str, "is_prime via evaluate() should return a string")
+        self.assertIn(result, ["True", "False"], "Boolean result should be 'True' or 'False'")
+
+        # List results should be string representations
+        result = MathUtils.evaluate("prime_factors(8)")
+        self.assertIsInstance(result, str, "prime_factors via evaluate() should return a string")
+        self.assertTrue(result.startswith("["), "List result should start with '['")
+
+        result = MathUtils.evaluate("divisors(6)")
+        self.assertIsInstance(result, str, "divisors via evaluate() should return a string")
+        self.assertTrue(result.startswith("["), "List result should start with '['")
+
+    def test_evaluate_number_theory_not_error(self) -> None:
+        """Test that number theory functions don't return error messages via evaluate()."""
+        # This catches the original bug where these returned "not a supported mathematical expression"
+        functions_to_test = [
+            "is_prime(97)",
+            "prime_factors(12)",
+            "mod_pow(2, 10, 100)",
+            "mod_inverse(3, 7)",
+            "next_prime(10)",
+            "prev_prime(10)",
+            "totient(10)",
+            "divisors(10)",
+        ]
+        for func in functions_to_test:
+            result = MathUtils.evaluate(func)
+            self.assertNotIn("Error", str(result), "{} should not return an error".format(func))
+            self.assertNotIn("not a supported", str(result).lower(), "{} accessible via evaluate".format(func))
