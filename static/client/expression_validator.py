@@ -139,6 +139,14 @@ class ExpressionValidator(ast.NodeVisitor):
         'solve',
         'gcd',
         'lcm',
+        'is_prime',
+        'prime_factors',
+        'mod_pow',
+        'mod_inverse',
+        'next_prime',
+        'prev_prime',
+        'totient',
+        'divisors',
         'mean',
         'median',
         'mode',
@@ -348,6 +356,14 @@ class ExpressionValidator(ast.NodeVisitor):
             'round': MathUtils.round, # Round a number
             'gcd': MathUtils.gcd, # Greatest common divisor
             'lcm': MathUtils.lcm, # Least common multiple
+            'is_prime': MathUtils.is_prime, # Check if number is prime
+            'prime_factors': MathUtils.prime_factors, # Prime factorization with multiplicity
+            'mod_pow': MathUtils.mod_pow, # Modular exponentiation
+            'mod_inverse': MathUtils.mod_inverse, # Modular multiplicative inverse
+            'next_prime': MathUtils.next_prime, # Find smallest prime >= n
+            'prev_prime': MathUtils.prev_prime, # Find largest prime <= n
+            'totient': MathUtils.totient, # Euler's totient function
+            'divisors': MathUtils.divisors, # All positive divisors
             'mean': MathUtils.mean, # Mean of a list of numbers
             'median': MathUtils.median, # Median of a list of numbers
             'mode': MathUtils.mode, # Mode of a list of numbers
