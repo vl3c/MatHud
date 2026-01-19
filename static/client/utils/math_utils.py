@@ -1053,17 +1053,24 @@ class MathUtils:
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
 
+    # Number theory functions that require Python evaluation (not available in Math.js)
+    _PYTHON_ONLY_FUNCTIONS = {
+        'is_prime', 'prime_factors', 'mod_pow', 'mod_inverse',
+        'next_prime', 'prev_prime', 'totient', 'divisors'
+    }
+
     @staticmethod
     def evaluate(expression: str, variables: Optional[Dict[str, Number]] = None) -> Any:
         """Evaluate a mathematical expression numerically with optional variables.
-        
+
         Uses Math.js for evaluation with expression validation and error handling.
         Supports complex mathematical expressions, functions, and variable substitution.
-        
+        For number theory functions (is_prime, prime_factors, etc.), uses Python evaluation.
+
         Args:
             expression (str): Mathematical expression string (e.g., "sin(x) + 2*y")
             variables (dict): Optional variable substitutions (e.g., {"x": 3.14, "y": 2})
-            
+
         Returns:
             float or str: Numerical result or error message if evaluation fails
         """
@@ -1072,7 +1079,18 @@ class MathUtils:
             js_expression = ExpressionValidator.fix_math_expression(expression, python_compatible=False)
             python_expression = ExpressionValidator.fix_math_expression(expression, python_compatible=True)
             ExpressionValidator.validate_expression_tree(python_expression)
-            
+
+            # Check if expression contains Python-only functions (number theory)
+            if any(func in expression for func in MathUtils._PYTHON_ONLY_FUNCTIONS):
+                # Use Python evaluation for number theory functions
+                result = ExpressionValidator.evaluate_expression(python_expression, variables.get('x', 0) if variables else 0)
+                # Preserve boolean and list types for better display
+                if isinstance(result, bool):
+                    return "True" if result else "False"
+                if isinstance(result, list):
+                    return str(result)
+                return result
+
             js_expression = js_expression.replace("arrangements(", "permutations(")
 
             if not variables:
@@ -1586,6 +1604,254 @@ class MathUtils:
     def lcm(*values: Number) -> int:
         ints = [int(v) for v in values]
         return math.lcm(*ints)
+
+    # ========== Number Theory Functions ==========
+
+    @staticmethod
+    def is_prime(n: Number) -> bool:
+        """Check if a number is prime.
+
+        Args:
+            n: Integer to check for primality
+
+        Returns:
+            bool: True if n is prime, False otherwise
+
+        Raises:
+            ValueError: If n is negative
+            TypeError: If n is not an integer
+        """
+        if not isinstance(n, (int, float)) or (isinstance(n, float) and not n.is_integer()):
+            raise TypeError("is_prime requires an integer argument")
+        n = int(n)
+        if n < 0:
+            raise ValueError("is_prime requires a non-negative integer")
+        if n < 2:
+            return False
+        if n == 2:
+            return True
+        if n % 2 == 0:
+            return False
+        for i in range(3, int(n**0.5) + 1, 2):
+            if n % i == 0:
+                return False
+        return True
+
+    @staticmethod
+    def prime_factors(n: Number) -> List[int]:
+        """Return the prime factorization of n with multiplicity.
+
+        Args:
+            n: Positive integer to factorize
+
+        Returns:
+            list[int]: List of prime factors (with repetition for multiplicity)
+
+        Raises:
+            ValueError: If n is less than 1
+            TypeError: If n is not an integer
+
+        Examples:
+            prime_factors(12) -> [2, 2, 3]
+            prime_factors(1) -> []
+        """
+        if not isinstance(n, (int, float)) or (isinstance(n, float) and not n.is_integer()):
+            raise TypeError("prime_factors requires an integer argument")
+        n = int(n)
+        if n < 1:
+            raise ValueError("prime_factors requires a positive integer")
+        if n == 1:
+            return []
+        factors = []
+        d = 2
+        while d * d <= n:
+            while n % d == 0:
+                factors.append(d)
+                n //= d
+            d += 1
+        if n > 1:
+            factors.append(n)
+        return factors
+
+    @staticmethod
+    def mod_pow(base: Number, exp: Number, mod: Number) -> int:
+        """Compute modular exponentiation: (base^exp) mod mod.
+
+        Args:
+            base: Base of the exponentiation
+            exp: Exponent (must be non-negative)
+            mod: Modulus (must be positive)
+
+        Returns:
+            int: Result of (base^exp) mod mod
+
+        Raises:
+            ValueError: If exp is negative or mod is not positive
+            TypeError: If arguments are not integers
+        """
+        for name, val in [("base", base), ("exp", exp), ("mod", mod)]:
+            if not isinstance(val, (int, float)) or (isinstance(val, float) and not val.is_integer()):
+                raise TypeError(f"mod_pow requires integer arguments, got non-integer for {name}")
+        base, exp, mod = int(base), int(exp), int(mod)
+        if exp < 0:
+            raise ValueError("mod_pow requires a non-negative exponent")
+        if mod <= 0:
+            raise ValueError("mod_pow requires a positive modulus")
+        return pow(base, exp, mod)
+
+    @staticmethod
+    def mod_inverse(a: Number, mod: Number) -> int:
+        """Compute the modular multiplicative inverse of a modulo mod.
+
+        Finds x such that (a * x) % mod == 1.
+
+        Args:
+            a: Integer to find the inverse of
+            mod: Modulus (must be positive)
+
+        Returns:
+            int: Modular inverse of a modulo mod
+
+        Raises:
+            ValueError: If inverse does not exist (gcd(a, mod) != 1) or mod is not positive
+            TypeError: If arguments are not integers
+        """
+        for name, val in [("a", a), ("mod", mod)]:
+            if not isinstance(val, (int, float)) or (isinstance(val, float) and not val.is_integer()):
+                raise TypeError(f"mod_inverse requires integer arguments, got non-integer for {name}")
+        a, mod = int(a), int(mod)
+        if mod <= 0:
+            raise ValueError("mod_inverse requires a positive modulus")
+        # Extended Euclidean Algorithm
+        def extended_gcd(a: int, b: int) -> Tuple[int, int, int]:
+            if a == 0:
+                return b, 0, 1
+            gcd_val, x1, y1 = extended_gcd(b % a, a)
+            x = y1 - (b // a) * x1
+            y = x1
+            return gcd_val, x, y
+
+        gcd_val, x, _ = extended_gcd(a % mod, mod)
+        if gcd_val != 1:
+            raise ValueError(f"Modular inverse does not exist: gcd({a}, {mod}) = {gcd_val} != 1")
+        return x % mod
+
+    @staticmethod
+    def next_prime(n: Number) -> int:
+        """Find the smallest prime number >= n.
+
+        Args:
+            n: Starting value
+
+        Returns:
+            int: Smallest prime >= n
+
+        Raises:
+            TypeError: If n is not an integer
+        """
+        if not isinstance(n, (int, float)) or (isinstance(n, float) and not n.is_integer()):
+            raise TypeError("next_prime requires an integer argument")
+        n = int(n)
+        if n <= 2:
+            return 2
+        candidate = n if n % 2 != 0 else n + 1
+        while not MathUtils.is_prime(candidate):
+            candidate += 2
+        return candidate
+
+    @staticmethod
+    def prev_prime(n: Number) -> int:
+        """Find the largest prime number <= n.
+
+        Args:
+            n: Starting value
+
+        Returns:
+            int: Largest prime <= n
+
+        Raises:
+            ValueError: If n < 2 (no prime exists <= n)
+            TypeError: If n is not an integer
+        """
+        if not isinstance(n, (int, float)) or (isinstance(n, float) and not n.is_integer()):
+            raise TypeError("prev_prime requires an integer argument")
+        n = int(n)
+        if n < 2:
+            raise ValueError("No prime exists less than or equal to n (n must be >= 2)")
+        if n == 2:
+            return 2
+        candidate = n if n % 2 != 0 else n - 1
+        while candidate >= 2 and not MathUtils.is_prime(candidate):
+            candidate -= 2
+        if candidate < 2:
+            return 2
+        return candidate
+
+    @staticmethod
+    def totient(n: Number) -> int:
+        """Compute Euler's totient function φ(n).
+
+        Returns the count of integers from 1 to n that are coprime with n.
+
+        Args:
+            n: Positive integer
+
+        Returns:
+            int: φ(n), the count of coprimes
+
+        Raises:
+            ValueError: If n < 1
+            TypeError: If n is not an integer
+        """
+        if not isinstance(n, (int, float)) or (isinstance(n, float) and not n.is_integer()):
+            raise TypeError("totient requires an integer argument")
+        n = int(n)
+        if n < 1:
+            raise ValueError("totient requires a positive integer")
+        if n == 1:
+            return 1
+        # Use the formula: φ(n) = n * Π(1 - 1/p) for each prime p dividing n
+        result = n
+        temp = n
+        p = 2
+        while p * p <= temp:
+            if temp % p == 0:
+                while temp % p == 0:
+                    temp //= p
+                result -= result // p
+            p += 1
+        if temp > 1:
+            result -= result // temp
+        return result
+
+    @staticmethod
+    def divisors(n: Number) -> List[int]:
+        """Return all positive divisors of n in sorted order.
+
+        Args:
+            n: Positive integer
+
+        Returns:
+            list[int]: Sorted list of all positive divisors
+
+        Raises:
+            ValueError: If n < 1
+            TypeError: If n is not an integer
+        """
+        if not isinstance(n, (int, float)) or (isinstance(n, float) and not n.is_integer()):
+            raise TypeError("divisors requires an integer argument")
+        n = int(n)
+        if n < 1:
+            raise ValueError("divisors requires a positive integer")
+        result = []
+        i = 1
+        while i * i <= n:
+            if n % i == 0:
+                result.append(i)
+                if i != n // i:
+                    result.append(n // i)
+            i += 1
+        return sorted(result)
 
     @staticmethod
     def permutations(n: int, k: Optional[int] = None) -> int:
