@@ -2836,6 +2836,14 @@ Class Attributes:
 - `prev_prime(n)`: Find the largest prime <= n (raises ValueError if n < 2)
 - `totient(n)`: Euler's totient function (count of integers 1..n coprime to n)
 - `divisors(n)`: Get all positive divisors of n in sorted order
+- `summation(expr, var, start, end)`: Compute Σ expression from start to end (e.g., summation('n^2', 'n', 1, 5) → 55)
+- `product(expr, var, start, end)`: Compute Π expression from start to end (e.g., product('n', 'n', 1, 5) → 120)
+- `arithmetic_sum(first, diff, n)`: Sum of arithmetic series S_n = n/2 * (2a + (n-1)d)
+- `geometric_sum(first, ratio, n)`: Sum of finite geometric series S_n = a(1-r^n)/(1-r)
+- `geometric_sum_infinite(first, ratio)`: Sum of infinite geometric series S = a/(1-r), requires |r| < 1
+- `ratio_test(expr, n_var)`: Apply ratio test for series convergence
+- `root_test(expr, n_var)`: Apply root test for series convergence
+- `p_series_test(p)`: Check if p-series sum(1/n^p) converges (p > 1 converges, p <= 1 diverges)
 - `mean(values)`: Calculate arithmetic mean
 - `median(values)`: Calculate median value
 - `mode(values)`: Calculate mode of values
