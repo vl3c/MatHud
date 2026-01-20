@@ -1056,7 +1056,9 @@ class MathUtils:
     # Number theory functions that require Python evaluation (not available in Math.js)
     _PYTHON_ONLY_FUNCTIONS = {
         'is_prime', 'prime_factors', 'mod_pow', 'mod_inverse',
-        'next_prime', 'prev_prime', 'totient', 'divisors'
+        'next_prime', 'prev_prime', 'totient', 'divisors',
+        'summation', 'product', 'arithmetic_sum', 'geometric_sum',
+        'geometric_sum_infinite', 'ratio_test', 'root_test', 'p_series_test'
     }
 
     @staticmethod
@@ -1852,6 +1854,267 @@ class MathUtils:
                     result.append(n // i)
             i += 1
         return sorted(result)
+
+    # ========== Sequence and Series Functions ==========
+
+    @staticmethod
+    def summation(expression: str, variable: str, start: int, end: int) -> str:
+        """Compute sum of expression for integer values from start to end.
+
+        Calculates Σ expression for variable = start to end.
+
+        Args:
+            expression: Mathematical expression containing the variable
+            variable: Variable name to substitute (e.g., "n")
+            start: Starting integer value (inclusive)
+            end: Ending integer value (inclusive)
+
+        Returns:
+            str: Sum result as string
+
+        Raises:
+            ValueError: If start or end are not valid integers
+        """
+        start = int(start)
+        end = int(end)
+        if start > end:
+            return "0"
+        total = 0.0
+        for i in range(start, end + 1):
+            value = float(window.nerdamer(expression).sub(variable, i).evaluate().text())
+            total += value
+        # Return integer if it's a whole number
+        if total == int(total):
+            return str(int(total))
+        return str(total)
+
+    @staticmethod
+    def product(expression: str, variable: str, start: int, end: int) -> str:
+        """Compute product of expression for integer values from start to end.
+
+        Calculates Π expression for variable = start to end.
+
+        Args:
+            expression: Mathematical expression containing the variable
+            variable: Variable name to substitute (e.g., "n")
+            start: Starting integer value (inclusive)
+            end: Ending integer value (inclusive)
+
+        Returns:
+            str: Product result as string
+
+        Raises:
+            ValueError: If start or end are not valid integers
+        """
+        start = int(start)
+        end = int(end)
+        if start > end:
+            return "1"
+        total = 1.0
+        for i in range(start, end + 1):
+            value = float(window.nerdamer(expression).sub(variable, i).evaluate().text())
+            total *= value
+        # Return integer if it's a whole number
+        if total == int(total):
+            return str(int(total))
+        return str(total)
+
+    @staticmethod
+    def arithmetic_sum(first: Number, diff: Number, n: int) -> Number:
+        """Sum of arithmetic series using closed-form formula.
+
+        Calculates S_n = n/2 * (2a + (n-1)d) where:
+        - a is the first term
+        - d is the common difference
+        - n is the number of terms
+
+        Args:
+            first: First term of the arithmetic sequence (a)
+            diff: Common difference between consecutive terms (d)
+            n: Number of terms to sum
+
+        Returns:
+            Number: Sum of the arithmetic series
+
+        Raises:
+            ValueError: If n < 1
+        """
+        n = int(n)
+        if n < 1:
+            raise ValueError("Number of terms must be at least 1")
+        result = n / 2 * (2 * first + (n - 1) * diff)
+        # Return integer if it's a whole number
+        if result == int(result):
+            return int(result)
+        return result
+
+    @staticmethod
+    def geometric_sum(first: Number, ratio: Number, n: int) -> Number:
+        """Sum of finite geometric series using closed-form formula.
+
+        Calculates S_n = a(1-r^n)/(1-r) for r != 1, or S_n = a*n for r = 1
+        where:
+        - a is the first term
+        - r is the common ratio
+        - n is the number of terms
+
+        Args:
+            first: First term of the geometric sequence (a)
+            ratio: Common ratio between consecutive terms (r)
+            n: Number of terms to sum
+
+        Returns:
+            Number: Sum of the geometric series
+
+        Raises:
+            ValueError: If n < 1
+        """
+        n = int(n)
+        if n < 1:
+            raise ValueError("Number of terms must be at least 1")
+        if ratio == 1:
+            return first * n
+        result = first * (1 - ratio ** n) / (1 - ratio)
+        # Return integer if it's a whole number
+        if result == int(result):
+            return int(result)
+        return result
+
+    @staticmethod
+    def geometric_sum_infinite(first: Number, ratio: Number) -> Number:
+        """Sum of infinite geometric series.
+
+        Calculates S = a/(1-r) where |r| < 1
+        where:
+        - a is the first term
+        - r is the common ratio
+
+        Args:
+            first: First term of the geometric sequence (a)
+            ratio: Common ratio between consecutive terms (r), must satisfy |r| < 1
+
+        Returns:
+            Number: Sum of the infinite geometric series
+
+        Raises:
+            ValueError: If |ratio| >= 1 (series diverges)
+        """
+        if abs(ratio) >= 1:
+            raise ValueError("Infinite geometric series diverges when |ratio| >= 1")
+        result = first / (1 - ratio)
+        # Return integer if it's a whole number
+        if result == int(result):
+            return int(result)
+        return result
+
+    @staticmethod
+    def ratio_test(expression: str, n_var: str) -> str:
+        """Apply the ratio test for series convergence.
+
+        Calculates L = lim |a_{n+1}/a_n| as n -> infinity
+        - If L < 1: series converges absolutely
+        - If L > 1 or L = infinity: series diverges
+        - If L = 1: test is inconclusive
+
+        Args:
+            expression: Expression for the nth term a_n (e.g., "1/n!")
+            n_var: Variable name representing n (e.g., "n")
+
+        Returns:
+            str: "Converges", "Diverges", or "Inconclusive" with the limit value
+        """
+        try:
+            # Create a_{n+1} by substituting n -> n+1
+            next_term = str(window.nerdamer(expression).sub(n_var, f"({n_var}+1)").text())
+            # Compute |a_{n+1}/a_n|
+            ratio_expr = f"abs(({next_term})/({expression}))"
+            # Take the limit as n -> infinity
+            limit_result = MathUtils.limit(ratio_expr, n_var, "inf")
+
+            # Parse the result
+            if "Error" in limit_result:
+                return f"Error computing limit: {limit_result}"
+
+            # Try to evaluate the limit numerically
+            try:
+                L = float(limit_result)
+                if L < 1:
+                    return f"Converges (L = {limit_result})"
+                elif L > 1:
+                    return f"Diverges (L = {limit_result})"
+                else:  # L == 1
+                    return f"Inconclusive (L = {limit_result})"
+            except (ValueError, TypeError):
+                # Limit might be symbolic (e.g., "Infinity")
+                limit_lower = limit_result.lower()
+                if "infinity" in limit_lower or "inf" in limit_lower:
+                    return "Diverges (L = infinity)"
+                return f"Inconclusive (L = {limit_result})"
+        except Exception as e:
+            return f"Error: {e}"
+
+    @staticmethod
+    def root_test(expression: str, n_var: str) -> str:
+        """Apply the root test for series convergence.
+
+        Calculates L = lim |a_n|^{1/n} as n -> infinity
+        - If L < 1: series converges absolutely
+        - If L > 1 or L = infinity: series diverges
+        - If L = 1: test is inconclusive
+
+        Args:
+            expression: Expression for the nth term a_n (e.g., "(1/2)^n")
+            n_var: Variable name representing n (e.g., "n")
+
+        Returns:
+            str: "Converges", "Diverges", or "Inconclusive" with the limit value
+        """
+        try:
+            # Compute |a_n|^{1/n}
+            root_expr = f"(abs({expression}))^(1/{n_var})"
+            # Take the limit as n -> infinity
+            limit_result = MathUtils.limit(root_expr, n_var, "inf")
+
+            # Parse the result
+            if "Error" in limit_result:
+                return f"Error computing limit: {limit_result}"
+
+            # Try to evaluate the limit numerically
+            try:
+                L = float(limit_result)
+                if L < 1:
+                    return f"Converges (L = {limit_result})"
+                elif L > 1:
+                    return f"Diverges (L = {limit_result})"
+                else:  # L == 1
+                    return f"Inconclusive (L = {limit_result})"
+            except (ValueError, TypeError):
+                # Limit might be symbolic (e.g., "Infinity")
+                limit_lower = limit_result.lower()
+                if "infinity" in limit_lower or "inf" in limit_lower:
+                    return "Diverges (L = infinity)"
+                return f"Inconclusive (L = {limit_result})"
+        except Exception as e:
+            return f"Error: {e}"
+
+    @staticmethod
+    def p_series_test(p: Number) -> str:
+        """Check if a p-series converges.
+
+        A p-series is sum(1/n^p) for n = 1 to infinity.
+        - Converges if p > 1
+        - Diverges if p <= 1
+
+        Args:
+            p: The exponent in the p-series (1/n^p)
+
+        Returns:
+            str: "Converges" if p > 1, "Diverges" if p <= 1
+        """
+        if p > 1:
+            return "Converges"
+        else:
+            return "Diverges"
 
     @staticmethod
     def permutations(n: int, k: Optional[int] = None) -> int:
