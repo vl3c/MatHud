@@ -1962,3 +1962,224 @@ class TestNumberTheory(unittest.TestCase):
             result = MathUtils.evaluate(func)
             self.assertNotIn("Error", str(result), "{} should not return an error".format(func))
             self.assertNotIn("not a supported", str(result).lower(), "{} accessible via evaluate".format(func))
+
+
+class TestSequencesAndSeries(unittest.TestCase):
+    """Tests for sequence and series functions in MathUtils."""
+
+    # ========== summation tests ==========
+    def test_summation_basic(self) -> None:
+        """Test summation with basic cases."""
+        # Sum of n from 1 to 5 = 1+2+3+4+5 = 15
+        self.assertEqual(MathUtils.summation("n", "n", 1, 5), "15")
+
+    def test_summation_squares(self) -> None:
+        """Test summation of squares."""
+        # Sum of n^2 from 1 to 5 = 1+4+9+16+25 = 55
+        self.assertEqual(MathUtils.summation("n^2", "n", 1, 5), "55")
+
+    def test_summation_empty_range(self) -> None:
+        """Test summation with start > end returns 0."""
+        self.assertEqual(MathUtils.summation("n", "n", 5, 1), "0")
+
+    def test_summation_single_term(self) -> None:
+        """Test summation with single term."""
+        self.assertEqual(MathUtils.summation("n^2", "n", 3, 3), "9")
+
+    def test_summation_geometric(self) -> None:
+        """Test summation with geometric terms."""
+        # Sum of 2^n from 0 to 4 = 1+2+4+8+16 = 31
+        self.assertEqual(MathUtils.summation("2^n", "n", 0, 4), "31")
+
+    # ========== product tests ==========
+    def test_product_factorial(self) -> None:
+        """Test product to compute factorial."""
+        # Product of n from 1 to 5 = 5! = 120
+        self.assertEqual(MathUtils.product("n", "n", 1, 5), "120")
+
+    def test_product_empty_range(self) -> None:
+        """Test product with start > end returns 1."""
+        self.assertEqual(MathUtils.product("n", "n", 5, 1), "1")
+
+    def test_product_powers(self) -> None:
+        """Test product of powers."""
+        # Product of 2^n from 1 to 3 = 2 * 4 * 8 = 64
+        self.assertEqual(MathUtils.product("2^n", "n", 1, 3), "64")
+
+    def test_product_single_term(self) -> None:
+        """Test product with single term."""
+        self.assertEqual(MathUtils.product("n", "n", 5, 5), "5")
+
+    # ========== arithmetic_sum tests ==========
+    def test_arithmetic_sum_basic(self) -> None:
+        """Test arithmetic_sum with basic cases."""
+        # 1, 3, 5, 7, 9 (a=1, d=2, n=5) -> 25
+        self.assertEqual(MathUtils.arithmetic_sum(1, 2, 5), 25)
+
+    def test_arithmetic_sum_natural_numbers(self) -> None:
+        """Test arithmetic_sum for natural numbers."""
+        # 1+2+3+...+10 = 55
+        self.assertEqual(MathUtils.arithmetic_sum(1, 1, 10), 55)
+
+    def test_arithmetic_sum_single_term(self) -> None:
+        """Test arithmetic_sum with single term."""
+        self.assertEqual(MathUtils.arithmetic_sum(7, 3, 1), 7)
+
+    def test_arithmetic_sum_negative_diff(self) -> None:
+        """Test arithmetic_sum with negative difference."""
+        # 10, 8, 6, 4, 2 (a=10, d=-2, n=5) -> 30
+        self.assertEqual(MathUtils.arithmetic_sum(10, -2, 5), 30)
+
+    def test_arithmetic_sum_invalid_n(self) -> None:
+        """Test arithmetic_sum raises for n < 1."""
+        with self.assertRaises(ValueError):
+            MathUtils.arithmetic_sum(1, 1, 0)
+
+    # ========== geometric_sum tests ==========
+    def test_geometric_sum_basic(self) -> None:
+        """Test geometric_sum with basic cases."""
+        # 1 + 2 + 4 + 8 + 16 = 31 (a=1, r=2, n=5)
+        self.assertEqual(MathUtils.geometric_sum(1, 2, 5), 31)
+
+    def test_geometric_sum_ratio_one(self) -> None:
+        """Test geometric_sum with ratio = 1."""
+        # 5 + 5 + 5 = 15 (a=5, r=1, n=3)
+        self.assertEqual(MathUtils.geometric_sum(5, 1, 3), 15)
+
+    def test_geometric_sum_fractional_ratio(self) -> None:
+        """Test geometric_sum with fractional ratio."""
+        # 1 + 0.5 + 0.25 = 1.75 (a=1, r=0.5, n=3)
+        self.assertEqual(MathUtils.geometric_sum(1, 0.5, 3), 1.75)
+
+    def test_geometric_sum_single_term(self) -> None:
+        """Test geometric_sum with single term."""
+        self.assertEqual(MathUtils.geometric_sum(7, 2, 1), 7)
+
+    def test_geometric_sum_invalid_n(self) -> None:
+        """Test geometric_sum raises for n < 1."""
+        with self.assertRaises(ValueError):
+            MathUtils.geometric_sum(1, 2, 0)
+
+    # ========== geometric_sum_infinite tests ==========
+    def test_geometric_sum_infinite_convergent(self) -> None:
+        """Test geometric_sum_infinite with convergent series."""
+        # a/(1-r) = 1/(1-0.5) = 2
+        self.assertEqual(MathUtils.geometric_sum_infinite(1, 0.5), 2)
+
+    def test_geometric_sum_infinite_third(self) -> None:
+        """Test geometric_sum_infinite with r=1/3."""
+        # a/(1-r) = 1/(1-1/3) = 1.5
+        self.assertEqual(MathUtils.geometric_sum_infinite(1, 1/3), 1.5)
+
+    def test_geometric_sum_infinite_negative_ratio(self) -> None:
+        """Test geometric_sum_infinite with negative ratio."""
+        # a/(1-r) = 1/(1-(-0.5)) = 1/1.5 = 2/3
+        result = MathUtils.geometric_sum_infinite(1, -0.5)
+        self.assertAlmostEqual(result, 2/3, places=10)
+
+    def test_geometric_sum_infinite_divergent(self) -> None:
+        """Test geometric_sum_infinite raises for divergent series."""
+        with self.assertRaises(ValueError):
+            MathUtils.geometric_sum_infinite(1, 1)
+        with self.assertRaises(ValueError):
+            MathUtils.geometric_sum_infinite(1, 2)
+        with self.assertRaises(ValueError):
+            MathUtils.geometric_sum_infinite(1, -1)
+
+    # ========== ratio_test tests ==========
+    def test_ratio_test_converges(self) -> None:
+        """Test ratio_test identifies convergent series."""
+        # 1/n! converges (ratio -> 0)
+        result = MathUtils.ratio_test("1/factorial(n)", "n")
+        self.assertIn("Converges", result)
+
+    def test_ratio_test_diverges(self) -> None:
+        """Test ratio_test identifies divergent series."""
+        # 2^n diverges (ratio = 2 > 1)
+        result = MathUtils.ratio_test("2^n", "n")
+        self.assertIn("Diverges", result)
+
+    def test_ratio_test_geometric_half(self) -> None:
+        """Test ratio_test with (1/2)^n."""
+        # (1/2)^n converges (ratio = 0.5)
+        result = MathUtils.ratio_test("(1/2)^n", "n")
+        self.assertIn("Converges", result)
+
+    # ========== root_test tests ==========
+    def test_root_test_converges(self) -> None:
+        """Test root_test identifies convergent series."""
+        # (1/2)^n converges (L = 0.5)
+        result = MathUtils.root_test("(1/2)^n", "n")
+        self.assertIn("Converges", result)
+
+    def test_root_test_diverges(self) -> None:
+        """Test root_test identifies divergent series."""
+        # 2^n diverges (L = 2)
+        result = MathUtils.root_test("2^n", "n")
+        self.assertIn("Diverges", result)
+
+    # ========== p_series_test tests ==========
+    def test_p_series_test_converges(self) -> None:
+        """Test p_series_test with p > 1 (converges)."""
+        self.assertEqual(MathUtils.p_series_test(2), "Converges")
+        self.assertEqual(MathUtils.p_series_test(1.5), "Converges")
+        self.assertEqual(MathUtils.p_series_test(3), "Converges")
+
+    def test_p_series_test_diverges(self) -> None:
+        """Test p_series_test with p <= 1 (diverges)."""
+        self.assertEqual(MathUtils.p_series_test(1), "Diverges")
+        self.assertEqual(MathUtils.p_series_test(0.5), "Diverges")
+        self.assertEqual(MathUtils.p_series_test(0), "Diverges")
+        self.assertEqual(MathUtils.p_series_test(-1), "Diverges")
+
+
+class TestSequencesAndSeriesEvaluate(unittest.TestCase):
+    """Tests for sequence/series functions accessed via MathUtils.evaluate()."""
+
+    def test_evaluate_summation(self) -> None:
+        """Test summation is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("summation('n^2', 'n', 1, 5)")
+        self.assertEqual(result, "55", "summation('n^2', 'n', 1, 5) via evaluate()")
+
+    def test_evaluate_product(self) -> None:
+        """Test product is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("product('n', 'n', 1, 5)")
+        self.assertEqual(result, "120", "product('n', 'n', 1, 5) via evaluate()")
+
+    def test_evaluate_arithmetic_sum(self) -> None:
+        """Test arithmetic_sum is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("arithmetic_sum(1, 2, 5)")
+        self.assertEqual(int(result), 25, "arithmetic_sum(1, 2, 5) via evaluate()")
+
+    def test_evaluate_geometric_sum(self) -> None:
+        """Test geometric_sum is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("geometric_sum(1, 2, 5)")
+        self.assertEqual(int(result), 31, "geometric_sum(1, 2, 5) via evaluate()")
+
+    def test_evaluate_geometric_sum_infinite(self) -> None:
+        """Test geometric_sum_infinite is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("geometric_sum_infinite(1, 0.5)")
+        self.assertEqual(float(result), 2.0, "geometric_sum_infinite(1, 0.5) via evaluate()")
+
+    def test_evaluate_p_series_test(self) -> None:
+        """Test p_series_test is accessible via MathUtils.evaluate()."""
+        result = MathUtils.evaluate("p_series_test(2)")
+        self.assertEqual(result, "Converges", "p_series_test(2) via evaluate()")
+
+        result = MathUtils.evaluate("p_series_test(0.5)")
+        self.assertEqual(result, "Diverges", "p_series_test(0.5) via evaluate()")
+
+    def test_evaluate_sequences_not_error(self) -> None:
+        """Test that sequence/series functions don't return error messages via evaluate()."""
+        functions_to_test = [
+            "summation('n', 'n', 1, 5)",
+            "product('n', 'n', 1, 5)",
+            "arithmetic_sum(1, 1, 10)",
+            "geometric_sum(1, 2, 5)",
+            "geometric_sum_infinite(1, 0.5)",
+            "p_series_test(2)",
+        ]
+        for func in functions_to_test:
+            result = MathUtils.evaluate(func)
+            self.assertNotIn("Error", str(result), "{} should not return an error".format(func))
+            self.assertNotIn("not a supported", str(result).lower(), "{} accessible via evaluate".format(func))
