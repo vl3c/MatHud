@@ -153,7 +153,15 @@ class ExpressionValidator(ast.NodeVisitor):
         'stdev',
         'variance',
         'random',
-        'randint'
+        'randint',
+        'summation',
+        'product',
+        'arithmetic_sum',
+        'geometric_sum',
+        'geometric_sum_infinite',
+        'ratio_test',
+        'root_test',
+        'p_series_test'
     }
 
     def _is_allowed_node_type(self, node: ast.AST) -> bool:
@@ -375,7 +383,15 @@ class ExpressionValidator(ast.NodeVisitor):
             'max': max, # Maximum of a list of numbers
             'min': min, # Minimum of a list of numbers
             'sum': sum, # Sum of a list of numbers
-            'randint': lambda a, b: random.randint(a, b) # Random integer between a and b
+            'randint': lambda a, b: random.randint(a, b), # Random integer between a and b
+            'summation': MathUtils.summation,
+            'product': MathUtils.product,
+            'arithmetic_sum': MathUtils.arithmetic_sum,
+            'geometric_sum': MathUtils.geometric_sum,
+            'geometric_sum_infinite': MathUtils.geometric_sum_infinite,
+            'ratio_test': MathUtils.ratio_test,
+            'root_test': MathUtils.root_test,
+            'p_series_test': MathUtils.p_series_test
         }
 
     @staticmethod
