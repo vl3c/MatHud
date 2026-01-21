@@ -1,3 +1,16 @@
+"""Bar manager for creating and managing bar chart elements.
+
+This module provides the BarManager class which handles creation,
+update, and deletion of Bar drawables used in bar charts and histograms.
+
+Key Features:
+    - Bar creation with configurable bounds and labels
+    - Automatic name generation for unnamed bars
+    - Update-in-place for existing bars with same name
+    - Stroke color, fill color, and opacity configuration
+    - Above and below label text positioning
+"""
+
 from __future__ import annotations
 
 import math

@@ -1,3 +1,17 @@
+"""Statistics manager for probability distributions and regression plots.
+
+This module provides the StatisticsManager class which handles creation
+and management of statistical plots including distributions and regressions.
+
+Key Features:
+    - Continuous distribution plots with PDF curves and shaded areas
+    - Discrete distribution plots using bar elements
+    - Custom bar chart creation with values and labels
+    - Regression fitting (linear, polynomial, exponential, etc.)
+    - Plot deletion with proper cleanup of constituent drawables
+    - Workspace restore via plot materialization methods
+"""
+
 from __future__ import annotations
 
 import math

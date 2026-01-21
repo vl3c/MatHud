@@ -1,3 +1,16 @@
+"""Graph manager for creating and managing graph drawables.
+
+This module provides the GraphManager class which handles creation,
+deletion, and state management for directed and undirected graphs.
+
+Key Features:
+    - Graph creation from vertex/edge descriptors with automatic layout
+    - Support for DirectedGraph, UndirectedGraph, and Tree drawables
+    - Automatic point and edge (segment/vector) creation
+    - Graph state capture for workspace persistence
+    - Layout position resolution with visible bounds fallback
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple

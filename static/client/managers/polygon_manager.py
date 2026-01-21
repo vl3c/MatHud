@@ -1,3 +1,17 @@
+"""Polygon manager for creating and managing polygon drawables.
+
+This module provides the PolygonManager class which handles creation,
+update, and deletion for all polygon types from triangle to decagon.
+
+Key Features:
+    - Unified create/update/delete API for all polygon types
+    - Automatic vertex canonicalization with subtype support
+    - Triangle subtypes: equilateral, isosceles, scalene, right
+    - Quadrilateral subtypes: rectangle, square, parallelogram, rhombus, etc.
+    - Point and segment creation with dependency tracking
+    - Edit policy enforcement for property updates
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union, cast
