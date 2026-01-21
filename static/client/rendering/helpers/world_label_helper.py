@@ -1,3 +1,16 @@
+"""World-space label rendering helper for drawing labels at math coordinates.
+
+This module provides functions for rendering labels that scale with zoom
+and are positioned in world (mathematical) coordinate space.
+
+Key Features:
+    - Zoom-adjusted font sizing based on reference scale
+    - Multi-line text support with automatic line spacing
+    - Rotation support for angled label text
+    - Font size quantization for cleaner rendering
+    - Metadata emission for label reprojection during pan/zoom
+"""
+
 from __future__ import annotations
 
 import math
@@ -12,6 +25,17 @@ _FONT_SIZE_EPS: float = 1e-6
 
 
 def _quantize_font_size_px(value: Any) -> Any:
+    """Quantize font size to reduce cache fragmentation.
+
+    Rounds font sizes to the nearest 0.25px quantum to improve
+    caching efficiency while maintaining visual quality.
+
+    Args:
+        value: Font size value to quantize.
+
+    Returns:
+        Quantized font size as int (if whole) or float.
+    """
     try:
         size_float = float(value)
     except Exception:
@@ -33,6 +57,17 @@ def _quantize_font_size_px(value: Any) -> Any:
 
 
 def get_label_lines(label: Any):
+    """Extract text lines from a label.
+
+    Uses the lines attribute if available, otherwise splits
+    the text attribute on newlines.
+
+    Args:
+        label: Label object with optional lines or text attribute.
+
+    Returns:
+        List of text line strings.
+    """
     try:
         lines = list(getattr(label, "lines", []))
     except Exception:
@@ -44,6 +79,17 @@ def get_label_lines(label: Any):
 
 
 def compute_world_label_font(label: Any, style: dict, coordinate_mapper: Any):
+    """Compute the font for a world-space label with zoom adjustment.
+
+    Args:
+        label: Label object with font_size and reference_scale_factor.
+        style: Style dictionary with label_font_size and label_font_family.
+        coordinate_mapper: Mapper with current scale_factor.
+
+    Returns:
+        Tuple of (FontStyle or None, base_font_size, effective_font_size).
+        FontStyle is None if the label should be hidden.
+    """
     raw_font_size = getattr(label, "font_size", style.get("label_font_size", 14))
     fallback_font = style.get("label_font_size", 14)
     base_font_size = _coerce_font_size(raw_font_size, fallback_font)
@@ -63,6 +109,19 @@ def compute_world_label_font(label: Any, style: dict, coordinate_mapper: Any):
 
 
 def build_world_label_metadata(index: int, position: Any, offset_y: float, rotation_degrees: float, label: Any, base_font_size: float):
+    """Build metadata for world-space label reprojection.
+
+    Args:
+        index: Line index for multi-line labels.
+        position: Label position with x, y attributes.
+        offset_y: Vertical offset for this line in pixels.
+        rotation_degrees: Label rotation angle.
+        label: Label object with reference_scale_factor.
+        base_font_size: Original font size before zoom adjustment.
+
+    Returns:
+        Dict with label metadata for reprojection.
+    """
     return {
         "label": {
             "line_index": index,
@@ -86,6 +145,16 @@ def render_world_label_at_screen_point(
     screen_x: float,
     screen_y: float,
 ) -> None:
+    """Render a world-space label at the given screen coordinates.
+
+    Args:
+        primitives: The renderer primitives interface.
+        label: Label object with text, position, color, rotation.
+        coordinate_mapper: Mapper for zoom-adjusted font sizing.
+        style: Style dictionary with label settings.
+        screen_x: Pre-computed screen x coordinate.
+        screen_y: Pre-computed screen y coordinate.
+    """
     font, base_font_size, effective_font_size = compute_world_label_font(label, style, coordinate_mapper)
     if font is None:
         return

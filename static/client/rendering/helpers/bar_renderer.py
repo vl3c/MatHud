@@ -1,9 +1,30 @@
+"""Bar rendering helper for drawing bar chart elements.
+
+This module provides the render_bar_helper function that renders
+bar drawables as filled rectangles with optional labels.
+
+Key Features:
+    - Filled rectangle rendering with configurable colors
+    - Optional stroke outline on bars
+    - Above and below bar labels with automatic positioning
+    - Point label metadata for zoom-stable label reprojection
+    - Padding configuration for label spacing
+"""
+
 from __future__ import annotations
 
 from rendering.primitives import FillStyle, FontStyle, StrokeStyle, TextAlignment
 
 
 def _resolve_label_font(style):
+    """Build a FontStyle from style dictionary settings.
+
+    Args:
+        style: Style dictionary or non-dict value.
+
+    Returns:
+        FontStyle with family, size, and optional weight.
+    """
     font_size = style.get("label_font_size", 12) if isinstance(style, dict) else 12
     family = style.get("label_font_family", "Arial") if isinstance(style, dict) else "Arial"
     weight = style.get("label_font_weight", None) if isinstance(style, dict) else None
@@ -11,6 +32,14 @@ def _resolve_label_font(style):
 
 
 def render_bar_helper(primitives, bar, coordinate_mapper, style):
+    """Render a bar drawable with optional labels.
+
+    Args:
+        primitives: The renderer primitives interface.
+        bar: Bar drawable with x_left, x_right, y_bottom, y_top bounds.
+        coordinate_mapper: Mapper for math-to-screen coordinate conversion.
+        style: Style dictionary with fill, stroke, and label settings.
+    """
     try:
         x_left = float(getattr(bar, "x_left", 0.0))
         x_right = float(getattr(bar, "x_right", 0.0))

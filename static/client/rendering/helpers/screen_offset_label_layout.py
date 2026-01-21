@@ -1,3 +1,17 @@
+"""Screen-offset label layout solver for resolving label overlaps.
+
+This module provides a sophisticated layout solver that adjusts label
+positions to prevent overlapping text in dense point clusters.
+
+Key Features:
+    - Spatial hash acceleration for overlap detection
+    - Vertical displacement with configurable step sizes
+    - Greedy relaxation toward original positions
+    - Group-based label tracking for multi-line labels
+    - Configurable iteration limits for performance
+    - Hide mode for labels that cannot be placed cleanly
+"""
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -6,6 +20,15 @@ Rect = Tuple[float, float, float, float]
 
 
 def _coerce_float(value: Any, default: float) -> float:
+    """Safely convert a value to float with fallback.
+
+    Args:
+        value: Value to convert.
+        default: Fallback if conversion fails or result is NaN.
+
+    Returns:
+        Float value or default.
+    """
     try:
         out = float(value)
     except Exception:
@@ -16,6 +39,15 @@ def _coerce_float(value: Any, default: float) -> float:
 
 
 def _coerce_int(value: Any, default: int) -> int:
+    """Safely convert a value to int with fallback.
+
+    Args:
+        value: Value to convert.
+        default: Fallback if conversion fails.
+
+    Returns:
+        Integer value or default.
+    """
     try:
         return int(value)
     except Exception:
@@ -23,6 +55,15 @@ def _coerce_int(value: Any, default: int) -> int:
 
 
 def shift_rect_y(rect: Rect, dy: float) -> Rect:
+    """Shift a rectangle vertically by a given amount.
+
+    Args:
+        rect: Tuple of (min_x, max_x, min_y, max_y).
+        dy: Vertical displacement in pixels.
+
+    Returns:
+        New rectangle tuple with shifted y bounds.
+    """
     shift = _coerce_float(dy, 0.0)
     if shift == 0.0:
         return rect
@@ -31,11 +72,43 @@ def shift_rect_y(rect: Rect, dy: float) -> Rect:
 
 
 def rects_intersect(a: Rect, b: Rect) -> bool:
-    # Touching edges are treated as non-overlapping so blocks can stack flush.
+    """Check if two rectangles overlap.
+
+    Touching edges are treated as non-overlapping to allow flush stacking.
+
+    Args:
+        a: First rectangle (min_x, max_x, min_y, max_y).
+        b: Second rectangle (min_x, max_x, min_y, max_y).
+
+    Returns:
+        True if rectangles overlap (not just touch).
+    """
     return not (a[1] <= b[0] or a[0] >= b[1] or a[3] <= b[2] or a[2] >= b[3])
 
 
 class LabelTextCall:
+    """Data class for a pending label text draw call.
+
+    Stores all information needed to render a label and resolve
+    its layout position within a group of potentially overlapping labels.
+
+    Attributes:
+        group: Identifier for grouping multi-line labels.
+        order: Draw order for tie-breaking during layout.
+        text: Label text content.
+        position: Screen position tuple (x, y).
+        anchor_screen: Anchor point before offset.
+        font: FontStyle for rendering.
+        color: Text color string.
+        alignment: TextAlignment for positioning.
+        style_overrides: Optional CSS style overrides.
+        metadata: Metadata dict for reprojection.
+        line_index: Index within multi-line label.
+        line_count: Total lines in this label group.
+        max_line_len: Maximum line length for width estimation.
+        font_size: Font size in pixels.
+        line_height: Line spacing in pixels.
+    """
     __slots__ = (
         "group",
         "order",
@@ -91,6 +164,14 @@ class LabelTextCall:
 
 
 class LabelBlock:
+    """Simplified block representation for layout solving.
+
+    Attributes:
+        group: Identifier for the label group.
+        order: Draw order for tie-breaking.
+        base_rect: Bounding rectangle at dy=0.
+        step: Vertical step size for displacement.
+    """
     __slots__ = ("group", "order", "base_rect", "step")
 
     def __init__(self, *, group: Any, order: int, base_rect: Rect, step: float) -> None:
@@ -101,6 +182,17 @@ class LabelBlock:
 
 
 class SpatialHash2D:
+    """Spatial hash for efficient rectangle overlap queries.
+
+    Uses a 2D grid to accelerate collision detection between
+    label bounding boxes during layout solving.
+
+    Attributes:
+        _cell_size: Size of grid cells in pixels.
+        _cells: Dict mapping cell coords to groups in that cell.
+        _rects: Dict mapping groups to their bounding rectangles.
+        _group_cells: Dict mapping groups to their occupied cells.
+    """
     __slots__ = ("_cell_size", "_cells", "_rects", "_group_cells")
 
     def __init__(self, *, cell_size: float = 32.0) -> None:
@@ -585,6 +677,17 @@ def solve_dy(
     iteration_cap: int = 5000,
     cell_size: float = 32.0,
 ) -> Dict[Any, float]:
+    """Solve vertical displacements to resolve label overlaps.
+
+    Args:
+        blocks: List of LabelBlock objects to position.
+        max_steps: Maximum step multiples to try in each direction.
+        iteration_cap: Maximum solver iterations.
+        cell_size: Spatial hash cell size in pixels.
+
+    Returns:
+        Dict mapping group to vertical displacement (dy).
+    """
     if not blocks:
         return {}
     solver = _ScreenOffsetLabelLayoutSolver(max_steps=max_steps, iteration_cap=iteration_cap, cell_size=cell_size)
@@ -598,6 +701,19 @@ def solve_dy_for_text_calls(
     iteration_cap: int = 5000,
     cell_size: float = 32.0,
 ) -> Dict[Any, float]:
+    """Solve vertical displacements for label text calls.
+
+    Converts LabelTextCall objects to blocks and solves layout.
+
+    Args:
+        calls: List of LabelTextCall objects to position.
+        max_steps: Maximum step multiples to try in each direction.
+        iteration_cap: Maximum solver iterations.
+        cell_size: Spatial hash cell size in pixels.
+
+    Returns:
+        Dict mapping group to vertical displacement (dy).
+    """
     if not calls:
         return {}
     by_group: Dict[Any, LabelTextCall] = {}

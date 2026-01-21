@@ -1,3 +1,17 @@
+"""Polar grid rendering helper for drawing radial coordinate systems.
+
+This module provides the render_polar_helper function that renders a
+polar coordinate system with concentric circles, radial lines, and labels.
+
+Key Features:
+    - Concentric circle grid at regular radial intervals
+    - Radial lines at configurable angular divisions
+    - Angle labels at canvas boundary positions
+    - Radius labels along the positive X axis
+    - Dynamic spacing based on zoom level
+    - Origin marker display
+"""
+
 from __future__ import annotations
 
 import math
@@ -190,6 +204,26 @@ def _render_polar_grid(
     angular_step_degrees, tick_font_float, font, label_color, label_alignment,
     axis_stroke, circle_stroke, radial_stroke
 ):
+    """Render the complete polar grid with all components.
+
+    Args:
+        primitives: The renderer primitives interface.
+        ox: Origin x coordinate in screen pixels.
+        oy: Origin y coordinate in screen pixels.
+        width_px: Canvas width in pixels.
+        height_px: Canvas height in pixels.
+        scale: Scale factor for coordinate conversion.
+        display_spacing: Spacing between concentric circles in pixels.
+        max_radius_screen: Maximum radius to render in pixels.
+        angular_step_degrees: Degrees between radial lines.
+        tick_font_float: Font size for label positioning.
+        font: FontStyle for labels.
+        label_color: Color string for labels.
+        label_alignment: TextAlignment for labels.
+        axis_stroke: StrokeStyle for main axes.
+        circle_stroke: StrokeStyle for concentric circles.
+        radial_stroke: StrokeStyle for radial lines.
+    """
     _draw_polar_axes(primitives, ox, oy, width_px, height_px, axis_stroke)
     _draw_concentric_circles(primitives, ox, oy, max_radius_screen, display_spacing, circle_stroke)
     _draw_radial_lines(primitives, ox, oy, max_radius_screen, angular_step_degrees, radial_stroke)
@@ -201,6 +235,15 @@ def _render_polar_grid(
 
 
 def _get_polar_styles(style):
+    """Extract and build style objects for polar grid rendering.
+
+    Args:
+        style: Style dictionary with polar_* settings.
+
+    Returns:
+        Dict with label_color, tick_font_float, font, label_alignment,
+        axis_stroke, circle_stroke, and radial_stroke.
+    """
     axis_color = str(style.get("polar_axis_color", "#000"))
     circle_color = str(style.get("polar_circle_color", "lightgrey"))
     radial_color = str(style.get("polar_radial_color", "lightgrey"))
@@ -234,6 +277,16 @@ def _get_polar_styles(style):
 
 
 def _compute_polar_layout(polar_grid, coordinate_mapper):
+    """Compute layout parameters for polar grid rendering.
+
+    Args:
+        polar_grid: PolarGrid drawable with width, height, radial spacing.
+        coordinate_mapper: Mapper for coordinate conversion.
+
+    Returns:
+        Dict with ox, oy, width_px, height_px, scale, display_spacing,
+        max_radius_screen, angular_step_degrees, or None if invalid.
+    """
     width = getattr(polar_grid, "width", None)
     height = getattr(polar_grid, "height", None)
     if width is None or height is None:
@@ -317,6 +370,14 @@ def _compute_polar_layout(polar_grid, coordinate_mapper):
 
 
 def render_polar_helper(primitives, polar_grid, coordinate_mapper, style):
+    """Render a polar coordinate system drawable.
+
+    Args:
+        primitives: The renderer primitives interface.
+        polar_grid: PolarGrid drawable with width, height, radial spacing.
+        coordinate_mapper: Mapper for math-to-screen coordinate conversion.
+        style: Style dictionary with polar_* settings.
+    """
     layout = _compute_polar_layout(polar_grid, coordinate_mapper)
     if layout is None:
         return

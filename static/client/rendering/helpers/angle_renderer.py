@@ -1,3 +1,16 @@
+"""Angle rendering helper for drawing angle arcs with degree labels.
+
+This module provides the render_angle_helper function that renders an angle
+drawable as a curved arc between two arms with an optional degree label.
+
+Key Features:
+    - Arc rendering between angle arms at vertex point
+    - Automatic arc radius clamping to fit within arm lengths
+    - Degree label positioning at configurable distance from vertex
+    - Font size scaling based on available space
+    - Metadata emission for hit testing and debugging
+"""
+
 from __future__ import annotations
 
 import math
@@ -8,6 +21,19 @@ from rendering.primitives import FontStyle, StrokeStyle, TextAlignment
 
 
 def _compute_angle_arc_params(vx, vy, p1x, p1y, arc_radius, coordinate_mapper):
+    """Compute arc parameters with radius clamping.
+
+    Args:
+        vx: Vertex screen x coordinate.
+        vy: Vertex screen y coordinate.
+        p1x: Arm1 endpoint screen x coordinate.
+        p1y: Arm1 endpoint screen y coordinate.
+        arc_radius: Requested arc radius in screen pixels.
+        coordinate_mapper: Mapper for scale factor extraction.
+
+    Returns:
+        Tuple of (clamped_radius, min_arm_length, min_arm_length_math).
+    """
     try:
         arm1_length = math.hypot(p1x - vx, p1y - vy)
         arm2_length = math.hypot(p1x - vx, p1y - vy)
@@ -28,6 +54,21 @@ def _compute_angle_arc_params(vx, vy, p1x, p1y, arc_radius, coordinate_mapper):
 
 
 def _compute_angle_label_params(vx, vy, p1y, clamped_radius, arc_radius, display_degrees, params, style):
+    """Compute label positioning and font parameters for angle text.
+
+    Args:
+        vx: Vertex screen x coordinate.
+        vy: Vertex screen y coordinate.
+        p1y: Arm1 endpoint screen y coordinate (unused but kept for signature).
+        clamped_radius: Arc radius after clamping to arm length.
+        arc_radius: Original requested arc radius.
+        display_degrees: Angle measurement in degrees.
+        params: Arc parameters dict with angle_v_p1_rad and final_sweep_flag.
+        style: Style dictionary with font settings.
+
+    Returns:
+        Tuple of (tx, ty, font, base_font_size, should_draw_label).
+    """
     text_radius = clamped_radius * float(style.get("angle_text_arc_radius_factor", 1.8))
     display_angle_rad = math.radians(display_degrees)
     text_delta = display_angle_rad / 2.0
@@ -60,6 +101,21 @@ def _compute_angle_label_params(vx, vy, p1y, clamped_radius, arc_radius, display
 
 def _build_angle_metadata(angle_obj, arc_radius, clamped_radius, min_arm_length, min_arm_length_math,
                           display_degrees, params, style):
+    """Build metadata dictionary for angle rendering debugging.
+
+    Args:
+        angle_obj: The Angle drawable with vertex and arm points.
+        arc_radius: Original requested arc radius.
+        clamped_radius: Arc radius after clamping.
+        min_arm_length: Shortest arm length in screen pixels.
+        min_arm_length_math: Shortest arm length in math coordinates.
+        display_degrees: Angle measurement in degrees.
+        params: Arc parameters dict with sweep flag.
+        style: Style dictionary with rendering settings.
+
+    Returns:
+        Dict containing angle metadata for hit testing and debugging.
+    """
     return {
         "angle": {
             "vertex_math": (getattr(angle_obj.vertex_point, "x", 0.0), getattr(angle_obj.vertex_point, "y", 0.0)),
@@ -80,6 +136,20 @@ def _build_angle_metadata(angle_obj, arc_radius, clamped_radius, min_arm_length,
 
 @_manages_shape
 def _draw_angle_arc(primitives, vx, vy, clamped_radius, start_angle, end_angle, sweep_cw, stroke, css_class, metadata):
+    """Draw the angle arc stroke at screen coordinates.
+
+    Args:
+        primitives: The renderer primitives interface.
+        vx: Vertex screen x coordinate.
+        vy: Vertex screen y coordinate.
+        clamped_radius: Arc radius in screen pixels.
+        start_angle: Starting angle in radians.
+        end_angle: Ending angle in radians.
+        sweep_cw: True for clockwise sweep direction.
+        stroke: StrokeStyle for the arc.
+        css_class: Optional CSS class for SVG rendering.
+        metadata: Metadata dict to attach to the arc.
+    """
     primitives.stroke_arc(
         (vx, vy),
         clamped_radius,
@@ -94,6 +164,17 @@ def _draw_angle_arc(primitives, vx, vy, clamped_radius, start_angle, end_angle, 
 
 
 def _draw_angle_label(primitives, tx, ty, display_degrees, font, color, metadata):
+    """Draw the angle degree label at the computed position.
+
+    Args:
+        primitives: The renderer primitives interface.
+        tx: Label screen x coordinate.
+        ty: Label screen y coordinate.
+        display_degrees: Angle measurement to display.
+        font: FontStyle for the label text.
+        color: Text color string.
+        metadata: Metadata dict to attach to the label.
+    """
     primitives.draw_text(
         f"{display_degrees:.1f}\u00b0",
         (tx, ty),
@@ -106,6 +187,14 @@ def _draw_angle_label(primitives, tx, ty, display_degrees, font, color, metadata
 
 
 def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
+    """Render an angle drawable with arc and degree label.
+
+    Args:
+        primitives: The renderer primitives interface.
+        angle_obj: The Angle drawable with vertex_point, arm1_point, arm2_point.
+        coordinate_mapper: Mapper for math-to-screen coordinate conversion.
+        style: Style dictionary with angle_arc_radius, angle_color, etc.
+    """
     try:
         vx, vy = coordinate_mapper.math_to_screen(angle_obj.vertex_point.x, angle_obj.vertex_point.y)
         p1x, p1y = coordinate_mapper.math_to_screen(angle_obj.arm1_point.x, angle_obj.arm1_point.y)

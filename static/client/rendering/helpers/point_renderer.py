@@ -1,3 +1,15 @@
+"""Point rendering helper for drawing point drawables.
+
+This module provides the render_point_helper function that renders a point
+as a filled circle with an optional label at its position.
+
+Key Features:
+    - Screen-space circle rendering at point location
+    - Automatic label positioning with offset
+    - Support for embedded Label drawables
+    - Backward-compatible duck-typed point support
+"""
+
 from __future__ import annotations
 
 from rendering.helpers.shape_decorator import _manages_shape
@@ -8,10 +20,19 @@ from rendering.primitives import FillStyle
 
 @_manages_shape
 def _render_point(primitives, sx, sy, radius, point, fill, style):
+    """Render the point circle at screen coordinates."""
     primitives.fill_circle((sx, sy), radius, fill, screen_space=True)
 
 
 def render_point_helper(primitives, point, coordinate_mapper, style):
+    """Render a point drawable with its label.
+
+    Args:
+        primitives: The renderer primitives interface.
+        point: The Point drawable with x, y, color, and optional label.
+        coordinate_mapper: Mapper for math-to-screen coordinate conversion.
+        style: Style dictionary with point_radius and point_color.
+    """
     try:
         sx_sy = coordinate_mapper.math_to_screen(point.x, point.y)
     except Exception:

@@ -1,3 +1,21 @@
+"""Rendering helper functions for drawable types.
+
+This package provides specialized rendering helper functions for each drawable
+type. Each helper takes a primitives interface, the drawable, a coordinate
+mapper, and style dictionary to produce the visual representation.
+
+Key Categories:
+    - Geometry helpers: point, segment, circle, ellipse, vector, angle
+    - Function helpers: function, parametric_function, piecewise_function
+    - Area helpers: colored_area builders for shaded regions
+    - Grid helpers: cartesian, polar coordinate systems
+    - Font helpers: zoom-adjusted font sizing
+
+Usage:
+    Helper functions are typically called by the cached_render_plan module
+    during plan building, or directly by renderers for immediate drawing.
+"""
+
 from __future__ import annotations
 
 from rendering.helpers.font_helpers import (

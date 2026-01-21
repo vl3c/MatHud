@@ -1,3 +1,15 @@
+"""Ellipse rendering helper for drawing ellipse outlines.
+
+This module provides the render_ellipse_helper function that renders an ellipse
+as a stroked outline at its center position with horizontal and vertical radii.
+
+Key Features:
+    - Screen-space ellipse stroke rendering
+    - Support for rotation angle transformation
+    - Automatic radius validation and conversion
+    - Style-based color and stroke width configuration
+"""
+
 from __future__ import annotations
 
 import math
@@ -8,10 +20,28 @@ from rendering.primitives import StrokeStyle
 
 @_manages_shape
 def _render_ellipse(primitives, center, rx, ry, rotation_rad, stroke):
+    """Render an ellipse outline at screen coordinates.
+
+    Args:
+        primitives: The renderer primitives interface.
+        center: Screen coordinate tuple (x, y) for ellipse center.
+        rx: Horizontal radius in screen pixels.
+        ry: Vertical radius in screen pixels.
+        rotation_rad: Rotation angle in radians (negative for screen coords).
+        stroke: StrokeStyle defining color and width.
+    """
     primitives.stroke_ellipse(center, rx, ry, rotation_rad, stroke)
 
 
 def render_ellipse_helper(primitives, ellipse, coordinate_mapper, style):
+    """Render an ellipse drawable.
+
+    Args:
+        primitives: The renderer primitives interface.
+        ellipse: The Ellipse drawable with center, radius_x, radius_y, rotation_angle.
+        coordinate_mapper: Mapper for math-to-screen coordinate conversion.
+        style: Style dictionary with ellipse_color and ellipse_stroke_width.
+    """
     try:
         center = coordinate_mapper.math_to_screen(ellipse.center.x, ellipse.center.y)
         radius_x = coordinate_mapper.scale_value(getattr(ellipse, "radius_x", None))

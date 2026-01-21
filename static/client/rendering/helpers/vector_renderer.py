@@ -1,3 +1,9 @@
+"""Vector rendering helper for drawing directed line segments with arrows.
+
+This module provides the render_vector_helper function that renders a vector
+as a line with an arrowhead pointing in the direction of travel.
+"""
+
 from __future__ import annotations
 
 import math
@@ -8,6 +14,7 @@ from rendering.primitives import FillStyle, StrokeStyle
 
 @_manages_shape
 def _render_vector(primitives, start, end, seg, color, stroke, style):
+    """Render a vector with line and arrowhead at screen coordinates."""
     primitives.stroke_line(start, end, stroke)
 
     dx = end[0] - start[0]

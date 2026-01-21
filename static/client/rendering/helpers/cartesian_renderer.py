@@ -1,3 +1,17 @@
+"""Cartesian grid rendering helper for drawing axis-aligned coordinate systems.
+
+This module provides the render_cartesian_helper function that renders a
+Cartesian coordinate system with axes, grid lines, tick marks, and labels.
+
+Key Features:
+    - X and Y axis rendering with configurable colors
+    - Major and minor grid lines at regular intervals
+    - Tick marks with automatic precision labeling
+    - Scientific notation for extreme values
+    - Dynamic tick spacing based on zoom level
+    - Origin marker display
+"""
+
 from __future__ import annotations
 
 import math
@@ -72,12 +86,38 @@ def _format_tick_value(value: float, precision: int) -> str:
 
 
 def _draw_cartesian_axes(primitives, ox, oy, width_px, height_px, axis_stroke):
+    """Draw the main X and Y axes through the origin.
+
+    Args:
+        primitives: The renderer primitives interface.
+        ox: Origin x coordinate in screen pixels.
+        oy: Origin y coordinate in screen pixels.
+        width_px: Canvas width in pixels.
+        height_px: Canvas height in pixels.
+        axis_stroke: StrokeStyle for the axes.
+    """
     primitives.stroke_line((0.0, oy), (width_px, oy), axis_stroke)
     primitives.stroke_line((ox, 0.0), (ox, height_px), axis_stroke)
 
 
 def _draw_cartesian_tick_x(primitives, x_pos, ox, oy, scale, tick_size, tick_font_float, font,
                            label_color, label_alignment, tick_stroke, precision=6):
+    """Draw a single X-axis tick mark with label.
+
+    Args:
+        primitives: The renderer primitives interface.
+        x_pos: Tick x coordinate in screen pixels.
+        ox: Origin x coordinate in screen pixels.
+        oy: Origin y coordinate in screen pixels.
+        scale: Scale factor for coordinate conversion.
+        tick_size: Half-height of tick mark in pixels.
+        tick_font_float: Font size for positioning.
+        font: FontStyle for the label.
+        label_color: Color string for the label.
+        label_alignment: TextAlignment for the label.
+        tick_stroke: StrokeStyle for the tick mark.
+        precision: Decimal places for label formatting.
+    """
     primitives.stroke_line((x_pos, oy - tick_size), (x_pos, oy + tick_size), tick_stroke)
     if abs(x_pos - ox) < 1e-6:
         primitives.draw_text(
@@ -101,6 +141,21 @@ def _draw_cartesian_tick_x(primitives, x_pos, ox, oy, scale, tick_size, tick_fon
 
 def _draw_cartesian_tick_y(primitives, y_pos, ox, oy, scale, tick_size, font,
                            label_color, label_alignment, tick_stroke, precision=6):
+    """Draw a single Y-axis tick mark with label.
+
+    Args:
+        primitives: The renderer primitives interface.
+        y_pos: Tick y coordinate in screen pixels.
+        ox: Origin x coordinate in screen pixels.
+        oy: Origin y coordinate in screen pixels.
+        scale: Scale factor for coordinate conversion.
+        tick_size: Half-width of tick mark in pixels.
+        font: FontStyle for the label.
+        label_color: Color string for the label.
+        label_alignment: TextAlignment for the label.
+        tick_stroke: StrokeStyle for the tick mark.
+        precision: Decimal places for label formatting.
+    """
     primitives.stroke_line((ox - tick_size, y_pos), (ox + tick_size, y_pos), tick_stroke)
     if abs(y_pos - oy) >= 1e-6:
         value = (oy - y_pos) / scale
@@ -115,12 +170,30 @@ def _draw_cartesian_tick_y(primitives, y_pos, ox, oy, scale, tick_size, font,
 
 
 def _draw_cartesian_mid_tick_x(primitives, x_pos, oy, mid_tick_size, tick_stroke):
+    """Draw a smaller mid-point tick mark on the X axis.
+
+    Args:
+        primitives: The renderer primitives interface.
+        x_pos: Tick x coordinate in screen pixels.
+        oy: Origin y coordinate in screen pixels.
+        mid_tick_size: Half-height of mid tick in pixels.
+        tick_stroke: StrokeStyle for the tick mark.
+    """
     if mid_tick_size <= 0.0:
         return
     primitives.stroke_line((x_pos, oy - mid_tick_size), (x_pos, oy + mid_tick_size), tick_stroke)
 
 
 def _draw_cartesian_mid_tick_y(primitives, y_pos, ox, mid_tick_size, tick_stroke):
+    """Draw a smaller mid-point tick mark on the Y axis.
+
+    Args:
+        primitives: The renderer primitives interface.
+        y_pos: Tick y coordinate in screen pixels.
+        ox: Origin x coordinate in screen pixels.
+        mid_tick_size: Half-width of mid tick in pixels.
+        tick_stroke: StrokeStyle for the tick mark.
+    """
     if mid_tick_size <= 0.0:
         return
     primitives.stroke_line((ox - mid_tick_size, y_pos), (ox + mid_tick_size, y_pos), tick_stroke)
@@ -128,6 +201,17 @@ def _draw_cartesian_mid_tick_y(primitives, y_pos, ox, mid_tick_size, tick_stroke
 
 def _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_tick, grid_stroke,
                                  minor_grid_stroke):
+    """Draw vertical grid lines at regular X intervals.
+
+    Args:
+        primitives: The renderer primitives interface.
+        ox: Origin x coordinate in screen pixels.
+        width_px: Canvas width in pixels.
+        height_px: Canvas height in pixels.
+        display_tick: Spacing between major grid lines in pixels.
+        grid_stroke: StrokeStyle for major grid lines.
+        minor_grid_stroke: StrokeStyle for minor grid lines, or None.
+    """
     if display_tick <= 0:
         return
     import math
@@ -145,6 +229,17 @@ def _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_ti
 
 def _draw_cartesian_grid_lines_y(primitives, oy, width_px, height_px, display_tick, grid_stroke,
                                  minor_grid_stroke):
+    """Draw horizontal grid lines at regular Y intervals.
+
+    Args:
+        primitives: The renderer primitives interface.
+        oy: Origin y coordinate in screen pixels.
+        width_px: Canvas width in pixels.
+        height_px: Canvas height in pixels.
+        display_tick: Spacing between major grid lines in pixels.
+        grid_stroke: StrokeStyle for major grid lines.
+        minor_grid_stroke: StrokeStyle for minor grid lines, or None.
+    """
     if display_tick <= 0:
         return
     import math
@@ -163,6 +258,23 @@ def _draw_cartesian_grid_lines_y(primitives, oy, width_px, height_px, display_ti
 def _draw_cartesian_ticks_x(primitives, ox, oy, width_px, scale, display_tick, tick_size,
                             mid_tick_size, tick_font_float, font, label_color, label_alignment,
                             tick_stroke):
+    """Draw all tick marks and labels along the X axis.
+
+    Args:
+        primitives: The renderer primitives interface.
+        ox: Origin x coordinate in screen pixels.
+        oy: Origin y coordinate in screen pixels.
+        width_px: Canvas width in pixels.
+        scale: Scale factor for coordinate conversion.
+        display_tick: Spacing between major ticks in pixels.
+        tick_size: Half-height of major tick marks in pixels.
+        mid_tick_size: Half-height of minor tick marks in pixels.
+        tick_font_float: Font size for positioning labels.
+        font: FontStyle for labels.
+        label_color: Color string for labels.
+        label_alignment: TextAlignment for labels.
+        tick_stroke: StrokeStyle for tick marks.
+    """
     if display_tick <= 0:
         return
     import math
@@ -183,6 +295,22 @@ def _draw_cartesian_ticks_x(primitives, ox, oy, width_px, scale, display_tick, t
 
 def _draw_cartesian_ticks_y(primitives, ox, oy, height_px, scale, display_tick, tick_size,
                             mid_tick_size, font, label_color, label_alignment, tick_stroke):
+    """Draw all tick marks and labels along the Y axis.
+
+    Args:
+        primitives: The renderer primitives interface.
+        ox: Origin x coordinate in screen pixels.
+        oy: Origin y coordinate in screen pixels.
+        height_px: Canvas height in pixels.
+        scale: Scale factor for coordinate conversion.
+        display_tick: Spacing between major ticks in pixels.
+        tick_size: Half-width of major tick marks in pixels.
+        mid_tick_size: Half-width of minor tick marks in pixels.
+        font: FontStyle for labels.
+        label_color: Color string for labels.
+        label_alignment: TextAlignment for labels.
+        tick_stroke: StrokeStyle for tick marks.
+    """
     if display_tick <= 0:
         return
     import math
@@ -207,6 +335,27 @@ def _render_cartesian_grid(
     tick_font_float, font, label_color, label_alignment, axis_stroke, grid_stroke,
     minor_grid_stroke, tick_stroke
 ):
+    """Render the complete Cartesian grid with all components.
+
+    Args:
+        primitives: The renderer primitives interface.
+        ox: Origin x coordinate in screen pixels.
+        oy: Origin y coordinate in screen pixels.
+        width_px: Canvas width in pixels.
+        height_px: Canvas height in pixels.
+        scale: Scale factor for coordinate conversion.
+        display_tick: Spacing between major ticks/grid lines in pixels.
+        tick_size: Half-size of major tick marks in pixels.
+        mid_tick_size: Half-size of minor tick marks in pixels.
+        tick_font_float: Font size for label positioning.
+        font: FontStyle for labels.
+        label_color: Color string for labels.
+        label_alignment: TextAlignment for labels.
+        axis_stroke: StrokeStyle for axes.
+        grid_stroke: StrokeStyle for major grid lines.
+        minor_grid_stroke: StrokeStyle for minor grid lines, or None.
+        tick_stroke: StrokeStyle for tick marks.
+    """
     _draw_cartesian_axes(primitives, ox, oy, width_px, height_px, axis_stroke)
     _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_tick, grid_stroke,
                                  minor_grid_stroke)
@@ -220,6 +369,16 @@ def _render_cartesian_grid(
 
 
 def _get_cartesian_styles(style):
+    """Extract and build style objects for Cartesian grid rendering.
+
+    Args:
+        style: Style dictionary with cartesian_* settings.
+
+    Returns:
+        Dict with label_color, tick_size, mid_tick_size, tick_font_float,
+        font, label_alignment, axis_stroke, grid_stroke, minor_grid_stroke,
+        and tick_stroke.
+    """
     axis_color = str(style.get("cartesian_axis_color", "#000"))
     grid_color = str(style.get("cartesian_grid_color", "lightgrey"))
     label_color = str(style.get("cartesian_label_color", "grey"))
@@ -278,6 +437,16 @@ def _get_cartesian_styles(style):
 
 
 def _compute_cartesian_layout(cartesian, coordinate_mapper):
+    """Compute layout parameters for Cartesian grid rendering.
+
+    Args:
+        cartesian: Cartesian coordinate system drawable.
+        coordinate_mapper: Mapper for coordinate conversion.
+
+    Returns:
+        Dict with ox, oy, width_px, height_px, scale, display_tick,
+        or None if layout cannot be computed.
+    """
     width = getattr(cartesian, "width", None)
     height = getattr(cartesian, "height", None)
     if width is None or height is None:
@@ -339,6 +508,14 @@ def _compute_cartesian_layout(cartesian, coordinate_mapper):
 
 
 def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
+    """Render a Cartesian coordinate system drawable.
+
+    Args:
+        primitives: The renderer primitives interface.
+        cartesian: Cartesian coordinate system drawable with width, height.
+        coordinate_mapper: Mapper for math-to-screen coordinate conversion.
+        style: Style dictionary with cartesian_* settings.
+    """
     layout = _compute_cartesian_layout(cartesian, coordinate_mapper)
     if layout is None:
         return

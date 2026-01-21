@@ -1,3 +1,9 @@
+"""Segment rendering helper for drawing line segments.
+
+This module provides the render_segment_helper function that renders a segment
+as a stroked line between two points with an optional label.
+"""
+
 from __future__ import annotations
 
 from rendering.helpers.shape_decorator import _manages_shape
@@ -7,9 +13,19 @@ from rendering.primitives import StrokeStyle
 
 @_manages_shape
 def _render_segment(primitives, start, end, stroke):
+    """Render a line segment between two screen coordinates."""
     primitives.stroke_line(start, end, stroke, include_width=False)
 
+
 def render_segment_helper(primitives, segment, coordinate_mapper, style):
+    """Render a segment drawable with its optional label.
+
+    Args:
+        primitives: The renderer primitives interface.
+        segment: The Segment drawable with point1, point2, and color.
+        coordinate_mapper: Mapper for math-to-screen coordinate conversion.
+        style: Style dictionary with segment_color and segment_stroke_width.
+    """
     try:
         start = coordinate_mapper.math_to_screen(segment.point1.x, segment.point1.y)
         end = coordinate_mapper.math_to_screen(segment.point2.x, segment.point2.y)

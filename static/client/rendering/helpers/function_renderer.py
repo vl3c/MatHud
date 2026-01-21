@@ -1,3 +1,16 @@
+"""Function rendering helper for drawing mathematical function curves.
+
+This module provides the render_function_helper function that renders
+function drawables as polyline paths with optional labels.
+
+Key Features:
+    - Adaptive sampling via FunctionRenderable for smooth curves
+    - Path culling to skip segments outside visible area
+    - Function name label positioning at curve start
+    - Renderable caching for performance
+    - Stroke styling with round line joins
+"""
+
 from __future__ import annotations
 
 import math
@@ -44,6 +57,15 @@ def _cull_path_to_visible(path, width, height, margin=16):
 
 @_manages_shape
 def _render_function_paths(primitives, screen_paths, stroke, width=0, height=0):
+    """Render function paths as stroked polylines with culling.
+
+    Args:
+        primitives: The renderer primitives interface.
+        screen_paths: List of screen coordinate paths to render.
+        stroke: StrokeStyle for the function curve.
+        width: Canvas width for culling (0 to disable).
+        height: Canvas height for culling (0 to disable).
+    """
     for path in screen_paths:
         if len(path) < 2:
             continue
@@ -57,6 +79,17 @@ def _render_function_paths(primitives, screen_paths, stroke, width=0, height=0):
 
 
 def _get_or_create_renderable(func, coordinate_mapper):
+    """Get or create a FunctionRenderable for the given function.
+
+    Caches the renderable on the function object for reuse.
+
+    Args:
+        func: Function drawable with expression and domain.
+        coordinate_mapper: Mapper for coordinate conversion.
+
+    Returns:
+        FunctionRenderable instance for path generation.
+    """
     renderable = getattr(func, "_renderable", None)
     if renderable is None or renderable.mapper is not coordinate_mapper:
         renderable = FunctionRenderable(func, coordinate_mapper)
@@ -70,6 +103,15 @@ def _get_or_create_renderable(func, coordinate_mapper):
 
 
 def _build_stroke_style(func, style):
+    """Build the stroke style for a function curve.
+
+    Args:
+        func: Function drawable with optional color attribute.
+        style: Style dictionary with function_color and function_stroke_width.
+
+    Returns:
+        StrokeStyle with function color and round line joins.
+    """
     return StrokeStyle(
         color=str(getattr(func, "color", style.get("function_color", "#000"))),
         width=float(style.get("function_stroke_width", 1) or 1),
@@ -78,6 +120,14 @@ def _build_stroke_style(func, style):
 
 
 def _normalize_font_size(value):
+    """Normalize font size to integer if it's a whole number.
+
+    Args:
+        value: Font size value to normalize.
+
+    Returns:
+        Integer if value is a whole number, otherwise the original value.
+    """
     try:
         size_float = float(value)
     except Exception:
@@ -88,6 +138,15 @@ def _normalize_font_size(value):
 
 
 def _render_function_label(primitives, func, screen_paths, stroke, style):
+    """Render the function name label near the curve start.
+
+    Args:
+        primitives: The renderer primitives interface.
+        func: Function drawable with name attribute.
+        screen_paths: Rendered paths for label positioning.
+        stroke: StrokeStyle containing the function color.
+        style: Style dictionary with font settings.
+    """
     if not getattr(func, "name", "") or not screen_paths or not screen_paths[0]:
         return
     font_size = _normalize_font_size(style.get("function_label_font_size", 12))
@@ -106,6 +165,14 @@ def _render_function_label(primitives, func, screen_paths, stroke, style):
 
 
 def render_function_helper(primitives, func, coordinate_mapper, style):
+    """Render a mathematical function drawable.
+
+    Args:
+        primitives: The renderer primitives interface.
+        func: Function drawable with expression, domain, name, and color.
+        coordinate_mapper: Mapper for math-to-screen coordinate conversion.
+        style: Style dictionary with function_color and function_stroke_width.
+    """
     try:
         renderable = _get_or_create_renderable(func, coordinate_mapper)
         screen_paths = renderable.build_screen_paths().paths

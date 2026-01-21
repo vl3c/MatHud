@@ -1,3 +1,18 @@
+"""Label rendering helper for drawing text labels in various modes.
+
+This module provides the render_label_helper function that renders Label
+drawables with support for screen-offset and world-space positioning modes.
+
+Key Features:
+    - Screen-offset mode for point-attached labels with pixel offsets
+    - World-space mode for labels at mathematical coordinates
+    - Multi-line text support with automatic line spacing
+    - Configurable font size sourcing (label vs style)
+    - Rotation support for angled label text
+    - Coordinate display formatting options
+    - Non-selectable text style for UI labels
+"""
+
 from __future__ import annotations
 
 import math
@@ -9,6 +24,16 @@ from rendering.primitives import FontStyle, TextAlignment
 
 
 def _normalize_font_size(value, default_value):
+    """Normalize a font size value to a valid number.
+
+    Args:
+        value: Raw font size value to normalize.
+        default_value: Default to return if value is invalid.
+
+    Returns:
+        Integer if value is whole number, float otherwise,
+        or default_value if conversion fails.
+    """
     try:
         size_float = float(value)
     except Exception:
@@ -21,10 +46,27 @@ def _normalize_font_size(value, default_value):
 
 
 def _screen_offset_get_position(label):
+    """Extract the position attribute from a label.
+
+    Args:
+        label: Label drawable with optional position attribute.
+
+    Returns:
+        Position object or None if not present.
+    """
     return getattr(label, "position", None)
 
 
 def _screen_offset_try_math_to_screen(position, coordinate_mapper):
+    """Convert position from math coordinates to screen coordinates.
+
+    Args:
+        position: Position object with x, y attributes.
+        coordinate_mapper: Mapper for coordinate conversion.
+
+    Returns:
+        Screen coordinate tuple (x, y) or None if conversion fails.
+    """
     try:
         return coordinate_mapper.math_to_screen(position.x, position.y)
     except Exception:
@@ -32,7 +74,15 @@ def _screen_offset_try_math_to_screen(position, coordinate_mapper):
 
 
 def _screen_offset_compute_offset(mode, style):
-    """Return (radius, offset_x, offset_y)."""
+    """Compute pixel offset for screen-offset label positioning.
+
+    Args:
+        mode: Render mode object with offset_from_point_radius and offset_px settings.
+        style: Style dictionary with point_radius.
+
+    Returns:
+        Tuple of (radius, offset_x, offset_y) in screen pixels.
+    """
     radius = 0.0
     if bool(getattr(mode, "offset_from_point_radius", True)):
         radius_raw = style.get("point_radius", 0) or 0
@@ -49,6 +99,16 @@ def _screen_offset_compute_offset(mode, style):
 
 
 def _screen_offset_compute_font_size(label, mode, style):
+    """Compute the font size for a screen-offset label.
+
+    Args:
+        label: Label drawable with optional font_size attribute.
+        mode: Render mode with font_size_source and font_size_key settings.
+        style: Style dictionary with font size defaults.
+
+    Returns:
+        Normalized font size as int or float.
+    """
     font_size_source = str(getattr(mode, "font_size_source", "label") or "label")
     if font_size_source == "style":
         font_size_key = str(getattr(mode, "font_size_key", "point_label_font_size") or "point_label_font_size")
@@ -59,25 +119,66 @@ def _screen_offset_compute_font_size(label, mode, style):
 
 
 def _screen_offset_compute_font_family(mode, style):
+    """Compute the font family for a screen-offset label.
+
+    Args:
+        mode: Render mode with font_family_key setting.
+        style: Style dictionary with font family defaults.
+
+    Returns:
+        Font family string.
+    """
     font_family_key = str(getattr(mode, "font_family_key", "label_font_family") or "label_font_family")
     return style.get(font_family_key, style.get("font_family", default_font_family))
 
 
 def _screen_offset_build_font(label, mode, style):
+    """Build a FontStyle for a screen-offset label.
+
+    Args:
+        label: Label drawable with optional font settings.
+        mode: Render mode with font configuration.
+        style: Style dictionary with defaults.
+
+    Returns:
+        Tuple of (font_size, FontStyle).
+    """
     font_size = _screen_offset_compute_font_size(label, mode, style)
     font_family = _screen_offset_compute_font_family(mode, style)
     return font_size, FontStyle(family=font_family, size=font_size)
 
 
 def _screen_offset_color(label, style):
+    """Get the text color for a label.
+
+    Args:
+        label: Label drawable with optional color attribute.
+        style: Style dictionary with label_text_color default.
+
+    Returns:
+        Color string.
+    """
     return str(getattr(label, "color", style.get("label_text_color", "#000")))
 
 
 def _screen_offset_alignment():
+    """Get the default text alignment for screen-offset labels.
+
+    Returns:
+        TextAlignment with left horizontal and alphabetic vertical alignment.
+    """
     return TextAlignment(horizontal="left", vertical="alphabetic")
 
 
 def _screen_offset_rotation_degrees(label):
+    """Extract the rotation angle from a label.
+
+    Args:
+        label: Label drawable with optional rotation_degrees attribute.
+
+    Returns:
+        Rotation angle in degrees, defaulting to 0.0.
+    """
     try:
         rotation_degrees = float(getattr(label, "rotation_degrees", 0.0))
     except Exception:
@@ -88,6 +189,14 @@ def _screen_offset_rotation_degrees(label):
 
 
 def _screen_offset_style_overrides(mode):
+    """Get CSS style overrides for non-selectable labels.
+
+    Args:
+        mode: Render mode with optional non_selectable flag.
+
+    Returns:
+        Dict of CSS properties to disable text selection, or None.
+    """
     if not bool(getattr(mode, "non_selectable", False)):
         return None
     return {
@@ -99,6 +208,14 @@ def _screen_offset_style_overrides(mode):
 
 
 def _screen_offset_text_format(mode):
+    """Get the text format mode for a label.
+
+    Args:
+        mode: Render mode with optional text_format attribute.
+
+    Returns:
+        Text format string: "text_only" or "text_with_anchor_coords".
+    """
     return str(getattr(mode, "text_format", "text_only") or "text_only")
 
 
@@ -115,6 +232,20 @@ def _screen_offset_draw_text_with_anchor_coords(
     rotation_degrees,
     mode,
 ):
+    """Draw a label with coordinate display appended.
+
+    Args:
+        primitives: The renderer primitives interface.
+        label: Label drawable with text attribute.
+        position: Position object with math coordinates.
+        screen_x: Screen x coordinate for anchor point.
+        screen_y: Screen y coordinate for anchor point.
+        radius: Point radius for offset calculation.
+        color: Text color string.
+        style: Style dictionary.
+        rotation_degrees: Label rotation angle.
+        mode: Render mode with coord_precision setting.
+    """
     base_text = str(getattr(label, "text", "") or "")
     if not base_text:
         return
@@ -161,6 +292,23 @@ def _screen_offset_draw_text_lines(
     style_overrides,
     rotation_degrees,
 ):
+    """Draw multi-line label text at a screen offset position.
+
+    Args:
+        primitives: The renderer primitives interface.
+        label: Label drawable with text attribute.
+        position: Position object with math coordinates.
+        screen_x: Screen x coordinate for anchor point.
+        screen_y: Screen y coordinate for anchor point.
+        offset_x: Horizontal pixel offset from anchor.
+        offset_y: Vertical pixel offset from anchor.
+        font: FontStyle for text rendering.
+        font_size: Font size for line height calculation.
+        color: Text color string.
+        alignment: TextAlignment for text positioning.
+        style_overrides: Optional CSS style overrides dict.
+        rotation_degrees: Label rotation angle.
+    """
     text_value = str(getattr(label, "text", "") or "")
     if not text_value:
         return
@@ -200,6 +348,14 @@ def _screen_offset_draw_text_lines(
 
 
 def _screen_offset_layout_group(label):
+    """Get a unique identifier for label layout grouping.
+
+    Args:
+        label: Label drawable object.
+
+    Returns:
+        Integer object id or None if unavailable.
+    """
     try:
         return id(label)
     except Exception:
@@ -207,6 +363,14 @@ def _screen_offset_layout_group(label):
 
 
 def _screen_offset_line_metrics(lines):
+    """Compute metrics for multi-line label text.
+
+    Args:
+        lines: List of text lines.
+
+    Returns:
+        Tuple of (line_count, max_line_len).
+    """
     line_count = len(lines)
     max_line_len = 0
     for line in lines:
@@ -220,6 +384,15 @@ def _screen_offset_line_metrics(lines):
 
 
 def _render_screen_offset_label(primitives, label, coordinate_mapper, style, mode):
+    """Render a label in screen-offset mode.
+
+    Args:
+        primitives: The renderer primitives interface.
+        label: Label drawable with position and text.
+        coordinate_mapper: Mapper for coordinate conversion.
+        style: Style dictionary with font and color settings.
+        mode: Screen-offset render mode with offset and format settings.
+    """
     position = _screen_offset_get_position(label)
     if position is None:
         return
@@ -273,6 +446,17 @@ def _render_screen_offset_label(primitives, label, coordinate_mapper, style, mod
 
 
 def render_label_helper(primitives, label, coordinate_mapper, style):
+    """Render a label drawable in the appropriate mode.
+
+    Dispatches to screen-offset or world-space rendering based on
+    the label's render_mode attribute.
+
+    Args:
+        primitives: The renderer primitives interface.
+        label: Label drawable with position, text, and render_mode.
+        coordinate_mapper: Mapper for math-to-screen coordinate conversion.
+        style: Style dictionary with label rendering settings.
+    """
     try:
         if hasattr(label, "visible") and not bool(getattr(label, "visible")):
             return
