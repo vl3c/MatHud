@@ -1,3 +1,17 @@
+"""Canvas 2D primitive adapter for translating drawing commands.
+
+This module provides the Canvas2DPrimitiveAdapter class that implements the
+RendererPrimitives interface for HTML5 Canvas 2D contexts. It handles style
+state management, font caching, and efficient batching of drawing operations.
+
+Key Features:
+    - Efficient style state tracking to minimize context changes
+    - Font string caching with LRU eviction
+    - Batched line drawing for improved performance
+    - Deferred text layout for screen-offset labels
+    - Telemetry integration for performance monitoring
+"""
+
 from __future__ import annotations
 
 import math
@@ -15,13 +29,29 @@ from rendering.shared_drawable_renderers import Point2D
 
 
 class Canvas2DPrimitiveAdapter(RendererPrimitives):
-    """RendererPrimitives implementation for Canvas 2D."""
+    """RendererPrimitives implementation for HTML5 Canvas 2D.
+
+    Translates abstract drawing commands into Canvas 2D API calls with efficient
+    state management to minimize redundant context updates.
+
+    Attributes:
+        canvas_el: The canvas DOM element.
+        ctx: The 2D rendering context.
+        FONT_SIZE_QUANTUM_PX: Font size quantization step for caching.
+        MAX_FONT_CACHE_ENTRIES: Maximum entries in font string cache.
+    """
 
     FONT_SIZE_QUANTUM_PX: float = 0.25
     MAX_FONT_CACHE_ENTRIES: int = 512
     _FONT_SIZE_EPS: float = 1e-6
 
     def __init__(self, canvas_el: Any, *, telemetry: Optional[Any] = None) -> None:
+        """Initialize the Canvas 2D primitive adapter.
+
+        Args:
+            canvas_el: The canvas element to draw on.
+            telemetry: Optional telemetry collector for event tracking.
+        """
         self.canvas_el = canvas_el
         self.ctx = canvas_el.getContext("2d")
         self._stroke_state: Dict[str, Any] = {"color": None, "width": None, "line_join": None, "line_cap": None}

@@ -1,3 +1,21 @@
+"""Shared rendering helpers re-exported for renderer convenience.
+
+This module consolidates rendering helper functions and style classes that are
+used by all renderer implementations. It serves as a single import point for
+common functionality needed when rendering drawables.
+
+Key Exports:
+    - Style classes: FillStyle, StrokeStyle, FontStyle, TextAlignment
+    - Primitive interface: RendererPrimitives
+    - Geometry helpers: render_point_helper, render_segment_helper, etc.
+    - Area builders: build_functions_colored_area, build_segments_colored_area, etc.
+    - Font utilities: _coerce_font_size, _compute_zoom_adjusted_font_size
+
+Usage:
+    Renderers import from this module to access all shared utilities through
+    a single namespace without needing to know the internal organization.
+"""
+
 from __future__ import annotations
 
 from rendering.helpers import (

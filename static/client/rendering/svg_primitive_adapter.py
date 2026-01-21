@@ -1,3 +1,17 @@
+"""SVG primitive adapter for translating drawing commands to DOM elements.
+
+This module provides the SvgPrimitiveAdapter class that implements the
+RendererPrimitives interface by creating and managing SVG DOM elements.
+It features element pooling, group management, and efficient DOM updates.
+
+Key Features:
+    - Element pooling to reduce DOM churn
+    - Per-drawable group management with CSS transforms
+    - Document fragment batching for efficient insertion
+    - Automatic cleanup of unused elements
+    - Telemetry integration for performance monitoring
+"""
+
 from __future__ import annotations
 
 import math
@@ -17,9 +31,24 @@ from rendering.shared_drawable_renderers import Point2D
 
 
 class SvgPrimitiveAdapter(RendererPrimitives):
-    """RendererPrimitives implementation backed by the SVG surface."""
+    """RendererPrimitives implementation using SVG DOM elements.
+
+    Translates abstract drawing commands into SVG element creation and updates.
+    Uses element pooling and grouping for efficient DOM manipulation.
+
+    Attributes:
+        surface_id: The id of the SVG element to draw on.
+        _pool: Pooled SVG elements by type for reuse.
+        _groups: Per-drawable DOM groups for transforms.
+    """
 
     def __init__(self, surface_id: str = "math-svg", *, telemetry: Optional[Any] = None) -> None:
+        """Initialize the SVG primitive adapter.
+
+        Args:
+            surface_id: HTML id of the SVG element.
+            telemetry: Optional telemetry collector for event tracking.
+        """
         self.surface_id = surface_id
         self._pool: Dict[str, List[Any]] = {}
         self._active_indices: Dict[str, int] = {}

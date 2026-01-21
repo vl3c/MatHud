@@ -1,3 +1,25 @@
+"""Style configuration management for renderers.
+
+This module defines the base style dictionary containing default visual
+properties for all drawable types. It provides functions to retrieve
+cloned style configurations with optional overrides.
+
+Key Features:
+    - Centralized style defaults for all drawable types
+    - Safe cloning to prevent mutation of shared defaults
+    - Override support for custom styling
+    - Integration with constants module for default values
+
+Style Categories:
+    - Point styles: color, radius, label font
+    - Segment/line styles: color, stroke width
+    - Circle/ellipse styles: color, stroke width
+    - Vector styles: color, tip size
+    - Angle styles: arc radius, label positioning
+    - Function/area styles: color, opacity
+    - Grid styles: axis color, tick size, labels
+"""
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
@@ -17,6 +39,7 @@ from constants import (
 )
 
 
+# Base style dictionary with all default visual properties
 _BASE_STYLE: Dict[str, Any] = {
     "point_color": default_color,
     "point_radius": default_point_size,
@@ -81,10 +104,21 @@ _BASE_STYLE: Dict[str, Any] = {
 
 
 def _clone_base_style() -> Dict[str, Any]:
+    """Create a shallow copy of the base style dictionary."""
     return _BASE_STYLE.copy()
 
 
 def get_renderer_style(overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Get a style dictionary with optional overrides applied.
+
+    Returns a new dictionary to prevent modification of shared defaults.
+
+    Args:
+        overrides: Optional dictionary of style values to override defaults.
+
+    Returns:
+        A new dictionary with base styles and any overrides applied.
+    """
     style = _clone_base_style()
     if overrides:
         style.update(overrides)
@@ -92,5 +126,14 @@ def get_renderer_style(overrides: Optional[Dict[str, Any]] = None) -> Dict[str, 
 
 
 def get_default_style_value(key: str, default: Optional[Any] = None) -> Any:
+    """Get a single default style value.
+
+    Args:
+        key: The style property name.
+        default: Value to return if key is not found.
+
+    Returns:
+        The default value for the given style key.
+    """
     return _BASE_STYLE.get(key, default)
 

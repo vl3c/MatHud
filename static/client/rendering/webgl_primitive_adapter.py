@@ -1,3 +1,20 @@
+"""WebGL primitive adapter for GPU-accelerated drawing (experimental).
+
+This module provides the WebGLPrimitiveAdapter class that implements the
+RendererPrimitives interface using WebGL shader programs. Support is limited
+to basic shapes like lines, circles, and polygons.
+
+Key Features:
+    - GPU-accelerated point and line rendering
+    - Circle and ellipse sampling for stroke rendering
+    - Basic polygon outline support
+    - Integration with WebGLRenderer shader programs
+
+Note:
+    This adapter has limited support compared to Canvas2D and SVG adapters.
+    Text rendering and advanced features are not implemented.
+"""
+
 from __future__ import annotations
 
 import math
@@ -14,9 +31,21 @@ from rendering.shared_drawable_renderers import Point2D
 
 
 class WebGLPrimitiveAdapter(RendererPrimitives):
-    """RendererPrimitives implementation for WebGL (limited support)."""
+    """RendererPrimitives implementation for WebGL with limited support.
+
+    Translates drawing commands to WebGL API calls via the parent renderer.
+    Only supports basic shapes; text and advanced features are not available.
+
+    Attributes:
+        renderer: The WebGLRenderer instance with GL context and programs.
+    """
 
     def __init__(self, renderer: Any) -> None:
+        """Initialize the WebGL primitive adapter.
+
+        Args:
+            renderer: The WebGLRenderer that provides the GL context.
+        """
         self.renderer = renderer
 
     def _draw_line_strip_with_stroke(self, points: List[Point2D], stroke: StrokeStyle) -> None:

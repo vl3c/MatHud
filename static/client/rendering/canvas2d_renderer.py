@@ -1,3 +1,23 @@
+"""Canvas 2D renderer implementation using HTML5 Canvas API.
+
+This module provides a renderer that draws mathematical graphics using the
+Canvas 2D context. It uses cached render plans for efficient redrawing during
+pan/zoom operations and supports optional layer compositing for complex scenes.
+
+Key Features:
+    - Canvas 2D API rendering for all drawable types
+    - Cached render plans avoid recomputation during view changes
+    - Optional offscreen compositing for improved performance
+    - Telemetry tracking for performance analysis
+    - Automatic canvas sizing to match container
+
+Architecture:
+    1. Canvas2DRenderer manages the canvas element and rendering pipeline
+    2. Canvas2DPrimitiveAdapter translates drawing commands to Canvas 2D calls
+    3. Cached plans from cached_render_plan.py are reprojected and applied
+    4. Canvas2DTelemetry collects timing and usage metrics
+"""
+
 from __future__ import annotations
 
 import time
@@ -17,10 +37,26 @@ from rendering.cached_render_plan import (
 
 
 class Canvas2DTelemetry:
+    """Performance telemetry collector for Canvas 2D rendering.
+
+    Tracks timing metrics for plan building and application, cache statistics,
+    and per-drawable performance data. Useful for identifying rendering
+    bottlenecks and optimizing performance.
+
+    Attributes:
+        _phase_totals: Cumulative timing for each rendering phase.
+        _phase_counts: Operation counts for each phase.
+        _per_drawable: Per-drawable type timing breakdown.
+        _adapter_events: Event counts from the primitive adapter.
+        _frames: Total frames rendered since last reset.
+    """
+
     def __init__(self) -> None:
+        """Initialize telemetry with zeroed counters."""
         self.reset()
 
     def reset(self) -> None:
+        """Reset all telemetry counters to zero."""
         self._phase_totals: Dict[str, float] = {
             "plan_build_ms": 0.0,
             "plan_apply_ms": 0.0,
@@ -40,12 +76,15 @@ class Canvas2DTelemetry:
         self._max_batch_depth: int = 0
 
     def begin_frame(self) -> None:
+        """Signal the start of a new frame for counting purposes."""
         self._frames += 1
 
     def end_frame(self) -> None:
+        """Signal the end of a frame (currently no-op)."""
         pass
 
     def _now(self) -> float:
+        """Get current timestamp in milliseconds using performance.now() if available."""
         try:
             perf = getattr(window, "performance", None)
             if perf is not None:
@@ -55,12 +94,15 @@ class Canvas2DTelemetry:
         return time.time() * 1000.0
 
     def mark_time(self) -> float:
+        """Record and return the current timestamp for duration measurement."""
         return self._now()
 
     def elapsed_since(self, start: float) -> float:
+        """Calculate milliseconds elapsed since a marked timestamp."""
         return max(self._now() - start, 0.0)
 
     def _drawable_bucket(self, name: str) -> Dict[str, float]:
+        """Get or create the telemetry bucket for a drawable type."""
         bucket = self._per_drawable.get(name)
         if bucket is None:
             bucket = {
@@ -77,6 +119,7 @@ class Canvas2DTelemetry:
         return bucket
 
     def record_plan_build(self, name: str, duration_ms: float, *, cartesian: bool = False) -> None:
+        """Record time spent building a render plan."""
         self._phase_totals["plan_build_ms"] += duration_ms
         self._phase_counts["plan_build_count"] += 1
         bucket = self._drawable_bucket(name)
@@ -87,6 +130,7 @@ class Canvas2DTelemetry:
             self._phase_counts["cartesian_plan_count"] += 1
 
     def record_plan_apply(self, name: str, duration_ms: float, *, cartesian: bool = False) -> None:
+        """Record time spent applying a render plan to the canvas."""
         self._phase_totals["plan_apply_ms"] += duration_ms
         self._phase_counts["plan_apply_count"] += 1
         bucket = self._drawable_bucket(name)
@@ -96,23 +140,28 @@ class Canvas2DTelemetry:
             self._phase_totals["cartesian_plan_apply_ms"] += duration_ms
 
     def record_plan_miss(self, name: str) -> None:
+        """Record when a drawable could not be rendered via a plan."""
         self._phase_counts["plan_miss_count"] += 1
         bucket = self._drawable_bucket(name)
         bucket["plan_miss_count"] += 1
 
     def record_plan_skip(self, name: str) -> None:
+        """Record when a plan was skipped due to being off-screen."""
         self._phase_counts["plan_skip_count"] += 1
         bucket = self._drawable_bucket(name)
         bucket["plan_skip_count"] += 1
 
     def record_adapter_event(self, name: str, amount: int = 1) -> None:
+        """Record an event from the primitive adapter."""
         self._adapter_events[name] = self._adapter_events.get(name, 0) + amount
 
     def track_batch_depth(self, depth: int) -> None:
+        """Track the maximum nested batch depth seen."""
         if depth > self._max_batch_depth:
             self._max_batch_depth = depth
 
     def snapshot(self) -> Dict[str, Any]:
+        """Get a copy of all current telemetry data without resetting."""
         adapter_events = dict(self._adapter_events)
         if self._max_batch_depth:
             adapter_events["max_batch_depth"] = self._max_batch_depth
@@ -127,15 +176,37 @@ class Canvas2DTelemetry:
         }
 
     def drain(self) -> Dict[str, Any]:
+        """Get all telemetry data and reset counters to zero."""
         snapshot = self.snapshot()
         self.reset()
         return snapshot
 
 
 class Canvas2DRenderer(RendererProtocol):
-    """Experimental renderer backed by the Canvas 2D API using shared primitives."""
+    """Renderer using the HTML5 Canvas 2D API.
+
+    Implements RendererProtocol to draw mathematical graphics using the browser's
+    Canvas 2D context. Uses cached render plans to avoid recomputing drawing
+    commands during pan/zoom operations.
+
+    Attributes:
+        canvas_el: The canvas DOM element.
+        ctx: The 2D rendering context.
+        style: Style configuration dictionary.
+
+    Key Features:
+        - Automatic canvas sizing to match container dimensions
+        - Cached render plans for efficient redrawing
+        - Optional offscreen compositing for complex scenes
+        - Visibility culling to skip off-screen elements
+    """
 
     def __init__(self, canvas_id: str = "math-canvas-2d") -> None:
+        """Initialize the Canvas 2D renderer.
+
+        Args:
+            canvas_id: HTML id attribute for the canvas element.
+        """
         self.canvas_el, self.ctx = self._initialize_canvas_context(canvas_id)
         self.style: Dict[str, Any] = get_renderer_style()
         self._background_color: Optional[str] = self.style.get("canvas_background_color")
@@ -150,6 +221,7 @@ class Canvas2DRenderer(RendererProtocol):
         self._initialize_plan_caches()
 
     def clear(self) -> None:
+        """Clear the canvas and apply the background color."""
         width = self.canvas_el.width
         height = self.canvas_el.height
         self._shared_primitives.clear_surface()
@@ -157,7 +229,15 @@ class Canvas2DRenderer(RendererProtocol):
         self._apply_background()
 
     def render(self, drawable: Any, coordinate_mapper: Any) -> bool:
-        # Handlers perform the actual drawing; this method only dispatches.
+        """Render a drawable object using its registered handler.
+
+        Args:
+            drawable: The drawable object to render.
+            coordinate_mapper: Mapper for coordinate transformations.
+
+        Returns:
+            True if a handler was found and invoked, False otherwise.
+        """
         handler = self._handlers_by_type.get(type(drawable))
         if handler is None:
             return False
@@ -165,6 +245,12 @@ class Canvas2DRenderer(RendererProtocol):
         return True
 
     def render_cartesian(self, cartesian: Any, coordinate_mapper: Any) -> None:
+        """Render the Cartesian grid coordinate system.
+
+        Args:
+            cartesian: The Cartesian2Axis grid object.
+            coordinate_mapper: Mapper for coordinate transformations.
+        """
         self._resize_to_container()
         self._sync_offscreen_size()
         width = self.canvas_el.width
@@ -187,6 +273,12 @@ class Canvas2DRenderer(RendererProtocol):
         self._telemetry.record_plan_apply(drawable_name, apply_elapsed, cartesian=True)
 
     def render_polar(self, polar_grid: Any, coordinate_mapper: Any) -> None:
+        """Render a polar coordinate grid.
+
+        Args:
+            polar_grid: The PolarGrid object.
+            coordinate_mapper: Mapper for coordinate transformations.
+        """
         self._resize_to_container()
         self._sync_offscreen_size()
         width = self.canvas_el.width
@@ -259,18 +351,27 @@ class Canvas2DRenderer(RendererProtocol):
         return plan
 
     def begin_frame(self) -> None:
+        """Begin a new rendering frame."""
         self._telemetry.begin_frame()
         self._shared_primitives.begin_frame()
 
     def end_frame(self) -> None:
+        """End the current frame and flush any buffered content."""
         self._shared_primitives.end_frame()
         self._flush_offscreen_to_main()
         self._telemetry.end_frame()
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
+        """Register a handler function for a drawable type.
+
+        Args:
+            cls: The drawable class to handle.
+            handler: Function taking (drawable, coordinate_mapper) to render it.
+        """
         self._handlers_by_type[cls] = handler
 
     def register_default_drawables(self) -> None:
+        """Register handlers for all standard drawable types."""
         try:
             from drawables.point import Point as PointDrawable
             self.register(PointDrawable, self._render_point)
@@ -546,16 +647,28 @@ class Canvas2DRenderer(RendererProtocol):
         return drawable.__class__.__name__
 
     def drain_telemetry(self) -> Dict[str, Any]:
+        """Get telemetry data and reset all counters.
+
+        Returns:
+            Dictionary with frames, phase timings, per-drawable stats,
+            adapter events, and cache metrics.
+        """
         snapshot = self._telemetry.drain()
         snapshot.update(self._collect_cache_metrics())
         return snapshot
 
     def peek_telemetry(self) -> Dict[str, Any]:
+        """Get telemetry data without resetting counters.
+
+        Returns:
+            Dictionary with current telemetry and cache metrics.
+        """
         snapshot = self._telemetry.snapshot()
         snapshot.update(self._collect_cache_metrics())
         return snapshot
 
     def _collect_cache_metrics(self) -> Dict[str, Any]:
+        """Collect metrics about cache usage."""
         metrics: Dict[str, Any] = {}
         try:
             primitives = getattr(self, "_shared_primitives", None)

@@ -1,3 +1,23 @@
+"""SVG renderer implementation using DOM manipulation.
+
+This module provides a renderer that creates and manages SVG elements in the DOM.
+It uses cached render plans for efficient updates during pan/zoom operations and
+supports optional offscreen staging for improved performance.
+
+Key Features:
+    - SVG DOM-based rendering for all drawable types
+    - Cached render plans with CSS transform support
+    - Automatic pruning of unused DOM elements
+    - Optional offscreen staging surface
+    - Telemetry tracking for performance analysis
+
+Architecture:
+    1. SvgRenderer manages SVG elements and the rendering pipeline
+    2. SvgPrimitiveAdapter translates drawing commands to SVG DOM operations
+    3. Cached plans use CSS transforms for efficient reprojection
+    4. SvgTelemetry collects timing and usage metrics
+"""
+
 from __future__ import annotations
 
 import time
@@ -15,11 +35,27 @@ from rendering.interfaces import RendererProtocol
 from rendering.style_manager import get_renderer_style
 from rendering.svg_primitive_adapter import SvgPrimitiveAdapter
 
+
 class SvgTelemetry:
+    """Performance telemetry collector for SVG rendering.
+
+    Tracks timing metrics for plan building and application, cache statistics,
+    and per-drawable performance data.
+
+    Attributes:
+        _phase_totals: Cumulative timing for each rendering phase.
+        _phase_counts: Operation counts for each phase.
+        _per_drawable: Per-drawable type timing breakdown.
+        _adapter_events: Event counts from the primitive adapter.
+        _frames: Total frames rendered since last reset.
+    """
+
     def __init__(self) -> None:
+        """Initialize telemetry with zeroed counters."""
         self.reset()
 
     def reset(self) -> None:
+        """Reset all telemetry counters to zero."""
         self._phase_totals: Dict[str, float] = {
             "plan_build_ms": 0.0,
             "plan_apply_ms": 0.0,
@@ -130,11 +166,31 @@ class SvgTelemetry:
 
 
 class SvgRenderer(RendererProtocol):
-    """SVG renderer with caching, culling, and optional offscreen staging."""
+    """Renderer using SVG DOM elements.
+
+    Implements RendererProtocol to draw mathematical graphics using SVG elements.
+    Uses cached render plans with CSS transforms for efficient pan/zoom updates.
+
+    Attributes:
+        style: Style configuration dictionary.
+        SKIP_AUTO_CLEAR: Flag indicating this renderer manages its own clearing.
+
+    Key Features:
+        - CSS transform-based reprojection for smooth pan/zoom
+        - Automatic pruning of stale DOM groups between frames
+        - Optional offscreen staging for complex scenes
+        - Per-drawable DOM group management
+    """
 
     SKIP_AUTO_CLEAR = True
 
     def __init__(self, style_config: Optional[Dict[str, Any]] = None, surface_id: str = "math-svg") -> None:
+        """Initialize the SVG renderer.
+
+        Args:
+            style_config: Optional style overrides dictionary.
+            surface_id: HTML id attribute for the main SVG element.
+        """
         self.style: Dict[str, Any] = get_renderer_style(style_config)
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self._primary_surface_id: str = surface_id

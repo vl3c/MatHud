@@ -1,3 +1,20 @@
+"""Experimental WebGL renderer implementation.
+
+This module provides an experimental renderer using WebGL for hardware-accelerated
+graphics. It is not feature-complete and serves as a proof of concept for GPU-based
+rendering of mathematical graphics.
+
+Key Features:
+    - WebGL context management and shader compilation
+    - Basic shape rendering (points, segments, circles)
+    - Cached render plans for efficient updates
+    - Automatic viewport resizing
+
+Note:
+    This renderer is experimental and not recommended for production use.
+    Use Canvas2DRenderer or SvgRenderer for full feature support.
+"""
+
 from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
@@ -15,9 +32,23 @@ from rendering.cached_render_plan import (
 
 
 class WebGLRenderer(RendererProtocol):
-    """Experimental renderer backed by WebGL that delegates shape drawing to primitives."""
+    """Experimental WebGL-based renderer.
+
+    Uses GPU shaders for hardware-accelerated rendering. Not feature-complete;
+    supports basic shapes but lacks full drawable coverage.
+
+    Attributes:
+        gl: The WebGL rendering context.
+        style: Style configuration dictionary.
+        canvas_el: The canvas DOM element.
+    """
 
     def __init__(self, canvas_id: str = "math-webgl") -> None:
+        """Initialize the WebGL renderer.
+
+        Args:
+            canvas_id: HTML id attribute for the canvas element.
+        """
         self.gl = self._prepare_canvas_and_context(canvas_id)
         self.style: Dict[str, Any] = get_renderer_style()
         self._initialize_program_state()
