@@ -1,3 +1,16 @@
+"""Graph state data structures for graph creation and persistence.
+
+This module provides descriptor classes for representing graph vertices,
+edges, and overall graph state for serialization and graph manager operations.
+
+Key Features:
+    - GraphVertexDescriptor: Vertex with optional position, color, and label
+    - GraphEdgeDescriptor: Edge with source, target, weight, and styling
+    - GraphState: Complete graph state with vertices, edges, and layout info
+    - TreeState: Extended graph state with root vertex designation
+    - Compact serialization with optional field omission
+"""
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional

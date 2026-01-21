@@ -1,3 +1,19 @@
+"""Graph analysis operations dispatcher.
+
+This module provides the GraphAnalyzer class which dispatches graph analysis
+operations to the appropriate GraphUtils algorithms based on operation name.
+
+Key Features:
+    - Shortest path computation (BFS unweighted, Dijkstra weighted)
+    - Minimum spanning tree extraction
+    - Topological sorting for DAGs
+    - Bridge and articulation point detection
+    - Euler path/circuit status
+    - Bipartite graph detection and coloring
+    - Tree operations (levels, diameter, LCA, reroot)
+    - Convex hull computation from vertex positions
+"""
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence, Tuple

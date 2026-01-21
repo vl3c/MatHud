@@ -1,3 +1,15 @@
+"""Polygon canonicalization utilities for vertex normalization.
+
+This package provides canonicalization routines that transform arbitrary
+vertex lists into well-formed polygon representations.
+
+Key Features:
+    - Triangle canonicalization with subtype support (equilateral, isosceles, right)
+    - Quadrilateral canonicalization with subtype support (rectangle, square, parallelogram)
+    - Point deduplication and CCW ordering
+    - Best-fit algorithms preserving user-specified anchors
+"""
+
 from __future__ import annotations
 
 from .common import (

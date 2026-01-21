@@ -1,3 +1,15 @@
+"""Polygon subtype enumerations for triangles and quadrilaterals.
+
+This module defines enumeration types for polygon subtypes used by
+canonicalization routines and polygon managers.
+
+Key Features:
+    - TriangleSubtype: equilateral, isosceles, scalene, right, right_isosceles
+    - QuadrilateralSubtype: rectangle, square, parallelogram, rhombus, kite, trapezoids
+    - Case-insensitive string parsing with normalization
+    - Value listing and iteration utilities
+"""
+
 from __future__ import annotations
 
 from enum import Enum

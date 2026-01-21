@@ -1,3 +1,18 @@
+"""Quadrilateral canonicalization with subtype support.
+
+This module provides canonicalization for quadrilaterals, transforming arbitrary
+vertex sets into well-formed quadrilaterals of specified subtypes.
+
+Key Features:
+    - Rectangle/square canonicalization via PCA and diagonal anchors
+    - Diagonal construction mode for axis-aligned rectangles
+    - Parallelogram canonicalization via fourth vertex computation
+    - Rhombus canonicalization with equal side enforcement
+    - Kite canonicalization with axis of symmetry
+    - Trapezoid variants (standard, isosceles, right)
+    - CCW vertex ordering with original order alignment
+"""
+
 from __future__ import annotations
 
 import math

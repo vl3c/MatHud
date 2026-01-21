@@ -1,3 +1,15 @@
+"""Common utilities for polygon canonicalization.
+
+This module provides shared types and helper functions used by the
+triangle and quadrilateral canonicalization routines.
+
+Key Features:
+    - PointLike type union for flexible vertex input
+    - Point conversion from tuples, lists, dicts, and objects
+    - Proximity-based point deduplication helpers
+    - Nearest point search for vertex matching
+"""
+
 from __future__ import annotations
 
 import math

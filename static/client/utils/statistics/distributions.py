@@ -1,3 +1,14 @@
+"""Probability distribution expression generators.
+
+This module provides functions for generating MatHud-compatible expression
+strings for probability distributions.
+
+Key Features:
+    - Normal PDF expression generation with mean and sigma
+    - Default bounds calculation for normal distributions
+    - Finite value validation for parameters
+"""
+
 from __future__ import annotations
 
 import math

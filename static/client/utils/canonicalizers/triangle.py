@@ -1,3 +1,16 @@
+"""Triangle canonicalization with subtype support.
+
+This module provides canonicalization for triangles, transforming arbitrary
+vertex sets into well-formed triangles of specified subtypes.
+
+Key Features:
+    - Equilateral triangle canonicalization via centroid and average side length
+    - Isosceles triangle canonicalization with apex identification
+    - Right triangle canonicalization with perpendicular leg enforcement
+    - Right isosceles canonicalization combining both constraints
+    - CCW vertex ordering with original order alignment
+"""
+
 from __future__ import annotations
 
 import math
