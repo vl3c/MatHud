@@ -173,6 +173,16 @@ static/client/
 ├── test_runner.py                     # Client-side test execution framework
 ├── constants.py                       # Application constants
 ├── geometry.py                        # Geometric utility functions
+├── geometry/                          # Geometry primitives and algorithms
+│   ├── graph_state.py                 # Graph vertex/edge descriptors for serialization
+│   ├── region.py                      # Region geometry utilities
+│   └── path/                          # Path geometry primitives
+│       ├── path_element.py            # Base path element class
+│       ├── line_segment.py            # Line segment path element
+│       ├── circular_arc.py            # Circular arc path element
+│       ├── elliptical_arc.py          # Elliptical arc path element
+│       ├── composite_path.py          # Composite path builder
+│       └── intersections.py           # Path intersection algorithms
 ├── drawables/                         # Drawable object implementations
 │   ├── drawable.py                    # Base drawable class
 │   ├── point.py                       # Point geometric object
@@ -193,14 +203,37 @@ static/client/
 │   ├── function_segment_bounded_colored_area.py # Mixed boundary areas
 │   ├── segments_bounded_colored_area.py         # Segment-bounded areas
 │   ├── rotatable_polygon.py           # Rotatable polygon base class
-│   └── position.py                    # Position utility class
+│   ├── position.py                    # Position utility class
+│   ├── plot.py                        # Base plot metadata container (non-renderable)
+│   ├── continuous_plot.py             # Function-based distribution plots
+│   ├── discrete_plot.py               # Bar-based distribution plots
+│   ├── bars_plot.py                   # Custom bar chart visualizations
+│   ├── bar.py                         # Bar chart rectangle elements
+│   ├── attached_label.py              # Labels embedded in other drawables
+│   └── label_render_mode.py           # Label rendering configuration (world/screen-offset)
 ├── rendering/                         # Renderer and renderables (screen conversion only)
 │   ├── svg_renderer.py                # Central SVG renderer (registry-based)
+│   ├── canvas2d_renderer.py           # Canvas 2D renderer with offscreen compositing
+│   ├── webgl_renderer.py              # Experimental WebGL renderer
+│   ├── factory.py                     # Renderer factory with preference chain
 │   ├── primitives.py                  # Renderable primitives (ClosedArea, ScreenPolyline)
 │   ├── function_renderable.py         # Function sampling and path generation
 │   ├── functions_area_renderable.py   # Area between two functions (paired sampling)
 │   ├── function_segment_area_renderable.py # Area between a function and a segment
-│   └── segments_area_renderable.py    # Area between one or two segments
+│   ├── segments_area_renderable.py    # Area between one or two segments
+│   ├── shared_drawable_renderers.py   # Drawing helpers shared across all backends
+│   ├── style_manager.py               # Renderer style dictionaries
+│   ├── cached_render_plan.py          # OptimizedPrimitivePlan type for caching
+│   ├── canvas2d_primitive_adapter.py  # Canvas 2D primitive adapter
+│   ├── svg_primitive_adapter.py       # SVG primitive adapter with DOM pooling
+│   ├── webgl_primitive_adapter.py     # WebGL primitive adapter
+│   └── helpers/                       # Rendering helper modules
+│       ├── bar_renderer.py            # Bar chart element rendering
+│       ├── shape_decorator.py         # Shape lifecycle management
+│       ├── world_label_helper.py      # World-space label positioning
+│       ├── screen_offset_label_helper.py   # Screen-offset label rendering
+│       ├── screen_offset_label_layout.py   # Label overlap resolution
+│       └── label_overlap_resolver.py  # Greedy overlap resolution algorithm
 ├── managers/                          # Specialized object managers
 │   ├── drawable_manager.py            # Central drawable orchestrator
 │   ├── drawable_manager_proxy.py      # Initialization dependency management
@@ -218,7 +251,10 @@ static/client/
 │   ├── angle_manager.py               # Angle operations
 │   ├── function_manager.py            # Function plotting management
 │   ├── colored_area_manager.py        # Colored area management
-│   └── graph_manager.py               # Graph and tree creation/deletion + state capture
+│   ├── graph_manager.py               # Graph and tree creation/deletion + state capture
+│   ├── bar_manager.py                 # Bar chart element management
+│   ├── statistics_manager.py          # Distribution and regression plotting
+│   └── polygon_type.py                # Polygon type enumeration
 ├── utils/                             # Utility modules
 │   ├── math_utils.py                  # Mathematical utility functions
 │   ├── computation_utils.py           # Computational helper functions
@@ -226,7 +262,17 @@ static/client/
 │   ├── graph_utils.py                 # Graph theory algorithms and helpers
 │   ├── graph_layout.py                # Graph layout algorithms (tree, radial, circular, grid, force)
 │   ├── graph_analyzer.py              # Graph analysis dispatcher (shortest path, MST, etc.)
-│   └── style_utils.py                 # Style and UI utility functions
+│   ├── style_utils.py                 # Style and UI utility functions
+│   ├── polygon_subtypes.py            # Triangle/quadrilateral subtype enums
+│   ├── polygon_canonicalizer.py       # Re-export module for canonicalizers
+│   ├── canonicalizers/                # Polygon vertex canonicalization
+│   │   ├── __init__.py                # Package exports
+│   │   ├── common.py                  # Shared types and helpers
+│   │   ├── triangle.py                # Triangle canonicalization
+│   │   └── quadrilateral.py           # Quadrilateral canonicalization
+│   └── statistics/                    # Statistical utilities
+│       ├── __init__.py                # Package exports
+│       └── distributions.py           # Normal PDF expression generation
 ├── name_generator/                    # Automatic name generation for objects
 │   ├── base.py                        # Base name generator class
 │   ├── drawable.py                    # General drawable object name generation

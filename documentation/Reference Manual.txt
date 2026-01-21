@@ -54,6 +54,13 @@ This document contains comprehensive documentation extracted from all files in t
 14. Segments Bounded Colored Area (`drawables/segments_bounded_colored_area.py`)
 15. Function Segment Bounded Colored Area (`drawables/function_segment_bounded_colored_area.py`)
 16. Rotatable Polygon (`drawables/rotatable_polygon.py`)
+17. Plot (`drawables/plot.py`)
+18. Continuous Plot (`drawables/continuous_plot.py`)
+19. Discrete Plot (`drawables/discrete_plot.py`)
+20. Bars Plot (`drawables/bars_plot.py`)
+21. Bar (`drawables/bar.py`)
+22. Attached Label (`drawables/attached_label.py`)
+23. Label Render Mode (`drawables/label_render_mode.py`)
 
 Note: All drawables are math-only. They do not hold screen-space coordinates and do not reference `Canvas`. Rendering is performed by the renderer using `CoordinateMapper`.
 
@@ -76,6 +83,10 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 8. Function Manager (`managers/function_manager.py`)
 9. Colored Area Manager (`managers/colored_area_manager.py`)
 10. Angle Manager (`managers/angle_manager.py`)
+11. Graph Manager (`managers/graph_manager.py`)
+12. Bar Manager (`managers/bar_manager.py`)
+13. Statistics Manager (`managers/statistics_manager.py`)
+14. Polygon Type (`managers/polygon_type.py`)
 
 ### Utility Modules
 1. Math Utils (`utils/math_utils.py`)
@@ -84,6 +95,17 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 4. Computation Utils (`utils/computation_utils.py`)
 5. Linear Algebra Utils (`utils/linear_algebra_utils.py`)
    - Regenerate test fixtures with `python scripts/linear_algebra_expected_values.py`
+6. Polygon Subtypes (`utils/polygon_subtypes.py`)
+7. Polygon Canonicalizer (`utils/polygon_canonicalizer.py`)
+8. Canonicalizers Package (`utils/canonicalizers/`)
+   - Common (`utils/canonicalizers/common.py`)
+   - Triangle (`utils/canonicalizers/triangle.py`)
+   - Quadrilateral (`utils/canonicalizers/quadrilateral.py`)
+9. Statistics Package (`utils/statistics/`)
+   - Distributions (`utils/statistics/distributions.py`)
+
+### Geometry Modules
+1. Graph State (`geometry/graph_state.py`)
 
 ### Name Generators
 1. Base Name Generator (`name_generator/base.py`)
@@ -3888,6 +3910,83 @@ Key points:
 - **WebGL (`rendering/webgl_primitive_adapter.py`)**: Converts stroke metadata into parsed colors and delegates to renderer `_draw_points`, `_draw_lines`, and `_draw_line_strip` helpers.
 - **SVG (`rendering/svg_primitive_adapter.py`)**: Manages DOM pooling and re-parenting so cached plans can reuse existing nodes (see module for details).
 
+#### Rendering Helpers (`rendering/helpers/`)
+
+The `rendering/helpers/` package contains specialized helper modules for rendering specific drawable types and managing label layout.
+
+**Bar Renderer (`rendering/helpers/bar_renderer.py`)**
+```
+Bar rendering helper for drawing bar chart elements.
+
+Key Features:
+    - Filled rectangle rendering with configurable colors
+    - Optional stroke outline on bars
+    - Above and below bar labels with automatic positioning
+    - Point label metadata for zoom-stable label reprojection
+    - Padding configuration for label spacing
+```
+
+**Shape Decorator (`rendering/helpers/shape_decorator.py`)**
+```
+Shape lifecycle decorator for primitive rendering.
+
+Key Features:
+    - Automatic shape lifecycle management
+    - Safe handling when primitives lack lifecycle methods
+    - Exception-safe with finally cleanup
+```
+
+The `_manages_shape` decorator wraps render functions with `begin_shape`/`end_shape` calls for proper batching and grouping.
+
+**World Label Helper (`rendering/helpers/world_label_helper.py`)**
+```
+World-space label rendering for labels that scale with zoom.
+
+Key Features:
+    - Zoom-adjusted font sizing based on reference scale
+    - Multi-line text support with automatic line spacing
+    - Rotation support for angled label text
+    - Font size quantization for cleaner rendering
+    - Metadata emission for label reprojection during pan/zoom
+```
+
+**Screen-Offset Label Helper (`rendering/helpers/screen_offset_label_helper.py`)**
+```
+Screen-offset label rendering for point-style labels.
+
+Key Features:
+    - Point-style label rendering with coordinate display
+    - Screen-space pixel offset from anchor position
+    - Font styling from configuration dictionary
+    - Metadata emission for layout and reprojection
+    - Non-selectable text option for UI labels
+```
+
+**Screen-Offset Label Layout (`rendering/helpers/screen_offset_label_layout.py`)**
+```
+Sophisticated layout solver for resolving label overlaps.
+
+Key Features:
+    - Spatial hash acceleration for overlap detection
+    - Vertical displacement with configurable step sizes
+    - Greedy relaxation toward original positions
+    - Group-based label tracking for multi-line labels
+    - Configurable iteration limits for performance
+    - Hide mode for labels that cannot be placed cleanly
+```
+
+**Label Overlap Resolver (`rendering/helpers/label_overlap_resolver.py`)**
+```
+Lightweight alternative for greedy vertical displacement.
+
+Key Features:
+    - Linear overlap detection (no spatial hash)
+    - Greedy vertical offset selection
+    - Group-based caching for consistent positions
+    - Configurable step size and max displacement
+    - Padding support for visual spacing
+```
+
 #### Renderer Test Suites (`server_tests/client_renderer/`)
 
 ```
@@ -3973,3 +4072,286 @@ Examples (as user prompts):
 2. Compute an MST:
    - "Create an undirected weighted graph named G2 with vertices A, B, C, D, E and edges A-B (3), A-C (1), B-C (7), B-D (5), C-D (2), D-E (7), C-E (8)."
    - "On graph G2, compute the minimum spanning tree and highlight the MST edges."
+
+### Plot and Statistical Drawable Classes
+
+The following drawable classes support statistical plots, bar charts, and distribution visualizations.
+
+#### Base Plot (`drawables/plot.py`)
+
+```
+Base plot drawable for statistical and distribution plots.
+
+Key Features:
+    - Non-renderable composite pattern for plot metadata
+    - Distribution type and parameter storage
+    - Configurable plot bounds for axis control
+    - Metadata dictionary for extensible properties
+    - Serialization support for workspace persistence
+```
+
+The `Plot` class serves as a metadata container for plots composed of other drawable components. It is not rendered directly; instead, subclasses track the concrete drawable components.
+
+#### Continuous Plot (`drawables/continuous_plot.py`)
+
+```
+Continuous plot drawable for function-based distribution plots.
+
+Key Features:
+    - References a Function drawable for the distribution curve
+    - Optional filled area reference for shaded regions
+    - Distribution type and parameters for reconstruction
+    - Extends base Plot with continuous-specific attributes
+    - Deep copy support for undo/redo operations
+```
+
+`ContinuousPlot` backs continuous probability distributions (e.g., normal distributions) using a `Function` drawable for the PDF curve and an optional `ColoredArea` for shading.
+
+#### Discrete Plot (`drawables/discrete_plot.py`)
+
+```
+Discrete plot drawable for bar-based distribution plots.
+
+Key Features:
+    - Bar count and label configuration for discrete values
+    - Customizable bar colors and opacity
+    - Legacy support for rectangle and fill area component names
+    - Distribution parameters for plot reconstruction
+    - Deep copy support for undo/redo operations
+```
+
+`DiscretePlot` manages discrete probability distributions displayed as bar elements. New-style plots store rebuild parameters and generate `Bar` drawables on demand.
+
+#### Bars Plot (`drawables/bars_plot.py`)
+
+```
+Bars plot drawable for custom bar chart visualizations.
+
+Key Features:
+    - Explicit value list for bar heights
+    - Above and below labels for each bar
+    - Configurable bar width, spacing, and starting position
+    - Customizable stroke color, fill color, and opacity
+    - Compact state serialization with pruned empty fields
+```
+
+`BarsPlot` creates bar charts from explicit value and label arrays rather than statistical distributions.
+
+#### Bar (`drawables/bar.py`)
+
+```
+Bar drawable for representing rectangular bar chart elements.
+
+Key Features:
+    - Axis-aligned rectangular bounds in math coordinates
+    - Configurable fill color and opacity
+    - Optional stroke outline
+    - Above and below labels for value/category display
+    - Translation support for repositioning
+```
+
+`Bar` is a simple filled rectangle in math coordinate space, used for discrete plots such as histograms and bar charts. It does not depend on `Point` or `Segment` drawables.
+
+#### Attached Label (`drawables/attached_label.py`)
+
+```
+Attached label drawable for labels embedded in other drawables.
+
+Key Features:
+    - Non-renderable by default to prevent duplicate rendering
+    - Screen-offset mode for constant pixel offset positioning
+    - Configurable text format (text only or with coordinates)
+    - Font size sourced from label or style dictionary
+    - Pixel offset control relative to point radius
+```
+
+`AttachedLabel` extends `Label` for labels that are owned and rendered by their parent drawable rather than stored in the main drawables container.
+
+#### Label Render Mode (`drawables/label_render_mode.py`)
+
+```
+Label render mode configuration for different label rendering strategies.
+
+Key Features:
+    - World mode: Labels scale with zoom and vanish at extreme zoom-out
+    - Screen-offset mode: Fixed pixel offset from anchor point
+    - Configurable text format with optional coordinate display
+    - Font size sourcing from label or style dictionary
+    - Serialization and deserialization for workspace persistence
+```
+
+The `LabelRenderMode` classes (`_WorldLabelMode`, `_ScreenOffsetLabelMode`) provide serializable configuration objects that control how labels are positioned and rendered relative to the coordinate system.
+
+### Polygon Canonicalization System
+
+The canonicalization system transforms arbitrary vertex lists into well-formed polygon representations.
+
+#### Polygon Subtypes (`utils/polygon_subtypes.py`)
+
+```
+Polygon subtype enumerations for triangles and quadrilaterals.
+
+Key Features:
+    - TriangleSubtype: equilateral, isosceles, scalene, right, right_isosceles
+    - QuadrilateralSubtype: rectangle, square, parallelogram, rhombus, kite, trapezoids
+    - Case-insensitive string parsing with normalization
+    - Value listing and iteration utilities
+```
+
+**TriangleSubtype Values:**
+- `EQUILATERAL`: All three sides equal
+- `ISOSCELES`: Two sides equal
+- `SCALENE`: No sides equal
+- `RIGHT`: One 90-degree angle
+- `RIGHT_ISOSCELES`: 90-degree angle with equal legs
+
+**QuadrilateralSubtype Values:**
+- `RECTANGLE`: Four right angles
+- `SQUARE`: Four right angles with equal sides
+- `PARALLELOGRAM`: Opposite sides parallel
+- `RHOMBUS`: All sides equal
+- `KITE`: Two pairs of adjacent equal sides
+- `TRAPEZOID`: One pair of parallel sides
+- `ISOSCELES_TRAPEZOID`: Trapezoid with equal non-parallel sides
+- `RIGHT_TRAPEZOID`: Trapezoid with one right angle
+
+#### Canonicalizers Package (`utils/canonicalizers/`)
+
+**Common Utilities (`utils/canonicalizers/common.py`)**
+```
+Common utilities for polygon canonicalization.
+
+Key Features:
+    - PointLike type union for flexible vertex input
+    - Point conversion from tuples, lists, dicts, and objects
+    - Proximity-based point deduplication helpers
+    - Nearest point search for vertex matching
+```
+
+**Triangle Canonicalizer (`utils/canonicalizers/triangle.py`)**
+```
+Triangle canonicalization with subtype support.
+
+Key Features:
+    - Equilateral triangle canonicalization via centroid and average side length
+    - Isosceles triangle canonicalization with apex identification
+    - Right triangle canonicalization with perpendicular leg enforcement
+    - Right isosceles canonicalization combining both constraints
+    - CCW vertex ordering with original order alignment
+```
+
+**Quadrilateral Canonicalizer (`utils/canonicalizers/quadrilateral.py`)**
+```
+Quadrilateral canonicalization with subtype support.
+
+Key Features:
+    - Rectangle/square canonicalization via PCA and diagonal anchors
+    - Diagonal construction mode for axis-aligned rectangles
+    - Parallelogram canonicalization via fourth vertex computation
+    - Rhombus canonicalization with equal side enforcement
+    - Kite canonicalization with axis of symmetry
+    - Trapezoid variants (standard, isosceles, right)
+    - CCW vertex ordering with original order alignment
+```
+
+### Statistics Utilities
+
+#### Distribution Expressions (`utils/statistics/distributions.py`)
+
+```
+Probability distribution expression generators.
+
+Key Features:
+    - Normal PDF expression generation with mean and sigma
+    - Default bounds calculation for normal distributions
+    - Finite value validation for parameters
+```
+
+**Key Functions:**
+- `normal_pdf_expression(mean, sigma)`: Returns a MatHud-compatible function expression string for the normal PDF using `^` for exponentiation.
+- `default_normal_bounds(mean, sigma, k=4.0)`: Calculates default plot bounds as `(mean - k*sigma, mean + k*sigma)`.
+
+### Additional Managers
+
+#### Bar Manager (`managers/bar_manager.py`)
+
+```
+Bar manager for creating and managing bar chart elements.
+
+Key Features:
+    - Bar creation with configurable bounds and labels
+    - Automatic name generation for unnamed bars
+    - Update-in-place for existing bars with same name
+    - Stroke color, fill color, and opacity configuration
+    - Above and below label text positioning
+```
+
+**Key Methods:**
+- `get_bar_by_name(name)`: Retrieve an existing bar by name
+- `create_bar(name, x_left, x_right, y_top, y_bottom, ...)`: Create or update a bar drawable
+- `delete_bar(name)`: Remove a bar by name
+
+#### Statistics Manager (`managers/statistics_manager.py`)
+
+```
+Statistics manager for probability distributions and regression plots.
+
+Key Features:
+    - Continuous distribution plots with PDF curves and shaded areas
+    - Discrete distribution plots using bar elements
+    - Custom bar chart creation with values and labels
+    - Regression fitting (linear, polynomial, exponential, etc.)
+    - Plot deletion with proper cleanup of constituent drawables
+    - Workspace restore via plot materialization methods
+```
+
+**Key Methods:**
+- `plot_distribution(name, representation, distribution_type, ...)`: Create continuous or discrete distribution plots
+- `plot_bars(name, values, labels_below, labels_above, ...)`: Create custom bar charts
+- `fit_regression(name, x_data, y_data, model_type, ...)`: Fit regression models to data
+- `delete_plot(name)`: Delete a plot and all its constituent drawables
+
+**Supported Regression Model Types:**
+- `linear`: Linear regression (y = mx + b)
+- `polynomial`: Polynomial regression (requires `degree` parameter)
+- `exponential`: Exponential regression (y = a*e^(bx))
+- `logarithmic`: Logarithmic regression (y = a + b*ln(x))
+- `power`: Power regression (y = a*x^b)
+- `logistic`: Logistic growth (y = L/(1+e^(-k(x-x0))))
+- `sinusoidal`: Sinusoidal regression (y = a*sin(bx+c)+d)
+
+#### Polygon Type (`managers/polygon_type.py`)
+
+```
+Polygon type enumeration for polygon manager operations.
+
+Key Features:
+    - Named constants for all supported polygon types (3-10 sides)
+    - Special GENERIC type for n-gons with n > 10
+    - Case-insensitive string coercion via coerce() method
+    - String subclass for direct string comparison
+```
+
+**PolygonType Values:**
+`TRIANGLE`, `QUADRILATERAL`, `RECTANGLE`, `SQUARE`, `PENTAGON`, `HEXAGON`, `HEPTAGON`, `OCTAGON`, `NONAGON`, `DECAGON`, `GENERIC`
+
+### Geometry Data Structures
+
+#### Graph State (`geometry/graph_state.py`)
+
+```
+Graph state data structures for graph creation and persistence.
+
+Key Features:
+    - GraphVertexDescriptor: Vertex with optional position, color, and label
+    - GraphEdgeDescriptor: Edge with source, target, weight, and styling
+    - GraphState: Complete graph state with vertices, edges, and layout info
+    - TreeState: Extended graph state with root vertex designation
+    - Compact serialization with optional field omission
+```
+
+**Classes:**
+- `GraphVertexDescriptor`: Describes a vertex with `id`, `name`, `x`, `y`, `color`, and `label`
+- `GraphEdgeDescriptor`: Describes an edge with `source`, `target`, `weight`, `directed`, and associated drawable names
+- `GraphState`: Container holding lists of vertex and edge descriptors plus metadata
+- `TreeState`: Extends `GraphState` with a `root` field for rooted tree structures
