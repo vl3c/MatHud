@@ -1,3 +1,16 @@
+"""Directed graph drawable using vectors as edges.
+
+This module provides the DirectedGraph class for representing directed
+graphs where Vector drawables define the edges between vertices.
+
+Key Features:
+    - Vector-based edge representation with direction
+    - Lazy computation of vertex/edge descriptors
+    - Cached adjacency matrix generation
+    - Integration with graph algorithms via GraphUtils
+    - Support for isolated vertices without edges
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -13,7 +26,15 @@ if TYPE_CHECKING:
 
 
 class DirectedGraph(Graph):
-    """Graph where edges are vectors."""
+    """Directed graph where edges are represented by Vector drawables.
+
+    The graph vertices are inferred from the start/end points of vectors.
+    Descriptor computation is cached and invalidated on modifications.
+
+    Attributes:
+        _vectors: List of Vector drawables representing directed edges.
+        _cached_descriptors: Cached (vertices, edges, adjacency_matrix) tuple.
+    """
 
     def __init__(
         self,

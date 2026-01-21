@@ -1,3 +1,15 @@
+"""Tree drawable as an undirected graph with a designated root.
+
+This module provides the Tree class for representing tree data structures
+as an undirected graph with a root vertex for hierarchical operations.
+
+Key Features:
+    - Extends UndirectedGraph with root designation
+    - Root vertex identifier for tree traversal algorithms
+    - Segment-based edge representation inherited from UndirectedGraph
+    - Serialization includes root identifier
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -11,7 +23,14 @@ if TYPE_CHECKING:
 
 
 class Tree(UndirectedGraph):
-    """Tree is an undirected graph with a designated root."""
+    """Tree is an undirected graph with a designated root vertex.
+
+    Extends UndirectedGraph to add a root vertex identifier used for
+    hierarchical tree traversals and visualizations.
+
+    Attributes:
+        root: Optional vertex identifier string designating the tree root.
+    """
 
     def __init__(
         self,

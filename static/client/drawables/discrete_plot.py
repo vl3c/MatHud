@@ -1,3 +1,16 @@
+"""Discrete plot drawable for bar-based distribution plots.
+
+This module provides the DiscretePlot class for statistical plots
+that display discrete probability distributions using bar elements.
+
+Key Features:
+    - Bar count and label configuration for discrete values
+    - Customizable bar colors and opacity
+    - Legacy support for rectangle and fill area component names
+    - Distribution parameters for plot reconstruction
+    - Deep copy support for undo/redo operations
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy

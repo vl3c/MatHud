@@ -1,3 +1,16 @@
+"""Attached label drawable for labels embedded in other drawables.
+
+This module provides the AttachedLabel class for labels that are owned
+and rendered by their parent drawable rather than the main container.
+
+Key Features:
+    - Non-renderable by default to prevent duplicate rendering
+    - Screen-offset mode for constant pixel offset positioning
+    - Configurable text format (text only or with coordinates)
+    - Font size sourced from label or style dictionary
+    - Pixel offset control relative to point radius
+"""
+
 from __future__ import annotations
 
 from typing import Optional

@@ -1,3 +1,16 @@
+"""Bar drawable for representing rectangular bar chart elements.
+
+This module provides the Bar class for creating filled rectangle bars
+used in bar charts, histograms, and discrete probability plots.
+
+Key Features:
+    - Axis-aligned rectangular bounds in math coordinates
+    - Configurable fill color and opacity
+    - Optional stroke outline
+    - Above and below labels for value/category display
+    - Translation support for repositioning
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -7,11 +20,21 @@ from drawables.drawable import Drawable
 
 
 class Bar(Drawable):
-    """
-    A simple filled rectangle bar in math space.
+    """A simple filled rectangle bar in math coordinate space.
 
-    This is intended for discrete plots (histograms / bar charts) and does not
-    create or depend on points/segments.
+    Used for discrete plots such as histograms and bar charts. Does not
+    depend on Point or Segment drawables.
+
+    Attributes:
+        x_left: Left x boundary in math coordinates.
+        x_right: Right x boundary in math coordinates.
+        y_bottom: Bottom y boundary in math coordinates.
+        y_top: Top y boundary in math coordinates.
+        fill_color: Optional fill color string.
+        fill_opacity: Optional fill opacity (0.0-1.0).
+        label_above_text: Text label displayed above the bar.
+        label_below_text: Text label displayed below the bar.
+        label_text: Backward-compatible alias for label_above_text.
     """
 
     def __init__(

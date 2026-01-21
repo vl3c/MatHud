@@ -1,3 +1,16 @@
+"""Continuous plot drawable for function-based distribution plots.
+
+This module provides the ContinuousPlot class for statistical plots
+that display continuous probability distributions using function curves.
+
+Key Features:
+    - References a Function drawable for the distribution curve
+    - Optional filled area reference for shaded regions
+    - Distribution type and parameters for reconstruction
+    - Extends base Plot with continuous-specific attributes
+    - Deep copy support for undo/redo operations
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy

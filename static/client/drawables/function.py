@@ -1,3 +1,18 @@
+"""Function drawable for representing mathematical functions y = f(x).
+
+This module provides the Function class for creating and rendering
+mathematical function curves defined by expression strings.
+
+Key Features:
+    - Expression string parsing and evaluation
+    - Automatic asymptote and discontinuity detection
+    - Periodicity detection for trigonometric functions
+    - Configurable domain bounds (left_bound, right_bound)
+    - Explicit undefined points for removable discontinuities
+    - Translation support with expression rewriting
+    - Deep copy support for undo/redo
+"""
+
 from __future__ import annotations
 
 import math
@@ -11,6 +26,23 @@ from utils.math_utils import MathUtils
 
 
 class Function(Drawable):
+    """A mathematical function y = f(x) defined by an expression string.
+
+    Parses the expression at construction and provides evaluation,
+    asymptote detection, and periodicity analysis.
+
+    Attributes:
+        function_string: The mathematical expression string (e.g., "sin(x)").
+        step: Sampling step size for rendering.
+        left_bound: Optional left x boundary for rendering domain.
+        right_bound: Optional right x boundary for rendering domain.
+        vertical_asymptotes: List of x values with vertical asymptotes.
+        horizontal_asymptotes: List of y values with horizontal asymptotes.
+        point_discontinuities: List of x values with point discontinuities.
+        is_periodic: Whether the function is detected as periodic.
+        estimated_period: Estimated period if is_periodic is True.
+        undefined_at: Explicit list of x values where function is undefined.
+    """
     def __init__(self, function_string: str, name: Optional[str] = None, step: float = default_point_size, color: str = default_color, left_bound: Optional[float] = None, right_bound: Optional[float] = None, vertical_asymptotes: Optional[List[float]] = None, horizontal_asymptotes: Optional[List[float]] = None, point_discontinuities: Optional[List[float]] = None, is_periodic: Optional[bool] = None, estimated_period: Optional[float] = None, undefined_at: Optional[List[float]] = None) -> None:
         self.step: float = step
         self.left_bound: Optional[float] = left_bound

@@ -1,3 +1,16 @@
+"""Bars plot drawable for custom bar chart visualizations.
+
+This module provides the BarsPlot class for creating bar charts
+from explicit value and label arrays rather than distributions.
+
+Key Features:
+    - Explicit value list for bar heights
+    - Above and below labels for each bar
+    - Configurable bar width, spacing, and starting position
+    - Customizable stroke color, fill color, and opacity
+    - Compact state serialization with pruned empty fields
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy

@@ -1,3 +1,16 @@
+"""Label render mode configuration for different label rendering strategies.
+
+This module provides serializable configuration objects that control how
+labels are positioned and rendered relative to the coordinate system.
+
+Key Features:
+    - World mode: Labels scale with zoom and vanish at extreme zoom-out
+    - Screen-offset mode: Fixed pixel offset from anchor point
+    - Configurable text format with optional coordinate display
+    - Font size sourcing from label or style dictionary
+    - Serialization and deserialization for workspace persistence
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -1,3 +1,16 @@
+"""Base plot drawable for statistical and distribution plots.
+
+This module provides the Plot class as a non-renderable metadata container
+for statistical plots composed of other drawable components.
+
+Key Features:
+    - Non-renderable composite pattern for plot metadata
+    - Distribution type and parameter storage
+    - Configurable plot bounds for axis control
+    - Metadata dictionary for extensible properties
+    - Serialization support for workspace persistence
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy

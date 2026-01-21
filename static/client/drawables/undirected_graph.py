@@ -1,3 +1,16 @@
+"""Undirected graph drawable using segments as edges.
+
+This module provides the UndirectedGraph class for representing undirected
+graphs where Segment drawables define the edges between vertices.
+
+Key Features:
+    - Segment-based edge representation (bidirectional)
+    - Lazy computation of vertex/edge descriptors
+    - Cached adjacency matrix generation
+    - Integration with graph algorithms via GraphUtils
+    - Support for isolated vertices without edges
+"""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -13,7 +26,15 @@ if TYPE_CHECKING:
 
 
 class UndirectedGraph(Graph):
-    """Graph where edges are segments."""
+    """Undirected graph where edges are represented by Segment drawables.
+
+    The graph vertices are inferred from the endpoints of segments.
+    Descriptor computation is cached and invalidated on modifications.
+
+    Attributes:
+        _segments: List of Segment drawables representing undirected edges.
+        _cached_descriptors: Cached (vertices, edges, adjacency_matrix) tuple.
+    """
 
     def __init__(
         self,

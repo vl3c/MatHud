@@ -1,3 +1,16 @@
+"""Abstract graph drawable for representing graph data structures.
+
+This module provides the Graph abstract base class that defines the interface
+for graph drawables. Concrete implementations include DirectedGraph and
+UndirectedGraph.
+
+Key Features:
+    - Abstract interface for vertex and edge access
+    - Adjacency matrix generation
+    - Isolated point management for vertices without edges
+    - Serialization support for workspace persistence
+"""
+
 from __future__ import annotations
 
 from abc import abstractmethod
@@ -10,7 +23,14 @@ if TYPE_CHECKING:
 
 
 class Graph(Drawable):
-    """Abstract graph interface; subclasses implement edge storage and descriptor computation."""
+    """Abstract graph interface for directed and undirected graphs.
+
+    Subclasses implement edge storage and provide vertex/edge descriptors.
+
+    Attributes:
+        _isolated_points: List of vertex points not connected by edges.
+        directed: Whether the graph is directed (override in subclass).
+    """
 
     def __init__(
         self,
