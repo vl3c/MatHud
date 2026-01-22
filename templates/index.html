@@ -68,8 +68,11 @@ Dependencies:
             </button>
             <!-- SVG canvas for interactive mathematical visualizations -->
             <svg id="math-svg" style="width:100%; height:100%"></svg>
-        </div>        
-        
+        </div>
+
+        <!-- Draggable separator between canvas and chat areas -->
+        <div class="resize-separator" id="resize-separator"></div>
+
         <!-- AI Chat Interface -->
         <div class="chat-container">
             <!-- AI Model and Vision Configuration -->
@@ -439,6 +442,147 @@ Dependencies:
             });
         }
     });
+    </script>
+
+    <!-- Resize separator functionality for dragging between canvas and chat -->
+    <script>
+    (function() {
+        var separator = document.getElementById('resize-separator');
+        var mathContainer = document.getElementById('math-container');
+        var chatContainer = document.querySelector('.chat-container');
+        var chatInputContainer = document.querySelector('.chat-input-container');
+        var selectionContainer = document.querySelector('.selection-container');
+
+        var isDragging = false;
+        var startPos = 0;
+        var startMathSize = 0;
+        var startChatSize = 0;
+
+        // Threshold widths for responsive stacking
+        var NARROW_THRESHOLD = 500;
+        var VERY_NARROW_THRESHOLD = 400;
+
+        function isVerticalLayout() {
+            return window.innerWidth <= 1024;
+        }
+
+        function updateNarrowState() {
+            // Only apply narrow state in desktop (horizontal) layout
+            if (!isVerticalLayout()) {
+                var chatWidth = chatContainer.offsetWidth;
+                if (chatWidth < VERY_NARROW_THRESHOLD) {
+                    chatInputContainer.classList.add('narrow');
+                    selectionContainer.classList.add('narrow');
+                    selectionContainer.classList.add('very-narrow');
+                } else if (chatWidth < NARROW_THRESHOLD) {
+                    chatInputContainer.classList.add('narrow');
+                    selectionContainer.classList.add('narrow');
+                    selectionContainer.classList.remove('very-narrow');
+                } else {
+                    chatInputContainer.classList.remove('narrow');
+                    selectionContainer.classList.remove('narrow');
+                    selectionContainer.classList.remove('very-narrow');
+                }
+            } else {
+                // In vertical layout, never use narrow state
+                chatInputContainer.classList.remove('narrow');
+                selectionContainer.classList.remove('narrow');
+                selectionContainer.classList.remove('very-narrow');
+            }
+        }
+
+        separator.addEventListener('mousedown', startDrag);
+        separator.addEventListener('touchstart', startDrag, { passive: false });
+
+        function startDrag(e) {
+            e.preventDefault();
+            isDragging = true;
+            separator.classList.add('dragging');
+            document.body.style.cursor = isVerticalLayout() ? 'row-resize' : 'col-resize';
+            document.body.style.userSelect = 'none';
+
+            var pos = e.type.includes('touch') ? e.touches[0] : e;
+            startPos = isVerticalLayout() ? pos.clientY : pos.clientX;
+            startMathSize = isVerticalLayout() ? mathContainer.offsetHeight : mathContainer.offsetWidth;
+            startChatSize = isVerticalLayout() ? chatContainer.offsetHeight : chatContainer.offsetWidth;
+
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('touchmove', drag, { passive: false });
+            document.addEventListener('mouseup', stopDrag);
+            document.addEventListener('touchend', stopDrag);
+        }
+
+        function drag(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+
+            var pos = e.type.includes('touch') ? e.touches[0] : e;
+            var currentPos = isVerticalLayout() ? pos.clientY : pos.clientX;
+            var delta = currentPos - startPos;
+
+            var newMathSize = Math.max(200, startMathSize + delta);
+            var newChatSize = Math.max(200, startChatSize - delta);
+
+            if (isVerticalLayout()) {
+                mathContainer.style.height = newMathSize + 'px';
+                mathContainer.style.flex = 'none';
+                chatContainer.style.minHeight = newChatSize + 'px';
+            } else {
+                mathContainer.style.width = newMathSize + 'px';
+                mathContainer.style.flex = 'none';
+                chatContainer.style.width = newChatSize + 'px';
+                chatContainer.style.flexShrink = '0';
+            }
+
+            // Update narrow state for button stacking
+            updateNarrowState();
+
+            // Redraw canvas with new dimensions (use requestAnimationFrame to ensure layout is computed)
+            requestAnimationFrame(function() {
+                if (typeof window.redrawMatHudCanvas === 'function') {
+                    window.redrawMatHudCanvas();
+                }
+            });
+        }
+
+        function stopDrag() {
+            isDragging = false;
+            separator.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('touchmove', drag);
+            document.removeEventListener('mouseup', stopDrag);
+            document.removeEventListener('touchend', stopDrag);
+        }
+
+        // Reset custom sizes on orientation/breakpoint change
+        var lastIsVertical = isVerticalLayout();
+        window.addEventListener('resize', function() {
+            var nowVertical = isVerticalLayout();
+            if (nowVertical !== lastIsVertical) {
+                mathContainer.style.width = '';
+                mathContainer.style.height = '';
+                mathContainer.style.flex = '';
+                chatContainer.style.width = '';
+                chatContainer.style.minHeight = '';
+                chatContainer.style.flexShrink = '';
+                lastIsVertical = nowVertical;
+            }
+            // Update narrow state on any resize
+            updateNarrowState();
+            // Redraw canvas with new dimensions (use requestAnimationFrame to ensure layout is computed)
+            requestAnimationFrame(function() {
+                if (typeof window.redrawMatHudCanvas === 'function') {
+                    window.redrawMatHudCanvas();
+                }
+            });
+        });
+
+        // Initialize narrow state on load
+        updateNarrowState();
+    })();
     </script>
 </body>
 </html>

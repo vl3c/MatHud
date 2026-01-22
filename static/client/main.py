@@ -128,17 +128,60 @@ def get_test_results() -> str:
     return _test_results
 
 
+_canvas: Optional[Canvas] = None
+
+
+def redraw_canvas() -> None:
+    """Redraw the canvas, updating viewport dimensions.
+
+    Exposed on window as: window.redrawMatHudCanvas()
+    Called when the container is resized via the draggable separator.
+    """
+    global _canvas
+    if _canvas is None:
+        return
+
+    # Update canvas dimensions from current viewport
+    viewport = document['math-svg'].getBoundingClientRect()
+    new_width = viewport.width
+    new_height = viewport.height
+
+    # Skip if dimensions haven't changed
+    if new_width == _canvas.width and new_height == _canvas.height:
+        return
+
+    # Update canvas and coordinate mapper dimensions
+    _canvas.width = new_width
+    _canvas.height = new_height
+    _canvas.coordinate_mapper.update_canvas_size(new_width, new_height)
+
+    # Update Cartesian2Axis dimensions (it stores local copies from init)
+    if _canvas.cartesian2axis is not None:
+        _canvas.cartesian2axis.width = new_width
+        _canvas.cartesian2axis.height = new_height
+
+    # Update renderer surface size if available
+    if _canvas.renderer is not None:
+        primitives = getattr(_canvas.renderer, '_shared_primitives', None)
+        if primitives is not None and hasattr(primitives, 'resize_surface'):
+            primitives.resize_surface(new_width, new_height)
+
+    # Redraw the canvas
+    _canvas.draw()
+
+
 def main() -> None:
     """Initialize the MatHud client-side application.
 
     Creates the mathematical canvas, AI interface, and event handling system.
     Automatically called when the Brython runtime loads this module.
     """
-    global _ai_interface
+    global _ai_interface, _canvas
 
     # Instantiate the canvas with current SVG viewport dimensions
     viewport = document['math-svg'].getBoundingClientRect()
     canvas = Canvas(viewport.width, viewport.height)
+    _canvas = canvas
 
     # Instantiate the AIInterface class to handle interactions with the AI backend
     _ai_interface = AIInterface(canvas)
@@ -153,6 +196,9 @@ def main() -> None:
     # Usage: window.startMatHudTests() to begin, window.getMatHudTestResults() to poll
     window.startMatHudTests = start_tests
     window.getMatHudTestResults = get_test_results
+
+    # Expose canvas redraw for resize handling
+    window.redrawMatHudCanvas = redraw_canvas
 
 
 # Run the main function when the script loads
