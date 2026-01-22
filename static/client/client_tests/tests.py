@@ -162,6 +162,22 @@ from .test_coordinate_system_manager import (
     TestCoordinateSystemManager,
     TestCoordinateSystemManagerCanvasIntegration,
 )
+from .test_slash_commands import (
+    TestSlashCommandHandler,
+    TestEssentialCommands,
+    TestCanvasViewCommands,
+    TestUtilityCommands,
+    TestCommandResult,
+    TestEditDistance,
+    TestModelCommand,
+    TestVisionCommand,
+    TestCommandAutocomplete,
+    TestWorkspaceSuggestions,
+    TestModelSuggestions,
+    TestExpandableContent,
+    TestExportCommandOutput,
+    TestStatusCommandOutput,
+)
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
@@ -335,6 +351,20 @@ class Tests:
             TestPolarGridConversions,
             TestCoordinateSystemManager,
             TestCoordinateSystemManagerCanvasIntegration,
+            TestSlashCommandHandler,
+            TestEssentialCommands,
+            TestCanvasViewCommands,
+            TestUtilityCommands,
+            TestCommandResult,
+            TestEditDistance,
+            TestModelCommand,
+            TestVisionCommand,
+            TestCommandAutocomplete,
+            TestWorkspaceSuggestions,
+            TestModelSuggestions,
+            TestExpandableContent,
+            TestExportCommandOutput,
+            TestStatusCommandOutput,
         ]
 
         for test_case in test_cases:
