@@ -857,12 +857,22 @@ input, select, textarea, button {
 }
 
 .chat-input-container.narrow .chat-buttons {
-    flex: 1 1 100%;
+    flex: 0 0 100%;
 }
 
 .chat-input-container.narrow #send-button,
 .chat-input-container.narrow #run-tests-button {
     flex: 1;
+}
+
+/* Very narrow state: stack buttons vertically (3 layers) */
+.chat-input-container.very-narrow .chat-buttons {
+    flex-direction: column;
+}
+
+.chat-input-container.very-narrow .chat-buttons #send-button,
+.chat-input-container.very-narrow .chat-buttons #run-tests-button {
+    width: 100%;
 }
 
 .chat-input {

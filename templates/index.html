@@ -462,7 +462,7 @@ Dependencies:
 
         // Threshold widths for responsive stacking
         var NARROW_THRESHOLD = 420;
-        var VERY_NARROW_THRESHOLD = 340;
+        var VERY_NARROW_THRESHOLD = 280;
 
         function isVerticalLayout() {
             return window.innerWidth <= 1024;
@@ -474,20 +474,24 @@ Dependencies:
                 var chatWidth = chatContainer.offsetWidth;
                 if (chatWidth < VERY_NARROW_THRESHOLD) {
                     chatInputContainer.classList.add('narrow');
+                    chatInputContainer.classList.add('very-narrow');
                     selectionContainer.classList.add('narrow');
                     selectionContainer.classList.add('very-narrow');
                 } else if (chatWidth < NARROW_THRESHOLD) {
                     chatInputContainer.classList.add('narrow');
+                    chatInputContainer.classList.remove('very-narrow');
                     selectionContainer.classList.add('narrow');
                     selectionContainer.classList.remove('very-narrow');
                 } else {
                     chatInputContainer.classList.remove('narrow');
+                    chatInputContainer.classList.remove('very-narrow');
                     selectionContainer.classList.remove('narrow');
                     selectionContainer.classList.remove('very-narrow');
                 }
             } else {
                 // In vertical layout, never use narrow state
                 chatInputContainer.classList.remove('narrow');
+                chatInputContainer.classList.remove('very-narrow');
                 selectionContainer.classList.remove('narrow');
                 selectionContainer.classList.remove('very-narrow');
             }
