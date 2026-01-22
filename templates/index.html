@@ -522,8 +522,16 @@ Dependencies:
             var currentPos = isVerticalLayout() ? pos.clientY : pos.clientX;
             var delta = currentPos - startPos;
 
-            var newMathSize = Math.max(200, startMathSize + delta);
-            var newChatSize = Math.max(200, startChatSize - delta);
+            var minMathSize = 400; // Must match CSS .math-container min-width
+            var minChatSize = 200;
+
+            var newMathSize = startMathSize + delta;
+            var newChatSize = startChatSize - delta;
+
+            // Don't allow either to go below minimum - just stop
+            if (newMathSize < minMathSize || newChatSize < minChatSize) {
+                return;
+            }
 
             if (isVerticalLayout()) {
                 mathContainer.style.height = newMathSize + 'px';
