@@ -146,6 +146,9 @@ def main() -> None:
     # Create event handler for user interactions (clicks, keyboard, etc.)
     CanvasEventHandler(canvas, _ai_interface)
 
+    # Initialize command autocomplete for slash commands
+    _ai_interface.initialize_autocomplete()
+
     # Expose test runner globally for programmatic access
     # Usage: window.startMatHudTests() to begin, window.getMatHudTestResults() to poll
     window.startMatHudTests = start_tests

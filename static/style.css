@@ -352,6 +352,59 @@ input, select, textarea, button {
     color: #059669; /* Green for AI responses */
 }
 
+/* System message styling (slash commands) */
+.chat-message.system {
+    border-left: 3px solid #6366f1;
+    background: #f5f3ff;
+}
+
+.chat-sender.system {
+    color: #6366f1;
+}
+
+/* Expandable content for long system messages */
+.expandable-content {
+    position: relative;
+    width: 100%;
+}
+
+.expandable-content pre {
+    margin: 0;
+    padding: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.content-preview pre {
+    max-height: 200px;
+}
+
+.expand-toggle-btn {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: #6366f1;
+    background: transparent;
+    border: 1px solid #6366f1;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.expand-toggle-btn:hover {
+    background: #6366f1;
+    color: white;
+}
+
 /* Message content wrapper */
 .chat-content {
     display: inline-block;
@@ -772,6 +825,81 @@ input, select, textarea, button {
     background: var(--secondary-color);
     cursor: not-allowed;
     transform: none;
+}
+
+/* ===== COMMAND AUTOCOMPLETE POPUP ===== */
+/* Slash command autocomplete popup above chat input */
+.command-autocomplete {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 100;
+    margin-bottom: 8px;
+}
+
+.command-autocomplete-item {
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.1s ease;
+}
+
+.command-autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.command-autocomplete-item.selected {
+    background: #f3f4f6;
+}
+
+.command-autocomplete-item:hover {
+    background: #f9fafb;
+}
+
+.command-name {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-weight: 500;
+    color: var(--primary-color);
+    font-size: 14px;
+}
+
+.command-description {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-left: 16px;
+    text-align: right;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Custom scrollbar for autocomplete popup */
+.command-autocomplete::-webkit-scrollbar {
+    width: 6px;
+}
+
+.command-autocomplete::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.command-autocomplete::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+.command-autocomplete::-webkit-scrollbar-thumb:hover {
+    background: var(--secondary-color);
 }
 
 /* TEMPORARY: Run Tests Button Styles (see documentation/development/removing_run_tests_button.md) */

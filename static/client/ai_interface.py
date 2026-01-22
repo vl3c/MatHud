@@ -39,6 +39,8 @@ from function_registry import FunctionRegistry
 from process_function_calls import ProcessFunctionCalls
 from workspace_manager import WorkspaceManager
 from markdown_parser import MarkdownParser
+from slash_command_handler import SlashCommandHandler
+from command_autocomplete import CommandAutocomplete
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -79,6 +81,10 @@ class AIInterface:
         self.available_functions: Dict[str, Any] = FunctionRegistry.get_available_functions(canvas, self.workspace_manager, self)
         self.undoable_functions: tuple[str, ...] = FunctionRegistry.get_undoable_functions()
         self.markdown_parser: MarkdownParser = MarkdownParser()
+        # Slash command handler for local commands
+        self.slash_command_handler: SlashCommandHandler = SlashCommandHandler(canvas, self.workspace_manager, self)
+        # Command autocomplete popup (initialized lazily when DOM is ready)
+        self.command_autocomplete: Optional[CommandAutocomplete] = None
         # Streaming state
         self._stream_buffer: str = ""
         self._stream_content_element: Optional[Any] = None  # DOMNode
@@ -115,6 +121,22 @@ class AIInterface:
                 "failing_tests": [],
                 "error_tests": [{"test": "Test Runner Import", "error": f"Could not import test runner: {e}"}]
             })
+
+    def initialize_autocomplete(self) -> None:
+        """Initialize the command autocomplete popup.
+
+        Should be called after the DOM is ready (chat-input element exists).
+        This is typically called from main.py after event bindings are set up.
+        """
+        try:
+            if "chat-input" in document:
+                input_element = document["chat-input"]
+                self.command_autocomplete = CommandAutocomplete(
+                    input_element,
+                    self.slash_command_handler,
+                )
+        except Exception as e:
+            print(f"Error initializing command autocomplete: {e}")
 
     def _store_results_in_canvas_state(self, call_results: Dict[str, Any]) -> None:
         """Store valid function call results in the canvas state, skipping special cases and formatting values."""
@@ -723,6 +745,125 @@ class AIInterface:
         # Scroll the chat history to the bottom
         document["chat-history"].scrollTop = document["chat-history"].scrollHeight
 
+    def _print_system_message_in_chat(self, message: str) -> None:
+        """Print a system/command response to the chat history.
+
+        Used for slash command responses that don't come from AI.
+
+        Args:
+            message: The message to display (supports markdown)
+        """
+        try:
+            # Create message container with system styling
+            message_container = html.DIV(Class="chat-message system")
+
+            # Create sender label
+            sender_label = html.SPAN("System: ", Class="chat-sender system")
+
+            # Check if message is long and needs expandable display
+            line_count = message.count('\n')
+            is_long_message = len(message) > 800 or line_count > 20
+
+            if is_long_message:
+                # Create expandable content with details/summary
+                content_element = self._create_expandable_content(message)
+            else:
+                # Parse markdown and create content element
+                parsed_content = self._parse_markdown_to_html(message)
+                content_element = html.DIV(Class="chat-content markdown")
+                content_element.innerHTML = parsed_content
+
+            # Assemble the message
+            message_container <= sender_label
+            message_container <= content_element
+
+            # Store raw text for copy actions
+            self._set_raw_message_text(message_container, message)
+            self._attach_message_menu(message_container)
+
+            # Add to chat history
+            document["chat-history"] <= message_container
+
+            # Trigger MathJax rendering for new content
+            self._render_math()
+
+            # Scroll to bottom
+            document["chat-history"].scrollTop = document["chat-history"].scrollHeight
+        except Exception as e:
+            print(f"Error printing system message: {e}")
+            # Fallback to simple paragraph
+            fallback = html.P(f"System: {message}")
+            document["chat-history"] <= fallback
+
+    def _create_expandable_content(self, message: str) -> Any:
+        """Create an expandable content element for long messages.
+
+        Args:
+            message: The full message content
+
+        Returns:
+            A DOM element with expandable content
+        """
+        # Create preview (first ~500 chars or 10 lines)
+        lines = message.split('\n')
+        if len(lines) > 10:
+            preview_text = '\n'.join(lines[:10]) + '\n...'
+        elif len(message) > 500:
+            preview_text = message[:500] + '...'
+        else:
+            preview_text = message
+
+        # Create container
+        container = html.DIV(Class="chat-content expandable-content")
+
+        # Create preview section
+        preview = html.DIV(Class="content-preview")
+        preview.innerHTML = f"<pre>{self._escape_html(preview_text)}</pre>"
+
+        # Create full content section (hidden initially)
+        full_content = html.DIV(Class="content-full", style={"display": "none"})
+        full_content.innerHTML = f"<pre>{self._escape_html(message)}</pre>"
+
+        # Create toggle button
+        toggle_btn = html.BUTTON("Show more", Class="expand-toggle-btn")
+
+        def toggle_content(event: Any) -> None:
+            try:
+                if full_content.style.display == "none":
+                    preview.style.display = "none"
+                    full_content.style.display = "block"
+                    toggle_btn.text = "Show less"
+                else:
+                    preview.style.display = "block"
+                    full_content.style.display = "none"
+                    toggle_btn.text = "Show more"
+            except Exception:
+                pass
+
+        toggle_btn.bind("click", toggle_content)
+
+        container <= preview
+        container <= full_content
+        container <= toggle_btn
+
+        return container
+
+    def _escape_html(self, text: str) -> str:
+        """Escape HTML special characters.
+
+        Args:
+            text: Text to escape
+
+        Returns:
+            Escaped text safe for HTML
+        """
+        return (text
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&#x27;"))
+
     def _debug_log_ai_response(self, ai_message: str, ai_function_calls: Any, finish_reason: str) -> None:
         """Log debug information about the AI response."""
         print(f"### AI message: {ai_message}")
@@ -1033,10 +1174,22 @@ class AIInterface:
         self._send_request(prompt)
 
     def send_user_message(self, message: str) -> None:
-        """Sends a message as if the user typed it."""
+        """Sends a message as if the user typed it.
+
+        If the message is a slash command (starts with "/"), it is executed
+        locally without sending to the AI backend.
+        """
         if self.is_processing or not message.strip():
             return
-        
+
+        # Check for slash command
+        if self.slash_command_handler.is_slash_command(message):
+            self._print_user_message_in_chat(message)
+            result = self.slash_command_handler.execute(message)
+            self._print_system_message_in_chat(result.message)
+            return
+
+        # Regular AI flow
         self._print_user_message_in_chat(message)
         self._disable_send_controls()
         self._send_prompt_to_ai(message)
