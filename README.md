@@ -1,6 +1,6 @@
 # MatHud - Mathematics Heads-Up Display
 
-MatHud pairs an interactive drawing canvas with an AI assistant to help visualize, analyze, and solve real-world geometry, algebra, and calculus problems in real-time.
+MatHud pairs an interactive drawing canvas with an AI assistant to help visualize, analyze, and solve real-world arithmetic, geometry, algebra, calculus and statistics problems in real-time.
 
 ![MatHud - Interactive Mathematics Visualization Tool](MatHud%20-%20Screenshot%202025-12-21.png)
 
