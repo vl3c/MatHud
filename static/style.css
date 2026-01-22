@@ -281,18 +281,6 @@ input, select, textarea, button {
     flex: 1 1 auto;
 }
 
-.controls-group::before {
-    content: '';
-    position: absolute;
-    left: -1.5rem;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 1px;
-    height: 36px;
-    background-color: var(--border-color);
-}
-
-/* Hide separator on smaller screens to prevent overlap */
 
 .ai-model-selector {
     display: flex;
