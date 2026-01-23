@@ -460,8 +460,7 @@ Dependencies:
         var startMathSize = 0;
         var startChatSize = 0;
 
-        // Threshold widths for responsive stacking
-        var NARROW_THRESHOLD = 420;
+        // Threshold width for very-narrow (vertical button stacking)
         var VERY_NARROW_THRESHOLD = 280;
 
         function isVerticalLayout() {
@@ -472,19 +471,26 @@ Dependencies:
             // Only apply narrow state in desktop (horizontal) layout
             if (!isVerticalLayout()) {
                 var chatWidth = chatContainer.offsetWidth;
+                var chatInput = chatInputContainer.querySelector('.chat-input');
+                var chatButtons = chatInputContainer.querySelector('.chat-buttons');
+
+                // Temporarily remove narrow to check natural wrap state
+                chatInputContainer.classList.remove('narrow');
+                chatInputContainer.classList.remove('very-narrow');
+
+                // Check if buttons have wrapped to a new line
+                var buttonsWrapped = chatButtons.offsetTop > chatInput.offsetTop;
+
                 if (chatWidth < VERY_NARROW_THRESHOLD) {
                     chatInputContainer.classList.add('narrow');
                     chatInputContainer.classList.add('very-narrow');
                     selectionContainer.classList.add('narrow');
                     selectionContainer.classList.add('very-narrow');
-                } else if (chatWidth < NARROW_THRESHOLD) {
+                } else if (buttonsWrapped) {
                     chatInputContainer.classList.add('narrow');
-                    chatInputContainer.classList.remove('very-narrow');
                     selectionContainer.classList.add('narrow');
                     selectionContainer.classList.remove('very-narrow');
                 } else {
-                    chatInputContainer.classList.remove('narrow');
-                    chatInputContainer.classList.remove('very-narrow');
                     selectionContainer.classList.remove('narrow');
                     selectionContainer.classList.remove('very-narrow');
                 }

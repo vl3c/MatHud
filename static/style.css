@@ -858,6 +858,7 @@ input, select, textarea, button {
 
 .chat-input-container.narrow .chat-buttons {
     flex: 0 0 100%;
+    width: 100%;
 }
 
 .chat-input-container.narrow #send-button,
