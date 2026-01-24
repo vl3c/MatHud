@@ -20,13 +20,19 @@ _logger = logging.getLogger("mathud")
 
 
 class OpenAIResponsesAPI(OpenAIAPIBase):
-    """OpenAI Responses API for reasoning models (GPT-5, o3, o4-mini)."""
+    """OpenAI Responses API for reasoning models (GPT-5, o3, o4-mini).
+
+    Uses `previous_response_id` for multi-turn conversations, allowing OpenAI
+    to manage conversation state server-side. This properly handles images
+    across turns without manual stripping or context management.
+    """
 
     def __init__(self) -> None:
-        """Initialize the Responses API with log deduplication state."""
+        """Initialize the Responses API with log deduplication and response ID tracking."""
         super().__init__()
         self._last_log_message: Optional[str] = None
         self._log_repeat_count: int = 0
+        self._previous_response_id: Optional[str] = None
 
     def _log(self, message: str) -> None:
         """Log a message, collapsing consecutive duplicates with a count."""
@@ -48,6 +54,42 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             _logger.info(msg)  # File logging
             self._last_log_message = None
             self._log_repeat_count = 0
+
+    def reset_conversation(self) -> None:
+        """Reset the conversation history and clear the previous response ID."""
+        super().reset_conversation()
+        self._previous_response_id = None
+        self._log("[Responses API] Conversation reset, cleared previous_response_id")
+
+    def _is_regular_message_turn(self) -> bool:
+        """Check if this is a regular user message turn (not a tool call continuation).
+
+        Returns True if the last message is a user message without pending tool calls.
+        """
+        if not self.messages:
+            return False
+        last_msg = self.messages[-1]
+        # Regular message turn if last message is from user and not a tool result
+        return last_msg.get("role") == "user" and "tool_call_id" not in last_msg
+
+    def _get_latest_user_message_for_input(self) -> List[Dict[str, Any]]:
+        """Get only the latest user message for use with previous_response_id.
+
+        When using previous_response_id, we only need to send the new user message
+        as OpenAI maintains the conversation context server-side.
+        """
+        if not self.messages:
+            return []
+
+        # Find the last user message
+        for msg in reversed(self.messages):
+            if msg.get("role") == "user":
+                content = msg.get("content", "")
+                # Convert content format if needed
+                converted_content = self._convert_content_for_responses_api(content)
+                return [{"role": "user", "content": converted_content}]
+
+        return []
 
     def _convert_tools_for_responses_api(self) -> List[Dict[str, Any]]:
         """Convert Chat Completions tool format to Responses API format.
@@ -129,11 +171,40 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
     def _handle_regular_message(
         self, msg: Dict[str, Any], role: str, output: List[Dict[str, Any]], index: int
     ) -> int:
-        """Include regular user/assistant messages as-is."""
+        """Include regular user/assistant messages, converting content format if needed."""
         content = msg.get("content", "")
-        output.append({"role": role, "content": content})
+        # Convert Chat Completions content format to Responses API format
+        converted_content = self._convert_content_for_responses_api(content)
+        output.append({"role": role, "content": converted_content})
         self._log(f"[Responses API] Including {role} message at index {index}")
         return index + 1
+
+    def _convert_content_for_responses_api(self, content: Any) -> Any:
+        """Convert Chat Completions content format to Responses API format.
+
+        Chat Completions uses: {"type": "text", "text": ...}, {"type": "image_url", "image_url": {...}}
+        Responses API uses: {"type": "input_text", "text": ...}, {"type": "input_image", "image_url": ...}
+        """
+        if not isinstance(content, list):
+            return content
+
+        converted = []
+        for part in content:
+            if not isinstance(part, dict):
+                converted.append(part)
+                continue
+
+            part_type = part.get("type", "")
+            if part_type == "text":
+                converted.append({"type": "input_text", "text": part.get("text", "")})
+            elif part_type == "image_url":
+                image_url = part.get("image_url", {})
+                url = image_url.get("url", "") if isinstance(image_url, dict) else ""
+                converted.append({"type": "input_image", "image_url": url})
+            else:
+                converted.append(part)
+
+        return converted
 
     def _collect_tool_results(self, start_index: int) -> tuple[List[str], int]:
         """Collect tool result contents starting from the given index.
@@ -208,17 +279,35 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         """Create API stream, falling back if some reasoning params are not supported.
 
         Notes:
+        - Uses `previous_response_id` for multi-turn conversations when available,
+          allowing OpenAI to manage context server-side (better for images).
         - Some models may not support `reasoning.summary`.
         - GPT-5.2 defaults to reasoning.effort="none"; MatHud sets effort to "medium" for `gpt-5.2`.
         - If the API rejects a reasoning sub-parameter, retry with a reduced set of reasoning params.
         """
+        # Determine if we can use previous_response_id for this turn
+        # Only use it for regular user messages, not tool call continuations
+        use_previous_response = self._previous_response_id is not None and self._is_regular_message_turn()
+
+        if use_previous_response:
+            # With previous_response_id, only send the new user message
+            input_messages = self._get_latest_user_message_for_input()
+            self._log(f"[Responses API] Using previous_response_id: {self._previous_response_id}")
+        else:
+            # First turn or tool call - send full history
+            input_messages = self._convert_messages_to_input()
+
         base_kwargs: Dict[str, Any] = {
             "model": self.model.id,
-            "input": self._convert_messages_to_input(),
+            "input": input_messages,
             "tools": self._convert_tools_for_responses_api(),
             "max_output_tokens": self.max_tokens,
             "stream": True,
         }
+
+        # Add previous_response_id if using stateful conversation
+        if use_previous_response:
+            base_kwargs["previous_response_id"] = self._previous_response_id
 
         reasoning: Dict[str, Any] = {"summary": "detailed"}
         if getattr(self.model, "reasoning_effort", None):
@@ -340,12 +429,18 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         if not response_obj:
             return
 
+        # Store response ID for multi-turn conversations
+        response_id = getattr(response_obj, "id", None)
+        if response_id:
+            self._previous_response_id = response_id
+            self._log(f"[Responses API] Stored response ID: {response_id}")
+
         status = getattr(response_obj, "status", "completed")
         self._log(f"[Responses API] Response status: {status}")
-        
+
         state["finish_reason"] = self._normalize_finish_reason(status)
         self._log(f"[Responses API] Set finish_reason to: {state['finish_reason']}")
-        
+
         self._extract_tool_calls(response_obj, state["tool_calls_accumulator"])
 
     def _normalize_finish_reason(self, status: str) -> str:
