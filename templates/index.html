@@ -82,18 +82,42 @@ Dependencies:
                     <div class="ai-model-selector">
                         <label for="ai-model-selector">Model:</label>
                         <select id="ai-model-selector">
-                            <option value="gpt-5-chat-latest">GPT-5 Chat Latest</option>
-                            <option value="gpt-5.2-chat-latest">GPT-5.2 Chat Latest</option>
-                            <option value="gpt-5.2" selected>GPT-5.2 (Medium Reasoning)</option>
-                            <option value="o3">o3 (Reasoning)</option>
-                            <option value="o4-mini">o4-mini (Reasoning)</option>
-                            <option value="gpt-4.1">GPT-4.1</option>
-                            <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
-                            <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
-                            <option value="gpt-4o">GPT-4o</option>
-                            <option value="gpt-4o-mini">GPT-4o Mini</option>
-                            <option value="gpt-5-nano">GPT-5 Nano</option>
-                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            <optgroup label="OpenAI">
+                                <option value="gpt-5-chat-latest">GPT-5 Chat Latest</option>
+                                <option value="gpt-5.2-chat-latest">GPT-5.2 Chat Latest</option>
+                                <option value="gpt-5.2" selected>GPT-5.2 (Medium Reasoning)</option>
+                                <option value="o3">o3 (Reasoning)</option>
+                                <option value="o4-mini">o4-mini (Reasoning)</option>
+                                <option value="gpt-4.1">GPT-4.1</option>
+                                <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
+                                <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
+                                <option value="gpt-4o">GPT-4o</option>
+                                <option value="gpt-4o-mini">GPT-4o Mini</option>
+                                <option value="gpt-5-nano">GPT-5 Nano</option>
+                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            </optgroup>
+                            <optgroup label="Anthropic">
+                                <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5</option>
+                                <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                            </optgroup>
+                            <optgroup label="OpenRouter (Paid)">
+                                <option value="google/gemini-3-pro-preview">Gemini 3 Pro Preview</option>
+                                <option value="google/gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+                                <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                <option value="deepseek/deepseek-v3.2">DeepSeek V3.2</option>
+                                <option value="x-ai/grok-code-fast-1">Grok Code Fast</option>
+                                <option value="z-ai/glm-4.7">GLM 4.7</option>
+                                <option value="minimax/minimax-m2.1">MiniMax M2.1</option>
+                            </optgroup>
+                            <optgroup label="OpenRouter (Free)">
+                                <option value="meta-llama/llama-3.3-70b-instruct:free">Llama 3.3 70B</option>
+                                <option value="google/gemma-3-27b-it:free">Gemma 3 27B</option>
+                                <option value="openai/gpt-oss-20b:free">GPT-OSS 20B</option>
+                                <option value="openai/gpt-oss-120b:free">GPT-OSS 120B</option>
+                                <option value="qwen/qwen3-next-80b-a3b-instruct:free">Qwen3 80B</option>
+                                <option value="z-ai/glm-4.5-air:free">GLM 4.5 Air</option>
+                                <option value="nvidia/nemotron-3-nano-30b-a3b:free">Nemotron 3 30B</option>
+                            </optgroup>
                         </select>
                     </div>
                     <div class="vision-toggle">
@@ -278,6 +302,7 @@ Dependencies:
         function updateVisionToggle() {
             // Models with vision support
             var modelsWithVision = [
+                // OpenAI
                 "gpt-5-chat-latest",
                 "gpt-5.2-chat-latest",
                 "gpt-5.2",
@@ -287,7 +312,15 @@ Dependencies:
                 "gpt-4o",
                 "gpt-4o-mini",
                 "gpt-5-nano",
-                "o4-mini"  // o4-mini has vision, o3 does not
+                "o4-mini",  // o4-mini has vision, o3 does not
+                // Anthropic
+                "claude-sonnet-4-5-20250929",
+                "claude-haiku-4-5-20251001",
+                // OpenRouter
+                "google/gemini-2.5-pro",
+                "google/gemini-3-pro-preview",
+                "google/gemini-3-flash-preview",
+                "google/gemma-3-27b-it:free"
             ];
             
             if (modelsWithVision.includes(aiModelSelector.value)) {

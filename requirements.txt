@@ -1,4 +1,5 @@
 openai>=1.60.0
+anthropic>=0.40.0
 flask
 flask-session
 cachelib

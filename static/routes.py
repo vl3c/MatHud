@@ -25,8 +25,10 @@ from typing import Any, Dict, List, Optional, TypeVar, Union, cast
 from flask import Response, flash, redirect, render_template, request, session, stream_with_context, url_for
 from flask.typing import ResponseReturnValue
 
+from static.ai_model import AIModel, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER
 from static.app_manager import AppManager, MatHudFlask
 from static.openai_api_base import OpenAIAPIBase
+from static.providers import ProviderRegistry, create_provider_instance
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
 from static.webdriver_manager import SvgState
 
@@ -42,6 +44,40 @@ login_attempts: Dict[str, float] = {}
 ToolCallList = List[ProcessedToolCall]
 CANVAS_SNAPSHOT_DIR = "canvas_snapshots"
 CANVAS_SNAPSHOT_PATH = os.path.join(CANVAS_SNAPSHOT_DIR, "canvas.png")
+
+
+def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
+    """Get or create the appropriate provider instance for a model.
+
+    Args:
+        app: The Flask application instance
+        model_id: The model identifier
+
+    Returns:
+        The API provider instance for the model
+    """
+    model = AIModel.from_identifier(model_id)
+    provider_name = model.provider
+
+    # For OpenAI, use the existing api instances
+    if provider_name == PROVIDER_OPENAI:
+        if model.is_reasoning_model:
+            return app.responses_api
+        return app.ai_api
+
+    # For other providers, use lazy-loaded instances
+    if provider_name not in app.providers:
+        provider_instance = create_provider_instance(provider_name, model=model)
+        if provider_instance is None:
+            # Fall back to OpenAI if provider not available
+            print(f"Provider {provider_name} not available, falling back to OpenAI")
+            return app.ai_api
+        app.providers[provider_name] = provider_instance
+
+    # Update the model on the cached provider instance
+    provider = app.providers[provider_name]
+    provider.set_model(model_id)
+    return provider
 
 
 def save_canvas_snapshot_from_data_url(data_url: str) -> bool:
@@ -472,9 +508,15 @@ def register_routes(app: MatHudFlask) -> None:
         if isinstance(attached_images_raw, list):
             attached_images = [img for img in attached_images_raw if isinstance(img, str)]
 
+        # Get the provider for this model and update all relevant APIs
         if ai_model:
             app.ai_api.set_model(ai_model)
             app.responses_api.set_model(ai_model)
+            # Get or create provider instance for this model
+            provider = get_provider_for_model(app, ai_model)
+        else:
+            # Use default OpenAI provider
+            provider = app.ai_api
 
         app.log_manager.log_user_message(message)
 
@@ -491,6 +533,9 @@ def register_routes(app: MatHudFlask) -> None:
         if isinstance(tool_call_results_raw, str) and tool_call_results_raw:
             _maybe_inject_search_tools(app.ai_api, tool_call_results_raw)
             _maybe_inject_search_tools(app.responses_api, tool_call_results_raw)
+            # Also inject into the active provider if different
+            if provider not in (app.ai_api, app.responses_api):
+                _maybe_inject_search_tools(provider, tool_call_results_raw)
 
         # Store attached images in app context for API access
         app.current_attached_images = attached_images
@@ -498,12 +543,12 @@ def register_routes(app: MatHudFlask) -> None:
         @stream_with_context
         def generate() -> Iterator[str]:
             try:
-                # Route to appropriate API based on model type
-                model = app.ai_api.get_model()
-                if model.is_reasoning_model:
+                # Route to appropriate API based on model and provider
+                model = provider.get_model()
+                if model.provider == PROVIDER_OPENAI and model.is_reasoning_model:
                     stream = app.responses_api.create_response_stream(message)
                 else:
-                    stream = app.ai_api.create_chat_completion_stream(message)
+                    stream = provider.create_chat_completion_stream(message)
 
                 for event in stream:
                     if isinstance(event, dict):
@@ -532,6 +577,9 @@ def register_routes(app: MatHudFlask) -> None:
                                     app.ai_api.reset_tools()
                                 if app.responses_api.has_injected_tools():
                                     app.responses_api.reset_tools()
+                                # Reset tools on active provider if different
+                                if provider not in (app.ai_api, app.responses_api) and provider.has_injected_tools():
+                                    provider.reset_tools()
                         yield json.dumps(event_dict) + "\n"
                     else:
                         yield json.dumps(event) + "\n"
@@ -542,6 +590,9 @@ def register_routes(app: MatHudFlask) -> None:
                     app.ai_api.reset_tools()
                 if app.responses_api.has_injected_tools():
                     app.responses_api.reset_tools()
+                # Reset tools on active provider if different
+                if provider not in (app.ai_api, app.responses_api) and provider.has_injected_tools():
+                    provider.reset_tools()
                 error_payload: StreamEventDict = {
                     "type": "final",
                     "ai_message": "I encountered an error processing your request. Please try again.",
@@ -638,6 +689,9 @@ def register_routes(app: MatHudFlask) -> None:
         try:
             app.ai_api.reset_conversation()
             app.responses_api.reset_conversation()
+            # Reset all cached providers
+            for provider in app.providers.values():
+                provider.reset_conversation()
             app.log_manager.log_new_session()
             return AppManager.make_response(message='New conversation started.')
         except Exception as e:
@@ -718,9 +772,15 @@ def register_routes(app: MatHudFlask) -> None:
         if isinstance(attached_images_raw, list):
             attached_images = [img for img in attached_images_raw if isinstance(img, str)]
 
+        # Get the provider for this model and update all relevant APIs
         if ai_model:
             app.ai_api.set_model(ai_model)
             app.responses_api.set_model(ai_model)
+            # Get or create provider instance for this model
+            provider = get_provider_for_model(app, ai_model)
+        else:
+            # Use default OpenAI provider
+            provider = app.ai_api
 
         app.log_manager.log_user_message(message)
 
@@ -737,6 +797,9 @@ def register_routes(app: MatHudFlask) -> None:
         if isinstance(tool_call_results_raw, str) and tool_call_results_raw:
             _maybe_inject_search_tools(app.ai_api, tool_call_results_raw)
             _maybe_inject_search_tools(app.responses_api, tool_call_results_raw)
+            # Also inject into the active provider if different
+            if provider not in (app.ai_api, app.responses_api):
+                _maybe_inject_search_tools(provider, tool_call_results_raw)
 
         # Store attached images in app context for API access
         app.current_attached_images = attached_images
@@ -748,12 +811,14 @@ def register_routes(app: MatHudFlask) -> None:
                     app.ai_api.reset_tools()
                 if app.responses_api.has_injected_tools():
                     app.responses_api.reset_tools()
+                # Reset tools on active provider if different
+                if provider not in (app.ai_api, app.responses_api) and provider.has_injected_tools():
+                    provider.reset_tools()
 
         try:
-            # Route to appropriate API based on model type. This matters for
-            # streaming fallback (client retries via /send_message).
-            model = app.ai_api.get_model()
-            if model.is_reasoning_model:
+            # Route to appropriate API based on model and provider
+            model = provider.get_model()
+            if model.provider == PROVIDER_OPENAI and model.is_reasoning_model:
                 stream = app.responses_api.create_response_stream(message)
                 final_event: Optional[StreamEventDict] = None
                 for event in stream:
@@ -791,7 +856,7 @@ def register_routes(app: MatHudFlask) -> None:
                     "finish_reason": finish_reason,
                 }))
 
-            choice = app.ai_api.create_chat_completion(message)
+            choice = provider.create_chat_completion(message)
             ai_message, ai_tool_calls = _process_ai_response(app, choice)
             # Intercept search_tools and filter other tool calls
             if ai_tool_calls:
