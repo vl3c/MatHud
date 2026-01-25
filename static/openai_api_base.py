@@ -86,7 +86,7 @@ class OpenAIAPIBase:
         model: Optional[AIModel] = None,
         temperature: float = 0.2,
         tools: Optional[Sequence[FunctionDefinition]] = None,
-        max_tokens: int = 32000,
+        max_tokens: int = 16000,
         tool_mode: ToolMode = "full",
     ) -> None:
         """Initialize OpenAI API client and conversation state.

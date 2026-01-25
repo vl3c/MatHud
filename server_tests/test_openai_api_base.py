@@ -37,7 +37,7 @@ class TestOpenAIAPIBase(unittest.TestCase):
         api = OpenAIAPIBase()
         self.assertEqual(api.model.id, AIModel.DEFAULT_MODEL)
         self.assertEqual(api.temperature, 0.2)
-        self.assertEqual(api.max_tokens, 32000)
+        self.assertEqual(api.max_tokens, 16000)
 
     @patch('static.openai_api_base.OpenAI')
     def test_initialization_custom_model(self, mock_openai: Mock) -> None:
