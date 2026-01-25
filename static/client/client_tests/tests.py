@@ -178,6 +178,19 @@ from .test_slash_commands import (
     TestExportCommandOutput,
     TestStatusCommandOutput,
 )
+from .test_image_attachment import (
+    TestAttachedImagesState,
+    TestImageValidation,
+    TestPayloadGeneration,
+    TestSlashCommandImage,
+    TestImageLimitLogic,
+    TestImageRemovalLogic,
+    TestPreviewAreaLogic,
+    TestModalLogic,
+    TestMessageElementWithImages,
+    TestDataURLParsing,
+    TestImageOnlySending,
+)
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
@@ -365,6 +378,17 @@ class Tests:
             TestExpandableContent,
             TestExportCommandOutput,
             TestStatusCommandOutput,
+            TestAttachedImagesState,
+            TestImageValidation,
+            TestPayloadGeneration,
+            TestSlashCommandImage,
+            TestImageLimitLogic,
+            TestImageRemovalLogic,
+            TestPreviewAreaLogic,
+            TestModalLogic,
+            TestMessageElementWithImages,
+            TestDataURLParsing,
+            TestImageOnlySending,
         ]
 
         for test_case in test_cases:
