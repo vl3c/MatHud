@@ -108,12 +108,30 @@ Dependencies:
             
             <!-- User Input Area -->
             <div class="chat-input-container">
-                <input class="chat-input" id="chat-input" type="text" placeholder="Type your message here...">
+                <!-- Hidden file input for image attachment -->
+                <input type="file" id="image-attach-input" accept="image/*" multiple style="display: none;">
+                <!-- Image preview area (shown when images are attached) -->
+                <div id="image-preview-area" class="image-preview-area" style="display: none;"></div>
+                <!-- Input row with attach button -->
+                <div class="chat-input-row">
+                    <button id="attach-button" class="attach-button" title="Attach image">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                        </svg>
+                    </button>
+                    <input class="chat-input" id="chat-input" type="text" placeholder="Type your message here...">
+                </div>
                 <div class="chat-buttons">
                     <button id="send-button">Send</button>
                     <!-- TEMPORARY: Run Tests Button (see documentation/development/removing_run_tests_button.md) -->
                     <button id="run-tests-button" title="Run client-side tests">Run Tests</button>
                 </div>
+            </div>
+
+            <!-- Image modal for full-size viewing -->
+            <div id="image-modal" class="image-modal" style="display: none;">
+                <span class="image-modal-close">&times;</span>
+                <img id="image-modal-img" class="image-modal-content" src="" alt="Full size image">
             </div>
         </div>
     </div>
@@ -471,7 +489,8 @@ Dependencies:
             // Only apply narrow state in desktop (horizontal) layout
             if (!isVerticalLayout()) {
                 var chatWidth = chatContainer.offsetWidth;
-                var chatInput = chatInputContainer.querySelector('.chat-input');
+                // Use chat-input-row if it exists (new structure), otherwise fall back to chat-input
+                var chatInputRow = chatInputContainer.querySelector('.chat-input-row') || chatInputContainer.querySelector('.chat-input');
                 var chatButtons = chatInputContainer.querySelector('.chat-buttons');
 
                 // Temporarily remove narrow to check natural wrap state
@@ -479,7 +498,7 @@ Dependencies:
                 chatInputContainer.classList.remove('very-narrow');
 
                 // Check if buttons have wrapped to a new line
-                var buttonsWrapped = chatButtons.offsetTop > chatInput.offsetTop;
+                var buttonsWrapped = chatButtons.offsetTop > chatInputRow.offsetTop;
 
                 if (chatWidth < VERY_NARROW_THRESHOLD) {
                     chatInputContainer.classList.add('narrow');

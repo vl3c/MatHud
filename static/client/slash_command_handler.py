@@ -243,6 +243,14 @@ class SlashCommandHandler:
             usage="/model [name]",
         )
 
+        # Image attachment command
+        commands["image"] = CommandInfo(
+            name="image",
+            description="Attach an image to your next message",
+            handler=self._cmd_image,
+            usage="/image",
+        )
+
         return commands
 
     def is_slash_command(self, message: str) -> bool:
@@ -794,3 +802,14 @@ class SlashCommandHandler:
             )
         except Exception as e:
             return CommandResult(success=False, message=f"Error accessing model selector: {str(e)}")
+
+    def _cmd_image(self, args: List[str]) -> CommandResult:
+        """Open file picker to attach an image."""
+        try:
+            self.ai_interface.trigger_file_picker()
+            return CommandResult(
+                success=True,
+                message="Opening file picker... Select an image to attach to your next message.",
+            )
+        except Exception as e:
+            return CommandResult(success=False, message=f"Error opening file picker: {str(e)}")

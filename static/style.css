@@ -831,11 +831,176 @@ input, select, textarea, button {
     padding: 16px 20px;
     border-top: 1px solid var(--border-color);
     background: var(--surface-color);
-    overflow: hidden; /* Prevent content from overflowing */
+    overflow: visible; /* Allow autocomplete popup to appear above */
     /* Mobile keyboard support */
     position: relative;
     bottom: env(keyboard-inset-height, 0);
     transition: bottom 0.3s ease;
+}
+
+/* Input row containing attach button and text input */
+.chat-input-row {
+    display: flex;
+    flex: 1 1 auto;
+    gap: 8px;
+    align-items: center;
+    min-width: 100px;
+}
+
+/* Attach button styling */
+.attach-button {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.attach-button:hover {
+    background: var(--background-color);
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.attach-button:active {
+    transform: scale(0.95);
+}
+
+.attach-button svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Image preview area - always takes full width to appear on its own row */
+.image-preview-area {
+    display: flex;
+    flex: 0 0 100%;
+    gap: 8px;
+    padding: 8px;
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.image-preview-area::-webkit-scrollbar {
+    height: 6px;
+}
+
+.image-preview-area::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+/* Individual image preview item */
+.image-preview-item {
+    position: relative;
+    flex-shrink: 0;
+    width: 60px;
+    height: 60px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    background: var(--surface-color);
+}
+
+.image-preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.image-preview-item .remove-btn {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.image-preview-item:hover .remove-btn {
+    opacity: 1;
+}
+
+/* Chat message images container */
+.chat-message-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.chat-message-image {
+    max-width: 200px;
+    max-height: 150px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chat-message-image:hover {
+    transform: scale(1.02);
+    box-shadow: var(--shadow-md);
+}
+
+/* Image modal for full-size viewing */
+.image-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.image-modal-close {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    color: white;
+    font-size: 36px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    z-index: 2001;
+}
+
+.image-modal-close:hover {
+    color: #ccc;
+}
+
+.image-modal-content {
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+    border-radius: var(--radius);
 }
 
 /* Button wrapper to keep Send and Run Tests buttons together */
@@ -851,8 +1016,13 @@ input, select, textarea, button {
     flex-wrap: wrap;
 }
 
-.chat-input-container.narrow .chat-input {
+.chat-input-container.narrow .chat-input-row {
     flex: 1 1 100%;
+    min-width: 0;
+}
+
+.chat-input-container.narrow .chat-input {
+    flex: 1 1 auto;
     min-width: 0;
 }
 
@@ -876,6 +1046,7 @@ input, select, textarea, button {
     width: 100%;
 }
 
+.chat-input-row .chat-input,
 .chat-input {
     flex: 1 1 auto;
     min-width: 100px; /* Minimum usable width */
@@ -1153,10 +1324,27 @@ input, select, textarea, button {
         flex-shrink: 0; /* Prevent shrinking */
         padding: 10px 16px; /* Reduced padding */
     }
-    
+
     /* Reduce input padding */
     .chat-input {
         padding: 10px 12px; /* Reduced padding */
+    }
+
+    /* Smaller attach button on mobile */
+    .attach-button {
+        width: 36px;
+        height: 36px;
+    }
+
+    .attach-button svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* Smaller preview items on mobile */
+    .image-preview-item {
+        width: 50px;
+        height: 50px;
     }
     
     /* Reduce chat message padding */

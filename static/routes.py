@@ -69,10 +69,21 @@ def save_canvas_snapshot_from_data_url(data_url: str) -> bool:
         return False
 
 
-def extract_vision_payload(request_payload: Dict[str, Any]) -> tuple[Optional[Dict[str, Any]], Optional[str], Optional[str]]:
+def extract_vision_payload(
+    request_payload: Dict[str, Any]
+) -> tuple[Optional[Dict[str, Any]], Optional[str], Optional[str], Optional[List[str]]]:
+    """Extract vision-related data from the request payload.
+
+    Args:
+        request_payload: The full request payload dictionary
+
+    Returns:
+        Tuple of (svg_state, canvas_image, renderer_mode, attached_images)
+    """
     svg_state: Optional[Dict[str, Any]] = None
     canvas_image: Optional[str] = None
     renderer_mode: Optional[str] = None
+    attached_images: Optional[List[str]] = None
 
     raw_svg_state = request_payload.get('svg_state')
     if isinstance(raw_svg_state, dict):
@@ -93,7 +104,12 @@ def extract_vision_payload(request_payload: Dict[str, Any]) -> tuple[Optional[Di
         if isinstance(snapshot_canvas, str):
             canvas_image = snapshot_canvas
 
-    return svg_state, canvas_image, renderer_mode
+    # Extract attached images from the request payload
+    raw_attached_images = request_payload.get('attached_images')
+    if isinstance(raw_attached_images, list):
+        attached_images = [img for img in raw_attached_images if isinstance(img, str)]
+
+    return svg_state, canvas_image, renderer_mode, attached_images
 
 
 def handle_vision_capture(
@@ -445,10 +461,16 @@ def register_routes(app: MatHudFlask) -> None:
             )
         message_json: JsonObject = message_json_value
 
-        svg_state, canvas_image_data, _ = extract_vision_payload(request_payload)
+        svg_state, canvas_image_data, _, _ = extract_vision_payload(request_payload)
         use_vision = bool(message_json.get('use_vision', False))
         ai_model_raw = message_json.get('ai_model')
         ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
+
+        # Extract attached images from the message JSON (not request_payload)
+        attached_images_raw = message_json.get('attached_images')
+        attached_images: Optional[List[str]] = None
+        if isinstance(attached_images_raw, list):
+            attached_images = [img for img in attached_images_raw if isinstance(img, str)]
 
         if ai_model:
             app.ai_api.set_model(ai_model)
@@ -469,6 +491,9 @@ def register_routes(app: MatHudFlask) -> None:
         if isinstance(tool_call_results_raw, str) and tool_call_results_raw:
             _maybe_inject_search_tools(app.ai_api, tool_call_results_raw)
             _maybe_inject_search_tools(app.responses_api, tool_call_results_raw)
+
+        # Store attached images in app context for API access
+        app.current_attached_images = attached_images
 
         @stream_with_context
         def generate() -> Iterator[str]:
@@ -682,10 +707,16 @@ def register_routes(app: MatHudFlask) -> None:
                 code=400,
             )
 
-        svg_state, canvas_image_data, _ = extract_vision_payload(request_payload)
+        svg_state, canvas_image_data, _, _ = extract_vision_payload(request_payload)
         use_vision = bool(message_json_raw.get('use_vision', False))
         ai_model_raw = message_json_raw.get('ai_model')
         ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
+
+        # Extract attached images from the message JSON
+        attached_images_raw = message_json_raw.get('attached_images')
+        attached_images: Optional[List[str]] = None
+        if isinstance(attached_images_raw, list):
+            attached_images = [img for img in attached_images_raw if isinstance(img, str)]
 
         if ai_model:
             app.ai_api.set_model(ai_model)
@@ -706,6 +737,9 @@ def register_routes(app: MatHudFlask) -> None:
         if isinstance(tool_call_results_raw, str) and tool_call_results_raw:
             _maybe_inject_search_tools(app.ai_api, tool_call_results_raw)
             _maybe_inject_search_tools(app.responses_api, tool_call_results_raw)
+
+        # Store attached images in app context for API access
+        app.current_attached_images = attached_images
 
         def _reset_tools_if_needed(finish_reason: Any) -> None:
             """Reset tools if AI finished (not requesting more tool calls)."""

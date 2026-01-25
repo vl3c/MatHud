@@ -52,6 +52,7 @@ class MatHudFlask(Flask):
     responses_api: OpenAIResponsesAPI
     webdriver_manager: Optional["WebDriverManager"]
     workspace_manager: WorkspaceManager
+    current_attached_images: Optional[list[str]]  # User-attached images for current request
 
 
 class AppManager:
@@ -176,7 +177,8 @@ class AppManager:
         app.ai_api = OpenAIChatCompletionsAPI()
         app.responses_api = OpenAIResponsesAPI()
         app.webdriver_manager = None  # Will be set after Flask starts
-        
+        app.current_attached_images = None  # User-attached images for current request
+
         # Initialize workspace manager
         app.workspace_manager = WorkspaceManager()
         

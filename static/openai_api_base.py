@@ -244,7 +244,11 @@ class OpenAIAPIBase:
                         pass
 
     def _remove_images_from_user_messages(self) -> None:
-        """Remove image content from all user messages in the conversation history."""
+        """Remove image content from all user messages in the conversation history.
+
+        This reduces token usage for the fallback case when not using previous_response_id.
+        When using previous_response_id, OpenAI maintains the full context server-side.
+        """
         for message in reversed(self.messages):
             if message.get("role") == "user" and "content" in message:
                 content = message["content"]
@@ -261,23 +265,58 @@ class OpenAIAPIBase:
         self._remove_canvas_state_from_user_messages()
         self._remove_images_from_user_messages()
 
-    def _create_enhanced_prompt_with_image(self, user_message: str) -> Optional[List[Dict[str, Any]]]:
-        """Create an enhanced prompt that includes both text and base64 encoded image."""
-        try:
-            with open("canvas_snapshots/canvas.png", "rb") as image_file:
-                image_data = base64.b64encode(image_file.read()).decode('utf-8')
-                return [
-                    {"type": "text", "text": user_message},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_data}"}}
-                ]
-        except Exception as e:
-            error_msg = f"Failed to load canvas image: {e}"
-            print(error_msg)  # Console output
-            _logger.error(error_msg)  # File logging
-            return None
+    def _create_enhanced_prompt_with_image(
+        self,
+        user_message: str,
+        attached_images: Optional[List[str]] = None,
+        include_canvas_snapshot: bool = True,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Create an enhanced prompt that includes text and optional images.
+
+        Args:
+            user_message: The text message from the user
+            attached_images: Optional list of data URL images attached by the user
+            include_canvas_snapshot: Whether to include the canvas snapshot (vision toggle)
+
+        Returns:
+            List of content parts for the message, or None if no images available
+        """
+        content: List[Dict[str, Any]] = [{"type": "text", "text": user_message}]
+        has_images = False
+
+        # Add canvas snapshot if vision is enabled
+        if include_canvas_snapshot:
+            try:
+                with open("canvas_snapshots/canvas.png", "rb") as image_file:
+                    image_data = base64.b64encode(image_file.read()).decode('utf-8')
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{image_data}"}
+                    })
+                    has_images = True
+            except Exception as e:
+                error_msg = f"Failed to load canvas image: {e}"
+                print(error_msg)  # Console output
+                _logger.error(error_msg)  # File logging
+
+        # Add user-attached images (these are already data URLs)
+        if attached_images:
+            for img_url in attached_images:
+                if isinstance(img_url, str) and img_url.startswith("data:image"):
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {"url": img_url}
+                    })
+                    has_images = True
+
+        return content if has_images else None
 
     def _prepare_message_content(self, full_prompt: str) -> MessageContent:
-        """Prepare message content with optional canvas image for vision-enabled messages."""
+        """Prepare message content with optional canvas image for vision-enabled messages.
+
+        Handles both vision toggle (canvas snapshot) and user-attached images.
+        Images work independently: attached images are sent regardless of vision toggle.
+        """
         try:
             prompt_json = json.loads(full_prompt)
         except json.JSONDecodeError:
@@ -287,12 +326,24 @@ class OpenAIAPIBase:
             return full_prompt
 
         user_message = str(prompt_json.get("user_message", ""))
-        use_vision = bool(prompt_json.get("use_vision", True))
+        use_vision = bool(prompt_json.get("use_vision", False))
 
-        if not use_vision:
+        # Extract attached images from the prompt JSON
+        attached_images_raw = prompt_json.get("attached_images")
+        attached_images: Optional[List[str]] = None
+        if isinstance(attached_images_raw, list):
+            attached_images = [img for img in attached_images_raw if isinstance(img, str)]
+
+        # If no vision and no attached images, return plain text prompt
+        if not use_vision and not attached_images:
             return full_prompt
 
-        enhanced_prompt = self._create_enhanced_prompt_with_image(user_message)
+        # Create enhanced prompt with images
+        enhanced_prompt = self._create_enhanced_prompt_with_image(
+            user_message=user_message,
+            attached_images=attached_images,
+            include_canvas_snapshot=use_vision,
+        )
         return enhanced_prompt if enhanced_prompt else full_prompt
 
     def _create_error_response(

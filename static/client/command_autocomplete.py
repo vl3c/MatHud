@@ -71,12 +71,13 @@ class CommandAutocomplete:
             self.popup_element.id = "command-autocomplete-popup"
             self.popup_element.style.display = "none"
 
-            # Find the chat input container and append popup before it
-            input_container = self.input_element.parentElement
+            # Find the chat-input-container (may be grandparent if input is in chat-input-row)
+            input_container = document.querySelector(".chat-input-container")
             if input_container:
                 # Position relative to input container
                 input_container.style.position = "relative"
-                input_container.insertBefore(self.popup_element, self.input_element)
+                # Append popup to container - CSS positions it above with bottom: 100%
+                input_container.appendChild(self.popup_element)
         except Exception as e:
             print(f"Error creating autocomplete popup: {e}")
 

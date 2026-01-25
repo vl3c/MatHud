@@ -66,12 +66,17 @@ class AIInterface:
     # Extended timeout for reasoning models (2 minutes)
     REASONING_TIMEOUT_MS: int = 120000
     
+    # Maximum number of images per message
+    MAX_ATTACHED_IMAGES: int = 5
+    # Warning threshold for image size (10MB)
+    IMAGE_SIZE_WARNING_BYTES: int = 10 * 1024 * 1024
+
     def __init__(self, canvas: "Canvas") -> None:
         """Initialize the AI interface with canvas integration and function registry.
-        
+
         Sets up all necessary components for AI communication including function mappings,
         workspace management, and markdown processing capabilities.
-        
+
         Args:
             canvas (Canvas): The mathematical canvas instance to interact with
         """
@@ -102,6 +107,8 @@ class AIInterface:
         # Chat message menu state
         self._open_message_menu: Optional[Any] = None  # DOMNode
         self._message_menu_global_bound: bool = False
+        # Image attachment state
+        self._attached_images: list[str] = []  # Data URLs of attached images
 
     def run_tests(self) -> Dict[str, Any]:
         """Run unit tests for the AIInterface class and return results to the AI as the function result."""
@@ -137,6 +144,189 @@ class AIInterface:
                 )
         except Exception as e:
             print(f"Error initializing command autocomplete: {e}")
+
+    def initialize_image_attachment(self) -> None:
+        """Initialize image attachment functionality.
+
+        Binds event handlers for the attach button and file input.
+        Should be called after the DOM is ready.
+        """
+        try:
+            # Bind attach button click
+            if "attach-button" in document:
+                document["attach-button"].bind("click", self._on_attach_button_click)
+
+            # Bind file input change
+            if "image-attach-input" in document:
+                document["image-attach-input"].bind("change", self._on_files_selected)
+
+            # Bind modal close handlers
+            if "image-modal" in document:
+                modal = document["image-modal"]
+                modal.bind("click", self._on_modal_backdrop_click)
+
+            close_btn = document.select_one(".image-modal-close")
+            if close_btn:
+                close_btn.bind("click", self._close_image_modal)
+        except Exception as e:
+            print(f"Error initializing image attachment: {e}")
+
+    def _on_attach_button_click(self, event: Any) -> None:
+        """Handle attach button click - trigger file picker."""
+        try:
+            if "image-attach-input" in document:
+                document["image-attach-input"].click()
+        except Exception as e:
+            print(f"Error triggering file picker: {e}")
+
+    def trigger_file_picker(self) -> None:
+        """Programmatically trigger the file picker for image attachment.
+
+        This is called by the /attach slash command.
+        """
+        self._on_attach_button_click(None)
+
+    def _on_files_selected(self, event: Any) -> None:
+        """Handle file input change - read selected files as data URLs."""
+        try:
+            file_input = event.target
+            files = file_input.files
+
+            if not files or files.length == 0:
+                return
+
+            # Check if we've hit the limit
+            current_count = len(self._attached_images)
+            remaining = self.MAX_ATTACHED_IMAGES - current_count
+
+            if remaining <= 0:
+                self._print_system_message_in_chat(
+                    f"Maximum of {self.MAX_ATTACHED_IMAGES} images per message. Remove some to add more."
+                )
+                file_input.value = ""
+                return
+
+            files_to_process = min(files.length, remaining)
+            if files.length > remaining:
+                self._print_system_message_in_chat(
+                    f"Only attaching {remaining} of {files.length} images (limit: {self.MAX_ATTACHED_IMAGES})."
+                )
+
+            for i in range(files_to_process):
+                file = files[i]
+                self._read_and_attach_image(file)
+
+            # Clear the input so the same file can be selected again
+            file_input.value = ""
+        except Exception as e:
+            print(f"Error handling file selection: {e}")
+
+    def _read_and_attach_image(self, file: Any) -> None:
+        """Read an image file and add it to the attached images list."""
+        try:
+            # Check file size
+            if hasattr(file, "size") and file.size > self.IMAGE_SIZE_WARNING_BYTES:
+                size_mb = file.size / (1024 * 1024)
+                self._print_system_message_in_chat(
+                    f"Warning: Image '{file.name}' is {size_mb:.1f}MB. Large images may slow down processing."
+                )
+
+            # Create FileReader to convert to data URL
+            reader = window.FileReader.new()
+
+            def on_load(event: Any) -> None:
+                try:
+                    data_url = reader.result
+                    if isinstance(data_url, str) and data_url.startswith("data:image"):
+                        self._attached_images.append(data_url)
+                        self._update_preview_area()
+                except Exception as e:
+                    print(f"Error processing image: {e}")
+
+            reader.onload = on_load
+            reader.readAsDataURL(file)
+        except Exception as e:
+            print(f"Error reading image file: {e}")
+
+    def _update_preview_area(self) -> None:
+        """Update the image preview area to reflect current attached images."""
+        try:
+            preview_area = document["image-preview-area"]
+
+            # Clear existing previews
+            preview_area.clear()
+
+            if not self._attached_images:
+                preview_area.style.display = "none"
+                return
+
+            preview_area.style.display = "flex"
+
+            for idx, data_url in enumerate(self._attached_images):
+                # Create preview item container
+                item = html.DIV(Class="image-preview-item")
+
+                # Create thumbnail image
+                img = html.IMG(src=data_url)
+                item <= img
+
+                # Create remove button
+                remove_btn = html.BUTTON("\u00d7", Class="remove-btn")
+                remove_btn.attrs["title"] = "Remove image"
+
+                # Bind remove handler with closure for index
+                def make_remove_handler(index: int) -> Any:
+                    def handler(event: Any) -> None:
+                        event.stopPropagation()
+                        self._remove_attached_image(index)
+                    return handler
+
+                remove_btn.bind("click", make_remove_handler(idx))
+                item <= remove_btn
+
+                preview_area <= item
+        except Exception as e:
+            print(f"Error updating preview area: {e}")
+
+    def _remove_attached_image(self, index: int) -> None:
+        """Remove an attached image by index."""
+        try:
+            if 0 <= index < len(self._attached_images):
+                self._attached_images.pop(index)
+                self._update_preview_area()
+        except Exception as e:
+            print(f"Error removing attached image: {e}")
+
+    def _clear_attached_images(self) -> None:
+        """Clear all attached images."""
+        self._attached_images = []
+        self._update_preview_area()
+
+    def _show_image_modal(self, data_url: str) -> None:
+        """Display an image in full-size modal."""
+        try:
+            modal = document["image-modal"]
+            modal_img = document["image-modal-img"]
+            modal_img.src = data_url
+            modal.style.display = "flex"
+        except Exception as e:
+            print(f"Error showing image modal: {e}")
+
+    def _close_image_modal(self, event: Any = None) -> None:
+        """Close the image modal."""
+        try:
+            modal = document["image-modal"]
+            modal.style.display = "none"
+        except Exception as e:
+            print(f"Error closing image modal: {e}")
+
+    def _on_modal_backdrop_click(self, event: Any) -> None:
+        """Close modal when clicking outside the image."""
+        try:
+            if event.target.id == "image-modal":
+                self._close_image_modal()
+        except Exception as e:
+            print(f"Error handling modal click: {e}")
 
     def _store_results_in_canvas_state(self, call_results: Dict[str, Any]) -> None:
         """Store valid function call results in the canvas state, skipping special cases and formatting values."""
@@ -381,15 +571,31 @@ class AIInterface:
             pass
 
     
-    def _create_message_element(self, sender: str, message: str, message_type: str = "normal") -> Any:  # DOMNode
-        """Create a styled message element with markdown support."""
+    def _create_message_element(
+        self,
+        sender: str,
+        message: str,
+        message_type: str = "normal",
+        images: Optional[list[str]] = None,
+    ) -> Any:  # DOMNode
+        """Create a styled message element with markdown support and optional images.
+
+        Args:
+            sender: The message sender ("User" or "AI")
+            message: The message text content
+            message_type: CSS class for message styling ("normal", "system")
+            images: Optional list of image data URLs to display with the message
+
+        Returns:
+            DOM element for the message
+        """
         try:
             # Create message container
             message_container = html.DIV(Class=f"chat-message {message_type}")
-            
+
             # Create sender label
             sender_label = html.SPAN(f"{sender}: ", Class=f"chat-sender {sender.lower()}")
-            
+
             # Parse markdown and create content element
             if sender == "AI":
                 parsed_content = self._parse_markdown_to_html(message)
@@ -398,17 +604,34 @@ class AIInterface:
             else:
                 # For user messages, keep them as plain text for now
                 content_element = html.SPAN(message, Class="chat-content")
-            
+
             # Assemble the message
             message_container <= sender_label
             message_container <= content_element
 
+            # Add images if provided
+            if images:
+                images_container = html.DIV(Class="chat-message-images")
+                for data_url in images:
+                    img = html.IMG(src=data_url, Class="chat-message-image")
+                    img.attrs["alt"] = "Attached image"
+
+                    # Bind click to show modal
+                    def make_image_click_handler(url: str) -> Any:
+                        def handler(event: Any) -> None:
+                            self._show_image_modal(url)
+                        return handler
+
+                    img.bind("click", make_image_click_handler(data_url))
+                    images_container <= img
+                message_container <= images_container
+
             # Store the raw source text for copy actions (do not rely on rendered HTML)
             self._set_raw_message_text(message_container, message)
             self._attach_message_menu(message_container)
-            
+
             return message_container
-            
+
         except Exception as e:
             print(f"Error creating message element: {e}")
             # Fall back to simple paragraph
@@ -735,10 +958,15 @@ class AIInterface:
         except Exception:
             return {}
 
-    def _print_user_message_in_chat(self, user_message: str) -> None:
-        """Print a user message to the chat history and scroll to bottom."""
+    def _print_user_message_in_chat(self, user_message: str, images: Optional[list[str]] = None) -> None:
+        """Print a user message to the chat history and scroll to bottom.
+
+        Args:
+            user_message: The text message from the user
+            images: Optional list of image data URLs to display with the message
+        """
         # Add the user's message to the chat history with markdown support
-        message_element = self._create_message_element("User", user_message)
+        message_element = self._create_message_element("User", user_message, images=images)
         document["chat-history"] <= message_element
         # Trigger MathJax rendering for new content
         self._render_math()
@@ -1102,18 +1330,26 @@ class AIInterface:
             payload = self._create_request_payload(prompt, include_svg=False)
             self._start_streaming_request(payload)
 
-    def _send_prompt_to_ai_stream(self, user_message: Optional[str] = None, tool_call_results: Optional[str] = None) -> None:
+    def _send_prompt_to_ai_stream(
+        self,
+        user_message: Optional[str] = None,
+        tool_call_results: Optional[str] = None,
+        attached_images: Optional[list[str]] = None,
+    ) -> None:
         canvas_state = self.canvas.get_canvas_state()
         use_vision = document["vision-toggle"].checked and user_message is not None and tool_call_results is None
-        prompt_json = {
+        prompt_json: Dict[str, Any] = {
             "canvas_state": canvas_state,
             "user_message": user_message,
             "tool_call_results": tool_call_results,
             "use_vision": use_vision,
             "ai_model": document["ai-model-selector"].value
         }
+        # Include attached images if provided (works independently of vision toggle)
+        if attached_images:
+            prompt_json["attached_images"] = attached_images
         prompt = json.dumps(prompt_json)
-        print(f'Prompt for AI (stream): {prompt}')
+        print(f'Prompt for AI (stream): {prompt[:500]}...' if len(prompt) > 500 else f'Prompt for AI (stream): {prompt}')
         
         # For new user messages, reset all state including containers and buffers
         # For tool call results, preserve everything to keep intermediary text visible
@@ -1138,23 +1374,31 @@ class AIInterface:
             payload = self._create_request_payload(prompt, include_svg=False)
             self._start_streaming_request(payload)
 
-    def _send_prompt_to_ai(self, user_message: Optional[str] = None, tool_call_results: Optional[str] = None) -> None:
+    def _send_prompt_to_ai(
+        self,
+        user_message: Optional[str] = None,
+        tool_call_results: Optional[str] = None,
+        attached_images: Optional[list[str]] = None,
+    ) -> None:
         canvas_state = self.canvas.get_canvas_state()
-        
+
         # Only use vision when we have a user message and no tool call results
         use_vision = document["vision-toggle"].checked and user_message is not None and tool_call_results is None
-        
-        prompt_json = {
+
+        prompt_json: Dict[str, Any] = {
             "canvas_state": canvas_state,
             "user_message": user_message,
             "tool_call_results": tool_call_results,
             "use_vision": use_vision,
             "ai_model": document["ai-model-selector"].value
         }
-        
+
+        # Include attached images if provided (works independently of vision toggle)
+        if attached_images:
+            prompt_json["attached_images"] = attached_images
+
         # Convert to JSON string
         prompt = json.dumps(prompt_json)
-        print(f'Prompt for AI: {prompt}')
         
         # For new user messages, reset all state including containers and buffers
         # For tool call results, preserve everything to keep intermediary text visible
@@ -1178,21 +1422,39 @@ class AIInterface:
 
         If the message is a slash command (starts with "/"), it is executed
         locally without sending to the AI backend.
+
+        Allows sending with just attached images (empty message).
         """
-        if self.is_processing or not message.strip():
+        has_text = bool(message.strip())
+        has_images = len(self._attached_images) > 0
+
+        # Need either text or images to send
+        if self.is_processing or (not has_text and not has_images):
             return
 
-        # Check for slash command
-        if self.slash_command_handler.is_slash_command(message):
+        # Check for slash command (only if there's text)
+        if has_text and self.slash_command_handler.is_slash_command(message):
             self._print_user_message_in_chat(message)
             result = self.slash_command_handler.execute(message)
             self._print_system_message_in_chat(result.message)
             return
 
+        # Capture attached images before clearing
+        images_to_send = list(self._attached_images) if self._attached_images else None
+
+        # Use a default message for image-only sends
+        display_message = message if has_text else "[Image attached]"
+        ai_message = message if has_text else "What do you see in this image?"
+
+        # Display the user message with images in chat
+        self._print_user_message_in_chat(display_message, images=images_to_send)
+
+        # Clear attached images after displaying (not after successful send)
+        self._clear_attached_images()
+
         # Regular AI flow
-        self._print_user_message_in_chat(message)
         self._disable_send_controls()
-        self._send_prompt_to_ai(message)
+        self._send_prompt_to_ai(ai_message, attached_images=images_to_send)
 
     def run_tests_action(self, event: Any) -> None:
         """Trigger the test suite directly on the client side (TEMPORARY).
@@ -1255,12 +1517,13 @@ class AIInterface:
         # Don't process if we're already handling a request
         if self.is_processing:
             return
-            
+
         # Get the user's message from the input field
-        user_message = document["chat-input"].value
-        
-        # Clear the input field immediately if we have a message
-        if user_message:
+        user_message = document["chat-input"].value.strip()
+        has_images = len(self._attached_images) > 0
+
+        # Allow sending if there's text OR attached images
+        if user_message or has_images:
             document["chat-input"].value = ''
             self.send_user_message(user_message)
 
