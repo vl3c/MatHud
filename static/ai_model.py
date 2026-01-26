@@ -44,6 +44,7 @@ ModelIdentifier = Literal[
     "o3",
     "o4-mini",
     # Anthropic models
+    "claude-opus-4-5-20251101",
     "claude-sonnet-4-5-20250929",
     "claude-haiku-4-5-20251001",
     # OpenRouter models (paid)
@@ -155,6 +156,12 @@ class AIModel:
         # ===================
         # Anthropic Models
         # ===================
+        "claude-opus-4-5-20251101": {
+            "has_vision": True,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_ANTHROPIC,
+            "display_name": "Claude Opus 4.5",
+        },
         "claude-sonnet-4-5-20250929": {
             "has_vision": True,
             "is_reasoning_model": False,
