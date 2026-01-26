@@ -4,16 +4,19 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 
 ## Key Features
 - Interactive math-space canvas rendered through Canvas2D, SVG, and an experimental WebGL backend
-- AI-powered mathematical assistant
+- AI-powered mathematical assistant with multi-provider support (OpenAI, Anthropic, OpenRouter)
 - Real-time geometric visualization and analysis
 - Switchable coordinate systems: Cartesian 2D grid and Polar grid (concentric circles with radial lines)
 - Graph theory graphs (graphs, trees, DAGs): create, auto-layout, render weighted edges, and run analyses (shortest path, MST, topological sort, bridges, BFS/DFS, tree operations)
 - Support for mathematical expressions and calculations
 - Linear algebra expression evaluation with MathJS-backed matrix operations
 - Coordinate conversion utilities (rectangular to polar and vice versa)
-- Visual problem-solving with multimodal AI
+- Visual problem-solving with multimodal AI (vision toggle and image attachment for capable models)
 - Real-world problem analysis and modeling
 - Workspace management for saving and loading states
+- Slash commands (`/help`, `/vision`, `/model`, `/image`, etc.) for quick local operations
+- Image attachment for sending images directly to the AI alongside chat messages
+- Dynamic model dropdown filtered by available API keys, with "(text only)" labels for non-vision models
 - Rich text chat interface with comprehensive markdown support and LaTeX mathematical notation rendering
 
 ## Mathematical Functions

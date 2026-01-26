@@ -120,8 +120,10 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 4. Constants (`constants.py`)
 5. Geometry (`geometry.py`)
 6. Result Validator (`result_validator.py`)
-7. HTML Template (`templates/index.html`)
-8. CSS Stylesheet (`static/style.css`)
+7. Slash Command Handler (`slash_command_handler.py`)
+8. Command Autocomplete (`command_autocomplete.py`)
+9. HTML Template (`templates/index.html`)
+10. CSS Stylesheet (`static/style.css`)
 
 ### Server-Side Components
 1. Server-Side Workspace Manager (`static/workspace_manager.py`)
@@ -132,7 +134,8 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 6. Application Logging System (`static/log_manager.py`)
 7. Selenium WebDriver Manager (`static/webdriver_manager.py`)
 8. AI Model Configuration (`static/ai_model.py`)
-9. Tool Call Processing Utilities (`static/tool_call_processor.py`)
+9. Provider Registry (`static/providers/`)
+10. Tool Call Processing Utilities (`static/tool_call_processor.py`)
 
 ### Testing and Quality Assurance
 1. Client-Side Testing (`client_tests/` and `test_runner.py`)
@@ -3756,8 +3759,9 @@ error recovery, and resource cleanup.
 ```
 MatHud AI Model Configuration
 
-AI model definitions and capability management for OpenAI models.
-Handles model-specific features like vision support and provides factory methods.
+AI model definitions and capability management for multiple providers (OpenAI, Anthropic, OpenRouter).
+Handles model-specific features like vision support, reasoning mode, and display names.
+Provides factory methods for creating model instances from identifiers.
 
 Dependencies:
     - None (pure configuration module)
@@ -3767,21 +3771,82 @@ Dependencies:
 ```
 AI model configuration and capability management.
 
-Manages model-specific capabilities (like vision support) and provides
-factory methods for creating model instances from identifiers.
+Manages model-specific capabilities (vision support, reasoning mode, provider assignment)
+and provides factory methods for creating model instances from identifiers.
+
+Supported Providers:
+    - PROVIDER_OPENAI ("openai"): GPT-5.2, GPT-5, GPT-4.1, GPT-4o, o3, o4-mini, GPT-3.5 Turbo, etc.
+    - PROVIDER_ANTHROPIC ("anthropic"): Claude Opus 4.5, Claude Sonnet 4.5, Claude Haiku 4.5
+    - PROVIDER_OPENROUTER ("openrouter"): Gemini, DeepSeek, Grok, Llama, Gemma, and more (paid and free tiers)
 ```
 
 **Key Methods:**
-- `__init__(identifier, has_vision)`: Initialize AIModel instance with identifier and vision capability
+- `__init__(identifier, has_vision, is_reasoning_model, reasoning_effort, provider)`: Initialize AIModel instance
 - `from_identifier(identifier)`: Create AIModel instance from identifier string (static method)
 - `get_default_model()`: Get the default AI model instance (static method)
 - `__str__()`: String representation returning model identifier
 
 **Key Attributes:**
-- `MODEL_CONFIGS`: Dictionary of model configurations with capabilities
+- `MODEL_CONFIGS`: Dictionary of model configurations with capabilities (vision, reasoning, provider, display_name)
 - `DEFAULT_MODEL`: Default model identifier string
 - `id`: Model identifier string
 - `has_vision`: Boolean indicating vision capability support
+- `is_reasoning_model`: Boolean indicating if model uses reasoning API (OpenAI Responses API)
+- `provider`: Provider string (`"openai"`, `"anthropic"`, or `"openrouter"`)
+- `display_name`: Human-readable label shown in the model dropdown
+
+### Provider Registry (`static/providers/`)
+
+**Architecture:**
+```
+Multi-provider AI API backend supporting OpenAI, Anthropic, and OpenRouter.
+
+Key Components:
+    - ProviderRegistry: Detects available providers by checking environment variables
+    - OpenAIChatCompletionsAPI: OpenAI Chat Completions and Responses API
+    - AnthropicAPI: Anthropic Messages API for Claude models
+    - OpenRouterAPI: OpenRouter-compatible API for third-party models
+
+Provider Detection:
+    - OPENAI_API_KEY → OpenAI provider available
+    - ANTHROPIC_API_KEY → Anthropic provider available
+    - OPENROUTER_API_KEY → OpenRouter provider available
+
+The model dropdown in the UI is populated dynamically via GET /api/available_models,
+which returns only models for providers with configured API keys.
+```
+
+**Key Methods (ProviderRegistry):**
+- `is_provider_available(provider_name)`: Check if a provider has an API key configured
+- `get_available_providers()`: Return set of all available provider names
+- `create_api(provider_name, model)`: Factory method to instantiate the correct API client
+
+### Slash Command Handler (`static/client/slash_command_handler.py`)
+
+**File Header:**
+```
+MatHud Slash Command Handler
+
+Handles slash commands typed in the chat interface for quick app management operations.
+Commands execute locally without AI involvement, providing fast access to common actions.
+
+Key Features:
+    - Command parsing with argument handling
+    - Fuzzy matching for unknown commands
+    - Command registry with descriptions for help/autocomplete
+    - Integration with canvas, workspace, and AI interface operations
+    - Vision capability checking for /vision and /image commands
+```
+
+**Available Commands:**
+- Essential: `/help`, `/undo`, `/redo`, `/clear`, `/reset`, `/save`, `/load`, `/workspaces`
+- Canvas/View: `/fit`, `/zoom`, `/grid`, `/axes`, `/polar`, `/cartesian`, `/status`
+- Utility: `/vision`, `/test`, `/export`, `/import`, `/list`, `/new`, `/model`, `/image`
+
+**Key Methods:**
+- `is_slash_command(message)`: Check if a message starts with `/`
+- `execute(message)`: Parse and execute a slash command, returning a `CommandResult`
+- `get_commands_list()`: Get all commands with descriptions for autocomplete
 
 ### Tool Call Processing Utilities (`static/tool_call_processor.py`)
 
