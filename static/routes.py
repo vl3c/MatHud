@@ -22,7 +22,7 @@ import time
 from collections.abc import Callable, Iterator
 from typing import Any, Dict, List, Optional, TypeVar, Union, cast
 
-from flask import Response, flash, redirect, render_template, request, session, stream_with_context, url_for
+from flask import Response, flash, jsonify, redirect, render_template, request, session, stream_with_context, url_for
 from flask.typing import ResponseReturnValue
 
 from static.ai_model import AIModel, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER
@@ -388,6 +388,44 @@ def register_routes(app: MatHudFlask) -> None:
             'authenticated': session.get('authenticated', False)
         })
     
+    @app.route('/api/available_models', methods=['GET'])
+    def get_available_models() -> ResponseReturnValue:
+        """Return models grouped by provider, only for providers with API keys."""
+        available = ProviderRegistry.get_available_providers()
+
+        models_by_provider: Dict[str, List[Dict[str, Any]]] = {
+            "openai": [],
+            "anthropic": [],
+            "openrouter_paid": [],
+            "openrouter_free": [],
+        }
+
+        for model_id, config in AIModel.MODEL_CONFIGS.items():
+            provider = config.get("provider", PROVIDER_OPENAI)
+            has_vision = config.get("has_vision", False)
+            display_name = config.get("display_name", model_id)
+
+            if provider not in available:
+                continue
+
+            entry: Dict[str, Any] = {
+                "id": model_id,
+                "has_vision": has_vision,
+                "display_name": display_name,
+            }
+
+            if provider == PROVIDER_OPENAI:
+                models_by_provider["openai"].append(entry)
+            elif provider == PROVIDER_ANTHROPIC:
+                models_by_provider["anthropic"].append(entry)
+            elif provider == PROVIDER_OPENROUTER:
+                if model_id.endswith(":free"):
+                    models_by_provider["openrouter_free"].append(entry)
+                else:
+                    models_by_provider["openrouter_paid"].append(entry)
+
+        return jsonify(models_by_provider)
+
     @app.route('/')
     @require_auth
     def get_index() -> ResponseReturnValue:

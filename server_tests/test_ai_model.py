@@ -54,10 +54,10 @@ class TestAIModel(unittest.TestCase):
         self.assertEqual(model.reasoning_effort, "medium")
 
     def test_from_identifier_o3(self) -> None:
-        """Test o3 is a reasoning model without vision."""
+        """Test o3 is a reasoning model with vision."""
         model = AIModel.from_identifier("o3")
         self.assertEqual(model.id, "o3")
-        self.assertFalse(model.has_vision)
+        self.assertTrue(model.has_vision)
         self.assertTrue(model.is_reasoning_model)
 
     def test_from_identifier_o4_mini(self) -> None:

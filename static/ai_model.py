@@ -25,6 +25,7 @@ class ModelConfig(TypedDict, total=False):
     is_reasoning_model: bool
     reasoning_effort: str
     provider: str
+    display_name: str
 
 
 ModelConfigDict = Dict[str, ModelConfig]
@@ -81,63 +82,75 @@ class AIModel:
             "has_vision": True,
             "is_reasoning_model": True,
             "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-5 Chat Latest",
         },
         "gpt-5.2-chat-latest": {
             "has_vision": True,
             "is_reasoning_model": True,
             "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-5.2 Chat Latest",
         },
         "gpt-5.2": {
             "has_vision": True,
             "is_reasoning_model": True,
             "reasoning_effort": "medium",
             "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-5.2 (Medium Reasoning)",
         },
         "o3": {
-            "has_vision": False,
+            "has_vision": True,
             "is_reasoning_model": True,
             "provider": PROVIDER_OPENAI,
+            "display_name": "o3 (Reasoning)",
         },
         "o4-mini": {
             "has_vision": True,
             "is_reasoning_model": True,
             "provider": PROVIDER_OPENAI,
+            "display_name": "o4-mini (Reasoning)",
         },
         # Standard models (use Chat Completions API)
         "gpt-4.1": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-4.1",
         },
         "gpt-4.1-mini": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-4.1 Mini",
         },
         "gpt-4.1-nano": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-4.1 Nano",
         },
         "gpt-4o": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-4o",
         },
         "gpt-4o-mini": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-4o Mini",
         },
         "gpt-5-nano": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-5 Nano",
         },
         "gpt-3.5-turbo": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-3.5 Turbo",
         },
         # ===================
         # Anthropic Models
@@ -146,11 +159,13 @@ class AIModel:
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_ANTHROPIC,
+            "display_name": "Claude Sonnet 4.5",
         },
         "claude-haiku-4-5-20251001": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_ANTHROPIC,
+            "display_name": "Claude Haiku 4.5",
         },
         # ===================
         # OpenRouter Models (Paid)
@@ -159,36 +174,43 @@ class AIModel:
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "Gemini 2.5 Pro",
         },
         "google/gemini-3-pro-preview": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "Gemini 3 Pro Preview",
         },
         "google/gemini-3-flash-preview": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "Gemini 3 Flash Preview",
         },
         "deepseek/deepseek-v3.2": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "DeepSeek V3.2",
         },
         "x-ai/grok-code-fast-1": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "Grok Code Fast",
         },
         "z-ai/glm-4.7": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "GLM 4.7",
         },
         "minimax/minimax-m2.1": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "MiniMax M2.1",
         },
         # ===================
         # OpenRouter Models (Free)
@@ -197,36 +219,43 @@ class AIModel:
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "Llama 3.3 70B",
         },
         "google/gemma-3-27b-it:free": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "Gemma 3 27B",
         },
         "openai/gpt-oss-20b:free": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "GPT-OSS 20B",
         },
         "openai/gpt-oss-120b:free": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "GPT-OSS 120B",
         },
         "qwen/qwen3-next-80b-a3b-instruct:free": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "Qwen3 80B",
         },
         "z-ai/glm-4.5-air:free": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "GLM 4.5 Air",
         },
         "nvidia/nemotron-3-nano-30b-a3b:free": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
+            "display_name": "Nemotron 3 30B",
         },
     }
 

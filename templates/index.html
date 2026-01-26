@@ -82,42 +82,7 @@ Dependencies:
                     <div class="ai-model-selector">
                         <label for="ai-model-selector">Model:</label>
                         <select id="ai-model-selector">
-                            <optgroup label="OpenAI">
-                                <option value="gpt-5-chat-latest">GPT-5 Chat Latest</option>
-                                <option value="gpt-5.2-chat-latest">GPT-5.2 Chat Latest</option>
-                                <option value="gpt-5.2" selected>GPT-5.2 (Medium Reasoning)</option>
-                                <option value="o3">o3 (Reasoning)</option>
-                                <option value="o4-mini">o4-mini (Reasoning)</option>
-                                <option value="gpt-4.1">GPT-4.1</option>
-                                <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
-                                <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
-                                <option value="gpt-4o">GPT-4o</option>
-                                <option value="gpt-4o-mini">GPT-4o Mini</option>
-                                <option value="gpt-5-nano">GPT-5 Nano</option>
-                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                            </optgroup>
-                            <optgroup label="Anthropic">
-                                <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5</option>
-                                <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
-                            </optgroup>
-                            <optgroup label="OpenRouter (Paid)">
-                                <option value="google/gemini-3-pro-preview">Gemini 3 Pro Preview</option>
-                                <option value="google/gemini-3-flash-preview">Gemini 3 Flash Preview</option>
-                                <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
-                                <option value="deepseek/deepseek-v3.2">DeepSeek V3.2</option>
-                                <option value="x-ai/grok-code-fast-1">Grok Code Fast</option>
-                                <option value="z-ai/glm-4.7">GLM 4.7</option>
-                                <option value="minimax/minimax-m2.1">MiniMax M2.1</option>
-                            </optgroup>
-                            <optgroup label="OpenRouter (Free)">
-                                <option value="meta-llama/llama-3.3-70b-instruct:free">Llama 3.3 70B</option>
-                                <option value="google/gemma-3-27b-it:free">Gemma 3 27B</option>
-                                <option value="openai/gpt-oss-20b:free">GPT-OSS 20B</option>
-                                <option value="openai/gpt-oss-120b:free">GPT-OSS 120B</option>
-                                <option value="qwen/qwen3-next-80b-a3b-instruct:free">Qwen3 80B</option>
-                                <option value="z-ai/glm-4.5-air:free">GLM 4.5 Air</option>
-                                <option value="nvidia/nemotron-3-nano-30b-a3b:free">Nemotron 3 30B</option>
-                            </optgroup>
+                            <option value="">Loading models...</option>
                         </select>
                     </div>
                     <div class="vision-toggle">
@@ -291,52 +256,93 @@ Dependencies:
         var aiModelSelector = document.getElementById("ai-model-selector");
         var visionToggle = document.getElementById("vision-toggle");
         var visionLabel = document.querySelector("label[for='vision-toggle']");
-        
+
         // Ensure vision is unchecked on page load
         visionToggle.checked = false;
-        
+
+        // Vision models list, populated dynamically from API
+        var VISION_MODELS = [];
+        // Expose on window so Brython slash commands can check vision support
+        window.VISION_MODELS = VISION_MODELS;
+
+        var attachButton = document.getElementById("attach-button");
+        var visionContainer = visionToggle.parentElement;
+
         /**
-         * Updates vision toggle availability based on selected AI model capabilities.
-         * Vision features are only available for models with vision support.
+         * Updates vision toggle and attach button visibility based on selected AI model.
+         * Vision features and image attachment are hidden for models without vision support.
          */
         function updateVisionToggle() {
-            // Models with vision support
-            var modelsWithVision = [
-                // OpenAI
-                "gpt-5-chat-latest",
-                "gpt-5.2-chat-latest",
-                "gpt-5.2",
-                "gpt-4.1",
-                "gpt-4.1-mini",
-                "gpt-4.1-nano",
-                "gpt-4o",
-                "gpt-4o-mini",
-                "gpt-5-nano",
-                "o4-mini",  // o4-mini has vision, o3 does not
-                // Anthropic
-                "claude-sonnet-4-5-20250929",
-                "claude-haiku-4-5-20251001",
-                // OpenRouter
-                "google/gemini-2.5-pro",
-                "google/gemini-3-pro-preview",
-                "google/gemini-3-flash-preview",
-                "google/gemma-3-27b-it:free"
-            ];
-            
-            if (modelsWithVision.includes(aiModelSelector.value)) {
-                visionToggle.disabled = false;
-                visionToggle.style.opacity = "1";
-                visionLabel.style.color = "";
+            var hasVision = VISION_MODELS.includes(aiModelSelector.value);
+            if (hasVision) {
+                visionContainer.style.display = "";
+                attachButton.style.display = "";
             } else {
-                visionToggle.disabled = true;
                 visionToggle.checked = false;
-                visionToggle.style.opacity = "0.5";
-                visionLabel.style.color = "gray";
+                visionContainer.style.display = "none";
+                attachButton.style.display = "none";
             }
         }
-        
-        // Initialize vision toggle state on page load
-        updateVisionToggle();
+
+        // Fetch available models from server and populate dropdown
+        fetch('/api/available_models')
+            .then(function(response) { return response.json(); })
+            .then(function(models) {
+                aiModelSelector.innerHTML = '';
+                VISION_MODELS = [];
+
+                var groups = [
+                    { key: 'openai', label: 'OpenAI' },
+                    { key: 'anthropic', label: 'Anthropic' },
+                    { key: 'openrouter_paid', label: 'OpenRouter (Paid)' },
+                    { key: 'openrouter_free', label: 'OpenRouter (Free)' }
+                ];
+
+                var hasModels = false;
+                var defaultModel = 'gpt-5.2';
+                var defaultFound = false;
+
+                for (var i = 0; i < groups.length; i++) {
+                    var group = groups[i];
+                    var groupModels = models[group.key];
+                    if (groupModels && groupModels.length > 0) {
+                        hasModels = true;
+                        var optgroup = document.createElement('optgroup');
+                        optgroup.label = group.label;
+                        for (var j = 0; j < groupModels.length; j++) {
+                            var model = groupModels[j];
+                            var option = document.createElement('option');
+                            option.value = model.id;
+                            var label = model.display_name || model.id;
+                            option.textContent = model.has_vision ? label : label + ' (text only)';
+                            if (model.id === defaultModel) {
+                                option.selected = true;
+                                defaultFound = true;
+                            }
+                            optgroup.appendChild(option);
+                            if (model.has_vision) {
+                                VISION_MODELS.push(model.id);
+                            }
+                        }
+                        aiModelSelector.appendChild(optgroup);
+                    }
+                }
+
+                if (!hasModels) {
+                    aiModelSelector.innerHTML = '<option value="">No API keys configured</option>';
+                } else if (!defaultFound) {
+                    // Select first available model if default not found
+                    aiModelSelector.selectedIndex = 0;
+                }
+
+                // Update window reference for Brython slash commands
+                window.VISION_MODELS = VISION_MODELS;
+                updateVisionToggle();
+            })
+            .catch(function(error) {
+                console.error('Failed to fetch available models:', error);
+                aiModelSelector.innerHTML = '<option value="">Failed to load models</option>';
+            });
 
         // Update vision toggle when AI model selection changes
         aiModelSelector.addEventListener("change", updateVisionToggle);
