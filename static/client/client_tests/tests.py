@@ -191,6 +191,7 @@ from .test_image_attachment import (
     TestDataURLParsing,
     TestImageOnlySending,
 )
+from .test_tool_call_log import TestToolCallLog
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
@@ -389,6 +390,7 @@ class Tests:
             TestMessageElementWithImages,
             TestDataURLParsing,
             TestImageOnlySending,
+            TestToolCallLog,
         ]
 
         for test_case in test_cases:

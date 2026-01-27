@@ -384,6 +384,7 @@ Key Features:
     - Chat interface management with styled messages
     - SVG state transmission for AI vision capabilities
     - Computation history integration with canvas state
+    - Tool call log dropdown showing executed tool calls with status indicators
     - Testing framework integration
 
 Communication Flow:
@@ -429,6 +430,11 @@ Attributes:
 - `_create_request_payload(prompt, include_svg=True)`: Create JSON payload for AI requests
 - `_disable_send_controls()`: Disable send functionality while processing
 - `_enable_send_controls()`: Enable send functionality after processing
+- `_format_tool_call_args_display(args)`: Format a tool call's arguments dict for compact display (filters `canvas`, truncates values to 30 chars and total to 80 chars)
+- `_create_tool_call_entry_element(entry)`: Build the DOM element for a single tool call log entry with status icon, name, args, and optional error message
+- `_ensure_tool_call_log_element()`: Create the tool-call-log `<details>` dropdown element if it does not exist yet
+- `_add_tool_call_entries(tool_calls, call_results)`: Record tool call entries and update the dropdown UI with running count
+- `_finalize_tool_call_log()`: Update the tool call log summary to its final state (e.g., "Used 3 tools" or "Used 3 tools (1 failed)")
 
 #### Result Processor (`result_processor.py`)
 
@@ -3448,6 +3454,7 @@ Dependencies:
 - **Design Tokens**: CSS custom properties for colors, shadows, and spacing
 - **Layout System**: Flexbox-based dual-pane container with responsive breakpoints
 - **Chat Interface**: Comprehensive styling for messages, controls, and markdown content
+- **Tool Call Log**: Collapsible dropdown styles (`.tool-call-log-dropdown`, `.tool-call-log-summary`, `.tool-call-log-content`) with status icons and entry formatting
 - **Mathematical Content**: Specialized styling for LaTeX expressions and mathematical notation
 - **Form Controls**: Modern input styling with focus states and accessibility features
 - **Responsive Design**: Mobile and tablet breakpoints for optimal viewing on all devices
@@ -4076,6 +4083,7 @@ The client-side testing framework runs in the browser using Brython and covers a
 - Drawable objects (points, segments, shapes, functions)
 - Canvas operations and coordinate systems
 - AI interface and function call processing
+- Tool call log dropdown lifecycle and display
 - Expression validation and mathematical computations
 - Name generation systems and dependency management
 
