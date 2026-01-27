@@ -801,6 +801,7 @@ input, select, textarea, button {
     cursor: pointer;
     color: #888;
     font-style: italic;
+    font-size: 0.9em;
     padding: 4px 0;
     user-select: none;
 }
@@ -820,6 +821,88 @@ input, select, textarea, button {
     overflow-y: auto;
     margin-top: 4px;
     border-left: 2px solid #ddd;
+}
+
+/* ===== TOOL CALL LOG STYLING ===== */
+/* Collapsible dropdown showing tool calls executed during an AI turn */
+.tool-call-log-dropdown {
+    margin-bottom: 8px;
+}
+
+.tool-call-log-summary {
+    cursor: pointer;
+    color: #888;
+    font-style: italic;
+    font-size: 0.9em;
+    padding: 4px 0;
+    user-select: none;
+}
+
+.tool-call-log-summary:hover {
+    color: #666;
+}
+
+.tool-call-log-content {
+    background: rgba(0, 0, 0, 0.03);
+    border-left: 2px solid #ddd;
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin-top: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.tool-call-entry {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.85em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 2px 0;
+    line-height: 1.4;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background-color 0.1s ease;
+}
+
+.tool-call-entry:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.tool-call-entry.expanded {
+    white-space: normal;
+    word-break: break-word;
+    overflow: visible;
+    text-overflow: unset;
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.tool-call-status {
+    display: inline-block;
+    width: 16px;
+    text-align: center;
+}
+
+.tool-call-status.success {
+    color: #059669;
+}
+
+.tool-call-status.error {
+    color: #dc2626;
+}
+
+.tool-call-name {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.tool-call-args {
+    color: #888;
+}
+
+.tool-call-error-msg {
+    color: #dc2626;
+    font-style: italic;
 }
 
 /* ===== CHAT INPUT COMPONENTS ===== */

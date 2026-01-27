@@ -18,6 +18,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Image attachment for sending images directly to the AI alongside chat messages
 - Dynamic model dropdown filtered by available API keys, with "(text only)" labels for non-vision models
 - Rich text chat interface with comprehensive markdown support and LaTeX mathematical notation rendering
+- Tool call log dropdown in chat messages showing function name, arguments, and success/error status for each AI tool call
 
 ## Mathematical Functions
 - Basic Arithmetic: addition, subtraction, multiplication, division, exponents, roots
@@ -107,6 +108,17 @@ The application features a sophisticated chat interface with comprehensive markd
 - **Smart Processing**: Two-phase parsing to avoid infinite loops and conflicts
 - **CSS Integration**: Comprehensive styling for all markdown elements
 - **Real-time Updates**: Automatic rendering of new chat messages with full markdown support
+
+### Tool Call Log
+When the AI executes tool calls during a conversation turn, a collapsible "Tool Call Log" dropdown appears inside the AI message bubble. This feature works for all models (not only reasoning models).
+
+- **Location**: Rendered as an HTML `<details>` element inside the AI message container, positioned after any reasoning dropdown but before the response text.
+- **Live updates**: While the AI is processing, the summary reads "Using tools... (N so far)". Each executed tool call is appended as a log entry in real time.
+- **Entry contents**: Each entry shows a status icon (checkmark for success, cross for error), the function name, a compact argument summary, and an error message when applicable.
+- **Final summary**: After the turn completes, the summary updates to "Used N tool(s)" with an optional "(M failed)" suffix if any calls returned errors.
+- **State lifecycle**: Tool call log state (`_tool_call_log_entries`, `_tool_call_log_element`, etc.) is reset at the start of each new user message and cleaned up in `_finalize_stream_message`.
+- **Implementation**: `AIInterface._add_tool_call_entries` records entries and updates the DOM; `_finalize_tool_call_log` writes the final summary. CSS classes are prefixed with `tool-call-log-*` (defined in `static/style.css`).
+- **Tests**: `static/client/client_tests/test_tool_call_log.py` covers argument formatting, entry element creation, dropdown lifecycle, accumulation across rounds, finalization, and state management.
 
 ---
 
@@ -297,6 +309,7 @@ static/client/
     ├── test_expression_validator.py   # Expression validation tests
     ├── test_function.py               # Function object tests
     ├── test_[shape].py                # Individual shape tests (point, segment, etc.)
+    ├── test_tool_call_log.py          # Tool call log dropdown tests
     ├── ai_result_formatter.py         # Test result formatting for AI
     ├── brython_io.py                  # Brython I/O utilities
     └── simple_mock.py                 # Testing mock utilities
@@ -503,8 +516,9 @@ server_tests/
           - Math evaluations (`ExpressionEvaluator`).
           - Client-side workspace operations (e.g., `save_workspace`) that call methods on the client `WorkspaceManager`, which then makes further AJAX calls.
       iii. Results from `ProcessFunctionCalls.get_results` are collected.
-      iv. `AIInterface._store_results_in_canvas_state` updates canvas computations.
-      v. `AIInterface._send_prompt_to_ai` is called again, this time with `tool_call_results` (and no `user_message`), looping back to step 4 (backend forwards tool results to OpenAI).
+      iv. `AIInterface._add_tool_call_entries` records each tool call in the tool call log dropdown, updating the live count in the UI.
+      v. `AIInterface._store_results_in_canvas_state` updates canvas computations.
+      vi. `AIInterface._send_prompt_to_ai` is called again, this time with `tool_call_results` (and no `user_message`), looping back to step 4 (backend forwards tool results to OpenAI).
 8. Canvas is updated by the managers if drawing functions were called. Results are displayed in chat.
 
 ## Workspace Flow

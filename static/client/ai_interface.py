@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 from browser import document, html, ajax, window, console
 from function_registry import FunctionRegistry
 from process_function_calls import ProcessFunctionCalls
+from result_processor import ResultProcessor
 from workspace_manager import WorkspaceManager
 from markdown_parser import MarkdownParser
 from slash_command_handler import SlashCommandHandler
@@ -102,6 +103,11 @@ class AIInterface:
         self._is_reasoning: bool = False
         self._request_start_time: Optional[float] = None  # Timestamp when user request started
         self._needs_continuation_separator: bool = False  # Add newline before next text after tool calls
+        # Tool call log state
+        self._tool_call_log_entries: list[dict[str, Any]] = []
+        self._tool_call_log_element: Optional[Any] = None   # <details> element
+        self._tool_call_log_summary: Optional[Any] = None   # <summary> element
+        self._tool_call_log_content: Optional[Any] = None   # content container div
         # Timeout state
         self._response_timeout_id: Optional[int] = None
         # Chat message menu state
@@ -706,6 +712,165 @@ class AIInterface:
             except Exception as e:
                 print(f"Error creating reasoning element: {e}")
 
+    def _reset_tool_call_log_state(self) -> None:
+        """Reset all tool call log state for a new turn."""
+        self._tool_call_log_entries = []
+        self._tool_call_log_element = None
+        self._tool_call_log_summary = None
+        self._tool_call_log_content = None
+
+    def _format_tool_call_args_display(self, args: dict[str, Any]) -> str:
+        """Format a tool call's arguments dict for compact display.
+
+        Filters out the ``canvas`` key, truncates individual values to 30
+        characters and the total string to 80 characters.
+        """
+        parts: list[str] = []
+        for k, v in args.items():
+            if k == "canvas":
+                continue
+            v_str = str(v)
+            if len(v_str) > 30:
+                v_str = v_str[:27] + "..."
+            parts.append(f"{k}: {v_str}")
+        result = ", ".join(parts)
+        if len(result) > 80:
+            result = result[:77] + "..."
+        return result
+
+    def _create_tool_call_entry_element(self, entry: dict[str, Any]) -> Any:
+        """Build the DOM element for a single tool call log entry."""
+        div = html.DIV(Class="tool-call-entry")
+
+        is_error = entry.get("is_error", False)
+        status_class = "tool-call-status error" if is_error else "tool-call-status success"
+        status_char = "\u2717" if is_error else "\u2713"
+        status_span = html.SPAN(status_char, Class=status_class)
+        div <= status_span
+
+        name_span = html.SPAN(entry.get("name", ""), Class="tool-call-name")
+        div <= name_span
+
+        short_args = entry.get("args_display", "")
+        full_args = entry.get("args_full", short_args)
+        args_span = html.SPAN(f"({short_args})", Class="tool-call-args")
+        div <= args_span
+
+        if is_error:
+            error_msg = entry.get("error_message", "")
+            if error_msg:
+                err_span = html.SPAN(f" \u2014 {error_msg}", Class="tool-call-error-msg")
+                div <= err_span
+
+        # Click to toggle between truncated and full view
+        def _toggle_expand(event: Any) -> None:
+            try:
+                if div.classList.contains("expanded"):
+                    div.classList.remove("expanded")
+                    args_span.text = f"({short_args})"
+                else:
+                    div.classList.add("expanded")
+                    args_span.text = f"({full_args})"
+            except Exception:
+                pass
+
+        div.bind("click", _toggle_expand)
+
+        return div
+
+    def _ensure_tool_call_log_element(self) -> None:
+        """Create the tool-call-log ``<details>`` element if it doesn't exist yet."""
+        if self._tool_call_log_element is not None:
+            return
+
+        # We need a message container to attach to
+        if self._stream_message_container is None:
+            self._ensure_stream_message_element()
+
+        details = html.DETAILS(Class="tool-call-log-dropdown")
+        summary = html.SUMMARY("Using tools...", Class="tool-call-log-summary")
+        content_div = html.DIV(Class="tool-call-log-content")
+        details <= summary
+        details <= content_div
+
+        # Insert before the content element so it appears after reasoning but before text
+        if self._stream_message_container is not None and self._stream_content_element is not None:
+            try:
+                self._stream_message_container.insertBefore(details, self._stream_content_element)
+            except Exception:
+                self._stream_message_container <= details
+        elif self._stream_message_container is not None:
+            self._stream_message_container <= details
+
+        self._tool_call_log_element = details
+        self._tool_call_log_summary = summary
+        self._tool_call_log_content = content_div
+
+    def _add_tool_call_entries(self, tool_calls: list[dict[str, Any]], call_results: dict[str, Any]) -> None:
+        """Record tool call entries and update the dropdown UI.
+
+        Args:
+            tool_calls: Raw tool call dicts from the AI response.
+            call_results: Dict mapping result keys to their outcomes.
+        """
+        self._ensure_tool_call_log_element()
+
+        for call in tool_calls:
+            function_name: str = call.get("function_name", "")
+            args: dict[str, Any] = call.get("arguments", {})
+            args_display = self._format_tool_call_args_display(args)
+
+            result_key = ResultProcessor._generate_result_key(function_name, args)
+
+            result_value = call_results.get(result_key, call_results.get(function_name, ""))
+            is_error = isinstance(result_value, str) and result_value.startswith("Error:")
+            error_message = result_value if is_error else ""
+
+            # Full untruncated args for the expanded view
+            args_full = ", ".join(
+                f"{k}: {v}" for k, v in args.items() if k != "canvas"
+            )
+
+            entry: dict[str, Any] = {
+                "name": function_name,
+                "args_display": args_display,
+                "args_full": args_full,
+                "is_error": is_error,
+                "error_message": error_message,
+            }
+            self._tool_call_log_entries.append(entry)
+
+            entry_el = self._create_tool_call_entry_element(entry)
+            if self._tool_call_log_content is not None:
+                self._tool_call_log_content <= entry_el
+
+        # Update summary with running count
+        count = len(self._tool_call_log_entries)
+        if self._tool_call_log_summary is not None:
+            self._tool_call_log_summary.text = f"Using tools... ({count} so far)"
+
+    def _finalize_tool_call_log(self) -> None:
+        """Update the tool call log summary to its final state."""
+        if not self._tool_call_log_entries:
+            return
+
+        count = len(self._tool_call_log_entries)
+        error_count = sum(1 for e in self._tool_call_log_entries if e.get("is_error"))
+
+        label = f"Used {count} tool" if count == 1 else f"Used {count} tools"
+        if error_count:
+            label += f" ({error_count} failed)"
+
+        if self._tool_call_log_summary is not None:
+            self._tool_call_log_summary.text = label
+
+        # Ensure collapsed — removeAttribute is reliable for boolean HTML attributes
+        if self._tool_call_log_element is not None:
+            try:
+                self._tool_call_log_element.removeAttribute("open")
+            except Exception:
+                pass
+
     def _on_stream_reasoning(self, text: str) -> None:
         """Handle a reasoning token: append to reasoning buffer and update UI."""
         try:
@@ -764,6 +929,8 @@ class AIInterface:
     def _finalize_stream_message(self, final_message: Optional[str] = None) -> None:
         """Convert the streamed plain text to parsed markdown and render math."""
         try:
+            self._finalize_tool_call_log()
+
             # Prefer the accumulated buffer (contains all text across tool calls)
             # Only use final_message as fallback if buffer is empty
             text_to_render = self._stream_buffer if self._stream_buffer.strip() else (final_message or "")
@@ -804,20 +971,30 @@ class AIInterface:
                     # Reasoning but no text content - remove the empty container
                     self._remove_empty_response_container()
             elif text_to_render:
-                # No reasoning, use standard finalization
-                final_element = self._create_message_element("AI", text_to_render)
-
-                history = document["chat-history"]
-                if self._stream_message_container is not None:
-                    try:
-                        history.replaceChild(final_element, self._stream_message_container)
-                    except Exception:
-                        history <= final_element
+                if self._tool_call_log_element is not None and self._stream_message_container is not None:
+                    # Tool call log exists — update the container in place to preserve the dropdown
+                    self._set_raw_message_text(self._stream_message_container, text_to_render)
+                    if self._stream_content_element is not None:
+                        parsed_content = self._parse_markdown_to_html(text_to_render)
+                        self._stream_content_element.innerHTML = parsed_content
+                        self._stream_content_element.classList.add("markdown")
+                    self._render_math()
+                    document["chat-history"].scrollTop = document["chat-history"].scrollHeight
                 else:
-                    history <= final_element
+                    # No reasoning or tool log, use standard finalization
+                    final_element = self._create_message_element("AI", text_to_render)
 
-                self._render_math()
-                history.scrollTop = history.scrollHeight
+                    history = document["chat-history"]
+                    if self._stream_message_container is not None:
+                        try:
+                            history.replaceChild(final_element, self._stream_message_container)
+                        except Exception:
+                            history <= final_element
+                    else:
+                        history <= final_element
+
+                    self._render_math()
+                    history.scrollTop = history.scrollHeight
             else:
                 # No text content at all - remove any empty container
                 self._remove_empty_response_container()
@@ -833,6 +1010,7 @@ class AIInterface:
             self._reasoning_summary = None
             self._is_reasoning = False
             self._request_start_time = None
+            self._reset_tool_call_log_state()
 
     def _remove_empty_response_container(self) -> None:
         """Remove the current response container if it has no actual text content.
@@ -850,9 +1028,10 @@ class AIInterface:
                     has_element_text = bool(element_text.strip())
                 except Exception:
                     pass
-            
-            # Only remove if there's NO actual text content anywhere
-            if self._stream_message_container is not None and not has_buffer_text and not has_element_text:
+            has_tool_call_log = bool(self._tool_call_log_entries)
+
+            # Only remove if there's NO actual text content anywhere and no tool call log
+            if self._stream_message_container is not None and not has_buffer_text and not has_element_text and not has_tool_call_log:
                 history = document["chat-history"]
                 try:
                     history.removeChild(self._stream_message_container)
@@ -866,6 +1045,7 @@ class AIInterface:
                 self._reasoning_summary = None
                 self._reasoning_buffer = ""
                 self._is_reasoning = False
+                self._reset_tool_call_log_state()
                 # Don't reset _request_start_time here - we want to keep timing across tool calls
         except Exception as e:
             print(f"Error removing empty container: {e}")
@@ -892,6 +1072,7 @@ class AIInterface:
             try:
                 call_results = ProcessFunctionCalls.get_results(ai_tool_calls, self.available_functions, self.undoable_functions, self.canvas)
                 self._store_results_in_canvas_state(call_results)
+                self._add_tool_call_entries(ai_tool_calls, call_results)
                 # Reset timeout with extended duration - AI needs time to process tool results
                 self._start_response_timeout(use_reasoning_timeout=True)
                 # Mark that we need a newline separator before the next text
@@ -1365,7 +1546,8 @@ class AIInterface:
             self._reasoning_summary = None
             self._is_reasoning = False
             self._needs_continuation_separator = False
-        
+            self._reset_tool_call_log_state()
+
         try:
             payload = self._create_request_payload(prompt, include_svg=True)
             self._start_streaming_request(payload)
@@ -1414,7 +1596,8 @@ class AIInterface:
             self._reasoning_summary = None
             self._is_reasoning = False
             self._needs_continuation_separator = False
-        
+            self._reset_tool_call_log_state()
+
         self._send_request(prompt)
 
     def send_user_message(self, message: str) -> None:
