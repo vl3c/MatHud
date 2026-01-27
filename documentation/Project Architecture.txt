@@ -517,8 +517,8 @@ server_tests/
           - Client-side workspace operations (e.g., `save_workspace`) that call methods on the client `WorkspaceManager`, which then makes further AJAX calls.
       iii. Results from `ProcessFunctionCalls.get_results` are collected.
       iv. `AIInterface._add_tool_call_entries` records each tool call in the tool call log dropdown, updating the live count in the UI.
-      iv. `AIInterface._store_results_in_canvas_state` updates canvas computations.
-      v. `AIInterface._send_prompt_to_ai` is called again, this time with `tool_call_results` (and no `user_message`), looping back to step 4 (backend forwards tool results to OpenAI).
+      v. `AIInterface._store_results_in_canvas_state` updates canvas computations.
+      vi. `AIInterface._send_prompt_to_ai` is called again, this time with `tool_call_results` (and no `user_message`), looping back to step 4 (backend forwards tool results to OpenAI).
 8. Canvas is updated by the managers if drawing functions were called. Results are displayed in chat.
 
 ## Workspace Flow

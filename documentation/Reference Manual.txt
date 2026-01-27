@@ -430,6 +430,7 @@ Attributes:
 - `_create_request_payload(prompt, include_svg=True)`: Create JSON payload for AI requests
 - `_disable_send_controls()`: Disable send functionality while processing
 - `_enable_send_controls()`: Enable send functionality after processing
+- `_reset_tool_call_log_state()`: Reset all tool call log state variables for a new conversation turn
 - `_format_tool_call_args_display(args)`: Format a tool call's arguments dict for compact display (filters `canvas`, truncates values to 30 chars and total to 80 chars)
 - `_create_tool_call_entry_element(entry)`: Build the DOM element for a single tool call log entry with status icon, name, args, and optional error message
 - `_ensure_tool_call_log_element()`: Create the tool-call-log `<details>` dropdown element if it does not exist yet

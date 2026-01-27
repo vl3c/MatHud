@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 from browser import document, html, ajax, window, console
 from function_registry import FunctionRegistry
 from process_function_calls import ProcessFunctionCalls
+from result_processor import ResultProcessor
 from workspace_manager import WorkspaceManager
 from markdown_parser import MarkdownParser
 from slash_command_handler import SlashCommandHandler
@@ -711,6 +712,13 @@ class AIInterface:
             except Exception as e:
                 print(f"Error creating reasoning element: {e}")
 
+    def _reset_tool_call_log_state(self) -> None:
+        """Reset all tool call log state for a new turn."""
+        self._tool_call_log_entries = []
+        self._tool_call_log_element = None
+        self._tool_call_log_summary = None
+        self._tool_call_log_content = None
+
     def _format_tool_call_args_display(self, args: dict[str, Any]) -> str:
         """Format a tool call's arguments dict for compact display.
 
@@ -812,11 +820,7 @@ class AIInterface:
             args: dict[str, Any] = call.get("arguments", {})
             args_display = self._format_tool_call_args_display(args)
 
-            # Build the same key format used by ResultProcessor
-            formatted_args = ", ".join(
-                f"{k}:{v}" for k, v in args.items() if k != "canvas"
-            )
-            result_key = f"{function_name}({formatted_args})"
+            result_key = ResultProcessor._generate_result_key(function_name, args)
 
             result_value = call_results.get(result_key, call_results.get(function_name, ""))
             is_error = isinstance(result_value, str) and result_value.startswith("Error:")
@@ -860,15 +864,12 @@ class AIInterface:
         if self._tool_call_log_summary is not None:
             self._tool_call_log_summary.text = label
 
-        # Ensure collapsed
+        # Ensure collapsed — removeAttribute is reliable for boolean HTML attributes
         if self._tool_call_log_element is not None:
             try:
-                del self._tool_call_log_element.attrs["open"]
+                self._tool_call_log_element.removeAttribute("open")
             except Exception:
-                try:
-                    self._tool_call_log_element.attrs["open"] = False
-                except Exception:
-                    pass
+                pass
 
     def _on_stream_reasoning(self, text: str) -> None:
         """Handle a reasoning token: append to reasoning buffer and update UI."""
@@ -1009,10 +1010,7 @@ class AIInterface:
             self._reasoning_summary = None
             self._is_reasoning = False
             self._request_start_time = None
-            self._tool_call_log_entries = []
-            self._tool_call_log_element = None
-            self._tool_call_log_summary = None
-            self._tool_call_log_content = None
+            self._reset_tool_call_log_state()
 
     def _remove_empty_response_container(self) -> None:
         """Remove the current response container if it has no actual text content.
@@ -1047,10 +1045,7 @@ class AIInterface:
                 self._reasoning_summary = None
                 self._reasoning_buffer = ""
                 self._is_reasoning = False
-                self._tool_call_log_entries = []
-                self._tool_call_log_element = None
-                self._tool_call_log_summary = None
-                self._tool_call_log_content = None
+                self._reset_tool_call_log_state()
                 # Don't reset _request_start_time here - we want to keep timing across tool calls
         except Exception as e:
             print(f"Error removing empty container: {e}")
@@ -1551,10 +1546,7 @@ class AIInterface:
             self._reasoning_summary = None
             self._is_reasoning = False
             self._needs_continuation_separator = False
-            self._tool_call_log_entries = []
-            self._tool_call_log_element = None
-            self._tool_call_log_summary = None
-            self._tool_call_log_content = None
+            self._reset_tool_call_log_state()
 
         try:
             payload = self._create_request_payload(prompt, include_svg=True)
@@ -1604,10 +1596,7 @@ class AIInterface:
             self._reasoning_summary = None
             self._is_reasoning = False
             self._needs_continuation_separator = False
-            self._tool_call_log_entries = []
-            self._tool_call_log_element = None
-            self._tool_call_log_summary = None
-            self._tool_call_log_content = None
+            self._reset_tool_call_log_state()
 
         self._send_request(prompt)
 

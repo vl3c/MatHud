@@ -372,7 +372,7 @@ class TestToolCallLog(unittest.TestCase):
     # ── State management ─────────────────────────────────────────
 
     def test_state_reset_clears_tool_call_log(self) -> None:
-        """Verify tool call log state variables are reset after finalize."""
+        """Verify _reset_tool_call_log_state clears all tool call log state."""
         ai = _make_ai()
         container = html.DIV()
         content = html.DIV(Class="chat-content")
@@ -385,12 +385,9 @@ class TestToolCallLog(unittest.TestCase):
             {"f()": "ok"},
         )
         self.assertEqual(len(ai._tool_call_log_entries), 1)
+        self.assertIsNotNone(ai._tool_call_log_element)
 
-        # Simulate what _finalize_stream_message's finally block does
-        ai._tool_call_log_entries = []
-        ai._tool_call_log_element = None
-        ai._tool_call_log_summary = None
-        ai._tool_call_log_content = None
+        ai._reset_tool_call_log_state()
 
         self.assertEqual(ai._tool_call_log_entries, [])
         self.assertIsNone(ai._tool_call_log_element)
@@ -411,11 +408,9 @@ class TestToolCallLog(unittest.TestCase):
         # Add tool call entries so the log is non-empty
         ai._tool_call_log_entries = [{"name": "f", "is_error": False}]
 
-        # _remove_empty_response_container should NOT remove the container
+        # Call the actual method — it should NOT remove the container
         # because tool call log entries exist
-        has_buffer_text = bool(ai._stream_buffer.strip())
-        has_element_text = False
-        has_tool_call_log = bool(ai._tool_call_log_entries)
-        # The condition to remove is: not has_buffer_text and not has_element_text and not has_tool_call_log
-        should_remove = not has_buffer_text and not has_element_text and not has_tool_call_log
-        self.assertFalse(should_remove, "Container should NOT be removed when tool call log has entries")
+        ai._remove_empty_response_container()
+
+        self.assertIs(ai._stream_message_container, container,
+                      "Container should NOT be removed when tool call log has entries")
