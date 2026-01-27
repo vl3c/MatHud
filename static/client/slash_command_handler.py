@@ -650,8 +650,23 @@ class SlashCommandHandler:
 
         return CommandResult(success=True, message="\n".join(lines))
 
+    def _selected_model_has_vision(self) -> bool:
+        """Check if the currently selected AI model supports vision."""
+        from browser import window
+        try:
+            model_selector = document["ai-model-selector"]
+            vision_models = list(window.VISION_MODELS)
+            return model_selector.value in vision_models
+        except Exception:
+            return False
+
     def _cmd_vision(self, args: List[str]) -> CommandResult:
         """Toggle vision mode."""
+        if not self._selected_model_has_vision():
+            return CommandResult(
+                success=False,
+                message="Vision is not available for the currently selected model. Switch to a vision-capable model first.",
+            )
         try:
             vision_toggle = document["vision-toggle"]
             current = vision_toggle.checked
@@ -805,6 +820,11 @@ class SlashCommandHandler:
 
     def _cmd_image(self, args: List[str]) -> CommandResult:
         """Open file picker to attach an image."""
+        if not self._selected_model_has_vision():
+            return CommandResult(
+                success=False,
+                message="Image attachment is not available for the currently selected model. Switch to a vision-capable model first.",
+            )
         try:
             self.ai_interface.trigger_file_picker()
             return CommandResult(

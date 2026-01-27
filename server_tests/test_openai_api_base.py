@@ -37,7 +37,7 @@ class TestOpenAIAPIBase(unittest.TestCase):
         api = OpenAIAPIBase()
         self.assertEqual(api.model.id, AIModel.DEFAULT_MODEL)
         self.assertEqual(api.temperature, 0.2)
-        self.assertEqual(api.max_tokens, 32000)
+        self.assertEqual(api.max_tokens, 16000)
 
     @patch('static.openai_api_base.OpenAI')
     def test_initialization_custom_model(self, mock_openai: Mock) -> None:
@@ -256,16 +256,15 @@ class TestOpenAIAPIBaseInitialization(unittest.TestCase):
 
     @patch('static.openai_api_base.load_dotenv')
     @patch('static.openai_api_base.os.path.exists')
-    def test_api_key_missing_raises_error(self, mock_exists: Mock, mock_load_dotenv: Mock) -> None:
-        """Test missing API key raises ValueError."""
+    def test_api_key_missing_returns_placeholder(self, mock_exists: Mock, mock_load_dotenv: Mock) -> None:
+        """Test missing API key returns placeholder instead of crashing."""
         # Mock .env file doesn't exist
         mock_exists.return_value = False
         # Remove API key from environment
         original = os.environ.pop('OPENAI_API_KEY', None)
         try:
-            with self.assertRaises(ValueError) as context:
-                OpenAIAPIBase._initialize_api_key()
-            self.assertIn("OPENAI_API_KEY", str(context.exception))
+            result = OpenAIAPIBase._initialize_api_key()
+            self.assertEqual(result, "not-configured")
         finally:
             if original:
                 os.environ['OPENAI_API_KEY'] = original

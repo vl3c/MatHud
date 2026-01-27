@@ -1,7 +1,7 @@
 """
 MatHud AI Model Configuration
 
-AI model definitions and capability management for OpenAI models.
+AI model definitions and capability management for multiple AI providers.
 Handles model-specific features like vision support and provides factory methods.
 
 Dependencies:
@@ -12,6 +12,11 @@ from __future__ import annotations
 
 from typing import Dict, Literal, Optional, TypedDict
 
+# Provider constants
+PROVIDER_OPENAI = "openai"
+PROVIDER_ANTHROPIC = "anthropic"
+PROVIDER_OPENROUTER = "openrouter"
+
 
 class ModelConfig(TypedDict, total=False):
     """Configuration for an AI model."""
@@ -19,10 +24,13 @@ class ModelConfig(TypedDict, total=False):
     has_vision: bool
     is_reasoning_model: bool
     reasoning_effort: str
+    provider: str
+    display_name: str
 
 
 ModelConfigDict = Dict[str, ModelConfig]
 ModelIdentifier = Literal[
+    # OpenAI models
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4.1-nano",
@@ -35,68 +43,226 @@ ModelIdentifier = Literal[
     "gpt-3.5-turbo",
     "o3",
     "o4-mini",
+    # Anthropic models
+    "claude-opus-4-5-20251101",
+    "claude-sonnet-4-5-20250929",
+    "claude-haiku-4-5-20251001",
+    # OpenRouter models (paid)
+    "google/gemini-2.5-pro",
+    "google/gemini-3-pro-preview",
+    "google/gemini-3-flash-preview",
+    "deepseek/deepseek-v3.2",
+    "x-ai/grok-code-fast-1",
+    "z-ai/glm-4.7",
+    "minimax/minimax-m2.1",
+    # OpenRouter models (free)
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-3-27b-it:free",
+    "openai/gpt-oss-20b:free",
+    "openai/gpt-oss-120b:free",
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "z-ai/glm-4.5-air:free",
+    "nvidia/nemotron-3-nano-30b-a3b:free",
 ]
 
 
 class AIModel:
     """AI model configuration and capability management.
-    
+
     Manages model-specific capabilities (like vision support) and provides
     factory methods for creating model instances from identifiers.
     """
-    
+
     # Dictionary of model configurations
-    MODEL_CONFIGS = {
+    MODEL_CONFIGS: ModelConfigDict = {
+        # ===================
+        # OpenAI Models
+        # ===================
         # Reasoning models (use Responses API)
         "gpt-5-chat-latest": {
             "has_vision": True,
             "is_reasoning_model": True,
+            "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-5 Chat Latest",
         },
         "gpt-5.2-chat-latest": {
             "has_vision": True,
             "is_reasoning_model": True,
+            "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-5.2 Chat Latest",
         },
         "gpt-5.2": {
             "has_vision": True,
             "is_reasoning_model": True,
             "reasoning_effort": "medium",
+            "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-5.2 (Medium Reasoning)",
         },
         "o3": {
-            "has_vision": False,
+            "has_vision": True,
             "is_reasoning_model": True,
+            "provider": PROVIDER_OPENAI,
+            "display_name": "o3 (Reasoning)",
         },
         "o4-mini": {
             "has_vision": True,
             "is_reasoning_model": True,
+            "provider": PROVIDER_OPENAI,
+            "display_name": "o4-mini (Reasoning)",
         },
         # Standard models (use Chat Completions API)
         "gpt-4.1": {
             "has_vision": True,
             "is_reasoning_model": False,
+            "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-4.1",
         },
         "gpt-4.1-mini": {
             "has_vision": True,
             "is_reasoning_model": False,
+            "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-4.1 Mini",
         },
         "gpt-4.1-nano": {
             "has_vision": True,
             "is_reasoning_model": False,
+            "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-4.1 Nano",
         },
         "gpt-4o": {
             "has_vision": True,
             "is_reasoning_model": False,
+            "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-4o",
         },
         "gpt-4o-mini": {
             "has_vision": True,
             "is_reasoning_model": False,
+            "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-4o Mini",
         },
         "gpt-5-nano": {
             "has_vision": True,
             "is_reasoning_model": False,
+            "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-5 Nano",
         },
         "gpt-3.5-turbo": {
             "has_vision": False,
             "is_reasoning_model": False,
+            "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-3.5 Turbo",
+        },
+        # ===================
+        # Anthropic Models
+        # ===================
+        "claude-opus-4-5-20251101": {
+            "has_vision": True,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_ANTHROPIC,
+            "display_name": "Claude Opus 4.5",
+        },
+        "claude-sonnet-4-5-20250929": {
+            "has_vision": True,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_ANTHROPIC,
+            "display_name": "Claude Sonnet 4.5",
+        },
+        "claude-haiku-4-5-20251001": {
+            "has_vision": True,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_ANTHROPIC,
+            "display_name": "Claude Haiku 4.5",
+        },
+        # ===================
+        # OpenRouter Models (Paid)
+        # ===================
+        "google/gemini-2.5-pro": {
+            "has_vision": True,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "Gemini 2.5 Pro",
+        },
+        "google/gemini-3-pro-preview": {
+            "has_vision": True,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "Gemini 3 Pro Preview",
+        },
+        "google/gemini-3-flash-preview": {
+            "has_vision": True,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "Gemini 3 Flash Preview",
+        },
+        "deepseek/deepseek-v3.2": {
+            "has_vision": False,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "DeepSeek V3.2",
+        },
+        "x-ai/grok-code-fast-1": {
+            "has_vision": False,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "Grok Code Fast",
+        },
+        "z-ai/glm-4.7": {
+            "has_vision": False,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "GLM 4.7",
+        },
+        "minimax/minimax-m2.1": {
+            "has_vision": False,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "MiniMax M2.1",
+        },
+        # ===================
+        # OpenRouter Models (Free)
+        # ===================
+        "meta-llama/llama-3.3-70b-instruct:free": {
+            "has_vision": False,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "Llama 3.3 70B",
+        },
+        "google/gemma-3-27b-it:free": {
+            "has_vision": True,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "Gemma 3 27B",
+        },
+        "openai/gpt-oss-20b:free": {
+            "has_vision": False,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "GPT-OSS 20B",
+        },
+        "openai/gpt-oss-120b:free": {
+            "has_vision": False,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "GPT-OSS 120B",
+        },
+        "qwen/qwen3-next-80b-a3b-instruct:free": {
+            "has_vision": False,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "Qwen3 80B",
+        },
+        "z-ai/glm-4.5-air:free": {
+            "has_vision": False,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "GLM 4.5 Air",
+        },
+        "nvidia/nemotron-3-nano-30b-a3b:free": {
+            "has_vision": False,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "Nemotron 3 30B",
         },
     }
 
@@ -108,36 +274,43 @@ class AIModel:
         has_vision: bool,
         is_reasoning_model: bool = False,
         reasoning_effort: Optional[str] = None,
+        provider: str = PROVIDER_OPENAI,
     ) -> None:
         """Initialize AIModel instance.
-        
+
         Args:
             identifier: Model identifier string (e.g., 'gpt-4.1')
             has_vision: Boolean indicating vision capability support
             is_reasoning_model: Boolean indicating if model uses Responses API with reasoning
             reasoning_effort: Optional reasoning effort setting for reasoning models (e.g., 'medium')
+            provider: API provider name ('openai', 'anthropic', 'openrouter')
         """
         self.id: str = identifier
         self.has_vision: bool = has_vision
         self.is_reasoning_model: bool = is_reasoning_model
         self.reasoning_effort: Optional[str] = reasoning_effort
-    
+        self.provider: str = provider
+
     @staticmethod
     def from_identifier(identifier: str) -> AIModel:
         """Create AIModel instance from identifier string.
-        
+
         Args:
             identifier: Model identifier string
-            
+
         Returns:
             AIModel: Configured model instance
         """
-        config = AIModel.MODEL_CONFIGS.get(identifier, {"has_vision": False, "is_reasoning_model": False})
+        config = AIModel.MODEL_CONFIGS.get(
+            identifier,
+            {"has_vision": False, "is_reasoning_model": False, "provider": PROVIDER_OPENAI},
+        )
         return AIModel(
             identifier=identifier,
             has_vision=config.get("has_vision", False),
             is_reasoning_model=config.get("is_reasoning_model", False),
             reasoning_effort=config.get("reasoning_effort"),
+            provider=config.get("provider", PROVIDER_OPENAI),
         )
 
     @staticmethod

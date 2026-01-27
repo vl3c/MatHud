@@ -14,13 +14,16 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 6. Create and analyze graph theory graphs (graphs, trees, DAGs).
 7. Save, list, load, and delete named workspaces so projects can be resumed or shared later.
 8. Share the current canvas with the assistant using Vision mode to get feedback grounded in your drawing.
-9. Trigger client-side tests from the UI or chat to verify canvas behavior without leaving the app.
+9. Attach images directly to chat messages for the AI to analyze alongside your prompts.
+10. Use slash commands (`/help`, `/vision`, `/model`, `/image`, etc.) for quick local operations without waiting for an AI response.
+11. Choose from multiple AI providers — OpenAI, Anthropic (Claude), and OpenRouter — with the model dropdown automatically filtered by which API keys you have configured.
+12. Trigger client-side tests from the UI or chat to verify canvas behavior without leaving the app.
 
 ## 2. Architecture Overview
 
 1. **Frontend (Brython)** – `static/client/` hosts the Brython application (`main.py`) that wires a `Canvas`, `AIInterface`, `CanvasEventHandler`, and numerous managers. Canvas objects stay math-only; renderers translate them to screen primitives via shared plan builders.
 2. **Backend (Flask)** – `app.py` boots a Flask app assembled by `static/app_manager.py`, registers routes (`static/routes.py`), and injects OpenAI, workspace, webdriver, and logging services.
-3. **AI integration** – `static/openai_api.py` wraps the OpenAI SDK, loads tool schemas from `static/functions_definitions.py`, and maintains model state (`static/ai_model.py`).
+3. **AI integration** – `static/providers/` implements a multi-provider architecture supporting OpenAI, Anthropic (Claude), and OpenRouter. `static/ai_model.py` stores model configs with per-model vision and reasoning flags. The model dropdown is populated dynamically from `GET /api/available_models`, which filters by which API keys are present in the environment.
 4. **Rendering** – `static/client/rendering/factory.py` prefers Canvas2D, then SVG, and finally the still-incomplete WebGL path if earlier options fail. Canvas and SVG renderers include opt-in offscreen staging toggled by `window.MatHudCanvas2DOffscreen` / `window.MatHudSvgOffscreen` or matching `localStorage` flags.
 5. **Vision pipeline** – When the chat payload signals vision, the server either stores a data URL snapshot or drives Selenium (`static/webdriver_manager.py`) to replay SVG state in headless Firefox and capture `canvas_snapshots/canvas.png` for the model.
 
@@ -30,7 +33,7 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 
 1. Python 3.10+ (tested with Python 3.11).
 2. Firefox installed locally for the vision workflow (the `geckodriver-autoinstaller` package handles the driver).
-3. An OpenAI API key with access to the desired models.
+3. At least one AI provider API key (see Configuration below).
 
 ### 3.2 Environment Setup
 
@@ -45,10 +48,13 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    ```sh
    pip install -r requirements.txt
    ```
-4. Provide credentials by setting `OPENAI_API_KEY` in your shell or by creating `.env` in the project root:
+4. Provide at least one AI provider API key by setting environment variables or creating `.env` in the project root:
    ```env
-   OPENAI_API_KEY=sk-...
+   OPENAI_API_KEY=sk-...          # OpenAI models (GPT-4o, GPT-5, o3, etc.)
+   ANTHROPIC_API_KEY=sk-ant-...   # Anthropic models (Claude Opus/Sonnet/Haiku 4.5)
+   OPENROUTER_API_KEY=sk-or-...   # OpenRouter models (Gemini, DeepSeek, Llama, etc.)
    ```
+   Only models for configured providers will appear in the model dropdown.
 
 ### 3.3 Run MatHud
 
@@ -63,11 +69,13 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 
 1. The server reads configuration from environment variables or `.env` (loaded via `python-dotenv`). Common options:
    ```env
-   OPENAI_API_KEY=sk-...
-   AUTH_PIN=123456            # Optional: access code required when auth is enabled
-   REQUIRE_AUTH=true          # Force authentication in local development
-   PORT=5000                  # Set by hosting platforms to indicate deployed mode
-   SECRET_KEY=override-me     # Optional: otherwise a random key is generated per launch
+   OPENAI_API_KEY=sk-...          # OpenAI provider
+   ANTHROPIC_API_KEY=sk-ant-...   # Anthropic provider
+   OPENROUTER_API_KEY=sk-or-...   # OpenRouter provider
+   AUTH_PIN=123456                 # Optional: access code required when auth is enabled
+   REQUIRE_AUTH=true               # Force authentication in local development
+   PORT=5000                       # Set by hosting platforms to indicate deployed mode
+   SECRET_KEY=override-me          # Optional: otherwise a random key is generated per launch
    ```
 2. Authentication rules (`static/app_manager.py`):
    1. When `PORT` is set (typical in hosted deployments), authentication is enforced automatically.
@@ -105,19 +113,65 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    14. `save workspace as "demo"` / `load workspace "demo"`
    15. `run tests`
 
-### 5.3 Vision Mode
+### 5.3 Slash Commands
+
+Type `/` in the chat input to access local commands that execute instantly without contacting the AI:
+
+| Command | Description |
+|---------|-------------|
+| `/help [command]` | Show available commands or detailed help for a specific command |
+| `/undo` / `/redo` | Undo or redo the last canvas action |
+| `/clear` / `/reset` | Clear all objects or reset view to default |
+| `/save [name]` / `/load [name]` | Save or load a named workspace |
+| `/workspaces` | List all saved workspaces |
+| `/fit` | Fit the view to show all objects |
+| `/zoom <in\|out\|factor>` | Zoom the canvas |
+| `/grid` / `/axes` | Toggle grid or axes visibility |
+| `/polar` / `/cartesian` | Switch coordinate system |
+| `/status` | Show canvas info (object count, bounds) |
+| `/vision` | Toggle vision mode (vision-capable models only) |
+| `/image` | Attach an image to your next message (vision-capable models only) |
+| `/model [name]` | Show or switch the current AI model |
+| `/test` | Run the client test suite |
+| `/export` / `/import <json>` | Export or import canvas state as JSON |
+| `/list` | List all objects on the canvas |
+| `/new` | Start fresh (clear canvas + new conversation) |
+
+Autocomplete suggestions appear as you type. Unknown commands trigger fuzzy-match suggestions.
+
+### 5.4 Image Attachment
+
+1. Click the paperclip button next to the chat input (or use `/image`) to attach images to your message.
+2. Multiple images can be attached per message (up to the configured limit).
+3. Image previews appear below the chat input; click the X on a preview to remove it.
+4. Images are sent alongside your text message for the AI to analyze.
+5. The attach button and `/image` command are only available when the selected model supports vision. Non-vision models show "(text only)" in the dropdown.
+
+### 5.5 Vision Mode
 
 1. Use the **Enable Vision** checkbox in the chat header to include screenshots of the current canvas.
-2. The toggle is enabled only for models marked `has_vision` in `static/ai_model.py`; non-vision models automatically disable it to avoid unsupported requests.
+2. The vision toggle and attach button are hidden for models without vision support. Models marked "(text only)" in the dropdown do not support image input.
 3. The server stores the latest snapshot under `canvas_snapshots/canvas.png` for troubleshooting.
 
-### 5.4 Workspace Management
+### 5.6 AI Provider Configuration
+
+MatHud supports three AI providers. The model dropdown dynamically shows only models for providers with configured API keys:
+
+| Provider | Environment Variable | Models |
+|----------|---------------------|--------|
+| **OpenAI** | `OPENAI_API_KEY` | GPT-5.2, GPT-5, GPT-4.1, GPT-4o, o3, o4-mini, GPT-3.5 Turbo, etc. |
+| **Anthropic** | `ANTHROPIC_API_KEY` | Claude Opus 4.5, Claude Sonnet 4.5, Claude Haiku 4.5 |
+| **OpenRouter** | `OPENROUTER_API_KEY` | Gemini 3 Pro/Flash, Gemini 2.5 Pro, DeepSeek V3.2, Grok, Llama, Gemma, and more (paid and free tiers) |
+
+Models without vision support are labeled "(text only)" in the dropdown. When no API keys are configured, the dropdown shows "No API keys configured".
+
+### 5.7 Workspace Management
 
 1. Workspaces are persisted as JSON under `workspaces/`.
 2. The chat tools `save_workspace`, `load_workspace`, `list_workspaces`, and `delete_workspace` are exposed to the assistant and UI.
 3. Client-side restores rebuild the Brython objects through `static/client/workspace_manager.py`.
 
-### 5.5 Testing
+### 5.8 Testing
 
 1. Server tests: run `python run_server_tests.py` (add `--with-auth` to exercise authenticated flows).
 2. Client tests: click **Run Tests** in the UI or ask the assistant to "run tests". Results stream back into the chat after execution (`static/client/test_runner.py`).
@@ -145,7 +199,8 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 1. `app.py` – entry point with graceful shutdown and threaded dev server.
 2. `static/`
    a. `app_manager.py`, `routes.py`, `openai_api.py`, `ai_model.py`, `tool_call_processor.py`, `workspace_manager.py`, `log_manager.py`, `webdriver_manager.py`.
-   b. `client/` – Brython modules (canvas, managers, rendering, tests, utilities, workspace manager).
+   b. `providers/` – Multi-provider AI backend (OpenAI, Anthropic, OpenRouter) with `ProviderRegistry` for API key detection.
+   c. `client/` – Brython modules (canvas, managers, rendering, slash commands, tests, utilities, workspace manager).
 3. `templates/index.html` – main HTML shell that loads Brython, MathJax, styles, and UI controls.
 4. `workspaces/` – saved canvas states.
 5. `canvas_snapshots/` – latest Selenium captures used for vision.

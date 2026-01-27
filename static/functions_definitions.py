@@ -2030,9 +2030,24 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "type": "string",
                                 "enum": ["shortest_path", "mst", "topological_sort", "bridges", "articulation_points", "euler_status", "bipartite", "bfs", "dfs", "levels", "diameter", "lca", "balance_children", "invert_children", "reroot", "convex_hull", "point_in_hull"]
                             },
-                            "params": {"type": ["object", "null"], "description": "Operation-specific parameters (start, goal, root, a, b, new_root, x, y for point_in_hull, etc.)."}
+                            "params": {
+                                "type": ["object", "null"],
+                                "description": "Operation-specific parameters (start, goal, root, a, b, new_root, x, y for point_in_hull, etc.).",
+                                "properties": {
+                                    "start": {"type": ["string", "null"], "description": "Start vertex for shortest_path, bfs, dfs."},
+                                    "goal": {"type": ["string", "null"], "description": "Goal vertex for shortest_path."},
+                                    "root": {"type": ["string", "null"], "description": "Root vertex for tree operations."},
+                                    "a": {"type": ["string", "null"], "description": "First vertex for LCA."},
+                                    "b": {"type": ["string", "null"], "description": "Second vertex for LCA."},
+                                    "new_root": {"type": ["string", "null"], "description": "New root vertex for reroot operation."},
+                                    "x": {"type": ["number", "null"], "description": "X coordinate for point_in_hull."},
+                                    "y": {"type": ["number", "null"], "description": "Y coordinate for point_in_hull."}
+                                },
+                                "required": ["start", "goal", "root", "a", "b", "new_root", "x", "y"],
+                                "additionalProperties": False
+                            }
                         },
-                        "required": ["graph_name", "operation"],
+                        "required": ["graph_name", "operation", "params"],
                         "additionalProperties": False
                     }
                 }

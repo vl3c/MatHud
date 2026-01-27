@@ -26,10 +26,12 @@ from flask_session import Session as FlaskSession
 from static.log_manager import LogManager
 from static.openai_completions_api import OpenAIChatCompletionsAPI
 from static.openai_responses_api import OpenAIResponsesAPI
+from static.providers import ProviderRegistry, discover_providers
 from static.workspace_manager import WorkspaceManager
 
 
 if TYPE_CHECKING:
+    from static.openai_api_base import OpenAIAPIBase
     from static.webdriver_manager import WebDriverManager
 
 
@@ -53,6 +55,7 @@ class MatHudFlask(Flask):
     webdriver_manager: Optional["WebDriverManager"]
     workspace_manager: WorkspaceManager
     current_attached_images: Optional[list[str]]  # User-attached images for current request
+    providers: Dict[str, "OpenAIAPIBase"]  # Lazily-loaded provider instances by name
 
 
 class AppManager:
@@ -171,13 +174,17 @@ class AppManager:
         
         # Initialize Flask-Session
         FlaskSession(app)
-        
+
+        # Discover and register providers
+        discover_providers()
+
         # Initialize managers
         app.log_manager = LogManager()
         app.ai_api = OpenAIChatCompletionsAPI()
         app.responses_api = OpenAIResponsesAPI()
         app.webdriver_manager = None  # Will be set after Flask starts
         app.current_attached_images = None  # User-attached images for current request
+        app.providers = {}  # Lazily-loaded provider instances
 
         # Initialize workspace manager
         app.workspace_manager = WorkspaceManager()

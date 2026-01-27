@@ -179,8 +179,7 @@ class ResultProcessor:
         # Save computation to canvas state if it's not a non-computation function
         # DISABLED: Saving basic calculations to canvas state (takes up too many tokens, not useful info to store)
         # ResultProcessor._add_computation_if_needed(result, function_name, non_computation_functions, key, canvas)
-        
-        print(f"Appending result for {key}: {result}")  # DEBUG
+
         results[key] = result
     
     @staticmethod
@@ -238,10 +237,9 @@ class ResultProcessor:
         key: str = ResultProcessor._format_expression_key(expression, args)
             
         # DISABLED: Saving expression evaluation computations to canvas state (takes up too many tokens, not useful info to store)
-        # ResultProcessor._add_computation_if_needed(result, function_name, non_computation_functions, 
+        # ResultProcessor._add_computation_if_needed(result, function_name, non_computation_functions,
         #                                            expression, canvas)
-        
-        print(f"Appending result for {key}: {result}")  # DEBUG
+
         results[key] = result
     
     @staticmethod

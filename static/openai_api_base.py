@@ -66,7 +66,12 @@ class OpenAIAPIBase:
 
     @staticmethod
     def _initialize_api_key() -> str:
-        """Initialize the OpenAI API key from environment or .env file."""
+        """Initialize the OpenAI API key from environment or .env file.
+
+        Returns a placeholder if the key is not found, allowing the application
+        to start with other providers configured. Actual OpenAI API calls will
+        fail with an authentication error in that case.
+        """
         api_key = os.getenv("OPENAI_API_KEY")
         if api_key:
             return api_key
@@ -77,7 +82,10 @@ class OpenAIAPIBase:
             api_key = os.getenv("OPENAI_API_KEY")
 
         if not api_key:
-            raise ValueError("OPENAI_API_KEY not found in environment or .env file")
+            logging.getLogger("mathud").warning(
+                "OPENAI_API_KEY not found. OpenAI models will be unavailable."
+            )
+            return "not-configured"
 
         return api_key
 
@@ -86,7 +94,7 @@ class OpenAIAPIBase:
         model: Optional[AIModel] = None,
         temperature: float = 0.2,
         tools: Optional[Sequence[FunctionDefinition]] = None,
-        max_tokens: int = 32000,
+        max_tokens: int = 16000,
         tool_mode: ToolMode = "full",
     ) -> None:
         """Initialize OpenAI API client and conversation state.

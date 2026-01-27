@@ -111,6 +111,35 @@ Load the workspace named 'CalculusHomework'.
 List all saved workspaces.
 Delete the workspace 'OldDraft'.
 
+# Slash Commands (local, no AI)
+/help                    Show all available commands
+/help zoom               Detailed help for a specific command
+/undo                    Undo the last action
+/redo                    Redo the last undone action
+/clear                   Clear all objects from canvas
+/reset                   Reset view to default
+/save MyProject          Save workspace with a name
+/load MyProject          Load a named workspace
+/workspaces              List all saved workspaces
+/fit                     Fit view to show all objects
+/zoom in                 Zoom in
+/zoom out                Zoom out
+/zoom 3                  Zoom to a specific factor
+/grid                    Toggle grid visibility
+/axes                    Toggle axes visibility
+/polar                   Switch to polar coordinates
+/cartesian               Switch to cartesian coordinates
+/status                  Show canvas info (object count, bounds)
+/vision                  Toggle vision mode (vision models only)
+/image                   Attach an image (vision models only)
+/model                   Show current AI model
+/model gpt-4.1           Switch to a specific model
+/test                    Run client test suite
+/export                  Export canvas state as JSON
+/import <json>           Import canvas state from JSON
+/list                    List all objects on canvas
+/new                     Start fresh (clear + new conversation)
+
 # Graph theory (graphs, trees, DAGs)
 # Notes:
 # - "plot" is for function plots. "graph" here means vertices and edges (graph theory).
