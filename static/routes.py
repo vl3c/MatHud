@@ -69,9 +69,10 @@ def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
     if provider_name not in app.providers:
         provider_instance = create_provider_instance(provider_name, model=model)
         if provider_instance is None:
-            # Fall back to OpenAI if provider not available
-            print(f"Provider {provider_name} not available, falling back to OpenAI")
-            return app.ai_api
+            raise ValueError(
+                f"Provider '{provider_name}' is not available. "
+                f"Check that the API key is configured in .env."
+            )
         app.providers[provider_name] = provider_instance
 
     # Update the model on the cached provider instance
@@ -389,6 +390,7 @@ def register_routes(app: MatHudFlask) -> None:
         })
     
     @app.route('/api/available_models', methods=['GET'])
+    @require_auth
     def get_available_models() -> ResponseReturnValue:
         """Return models grouped by provider, only for providers with API keys."""
         available = ProviderRegistry.get_available_providers()
