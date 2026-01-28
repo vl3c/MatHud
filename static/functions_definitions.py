@@ -1639,6 +1639,26 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "solve_numeric",
+                    "description": "Numerically solves a system of equations using multi-start Newton-Raphson. Use for transcendental, mixed nonlinear, or systems that can't be solved symbolically (e.g., sin(x) + y = 1, x^2 + y^2 = 4). Supports any number of variables. Returns multiple solutions when they exist.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "equations": {
+                                "type": "array",
+                                "description": "Array of equation strings. Use '=' for equations (e.g., ['sin(x) + y = 1', 'x^2 + y^2 = 4']). If no '=' is present, the expression is assumed equal to 0. Variables are auto-detected.",
+                                "items": {"type": "string"}
+                            }
+                        },
+                        "required": ["equations"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "translate_object",
                     "description": "Translates a drawable object or function by the specified x and y offsets",
                     "strict": True,
