@@ -32,9 +32,9 @@ from __future__ import annotations
 
 import json
 import traceback
-from typing import TYPE_CHECKING, Any, Dict, Optional, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, cast
 
-from browser import document, html, ajax, window, console
+from browser import document, html, ajax, window, console, aio
 from function_registry import FunctionRegistry
 from process_function_calls import ProcessFunctionCalls
 from result_processor import ResultProcessor
@@ -84,6 +84,9 @@ class AIInterface:
         self.canvas: "Canvas" = canvas
         self.workspace_manager: WorkspaceManager = WorkspaceManager(canvas)
         self.is_processing: bool = False  # Track whether we're processing an AI response
+        self._stop_requested = False
+        self._tests_running = False
+        self._stop_tests_requested = False
         self.available_functions: Dict[str, Any] = FunctionRegistry.get_available_functions(canvas, self.workspace_manager, self)
         self.undoable_functions: tuple[str, ...] = FunctionRegistry.get_undoable_functions()
         self.markdown_parser: MarkdownParser = MarkdownParser()
@@ -121,9 +124,35 @@ class AIInterface:
         try:
             from test_runner import TestRunner
             test_runner = TestRunner(self.canvas, self.available_functions, self.undoable_functions)
-            
+
             # Run tests and get formatted results in one step
             results = test_runner.run_tests()
+            return cast(Dict[str, Any], test_runner.format_results_for_ai(results))
+        except ImportError as e:
+            print(f"Test runner not available: {e}")
+            return cast(Dict[str, Any], {
+                "tests_run": 0,
+                "failures": 0,
+                "errors": 1,
+                "failing_tests": [],
+                "error_tests": [{"test": "Test Runner Import", "error": f"Could not import test runner: {e}"}]
+            })
+
+    async def run_tests_async(
+        self,
+        should_stop: Optional[Callable[[], bool]] = None,
+    ) -> Dict[str, Any]:
+        """Run unit tests asynchronously, yielding to browser between test classes.
+
+        Args:
+            should_stop: Optional callback that returns True if tests should be stopped.
+        """
+        try:
+            from test_runner import TestRunner
+            test_runner = TestRunner(self.canvas, self.available_functions, self.undoable_functions)
+
+            # Run tests asynchronously and get formatted results
+            results = await test_runner.run_tests_async(should_stop=should_stop)
             return cast(Dict[str, Any], test_runner.format_results_for_ai(results))
         except ImportError as e:
             print(f"Test runner not available: {e}")
@@ -1073,6 +1102,13 @@ class AIInterface:
                 call_results = ProcessFunctionCalls.get_results(ai_tool_calls, self.available_functions, self.undoable_functions, self.canvas)
                 self._store_results_in_canvas_state(call_results)
                 self._add_tool_call_entries(ai_tool_calls, call_results)
+
+                if self._stop_requested:
+                    self._finalize_stream_message()
+                    self._print_system_message_in_chat("Generation stopped.")
+                    self._enable_send_controls()
+                    return
+
                 # Reset timeout with extended duration - AI needs time to process tool results
                 self._start_response_timeout(use_reasoning_timeout=True)
                 # Mark that we need a newline separator before the next text
@@ -1280,24 +1316,31 @@ class AIInterface:
         print(f"### AI finish reason: {finish_reason}")
 
     def _disable_send_controls(self) -> None:
-        """Disable only the send functionality while processing and start a timeout."""
+        """Switch send button to stop mode while processing and start a timeout."""
         try:
             self.is_processing = True
+            self._stop_requested = False
             if "send-button" in document:
-                document["send-button"].disabled = True
-            # Start timeout to automatically re-enable controls if no response
+                btn = document["send-button"]
+                if "disabled" in btn.attrs:
+                    del btn.attrs["disabled"]
+                btn.text = "Stop"
+                btn.classList.add("stop-mode")
             self._start_response_timeout()
         except Exception as e:
             print(f"Error disabling send controls: {e}")
 
     def _enable_send_controls(self) -> None:
-        """Enable send functionality after processing and cancel the timeout."""
+        """Restore send button to normal mode after processing and cancel the timeout."""
         try:
-            # Cancel any pending timeout
             self._cancel_response_timeout()
             self.is_processing = False
+            self._stop_requested = False
             if "send-button" in document:
-                document["send-button"].disabled = False
+                btn = document["send-button"]
+                btn.disabled = False
+                btn.text = "Send"
+                btn.classList.remove("stop-mode")
         except Exception as e:
             print(f"Error enabling send controls: {e}")
 
@@ -1333,14 +1376,11 @@ class AIInterface:
             self._response_timeout_id = None
             if self.is_processing:
                 print("AI response timeout - aborting stream and re-enabling send controls")
-                # Abort the current streaming connection
                 self._abort_current_stream()
                 self._print_ai_message_in_chat(
                     "⚠️ Request timed out. The AI is taking too long to respond. Please try again."
                 )
-                self.is_processing = False
-                if "send-button" in document:
-                    document["send-button"].disabled = False
+                self._enable_send_controls()
         except Exception as e:
             print(f"Error handling response timeout: {e}")
     
@@ -1351,6 +1391,32 @@ class AIInterface:
                 window.abortCurrentStream()
         except Exception as e:
             print(f"Error aborting stream: {e}")
+
+    def stop_ai_processing(self):
+        """Stop the current AI processing, abort the stream, and restore UI controls."""
+        self._stop_requested = True
+        self._abort_current_stream()
+        self._cancel_response_timeout()
+        # Save partial response to conversation history before finalizing
+        if self._stream_buffer and self._stream_buffer.strip():
+            self._save_partial_response(self._stream_buffer)
+        self._finalize_stream_message()
+        self._print_system_message_in_chat("Generation stopped.")
+        self._enable_send_controls()
+
+    def _save_partial_response(self, partial_message):
+        """Save interrupted partial response to the backend conversation history."""
+        try:
+            payload = json.dumps({"partial_message": partial_message})
+            ajax.post(
+                "/save_partial_response",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                oncomplete=lambda req: None,
+                onerror=lambda req: print(f"Failed to save partial response: {req.status}"),
+            )
+        except Exception as e:
+            print(f"Error saving partial response: {e}")
 
     def _process_ai_response(self, ai_message: str, tool_calls: Any, finish_reason: str) -> None:     
         self._debug_log_ai_response(ai_message, tool_calls, finish_reason)
@@ -1641,64 +1707,88 @@ class AIInterface:
 
     def run_tests_action(self, event: Any) -> None:
         """Trigger the test suite directly on the client side (TEMPORARY).
-        
+
         See documentation/development/removing_run_tests_button.md for removal instructions.
         """
+        # If tests are running, stop them
+        if self._tests_running:
+            self._stop_tests_requested = True
+            return
+
+        # Start tests
+        self._stop_tests_requested = False
+        aio.run(self._execute_tests_async())
+
+    async def _execute_tests_async(self) -> None:
+        """Execute tests asynchronously using browser.aio."""
+        run_tests_btn = document["run-tests-button"]
+
         try:
-            # Disable button to indicate processing
-            run_tests_btn = document["run-tests-button"]
-            run_tests_btn.disabled = True
-            
-            # Notify user we are starting
+            self._tests_running = True
+
+            # Switch to "Stop Tests" mode
+            run_tests_btn.text = "Stop Tests"
+            run_tests_btn.classList.add("stop-mode")
+
+            # Disable Send button while tests run
+            if "send-button" in document:
+                document["send-button"].disabled = True
+
             self._print_user_message_in_chat("Run tests (direct execution)")
-            
-            # Execute tests directly
-            # Use setTimeout to allow UI to update (disable button) before heavy processing
-            def execute_tests():
-                try:
-                    results = self.run_tests()
-                    
-                    # Format results to look like an AI response
-                    summary = (
-                        f"### Test Results\n\n"
-                        f"- **Tests Run:** {results.get('tests_run', 0)}\n"
-                        f"- **Failures:** {results.get('failures', 0)}\n"
-                        f"- **Errors:** {results.get('errors', 0)}\n"
-                    )
-                    
-                    if results.get('failing_tests'):
-                        summary += "\n#### Failures:\n"
-                        for fail in results['failing_tests']:
-                            summary += f"- **{fail['test']}**: {fail['error']}\n"
-                    
-                    if results.get('error_tests'):
-                        summary += "\n#### Errors:\n"
-                        for err in results['error_tests']:
-                            summary += f"- **{err['test']}**: {err['error']}\n"
-                    
-                    # Print results to chat as if they came from AI
-                    self._print_ai_message_in_chat(summary)
-                except Exception as e:
-                    error_msg = f"Error running tests directly: {str(e)}"
-                    print(error_msg)
-                    self._print_ai_message_in_chat(error_msg)
-                finally:
-                    # Re-enable button
-                    run_tests_btn.disabled = False
-            
-            # Schedule execution
-            window.setTimeout(execute_tests, 10)
-            
+
+            # Run tests asynchronously with stop callback
+            results = await self.run_tests_async(
+                should_stop=lambda: self._stop_tests_requested
+            )
+
+            # Check if tests were stopped
+            was_stopped = results.get('stopped', False)
+
+            if was_stopped:
+                summary = (
+                    f"### Test Results (Stopped)\n\n"
+                    f"- **Tests Run:** {results.get('tests_run', 0)}\n"
+                    f"- **Failures:** {results.get('failures', 0)}\n"
+                    f"- **Errors:** {results.get('errors', 0)}\n"
+                    f"\n*Tests were stopped by user.*"
+                )
+            else:
+                summary = (
+                    f"### Test Results\n\n"
+                    f"- **Tests Run:** {results.get('tests_run', 0)}\n"
+                    f"- **Failures:** {results.get('failures', 0)}\n"
+                    f"- **Errors:** {results.get('errors', 0)}\n"
+                )
+
+            if results.get('failing_tests'):
+                summary += "\n#### Failures:\n"
+                for fail in results['failing_tests']:
+                    summary += f"- **{fail['test']}**: {fail['error']}\n"
+
+            if results.get('error_tests'):
+                summary += "\n#### Errors:\n"
+                for err in results['error_tests']:
+                    summary += f"- **{err['test']}**: {err['error']}\n"
+
+            self._print_ai_message_in_chat(summary)
+
         except Exception as e:
-            error_msg = f"Error initiating test run: {str(e)}"
+            error_msg = f"Error running tests: {str(e)}"
             print(error_msg)
             self._print_ai_message_in_chat(error_msg)
-            if "run-tests-button" in document:
-                document["run-tests-button"].disabled = False
+
+        finally:
+            # Restore buttons and reset stop flag
+            self._tests_running = False
+            self._stop_tests_requested = False
+            run_tests_btn.text = "Run Tests"
+            run_tests_btn.classList.remove("stop-mode")
+            if "send-button" in document:
+                document["send-button"].disabled = False
 
     def interact_with_ai(self, event: Any) -> None:
-        # Don't process if we're already handling a request
         if self.is_processing:
+            self.stop_ai_processing()
             return
 
         # Get the user's message from the input field
