@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import unittest
 import traceback
-from typing import Any, Dict, List, Tuple, Type, cast
+from typing import Any, Callable, Dict, List, Tuple, Type, cast
+
+from browser import aio
 
 from .test_canvas import TestCanvas
 from .test_cartesian import TestCartesian2Axis
@@ -214,10 +216,68 @@ class Tests:
             traceback.print_exc()
             return test_runner._create_error_result(str(exc))
 
-    def _create_test_suite(self) -> unittest.TestSuite:
-        suite = unittest.TestSuite()
-        loader = unittest.TestLoader()
-        test_cases: List[Type[unittest.TestCase]] = [
+    @classmethod
+    async def run_tests_async(
+        cls,
+        progress_callback: Callable[[int, int], None] | None = None,
+        should_stop: Callable[[], bool] | None = None,
+    ) -> Dict[str, Any]:
+        """Run tests asynchronously, yielding to browser between test classes.
+
+        Args:
+            progress_callback: Optional callback(completed, total) for progress updates.
+            should_stop: Optional callback that returns True if tests should be stopped.
+
+        Returns:
+            Test results in the same format as run_tests(), with 'stopped' key if cancelled.
+        """
+        print("[ClientTests] run_tests_async invoked.")
+        test_runner = cls()
+        stopped = False
+        try:
+            test_cases = test_runner._get_test_cases()
+            total = len(test_cases)
+            print(f"[ClientTests] Running {total} test classes asynchronously.")
+
+            loader = unittest.TestLoader()
+            custom_stream = BrythonTestStream()
+            combined_result = AITestResult(cast(Any, custom_stream), descriptions=True, verbosity=2)
+
+            print("\n========================= TEST OUTPUT =========================")
+            for i, test_case in enumerate(test_cases):
+                # Check if stop was requested
+                if should_stop and should_stop():
+                    print(f"[ClientTests] Stop requested after {i} test classes.")
+                    stopped = True
+                    break
+
+                # Yield to browser to keep UI responsive
+                await aio.sleep(0)
+
+                suite = unittest.TestSuite()
+                suite.addTest(loader.loadTestsFromTestCase(test_case))
+                suite.run(combined_result)
+
+                if progress_callback:
+                    progress_callback(i + 1, total)
+
+            print("===============================================================\n")
+            if stopped:
+                print("[ClientTests] Async test execution stopped by user.")
+            else:
+                print("[ClientTests] Async test execution finished.")
+
+            results = test_runner._format_results_for_ai(combined_result)
+            results['stopped'] = stopped
+            return results
+        except Exception as exc:  # pragma: no cover - defensive path
+            print(f"[ClientTests] Exception during run_tests_async: {repr(exc)}")
+            traceback.print_exc()
+            return test_runner._create_error_result(str(exc))
+
+    def _get_test_cases(self) -> List[Type[unittest.TestCase]]:
+        """Return the list of test case classes to run."""
+        return [
             TestOptimizedRendererParity,
             # TestRendererPerformance,
             # TestRendererPrimitives,
@@ -393,6 +453,11 @@ class Tests:
             TestToolCallLog,
         ]
 
+    def _create_test_suite(self) -> unittest.TestSuite:
+        suite = unittest.TestSuite()
+        loader = unittest.TestLoader()
+        test_cases = self._get_test_cases()
+
         for test_case in test_cases:
             print(f"[ClientTests] Loading tests for {test_case.__name__}.")
             suite.addTest(loader.loadTestsFromTestCase(test_case))
@@ -477,3 +542,11 @@ class Tests:
 
 def run_tests() -> Dict[str, Any]:
     return Tests.run_tests()
+
+
+async def run_tests_async(
+    progress_callback: Callable[[int, int], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
+) -> Dict[str, Any]:
+    """Run tests asynchronously, yielding to browser between test classes."""
+    return await Tests.run_tests_async(progress_callback, should_stop)

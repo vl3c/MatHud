@@ -23,7 +23,7 @@ Dependencies:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, cast
 
 import traceback
 
@@ -508,10 +508,55 @@ class TestRunner:
             print(f"[TestRunner] Error running client tests: {repr(e)}")
             traceback.print_exc()
             client_error_message = str(e)
-        
+
         print("Running graphics and function tests...")
         self._test_graphics_drawing()
         self._test_undoable_functions()
+
+        if client_results is not None:
+            self.test_results = self._merge_test_results(client_results)
+        elif client_error_message is not None:
+            self.test_results = self._create_results_with_client_error(client_error_message)
+        elif client_import_error:
+            self.test_results = self._create_results_from_internal_only()
+        else:
+            self.test_results = self._create_results_from_internal_only()
+
+        return self.test_results
+
+    async def run_tests_async(
+        self,
+        should_stop: Optional[Callable[[], bool]] = None,
+    ) -> Dict[str, Any]:
+        """Run unit tests asynchronously, yielding to browser between test classes.
+
+        Args:
+            should_stop: Optional callback that returns True if tests should be stopped.
+        """
+        # Reset internal test results
+        self._reset_internal_results()
+
+        client_results: Optional[Dict[str, Any]] = None
+        client_error_message: Optional[str] = None
+        client_import_error: bool = False
+
+        try:
+            # Run the client-side main tests asynchronously
+            client_results = await self._run_client_tests_async(should_stop=should_stop)
+            print("[TestRunner] Async client tests completed successfully.")
+        except ImportError:
+            print("[TestRunner] client_tests module not available - skipping additional tests.")
+            client_import_error = True
+        except Exception as e:
+            print(f"[TestRunner] Error running async client tests: {repr(e)}")
+            traceback.print_exc()
+            client_error_message = str(e)
+
+        # Skip additional tests if stopped
+        if not (should_stop and should_stop()):
+            print("Running graphics and function tests...")
+            self._test_graphics_drawing()
+            self._test_undoable_functions()
 
         if client_results is not None:
             self.test_results = self._merge_test_results(client_results)
@@ -532,6 +577,18 @@ class TestRunner:
         except ImportError as e:
             print(f"client_tests import failed: {e}")
             # Re-raise ImportError to be handled by the calling method
+            raise ImportError(f"client_tests module not available: {e}")
+
+    async def _run_client_tests_async(
+        self,
+        should_stop: Optional[Callable[[], bool]] = None,
+    ) -> Dict[str, Any]:
+        """Run the client-side tests asynchronously and return the results."""
+        try:
+            from client_tests.tests import run_tests_async
+            return cast(Dict[str, Any], await run_tests_async(should_stop=should_stop))
+        except ImportError as e:
+            print(f"client_tests import failed: {e}")
             raise ImportError(f"client_tests module not available: {e}")
         
     def _merge_test_results(self, client_results: Dict[str, Any]) -> Dict[str, Any]:
