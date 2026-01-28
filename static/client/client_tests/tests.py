@@ -194,6 +194,13 @@ from .test_image_attachment import (
     TestImageOnlySending,
 )
 from .test_tool_call_log import TestToolCallLog
+from .test_numeric_solver import (
+    TestNumericSolverHelpers,
+    TestNumericSolverIntegration,
+    TestNumericSolverFallback,
+    TestJacobianComputation,
+    TestExpressionEvaluation,
+)
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
@@ -451,6 +458,11 @@ class Tests:
             TestDataURLParsing,
             TestImageOnlySending,
             TestToolCallLog,
+            TestNumericSolverHelpers,
+            TestNumericSolverIntegration,
+            TestNumericSolverFallback,
+            TestJacobianComputation,
+            TestExpressionEvaluation,
         ]
 
     def _create_test_suite(self) -> unittest.TestSuite:
