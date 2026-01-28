@@ -30,7 +30,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Graphing Functions: plot functions, parametric equations, polar coordinates
 - Geometric Calculations: distance, angle, area, volume, intersections
 - Coordinate Conversion: rectangular to polar and polar to rectangular transformations
-- Equation Solving: linear equations, quadratic equations, systems of equations
+- Equation Solving: linear equations, quadratic equations, systems of equations, numeric solving for transcendental/nonlinear systems via multi-start Newton-Raphson
 - Linear Algebra: matrix and vector arithmetic, transpose, inverse, determinant, dot/cross products, norms, traces, diagonal/identity/zeros/ones helpers, reshape/size queries, and grouped expressions evaluated via MathJS
 - Advanced Operations: 70 AI tool definitions available in `static/functions_definitions.py` including canvas operations, geometric shape creation/deletion, mathematical operations, transformations, coordinate system management, and workspace management
 
@@ -293,6 +293,14 @@ static/client/
 │   ├── drawable.py                    # General drawable object name generation
 │   ├── point.py                       # Point-specific name generation
 │   └── function.py                    # Function name generation
+├── numeric_solver/                    # Numeric equation solver package
+│   ├── __init__.py                    # Package exports (solve_numeric)
+│   ├── solver.py                      # Main entry point and orchestration
+│   ├── expression_utils.py            # Variable detection, residual conversion
+│   ├── newton_raphson.py              # Newton-Raphson with Armijo backtracking
+│   ├── jacobian.py                    # Numerical Jacobian via central differences
+│   ├── linear_algebra.py              # Gaussian elimination solver
+│   └── utils.py                       # Initial guesses and deduplication
 └── client_tests/                       # Brython-based client-side tests
     ├── tests.py                       # Test suite orchestrator
     ├── test_canvas.py                 # Canvas functionality tests
@@ -310,6 +318,7 @@ static/client/
     ├── test_function.py               # Function object tests
     ├── test_[shape].py                # Individual shape tests (point, segment, etc.)
     ├── test_tool_call_log.py          # Tool call log dropdown tests
+    ├── test_numeric_solver.py         # Numeric solver package tests
     ├── ai_result_formatter.py         # Test result formatting for AI
     ├── brython_io.py                  # Brython I/O utilities
     └── simple_mock.py                 # Testing mock utilities

@@ -14,7 +14,7 @@
 - add complex number utilities plus base-n calculations and conversions (binary, octal, hexadecimal)
 - add sequence and series calculations (summation, products, convergence tests)
 - add summation and product operators for discrete analysis (Sigma, Pi)
-- add numerical methods (Newton's method, Simpson's rule, trapezoidal rule)
+- add numerical integration (Simpson's rule, trapezoidal rule) - Note: Newton-Raphson implemented in numeric_solver package
 - add conic section specialized tools
 - add inequality graphing and systems of inequalities with shading controls
 
