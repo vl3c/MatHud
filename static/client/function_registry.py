@@ -165,6 +165,7 @@ class FunctionRegistry:
             "factor": MathUtils.factor,
             "solve": MathUtils.solve,
             "solve_system_of_equations": MathUtils.solve_system_of_equations,
+            "solve_numeric": MathUtils.solve_numeric,
             
             # ===== CANVAS HISTORY =====
             "undo": canvas.undo,

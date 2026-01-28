@@ -84,6 +84,15 @@ Calculate the number of combinations when choosing 4 items from 7.
 Evaluate 2*combinations(8, 3) + permutations(4, 2) - arrangements(5, 2).
 Compute (combinations(10, 4) / combinations(6, 2)) * permutations(3).
 
+# Numeric Solver (Transcendental and Nonlinear Systems)
+Numerically solve sin(x) = 0.5.
+Find all solutions to cos(x) = x in the range [-10, 10].
+Solve the system sin(x) + y = 1 and x^2 + y^2 = 4 numerically.
+Numerically solve exp(x) + y = 3 and x - y = 0.
+Find where the circle x^2 + y^2 = 4 intersects the curve y = sin(x).
+Solve the transcendental equation x*exp(x) = 1.
+Numerically solve the system log(x) + y = 2 and x + log(y) = 2.
+
 # Linear Algebra
 Evaluate the linear algebra expression with A=[[1,2],[3,4]] and B=[[5,6],[7,8]]: inv(A) * B.
 Compute transpose(A) * B where A=[[1,0,2],[3,4,5]] and B=[[6,7,8],[9,10,11],[12,13,14]].

@@ -2855,7 +2855,8 @@ Class Attributes:
 - `solve_linear_system(equations)`: Solve system of linear equations
 - `solve_linear_quadratic_system(equations)`: Solve mixed linear-quadratic equation system
 - `solve_quadratic_system(equations)`: Solve system of quadratic equations
-- `solve_system_of_equations(equations)`: Main system solver with type detection
+- `solve_system_of_equations(equations)`: Main system solver with type detection (falls back to numeric solver for transcendental/non-polynomial systems)
+- `solve_numeric(equations, variables=None, initial_guesses=None, tolerance=1e-10, max_iterations=50)`: Numerically solve a system of equations using multi-start Newton-Raphson. Supports transcendental, mixed nonlinear, or systems that cannot be solved symbolically. Returns JSON string with solutions, variables, and method information
 - `random(min_value=0, max_value=1)`: Generate random number
 - `round(value, ndigits=0)`: Round number to specified digits
 - `gcd(*values)`: Calculate greatest common divisor
@@ -3019,6 +3020,100 @@ and maintaining a record of mathematical calculations performed in the canvas.
 **Key Methods:**
 - `has_computation(computations, expression)`: Check if a computation with the given expression already exists
 - `add_computation(computations, expression, result)`: Add a computation to the history if it doesn't already exist
+
+### Numeric Solver Package (`numeric_solver/`)
+
+Multi-start damped Newton-Raphson solver for systems of equations that cannot be solved symbolically (transcendental, mixed nonlinear, or systems with 3+ variables).
+
+**Package Architecture:**
+```
+numeric_solver/
+├── __init__.py            # Package exports (solve_numeric)
+├── solver.py              # Main entry point and orchestration
+├── expression_utils.py    # Variable detection, residual conversion, evaluation
+├── newton_raphson.py      # Newton-Raphson iteration with Armijo backtracking
+├── jacobian.py            # Numerical Jacobian via central differences
+├── linear_algebra.py      # Gaussian elimination for linear systems
+└── utils.py               # Initial guess generation and solution deduplication
+```
+
+**Key Features:**
+- Multi-start approach with structured and random initial guesses in [-10, 10]
+- Damped Newton-Raphson with Armijo backtracking line search for robustness
+- Numerical Jacobian computation via central finite differences
+- Gaussian elimination with partial pivoting for solving linear systems
+- Automatic variable detection from equation strings
+- Solution deduplication and rounding to significant digits
+- Handles transcendental functions (sin, cos, log, exp, etc.)
+
+#### Main Entry Point (`numeric_solver/solver.py`)
+
+**Function:**
+```
+solve_numeric(equations, variables=None, initial_guesses=None, tolerance=1e-10, max_iterations=50)
+```
+
+**Parameters:**
+- `equations`: List of equation strings. Use '=' for equations (e.g., 'sin(x) + y = 1'). If no '=' is present, the expression is assumed equal to 0.
+- `variables`: Optional list of variable names. If not provided, auto-detected from equations.
+- `initial_guesses`: Optional list of starting point vectors.
+- `tolerance`: Convergence tolerance for residuals (default: 1e-10).
+- `max_iterations`: Maximum Newton-Raphson iterations per starting point (default: 50).
+
+**Returns:**
+JSON string with the following structure:
+```json
+{
+    "solutions": [{"x": 1.234, "y": 5.678}, ...],
+    "variables": ["x", "y"],
+    "method": "newton_raphson",
+    "warning": "...",  // Optional: system over/under-determined
+    "message": "...",  // Optional: no solutions found
+    "error": "..."     // Optional: error message
+}
+```
+
+#### Expression Utils (`numeric_solver/expression_utils.py`)
+
+**Key Functions:**
+- `detect_variables(equations)`: Extract single-letter variable names from equations, excluding math function names (sin, cos, log, etc.)
+- `equation_to_residual(equation)`: Convert 'LHS = RHS' to '(LHS) - (RHS)' residual form
+- `evaluate_residuals(residual_exprs, variables, values)`: Evaluate residual expressions at given variable values using MathJS
+
+#### Newton-Raphson (`numeric_solver/newton_raphson.py`)
+
+Implements damped Newton-Raphson iteration with Armijo backtracking line search.
+
+**Algorithm:**
+1. Evaluate residuals F(x) at current point
+2. Check convergence (max |F_i| < tolerance)
+3. Compute numerical Jacobian J
+4. Solve J * delta = -F via Gaussian elimination
+5. Apply Armijo backtracking to find step size alpha
+6. Update x = x + alpha * delta
+7. Repeat until convergence or max iterations
+
+**Constants:**
+- `ARMIJO_C = 1e-4`: Sufficient decrease parameter
+- `ARMIJO_RHO = 0.5`: Backtracking factor
+- `MAX_BACKTRACKS = 10`: Maximum line search iterations
+- `DIVERGENCE_THRESHOLD = 1e15`: Detect diverging iterations
+
+#### Jacobian (`numeric_solver/jacobian.py`)
+
+**Function:**
+- `compute_jacobian(residual_exprs, variables, values, h=1e-7)`: Compute numerical Jacobian via central differences: J[i][j] = (F_i(x + h*e_j) - F_i(x - h*e_j)) / (2h)
+
+#### Linear Algebra (`numeric_solver/linear_algebra.py`)
+
+**Function:**
+- `solve_linear_system_gaussian(A, b)`: Solve Ax = b using Gaussian elimination with partial pivoting. Returns None if matrix is singular (pivot < 1e-12).
+
+#### Utils (`numeric_solver/utils.py`)
+
+**Key Functions:**
+- `generate_initial_guesses(n_vars, user_guesses=None)`: Generate diverse starting points including origin, unit vectors, pi-related values, and 20 random points in [-10, 10]
+- `deduplicate_solutions(solutions, variables, tolerance=1e-6)`: Remove near-duplicate solutions and format as list of dictionaries
 
 ### Name Generators
 
