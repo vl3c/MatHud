@@ -32,7 +32,9 @@ Dependencies:
     --primary-color: #2563eb;
     --primary-hover: #1d4ed8;
     --secondary-color: #64748b;
-    
+    --danger-color: #dc2626;
+    --danger-hover: #b91c1c;
+
     /* Surface and background colors */
     --background-color: #f8fafc;
     --surface-color: #ffffff;
@@ -1182,6 +1184,22 @@ input, select, textarea, button {
     transform: none;
 }
 
+#send-button.stop-mode {
+    background: var(--danger-color);
+    cursor: pointer;
+    transform: none;
+}
+
+#send-button.stop-mode:hover {
+    background: var(--danger-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+#send-button.stop-mode:active {
+    transform: translateY(0);
+}
+
 /* ===== COMMAND AUTOCOMPLETE POPUP ===== */
 /* Slash command autocomplete popup above chat input */
 .command-autocomplete {
@@ -1285,6 +1303,14 @@ input, select, textarea, button {
     cursor: not-allowed;
     transform: none;
     box-shadow: none;
+}
+
+button#run-tests-button.stop-mode {
+    background: var(--danger-color);
+}
+
+button#run-tests-button.stop-mode:hover {
+    background: var(--danger-hover);
 }
 /* END TEMPORARY */
 
