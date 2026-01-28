@@ -741,6 +741,41 @@ def register_routes(app: MatHudFlask) -> None:
                 code=500
             )
 
+    @app.route('/save_partial_response', methods=['POST'])
+    @require_auth
+    def save_partial_response() -> ResponseReturnValue:
+        """Save a partial AI response that was interrupted by the user."""
+        try:
+            request_payload = request.get_json(silent=True)
+            if not isinstance(request_payload, dict):
+                return AppManager.make_response(
+                    message='Invalid request body',
+                    status='error',
+                    code=400,
+                )
+
+            partial_message = request_payload.get('partial_message', '')
+            if not isinstance(partial_message, str) or not partial_message.strip():
+                return AppManager.make_response(
+                    message='No partial message to save',
+                    status='error',
+                    code=400,
+                )
+
+            # Add the partial response to all API conversation histories
+            app.ai_api.add_partial_assistant_message(partial_message)
+            app.responses_api.add_partial_assistant_message(partial_message)
+            for provider in app.providers.values():
+                provider.add_partial_assistant_message(partial_message)
+
+            return AppManager.make_response(message='Partial response saved.')
+        except Exception as e:
+            return AppManager.make_response(
+                message=str(e),
+                status='error',
+                code=500
+            )
+
     def _process_ai_response(app: MatHudFlask, choice: Any) -> tuple[str, ToolCallList]:
         """Process the AI response choice and log the results.
         

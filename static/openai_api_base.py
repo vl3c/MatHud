@@ -212,7 +212,12 @@ class OpenAIAPIBase:
     def reset_conversation(self) -> None:
         """Reset the conversation history to start a new session."""
         self.messages = [{"role": "developer", "content": OpenAIAPIBase.DEV_MSG}]
-    
+
+    def add_partial_assistant_message(self, content: str) -> None:
+        """Add a partial assistant message that was interrupted by the user."""
+        if content and content.strip():
+            self.messages.append({"role": "assistant", "content": content})
+
     def set_model(self, identifier: str) -> None:
         """Set the AI model by identifier string."""
         if str(self.model) != identifier:
