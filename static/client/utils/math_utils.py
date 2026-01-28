@@ -1288,7 +1288,9 @@ class MathUtils:
             # Pattern: letter followed optionally by * followed by letter
             # Matches: 'xy', 'x*y', 'x y', 'yx'
             # Does not match: 'x+y', 'x-y'
-            if len(variables) > 1 or re.search(r'[a-zA-Z]\s*[*]?\s*[a-zA-Z]', expanded_equation):
+            # Note: Only check for variable products, not just multiple variables
+            # (linear equations like x + y = 4 should not be flagged as non-linear)
+            if re.search(r'[a-zA-Z]\s*[*]?\s*[a-zA-Z]', expanded_equation):
                 return "Other Non-linear"
             
             # Check for quartic equations
@@ -1581,13 +1583,50 @@ class MathUtils:
                 solutions = MathUtils.solve_linear_system(equations)
                 return solutions
             else:
-                # Return the first solution found by the nerdamer library solver
+                # Check if any equations are transcendental or non-polynomial
+                equation_types = [MathUtils.get_equation_type(eq) for eq in equations]
+                if any(t in ["Trigonometric", "Unknown", "Other Non-linear"] or "Error" in t for t in equation_types):
+                    print("Falling back to numeric solver for transcendental/non-polynomial system")
+                    return MathUtils.solve_numeric(equations)
+
+                # Try the nerdamer library solver, fall back to numeric on failure
                 print("Solving using nerdamer, returning first solution found")
-                solutions = window.nerdamer.solveEquations(equations)
-                solution_strings = [f"{solution[0]} = {solution[1]}" for solution in solutions]
-                return ', '.join(solution_strings)
+                try:
+                    solutions = window.nerdamer.solveEquations(equations)
+                    solution_strings = [f"{solution[0]} = {solution[1]}" for solution in solutions]
+                    return ', '.join(solution_strings)
+                except Exception:
+                    print("Nerdamer failed, falling back to numeric solver")
+                    return MathUtils.solve_numeric(equations)
         except Exception as e:
             return f"Error: {e}"
+
+    @staticmethod
+    def solve_numeric(
+        equations: Sequence[str],
+        variables: Optional[Sequence[str]] = None,
+        initial_guesses: Optional[Sequence[Sequence[float]]] = None,
+        tolerance: float = 1e-10,
+        max_iterations: int = 50,
+    ) -> str:
+        """Numerically solve a system of equations using multi-start Newton-Raphson.
+
+        Use for transcendental, mixed nonlinear, or systems that can't be solved
+        symbolically. Supports any number of variables.
+
+        Args:
+            equations: List of equation strings. Use '=' for equations.
+                If no '=' is present, the expression is assumed equal to 0.
+            variables: Optional list of variable names (auto-detected if not provided).
+            initial_guesses: Optional list of starting point vectors.
+            tolerance: Convergence tolerance for residuals.
+            max_iterations: Maximum Newton-Raphson iterations per starting point.
+
+        Returns:
+            JSON string with solutions, variables, and method information.
+        """
+        from numeric_solver import solve_numeric as _solve_numeric
+        return _solve_numeric(equations, variables, initial_guesses, tolerance, max_iterations)
 
     @staticmethod
     def random(min_value: Number = 0, max_value: Number = 1) -> float:
