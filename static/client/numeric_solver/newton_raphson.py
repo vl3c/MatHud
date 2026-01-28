@@ -13,6 +13,14 @@ from .expression_utils import evaluate_residuals
 from .jacobian import compute_jacobian
 from .linear_algebra import solve_linear_system_gaussian
 
+# Armijo line search constants
+ARMIJO_C = 1e-4  # Sufficient decrease parameter
+ARMIJO_RHO = 0.5  # Backtracking factor
+MAX_BACKTRACKS = 10
+
+# Divergence detection
+DIVERGENCE_THRESHOLD = 1e15
+
 
 def newton_raphson(
     residual_exprs: Sequence[str],
@@ -33,14 +41,6 @@ def newton_raphson(
     Returns:
         Converged solution, or None if iteration fails to converge.
     """
-    # Armijo line search parameters
-    c = 1e-4  # Sufficient decrease parameter
-    rho = 0.5  # Backtracking factor
-    max_backtracks = 10
-
-    # Divergence threshold
-    divergence_threshold = 1e15
-
     x = list(x0)
     n = len(x)
 
@@ -56,7 +56,7 @@ def newton_raphson(
             return x
 
         # Check for divergence
-        if any(abs(xi) > divergence_threshold for xi in x):
+        if any(abs(xi) > DIVERGENCE_THRESHOLD for xi in x):
             return None
 
         # Compute Jacobian
@@ -75,24 +75,24 @@ def newton_raphson(
         alpha = 1.0
         F_norm_sq = sum(f * f for f in F)
 
-        for _ in range(max_backtracks):
+        for _ in range(MAX_BACKTRACKS):
             # Trial point
             x_new = [x[i] + alpha * delta[i] for i in range(n)]
 
             # Evaluate residuals at trial point
             F_new = evaluate_residuals(residual_exprs, variables, x_new)
             if F_new is None:
-                alpha *= rho
+                alpha *= ARMIJO_RHO
                 continue
 
             F_new_norm_sq = sum(f * f for f in F_new)
 
             # Armijo condition: ||F(x + alpha*delta)||^2 <= (1 - 2*c*alpha) * ||F(x)||^2
-            if F_new_norm_sq <= (1 - 2 * c * alpha) * F_norm_sq:
+            if F_new_norm_sq <= (1 - 2 * ARMIJO_C * alpha) * F_norm_sq:
                 x = x_new
                 break
 
-            alpha *= rho
+            alpha *= ARMIJO_RHO
         else:
             # All backtracks failed, take the full step anyway
             x = [x[i] + delta[i] for i in range(n)]

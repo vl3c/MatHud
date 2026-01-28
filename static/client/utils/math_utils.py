@@ -1595,8 +1595,8 @@ class MathUtils:
                     solutions = window.nerdamer.solveEquations(equations)
                     solution_strings = [f"{solution[0]} = {solution[1]}" for solution in solutions]
                     return ', '.join(solution_strings)
-                except Exception:
-                    print("Nerdamer failed, falling back to numeric solver")
+                except Exception as e:
+                    print(f"Nerdamer failed ({e}), falling back to numeric solver")
                     return MathUtils.solve_numeric(equations)
         except Exception as e:
             return f"Error: {e}"

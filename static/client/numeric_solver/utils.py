@@ -10,6 +10,9 @@ import math
 import random
 from typing import Any, Dict, List, Optional, Sequence
 
+# Default seed for reproducible random guesses (can be overridden)
+_RANDOM_SEED: Optional[int] = 42
+
 
 def generate_initial_guesses(
     n_vars: int,
@@ -67,9 +70,11 @@ def generate_initial_guesses(
     guesses.append([0.1] * n_vars)
 
     # Generate random guesses in [-10, 10]
+    # Use a fixed seed for reproducibility
+    rng = random.Random(_RANDOM_SEED)
     n_random = 20
     for _ in range(n_random):
-        guess = [random.uniform(-10, 10) for _ in range(n_vars)]
+        guess = [rng.uniform(-10, 10) for _ in range(n_vars)]
         guesses.append(guess)
 
     return guesses
@@ -131,7 +136,6 @@ def _round_to_significant(value: float, digits: int) -> float:
     if value == 0:
         return 0.0
 
-    import math
     magnitude = math.floor(math.log10(abs(value)))
     factor = 10 ** (digits - 1 - magnitude)
     return round(value * factor) / factor
