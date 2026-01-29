@@ -72,19 +72,58 @@ class TestRunner:
         self.internal_errors: List[Dict[str, str]] = []
         self.internal_tests_run: int = 0
 
-    def _test_graphics_drawing(self) -> Optional[Dict[str, Any]]:
-        """Run tests for graphics drawing capabilities."""
-        self.internal_tests_run += 1
-        try:
-            function_calls: List[Dict[str, Any]] = self._get_graphics_test_function_calls()
-            results: Dict[str, Any] = ProcessFunctionCalls.get_results(function_calls, self.available_functions, self.undoable_functions, self.canvas)
-            print(f"Results of graphics drawing test: {results}")   # DEBUG
-            return results
-        except Exception as e:
-            error_message: str = f"Error in graphics drawing test: {str(e)}"
-            print(error_message)
-            self._add_internal_error('Graphics Drawing Test', error_message)
-            return None
+    def _test_graphics_drawing(self) -> Dict[str, Any]:
+        """Run tests for graphics drawing capabilities.
+
+        Processes each function call individually to enable granular error reporting.
+        Each call is tracked as a separate test case.
+
+        Returns:
+            Dictionary mapping call keys to their results.
+        """
+        function_calls: List[Dict[str, Any]] = self._get_graphics_test_function_calls()
+        all_results: Dict[str, Any] = {}
+
+        for call in function_calls:
+            self.internal_tests_run += 1
+            call_key = self._build_graphics_call_key(call)
+            try:
+                result: Dict[str, Any] = ProcessFunctionCalls.get_results(
+                    [call], self.available_functions, self.undoable_functions, self.canvas
+                )
+                all_results[call_key] = result
+            except Exception as e:
+                error_message: str = str(e)
+                self._add_internal_error(f"Graphics: {call_key}", error_message)
+                all_results[call_key] = {"error": error_message}
+
+        return all_results
+
+    def _build_graphics_call_key(self, call: Dict[str, Any]) -> str:
+        """Build a descriptive key for a graphics function call.
+
+        Args:
+            call: Function call dictionary with 'function_name' and 'arguments'.
+
+        Returns:
+            String key in format 'function_name(key_args)' for identification.
+        """
+        function_name: str = call.get("function_name", "unknown")
+        args: Dict[str, Any] = call.get("arguments", {})
+
+        # Extract the most identifying argument for the key
+        key_parts: List[str] = []
+        for arg_name in ("name", "triangle_name", "rectangle_name", "circle_name",
+                         "ellipse_name", "arc_name", "angle_name", "expression",
+                         "polygon_segment_names", "drawable1_name", "function_string"):
+            if arg_name in args:
+                value = args[arg_name]
+                key_parts.append(f"{arg_name}:{value}")
+                break
+
+        if key_parts:
+            return f"{function_name}({', '.join(key_parts)})"
+        return function_name
             
     def _get_graphics_test_function_calls(self) -> List[Dict[str, Any]]:
         """Return the list of function calls for graphics drawing tests."""
