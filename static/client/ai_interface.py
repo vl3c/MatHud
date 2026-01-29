@@ -62,10 +62,10 @@ class AIInterface:
         markdown_parser (MarkdownParser): Converts markdown text to HTML for rich formatting
     """
     
-    # Timeout in milliseconds for AI responses
-    AI_RESPONSE_TIMEOUT_MS: int = 20000
-    # Extended timeout for reasoning models (2 minutes)
-    REASONING_TIMEOUT_MS: int = 120000
+    # Timeout in milliseconds for AI responses (60 seconds for local LLMs)
+    AI_RESPONSE_TIMEOUT_MS: int = 60000
+    # Extended timeout for reasoning models and local LLMs (5 minutes)
+    REASONING_TIMEOUT_MS: int = 300000
     
     # Maximum number of images per message
     MAX_ATTACHED_IMAGES: int = 5
@@ -865,7 +865,18 @@ class AIInterface:
 
             result_key = ResultProcessor._generate_result_key(function_name, args)
 
-            result_value = call_results.get(result_key, call_results.get(function_name, ""))
+            # Special handling for evaluate_expression which uses expression as key
+            if function_name == "evaluate_expression" and "expression" in args:
+                expr = str(args.get("expression", "")).replace(" ", "")
+                variables = args.get("variables")
+                if variables and isinstance(variables, dict):
+                    vars_str = ", ".join(f"{k}:{v}" for k, v in variables.items())
+                    expr_key = f"{expr} for {vars_str}"
+                else:
+                    expr_key = expr
+                result_value = call_results.get(expr_key, call_results.get(result_key, ""))
+            else:
+                result_value = call_results.get(result_key, call_results.get(function_name, ""))
             is_error = isinstance(result_value, str) and result_value.startswith("Error:")
             error_message = result_value if is_error else ""
 
