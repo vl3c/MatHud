@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import TYPE_CHECKING, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 from dotenv import load_dotenv
 
@@ -22,6 +22,10 @@ _logger = logging.getLogger("mathud")
 PROVIDER_OPENAI = "openai"
 PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_OPENROUTER = "openrouter"
+PROVIDER_OLLAMA = "ollama"
+
+# Set of local provider names (no API key needed, server availability check instead)
+LOCAL_PROVIDERS = frozenset({PROVIDER_OLLAMA})
 
 
 class ProviderRegistry:
@@ -63,14 +67,23 @@ class ProviderRegistry:
 
     @classmethod
     def is_provider_available(cls, provider_name: str) -> bool:
-        """Check if a provider is available (has API key configured).
+        """Check if a provider is available.
+
+        For API-based providers: checks if API key is configured.
+        For local providers: checks if server is accessible.
 
         Args:
             provider_name: The provider identifier
 
         Returns:
-            True if the provider has an API key set
+            True if the provider is available for use
         """
+        # Local providers use server availability check
+        if provider_name in LOCAL_PROVIDERS:
+            from static.providers.local import LocalProviderRegistry
+            return LocalProviderRegistry.is_provider_available(provider_name)
+
+        # API-based providers use API key check
         load_dotenv()
         key_name = cls._api_key_names.get(provider_name)
         if not key_name:
@@ -79,16 +92,27 @@ class ProviderRegistry:
 
     @classmethod
     def get_available_providers(cls) -> List[str]:
-        """Get list of providers with API keys configured.
+        """Get list of available providers.
+
+        Includes API-based providers with keys configured and
+        local providers with accessible servers.
 
         Returns:
             List of available provider names
         """
         load_dotenv()
         available = []
+
+        # Check API-based providers
         for provider_name, key_name in cls._api_key_names.items():
             if os.getenv(key_name):
                 available.append(provider_name)
+
+        # Check local providers
+        for provider_name in LOCAL_PROVIDERS:
+            if cls.is_provider_available(provider_name):
+                available.append(provider_name)
+
         return available
 
     @classmethod
@@ -115,9 +139,21 @@ def get_provider_for_model(model_id: str) -> Optional[str]:
     return getattr(model, 'provider', PROVIDER_OPENAI)
 
 
+def is_local_provider(provider_name: str) -> bool:
+    """Check if a provider is a local LLM provider.
+
+    Args:
+        provider_name: The provider identifier
+
+    Returns:
+        True if this is a local provider (Ollama, etc.)
+    """
+    return provider_name in LOCAL_PROVIDERS
+
+
 def create_provider_instance(
     provider_name: str,
-    **kwargs: object,
+    **kwargs: Any,
 ) -> Optional["OpenAIAPIBase"]:
     """Create an instance of the specified provider.
 
@@ -128,6 +164,25 @@ def create_provider_instance(
     Returns:
         Provider instance, or None if provider not available
     """
+    # For local providers, get class from LocalProviderRegistry
+    if provider_name in LOCAL_PROVIDERS:
+        from static.providers.local import LocalProviderRegistry
+        provider_class = LocalProviderRegistry.get_provider_class(provider_name)
+        if provider_class is None:
+            _logger.warning(f"Local provider not registered: {provider_name}")
+            return None
+
+        if not LocalProviderRegistry.is_provider_available(provider_name):
+            _logger.warning(f"Local provider not available (server not running): {provider_name}")
+            return None
+
+        try:
+            return provider_class(**kwargs)
+        except Exception as e:
+            _logger.error(f"Failed to create local provider {provider_name}: {e}")
+            return None
+
+    # API-based providers
     provider_class = ProviderRegistry.get_provider_class(provider_name)
     if provider_class is None:
         _logger.warning(f"Provider not registered: {provider_name}")
@@ -149,7 +204,7 @@ def discover_providers() -> None:
 
     Called during application startup to make providers available.
     """
-    # Import provider modules - they self-register on import
+    # Import API-based provider modules - they self-register on import
     try:
         from static.providers import anthropic_api  # noqa: F401
         _logger.debug("Loaded anthropic_api provider module")
@@ -161,3 +216,10 @@ def discover_providers() -> None:
         _logger.debug("Loaded openrouter_api provider module")
     except ImportError as e:
         _logger.debug(f"Could not load openrouter_api: {e}")
+
+    # Import local provider modules - they self-register on import
+    try:
+        from static.providers.local import ollama_api  # noqa: F401
+        _logger.debug("Loaded ollama_api local provider module")
+    except ImportError as e:
+        _logger.debug(f"Could not load ollama_api: {e}")

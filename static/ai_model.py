@@ -16,6 +16,7 @@ from typing import Dict, Literal, Optional, TypedDict
 PROVIDER_OPENAI = "openai"
 PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_OPENROUTER = "openrouter"
+PROVIDER_OLLAMA = "ollama"
 
 
 class ModelConfig(TypedDict, total=False):
@@ -324,8 +325,133 @@ class AIModel:
 
     def __str__(self) -> str:
         """String representation of the model.
-        
+
         Returns:
             str: Model identifier
         """
         return self.id
+
+    @classmethod
+    def register_local_models(
+        cls,
+        provider: str,
+        models_info: list[dict[str, object]],
+    ) -> list[str]:
+        """Register dynamically discovered local models.
+
+        Args:
+            provider: The provider name (e.g., 'ollama')
+            models_info: List of model info dicts with 'name' key
+
+        Returns:
+            List of registered model identifiers
+        """
+        registered = []
+        for model_info in models_info:
+            model_name = str(model_info.get("name", ""))
+            if not model_name:
+                continue
+
+            # Create display name from model name
+            display_name = _format_display_name(model_name)
+
+            # Register the model config
+            cls.MODEL_CONFIGS[model_name] = {
+                "has_vision": False,  # Local models generally don't support vision
+                "is_reasoning_model": False,
+                "provider": provider,
+                "display_name": display_name,
+            }
+            registered.append(model_name)
+
+        return registered
+
+    @classmethod
+    def refresh_local_models(cls, provider: str) -> list[str]:
+        """Refresh and register models from a local provider.
+
+        Args:
+            provider: The provider name (e.g., 'ollama')
+
+        Returns:
+            List of registered model identifiers
+        """
+        # Import here to avoid circular imports
+        from static.providers.local import LocalProviderRegistry
+
+        provider_class = LocalProviderRegistry.get_provider_class(provider)
+        if provider_class is None:
+            return []
+
+        if not LocalProviderRegistry.is_provider_available(provider):
+            return []
+
+        # Get tool-capable models from the provider
+        try:
+            # Use class method if available
+            if hasattr(provider_class, "get_tool_capable_models"):
+                models_info = provider_class.get_tool_capable_models()
+            else:
+                # Create instance and discover
+                instance = object.__new__(provider_class)
+                models_info = instance.discover_models_with_tool_support()
+        except Exception:
+            return []
+
+        return cls.register_local_models(provider, models_info)
+
+
+def _format_display_name(model_name: str) -> str:
+    """Format a model name into a display-friendly name.
+
+    Examples:
+        'llama3.1:8b' -> 'Llama 3.1 8B'
+        'qwen2.5-coder:7b' -> 'Qwen 2.5 Coder 7B'
+        'mistral:latest' -> 'Mistral Latest'
+
+    Args:
+        model_name: The raw model name
+
+    Returns:
+        A human-friendly display name
+    """
+    # Split on colon to separate base name and tag
+    parts = model_name.split(":")
+    base = parts[0]
+    tag = parts[1] if len(parts) > 1 else ""
+
+    # Convert base name
+    # Replace hyphens and underscores with spaces
+    base = base.replace("-", " ").replace("_", " ")
+
+    # Add spaces between numbers and letters
+    formatted = ""
+    for i, char in enumerate(base):
+        if i > 0:
+            prev_char = base[i - 1]
+            # Add space between letter and digit
+            if (prev_char.isalpha() and char.isdigit()) or (
+                prev_char.isdigit() and char.isalpha()
+            ):
+                # But not for decimal points in version numbers
+                if not (prev_char.isdigit() and char == "."):
+                    formatted += " "
+        formatted += char
+
+    # Title case
+    words = formatted.split()
+    formatted_words = []
+    for word in words:
+        # Handle version numbers (keep as-is)
+        if word[0].isdigit():
+            formatted_words.append(word.upper() if word.isalpha() else word)
+        else:
+            formatted_words.append(word.capitalize())
+
+    display = " ".join(formatted_words)
+
+    # Append tag if present and not 'latest'
+    if tag and tag.lower() != "latest":
+        display += f" {tag.upper()}"
+
+    return display
