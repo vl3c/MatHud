@@ -440,11 +440,13 @@ def register_routes(app: MatHudFlask) -> None:
         if not app.webdriver_manager:
             try:
                 from static.webdriver_manager import WebDriverManager
-                app.webdriver_manager = WebDriverManager()
+                port = app.config.get('SERVER_PORT', 5000)
+                base_url = f"http://127.0.0.1:{port}/"
+                app.webdriver_manager = WebDriverManager(base_url=base_url)
             except Exception as e:
                 print(f"Failed to initialize WebDriverManager: {str(e)}")
                 return AppManager.make_response(
-                    message=f"WebDriver initialization failed: {str(e)}", 
+                    message=f"WebDriver initialization failed: {str(e)}",
                     status='error',
                     code=500
                 )
@@ -582,7 +584,19 @@ def register_routes(app: MatHudFlask) -> None:
 
         @stream_with_context
         def generate() -> Iterator[str]:
+            def _yield_pending_logs() -> Iterator[str]:
+                """Yield any pending log entries as stream events."""
+                for log_entry in app.log_manager.get_pending_logs():
+                    log_event: StreamEventDict = {"type": "log", **log_entry}
+                    yield json.dumps(log_event) + "\n"
+
             try:
+                # TEMPORARY TEST TRIGGER - REMOVE AFTER TESTING
+                if "TEST_ERROR_TRIGGER_12345" in message:
+                    app.log_manager.log_error("Test error triggered by user", source="routes")
+                    raise ValueError("Test error triggered for message recovery testing")
+                # END TEMPORARY TEST TRIGGER
+
                 # Route to appropriate API based on model and provider
                 model = provider.get_model()
                 if model.provider == PROVIDER_OPENAI and model.is_reasoning_model:
@@ -591,6 +605,9 @@ def register_routes(app: MatHudFlask) -> None:
                     stream = provider.create_chat_completion_stream(message)
 
                 for event in stream:
+                    # Yield any pending log events before each stream event
+                    yield from _yield_pending_logs()
+
                     if isinstance(event, dict):
                         event_dict = cast(StreamEventDict, event)
                         if event_dict.get('type') == 'final':
@@ -623,8 +640,13 @@ def register_routes(app: MatHudFlask) -> None:
                         yield json.dumps(event_dict) + "\n"
                     else:
                         yield json.dumps(event) + "\n"
+
+                # Yield any remaining logs after stream completes
+                yield from _yield_pending_logs()
             except Exception as exc:
-                print(f"[Routes /send_message] Streaming exception: {exc}")
+                error_msg = f"[Routes /send_message] Streaming exception: {exc}"
+                print(error_msg)
+                app.log_manager.log_error(error_msg, source="routes")
                 # Reset tools on error
                 if app.ai_api.has_injected_tools():
                     app.ai_api.reset_tools()
@@ -642,7 +664,9 @@ def register_routes(app: MatHudFlask) -> None:
                 try:
                     yield json.dumps(error_payload) + "\n"
                 except Exception:
-                    print("[Routes /send_message] Failed to send detailed error payload; falling back.")
+                    fallback_error_msg = "[Routes /send_message] Failed to send detailed error payload; falling back."
+                    print(fallback_error_msg)
+                    app.log_manager.log_error(fallback_error_msg, source="routes")
                     fallback_payload: StreamEventDict = {
                         "type": "final",
                         "ai_message": "I encountered an error processing your request.",

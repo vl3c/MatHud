@@ -53,7 +53,10 @@ if __name__ == '__main__':
     try:
         # Priority: CLI argument > environment variable > default (5000)
         port = args.port or int(os.environ.get('PORT', 5000))
-        
+
+        # Store port in app config for WebDriverManager to use
+        app.config['SERVER_PORT'] = port
+
         # Check if we're running in a deployment environment
         is_deployed = os.environ.get('PORT') is not None
         
