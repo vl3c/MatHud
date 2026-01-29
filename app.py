@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import signal
 import sys
@@ -35,13 +36,23 @@ signal.signal(signal.SIGINT, signal_handler)
 
 if __name__ == '__main__':
     """Main execution block.
-    
+
     Starts Flask server in a daemon thread, initializes WebDriver for vision system,
     and maintains the main thread for graceful interrupt handling.
     """
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='MatHud Flask Application')
+    parser.add_argument(
+        '-p', '--port',
+        type=int,
+        default=None,
+        help='Port to run the server on (default: 5000, or PORT env var)'
+    )
+    args = parser.parse_args()
+
     try:
-        # Get port from environment variable (for deployment platforms like Render)
-        port = int(os.environ.get('PORT', 5000))
+        # Priority: CLI argument > environment variable > default (5000)
+        port = args.port or int(os.environ.get('PORT', 5000))
         
         # Check if we're running in a deployment environment
         is_deployed = os.environ.get('PORT') is not None
