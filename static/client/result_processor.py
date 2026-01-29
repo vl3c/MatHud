@@ -143,7 +143,6 @@ class ResultProcessor:
     def _execute_function(function_name: str, args: Dict[str, Any], available_functions: Dict[str, Any]) -> Any:
         """Execute the function with the provided arguments."""
         result: Any = available_functions[function_name](**args)
-        print(f"Called function {function_name} with args {args}. Result: {result}")   # DEBUG
         return result
     
     @staticmethod

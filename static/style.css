@@ -907,6 +907,11 @@ input, select, textarea, button {
     font-style: italic;
 }
 
+.tool-call-result {
+    color: #059669;
+    font-size: 0.9em;
+}
+
 /* ===== CHAT INPUT COMPONENTS ===== */
 /* User input area with text field and send button */
 .chat-input-container {
@@ -1153,6 +1158,16 @@ input, select, textarea, button {
 
 .chat-input::placeholder {
     color: var(--text-secondary);
+}
+
+/* Error flash animation for input field when message is restored on error */
+.chat-input.error-flash {
+    animation: error-flash 0.5s ease-in-out;
+}
+
+@keyframes error-flash {
+    0%, 100% { border-color: var(--border-color); }
+    50% { border-color: #ff4444; box-shadow: 0 0 0 3px rgba(255, 68, 68, 0.2); }
 }
 
 #send-button {

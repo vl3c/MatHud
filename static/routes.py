@@ -593,7 +593,6 @@ def register_routes(app: MatHudFlask) -> None:
             try:
                 # TEMPORARY TEST TRIGGER - REMOVE AFTER TESTING
                 if "TEST_ERROR_TRIGGER_12345" in message:
-                    app.log_manager.log_error("Test error triggered by user", source="routes")
                     raise ValueError("Test error triggered for message recovery testing")
                 # END TEMPORARY TEST TRIGGER
 
@@ -644,8 +643,8 @@ def register_routes(app: MatHudFlask) -> None:
                 # Yield any remaining logs after stream completes
                 yield from _yield_pending_logs()
             except Exception as exc:
-                error_msg = f"[Routes /send_message] Streaming exception: {exc}"
-                print(error_msg)
+                error_msg = f"Streaming exception: {exc}"
+                print(f"[Routes /send_message] {error_msg}")
                 app.log_manager.log_error(error_msg, source="routes")
                 # Reset tools on error
                 if app.ai_api.has_injected_tools():
@@ -655,17 +654,21 @@ def register_routes(app: MatHudFlask) -> None:
                 # Reset tools on active provider if different
                 if provider not in (app.ai_api, app.responses_api) and provider.has_injected_tools():
                     provider.reset_tools()
+                # Yield pending logs so client sees them before error
+                yield from _yield_pending_logs()
+                # Include error details in the payload for transparency
                 error_payload: StreamEventDict = {
                     "type": "final",
-                    "ai_message": "I encountered an error processing your request. Please try again.",
+                    "ai_message": f"Error: {exc}",
                     "ai_tool_calls": [],
                     "finish_reason": "error",
+                    "error_details": str(exc),
                 }
                 try:
                     yield json.dumps(error_payload) + "\n"
                 except Exception:
-                    fallback_error_msg = "[Routes /send_message] Failed to send detailed error payload; falling back."
-                    print(fallback_error_msg)
+                    fallback_error_msg = "Failed to send detailed error payload; falling back."
+                    print(f"[Routes /send_message] {fallback_error_msg}")
                     app.log_manager.log_error(fallback_error_msg, source="routes")
                     fallback_payload: StreamEventDict = {
                         "type": "final",

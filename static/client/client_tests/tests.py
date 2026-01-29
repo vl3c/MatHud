@@ -201,6 +201,7 @@ from .test_numeric_solver import (
     TestJacobianComputation,
     TestExpressionEvaluation,
 )
+from .test_error_recovery import TestErrorRecovery
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
@@ -463,6 +464,7 @@ class Tests:
             TestNumericSolverFallback,
             TestJacobianComputation,
             TestExpressionEvaluation,
+            TestErrorRecovery,
         ]
 
     def _create_test_suite(self) -> unittest.TestSuite:

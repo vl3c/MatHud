@@ -42,7 +42,6 @@ class ResultValidator:
         """
         if not isinstance(results, dict):
             return False
-        print(f"Validating results: {results}")
         return all(
             k and isinstance(k, str) and ResultValidator._is_allowed_value(v, allow_list=False)
             for k, v in results.items()

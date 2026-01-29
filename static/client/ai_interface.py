@@ -118,6 +118,8 @@ class AIInterface:
         self._message_menu_global_bound: bool = False
         # Image attachment state
         self._attached_images: list[str] = []  # Data URLs of attached images
+        # Message recovery state
+        self._last_user_message: str = ""  # Buffered message for recovery on error
 
     def run_tests(self) -> Dict[str, Any]:
         """Run unit tests for the AIInterface class and return results to the AI as the function result."""
@@ -785,11 +787,19 @@ class AIInterface:
         args_span = html.SPAN(f"({short_args})", Class="tool-call-args")
         div <= args_span
 
+        # Show error message or result
+        result_display = entry.get("result_display", "")
+        result_full = entry.get("result_full", result_display)
+        result_span: Any = None
+
         if is_error:
             error_msg = entry.get("error_message", "")
             if error_msg:
-                err_span = html.SPAN(f" \u2014 {error_msg}", Class="tool-call-error-msg")
+                err_span = html.SPAN(f" \u2192 {error_msg}", Class="tool-call-error-msg")
                 div <= err_span
+        elif result_display:
+            result_span = html.SPAN(f" \u2192 {result_display}", Class="tool-call-result")
+            div <= result_span
 
         # Click to toggle between truncated and full view
         def _toggle_expand(event: Any) -> None:
@@ -797,9 +807,13 @@ class AIInterface:
                 if div.classList.contains("expanded"):
                     div.classList.remove("expanded")
                     args_span.text = f"({short_args})"
+                    if result_span is not None and result_display:
+                        result_span.text = f" \u2192 {result_display}"
                 else:
                     div.classList.add("expanded")
                     args_span.text = f"({full_args})"
+                    if result_span is not None and result_full:
+                        result_span.text = f" \u2192 {result_full}"
             except Exception:
                 pass
 
@@ -860,12 +874,23 @@ class AIInterface:
                 f"{k}: {v}" for k, v in args.items() if k != "canvas"
             )
 
+            # Format result for display (truncate if too long)
+            result_display = ""
+            if not is_error and result_value:
+                result_str = str(result_value)
+                if len(result_str) > 100:
+                    result_display = result_str[:97] + "..."
+                else:
+                    result_display = result_str
+
             entry: dict[str, Any] = {
                 "name": function_name,
                 "args_display": args_display,
                 "args_full": args_full,
                 "is_error": is_error,
                 "error_message": error_message,
+                "result_display": result_display,
+                "result_full": str(result_value) if result_value else "",
             }
             self._tool_call_log_entries.append(entry)
 
@@ -899,6 +924,26 @@ class AIInterface:
                 self._tool_call_log_element.removeAttribute("open")
             except Exception:
                 pass
+
+    def _on_stream_log(self, event_obj: Any) -> None:
+        """Handle a server log event: output to browser console with appropriate level."""
+        try:
+            event = self._normalize_stream_event(event_obj)
+            level = event.get("level", "info")
+            message = event.get("message", "")
+            source = event.get("source", "")
+
+            prefix = f"[Server{':' + source if source else ''}]"
+            full_message = f"{prefix} {message}"
+
+            if level == "error":
+                console.error(full_message)
+            elif level == "warning":
+                console.warn(full_message)
+            else:
+                console.log(full_message)
+        except Exception as e:
+            print(f"Error handling server log event: {e}")
 
     def _on_stream_reasoning(self, text: str) -> None:
         """Handle a reasoning token: append to reasoning buffer and update UI."""
@@ -1087,12 +1132,23 @@ class AIInterface:
             finish_reason = event.get('finish_reason', 'stop')
             ai_tool_calls = event.get('ai_tool_calls', [])
             ai_message = event.get('ai_message', '')
+            error_details = event.get('error_details', '')
+
+            # Log error details to console for debugging
+            if finish_reason == "error":
+                console.error(f"[AI Error] {error_details or ai_message}")
 
             # If no tool calls OR finish reason indicates completion, finalize the message
             if finish_reason in ("stop", "error", "completed") or not ai_tool_calls:
                 if not self._stream_buffer and ai_message:
                     self._stream_buffer = ai_message
                 self._finalize_stream_message(ai_message or None)
+                # Restore user message on error so they can retry
+                if finish_reason == "error":
+                    self._restore_user_message_on_error()
+                else:
+                    # Clear recovery buffer on successful completion
+                    self._last_user_message = ""
                 self._enable_send_controls()
                 return
 
@@ -1130,6 +1186,7 @@ class AIInterface:
             console.error("Streaming error", err)
         except Exception:
             pass
+        self._restore_user_message_on_error()
         self._enable_send_controls()
 
     def _format_stream_error(self, err: Any) -> str:
@@ -1154,6 +1211,27 @@ class AIInterface:
         except Exception as format_exc:
             return f"Error while formatting streaming error: {format_exc}"
 
+    def _restore_user_message_on_error(self) -> None:
+        """Restore the last user message to the input field after an error.
+
+        This allows the user to retry sending the same message without
+        having to retype it. Also applies a brief visual flash to indicate
+        the message was restored due to an error.
+        """
+        if not self._last_user_message:
+            return
+        try:
+            chat_input = document["chat-input"]
+            chat_input.value = self._last_user_message
+            # Apply visual error feedback
+            chat_input.classList.add("error-flash")
+            window.setTimeout(
+                lambda: chat_input.classList.remove("error-flash"),
+                2000
+            )
+        except Exception as e:
+            print(f"Error restoring user message: {e}")
+
     def _normalize_stream_event(self, event_obj: Any) -> Dict[str, Any]:
         """Convert JS objects or dicts into plain Python dicts."""
         try:
@@ -1166,7 +1244,7 @@ class AIInterface:
             except Exception:
                 pass
             result = {}
-            for key in ["type", "text", "ai_message", "ai_tool_calls", "finish_reason"]:
+            for key in ["type", "text", "ai_message", "ai_tool_calls", "finish_reason", "error_details", "level", "message", "source"]:
                 try:
                     result[key] = getattr(event_obj, key)
                 except Exception:
@@ -1554,13 +1632,14 @@ class AIInterface:
             payload_js = window.JSON.parse(payload_json)
             # Don't reset any state here - all state management is done in _send_prompt_to_ai_stream
             # This preserves intermediary text and reasoning content across tool call continuations
-            # Call JS streaming helper with reasoning callback
+            # Call JS streaming helper with reasoning and log callbacks
             window.sendMessageStream(
                 payload_js,
                 self._on_stream_token,
                 self._on_stream_final,
                 self._on_stream_error,
-                self._on_stream_reasoning
+                self._on_stream_reasoning,
+                self._on_stream_log
             )
         except Exception as e:
             print(f"Falling back to non-streaming request due to error: {e}")
@@ -1797,6 +1876,8 @@ class AIInterface:
 
         # Allow sending if there's text OR attached images
         if user_message or has_images:
+            # Buffer message for recovery on error before clearing
+            self._last_user_message = user_message
             document["chat-input"].value = ''
             self.send_user_message(user_message)
 
