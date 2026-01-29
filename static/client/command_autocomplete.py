@@ -132,9 +132,27 @@ class CommandAutocomplete:
             elif key == "Tab":
                 if self.filtered_commands:
                     event.preventDefault()
-                    self.confirm_selection()
+                    # Tab inserts without executing, allowing user to add arguments
+                    self.confirm_selection(execute=False)
+                    # Trigger re-filtering to show argument suggestions (e.g., workspace names)
+                    self._trigger_refilter()
         except Exception as e:
             print(f"Error handling autocomplete keydown: {e}")
+
+    def _trigger_refilter(self) -> None:
+        """Re-filter and show popup based on current input value.
+
+        Used after Tab completion to show argument suggestions (e.g., workspace names).
+        """
+        try:
+            value = self.input_element.value
+            if value.startswith("/"):
+                prefix = value[1:].lower()
+                self.filter(prefix)
+                if self.filtered_commands:
+                    self.show()
+        except Exception as e:
+            print(f"Error triggering refilter: {e}")
 
     def _on_blur(self, event: Any) -> None:
         """Handle blur events to hide popup."""
@@ -318,8 +336,8 @@ class CommandAutocomplete:
         if not self.filtered_commands:
             return
 
-        self.selected_index = (self.selected_index + 1) % len(self.filtered_commands)
-        self._render_filtered_commands()
+        new_index = (self.selected_index + 1) % len(self.filtered_commands)
+        self._update_selection_visual(new_index)
         self._scroll_to_selected()
 
     def select_previous(self) -> None:
@@ -327,12 +345,16 @@ class CommandAutocomplete:
         if not self.filtered_commands:
             return
 
-        self.selected_index = (self.selected_index - 1) % len(self.filtered_commands)
-        self._render_filtered_commands()
+        new_index = (self.selected_index - 1) % len(self.filtered_commands)
+        self._update_selection_visual(new_index)
         self._scroll_to_selected()
 
-    def confirm_selection(self) -> str:
-        """Confirm the current selection and insert into input.
+    def confirm_selection(self, execute: bool = True) -> str:
+        """Confirm the current selection and optionally execute the command.
+
+        Args:
+            execute: If True, execute the command immediately by clicking send.
+                     If False, just insert into input field for further editing.
 
         Returns:
             The selected command string
@@ -344,7 +366,8 @@ class CommandAutocomplete:
 
         # Insert the command into the input field
         try:
-            self.input_element.value = selected_cmd + " "
+            # Don't add trailing space if we're executing immediately
+            self.input_element.value = selected_cmd if execute else selected_cmd + " "
             self.input_element.focus()
 
             # Move cursor to end
@@ -358,6 +381,14 @@ class CommandAutocomplete:
         # Call the callback if set
         if self._on_select_callback:
             self._on_select_callback(selected_cmd)
+
+        # Execute the command immediately by clicking the send button
+        if execute:
+            try:
+                send_button = document["send-button"]
+                send_button.click()
+            except Exception as e:
+                print(f"Error executing command: {e}")
 
         return selected_cmd
 
@@ -373,6 +404,33 @@ class CommandAutocomplete:
                 selected_item.scrollIntoView({"block": "nearest"})
         except Exception:
             pass
+
+    def _update_selection_visual(self, new_index: int) -> None:
+        """Update selection visual without re-rendering the DOM.
+
+        This preserves click handlers by only toggling CSS classes.
+
+        Args:
+            new_index: The new index to select
+        """
+        if self.popup_element is None:
+            return
+
+        try:
+            items = self.popup_element.querySelectorAll(".command-autocomplete-item")
+            old_index = self.selected_index
+
+            # Remove selection from old item
+            if 0 <= old_index < len(items):
+                items[old_index].classList.remove("selected")
+
+            # Add selection to new item
+            if 0 <= new_index < len(items):
+                items[new_index].classList.add("selected")
+
+            self.selected_index = new_index
+        except Exception as e:
+            print(f"Error updating selection visual: {e}")
 
     def _render_filtered_commands(self) -> None:
         """Render the filtered commands in the popup."""
@@ -411,10 +469,12 @@ class CommandAutocomplete:
                 item.bind("mousedown", make_click_handler(index))
 
                 # Bind hover handler for visual feedback
+                # Note: We update CSS classes directly instead of re-rendering
+                # to avoid destroying DOM elements and losing click handlers
                 def make_hover_handler(idx: int) -> Callable[[Any], None]:
                     def handler(event: Any) -> None:
-                        self.selected_index = idx
-                        self._render_filtered_commands()
+                        if self.selected_index != idx:
+                            self._update_selection_visual(idx)
                     return handler
 
                 item.bind("mouseenter", make_hover_handler(index))
