@@ -47,17 +47,25 @@ User query: "{query}"
 
 Return a JSON array of up to {max_results} tool names. Example: ["create_circle", "create_point"]"""
 
-    def __init__(self, client: Optional[OpenAI] = None) -> None:
+    def __init__(
+        self,
+        client: Optional[OpenAI] = None,
+        default_model: Optional[AIModel] = None,
+    ) -> None:
         """Initialize the tool search service.
-        
+
         Args:
-            client: Optional OpenAI client. If not provided, creates a new one.
+            client: Optional OpenAI-compatible client. If not provided, creates a new one.
+            default_model: Optional default model to use for search. If not provided,
+                uses gpt-4.1-mini for OpenAI or the client's configured model for local LLMs.
         """
         if client is not None:
             self.client = client
         else:
             api_key = self._initialize_api_key()
             self.client = OpenAI(api_key=api_key)
+
+        self.default_model = default_model
 
     @staticmethod
     def _initialize_api_key() -> str:
@@ -151,9 +159,9 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # Clamp max_results to valid range
         max_results = max(1, min(20, max_results))
 
-        # Use a fast, cheap model for tool selection if not specified
+        # Use provided model, instance default, or fallback to gpt-4.1-mini
         if model is None:
-            model = AIModel.from_identifier("gpt-4.1-mini")
+            model = self.default_model or AIModel.from_identifier("gpt-4.1-mini")
 
         # Build the prompt
         tool_descriptions = self.build_tool_descriptions()

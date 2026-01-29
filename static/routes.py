@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional, TypeVar, Union, cast
 from flask import Response, flash, jsonify, redirect, render_template, request, session, stream_with_context, url_for
 from flask.typing import ResponseReturnValue
 
-from static.ai_model import AIModel, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER
+from static.ai_model import AIModel, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OLLAMA
 from static.app_manager import AppManager, MatHudFlask
 from static.openai_api_base import OpenAIAPIBase
 from static.providers import ProviderRegistry, create_provider_instance
@@ -180,6 +180,7 @@ def handle_vision_capture(
 def _intercept_search_tools(
     app: MatHudFlask,
     tool_calls: List[Dict[str, Any]],
+    provider: Optional[OpenAIAPIBase] = None,
 ) -> List[Dict[str, Any]]:
     """Intercept search_tools calls and filter other tool calls.
 
@@ -191,6 +192,7 @@ def _intercept_search_tools(
     Args:
         app: The Flask application instance.
         tool_calls: List of tool calls from the AI response.
+        provider: The current API provider (uses its client/model for search).
 
     Returns:
         Filtered list of tool calls (only allowed tools).
@@ -223,9 +225,13 @@ def _intercept_search_tools(
     if not query:
         return tool_calls  # No query, return as-is
 
-    # Execute search_tools server-side
+    # Execute search_tools server-side using the current provider's client/model
     try:
-        service = ToolSearchService(client=app.ai_api.client)
+        active_provider = provider or app.ai_api
+        service = ToolSearchService(
+            client=active_provider.client,
+            default_model=active_provider.get_model(),
+        )
         result = service.search_tools(query=query, max_results=max_results or 10)
 
         # Get allowed tool names from the search results
@@ -392,14 +398,19 @@ def register_routes(app: MatHudFlask) -> None:
     @app.route('/api/available_models', methods=['GET'])
     @require_auth
     def get_available_models() -> ResponseReturnValue:
-        """Return models grouped by provider, only for providers with API keys."""
+        """Return models grouped by provider, only for available providers."""
         available = ProviderRegistry.get_available_providers()
+
+        # Refresh local provider models if available
+        if PROVIDER_OLLAMA in available:
+            AIModel.refresh_local_models(PROVIDER_OLLAMA)
 
         models_by_provider: Dict[str, List[Dict[str, Any]]] = {
             "openai": [],
             "anthropic": [],
             "openrouter_paid": [],
             "openrouter_free": [],
+            "ollama": [],
         }
 
         for model_id, config in AIModel.MODEL_CONFIGS.items():
@@ -425,8 +436,182 @@ def register_routes(app: MatHudFlask) -> None:
                     models_by_provider["openrouter_free"].append(entry)
                 else:
                     models_by_provider["openrouter_paid"].append(entry)
+            elif provider == PROVIDER_OLLAMA:
+                models_by_provider["ollama"].append(entry)
 
         return jsonify(models_by_provider)
+
+    @app.route('/api/preload_model', methods=['POST'])
+    @require_auth
+    def preload_model() -> ResponseReturnValue:
+        """Preload an Ollama model into memory.
+
+        Request body:
+            model_id (str): The model identifier to preload
+
+        Returns:
+            JSON response with success status and message
+        """
+        from static.providers.local.ollama_api import OllamaAPI
+
+        request_payload = request.get_json(silent=True)
+        if not isinstance(request_payload, dict):
+            return AppManager.make_response(
+                message='Invalid request body',
+                status='error',
+                code=400,
+            )
+
+        model_id = request_payload.get('model_id')
+        if not isinstance(model_id, str) or not model_id:
+            return AppManager.make_response(
+                message='model_id is required',
+                status='error',
+                code=400,
+            )
+
+        # Only preload Ollama models
+        model = AIModel.from_identifier(model_id)
+        if model.provider != PROVIDER_OLLAMA:
+            return AppManager.make_response(
+                message='Model preloading only supported for Ollama models',
+                status='error',
+                code=400,
+            )
+
+        # Check if server is running
+        if not OllamaAPI.is_server_running():
+            return AppManager.make_response(
+                message='Ollama server is not running',
+                status='error',
+                code=503,
+            )
+
+        # Check if already loaded
+        if OllamaAPI.is_model_loaded(model_id):
+            return AppManager.make_response(
+                data={'already_loaded': True},
+                message=f'Model {model_id} is already loaded',
+            )
+
+        # Preload the model (this may take a while)
+        success, message = OllamaAPI.preload_model(model_id)
+
+        if success:
+            return AppManager.make_response(
+                data={'already_loaded': False},
+                message=message,
+            )
+        else:
+            return AppManager.make_response(
+                message=message,
+                status='error',
+                code=500,
+            )
+
+    @app.route('/api/model_status', methods=['GET'])
+    @require_auth
+    def get_model_status() -> ResponseReturnValue:
+        """Get the loading status of Ollama models.
+
+        Query params:
+            model_id (str, optional): Specific model to check
+
+        Returns:
+            JSON response with loaded models or specific model status
+        """
+        from static.providers.local.ollama_api import OllamaAPI
+
+        model_id = request.args.get('model_id')
+
+        if not OllamaAPI.is_server_running():
+            return AppManager.make_response(
+                data={'server_running': False, 'loaded_models': []},
+            )
+
+        loaded_models = OllamaAPI.get_loaded_models()
+
+        if model_id:
+            is_loaded = OllamaAPI.is_model_loaded(model_id)
+            return AppManager.make_response(
+                data={
+                    'server_running': True,
+                    'model_id': model_id,
+                    'is_loaded': is_loaded,
+                    'loaded_models': loaded_models,
+                },
+            )
+
+        return AppManager.make_response(
+            data={
+                'server_running': True,
+                'loaded_models': loaded_models,
+            },
+        )
+
+    @app.route('/api/debug/conversation', methods=['GET'])
+    @require_auth
+    def debug_conversation() -> ResponseReturnValue:
+        """Debug endpoint to view conversation history for all providers.
+
+        Returns the message history for debugging purposes.
+        """
+        provider_name = request.args.get('provider')
+
+        def summarize_message(msg: Dict[str, Any]) -> Dict[str, Any]:
+            """Summarize a message for display, truncating long content."""
+            summary: Dict[str, Any] = {"role": msg.get("role", "unknown")}
+
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                summary["content"] = content[:500] + "..." if len(content) > 500 else content
+            elif isinstance(content, list):
+                summary["content"] = f"[{len(content)} content blocks]"
+            else:
+                summary["content"] = str(content)[:200]
+
+            if "tool_calls" in msg:
+                tool_calls = msg["tool_calls"]
+                summary["tool_calls"] = [
+                    {
+                        "id": tc.get("id", "?"),
+                        "name": tc.get("function", {}).get("name", "?"),
+                        "args_preview": tc.get("function", {}).get("arguments", "")[:100],
+                    }
+                    for tc in tool_calls
+                ]
+
+            if "tool_call_id" in msg:
+                summary["tool_call_id"] = msg["tool_call_id"]
+
+            return summary
+
+        result: Dict[str, Any] = {}
+
+        # OpenAI APIs
+        result["ai_api"] = {
+            "model": str(app.ai_api.model),
+            "message_count": len(app.ai_api.messages),
+            "messages": [summarize_message(m) for m in app.ai_api.messages[-20:]],
+        }
+
+        result["responses_api"] = {
+            "model": str(app.responses_api.model),
+            "message_count": len(app.responses_api.messages),
+            "messages": [summarize_message(m) for m in app.responses_api.messages[-20:]],
+        }
+
+        # Other providers
+        for name, provider in app.providers.items():
+            if provider_name and name != provider_name:
+                continue
+            result[name] = {
+                "model": str(provider.model),
+                "message_count": len(provider.messages),
+                "messages": [summarize_message(m) for m in provider.messages[-20:]],
+            }
+
+        return AppManager.make_response(data=cast(JsonValue, result))
 
     @app.route('/')
     @require_auth
@@ -621,7 +806,7 @@ def register_routes(app: MatHudFlask) -> None:
                                     ]
                                     # Intercept search_tools and filter other tool calls
                                     if dict_tool_calls:
-                                        filtered_calls = _intercept_search_tools(app, dict_tool_calls)
+                                        filtered_calls = _intercept_search_tools(app, dict_tool_calls, provider)
                                         event_dict['ai_tool_calls'] = cast(JsonValue, filtered_calls)
                                         app.log_manager.log_ai_tool_calls(filtered_calls)
                             except Exception:
@@ -945,7 +1130,7 @@ def register_routes(app: MatHudFlask) -> None:
                 )
                 # Intercept search_tools and filter other tool calls
                 if ai_tool_calls:
-                    ai_tool_calls = _intercept_search_tools(app, ai_tool_calls)
+                    ai_tool_calls = _intercept_search_tools(app, ai_tool_calls, provider)
                 finish_reason = final_event.get("finish_reason")
 
                 app.log_manager.log_ai_response(ai_message)
@@ -962,7 +1147,7 @@ def register_routes(app: MatHudFlask) -> None:
             ai_message, ai_tool_calls = _process_ai_response(app, choice)
             # Intercept search_tools and filter other tool calls
             if ai_tool_calls:
-                ai_tool_calls = _intercept_search_tools(app, ai_tool_calls)
+                ai_tool_calls = _intercept_search_tools(app, ai_tool_calls, provider)
             finish_reason = getattr(choice, 'finish_reason', None)
 
             _reset_tools_if_needed(finish_reason)
@@ -1019,8 +1204,20 @@ def register_routes(app: MatHudFlask) -> None:
         elif isinstance(max_results_raw, float):
             max_results = int(max_results_raw)
 
+        # Get current model from request to use same provider for search
+        ai_model_raw = request_payload.get('ai_model')
+        ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
+
         try:
-            service = ToolSearchService(client=app.ai_api.client)
+            # Use current provider's client/model if a local model is specified
+            if ai_model:
+                provider = get_provider_for_model(app, ai_model)
+                service = ToolSearchService(
+                    client=provider.client,
+                    default_model=provider.get_model(),
+                )
+            else:
+                service = ToolSearchService(client=app.ai_api.client)
             result = service.search_tools_formatted(
                 query=query,
                 max_results=max_results,

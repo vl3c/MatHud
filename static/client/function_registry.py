@@ -242,16 +242,27 @@ class FunctionRegistry:
 
             # In Brython environment, use browser.ajax
             try:
-                from browser import ajax
+                from browser import ajax, document
                 import json as json_module
+
+                # Get current AI model to use same provider for search
+                ai_model = None
+                try:
+                    ai_model = document["ai-model-selector"].value
+                except Exception:
+                    pass  # Model selector not available
 
                 # Use XMLHttpRequest directly for synchronous request (more reliable)
                 req = ajax.Ajax()
                 req.open("POST", "/search_tools", False)  # Synchronous
                 req.set_header("Content-Type", "application/json")
 
+                payload = {"query": query, "max_results": max_results}
+                if ai_model:
+                    payload["ai_model"] = ai_model
+
                 try:
-                    req.send(json_module.dumps({"query": query, "max_results": max_results}))
+                    req.send(json_module.dumps(payload))
                 except Exception as e:
                     default_result["error"] = f"Request send failed: {e}"
                     return default_result

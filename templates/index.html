@@ -56,7 +56,30 @@ Dependencies:
     <script src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.12.5/brython_stdlib.min.js"></script>
     
     <!-- Application styles -->
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">   
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+
+    <!-- Loading spinner for model preloading -->
+    <style>
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ddd;
+            border-top-color: #666;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .model-loading-message {
+            background-color: #f5f5f5;
+            border-left: 3px solid #666;
+            padding: 8px 12px;
+            margin: 8px 0;
+            border-radius: 4px;
+        }
+    </style>
 </head>
 <body onload="initBrython()">
     <div class="container">
@@ -270,6 +293,11 @@ Dependencies:
         // Expose on window so Brython slash commands can check vision support
         window.VISION_MODELS = VISION_MODELS;
 
+        // Ollama models list, populated dynamically from API
+        var OLLAMA_MODELS = [];
+        // Track currently loading model
+        var modelLoadingInProgress = false;
+
         var attachButton = document.getElementById("attach-button");
         var visionContainer = visionToggle.parentElement;
 
@@ -295,12 +323,14 @@ Dependencies:
             .then(function(models) {
                 aiModelSelector.innerHTML = '';
                 VISION_MODELS = [];
+                OLLAMA_MODELS = [];
 
                 var groups = [
                     { key: 'openai', label: 'OpenAI' },
                     { key: 'anthropic', label: 'Anthropic' },
                     { key: 'openrouter_paid', label: 'OpenRouter (Paid)' },
-                    { key: 'openrouter_free', label: 'OpenRouter (Free)' }
+                    { key: 'openrouter_free', label: 'OpenRouter (Free)' },
+                    { key: 'ollama', label: 'Ollama (Local)' }
                 ];
 
                 var hasModels = false;
@@ -328,6 +358,10 @@ Dependencies:
                             if (model.has_vision) {
                                 VISION_MODELS.push(model.id);
                             }
+                            // Track Ollama models
+                            if (group.key === 'ollama') {
+                                OLLAMA_MODELS.push(model.id);
+                            }
                         }
                         aiModelSelector.appendChild(optgroup);
                     }
@@ -342,6 +376,7 @@ Dependencies:
 
                 // Update window reference for Brython slash commands
                 window.VISION_MODELS = VISION_MODELS;
+                window.OLLAMA_MODELS = OLLAMA_MODELS;
                 updateVisionToggle();
             })
             .catch(function(error) {
@@ -349,8 +384,108 @@ Dependencies:
                 aiModelSelector.innerHTML = '<option value="">Failed to load models</option>';
             });
 
-        // Update vision toggle when AI model selection changes
-        aiModelSelector.addEventListener("change", updateVisionToggle);
+        /**
+         * Shows a loading message in the chat history
+         * @param {string} message - The loading message to display
+         * @returns {HTMLElement} The loading message element (for later removal)
+         */
+        function showModelLoadingMessage(message) {
+            var chatHistory = document.getElementById('chat-history');
+            var loadingDiv = document.createElement('div');
+            loadingDiv.className = 'assistant-message model-loading-message';
+            loadingDiv.innerHTML = '<span class="loading-spinner"></span> ' + message;
+            loadingDiv.style.cssText = 'color: #666; font-style: italic; display: flex; align-items: center; gap: 8px;';
+            chatHistory.appendChild(loadingDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            return loadingDiv;
+        }
+
+        /**
+         * Preload an Ollama model when selected
+         * @param {string} modelId - The model ID to preload
+         */
+        function preloadOllamaModel(modelId) {
+            if (modelLoadingInProgress) {
+                console.log('Model loading already in progress, skipping');
+                return;
+            }
+
+            modelLoadingInProgress = true;
+            aiModelSelector.disabled = true;
+
+            var loadingMsg = showModelLoadingMessage('Loading model ' + modelId + '... (this may take a moment)');
+
+            fetch('/api/preload_model', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model_id: modelId })
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(result) {
+                // Remove loading message
+                if (loadingMsg && loadingMsg.parentNode) {
+                    loadingMsg.parentNode.removeChild(loadingMsg);
+                }
+
+                // Show result message
+                var chatHistory = document.getElementById('chat-history');
+                var resultDiv = document.createElement('div');
+                resultDiv.className = 'assistant-message';
+
+                if (result.status === 'success') {
+                    if (result.data && result.data.already_loaded) {
+                        resultDiv.innerHTML = '<em>Model ' + modelId + ' is ready.</em>';
+                    } else {
+                        resultDiv.innerHTML = '<em>Model ' + modelId + ' loaded successfully.</em>';
+                    }
+                    resultDiv.style.color = '#4a9';
+                } else {
+                    resultDiv.innerHTML = '<em>Warning: ' + (result.message || 'Failed to load model') + '</em>';
+                    resultDiv.style.color = '#a94';
+                }
+                resultDiv.style.fontStyle = 'italic';
+                chatHistory.appendChild(resultDiv);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+
+                // Auto-remove the message after 5 seconds
+                setTimeout(function() {
+                    if (resultDiv && resultDiv.parentNode) {
+                        resultDiv.style.transition = 'opacity 0.5s';
+                        resultDiv.style.opacity = '0';
+                        setTimeout(function() {
+                            if (resultDiv && resultDiv.parentNode) {
+                                resultDiv.parentNode.removeChild(resultDiv);
+                            }
+                        }, 500);
+                    }
+                }, 5000);
+            })
+            .catch(function(error) {
+                console.error('Failed to preload model:', error);
+                if (loadingMsg && loadingMsg.parentNode) {
+                    loadingMsg.parentNode.removeChild(loadingMsg);
+                }
+            })
+            .finally(function() {
+                modelLoadingInProgress = false;
+                aiModelSelector.disabled = false;
+            });
+        }
+
+        /**
+         * Handle model selection change - updates vision toggle and preloads Ollama models
+         */
+        function handleModelChange() {
+            updateVisionToggle();
+
+            var selectedModel = aiModelSelector.value;
+            if (OLLAMA_MODELS.includes(selectedModel)) {
+                preloadOllamaModel(selectedModel);
+            }
+        }
+
+        // Update vision toggle and preload when AI model selection changes
+        aiModelSelector.addEventListener("change", handleModelChange);
         
         // ===== LOGOUT FUNCTIONALITY =====
         // Show logout button when authentication is enabled

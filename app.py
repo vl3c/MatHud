@@ -14,8 +14,8 @@ from static.app_manager import AppManager, MatHudFlask
 
 def signal_handler(sig: int, frame: FrameType | None) -> None:
     """Handle graceful shutdown on interrupt signal.
-    
-    Cleans up WebDriver resources and exits the application properly.
+
+    Cleans up WebDriver and Ollama resources and exits the application properly.
     """
     print('\nShutting down gracefully...')
     # Clean up WebDriverManager
@@ -24,6 +24,14 @@ def signal_handler(sig: int, frame: FrameType | None) -> None:
             app.webdriver_manager.cleanup()
         except Exception as e:
             print(f"Error closing WebDriver: {e}")
+
+    # Clean up Ollama server if we started it
+    try:
+        from static.providers.local.ollama_api import OllamaAPI
+        OllamaAPI.stop_server()
+    except Exception as e:
+        print(f"Error stopping Ollama: {e}")
+
     print("Goodbye!")
     sys.exit(0)
 
@@ -85,7 +93,18 @@ if __name__ == '__main__':
             
             # Wait for Flask to start
             time.sleep(3)
-            
+
+            # Start Ollama server if installed (only in local development)
+            try:
+                from static.providers.local.ollama_api import OllamaAPI
+                if OllamaAPI.is_ollama_installed():
+                    success, message = OllamaAPI.start_server(timeout=10)
+                    print(f"Ollama: {message}")
+                else:
+                    print("Ollama: not installed (skipping)")
+            except Exception as e:
+                print(f"Ollama: failed to start - {e}")
+
             # Initialize WebDriver (only in local development)
             if app.webdriver_manager is None:
                 import requests
