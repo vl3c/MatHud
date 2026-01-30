@@ -78,6 +78,10 @@ python -m cli.main test all [--port PORT]
 - `--start-server`: Automatically start server if not running
 - `--with-auth`: Enable authentication during tests
 - `-k KEYWORD`: Run only tests matching keyword
+- `--screenshot-output, -o`: Screenshot output path (default: `cli/output/test_results_<timestamp>.png`)
+- `--no-screenshot`: Disable automatic screenshot capture
+
+**Note:** Client tests automatically capture a screenshot showing test results before the browser closes. Screenshots are saved to `cli/output/` by default.
 
 ### Canvas Operations
 
