@@ -202,6 +202,13 @@ from .test_numeric_solver import (
     TestExpressionEvaluation,
 )
 from .test_error_recovery import TestErrorRecovery
+from .test_tts_controller import (
+    TestTTSControllerState,
+    TestTTSControllerSettings,
+    TestTTSControllerSingleton,
+    TestTTSControllerSpeak,
+    TestTTSControllerErrorHandling,
+)
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
@@ -465,6 +472,11 @@ class Tests:
             TestJacobianComputation,
             TestExpressionEvaluation,
             TestErrorRecovery,
+            TestTTSControllerState,
+            TestTTSControllerSettings,
+            TestTTSControllerSingleton,
+            TestTTSControllerSpeak,
+            TestTTSControllerErrorHandling,
         ]
 
     def _create_test_suite(self) -> unittest.TestSuite:

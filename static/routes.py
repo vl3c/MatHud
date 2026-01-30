@@ -30,6 +30,7 @@ from static.app_manager import AppManager, MatHudFlask
 from static.openai_api_base import OpenAIAPIBase
 from static.providers import ProviderRegistry, create_provider_instance
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
+from static.tts_manager import get_tts_manager
 from static.webdriver_manager import SvgState
 
 F = TypeVar("F", bound=Callable[..., ResponseReturnValue])
@@ -1229,3 +1230,84 @@ def register_routes(app: MatHudFlask) -> None:
                 status='error',
                 code=500,
             )
+
+    @app.route('/api/tts', methods=['POST'])
+    @require_auth
+    def generate_tts() -> ResponseReturnValue:
+        """Generate text-to-speech audio from text.
+
+        Uses Kokoro-82M for local TTS generation.
+
+        Request body:
+            text (str): Text to convert to speech
+            voice (str, optional): Voice ID (default: am_michael)
+
+        Returns:
+            audio/wav: WAV audio bytes on success
+            JSON error response on failure
+        """
+        request_payload = request.get_json(silent=True)
+        if not isinstance(request_payload, dict):
+            return AppManager.make_response(
+                message='Invalid request body',
+                status='error',
+                code=400,
+            )
+
+        text = request_payload.get('text')
+        if not isinstance(text, str) or not text.strip():
+            return AppManager.make_response(
+                message='Text is required',
+                status='error',
+                code=400,
+            )
+
+        voice_raw = request_payload.get('voice')
+        voice = voice_raw if isinstance(voice_raw, str) else None
+
+        tts_manager = get_tts_manager()
+
+        if not tts_manager.is_available():
+            return AppManager.make_response(
+                message='TTS service is not available. Kokoro may not be installed.',
+                status='error',
+                code=503,
+            )
+
+        # Use threaded version to allow Ctrl+C signal handling
+        success, result = tts_manager.generate_speech_threaded(
+            text=text,
+            voice=voice,
+        )
+
+        if not success:
+            return AppManager.make_response(
+                message=str(result),
+                status='error',
+                code=500,
+            )
+
+        # Return WAV audio bytes
+        return Response(
+            result,
+            mimetype='audio/wav',
+            headers={
+                'Content-Type': 'audio/wav',
+                'Content-Disposition': 'inline; filename="tts_output.wav"',
+            }
+        )
+
+    @app.route('/api/tts/voices', methods=['GET'])
+    @require_auth
+    def get_tts_voices() -> ResponseReturnValue:
+        """Get available TTS voices.
+
+        Returns:
+            JSON response with list of voice IDs
+        """
+        tts_manager = get_tts_manager()
+        return AppManager.make_response(data=cast(JsonValue, {
+            'voices': tts_manager.get_voices(),
+            'default_voice': tts_manager.DEFAULT_VOICE,
+            'available': tts_manager.is_available(),
+        }))

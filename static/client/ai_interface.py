@@ -31,6 +31,7 @@ Dependencies:
 from __future__ import annotations
 
 import json
+import re
 import traceback
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, cast
 
@@ -42,6 +43,7 @@ from workspace_manager import WorkspaceManager
 from markdown_parser import MarkdownParser
 from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
+from tts_controller import get_tts_controller, TTSController
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -120,6 +122,9 @@ class AIInterface:
         self._attached_images: list[str] = []  # Data URLs of attached images
         # Message recovery state
         self._last_user_message: str = ""  # Buffered message for recovery on error
+        # TTS state
+        self._tts_controller: TTSController = get_tts_controller()
+        self._tts_settings_modal: Optional[Any] = None  # DOMNode for TTS settings modal
 
     def run_tests(self) -> Dict[str, Any]:
         """Run unit tests for the AIInterface class and return results to the AI as the function result."""
@@ -540,8 +545,13 @@ class AIInterface:
         else:
             self._hide_message_menu(menu)
 
-    def _attach_message_menu(self, message_container: Any) -> None:
-        """Attach the per-message '...' menu to the message container (idempotent)."""
+    def _attach_message_menu(self, message_container: Any, is_ai_message: bool = False) -> None:
+        """Attach the per-message '...' menu to the message container (idempotent).
+
+        Args:
+            message_container: The DOM element to attach the menu to
+            is_ai_message: Whether this is an AI message (enables TTS option)
+        """
         try:
             if bool(getattr(message_container, "_has_message_menu", False)):
                 return
@@ -600,6 +610,46 @@ class AIInterface:
 
         menu <= copy_item
 
+        # Add TTS options for AI messages
+        if is_ai_message:
+            read_aloud_item = html.BUTTON("Read aloud", Class="chat-message-menu-item tts-read-aloud")
+            try:
+                read_aloud_item.attrs["type"] = "button"
+            except Exception:
+                pass
+
+            def _on_read_aloud_click(ev: Any) -> None:
+                _stop_propagation(ev)
+                self._hide_message_menu(menu)
+                raw_text = self._get_raw_message_text(message_container)
+                self._handle_tts_read_aloud(raw_text, read_aloud_item)
+
+            try:
+                read_aloud_item.bind("click", _on_read_aloud_click)
+            except Exception:
+                pass
+
+            menu <= read_aloud_item
+
+            # TTS settings option
+            tts_settings_item = html.BUTTON("TTS settings...", Class="chat-message-menu-item")
+            try:
+                tts_settings_item.attrs["type"] = "button"
+            except Exception:
+                pass
+
+            def _on_tts_settings_click(ev: Any) -> None:
+                _stop_propagation(ev)
+                self._hide_message_menu(menu)
+                self._show_tts_settings_modal()
+
+            try:
+                tts_settings_item.bind("click", _on_tts_settings_click)
+            except Exception:
+                pass
+
+            menu <= tts_settings_item
+
         # Add button + menu to the message container (positioned by CSS).
         try:
             message_container <= menu_button
@@ -607,7 +657,189 @@ class AIInterface:
         except Exception:
             pass
 
-    
+    def _handle_tts_read_aloud(self, text: str, button_element: Any) -> None:
+        """Handle TTS read aloud action.
+
+        Args:
+            text: Text to read aloud
+            button_element: The menu button to update based on state
+        """
+        if not text or not text.strip():
+            return
+
+        # If already playing, stop instead
+        if self._tts_controller.is_playing():
+            self._tts_controller.stop()
+            return
+
+        # Set up state change callback to update button text
+        def on_state_change(state: str) -> None:
+            try:
+                if state == "loading":
+                    button_element.text = "Loading..."
+                    button_element.classList.add("tts-loading")
+                    button_element.classList.remove("tts-playing")
+                elif state == "playing":
+                    button_element.text = "Stop reading"
+                    button_element.classList.remove("tts-loading")
+                    button_element.classList.add("tts-playing")
+                else:
+                    button_element.text = "Read aloud"
+                    button_element.classList.remove("tts-loading")
+                    button_element.classList.remove("tts-playing")
+            except Exception:
+                pass
+
+        # Set up error callback to show message to user
+        def on_error(message: str) -> None:
+            self._print_system_message_in_chat(message)
+
+        self._tts_controller.on_state_change = on_state_change
+        self._tts_controller.on_error = on_error
+
+        # Strip markdown formatting for cleaner TTS (basic cleanup)
+        clean_text = self._strip_markdown_for_tts(text)
+
+        # Start TTS
+        self._tts_controller.speak(clean_text)
+
+    def _strip_markdown_for_tts(self, text: str) -> str:
+        """Strip markdown formatting from text for cleaner TTS output.
+
+        Args:
+            text: Text with potential markdown formatting
+
+        Returns:
+            Clean text suitable for TTS
+        """
+        result = text
+
+        # Remove code blocks
+        result = re.sub(r'```[\s\S]*?```', '', result)
+        result = re.sub(r'`[^`]+`', '', result)
+
+        # Remove headers
+        result = re.sub(r'^#{1,6}\s+', '', result, flags=re.MULTILINE)
+
+        # Remove bold/italic
+        result = re.sub(r'\*\*([^*]+)\*\*', r'\1', result)
+        result = re.sub(r'\*([^*]+)\*', r'\1', result)
+        result = re.sub(r'__([^_]+)__', r'\1', result)
+        result = re.sub(r'_([^_]+)_', r'\1', result)
+
+        # Remove links, keep text
+        result = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', result)
+
+        # Remove images
+        result = re.sub(r'!\[[^\]]*\]\([^)]+\)', '', result)
+
+        # Remove horizontal rules
+        result = re.sub(r'^[-*_]{3,}$', '', result, flags=re.MULTILINE)
+
+        # Clean up extra whitespace
+        result = re.sub(r'\n{3,}', '\n\n', result)
+        result = result.strip()
+
+        return result
+
+    def _show_tts_settings_modal(self) -> None:
+        """Display the TTS settings modal dialog."""
+        # Remove existing modal if present
+        self._close_tts_settings_modal()
+
+        # Create modal backdrop
+        modal = html.DIV(Class="tts-settings-modal")
+        modal.id = "tts-settings-modal"
+
+        # Create modal content
+        content = html.DIV(Class="tts-settings-content")
+
+        # Header
+        header = html.DIV(Class="tts-settings-header")
+        title = html.H3("TTS Settings")
+        close_btn = html.BUTTON("\u00d7", Class="tts-settings-close")
+        close_btn.attrs["type"] = "button"
+        close_btn.attrs["title"] = "Close"
+        header <= title
+        header <= close_btn
+        content <= header
+
+        # Voice selection
+        voice_group = html.DIV(Class="tts-settings-group")
+        voice_label = html.LABEL("Voice:")
+        voice_select = html.SELECT(id="tts-voice-select")
+
+        # Add voice options
+        # Note: Voice IDs must match TTSManager.VOICES in static/tts_manager.py
+        voices = [
+            ("am_michael", "Michael (Male)"),
+            ("am_fenrir", "Fenrir (Male, deeper)"),
+            ("am_onyx", "Onyx (Male, darker)"),
+            ("am_echo", "Echo (Male, resonant)"),
+            ("af_nova", "Nova (Female)"),
+            ("af_bella", "Bella (Female, warm)"),
+        ]
+        current_voice = self._tts_controller.get_voice()
+        for voice_id, voice_name in voices:
+            option = html.OPTION(voice_name, value=voice_id)
+            if voice_id == current_voice:
+                option.attrs["selected"] = "selected"
+            voice_select <= option
+
+        voice_group <= voice_label
+        voice_group <= voice_select
+        content <= voice_group
+
+        # Buttons
+        buttons = html.DIV(Class="tts-settings-buttons")
+        save_btn = html.BUTTON("Save", Class="tts-settings-save")
+        save_btn.attrs["type"] = "button"
+        cancel_btn = html.BUTTON("Cancel", Class="tts-settings-cancel")
+        cancel_btn.attrs["type"] = "button"
+        buttons <= save_btn
+        buttons <= cancel_btn
+        content <= buttons
+
+        modal <= content
+
+        # Bind events
+        def on_close(ev: Any) -> None:
+            self._close_tts_settings_modal()
+
+        def on_save(ev: Any) -> None:
+            try:
+                voice_value = document["tts-voice-select"].value
+                self._tts_controller.set_voice(voice_value)
+            except Exception as e:
+                print(f"Error saving TTS settings: {e}")
+            self._close_tts_settings_modal()
+
+        def on_backdrop_click(ev: Any) -> None:
+            if ev.target == modal:
+                self._close_tts_settings_modal()
+
+        close_btn.bind("click", on_close)
+        cancel_btn.bind("click", on_close)
+        save_btn.bind("click", on_save)
+        modal.bind("click", on_backdrop_click)
+
+        # Add to document
+        document <= modal
+        self._tts_settings_modal = modal
+
+    def _close_tts_settings_modal(self) -> None:
+        """Close and remove the TTS settings modal."""
+        try:
+            if self._tts_settings_modal:
+                self._tts_settings_modal.remove()
+                self._tts_settings_modal = None
+            # Also try by ID in case reference was lost
+            existing = document.select_one("#tts-settings-modal")
+            if existing:
+                existing.remove()
+        except Exception:
+            pass
+
     def _create_message_element(
         self,
         sender: str,
@@ -665,7 +897,7 @@ class AIInterface:
 
             # Store the raw source text for copy actions (do not rely on rendered HTML)
             self._set_raw_message_text(message_container, message)
-            self._attach_message_menu(message_container)
+            self._attach_message_menu(message_container, is_ai_message=(sender == "AI"))
 
             return message_container
 
@@ -703,7 +935,7 @@ class AIInterface:
                 self._stream_content_element = content
                 # Initialize raw text storage for streaming content
                 self._set_raw_message_text(container, "")
-                self._attach_message_menu(container)
+                self._attach_message_menu(container, is_ai_message=True)
             except Exception as e:
                 print(f"Error creating streaming element: {e}")
 
@@ -739,7 +971,7 @@ class AIInterface:
                 self._stream_content_element = response_content
                 # Initialize raw text storage for reasoning responses
                 self._set_raw_message_text(container, "")
-                self._attach_message_menu(container)
+                self._attach_message_menu(container, is_ai_message=True)
             except Exception as e:
                 print(f"Error creating reasoning element: {e}")
 

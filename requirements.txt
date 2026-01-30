@@ -9,3 +9,6 @@ geckodriver-autoinstaller
 requests
 types-requests
 mypy==1.11.2
+kokoro>=0.9.4
+soundfile
+numpy

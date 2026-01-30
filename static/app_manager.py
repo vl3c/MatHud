@@ -188,9 +188,25 @@ class AppManager:
 
         # Initialize workspace manager
         app.workspace_manager = WorkspaceManager()
-        
+
+        # Initialize TTS manager (eager load to check availability at startup)
+        AppManager._initialize_tts()
+
         # Import and register routes
         from static.routes import register_routes
         register_routes(app)
-        
-        return app 
+
+        return app
+
+    @staticmethod
+    def _initialize_tts() -> None:
+        """Initialize TTS manager and log availability status."""
+        try:
+            from static.tts_manager import get_tts_manager
+            manager = get_tts_manager()
+            if manager.is_available():
+                print("TTS: Kokoro initialized successfully")
+            else:
+                print("TTS: Kokoro not available (install with: pip install kokoro)")
+        except Exception as e:
+            print(f"TTS: Failed to initialize ({e})")
