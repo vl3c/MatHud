@@ -34,3 +34,10 @@ package-lock.json
 
 # Temporary
 temp_files/
+
+# CLI output (screenshots, etc.)
+cli/output/*
+!cli/output/.gitkeep
+
+# CLI server PID file
+.mathud_server.pid

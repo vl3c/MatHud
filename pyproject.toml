@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mathud"
+version = "0.1.0"
+description = "Mathematical canvas with AI assistant"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "openai>=1.60.0",
+    "anthropic>=0.40.0",
+    "flask",
+    "flask-session",
+    "cachelib",
+    "python-dotenv",
+    "selenium",
+    "geckodriver-autoinstaller",
+    "requests",
+    "kokoro>=0.9.4",
+    "soundfile",
+    "numpy",
+    "click>=8.0.0",
+    "webdriver-manager>=4.0.0",
+    "psutil>=5.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "mypy==1.11.2",
+    "types-requests",
+]
+
+[project.scripts]
+mathud = "cli.main:cli"
+
+[tool.setuptools.packages.find]
+include = ["cli*", "static*"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
