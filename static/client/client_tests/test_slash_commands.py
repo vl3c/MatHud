@@ -585,6 +585,8 @@ class TestVisionCommand(unittest.TestCase):
             self.workspace_manager,  # type: ignore
             self.ai_interface,  # type: ignore
         )
+        # Mock vision model check to always return True for testing
+        self.handler._selected_model_has_vision = lambda: True  # type: ignore
 
     def test_cmd_vision_toggles(self) -> None:
         """Test /vision command toggles vision mode."""

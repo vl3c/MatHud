@@ -172,6 +172,72 @@ class TestTestCommands:
         assert result.exit_code == 1
         assert "error" in result.output.lower()
 
+    @patch("cli.tests.run_client_tests")
+    def test_test_client_captures_screenshot_by_default(self, mock_run: MagicMock) -> None:
+        """test client captures screenshot by default."""
+        mock_run.return_value = {
+            "status": "complete",
+            "tests_run": 10,
+            "failures": 0,
+            "errors": 0,
+            "screenshot": "cli/output/test_results_20240101_120000.png",
+        }
+        runner = CliRunner()
+        result = runner.invoke(cli, ["test", "client"])
+
+        assert result.exit_code == 0
+        assert "Screenshot saved to:" in result.output
+        mock_run.assert_called_once()
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["capture_screenshot"] is True
+
+    @patch("cli.tests.run_client_tests")
+    def test_test_client_no_screenshot_flag(self, mock_run: MagicMock) -> None:
+        """test client --no-screenshot disables screenshot."""
+        mock_run.return_value = {"status": "complete", "tests_run": 10, "failures": 0, "errors": 0}
+        runner = CliRunner()
+        result = runner.invoke(cli, ["test", "client", "--no-screenshot"])
+
+        mock_run.assert_called_once()
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["capture_screenshot"] is False
+        assert "Screenshot saved to:" not in result.output
+
+    @patch("cli.tests.run_client_tests")
+    def test_test_client_custom_screenshot_path(self, mock_run: MagicMock) -> None:
+        """test client -o uses custom screenshot path."""
+        mock_run.return_value = {
+            "status": "complete",
+            "tests_run": 10,
+            "failures": 0,
+            "errors": 0,
+            "screenshot": "custom_results.png",
+        }
+        runner = CliRunner()
+        result = runner.invoke(cli, ["test", "client", "-o", "custom_results.png"])
+
+        assert result.exit_code == 0
+        mock_run.assert_called_once()
+        call_kwargs = mock_run.call_args[1]
+        assert call_kwargs["screenshot_path"] == "custom_results.png"
+
+    @patch("cli.tests.run_client_tests")
+    def test_test_client_screenshot_shown_on_failure(self, mock_run: MagicMock) -> None:
+        """test client shows screenshot path even when tests fail."""
+        mock_run.return_value = {
+            "status": "complete",
+            "tests_run": 10,
+            "failures": 2,
+            "errors": 0,
+            "failing_tests": [{"test": "test_foo", "error": "Failed"}],
+            "screenshot": "cli/output/test_results_20240101_120000.png",
+        }
+        runner = CliRunner()
+        result = runner.invoke(cli, ["test", "client"])
+
+        assert result.exit_code == 1
+        assert "Screenshot saved to:" in result.output
+
 
 class TestCanvasCommands:
     """Test canvas subcommands."""

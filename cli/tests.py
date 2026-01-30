@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -22,6 +23,7 @@ from cli.config import (
     PROJECT_ROOT,
     get_python_path,
 )
+from cli.screenshot import generate_default_filename
 from cli.server import ServerManager
 
 
@@ -98,6 +100,8 @@ def run_client_tests(
     timeout: int = CLIENT_TEST_TIMEOUT,
     headless: bool = True,
     start_server: bool = False,
+    capture_screenshot: bool = True,
+    screenshot_path: Optional[str] = None,
 ) -> dict:
     """Run client-side Brython tests via headless browser.
 
@@ -106,9 +110,11 @@ def run_client_tests(
         timeout: Maximum time to wait for tests.
         headless: Run browser in headless mode.
         start_server: Start server if not running.
+        capture_screenshot: Capture screenshot after tests complete.
+        screenshot_path: Custom path for screenshot output.
 
     Returns:
-        Test results dictionary.
+        Test results dictionary with optional 'screenshot' key.
     """
     manager = ServerManager(port=port)
     server_was_started = False
@@ -145,6 +151,14 @@ def run_client_tests(
 
             click.echo(f"Waiting for tests to complete (timeout: {timeout}s)...")
             results = browser.poll_test_results(timeout=timeout, poll_interval=CLIENT_TEST_POLL_INTERVAL)
+
+            # Capture screenshot before browser closes
+            if capture_screenshot and results.get("status") not in ("error", "timeout"):
+                time.sleep(1)  # Allow UI to update with final results
+                output_path = Path(screenshot_path) if screenshot_path else generate_default_filename("test_results")
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                if browser.capture_screenshot(str(output_path)):
+                    results["screenshot"] = str(output_path)
 
             return results
 
@@ -206,12 +220,21 @@ def server_cmd(
 @click.option("--no-headless", is_flag=True, help="Show browser window")
 @click.option("--start-server", is_flag=True, help="Start server if not running")
 @click.option("--json", "as_json", is_flag=True, help="Output results as JSON")
+@click.option(
+    "--screenshot-output",
+    "-o",
+    type=click.Path(),
+    help="Screenshot output path (default: cli/output/test_results_<timestamp>.png)",
+)
+@click.option("--no-screenshot", is_flag=True, help="Disable automatic screenshot")
 def client_cmd(
     port: int,
     timeout: int,
     no_headless: bool,
     start_server: bool,
     as_json: bool,
+    screenshot_output: Optional[str],
+    no_screenshot: bool,
 ) -> None:
     """Run client-side Brython tests via headless Chrome."""
     results = run_client_tests(
@@ -219,6 +242,8 @@ def client_cmd(
         timeout=timeout,
         headless=not no_headless,
         start_server=start_server,
+        capture_screenshot=not no_screenshot,
+        screenshot_path=screenshot_output,
     )
 
     if as_json:
@@ -245,6 +270,8 @@ def client_cmd(
                 click.echo(click.style(f"Failures: {failures}", fg="green"))
                 click.echo(click.style(f"Errors: {errors}", fg="green"))
                 click.echo(click.style("\nAll tests passed!", fg="green", bold=True))
+                if results.get("screenshot"):
+                    click.echo(f"\nScreenshot saved to: {results['screenshot']}")
             else:
                 click.echo(click.style(f"Failures: {failures}", fg="red" if failures else "green"))
                 click.echo(click.style(f"Errors: {errors}", fg="red" if errors else "green"))
@@ -259,6 +286,8 @@ def client_cmd(
                     for err in results["error_tests"]:
                         click.echo(f"  - {err.get('test', 'Unknown')}: {err.get('error', '')}")
 
+                if results.get("screenshot"):
+                    click.echo(f"\nScreenshot saved to: {results['screenshot']}")
                 raise SystemExit(1)
 
 
@@ -295,6 +324,10 @@ def all_cmd(port: int, with_auth: bool, start_server: bool) -> None:
 
     if failures > 0 or errors > 0:
         click.echo(click.style(f"\nClient tests: {failures} failures, {errors} errors", fg="red"))
+        if results.get("screenshot"):
+            click.echo(f"Screenshot saved to: {results['screenshot']}")
         raise SystemExit(1)
 
     click.echo(click.style(f"\nAll tests passed! (Server + {results.get('tests_run', 0)} client tests)", fg="green", bold=True))
+    if results.get("screenshot"):
+        click.echo(f"\nScreenshot saved to: {results['screenshot']}")
