@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch, mock_open
@@ -85,9 +86,65 @@ class TestServerManagerGetPid:
         mock_pid_file.exists.return_value = True
         mock_pid_file.read_text.return_value = "12345"
 
+        mock_process = MagicMock()
+        mock_process.cmdline.return_value = ["python", "app.py", "--port", "5000"]
+
         with patch("cli.server.PID_FILE", mock_pid_file):
             with patch("cli.server.psutil.pid_exists", return_value=True):
-                assert manager.get_pid() == 12345
+                with patch("cli.server.psutil.Process", return_value=mock_process):
+                    assert manager.get_pid() == 12345
+
+    def test_legacy_pid_file_non_server_process_is_cleaned_up(self) -> None:
+        """Legacy PID files are removed when PID belongs to another process."""
+        manager = ServerManager()
+
+        mock_pid_file = MagicMock(spec=Path)
+        mock_pid_file.exists.return_value = True
+        mock_pid_file.read_text.return_value = "12345"
+
+        mock_process = MagicMock()
+        mock_process.cmdline.return_value = ["python", "some_other_script.py"]
+
+        with patch("cli.server.PID_FILE", mock_pid_file):
+            with patch("cli.server.psutil.pid_exists", return_value=True):
+                with patch("cli.server.psutil.Process", return_value=mock_process):
+                    result = manager.get_pid()
+                    assert result is None
+                    mock_pid_file.unlink.assert_called_once()
+
+    def test_legacy_pid_file_process_cmdline_unreadable_is_cleaned_up(self) -> None:
+        """Legacy PID files are removed when process cmdline cannot be inspected."""
+        manager = ServerManager()
+
+        mock_pid_file = MagicMock(spec=Path)
+        mock_pid_file.exists.return_value = True
+        mock_pid_file.read_text.return_value = "12345"
+
+        import psutil
+        with patch("cli.server.PID_FILE", mock_pid_file):
+            with patch("cli.server.psutil.pid_exists", return_value=True):
+                with patch("cli.server.psutil.Process", side_effect=psutil.AccessDenied(pid=12345)):
+                    result = manager.get_pid()
+                    assert result is None
+                    mock_pid_file.unlink.assert_called_once()
+
+    def test_valid_pid_file_json_with_matching_create_time_returns_pid(self) -> None:
+        """JSON PID records return PID when create_time matches running process."""
+        manager = ServerManager(port=5000)
+
+        mock_pid_file = MagicMock(spec=Path)
+        mock_pid_file.exists.return_value = True
+        mock_pid_file.read_text.return_value = json.dumps(
+            {"pid": 12345, "create_time": 1000.0, "port": 5000}
+        )
+
+        mock_process = MagicMock()
+        mock_process.create_time.return_value = 1000.2
+
+        with patch("cli.server.PID_FILE", mock_pid_file):
+            with patch("cli.server.psutil.pid_exists", return_value=True):
+                with patch("cli.server.psutil.Process", return_value=mock_process):
+                    assert manager.get_pid() == 12345
 
     def test_stale_pid_file_returns_none_and_cleans_up(self) -> None:
         """get_pid returns None and removes stale PID file."""
@@ -102,6 +159,40 @@ class TestServerManagerGetPid:
                 result = manager.get_pid()
                 assert result is None
                 mock_pid_file.unlink.assert_called_once()
+
+    def test_pid_file_with_reused_pid_is_cleaned_up(self) -> None:
+        """get_pid removes record when PID exists but process create_time mismatches."""
+        manager = ServerManager(port=5000)
+
+        mock_pid_file = MagicMock(spec=Path)
+        mock_pid_file.exists.return_value = True
+        mock_pid_file.read_text.return_value = json.dumps(
+            {"pid": 12345, "create_time": 1000.0, "port": 5000}
+        )
+
+        mock_process = MagicMock()
+        mock_process.create_time.return_value = 2000.0
+
+        with patch("cli.server.PID_FILE", mock_pid_file):
+            with patch("cli.server.psutil.pid_exists", return_value=True):
+                with patch("cli.server.psutil.Process", return_value=mock_process):
+                    result = manager.get_pid()
+                    assert result is None
+                    mock_pid_file.unlink.assert_called_once()
+
+    def test_pid_file_wrong_port_is_ignored(self) -> None:
+        """get_pid ignores records tied to another port."""
+        manager = ServerManager(port=5000)
+
+        mock_pid_file = MagicMock(spec=Path)
+        mock_pid_file.exists.return_value = True
+        mock_pid_file.read_text.return_value = json.dumps(
+            {"pid": 12345, "create_time": 1000.0, "port": 5001}
+        )
+
+        with patch("cli.server.PID_FILE", mock_pid_file):
+            assert manager.get_pid() is None
+            mock_pid_file.unlink.assert_not_called()
 
 
 class TestServerManagerStatus:
@@ -173,6 +264,18 @@ class TestServerManagerStart:
 
                     assert success is False
                     assert "not found" in message.lower()
+
+    def test_start_when_port_in_use(self) -> None:
+        """start returns a clear error when target port is already occupied."""
+        manager = ServerManager(port=5000)
+
+        with patch.object(manager, "is_server_running", return_value=False):
+            with patch.object(manager, "_is_port_available", return_value=False):
+                with patch.object(manager, "_find_listener_pid_on_port", return_value=41268):
+                    success, message = manager.start()
+                    assert success is False
+                    assert "port 5000 is already in use" in message.lower()
+                    assert "41268" in message
 
 
 class TestServerManagerStop:
