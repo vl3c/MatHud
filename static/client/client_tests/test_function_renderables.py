@@ -52,8 +52,23 @@ class TestFunctionRenderable(unittest.TestCase):
 
         result = renderable.build_screen_paths()
 
-        if len(result.paths) > 1:
-            self.assertGreater(len(result.paths), 1)
+        self.assertGreaterEqual(len(result.paths), 1)
+        self.assertTrue(any(len(path) > 1 for path in result.paths))
+
+    def test_discontinuous_function_samples_both_sides_of_asymptote(self) -> None:
+        func = Function("1/x", name="h")
+        renderable = FunctionRenderable(func, self.mapper)
+
+        result = renderable.build_screen_paths()
+
+        math_x_values: list[float] = []
+        for path in result.paths:
+            for screen_x, screen_y in path:
+                math_x, _ = self.mapper.screen_to_math(screen_x, screen_y)
+                math_x_values.append(math_x)
+
+        self.assertTrue(any(x < 0 for x in math_x_values))
+        self.assertTrue(any(x > 0 for x in math_x_values))
 
     def test_trigonometric_function_evaluates(self) -> None:
         func = Function("sin(x)", name="s")
@@ -309,6 +324,7 @@ class TestBoundaryExtension(unittest.TestCase):
         # Should have 2 sub-paths (one for x<0, one for x>0)
         self.assertGreaterEqual(len(result.paths), 1)
         
+        boundary_hits = 0
         for path in result.paths:
             if len(path) >= 2:
                 # First and last points should be at or beyond screen boundaries
@@ -316,11 +332,11 @@ class TestBoundaryExtension(unittest.TestCase):
                 first_y = path[0][1]
                 last_y = path[-1][1]
                 # At least one endpoint should be at boundary for steep functions
-                at_boundary = (first_y <= 0 or first_y >= self.height or 
-                              last_y <= 0 or last_y >= self.height)
-                # This is expected for 1/x near asymptotes
-                if at_boundary:
-                    self.assertTrue(True)
+                if first_y <= 0 or first_y >= self.height:
+                    boundary_hits += 1
+                if last_y <= 0 or last_y >= self.height:
+                    boundary_hits += 1
+        self.assertGreater(boundary_hits, 0)
 
     def test_quadratic_function_extends_to_top_boundary(self) -> None:
         # x^2 opens upward, in screen coords the parabola dips down in center
