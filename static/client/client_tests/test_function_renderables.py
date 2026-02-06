@@ -60,6 +60,7 @@ class TestFunctionRenderable(unittest.TestCase):
         renderable = FunctionRenderable(func, self.mapper)
 
         result = renderable.build_screen_paths()
+        self.assertGreaterEqual(len(result.paths), 2)
 
         math_x_values: list[float] = []
         for path in result.paths:
