@@ -5,12 +5,14 @@ Provides start/stop/status commands for the Flask server.
 
 from __future__ import annotations
 
+import json
 import os
 import signal
+import socket
 import subprocess
 import sys
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import click
 import psutil
@@ -42,6 +44,83 @@ class ServerManager:
         self.port = port
         self.base_url = f"http://{host}:{port}"
 
+    def _load_pid_record(self) -> Optional[dict[str, Any]]:
+        """Load PID record from disk.
+
+        Supports both legacy plain integer format and JSON records.
+        """
+        if not PID_FILE.exists():
+            return None
+
+        try:
+            raw = PID_FILE.read_text().strip()
+            if not raw:
+                return None
+
+            # Backward compatibility with legacy format: plain PID text.
+            if raw.isdigit():
+                return {"pid": int(raw), "create_time": None, "port": None}
+
+            data = json.loads(raw)
+            if isinstance(data, dict) and isinstance(data.get("pid"), int):
+                return data
+        except (OSError, ValueError, json.JSONDecodeError):
+            return None
+
+        return None
+
+    def _is_pid_record_current(self, pid: int, create_time: Any) -> bool:
+        """Validate that PID points to the same process instance."""
+        if not psutil.pid_exists(pid):
+            return False
+
+        # If create_time is unavailable (legacy records), validate process command.
+        if create_time is None:
+            try:
+                process = psutil.Process(pid)
+                cmdline = " ".join(process.cmdline()).lower()
+                app_path = str(APP_MODULE).lower()
+                return app_path in cmdline or "app.py" in cmdline
+            except (psutil.Error, OSError):
+                return False
+
+        try:
+            process = psutil.Process(pid)
+            current_create_time = process.create_time()
+            # Tolerate sub-second rounding differences across platforms.
+            return abs(current_create_time - float(create_time)) < 1.0
+        except (psutil.Error, OSError, ValueError, TypeError):
+            return False
+
+    def _is_port_available(self) -> bool:
+        """Check whether host:port can be bound by a new process."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((self.host, self.port))
+                return True
+            except OSError:
+                return False
+
+    def _find_listener_pid_on_port(self) -> Optional[int]:
+        """Best-effort lookup for PID currently listening on host:port."""
+        try:
+            for conn in psutil.net_connections(kind="tcp"):
+                if conn.status != psutil.CONN_LISTEN:
+                    continue
+                laddr = conn.laddr
+                if not laddr:
+                    continue
+                if laddr.port != self.port:
+                    continue
+                if laddr.ip not in (self.host, "0.0.0.0", "::", "::1"):
+                    continue
+                if conn.pid is not None:
+                    return conn.pid
+        except (psutil.Error, OSError):
+            return None
+        return None
+
     def is_server_running(self) -> bool:
         """Check if the server is running by making a health check request.
 
@@ -63,19 +142,26 @@ class ServerManager:
         Returns:
             The PID if available and process exists, None otherwise.
         """
-        if not PID_FILE.exists():
+        record = self._load_pid_record()
+        if not record:
             return None
 
-        try:
-            pid = int(PID_FILE.read_text().strip())
-            # Check if process exists
-            if psutil.pid_exists(pid):
-                return pid
-            # PID file exists but process doesn't - clean up
-            PID_FILE.unlink()
+        pid = record.get("pid")
+        if not isinstance(pid, int):
+            self._remove_pid_file()
             return None
-        except (ValueError, OSError):
+
+        # Optional port affinity check for JSON records.
+        record_port = record.get("port")
+        if isinstance(record_port, int) and record_port != self.port:
             return None
+
+        if self._is_pid_record_current(pid, record.get("create_time")):
+            return pid
+
+        # PID file exists but process doesn't match anymore - clean up
+        self._remove_pid_file()
+        return None
 
     def _save_pid(self, pid: int) -> None:
         """Save the server PID to the PID file.
@@ -83,7 +169,21 @@ class ServerManager:
         Args:
             pid: The process ID to save.
         """
-        PID_FILE.write_text(str(pid))
+        create_time: Optional[float] = None
+        try:
+            create_time = psutil.Process(pid).create_time()
+        except (psutil.Error, OSError):
+            create_time = None
+
+        PID_FILE.write_text(
+            json.dumps(
+                {
+                    "pid": pid,
+                    "create_time": create_time,
+                    "port": self.port,
+                }
+            )
+        )
 
     def _remove_pid_file(self) -> None:
         """Remove the PID file if it exists."""
@@ -102,6 +202,21 @@ class ServerManager:
         # Check if already running
         if self.is_server_running():
             return False, f"Server is already running at {self.base_url}"
+
+        # Fail fast when another process already owns the port.
+        if not self._is_port_available():
+            owner_pid = self._find_listener_pid_on_port()
+            if owner_pid is not None:
+                return (
+                    False,
+                    f"Port {self.port} is already in use by PID {owner_pid}. "
+                    f"Choose another port or stop that process.",
+                )
+            return (
+                False,
+                f"Port {self.port} is already in use. "
+                f"Choose another port or stop the existing listener.",
+            )
 
         # Check for stale PID
         existing_pid = self.get_pid()
