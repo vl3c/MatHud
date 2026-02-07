@@ -206,6 +206,26 @@ class TestWorkspaceManagement(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unsupported workspace schema_version"):
             self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
 
+    def test_load_workspace_accepts_string_schema_version(self) -> None:
+        """String schema_version values should be parsed for compatibility."""
+        workspace_name = "test_string_schema_workspace"
+        workspace_path = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{workspace_name}.json")
+        data = {
+            "metadata": {
+                "name": workspace_name,
+                "last_modified": datetime.now().isoformat(),
+                "schema_version": str(CURRENT_WORKSPACE_SCHEMA_VERSION),
+            },
+            "state": {"Points": [{"x": 0, "y": 0, "name": "A"}]},
+        }
+        with open(workspace_path, 'w') as f:
+            json.dump(data, f)
+
+        loaded_state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
+        loaded_state_dict = cast(Dict[str, Any], loaded_state)
+        self.assertIn("Points", loaded_state_dict)
+        self.assertEqual(len(cast(list, loaded_state_dict["Points"])), 1)
+
     def test_list_workspaces(self) -> None:
         """Test listing all workspaces."""
         workspace_names = ["test_ws1", "test_ws2", "test_ws3"]

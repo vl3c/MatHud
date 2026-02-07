@@ -504,8 +504,8 @@ class TestCoordinateMapper(unittest.TestCase):
         self.assertEqual(self.mapper.scale_factor, 1.5)
         self.assertEqual(self.mapper.offset.x, 75)
         self.assertEqual(self.mapper.offset.y, -25)
-        self.assertEqual(self.mapper.origin.x, 520)  # From cartesian2axis.origin
-        self.assertEqual(self.mapper.origin.y, 380)
+        self.assertEqual(self.mapper.origin.x, 500)  # From center (preferred over cartesian2axis.origin)
+        self.assertEqual(self.mapper.origin.y, 400)
         self.assertEqual(self.mapper.zoom_point.x, 600)
         self.assertEqual(self.mapper.zoom_point.y, 300)
         self.assertEqual(self.mapper.zoom_direction, -1)
@@ -697,8 +697,8 @@ class TestCoordinateMapper(unittest.TestCase):
         self.assertEqual(mapper.scale_factor, 0.8)
         self.assertEqual(mapper.offset.x, -75)
         self.assertEqual(mapper.offset.y, 40)
-        self.assertEqual(mapper.origin.x, 450)
-        self.assertEqual(mapper.origin.y, 350)
+        self.assertEqual(mapper.origin.x, 700)  # width / 2 when center is absent
+        self.assertEqual(mapper.origin.y, 500)  # height / 2 when center is absent
         self.assertEqual(mapper.zoom_direction, 1)
         self.assertEqual(mapper.zoom_step, 0.2)
     

@@ -98,6 +98,7 @@ from .test_generic_polygon import TestGenericPolygon
 from .test_vector import TestVector
 from .test_angle import TestAngle
 from .test_angle_manager import TestAngleManager
+from .test_undo_redo_manager import TestUndoRedoManager
 from .test_arc_manager import TestArcManager
 from .test_workspace_manager import TestWorkspaceLabelRestore, TestWorkspaceSegmentPersistence
 from .test_workspace_plots import TestWorkspacePlotsRestore
@@ -402,6 +403,7 @@ class Tests:
             TestCircleArc,
             TestAngle,
             TestAngleManager,
+            TestUndoRedoManager,
             TestArcManager,
             TestEllipse,
             TestFunction,
