@@ -504,7 +504,7 @@ class TestCoordinateMapper(unittest.TestCase):
         self.assertEqual(self.mapper.scale_factor, 1.5)
         self.assertEqual(self.mapper.offset.x, 75)
         self.assertEqual(self.mapper.offset.y, -25)
-        self.assertEqual(self.mapper.origin.x, 500)  # From center (preferred over cartesian2axis.origin)
+        self.assertEqual(self.mapper.origin.x, 500)  # center takes precedence
         self.assertEqual(self.mapper.origin.y, 400)
         self.assertEqual(self.mapper.zoom_point.x, 600)
         self.assertEqual(self.mapper.zoom_point.y, 300)
@@ -550,7 +550,7 @@ class TestCoordinateMapper(unittest.TestCase):
                 
                 class MockCartesian:
                     def __init__(self) -> None:
-                        self.origin = Position(600, 450)
+                        self.origin = Position(630, 470)
                         
                 self.cartesian2axis = MockCartesian()
         
@@ -565,7 +565,7 @@ class TestCoordinateMapper(unittest.TestCase):
         self.assertEqual(mapper.scale_factor, 2.5)
         self.assertEqual(mapper.offset.x, 150)
         self.assertEqual(mapper.offset.y, -100)
-        self.assertEqual(mapper.origin.x, 600)
+        self.assertEqual(mapper.origin.x, 600)  # Falls back to width/2 without center
         self.assertEqual(mapper.origin.y, 450)
     
     def test_coordinate_conversion_with_offset(self) -> None:
@@ -595,7 +595,7 @@ class TestCoordinateMapper(unittest.TestCase):
     def test_from_canvas_with_simple_mock_full_featured(self) -> None:
         """Test from_canvas factory method with SimpleMock having all canvas features."""
         # Create a full-featured mock canvas using SimpleMock
-        cartesian_mock = SimpleMock(origin=Position(600, 400))
+        cartesian_mock = SimpleMock(origin=Position(650, 420))
         canvas_mock = SimpleMock(
             width=1200,
             height=800,
@@ -616,7 +616,7 @@ class TestCoordinateMapper(unittest.TestCase):
         self.assertEqual(mapper.scale_factor, 2.0)
         self.assertEqual(mapper.offset.x, 100)
         self.assertEqual(mapper.offset.y, -50)
-        self.assertEqual(mapper.origin.x, 600)   # From cartesian2axis.origin
+        self.assertEqual(mapper.origin.x, 600)   # Falls back to width/2 without center
         self.assertEqual(mapper.origin.y, 400)
         self.assertEqual(mapper.zoom_point.x, 700)
         self.assertEqual(mapper.zoom_point.y, 350)
@@ -697,10 +697,43 @@ class TestCoordinateMapper(unittest.TestCase):
         self.assertEqual(mapper.scale_factor, 0.8)
         self.assertEqual(mapper.offset.x, -75)
         self.assertEqual(mapper.offset.y, 40)
-        self.assertEqual(mapper.origin.x, 700)  # width / 2 when center is absent
-        self.assertEqual(mapper.origin.y, 500)  # height / 2 when center is absent
+        self.assertEqual(mapper.origin.x, 700)  # Falls back to width/2 without center
+        self.assertEqual(mapper.origin.y, 500)
         self.assertEqual(mapper.zoom_direction, 1)
         self.assertEqual(mapper.zoom_step, 0.2)
+
+    def test_sync_from_canvas_prefers_center_over_cartesian_origin(self) -> None:
+        """When both fields are present, center is the source of origin."""
+        canvas_mock = SimpleMock(
+            width=1000,
+            height=800,
+            scale_factor=1.2,
+            offset=Position(25, -10),
+            center=Position(530, 390),
+            cartesian2axis=SimpleMock(origin=Position(470, 360)),
+        )
+
+        mapper = CoordinateMapper(640, 480)
+        mapper.sync_from_canvas(canvas_mock)
+
+        self.assertEqual(mapper.origin.x, 530)
+        self.assertEqual(mapper.origin.y, 390)
+
+    def test_sync_from_canvas_ignores_cartesian_when_center_missing(self) -> None:
+        """Without center, origin falls back to canvas midpoint."""
+        canvas_mock = SimpleMock(
+            width=1000,
+            height=800,
+            scale_factor=1.2,
+            offset=Position(25, -10),
+            cartesian2axis=SimpleMock(origin=Position(470, 360)),
+        )
+
+        mapper = CoordinateMapper(640, 480)
+        mapper.sync_from_canvas(canvas_mock)
+
+        self.assertEqual(mapper.origin.x, 500)
+        self.assertEqual(mapper.origin.y, 400)
     
     def test_sync_from_canvas_partial_properties(self) -> None:
         """Test sync_from_canvas with SimpleMock having only some properties."""
@@ -733,8 +766,9 @@ class TestCoordinateMapper(unittest.TestCase):
     
     def test_sync_from_canvas_coordinate_transformations_work(self) -> None:
         """Test that coordinate transformations work correctly after sync_from_canvas."""
-        # Create mock canvas with specific transformation state
-        cartesian_mock = SimpleMock(origin=Position(500, 300))
+        # Create mock canvas with specific transformation state.
+        # cartesian2axis.origin should be ignored when center is absent.
+        cartesian_mock = SimpleMock(origin=Position(600, 400))
         canvas_mock = SimpleMock(
             width=1000,
             height=600,
@@ -748,8 +782,8 @@ class TestCoordinateMapper(unittest.TestCase):
         
         # Test that coordinate transformations use synced values
         screen_x, screen_y = mapper.math_to_screen(0, 0)
-        expected_x = 500 + 0 * 2.0 + 100  # origin.x + math_x * scale + offset.x
-        expected_y = 300 - 0 * 2.0 + (-50)  # origin.y - math_y * scale + offset.y
+        expected_x = 500 + 0 * 2.0 + 100  # fallback origin.x (width / 2) + math_x * scale + offset.x
+        expected_y = 300 - 0 * 2.0 + (-50)  # fallback origin.y (height / 2) - math_y * scale + offset.y
         
         self.assertEqual(screen_x, expected_x)
         self.assertEqual(screen_y, expected_y)
