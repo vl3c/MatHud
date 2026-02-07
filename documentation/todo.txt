@@ -1,120 +1,98 @@
-# Delivery Plan (P0/P1/P2)
+# Delivery Plan (AI-First P0/P1/P2)
+
+## Product Direction (Source of Truth)
+- MatHud is an AI-augmented app: user intent is expressed in chat, AI executes tool workflows, HUD canvas visualizes results.
+- Prioritize capabilities that improve AI intent interpretation, deterministic execution, and clear visual feedback in the HUD.
+- UI gestures are secondary unless they directly support AI workflows (inspection, confirmation, lightweight overrides).
 
 ## P0 - Reliability (implement first)
-- fix angle creation undo/redo transaction flow to prevent partial state commits
-- add rollback on multi-step drawable creation failures (points/segments/angles)
-- harden workspace import with schema versioning and backward-compatible migrations
-- improve renderer parity checks so Canvas2D/SVG produce consistent geometry and labels
-- add WebGL renderer parity checks after WebGL feature-completeness improves (labels/text and full drawable parity)
+- enforce atomic undo/redo transactions for AI-initiated multi-step operations to prevent partial state commits
+- guarantee rollback for failed multi-step drawable creation/update pipelines (points/segments/angles and similar chained operations)
+- harden workspace import/export with schema versioning and backward-compatible migrations for long-term AI session continuity
+- strengthen renderer parity checks so Canvas2D/SVG produce consistent geometry and label output for AI-generated scenes
+- defer full WebGL parity checks until WebGL reaches feature completeness (text/labels and full drawable coverage)
+- add deterministic tool-execution logs and replayability for AI action traces (inputs, resolved targets, resulting state deltas)
 
 ## P1 - Core User Value (implement after P0)
-- snapping: point/object snapping, grid snapping, coordinate readout
-- data entry: table view, CSV import/export, measurement overlays
-- plotting: scatter/histogram/box plot, polar graphs, implicit function plotting
-- geometry: construction tools, relation inspector, transforms
-- interaction: tracing/root-finding tools, dynamic sliders, interactive graph editing
-- statistics: summaries, additional distributions, probability calculators
+- constraint resolution and semantic snapping: resolve references like nearest endpoint/intersection/midpoint/on-curve target during tool execution
+- coordinate readout and confirmations: return exact resolved coordinates/objects in responses and HUD overlays
+- tabular workflow: create/query/update data tables from chat with HUD-linked previews
+- CSV workflow: import/export datasets through chat commands with validation and schema feedback
+- plotting suite: scatter/histogram/box plots, polar plots, implicit plots from natural language intents
+- geometric construction toolkit: midpoint/perpendicular/parallel/bisectors/circle-through-3-points through declarative commands
+- relation inspector: explain and verify geometric relations (parallel/perpendicular/collinear/concyclic/equal-length) on demand
+- transform workflows: reflection/dilation/shear/rotation/translation using object references and constraint-aware execution
+- interaction tools: tracing, root/extrema/intersection discovery, parameter sweeps, and dynamic slider orchestration from chat
+- statistics workflows: summaries, additional distributions, and probability calculators with explanation-friendly output
 
 ## P2 - Advanced and Expansion
-- construction history timeline and reusable macros
-- vector fields, contour/heatmap rendering
-- graph theory: algorithm playback, generators, matrix view
-- multi-view: split screen, tabbed workspaces, dual display
-- animation timeline controls, locus generation
-- session snapshots with diff/restore
-- keyboard shortcut editor and command palette
-- 3D graphing and shape visualization
+- construction history timeline with natural-language rewind/replay and branch exploration
+- reusable macros: user-defined higher-level commands composed from existing tool primitives
+- vector field and contour/heatmap generation with explainable parameterization
+- graph-theory workflow: graph generation, editing, matrix views, and algorithm playback controlled through chat
+- workspace orchestration: split-screen/tabbed/dual-view layouts selected and managed based on task context
+- animation controls: timeline/loop/speed/locus generation via declarative commands
+- session snapshots and diff/restore for reproducible exploratory workflows
+- command palette and shortcut management (optional power-user overlay over core conversational UX)
+- 3D roadmap: 3D graphing and shape workflows once 2D reliability/value goals are complete
 
 ## Milestones
-- Milestone 1 (Stability): all P0 items
-- Milestone 2 (Interaction): snapping, table view, CSV, measurement overlays
-- Milestone 3 (Plotting + Stats): scatter/histogram/box plot, polar, implicit, distributions, probability calculators
-- Milestone 4 (Geometry): construction tools, relation inspector, transforms, tracing/sliders
-- Milestone 5 (Graph Workflow): interactive graph editing, algorithm playback, generators, matrix view
-- Milestone 6 (Advanced): remaining P2 items (visualization, productivity, 3D)
+- Milestone 1 (Stability): complete all P0 reliability and deterministic execution foundations
+- Milestone 2 (AI Interaction Core): semantic snapping/constraint resolution, coordinate confirmations, table + CSV flows
+- Milestone 3 (AI Plotting + Stats): plotting suite plus distribution/probability/stat-summary workflows
+- Milestone 4 (AI Geometry): construction toolkit, relation inspector, and transform workflows
+- Milestone 5 (AI Exploratory Workflow): tracing/sliders/interactive graph workflows and algorithm playback
+- Milestone 6 (Advanced): remaining P2 capabilities (automation, visualization, productivity, 3D)
 
 # Backlog
 
-## Bug Fixes
-- fix angle creation undo/redo transaction flow to prevent partial state commits
-- add rollback on multi-step drawable creation failures (points/segments/angles)
-- harden workspace import with schema versioning and backward-compatible migrations
-- improve renderer parity checks so Canvas2D/SVG produce consistent geometry and labels
-- add WebGL renderer parity checks after WebGL feature-completeness improves (labels/text and full drawable parity)
+## Reliability and Execution Integrity
+_Elaborates on P0 goals with ongoing design principles._
+- atomic transaction boundaries for all tool batches that mutate canvas state
+- rollback + compensation strategy for partial failures inside composite actions
+- strict validation and canonicalization of tool arguments before execution
+- deterministic ordering for ambiguous target resolution (stable tie-break rules)
+- renderer parity tests focused on Canvas2D/SVG output consistency
+- WebGL parity and label support after WebGL matures
 
-## Quick Wins (High Value, Easier Implementation)
-- add table view for function values and lightweight tabular data exploration
-- add scatter plot, histogram, and box plot visualization
-- add polar graph support for functions in polar coordinates (r = f(theta))
-- add implicit function plotting (f(x,y) = 0 style equations)
-- add grid snapping and coordinate readout on graph hover
-- add rationalize support (and document it)
-- add point/object snapping modes (endpoints, intersections, midpoints, nearest-on-curve)
-- add measurement overlays (live distance/angle/area/perimeter while selecting objects)
-- add CSV import/export for tabular datasets and plotted points
+## Intent Resolution and Constraints
+- semantic snapping modes: endpoint/intersection/midpoint/nearest-on-curve/grid quantization
+- tolerance policy management for intent resolution (global defaults + per-command overrides)
+- conflict handling when user intent is under-specified (ask-back strategy vs deterministic fallback)
+- explainable resolution traces in AI responses (what was selected, why, and resulting coordinates)
 
-## Core Mathematical Tools (Medium Effort)
-- add row operations / row-reduction workflows (rref, row swaps, etc.)
-- add eigenvalue and eigenvector computation
-- add complex number utilities plus base-n calculations and conversions (binary, octal, hexadecimal)
-- add sequence and series calculations (summation, products, convergence tests)
-- add summation and product operators for discrete analysis (Sigma, Pi)
-- add numerical integration (Simpson's rule, trapezoidal rule) - Note: Newton-Raphson implemented in numeric_solver package
-- add conic section specialized tools
-- add inequality graphing and systems of inequalities with shading controls
-- add geometric construction tools (midpoint, perpendicular/parallel line, angle/perpendicular bisector, circle through 3 points)
-- add geometric relation inspector (parallel/perpendicular/collinear/concyclic/equal length checks)
-- add reflection, dilation, and shear transforms with object/point/line references
-- add construction history timeline with step-by-step replay
-- add reusable custom construction macros/tools
+## Data and Plot Workflows
+- conversational table model for numeric/symbolic columns with formula support
+- CSV import cleanup (typing, missing values, delimiter/header inference)
+- plotting from natural language over table columns and computed expressions
+- residual/regression diagnostics and model-comparison flows expressed conversationally
+- reusable analysis templates callable as macros
 
-## Statistics and Data Analysis
-- add statistical hypothesis testing workflows (z-test, t-test, chi-square, F-test)
-- add confidence interval and ANOVA tools
-- add data list correlation and covariance functions
-- add probability plot visualization (Q-Q plots, P-P plots)
-- add cumulative frequency tables and graph generation
-- add list and spreadsheet structures for numeric and symbolic data (support formulas, basic stats, and function links)
-- add residual plots and regression diagnostics (SSE, RMSE, adjusted R-squared)
-- add weighted regression and robust regression options
-- add statistical summaries for selected point/list ranges (min/max/quartiles/IQR/stddev)
-- add additional probability distributions (binomial, poisson, t, chi-square, F, uniform, exponential)
-- add probability calculators (PDF/PMF, CDF, inverse CDF/quantiles)
+## Geometry and Math Tooling
+- declarative geometric constructions and relation proofs/checks
+- linear algebra workflows (rref/eigen decomposition and related explainability output)
+- sequence/series/summation/product and numeric integration flows optimized for conversational use
+- inequality/system region generation driven by intent + constraints
+- conic and advanced curve workflows with parameter exploration
 
-## Advanced Visualization Features
-- add interactive tracing, root/extrema/intersection finding tools
-- add vector field visualization
-- add dynamic sliders to manipulate parameters in real time
-- add recursive/sequence graphing mode
-- add animation capabilities for transformations and function changes
-- add split screen and tabbed workspace modes to compare different graphs/calculations
-- add dual display (graph + table or graph + graph) modes
-- add animation timeline controls (play/pause/speed/loop) for slider-driven scenes
-- add locus generation for dependent-point motion under parameter changes
-- add contour/heatmap rendering for scalar functions z=f(x,y)
+## Exploration, Collaboration, and Productivity
+- session snapshots with semantic diffs suitable for AI summarization
+- reproducible command/run logs that can be replayed in CI for regression detection
+- "what changed" summaries after complex action batches
+- optional command palette and keyboard editor for hybrid users without weakening AI-first design
 
-## Graph Theory Enhancements
-- add interactive graph editing mode (drag vertices, rewire edges, inline weight editing)
-- add algorithm playback mode for graph analysis (step-by-step BFS/DFS/Dijkstra/MST)
-- add graph generators (grid, cycle, complete, random, scale-free) with parameter controls
-- add adjacency/incidence matrix view linked bidirectionally with drawn graph
+## Future 3D and Extended Visualization
+- staged 3D rendering architecture compatible with AI-driven command model
+- 3D object/scene constraints and semantic target resolution
+- 3D camera/navigation intent handling through conversational controls
 
-## Advanced Mathematical Tools (Higher Effort)
-- add differential equations solver with visualization of direction fields and solution families
-- add numerical ODE solvers
-- add truth tables and boolean algebra workflows for logic and circuit analysis
-- add financial mathematics (compound interest, annuities, amortization, bond valuation)
-
-## Future 3D Features
-- add 3D graphing capabilities and 3D shape visualization
-- add parametric equation plotting in 3D
-- add 3D surface plotting (plane, sphere, cylinder templates)
-- add rotation, zoom, and cross-section tools for 3D visualization
-- add vector field and gradient visualization in 3D space
-
-## Interoperability and Productivity
-- add richer session persistence with named snapshots and diff/restore between snapshots
-- add keyboard shortcut editor and command palette for power-user workflows
+## Parked (revisit when core AI workflows mature)
+- differential equations solver and direction field visualization
+- numerical ODE solvers
+- truth tables and boolean algebra workflows
+- financial mathematics (compound interest, annuities, amortization)
+- hypothesis testing (z-test, t-test, chi-square, F-test), ANOVA, confidence intervals
+- probability plots (Q-Q, P-P) and cumulative frequency tables
 
 ## Static Typing Rollout
 - add type stubs or protocols for Brython `browser` module usage in client code

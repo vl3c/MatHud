@@ -2,6 +2,9 @@
 
 This checklist documents the workflow for introducing a new drawable type to MatHud. Follow each section in order to keep the implementation consistent across managers, renderers, and AI integrations.
 
+## AI-First Requirement
+Before implementation, define how the drawable is created/updated/deleted through AI tool calls and how outcomes are explained back to the user in chat. HUD rendering should reflect AI actions deterministically.
+
 ## 1. Define Core Constants
 1. Create any styling defaults or limits in `static/client/constants.py`.
 2. Update `rendering/style_manager.py` if the renderer needs access to the new constants.

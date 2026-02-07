@@ -2,6 +2,12 @@ MatHud Project Overview Table
 ==================================================
 Generated on: 2025-11-02 16:58:20
 
+AI-FIRST PRODUCT DIRECTION
+--------------------------------------------------
+- Users express intent in chat; AI executes workflows and updates canvas state.
+- Canvas/HUD is the display and validation surface for AI actions.
+- Feature planning should optimize intent resolution quality, deterministic execution, and explainable results.
+
 PROJECT METRICS OVERVIEW
 --------------------------------------------------
 Metric                    Count      Details        

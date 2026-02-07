@@ -2,6 +2,9 @@
 
 The "Run Tests" button was added to the UI to allow developers to quickly trigger client-side tests without consuming AI tokens. It is intended as a temporary development tool.
 
+## AI-First Context
+MatHud's primary interaction model is conversational. Local UI controls like this button are considered developer conveniences and should remain optional overlays, not core user workflow dependencies.
+
 ## Steps to Remove
 
 1.  **Remove the HTML element**

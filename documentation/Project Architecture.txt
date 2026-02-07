@@ -2,6 +2,12 @@
 
 MatHud is an interactive mathematical visualization tool that combines a drawing canvas with an AI assistant to help understand and solve real-world mathematical problems. It serves as a heads-up display system for mathematical analysis, allowing users to visualize, analyze, and solve problems in real-time.
 
+## AI-First Operating Model
+- Users primarily interact by talking to the AI; the AI performs tool calls and state mutations.
+- The HUD canvas is the visual execution surface for AI outcomes and state inspection.
+- Pointer gestures are secondary and should only augment AI workflows, not gate them.
+- Architecture decisions should prioritize deterministic tool execution, robust rollback/undo behavior, and explainable AI action traces.
+
 ## Key Features
 - Interactive math-space canvas rendered through Canvas2D, SVG, and an experimental WebGL backend
 - AI-powered mathematical assistant with multi-provider support (OpenAI, Anthropic, OpenRouter)
