@@ -617,7 +617,13 @@ class TestRendererPrimitives(unittest.TestCase):
         text_operations = [entry for entry in ctx.log if entry[0] == "fillText"]
         canvas_has_point_label = any(isinstance(entry[1], str) and entry[1].startswith("A(") for entry in text_operations)
         canvas_has_function_label = any(entry[1] == "f" for entry in text_operations)
-        canvas_has_arc = any(entry[0] == "arc" for entry in normalize_canvas_log(ctx.log))
+        # Isolate the angle signal on a fresh canvas log so point/circle arcs
+        # cannot mask angle rendering regressions.
+        angle_only_renderer = Canvas2DRenderer()
+        angle_only_canvas = MockCanvasElement()
+        angle_only_ctx = reset_canvas_environment(angle_only_renderer, angle_only_canvas)
+        angle_only_renderer._render_angle(self.angle_abc, self.mapper)
+        canvas_has_arc = any(entry[0] == "arc" for entry in normalize_canvas_log(angle_only_ctx.log))
 
         self.assertEqual(canvas_has_point_label, svg_has_point_label)
         self.assertEqual(canvas_has_function_label, svg_has_function_label)
