@@ -685,12 +685,11 @@ class WorkspaceManager:
         metadata = args.get("metadata", None)
 
         if kind == "continuous":
-            plot = ContinuousPlot(
-                name,
+            plot = self._build_continuous_plot(
+                name=name,
+                args=args,
                 plot_type=plot_type,
                 distribution_type=distribution_type,
-                function_name=args.get("function_name"),
-                fill_area_name=args.get("fill_area_name"),
                 distribution_params=distribution_params,
                 bounds=bounds,
                 metadata=metadata,
@@ -698,17 +697,11 @@ class WorkspaceManager:
             return plot, name
 
         if kind == "discrete":
-            plot = DiscretePlot(
-                name,
+            plot = self._build_discrete_plot(
+                name=name,
+                args=args,
                 plot_type=plot_type,
                 distribution_type=distribution_type,
-                bar_count=args.get("bar_count"),
-                bar_labels=args.get("bar_labels"),
-                curve_color=args.get("curve_color"),
-                fill_color=args.get("fill_color"),
-                fill_opacity=args.get("fill_opacity"),
-                rectangle_names=args.get("rectangle_names"),
-                fill_area_names=args.get("fill_area_names"),
                 distribution_params=distribution_params,
                 bounds=bounds,
                 metadata=metadata,
@@ -716,19 +709,10 @@ class WorkspaceManager:
             return plot, name
 
         if kind == "bars":
-            plot = BarsPlot(
-                name,
+            plot = self._build_bars_plot(
+                name=name,
+                args=args,
                 plot_type=plot_type,
-                values=args.get("values") or [],
-                labels_below=args.get("labels_below") or [],
-                labels_above=args.get("labels_above"),
-                bar_spacing=args.get("bar_spacing"),
-                bar_width=args.get("bar_width"),
-                x_start=args.get("x_start"),
-                y_base=args.get("y_base"),
-                stroke_color=args.get("stroke_color"),
-                fill_color=args.get("fill_color"),
-                fill_opacity=args.get("fill_opacity"),
                 bounds=bounds,
                 metadata=metadata,
             )
@@ -743,6 +727,81 @@ class WorkspaceManager:
             bounds=bounds,
             metadata=metadata,
         ), name
+
+    def _build_continuous_plot(
+        self,
+        *,
+        name: str,
+        args: Dict[str, Any],
+        plot_type: str,
+        distribution_type: Any,
+        distribution_params: Any,
+        bounds: Any,
+        metadata: Any,
+    ) -> ContinuousPlot:
+        return ContinuousPlot(
+            name,
+            plot_type=plot_type,
+            distribution_type=distribution_type,
+            function_name=args.get("function_name"),
+            fill_area_name=args.get("fill_area_name"),
+            distribution_params=distribution_params,
+            bounds=bounds,
+            metadata=metadata,
+        )
+
+    def _build_discrete_plot(
+        self,
+        *,
+        name: str,
+        args: Dict[str, Any],
+        plot_type: str,
+        distribution_type: Any,
+        distribution_params: Any,
+        bounds: Any,
+        metadata: Any,
+    ) -> DiscretePlot:
+        return DiscretePlot(
+            name,
+            plot_type=plot_type,
+            distribution_type=distribution_type,
+            bar_count=args.get("bar_count"),
+            bar_labels=args.get("bar_labels"),
+            curve_color=args.get("curve_color"),
+            fill_color=args.get("fill_color"),
+            fill_opacity=args.get("fill_opacity"),
+            rectangle_names=args.get("rectangle_names"),
+            fill_area_names=args.get("fill_area_names"),
+            distribution_params=distribution_params,
+            bounds=bounds,
+            metadata=metadata,
+        )
+
+    def _build_bars_plot(
+        self,
+        *,
+        name: str,
+        args: Dict[str, Any],
+        plot_type: str,
+        bounds: Any,
+        metadata: Any,
+    ) -> BarsPlot:
+        return BarsPlot(
+            name,
+            plot_type=plot_type,
+            values=args.get("values") or [],
+            labels_below=args.get("labels_below") or [],
+            labels_above=args.get("labels_above"),
+            bar_spacing=args.get("bar_spacing"),
+            bar_width=args.get("bar_width"),
+            x_start=args.get("x_start"),
+            y_base=args.get("y_base"),
+            stroke_color=args.get("stroke_color"),
+            fill_color=args.get("fill_color"),
+            fill_opacity=args.get("fill_opacity"),
+            bounds=bounds,
+            metadata=metadata,
+        )
 
     def _build_legacy_plot(
         self,
