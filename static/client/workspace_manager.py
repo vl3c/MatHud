@@ -789,17 +789,23 @@ class WorkspaceManager:
         """Create angles from workspace state."""
         if "Angles" not in state:
             return
-        
-        # Use the angle manager's load_angles method
-        if hasattr(self.canvas, 'drawable_manager') and \
-           hasattr(self.canvas.drawable_manager, 'angle_manager') and \
-           self.canvas.drawable_manager.angle_manager:
-            try:
-                self.canvas.drawable_manager.angle_manager.load_angles(state["Angles"])
-            except Exception as e:
-                print(f"Warning: Could not restore angles: {e}")
-        else:
+
+        angle_manager = self._get_angle_manager_for_restore()
+        if angle_manager is None:
             print("Warning: Angle manager not available for loading angles")
+            return
+
+        try:
+            angle_manager.load_angles(state["Angles"])
+        except Exception as e:
+            print(f"Warning: Could not restore angles: {e}")
+
+    def _get_angle_manager_for_restore(self) -> Any:
+        if not hasattr(self.canvas, "drawable_manager"):
+            return None
+        if not hasattr(self.canvas.drawable_manager, "angle_manager"):
+            return None
+        return self.canvas.drawable_manager.angle_manager
 
     def _create_circle_arcs(self, state: Dict[str, Any]) -> None:
         """Create circle arcs from workspace state."""
@@ -890,14 +896,19 @@ class WorkspaceManager:
         # Then restore the saved mode if present
         if hasattr(self.canvas, "coordinate_system_manager"):
             try:
-                # Default to cartesian
-                self.canvas.coordinate_system_manager.set_state({"mode": "cartesian"})
-                # Then apply saved state if present
-                coord_system_state = state.get("coordinate_system")
-                if coord_system_state:
-                    self.canvas.coordinate_system_manager.set_state(coord_system_state)
+                self._reset_coordinate_system_to_cartesian()
+                self._apply_saved_coordinate_system_state(state.get("coordinate_system"))
             except Exception:
                 pass
+
+    def _reset_coordinate_system_to_cartesian(self) -> None:
+        # Default to cartesian
+        self.canvas.coordinate_system_manager.set_state({"mode": "cartesian"})
+
+    def _apply_saved_coordinate_system_state(self, coord_system_state: Any) -> None:
+        # Then apply saved state if present
+        if coord_system_state:
+            self.canvas.coordinate_system_manager.set_state(coord_system_state)
 
     def _restore_drawables_in_dependency_order(self, state: Dict[str, Any]) -> None:
         # Create objects in the correct dependency order
@@ -1078,9 +1089,20 @@ class WorkspaceManager:
         on_complete: Callable[[Any], str],
         error_prefix: str,
     ) -> str:
+        req = self._build_sync_request(on_complete, error_prefix)
+        self._open_and_send_sync_request(req, method, url)
+        return on_complete(req)
+
+    def _build_sync_request(
+        self,
+        on_complete: Callable[[Any], str],
+        error_prefix: str,
+    ) -> Any:
         req: Any = ajax.Ajax()
-        req.bind('complete', on_complete)
-        req.bind('error', lambda e: f'{error_prefix}: {e.text}')
+        req.bind("complete", on_complete)
+        req.bind("error", lambda e: f"{error_prefix}: {e.text}")
+        return req
+
+    def _open_and_send_sync_request(self, req: Any, method: str, url: str) -> None:
         req.open(method, url, False)  # Set to synchronous
         req.send()
-        return on_complete(req)
