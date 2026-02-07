@@ -33,7 +33,7 @@ Dependencies:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Union, cast
 
 from constants import (
     default_area_fill_color,
@@ -150,88 +150,47 @@ class Canvas:
     def _register_renderer_handlers_legacy(self) -> None:
         if self.renderer is None:
             return
+        for module_path, class_name, register_name in self._legacy_registration_specs():
+            self._register_legacy_drawable(module_path, class_name, register_name)
+
+    def _legacy_registration_specs(self) -> List[Tuple[str, str, str]]:
+        return [
+            ("drawables.point", "Point", "register_point"),
+            ("drawables.segment", "Segment", "register_segment"),
+            ("drawables.circle", "Circle", "register_circle"),
+            ("drawables.ellipse", "Ellipse", "register_ellipse"),
+            ("drawables.vector", "Vector", "register_vector"),
+            ("drawables.angle", "Angle", "register_angle"),
+            ("drawables.function", "Function", "register_function"),
+            ("drawables.triangle", "Triangle", "register_triangle"),
+            ("drawables.rectangle", "Rectangle", "register_rectangle"),
+            (
+                "drawables.functions_bounded_colored_area",
+                "FunctionsBoundedColoredArea",
+                "register_functions_bounded_colored_area",
+            ),
+            (
+                "drawables.function_segment_bounded_colored_area",
+                "FunctionSegmentBoundedColoredArea",
+                "register_function_segment_bounded_colored_area",
+            ),
+            (
+                "drawables.segments_bounded_colored_area",
+                "SegmentsBoundedColoredArea",
+                "register_segments_bounded_colored_area",
+            ),
+            ("drawables.label", "Label", "register_label"),
+            ("drawables.circle_arc", "CircleArc", "register_circle_arc"),
+        ]
+
+    def _register_legacy_drawable(self, module_path: str, class_name: str, register_name: str) -> None:
+        if self.renderer is None:
+            return
         try:
-            from drawables.point import Point as _Point
-            if hasattr(self.renderer, 'register_point'):
-                self.renderer.register_point(_Point)
-        except Exception:
-            pass
-        try:
-            from drawables.segment import Segment as _Segment
-            if hasattr(self.renderer, 'register_segment'):
-                self.renderer.register_segment(_Segment)
-        except Exception:
-            pass
-        try:
-            from drawables.circle import Circle as _Circle
-            if hasattr(self.renderer, 'register_circle'):
-                self.renderer.register_circle(_Circle)
-        except Exception:
-            pass
-        try:
-            from drawables.ellipse import Ellipse as _Ellipse
-            if hasattr(self.renderer, 'register_ellipse'):
-                self.renderer.register_ellipse(_Ellipse)
-        except Exception:
-            pass
-        try:
-            from drawables.vector import Vector as _Vector
-            if hasattr(self.renderer, 'register_vector'):
-                self.renderer.register_vector(_Vector)
-        except Exception:
-            pass
-        try:
-            from drawables.angle import Angle as _Angle
-            if hasattr(self.renderer, 'register_angle'):
-                self.renderer.register_angle(_Angle)
-        except Exception:
-            pass
-        try:
-            from drawables.function import Function as _Function
-            if hasattr(self.renderer, 'register_function'):
-                self.renderer.register_function(_Function)
-        except Exception:
-            pass
-        try:
-            from drawables.triangle import Triangle as _Triangle
-            if hasattr(self.renderer, 'register_triangle'):
-                self.renderer.register_triangle(_Triangle)
-        except Exception:
-            pass
-        try:
-            from drawables.rectangle import Rectangle as _Rectangle
-            if hasattr(self.renderer, 'register_rectangle'):
-                self.renderer.register_rectangle(_Rectangle)
-        except Exception:
-            pass
-        try:
-            from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea as _FBCA
-            if hasattr(self.renderer, 'register_functions_bounded_colored_area'):
-                self.renderer.register_functions_bounded_colored_area(_FBCA)
-        except Exception:
-            pass
-        try:
-            from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea as _FSBCA
-            if hasattr(self.renderer, 'register_function_segment_bounded_colored_area'):
-                self.renderer.register_function_segment_bounded_colored_area(_FSBCA)
-        except Exception:
-            pass
-        try:
-            from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea as _SBCA
-            if hasattr(self.renderer, 'register_segments_bounded_colored_area'):
-                self.renderer.register_segments_bounded_colored_area(_SBCA)
-        except Exception:
-            pass
-        try:
-            from drawables.label import Label as _Label
-            if hasattr(self.renderer, 'register_label'):
-                self.renderer.register_label(_Label)
-        except Exception:
-            pass
-        try:
-            from drawables.circle_arc import CircleArc as _CircleArc
-            if hasattr(self.renderer, 'register_circle_arc'):
-                self.renderer.register_circle_arc(_CircleArc)
+            module = __import__(module_path, fromlist=[class_name])
+            drawable_cls = getattr(module, class_name)
+            if hasattr(self.renderer, register_name):
+                getattr(self.renderer, register_name)(drawable_cls)
         except Exception:
             pass
 
@@ -239,48 +198,69 @@ class Canvas:
         if not self.draw_enabled:
             return
         renderer = self.renderer
-        renderer_begin = getattr(renderer, "begin_frame", None) if renderer is not None else None
-        renderer_end = getattr(renderer, "end_frame", None) if renderer is not None else None
+        renderer_end = self._begin_renderer_frame(renderer)
 
+        try:
+            self._clear_renderer_surface(renderer)
+            self._render_coordinate_system(renderer, apply_zoom)
+            self._render_drawables(renderer, apply_zoom)
+        finally:
+            self._end_renderer_frame(renderer_end)
+
+    def _begin_renderer_frame(self, renderer: Optional[RendererProtocol]) -> Optional[Any]:
+        """Best-effort frame begin hook for renderers that support batching."""
+        renderer_begin = getattr(renderer, "begin_frame", None) if renderer is not None else None
         if callable(renderer_begin):
             try:
                 renderer_begin()
             except Exception:
                 pass
+        return getattr(renderer, "end_frame", None) if renderer is not None else None
 
+    def _end_renderer_frame(self, renderer_end: Optional[Any]) -> None:
+        """Best-effort frame end hook matching _begin_renderer_frame."""
+        if callable(renderer_end):
+            try:
+                renderer_end()
+            except Exception:
+                pass
+
+    def _clear_renderer_surface(self, renderer: Optional[RendererProtocol]) -> None:
+        """Clear renderer surface unless backend explicitly skips automatic clears."""
+        if renderer is None:
+            return
+        skip_clear = bool(getattr(renderer, "SKIP_AUTO_CLEAR", False))
+        if skip_clear:
+            return
         try:
-            if renderer is not None:
-                skip_clear = bool(getattr(renderer, "SKIP_AUTO_CLEAR", False))
-                if not skip_clear:
-                    try:
-                        renderer.clear()
-                    except Exception:
-                        pass
-                try:
-                    if apply_zoom:
-                        self.coordinate_system_manager.invalidate_cache_on_zoom()
-                    if self.coordinate_system_manager.is_cartesian():
-                        if self.cartesian2axis.visible:
-                            renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
-                    else:
-                        if self.coordinate_system_manager.polar_grid.visible:
-                            renderer.render_polar(self.coordinate_system_manager.polar_grid, self.coordinate_mapper)
-                except Exception:
-                    pass
+            renderer.clear()
+        except Exception:
+            pass
 
-            # Draw all drawables - coordinate transformations handled by CoordinateMapper
-            for drawable in self.drawable_manager.get_renderable_drawables():
-                if apply_zoom and hasattr(drawable, '_invalidate_cache_on_zoom'):
-                    drawable._invalidate_cache_on_zoom()
-                if renderer is not None:
-                    try:
-                        renderer.render(drawable, self.coordinate_mapper)
-                    except Exception:
-                        pass
-        finally:
-            if callable(renderer_end):
+    def _render_coordinate_system(self, renderer: Optional[RendererProtocol], apply_zoom: bool) -> None:
+        """Render either cartesian or polar coordinate system based on current mode."""
+        if renderer is None:
+            return
+        try:
+            if apply_zoom:
+                self.coordinate_system_manager.invalidate_cache_on_zoom()
+            if self.coordinate_system_manager.is_cartesian():
+                if self.cartesian2axis.visible:
+                    renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
+            else:
+                if self.coordinate_system_manager.polar_grid.visible:
+                    renderer.render_polar(self.coordinate_system_manager.polar_grid, self.coordinate_mapper)
+        except Exception:
+            pass
+
+    def _render_drawables(self, renderer: Optional[RendererProtocol], apply_zoom: bool) -> None:
+        """Render all drawable objects with optional zoom cache invalidation."""
+        for drawable in self.drawable_manager.get_renderable_drawables():
+            if apply_zoom and hasattr(drawable, '_invalidate_cache_on_zoom'):
+                drawable._invalidate_cache_on_zoom()
+            if renderer is not None:
                 try:
-                    renderer_end()
+                    renderer.render(drawable, self.coordinate_mapper)
                 except Exception:
                     pass
 
@@ -305,13 +285,7 @@ class Canvas:
             if class_name == 'Segment':
                 p1 = drawable.point1
                 p2 = drawable.point2
-                x1, y1 = self.coordinate_mapper.math_to_screen(p1.x, p1.y)
-                x2, y2 = self.coordinate_mapper.math_to_screen(p2.x, p2.y)
-                return (
-                    self.is_point_within_canvas_visible_area(x1, y1) or
-                    self.is_point_within_canvas_visible_area(x2, y2) or
-                    self.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
-                )
+                return self._is_math_segment_visible(p1, p2)
 
             if class_name == 'Vector':
                 seg = getattr(drawable, 'segment', None)
@@ -319,18 +293,21 @@ class Canvas:
                     return True
                 p1 = seg.point1
                 p2 = seg.point2
-                x1, y1 = self.coordinate_mapper.math_to_screen(p1.x, p1.y)
-                x2, y2 = self.coordinate_mapper.math_to_screen(p2.x, p2.y)
-                return (
-                    self.is_point_within_canvas_visible_area(x1, y1) or
-                    self.is_point_within_canvas_visible_area(x2, y2) or
-                    self.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
-                )
+                return self._is_math_segment_visible(p1, p2)
 
             # Default: visible
             return True
         except Exception:
             return True
+
+    def _is_math_segment_visible(self, p1: Any, p2: Any) -> bool:
+        x1, y1 = self.coordinate_mapper.math_to_screen(p1.x, p1.y)
+        x2, y2 = self.coordinate_mapper.math_to_screen(p2.x, p2.y)
+        return (
+            self.is_point_within_canvas_visible_area(x1, y1) or
+            self.is_point_within_canvas_visible_area(x2, y2) or
+            self.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
+        )
     
     # Removed legacy zoom displacement; zoom handled via CoordinateMapper
     
