@@ -1,3 +1,8 @@
+# AI-First Prompting Notes
+- Primary workflow: describe intent in chat and let the AI perform tool calls.
+- Include constraints and references (names, relationships, desired bounds) to improve deterministic outcomes.
+- Use canvas gestures only as optional support (e.g., quickly capturing coordinates), not as required steps.
+
 # Basic Drawing Commands
 Create a point at (10, 20) and name it A.
 Draw a point B at x=50, y=-30.

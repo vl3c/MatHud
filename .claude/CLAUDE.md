@@ -3,6 +3,12 @@
 ## Purpose
 MatHud pairs a canvas with an AI assistant so users can sketch geometric scenes, analyze mathematically, and iterate quickly inside a single workspace.
 
+## AI-First Product Direction
+1. Primary UX is conversational: users tell the AI what they want; AI executes tool workflows.
+2. HUD canvas is the output and inspection surface for AI actions, not the primary control channel.
+3. Direct gesture interactions are optional accelerators and should not be required to complete core tasks.
+4. New features should improve intent resolution, deterministic execution, and explainable AI actions tied to canvas state.
+
 ## Architecture at a Glance
 1. Frontend: HTML plus Brython (`static/client/`) render the canvas, manage UI flows, and execute client tests inside the browser.
 2. Backend: Flask (`app.py`, `static/`) exposes HTTP routes, workspace persistence, OpenAI calls, and Selenium-driven screenshots.

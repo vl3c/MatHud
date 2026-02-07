@@ -12,6 +12,13 @@ This documentation serves as a **complete reference manual** for:
 
 This document contains comprehensive documentation extracted from all files in the MatHud project, including file headers and method documentation.
 
+## AI-First Operating Model
+
+- MatHud is AI-augmented by design: users describe intent in natural language, and AI orchestrates tool execution.
+- The HUD canvas is the visualization and verification layer for AI actions.
+- UI gestures are optional support mechanisms and should not be mandatory for core outcomes.
+- Prefer architecture and API changes that improve deterministic execution, state safety, and explainable AI action/results mapping.
+
 ## Static Typing Guidelines
 
 - Type checking uses `mypy` with configuration in `mypy.ini`; install dependencies via `pip install -r requirements.txt`.
