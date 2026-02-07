@@ -345,17 +345,13 @@ class WorkspaceManager:
     def _restore_vector(self, item_state: Dict[str, Any]) -> None:
         origin_point_name, tip_point_name = self._get_vector_point_names(item_state)
         if not origin_point_name or not tip_point_name:
-            print(
-                f"Warning: Vector '{item_state.get('name', 'Unnamed')}' is missing origin or tip point name in its state. Skipping."
-            )
+            self._warn_vector_missing_point_names(item_state)
             return
 
         origin_point: Optional["Point"] = self.canvas.get_point_by_name(origin_point_name)
         tip_point: Optional["Point"] = self.canvas.get_point_by_name(tip_point_name)
         if not origin_point or not tip_point:
-            print(
-                f"Warning: Could not find origin ('{origin_point_name}') or tip ('{tip_point_name}') point for vector '{item_state.get('name', 'Unnamed')}' in the canvas. Skipping."
-            )
+            self._warn_vector_missing_points(item_state, origin_point_name, tip_point_name)
             return
 
         self.canvas.create_vector(
@@ -364,6 +360,21 @@ class WorkspaceManager:
             tip_point.x,
             tip_point.y,
             name=item_state.get("name", ""),
+        )
+
+    def _warn_vector_missing_point_names(self, item_state: Dict[str, Any]) -> None:
+        print(
+            f"Warning: Vector '{item_state.get('name', 'Unnamed')}' is missing origin or tip point name in its state. Skipping."
+        )
+
+    def _warn_vector_missing_points(
+        self,
+        item_state: Dict[str, Any],
+        origin_point_name: str,
+        tip_point_name: str,
+    ) -> None:
+        print(
+            f"Warning: Could not find origin ('{origin_point_name}') or tip ('{tip_point_name}') point for vector '{item_state.get('name', 'Unnamed')}' in the canvas. Skipping."
         )
 
     def _get_vector_point_names(self, item_state: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
@@ -406,9 +417,7 @@ class WorkspaceManager:
         rect_name: str = item_state.get("name", "UnnamedRectangle")
         arg_point_names = self._rectangle_point_names(item_state)
         if not all(arg_point_names):
-            print(
-                f"Warning: Rectangle '{rect_name}' is missing one or more point names (p1, p2, p3, p4) in its state. Skipping."
-            )
+            self._warn_rectangle_missing_point_names(rect_name)
             return
 
         points = [self.canvas.get_point_by_name(name) for name in arg_point_names]
@@ -416,9 +425,7 @@ class WorkspaceManager:
             missing_names: List[str] = [
                 str(arg_point_names[i]) for i, p in enumerate(points) if not p
             ]
-            print(
-                f"Warning: Could not find one or more points ({', '.join(missing_names)}) for rectangle '{rect_name}' in the canvas. Skipping."
-            )
+            self._warn_rectangle_missing_points(rect_name, missing_names)
             return
 
         resolved_vertices = self._resolve_rectangle_vertices(points, rect_name)
@@ -429,6 +436,16 @@ class WorkspaceManager:
             resolved_vertices,
             polygon_type=PolygonType.RECTANGLE,
             name=rect_name,
+        )
+
+    def _warn_rectangle_missing_point_names(self, rect_name: str) -> None:
+        print(
+            f"Warning: Rectangle '{rect_name}' is missing one or more point names (p1, p2, p3, p4) in its state. Skipping."
+        )
+
+    def _warn_rectangle_missing_points(self, rect_name: str, missing_names: List[str]) -> None:
+        print(
+            f"Warning: Could not find one or more points ({', '.join(missing_names)}) for rectangle '{rect_name}' in the canvas. Skipping."
         )
 
     def _rectangle_point_names(self, item_state: Dict[str, Any]) -> List[Optional[str]]:
