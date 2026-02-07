@@ -352,62 +352,75 @@ class WorkspaceManager:
             return
 
         for item_state in state["Rectangles"]:
-            rect_name: str = item_state.get("name", "UnnamedRectangle")
-            arg_point_names: List[Optional[str]] = [
-                item_state["args"].get("p1"),
-                item_state["args"].get("p2"),
-                item_state["args"].get("p3"),
-                item_state["args"].get("p4"),
+            self._restore_rectangle(item_state)
+
+    def _restore_rectangle(self, item_state: Dict[str, Any]) -> None:
+        rect_name: str = item_state.get("name", "UnnamedRectangle")
+        arg_point_names = self._rectangle_point_names(item_state)
+        if not all(arg_point_names):
+            print(
+                f"Warning: Rectangle '{rect_name}' is missing one or more point names (p1, p2, p3, p4) in its state. Skipping."
+            )
+            return
+
+        points = [self.canvas.get_point_by_name(name) for name in arg_point_names]
+        if not all(points):
+            missing_names: List[str] = [
+                str(arg_point_names[i]) for i, p in enumerate(points) if not p
             ]
+            print(
+                f"Warning: Could not find one or more points ({', '.join(missing_names)}) for rectangle '{rect_name}' in the canvas. Skipping."
+            )
+            return
 
-            if not all(arg_point_names):
+        resolved_vertices = self._resolve_rectangle_vertices(points, rect_name)
+        if resolved_vertices is None:
+            return
+
+        self.canvas.create_polygon(
+            resolved_vertices,
+            polygon_type=PolygonType.RECTANGLE,
+            name=rect_name,
+        )
+
+    def _rectangle_point_names(self, item_state: Dict[str, Any]) -> List[Optional[str]]:
+        args = item_state.get("args", {})
+        if not isinstance(args, dict):
+            return [None, None, None, None]
+        return [
+            args.get("p1"),
+            args.get("p2"),
+            args.get("p3"),
+            args.get("p4"),
+        ]
+
+    def _resolve_rectangle_vertices(
+        self,
+        points: List[Optional["Point"]],
+        rect_name: str,
+    ) -> Optional[List[Tuple[float, float]]]:
+        try:
+            return canonicalize_rectangle(
+                [(point.x, point.y) for point in points if point is not None],
+                construction_mode="vertices",
+            )
+        except PolygonCanonicalizationError:
+            p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, rect_name)
+            if not p_diag1 or not p_diag2:
                 print(
-                    f"Warning: Rectangle '{rect_name}' is missing one or more point names (p1, p2, p3, p4) in its state. Skipping."
+                    f"Warning: Could not determine diagonal points for rectangle '{rect_name}'. Skipping."
                 )
-                continue
-
-            points: List[Optional["Point"]] = [
-                self.canvas.get_point_by_name(name) for name in arg_point_names
-            ]
-            if not all(points):
-                missing_names: List[str] = [
-                    str(arg_point_names[i]) for i, p in enumerate(points) if not p
-                ]
-                print(
-                    f"Warning: Could not find one or more points ({', '.join(missing_names)}) for rectangle '{rect_name}' in the canvas. Skipping."
-                )
-                continue
-
-            resolved_vertices: Optional[List[Tuple[float, float]]] = None
-
+                return None
             try:
-                resolved_vertices = canonicalize_rectangle(
-                    [(point.x, point.y) for point in points if point is not None],
-                    construction_mode="vertices",
+                return canonicalize_rectangle(
+                    [(p_diag1.x, p_diag1.y), (p_diag2.x, p_diag2.y)],
+                    construction_mode="diagonal",
                 )
             except PolygonCanonicalizationError:
-                p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, rect_name)
-                if not p_diag1 or not p_diag2:
-                    print(
-                        f"Warning: Could not determine diagonal points for rectangle '{rect_name}'. Skipping."
-                    )
-                    continue
-                try:
-                    resolved_vertices = canonicalize_rectangle(
-                        [(p_diag1.x, p_diag1.y), (p_diag2.x, p_diag2.y)],
-                        construction_mode="diagonal",
-                    )
-                except PolygonCanonicalizationError:
-                    print(
-                        f"Warning: Unable to canonicalize rectangle '{rect_name}' from supplied coordinates. Skipping."
-                    )
-                    continue
-
-            self.canvas.create_polygon(
-                resolved_vertices,
-                polygon_type=PolygonType.RECTANGLE,
-                name=rect_name,
-            )
+                print(
+                    f"Warning: Unable to canonicalize rectangle '{rect_name}' from supplied coordinates. Skipping."
+                )
+                return None
 
     def _create_circles(self, state: Dict[str, Any]) -> None:
         """Create circles from workspace state."""
