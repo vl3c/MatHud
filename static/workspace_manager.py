@@ -20,6 +20,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, TypedDict, Union, cast
 
 WORKSPACES_DIR = "workspaces"
+CURRENT_WORKSPACE_SCHEMA_VERSION = 1
 
 JsonPrimitive = Union[str, int, float, bool, None]
 JsonValue = Union[JsonPrimitive, Dict[str, "JsonValue"], List["JsonValue"]]
@@ -30,6 +31,7 @@ WorkspaceState = JsonValue
 class WorkspaceMetadata(TypedDict):
     name: str
     last_modified: str
+    schema_version: int
 
 
 class WorkspaceRecord(TypedDict):
@@ -155,6 +157,7 @@ class WorkspaceManager:
                 "metadata": {
                     "name": name or f"current_workspace_{timestamp}",
                     "last_modified": datetime.now().isoformat(),
+                    "schema_version": CURRENT_WORKSPACE_SCHEMA_VERSION,
                 },
                 "state": state,
             }
@@ -218,13 +221,76 @@ class WorkspaceManager:
 
             if not isinstance(workspace_data_raw, dict):
                 raise ValueError("Workspace file is not a JSON object")
-
-            workspace_data = cast(WorkspaceRecord, workspace_data_raw)
-            return workspace_data["state"]
+            normalized = self._normalize_and_migrate_workspace_record(
+                workspace_data_raw,
+                workspace_name=(name or "current"),
+            )
+            return normalized["state"]
         except FileNotFoundError:
             raise
         except Exception as e:
             raise ValueError(f"Error loading workspace: {str(e)}")
+
+    def _normalize_and_migrate_workspace_record(
+        self,
+        workspace_data_raw: JsonObject,
+        workspace_name: str,
+    ) -> WorkspaceRecord:
+        """Normalize workspace schema and migrate legacy versions to current."""
+        if "state" not in workspace_data_raw:
+            if "metadata" in workspace_data_raw:
+                raise ValueError("Workspace record missing 'state'")
+            # Legacy format: top-level object is the state payload.
+            state = cast(WorkspaceState, workspace_data_raw)
+            metadata: Dict[str, JsonValue] = {}
+            schema_version = 0
+        else:
+            state = cast(WorkspaceState, workspace_data_raw["state"])
+            metadata_raw = workspace_data_raw.get("metadata")
+            metadata = metadata_raw if isinstance(metadata_raw, dict) else {}
+            schema_version = self._parse_schema_version(metadata.get("schema_version"))
+
+        migrated_state = self._migrate_state(state, schema_version)
+
+        metadata_name_raw = metadata.get("name")
+        metadata_name = metadata_name_raw if isinstance(metadata_name_raw, str) and metadata_name_raw else workspace_name
+        metadata_last_modified_raw = metadata.get("last_modified")
+        metadata_last_modified = (
+            metadata_last_modified_raw
+            if isinstance(metadata_last_modified_raw, str) and metadata_last_modified_raw
+            else datetime.now().isoformat()
+        )
+
+        return {
+            "metadata": {
+                "name": metadata_name,
+                "last_modified": metadata_last_modified,
+                "schema_version": CURRENT_WORKSPACE_SCHEMA_VERSION,
+            },
+            "state": migrated_state,
+        }
+
+    def _parse_schema_version(self, schema_version: JsonValue) -> int:
+        """Parse schema_version from metadata, defaulting to 0 for legacy files."""
+        if isinstance(schema_version, int):
+            return schema_version
+        if isinstance(schema_version, str):
+            try:
+                return int(schema_version.strip())
+            except ValueError:
+                return 0
+        return 0
+
+    def _migrate_state(self, state: WorkspaceState, schema_version: int) -> WorkspaceState:
+        """Apply forward migrations from older schema versions."""
+        if schema_version <= 0:
+            return state
+        if schema_version > CURRENT_WORKSPACE_SCHEMA_VERSION:
+            raise ValueError(
+                f"Unsupported workspace schema_version: {schema_version} "
+                f"(current: {CURRENT_WORKSPACE_SCHEMA_VERSION})"
+            )
+        return state
 
     def list_workspaces(self, test_dir: Optional[str] = None) -> List[str]:
         """List all saved workspaces.

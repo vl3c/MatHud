@@ -9,7 +9,12 @@ from typing import Any, Dict, cast
 from server_tests.test_mocks import CanvasStateDict, MockCanvas
 from static.client.managers.polygon_type import PolygonType
 from static.client.utils.polygon_canonicalizer import canonicalize_rectangle
-from static.workspace_manager import WORKSPACES_DIR, WorkspaceManager, WorkspaceState
+from static.workspace_manager import (
+    CURRENT_WORKSPACE_SCHEMA_VERSION,
+    WORKSPACES_DIR,
+    WorkspaceManager,
+    WorkspaceState,
+)
 
 TEST_DIR = "Test"
 
@@ -73,6 +78,7 @@ class TestWorkspaceManagement(unittest.TestCase):
         with open(workspace_path, 'r') as f:
             data = json.load(f)
             self.assertEqual(data["metadata"]["name"], workspace_name)
+            self.assertEqual(data["metadata"]["schema_version"], CURRENT_WORKSPACE_SCHEMA_VERSION)
             self.assertIn("Circles", data["state"])
             self.assertEqual(len(data["state"]["Circles"]), 1)
 
@@ -149,7 +155,7 @@ class TestWorkspaceManagement(unittest.TestCase):
         with open(workspace_path, 'w') as f:
             json.dump(malformed_data, f)
 
-        with self.assertRaisesRegex(ValueError, "Error loading workspace: 'state'"):
+        with self.assertRaisesRegex(ValueError, "Error loading workspace: .*state"):
             self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
 
         # Case 2: 'state' key exists, but 'Points' (a drawable type) is not a list.
@@ -168,6 +174,57 @@ class TestWorkspaceManagement(unittest.TestCase):
         self.assertIn("Points", loaded_state_2_dict)
         self.assertNotIsInstance(loaded_state_2_dict["Points"], list, "Points should not be a list in this malformed case.")
         self.assertEqual(loaded_state_2_dict["Points"], "this should be a list")
+
+    def test_load_workspace_legacy_state_only_payload(self) -> None:
+        """Legacy files with top-level state payload should still load."""
+        workspace_name = "test_legacy_state_only_workspace"
+        workspace_path = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{workspace_name}.json")
+        legacy_state = {"Points": [{"x": 1, "y": 2, "name": "A"}], "Segments": []}
+        with open(workspace_path, 'w') as f:
+            json.dump(legacy_state, f)
+
+        loaded_state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
+        loaded_state_dict = cast(Dict[str, Any], loaded_state)
+        self.assertIn("Points", loaded_state_dict)
+        self.assertEqual(len(cast(list, loaded_state_dict["Points"])), 1)
+
+    def test_load_workspace_rejects_future_schema_version(self) -> None:
+        """Future schema versions should fail fast until migration is added."""
+        workspace_name = "test_future_schema_workspace"
+        workspace_path = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{workspace_name}.json")
+        future_data = {
+            "metadata": {
+                "name": workspace_name,
+                "last_modified": datetime.now().isoformat(),
+                "schema_version": CURRENT_WORKSPACE_SCHEMA_VERSION + 1,
+            },
+            "state": {"Points": []},
+        }
+        with open(workspace_path, 'w') as f:
+            json.dump(future_data, f)
+
+        with self.assertRaisesRegex(ValueError, "Unsupported workspace schema_version"):
+            self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
+
+    def test_load_workspace_accepts_string_schema_version(self) -> None:
+        """String schema_version values should be parsed for compatibility."""
+        workspace_name = "test_string_schema_workspace"
+        workspace_path = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{workspace_name}.json")
+        data = {
+            "metadata": {
+                "name": workspace_name,
+                "last_modified": datetime.now().isoformat(),
+                "schema_version": str(CURRENT_WORKSPACE_SCHEMA_VERSION),
+            },
+            "state": {"Points": [{"x": 0, "y": 0, "name": "A"}]},
+        }
+        with open(workspace_path, 'w') as f:
+            json.dump(data, f)
+
+        loaded_state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
+        loaded_state_dict = cast(Dict[str, Any], loaded_state)
+        self.assertIn("Points", loaded_state_dict)
+        self.assertEqual(len(cast(list, loaded_state_dict["Points"])), 1)
 
     def test_list_workspaces(self) -> None:
         """Test listing all workspaces."""

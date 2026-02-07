@@ -130,77 +130,84 @@ class AngleManager:
         Returns:
             The created or existing Angle object, or None if creation failed.
         """
-        self.canvas.undo_redo_manager.archive() # TODO: Ensure this call is correct as per manager patterns
+        undo_manager = self.canvas.undo_redo_manager
+        baseline_state = undo_manager.capture_state()
+        undo_manager.suspend_archiving()
 
-        # 1. Create/Retrieve defining points
-        # Point names can be derived if angle_name follows a convention, e.g., "angle_ABC"
-        # For now, let PointManager handle default naming if specific names aren't easily parsed.
-        vertex_point_obj = self.point_manager.create_point(vx, vy, extra_graphics=False)
-        arm1_defining_point_obj = self.point_manager.create_point(p1x, p1y, extra_graphics=False)
-        arm2_defining_point_obj = self.point_manager.create_point(p2x, p2y, extra_graphics=False)
-
-        if not all([vertex_point_obj, arm1_defining_point_obj, arm2_defining_point_obj]):
-            print(f"AngleManager: Failed to create one or more defining points for the angle.")
-            # TODO: Consider if self.canvas.undo_redo_manager.revert() is needed if part-way through
-            return None
-
-        # 2. Create/Retrieve segments using these points
-        # SegmentManager.create_segment takes coordinates, not point objects directly.
-        segment1 = self.segment_manager.create_segment(
-            vertex_point_obj.x, vertex_point_obj.y,
-            arm1_defining_point_obj.x, arm1_defining_point_obj.y,
-            extra_graphics=False
-        )
-        segment2 = self.segment_manager.create_segment(
-            vertex_point_obj.x, vertex_point_obj.y,
-            arm2_defining_point_obj.x, arm2_defining_point_obj.y,
-            extra_graphics=False
-        )
-
-        if not segment1 or not segment2:
-            print(f"AngleManager: Failed to create one or more segments for the angle.")
-            return None
-
-        # 3. Check if an angle with these exact segments AND same reflex state already exists
-        existing_angle = self.get_angle_by_segments(segment1, segment2, is_reflex)
-        if existing_angle:
-            return existing_angle
-
-        # 4. Instantiate the Angle (let Angle compute deterministic name if none provided)
-        new_angle: Optional[Angle] = None
         try:
+            # 1. Create/Retrieve defining points
+            vertex_point_obj = self.point_manager.create_point(vx, vy, extra_graphics=False)
+            arm1_defining_point_obj = self.point_manager.create_point(p1x, p1y, extra_graphics=False)
+            arm2_defining_point_obj = self.point_manager.create_point(p2x, p2y, extra_graphics=False)
+
+            if not all([vertex_point_obj, arm1_defining_point_obj, arm2_defining_point_obj]):
+                print("AngleManager: Failed to create one or more defining points for the angle.")
+                undo_manager.restore_state(baseline_state, redraw=self.canvas.draw_enabled)
+                return None
+
+            # 2. Create/Retrieve segments using these points
+            segment1 = self.segment_manager.create_segment(
+                vertex_point_obj.x, vertex_point_obj.y,
+                arm1_defining_point_obj.x, arm1_defining_point_obj.y,
+                extra_graphics=False
+            )
+            segment2 = self.segment_manager.create_segment(
+                vertex_point_obj.x, vertex_point_obj.y,
+                arm2_defining_point_obj.x, arm2_defining_point_obj.y,
+                extra_graphics=False
+            )
+
+            if not segment1 or not segment2:
+                print("AngleManager: Failed to create one or more segments for the angle.")
+                undo_manager.restore_state(baseline_state, redraw=self.canvas.draw_enabled)
+                return None
+
+            # 3. Check if an angle with these exact segments AND same reflex state already exists
+            existing_angle = self.get_angle_by_segments(segment1, segment2, is_reflex)
+            if existing_angle:
+                undo_manager.restore_state(baseline_state, redraw=False)
+                return existing_angle
+
+            # 4. Instantiate the Angle (let Angle compute deterministic name if none provided)
             angle_kwargs: Dict[str, Any] = {'is_reflex': is_reflex}
             if color is not None:
                 angle_kwargs['color'] = color
             if angle_name is not None:
                 angle_kwargs['name'] = angle_name
+            try:
+                new_angle = Angle(segment1, segment2, **angle_kwargs)
+            except ValueError as e:
+                print(f"AngleManager: Error creating Angle - {e}")
+                undo_manager.restore_state(baseline_state, redraw=self.canvas.draw_enabled)
+                return None
 
-            new_angle = Angle(segment1, segment2, **angle_kwargs)
-        except ValueError as e:
-            print(f"AngleManager: Error creating Angle - {e}")
-            # Segments might be valid, but not form a valid angle (e.g., collinear)
-            return None
+            # 5. Add to drawables container
+            self.drawables.add(new_angle)
 
-        # 5. Add to drawables container
-        self.drawables.add(new_angle)
+            # 6. Register dependencies
+            self.dependency_manager.register_dependency(child=new_angle, parent=segment1)
+            self.dependency_manager.register_dependency(child=new_angle, parent=segment2)
+            self.dependency_manager.register_dependency(child=new_angle, parent=vertex_point_obj)
+            self.dependency_manager.register_dependency(child=new_angle, parent=arm1_defining_point_obj)
+            self.dependency_manager.register_dependency(child=new_angle, parent=arm2_defining_point_obj)
 
-        # 6. Register dependencies
-        self.dependency_manager.register_dependency(child=new_angle, parent=segment1)
-        self.dependency_manager.register_dependency(child=new_angle, parent=segment2)
-        # Also register dependencies on the constituent points
-        self.dependency_manager.register_dependency(child=new_angle, parent=vertex_point_obj)
-        self.dependency_manager.register_dependency(child=new_angle, parent=arm1_defining_point_obj)
-        self.dependency_manager.register_dependency(child=new_angle, parent=arm2_defining_point_obj)
+            # 7. Handle extra graphics if requested
+            if extra_graphics:
+                self.drawable_manager.create_drawables_from_new_connections()
 
-        # 7. Handle extra graphics if requested
-        if extra_graphics:
-            self.drawable_manager.create_drawables_from_new_connections()
+            # Commit as a single undo step once creation fully succeeds.
+            undo_manager.push_undo_state(baseline_state)
 
-        # 8. Draw the canvas
-        if self.canvas.draw_enabled:
-            self.canvas.draw()
-            
-        return new_angle
+            # 8. Draw the canvas
+            if self.canvas.draw_enabled:
+                self.canvas.draw()
+
+            return new_angle
+        except Exception:
+            undo_manager.restore_state(baseline_state, redraw=self.canvas.draw_enabled)
+            raise
+        finally:
+            undo_manager.resume_archiving()
 
     def get_angle_by_name(self, name: str) -> Optional[Angle]:
         """
