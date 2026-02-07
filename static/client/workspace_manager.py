@@ -494,7 +494,14 @@ class WorkspaceManager:
 
     def _create_colored_areas(self, state: Dict[str, Any]) -> None:
         """Create colored areas from workspace state."""
-        handlers = {
+        handlers = self._colored_area_handlers()
+        for area_type, handler in handlers.items():
+            self._restore_colored_area_items(state.get(area_type, []), handler)
+
+    def _colored_area_handlers(
+        self,
+    ) -> Dict[str, Callable[[Dict[str, Any]], Any]]:
+        return {
             "ClosedShapeColoredAreas": self._restore_closed_shape_area,
             "FunctionsBoundedColoredAreas": self._restore_functions_bounded_area,
             "SegmentsBoundedColoredAreas": self._restore_generic_colored_area,
@@ -502,17 +509,28 @@ class WorkspaceManager:
             "ColoredAreas": self._restore_generic_colored_area,
         }
 
-        for area_type, handler in handlers.items():
-            for item_state in state.get(area_type, []):
-                try:
-                    created = handler(item_state)
-                    if created and (name := item_state.get("name")):
-                        created.name = name
-                except Exception as exc:
-                    print(
-                        f"Warning: Could not restore colored area '{item_state.get('name', 'Unnamed')}': {exc}"
-                    )
-                    continue
+    def _restore_colored_area_items(
+        self,
+        items: Any,
+        handler: Callable[[Dict[str, Any]], Any],
+    ) -> None:
+        for item_state in items or []:
+            self._restore_colored_area_item(item_state, handler)
+
+    def _restore_colored_area_item(
+        self,
+        item_state: Dict[str, Any],
+        handler: Callable[[Dict[str, Any]], Any],
+    ) -> None:
+        try:
+            created = handler(item_state)
+            if created and (name := item_state.get("name")):
+                created.name = name
+        except Exception as exc:
+            print(
+                f"Warning: Could not restore colored area '{item_state.get('name', 'Unnamed')}': {exc}"
+            )
+            return
 
     def _create_plots(self, state: Dict[str, Any]) -> None:
         """
@@ -680,16 +698,8 @@ class WorkspaceManager:
 
     def _restore_closed_shape_area(self, item_state: Dict[str, Any]):
         shape_args = item_state.get("args", {})
-        color = shape_args.get("color", default_area_fill_color)
-        opacity = shape_args.get("opacity", default_area_opacity)
+        color, opacity, resolution = self._closed_shape_style_args(shape_args)
         shape_type = shape_args.get("shape_type")
-
-        polygon_names = None
-        circle_name = shape_args.get("circle")
-        ellipse_name = shape_args.get("ellipse")
-        chord_name = shape_args.get("chord_segment")
-        arc_clockwise = shape_args.get("arc_clockwise", False)
-        resolution = shape_args.get("resolution", default_closed_shape_resolution)
         expression = shape_args.get("expression")
 
         if shape_type == "region" and expression:
@@ -700,14 +710,10 @@ class WorkspaceManager:
                 opacity=opacity,
             )
 
-        if shape_type == "polygon":
-            polygon_names = shape_args.get("segments")
-        elif shape_type == "circle":
-            chord_name = None
-        elif shape_type == "ellipse":
-            chord_name = None
-        elif shape_type not in ("circle_segment", "ellipse_segment"):
-            polygon_names = shape_args.get("segments")
+        polygon_names, chord_name = self._closed_shape_polygon_and_chord(shape_args, shape_type)
+        circle_name = shape_args.get("circle")
+        ellipse_name = shape_args.get("ellipse")
+        arc_clockwise = shape_args.get("arc_clockwise", False)
 
         return self.canvas.create_region_colored_area(
             polygon_segment_names=polygon_names,
@@ -719,6 +725,31 @@ class WorkspaceManager:
             color=color,
             opacity=opacity,
         )
+
+    def _closed_shape_style_args(
+        self, shape_args: Dict[str, Any]
+    ) -> Tuple[Any, Any, Any]:
+        color = shape_args.get("color", default_area_fill_color)
+        opacity = shape_args.get("opacity", default_area_opacity)
+        resolution = shape_args.get("resolution", default_closed_shape_resolution)
+        return color, opacity, resolution
+
+    def _closed_shape_polygon_and_chord(
+        self,
+        shape_args: Dict[str, Any],
+        shape_type: Any,
+    ) -> Tuple[Any, Any]:
+        polygon_names = None
+        chord_name = shape_args.get("chord_segment")
+        if shape_type == "polygon":
+            polygon_names = shape_args.get("segments")
+        elif shape_type == "circle":
+            chord_name = None
+        elif shape_type == "ellipse":
+            chord_name = None
+        elif shape_type not in ("circle_segment", "ellipse_segment"):
+            polygon_names = shape_args.get("segments")
+        return polygon_names, chord_name
 
     def _restore_functions_bounded_area(self, item_state: Dict[str, Any]):
         args = item_state.get("args", {})
@@ -733,12 +764,7 @@ class WorkspaceManager:
 
     def _restore_generic_colored_area(self, item_state: Dict[str, Any]):
         args = item_state.get("args", {})
-        drawable1_name = (
-            args.get("drawable1_name") or args.get("segment1") or args.get("func1")
-        )
-        drawable2_name = (
-            args.get("drawable2_name") or args.get("segment2") or args.get("func2")
-        )
+        drawable1_name, drawable2_name = self._generic_colored_area_drawable_names(args)
         return self.canvas.create_colored_area(
             drawable1_name=drawable1_name,
             drawable2_name=drawable2_name,
@@ -747,6 +773,17 @@ class WorkspaceManager:
             color=args.get("color", default_area_fill_color),
             opacity=args.get("opacity", default_area_opacity),
         )
+
+    def _generic_colored_area_drawable_names(
+        self, args: Dict[str, Any]
+    ) -> Tuple[Any, Any]:
+        drawable1_name = (
+            args.get("drawable1_name") or args.get("segment1") or args.get("func1")
+        )
+        drawable2_name = (
+            args.get("drawable2_name") or args.get("segment2") or args.get("func2")
+        )
+        return drawable1_name, drawable2_name
 
     def _create_angles(self, state: Dict[str, Any]) -> None:
         """Create angles from workspace state."""
@@ -771,37 +808,44 @@ class WorkspaceManager:
             return
 
         for arc_state in arcs_data:
-            args = arc_state.get("args", {})
-            point1_name = args.get("point1_name")
-            point2_name = args.get("point2_name")
-            point1 = self.canvas.get_point_by_name(point1_name) if point1_name else None
-            point2 = self.canvas.get_point_by_name(point2_name) if point2_name else None
-            if not point1 or not point2:
-                continue
+            self._restore_circle_arc(arc_state)
 
-            try:
-                self.canvas.create_circle_arc(
-                    point1_x=point1.x,
-                    point1_y=point1.y,
-                    point2_x=point2.x,
-                    point2_y=point2.y,
-                    point1_name=point1.name,
-                    point2_name=point2.name,
-                    point3_x=None,
-                    point3_y=None,
-                    point3_name=None,
-                    center_point_choice=None,
-                    circle_name=args.get("circle_name"),
-                    center_x=args.get("center_x"),
-                    center_y=args.get("center_y"),
-                    radius=args.get("radius"),
-                    arc_name=arc_state.get("name"),
-                    color=args.get("color"),
-                    use_major_arc=args.get("use_major_arc", False),
-                    extra_graphics=False,
-                )
-            except Exception as exc:
-                print(f"Warning: Could not restore circle arc '{arc_state.get('name', '')}': {exc}")
+    def _restore_circle_arc(self, arc_state: Dict[str, Any]) -> None:
+        args = arc_state.get("args", {})
+        point1, point2 = self._resolve_circle_arc_points(args)
+        if not point1 or not point2:
+            return
+
+        try:
+            self.canvas.create_circle_arc(
+                point1_x=point1.x,
+                point1_y=point1.y,
+                point2_x=point2.x,
+                point2_y=point2.y,
+                point1_name=point1.name,
+                point2_name=point2.name,
+                point3_x=None,
+                point3_y=None,
+                point3_name=None,
+                center_point_choice=None,
+                circle_name=args.get("circle_name"),
+                center_x=args.get("center_x"),
+                center_y=args.get("center_y"),
+                radius=args.get("radius"),
+                arc_name=arc_state.get("name"),
+                color=args.get("color"),
+                use_major_arc=args.get("use_major_arc", False),
+                extra_graphics=False,
+            )
+        except Exception as exc:
+            print(f"Warning: Could not restore circle arc '{arc_state.get('name', '')}': {exc}")
+
+    def _resolve_circle_arc_points(self, args: Dict[str, Any]) -> Tuple[Any, Any]:
+        point1_name = args.get("point1_name")
+        point2_name = args.get("point2_name")
+        point1 = self.canvas.get_point_by_name(point1_name) if point1_name else None
+        point2 = self.canvas.get_point_by_name(point2_name) if point2_name else None
+        return point1, point2
 
     def _restore_computations(self, state: Dict[str, Any]) -> None:
         """Restore computations from workspace state."""
