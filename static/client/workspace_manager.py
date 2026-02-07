@@ -196,44 +196,56 @@ class WorkspaceManager:
         if "Segments" not in state:
             return
         for item_state in state["Segments"]:
-            args = item_state.get("args", {})
-            p1 = self._get_point_from_state(args.get("p1"), args.get("p1_coords"))
-            p2 = self._get_point_from_state(args.get("p2"), args.get("p2_coords"))
+            self._restore_segment(item_state)
 
-            if not p1 or not p2:
-                continue
+    def _restore_segment(self, item_state: Dict[str, Any]) -> None:
+        args = item_state.get("args", {})
+        p1, p2 = self._resolve_segment_points(args)
+        if not p1 or not p2:
+            return
 
-            p1, p2 = self._reconcile_segment_endpoints(p1, p2, args)
+        label_args = self._get_segment_label_args(args)
+        segment = self.canvas.create_segment(
+            p1.x,
+            p1.y,
+            p2.x,
+            p2.y,
+            name=item_state.get("name", ""),
+            label_text=str(label_args.get("text", "") or ""),
+            label_visible=bool(label_args.get("visible", False)),
+        )
+        self._restore_segment_label(segment, label_args)
 
-            label_args: Dict[str, Any] = args.get("label", {}) if isinstance(args.get("label", {}), dict) else {}
-            label_text: str = str(label_args.get("text", "") or "")
-            label_visible: bool = bool(label_args.get("visible", False))
-            segment = self.canvas.create_segment(
-                p1.x,
-                p1.y,
-                p2.x,
-                p2.y,
-                name=item_state.get("name", ""),
-                label_text=label_text,
-                label_visible=label_visible,
-            )
+    def _resolve_segment_points(self, args: Dict[str, Any]) -> Tuple[Optional["Point"], Optional["Point"]]:
+        p1 = self._get_point_from_state(args.get("p1"), args.get("p1_coords"))
+        p2 = self._get_point_from_state(args.get("p2"), args.get("p2_coords"))
+        if not p1 or not p2:
+            return None, None
+        return self._reconcile_segment_endpoints(p1, p2, args)
 
-            try:
-                embedded_label = getattr(segment, "label", None)
-                if embedded_label is None:
-                    continue
+    def _get_segment_label_args(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        label_args = args.get("label", {})
+        if isinstance(label_args, dict):
+            return label_args
+        return {}
 
-                if "font_size" in label_args and label_args.get("font_size") is not None:
-                    embedded_label.update_font_size(float(label_args.get("font_size")))
+    def _restore_segment_label(self, segment: Any, label_args: Dict[str, Any]) -> None:
+        try:
+            embedded_label = getattr(segment, "label", None)
+            if embedded_label is None:
+                return
 
-                if "rotation_degrees" in label_args and label_args.get("rotation_degrees") is not None:
-                    embedded_label.update_rotation(float(label_args.get("rotation_degrees")))
+            if "font_size" in label_args and label_args.get("font_size") is not None:
+                embedded_label.update_font_size(float(label_args.get("font_size")))
 
-                render_mode_raw = label_args.get("render_mode")
-                if isinstance(render_mode_raw, dict):
-                    embedded_label.render_mode = LabelRenderMode.from_state(render_mode_raw)
-            except Exception:
-                continue
+            if "rotation_degrees" in label_args and label_args.get("rotation_degrees") is not None:
+                embedded_label.update_rotation(float(label_args.get("rotation_degrees")))
+
+            render_mode_raw = label_args.get("render_mode")
+            if isinstance(render_mode_raw, dict):
+                embedded_label.render_mode = LabelRenderMode.from_state(render_mode_raw)
+        except Exception:
+            return
 
     def _get_point_from_state(
         self,
@@ -283,27 +295,37 @@ class WorkspaceManager:
         if "Vectors" not in state:
             return
         for item_state in state["Vectors"]:
-            origin_point_name: Optional[str] = item_state["args"].get("origin")
-            tip_point_name: Optional[str] = item_state["args"].get("tip")
+            self._restore_vector(item_state)
 
-            if not origin_point_name or not tip_point_name:
-                print(f"Warning: Vector '{item_state.get('name', 'Unnamed')}' is missing origin or tip point name in its state. Skipping.")
-                continue
-
-            origin_point: Optional["Point"] = self.canvas.get_point_by_name(origin_point_name)
-            tip_point: Optional["Point"] = self.canvas.get_point_by_name(tip_point_name)
-
-            if not origin_point or not tip_point:
-                print(f"Warning: Could not find origin ('{origin_point_name}') or tip ('{tip_point_name}') point for vector '{item_state.get('name', 'Unnamed')}' in the canvas. Skipping.")
-                continue
-            
-            self.canvas.create_vector(
-                origin_point.x,
-                origin_point.y, 
-                tip_point.x,
-                tip_point.y,
-                name=item_state.get("name", "")
+    def _restore_vector(self, item_state: Dict[str, Any]) -> None:
+        origin_point_name, tip_point_name = self._get_vector_point_names(item_state)
+        if not origin_point_name or not tip_point_name:
+            print(
+                f"Warning: Vector '{item_state.get('name', 'Unnamed')}' is missing origin or tip point name in its state. Skipping."
             )
+            return
+
+        origin_point: Optional["Point"] = self.canvas.get_point_by_name(origin_point_name)
+        tip_point: Optional["Point"] = self.canvas.get_point_by_name(tip_point_name)
+        if not origin_point or not tip_point:
+            print(
+                f"Warning: Could not find origin ('{origin_point_name}') or tip ('{tip_point_name}') point for vector '{item_state.get('name', 'Unnamed')}' in the canvas. Skipping."
+            )
+            return
+
+        self.canvas.create_vector(
+            origin_point.x,
+            origin_point.y,
+            tip_point.x,
+            tip_point.y,
+            name=item_state.get("name", ""),
+        )
+
+    def _get_vector_point_names(self, item_state: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+        args = item_state.get("args", {})
+        if not isinstance(args, dict):
+            return None, None
+        return args.get("origin"), args.get("tip")
 
     def _create_triangles(self, state: Dict[str, Any]) -> None:
         """Create triangles from workspace state."""
