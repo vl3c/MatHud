@@ -4,7 +4,8 @@
 - fix angle creation undo/redo transaction flow to prevent partial state commits
 - add rollback on multi-step drawable creation failures (points/segments/angles)
 - harden workspace import with schema versioning and backward-compatible migrations
-- improve renderer parity checks so Canvas2D/SVG/WebGL produce consistent geometry and labels
+- improve renderer parity checks so Canvas2D/SVG produce consistent geometry and labels
+- add WebGL renderer parity checks after WebGL feature-completeness improves (labels/text and full drawable parity)
 
 ## P1 - Core User Value (implement after P0)
 - snapping: point/object snapping, grid snapping, coordinate readout
@@ -38,7 +39,8 @@
 - fix angle creation undo/redo transaction flow to prevent partial state commits
 - add rollback on multi-step drawable creation failures (points/segments/angles)
 - harden workspace import with schema versioning and backward-compatible migrations
-- improve renderer parity checks so Canvas2D/SVG/WebGL produce consistent geometry and labels
+- improve renderer parity checks so Canvas2D/SVG produce consistent geometry and labels
+- add WebGL renderer parity checks after WebGL feature-completeness improves (labels/text and full drawable parity)
 
 ## Quick Wins (High Value, Easier Implementation)
 - add table view for function values and lightweight tabular data exploration

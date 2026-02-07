@@ -579,6 +579,50 @@ class TestRendererPrimitives(unittest.TestCase):
         text_operations = [entry for entry in ctx.log if entry[0] == "fillText"]
         self.assertTrue(any(entry[1] == "f" for entry in text_operations))
 
+    def test_canvas_and_svg_primitives_have_matching_core_signals(self) -> None:
+        """Parity check focused on current production backends: Canvas2D and SVG."""
+        svg_log: List[Any] = []
+        mock_svg, mock_document = reset_svg_environment(svg_log)
+        svg_renderer = SvgRenderer()
+
+        with unittest.mock.patch("rendering.svg_renderer.svg", mock_svg), \
+                unittest.mock.patch("rendering.svg_renderer.document", mock_document), \
+                unittest.mock.patch("rendering.svg_primitive_adapter.svg", mock_svg), \
+                unittest.mock.patch("rendering.svg_primitive_adapter.document", mock_document):
+            svg_renderer._shared_primitives = SvgPrimitiveAdapter("math-svg")
+            svg_renderer._render_point(self.point_a, self.mapper)
+            svg_renderer._render_segment(self.segment_ab, self.mapper)
+            svg_renderer._render_circle(self.circle, self.mapper)
+            svg_renderer._render_vector(self.vector_ab, self.mapper)
+            svg_renderer._render_angle(self.angle_abc, self.mapper)
+            svg_renderer._render_function(self.function, self.mapper)
+
+        svg_text_entries = collect_text_labels(mock_document.surface)
+        svg_has_point_label = any(text and text.startswith("A(") for text in svg_text_entries)
+        svg_has_function_label = "f" in svg_text_entries
+        svg_tree = serialize_svg_tree(mock_document.surface)
+        svg_has_angle_arc = svg_tree_contains(svg_tree, "path", "class", "angle-arc") or \
+            svg_tree_contains(svg_tree, "path", "stroke", self.angle_abc.color)
+
+        canvas_renderer = Canvas2DRenderer()
+        mock_canvas = MockCanvasElement()
+        ctx = reset_canvas_environment(canvas_renderer, mock_canvas)
+        canvas_renderer._render_point(self.point_a, self.mapper)
+        canvas_renderer._render_segment(self.segment_ab, self.mapper)
+        canvas_renderer._render_circle(self.circle, self.mapper)
+        canvas_renderer._render_vector(self.vector_ab, self.mapper)
+        canvas_renderer._render_angle(self.angle_abc, self.mapper)
+        canvas_renderer._render_function(self.function, self.mapper)
+
+        text_operations = [entry for entry in ctx.log if entry[0] == "fillText"]
+        canvas_has_point_label = any(isinstance(entry[1], str) and entry[1].startswith("A(") for entry in text_operations)
+        canvas_has_function_label = any(entry[1] == "f" for entry in text_operations)
+        canvas_has_arc = any(entry[0] == "arc" for entry in normalize_canvas_log(ctx.log))
+
+        self.assertEqual(canvas_has_point_label, svg_has_point_label)
+        self.assertEqual(canvas_has_function_label, svg_has_function_label)
+        self.assertEqual(canvas_has_arc, svg_has_angle_arc)
+
     def test_canvas_cartesian_uses_shared_primitives(self) -> None:
         renderer = Canvas2DRenderer()
         mock_canvas = MockCanvasElement()
