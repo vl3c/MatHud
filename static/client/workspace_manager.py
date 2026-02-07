@@ -881,15 +881,27 @@ class WorkspaceManager:
         Args:
             state (dict): Workspace state dictionary containing all object data.
         """
-        self._clear_canvas_for_restore()
-        self._restore_coordinate_system_state(state)
-        self._restore_drawables_in_dependency_order(state)
-        self._draw_canvas_if_enabled()
-        self._restore_post_draw_dependencies(state)
-        self._restore_computations(state)
+        self._run_restore_phases(state)
+
+    def _run_restore_phases(self, state: Dict[str, Any]) -> None:
+        for phase in self._restore_phases():
+            phase(state)
+
+    def _restore_phases(self) -> List[Callable[[Dict[str, Any]], None]]:
+        return [
+            self._phase_clear_canvas_for_restore,
+            self._restore_coordinate_system_state,
+            self._restore_drawables_in_dependency_order,
+            self._phase_draw_canvas_if_enabled,
+            self._restore_post_draw_dependencies,
+            self._restore_computations,
+        ]
 
     def _clear_canvas_for_restore(self) -> None:
         self.canvas.clear()
+
+    def _phase_clear_canvas_for_restore(self, _: Dict[str, Any]) -> None:
+        self._clear_canvas_for_restore()
 
     def _restore_coordinate_system_state(self, state: Dict[str, Any]) -> None:
         # Always reset to cartesian first (for legacy workspaces without coordinate_system)
@@ -950,6 +962,9 @@ class WorkspaceManager:
                 self.canvas.draw()
             except Exception:
                 pass
+
+    def _phase_draw_canvas_if_enabled(self, _: Dict[str, Any]) -> None:
+        self._draw_canvas_if_enabled()
 
     def _restore_post_draw_dependencies(self, state: Dict[str, Any]) -> None:
         # Create angles after segments since they depend on segments
