@@ -1,14 +1,57 @@
-# Bug Fixes
+# Delivery Plan (P0/P1/P2)
 
-# Quick Wins (High Value, Easier Implementation)
+## P0 - Reliability (implement first)
+- fix angle creation undo/redo transaction flow to prevent partial state commits
+- add rollback on multi-step drawable creation failures (points/segments/angles)
+- harden workspace import with schema versioning and backward-compatible migrations
+- improve renderer parity checks so Canvas2D/SVG/WebGL produce consistent geometry and labels
+
+## P1 - Core User Value (implement after P0)
+- snapping: point/object snapping, grid snapping, coordinate readout
+- data entry: table view, CSV import/export, measurement overlays
+- plotting: scatter/histogram/box plot, polar graphs, implicit function plotting
+- geometry: construction tools, relation inspector, transforms
+- interaction: tracing/root-finding tools, dynamic sliders, interactive graph editing
+- statistics: summaries, additional distributions, probability calculators
+
+## P2 - Advanced and Expansion
+- construction history timeline and reusable macros
+- vector fields, contour/heatmap rendering
+- graph theory: algorithm playback, generators, matrix view
+- multi-view: split screen, tabbed workspaces, dual display
+- animation timeline controls, locus generation
+- session snapshots with diff/restore
+- keyboard shortcut editor and command palette
+- 3D graphing and shape visualization
+
+## Milestones
+- Milestone 1 (Stability): all P0 items
+- Milestone 2 (Interaction): snapping, table view, CSV, measurement overlays
+- Milestone 3 (Plotting + Stats): scatter/histogram/box plot, polar, implicit, distributions, probability calculators
+- Milestone 4 (Geometry): construction tools, relation inspector, transforms, tracing/sliders
+- Milestone 5 (Graph Workflow): interactive graph editing, algorithm playback, generators, matrix view
+- Milestone 6 (Advanced): remaining P2 items (visualization, productivity, 3D)
+
+# Backlog
+
+## Bug Fixes
+- fix angle creation undo/redo transaction flow to prevent partial state commits
+- add rollback on multi-step drawable creation failures (points/segments/angles)
+- harden workspace import with schema versioning and backward-compatible migrations
+- improve renderer parity checks so Canvas2D/SVG/WebGL produce consistent geometry and labels
+
+## Quick Wins (High Value, Easier Implementation)
 - add table view for function values and lightweight tabular data exploration
 - add scatter plot, histogram, and box plot visualization
-- add polar graph support for functions in polar coordinates (r = f(θ))
+- add polar graph support for functions in polar coordinates (r = f(theta))
 - add implicit function plotting (f(x,y) = 0 style equations)
 - add grid snapping and coordinate readout on graph hover
 - add rationalize support (and document it)
+- add point/object snapping modes (endpoints, intersections, midpoints, nearest-on-curve)
+- add measurement overlays (live distance/angle/area/perimeter while selecting objects)
+- add CSV import/export for tabular datasets and plotted points
 
-# Core Mathematical Tools (Medium Effort)
+## Core Mathematical Tools (Medium Effort)
 - add row operations / row-reduction workflows (rref, row swaps, etc.)
 - add eigenvalue and eigenvector computation
 - add complex number utilities plus base-n calculations and conversions (binary, octal, hexadecimal)
@@ -17,16 +60,26 @@
 - add numerical integration (Simpson's rule, trapezoidal rule) - Note: Newton-Raphson implemented in numeric_solver package
 - add conic section specialized tools
 - add inequality graphing and systems of inequalities with shading controls
+- add geometric construction tools (midpoint, perpendicular/parallel line, angle/perpendicular bisector, circle through 3 points)
+- add geometric relation inspector (parallel/perpendicular/collinear/concyclic/equal length checks)
+- add reflection, dilation, and shear transforms with object/point/line references
+- add construction history timeline with step-by-step replay
+- add reusable custom construction macros/tools
 
-# Statistics and Data Analysis
+## Statistics and Data Analysis
 - add statistical hypothesis testing workflows (z-test, t-test, chi-square, F-test)
 - add confidence interval and ANOVA tools
 - add data list correlation and covariance functions
 - add probability plot visualization (Q-Q plots, P-P plots)
 - add cumulative frequency tables and graph generation
 - add list and spreadsheet structures for numeric and symbolic data (support formulas, basic stats, and function links)
+- add residual plots and regression diagnostics (SSE, RMSE, adjusted R-squared)
+- add weighted regression and robust regression options
+- add statistical summaries for selected point/list ranges (min/max/quartiles/IQR/stddev)
+- add additional probability distributions (binomial, poisson, t, chi-square, F, uniform, exponential)
+- add probability calculators (PDF/PMF, CDF, inverse CDF/quantiles)
 
-# Advanced Visualization Features
+## Advanced Visualization Features
 - add interactive tracing, root/extrema/intersection finding tools
 - add vector field visualization
 - add dynamic sliders to manipulate parameters in real time
@@ -34,19 +87,32 @@
 - add animation capabilities for transformations and function changes
 - add split screen and tabbed workspace modes to compare different graphs/calculations
 - add dual display (graph + table or graph + graph) modes
+- add animation timeline controls (play/pause/speed/loop) for slider-driven scenes
+- add locus generation for dependent-point motion under parameter changes
+- add contour/heatmap rendering for scalar functions z=f(x,y)
 
-# Advanced Mathematical Tools (Higher Effort)
+## Graph Theory Enhancements
+- add interactive graph editing mode (drag vertices, rewire edges, inline weight editing)
+- add algorithm playback mode for graph analysis (step-by-step BFS/DFS/Dijkstra/MST)
+- add graph generators (grid, cycle, complete, random, scale-free) with parameter controls
+- add adjacency/incidence matrix view linked bidirectionally with drawn graph
+
+## Advanced Mathematical Tools (Higher Effort)
 - add differential equations solver with visualization of direction fields and solution families
 - add numerical ODE solvers
 - add truth tables and boolean algebra workflows for logic and circuit analysis
 - add financial mathematics (compound interest, annuities, amortization, bond valuation)
 
-# Future 3D Features
+## Future 3D Features
 - add 3D graphing capabilities and 3D shape visualization
 - add parametric equation plotting in 3D
 - add 3D surface plotting (plane, sphere, cylinder templates)
 - add rotation, zoom, and cross-section tools for 3D visualization
 - add vector field and gradient visualization in 3D space
 
-# Static Typing Rollout
+## Interoperability and Productivity
+- add richer session persistence with named snapshots and diff/restore between snapshots
+- add keyboard shortcut editor and command palette for power-user workflows
+
+## Static Typing Rollout
 - add type stubs or protocols for Brython `browser` module usage in client code
