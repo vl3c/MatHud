@@ -13,7 +13,15 @@ class TestAngleManager(unittest.TestCase):
         
         self.canvas_mock = SimpleMock(
             name="CanvasMock",
-            undo_redo_manager=SimpleMock(name="UndoRedoManagerMock", archive=MagicMock()),
+            undo_redo_manager=SimpleMock(
+                name="UndoRedoManagerMock",
+                archive=MagicMock(),
+                capture_state=MagicMock(return_value={"drawables": {}, "computations": []}),
+                suspend_archiving=MagicMock(),
+                resume_archiving=MagicMock(),
+                restore_state=MagicMock(),
+                push_undo_state=MagicMock(),
+            ),
             draw_enabled=True,
             draw=MagicMock(),
             # Add minimal coordinate_mapper properties
@@ -242,3 +250,40 @@ class TestAngleManager(unittest.TestCase):
     def test_update_angle_raises_when_not_found(self) -> None:
         with self.assertRaises(ValueError):
             self.angle_manager.update_angle("missing_angle", new_color="#123456")
+
+    @patch("managers.angle_manager.Angle")
+    def test_create_angle_records_single_undo_on_success(self, mock_angle_cls: MagicMock) -> None:
+        mock_angle = SimpleMock(name="angle_ABC", segment1=self.seg_AB, segment2=self.seg_AC, is_reflex=False)
+        mock_angle_cls.return_value = mock_angle
+
+        result = self.angle_manager.create_angle(0, 0, 10, 0, 0, 10, extra_graphics=False)
+
+        self.assertIs(result, mock_angle)
+        self.canvas_mock.undo_redo_manager.capture_state.assert_called_once()
+        self.canvas_mock.undo_redo_manager.suspend_archiving.assert_called_once()
+        self.canvas_mock.undo_redo_manager.push_undo_state.assert_called_once()
+        self.canvas_mock.undo_redo_manager.restore_state.assert_not_called()
+        self.canvas_mock.undo_redo_manager.resume_archiving.assert_called_once()
+
+    def test_create_angle_rolls_back_when_segment_creation_fails(self) -> None:
+        self.segment_manager_mock.create_segment = MagicMock(side_effect=[None, None])
+
+        result = self.angle_manager.create_angle(0, 0, 10, 0, 0, 10, extra_graphics=False)
+
+        self.assertIsNone(result)
+        self.canvas_mock.undo_redo_manager.capture_state.assert_called_once()
+        self.canvas_mock.undo_redo_manager.suspend_archiving.assert_called_once()
+        self.canvas_mock.undo_redo_manager.restore_state.assert_called_once()
+        self.canvas_mock.undo_redo_manager.push_undo_state.assert_not_called()
+        self.canvas_mock.undo_redo_manager.resume_archiving.assert_called_once()
+
+    @patch("managers.angle_manager.Angle", side_effect=ValueError("invalid angle"))
+    def test_create_angle_rolls_back_when_angle_constructor_fails(self, _: MagicMock) -> None:
+        result = self.angle_manager.create_angle(0, 0, 10, 0, 0, 10, extra_graphics=False)
+
+        self.assertIsNone(result)
+        self.canvas_mock.undo_redo_manager.capture_state.assert_called_once()
+        self.canvas_mock.undo_redo_manager.suspend_archiving.assert_called_once()
+        self.canvas_mock.undo_redo_manager.restore_state.assert_called_once()
+        self.canvas_mock.undo_redo_manager.push_undo_state.assert_not_called()
+        self.canvas_mock.undo_redo_manager.resume_archiving.assert_called_once()
