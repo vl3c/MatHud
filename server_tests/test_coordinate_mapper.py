@@ -766,8 +766,9 @@ class TestCoordinateMapper(unittest.TestCase):
     
     def test_sync_from_canvas_coordinate_transformations_work(self) -> None:
         """Test that coordinate transformations work correctly after sync_from_canvas."""
-        # Create mock canvas with specific transformation state
-        cartesian_mock = SimpleMock(origin=Position(500, 300))
+        # Create mock canvas with specific transformation state.
+        # cartesian2axis.origin should be ignored when center is absent.
+        cartesian_mock = SimpleMock(origin=Position(600, 400))
         canvas_mock = SimpleMock(
             width=1000,
             height=600,
@@ -781,8 +782,8 @@ class TestCoordinateMapper(unittest.TestCase):
         
         # Test that coordinate transformations use synced values
         screen_x, screen_y = mapper.math_to_screen(0, 0)
-        expected_x = 500 + 0 * 2.0 + 100  # origin.x + math_x * scale + offset.x
-        expected_y = 300 - 0 * 2.0 + (-50)  # origin.y - math_y * scale + offset.y
+        expected_x = 500 + 0 * 2.0 + 100  # fallback origin.x (width / 2) + math_x * scale + offset.x
+        expected_y = 300 - 0 * 2.0 + (-50)  # fallback origin.y (height / 2) - math_y * scale + offset.y
         
         self.assertEqual(screen_x, expected_x)
         self.assertEqual(screen_y, expected_y)

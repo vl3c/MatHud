@@ -52,7 +52,7 @@ class TestFunctionRenderable(unittest.TestCase):
 
         result = renderable.build_screen_paths()
 
-        self.assertGreaterEqual(len(result.paths), 1)
+        self.assertGreaterEqual(len(result.paths), 2)
         self.assertTrue(any(len(path) > 1 for path in result.paths))
 
     def test_discontinuous_function_samples_both_sides_of_asymptote(self) -> None:
