@@ -39,7 +39,7 @@ Dependencies:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import json
 
@@ -738,11 +738,16 @@ class WorkspaceManager:
             return
         for comp in state["computations"]:
             # Skip workspace management functions
-            if comp["expression"].startswith("list_workspaces") or \
-               comp["expression"].startswith("save_workspace") or \
-               comp["expression"].startswith("load_workspace"):
+            if self._is_workspace_management_expression(comp["expression"]):
                 continue
             self.canvas.add_computation(comp["expression"], comp["result"])
+
+    def _is_workspace_management_expression(self, expression: str) -> bool:
+        return (
+            expression.startswith("list_workspaces")
+            or expression.startswith("save_workspace")
+            or expression.startswith("load_workspace")
+        )
 
     def _restore_workspace_state(self, state: Dict[str, Any]) -> None:
         """
@@ -755,8 +760,17 @@ class WorkspaceManager:
         Args:
             state (dict): Workspace state dictionary containing all object data.
         """
+        self._clear_canvas_for_restore()
+        self._restore_coordinate_system_state(state)
+        self._restore_drawables_in_dependency_order(state)
+        self._draw_canvas_if_enabled()
+        self._restore_post_draw_dependencies(state)
+        self._restore_computations(state)
+
+    def _clear_canvas_for_restore(self) -> None:
         self.canvas.clear()
-        
+
+    def _restore_coordinate_system_state(self, state: Dict[str, Any]) -> None:
         # Always reset to cartesian first (for legacy workspaces without coordinate_system)
         # Then restore the saved mode if present
         if hasattr(self.canvas, "coordinate_system_manager"):
@@ -769,7 +783,8 @@ class WorkspaceManager:
                     self.canvas.coordinate_system_manager.set_state(coord_system_state)
             except Exception:
                 pass
-        
+
+    def _restore_drawables_in_dependency_order(self, state: Dict[str, Any]) -> None:
         # Create objects in the correct dependency order
         self._create_points(state)
         self._create_labels(state)
@@ -789,14 +804,17 @@ class WorkspaceManager:
         self._create_plots(state)
         self._materialize_discrete_plot_bars()
         self._materialize_bars_plot_bars()
+
+    def _draw_canvas_if_enabled(self) -> None:
         if getattr(self.canvas, "draw_enabled", False):
             try:
                 self.canvas.draw()
             except Exception:
                 pass
-        # Create angles after segments since they depend on segments  
+
+    def _restore_post_draw_dependencies(self, state: Dict[str, Any]) -> None:
+        # Create angles after segments since they depend on segments
         self._create_angles(state)
-        self._restore_computations(state)
 
     def _materialize_discrete_plot_bars(self) -> None:
         """
@@ -804,24 +822,10 @@ class WorkspaceManager:
 
         Bars are derived from DiscretePlot params and are not persisted in saved workspaces.
         """
-        stats_manager = getattr(getattr(self.canvas, "drawable_manager", None), "statistics_manager", None)
-        if stats_manager is None or not hasattr(stats_manager, "materialize_discrete_plot"):
-            return
-
-        drawables = getattr(getattr(self.canvas, "drawable_manager", None), "drawables", None)
-        if drawables is None or not hasattr(drawables, "get_by_class_name"):
-            return
-
-        try:
-            discrete_plots = list(drawables.get_by_class_name("DiscretePlot"))
-        except Exception:
-            discrete_plots = []
-
-        for plot in discrete_plots:
-            try:
-                stats_manager.materialize_discrete_plot(plot)
-            except Exception:
-                continue
+        self._materialize_plot_family(
+            class_name="DiscretePlot",
+            materializer_name="materialize_discrete_plot",
+        )
 
     def _materialize_bars_plot_bars(self) -> None:
         """
@@ -829,8 +833,14 @@ class WorkspaceManager:
 
         Bars are derived from BarsPlot params and are not persisted in saved workspaces.
         """
+        self._materialize_plot_family(
+            class_name="BarsPlot",
+            materializer_name="materialize_bars_plot",
+        )
+
+    def _materialize_plot_family(self, class_name: str, materializer_name: str) -> None:
         stats_manager = getattr(getattr(self.canvas, "drawable_manager", None), "statistics_manager", None)
-        if stats_manager is None or not hasattr(stats_manager, "materialize_bars_plot"):
+        if stats_manager is None or not hasattr(stats_manager, materializer_name):
             return
 
         drawables = getattr(getattr(self.canvas, "drawable_manager", None), "drawables", None)
@@ -838,13 +848,17 @@ class WorkspaceManager:
             return
 
         try:
-            bars_plots = list(drawables.get_by_class_name("BarsPlot"))
+            plots = list(drawables.get_by_class_name(class_name))
         except Exception:
-            bars_plots = []
+            plots = []
 
-        for plot in bars_plots:
+        materializer = getattr(stats_manager, materializer_name, None)
+        if not callable(materializer):
+            return
+
+        for plot in plots:
             try:
-                stats_manager.materialize_bars_plot(plot)
+                materializer(plot)
             except Exception:
                 continue
 
@@ -877,14 +891,13 @@ class WorkspaceManager:
             except Exception as e:
                 return f'Error loading workspace: {str(e)}'
 
-        req: Any = ajax.Ajax()
-        req.bind('complete', on_complete)
-        req.bind('error', lambda e: f'Error loading workspace: {e.text}')
-        
         url: str = f'/load_workspace?name={name}' if name else '/load_workspace'
-        req.open('GET', url, False)  # Set to synchronous
-        req.send()
-        return on_complete(req)
+        return self._execute_sync_request(
+            method='GET',
+            url=url,
+            on_complete=on_complete,
+            error_prefix='Error loading workspace',
+        )
 
     def list_workspaces(self) -> str:
         """
@@ -906,13 +919,12 @@ class WorkspaceManager:
             except Exception as e:
                 return f'Error listing workspaces: {str(e)}'
                 
-        req: Any = ajax.Ajax()
-        req.bind('complete', on_complete)
-        req.bind('error', lambda e: f'Error listing workspaces: {e.text}')
-        
-        req.open('GET', '/list_workspaces', False)  # Set to synchronous
-        req.send()
-        return on_complete(req)
+        return self._execute_sync_request(
+            method='GET',
+            url='/list_workspaces',
+            on_complete=on_complete,
+            error_prefix='Error listing workspaces',
+        )
 
     def delete_workspace(self, name: str) -> str:
         """
@@ -936,11 +948,24 @@ class WorkspaceManager:
             except Exception as e:
                 return f'Error deleting workspace: {str(e)}'
                 
+        url: str = f'/delete_workspace?name={name}'
+        return self._execute_sync_request(
+            method='GET',
+            url=url,
+            on_complete=on_complete,
+            error_prefix='Error deleting workspace',
+        )
+
+    def _execute_sync_request(
+        self,
+        method: str,
+        url: str,
+        on_complete: Callable[[Any], str],
+        error_prefix: str,
+    ) -> str:
         req: Any = ajax.Ajax()
         req.bind('complete', on_complete)
-        req.bind('error', lambda e: f'Error deleting workspace: {e.text}')
-        
-        url: str = f'/delete_workspace?name={name}'
-        req.open('GET', url, False)  # Set to synchronous
+        req.bind('error', lambda e: f'{error_prefix}: {e.text}')
+        req.open(method, url, False)  # Set to synchronous
         req.send()
         return on_complete(req)
