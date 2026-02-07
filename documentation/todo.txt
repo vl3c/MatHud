@@ -6,10 +6,6 @@
 - UI gestures are secondary unless they directly support AI workflows (inspection, confirmation, lightweight overrides).
 
 ## P0 - Reliability (implement first)
-- enforce atomic undo/redo transactions for AI-initiated multi-step operations to prevent partial state commits
-- guarantee rollback for failed multi-step drawable creation/update pipelines (points/segments/angles and similar chained operations)
-- harden workspace import/export with schema versioning and backward-compatible migrations for long-term AI session continuity
-- strengthen renderer parity checks so Canvas2D/SVG produce consistent geometry and label output for AI-generated scenes
 - defer full WebGL parity checks until WebGL reaches feature completeness (text/labels and full drawable coverage)
 - add deterministic tool-execution logs and replayability for AI action traces (inputs, resolved targets, resulting state deltas)
 
@@ -48,11 +44,8 @@
 
 ## Reliability and Execution Integrity
 _Elaborates on P0 goals with ongoing design principles._
-- atomic transaction boundaries for all tool batches that mutate canvas state
-- rollback + compensation strategy for partial failures inside composite actions
 - strict validation and canonicalization of tool arguments before execution
 - deterministic ordering for ambiguous target resolution (stable tie-break rules)
-- renderer parity tests focused on Canvas2D/SVG output consistency
 - WebGL parity and label support after WebGL matures
 
 ## Intent Resolution and Constraints
