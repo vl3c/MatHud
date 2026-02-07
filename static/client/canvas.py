@@ -289,35 +289,46 @@ class Canvas:
         Mirrors prior behavior for segments and points; other types default to visible
         because they manage their own bounds or are inexpensive.
         """
+        class_name = self._safe_drawable_class_name(drawable)
         try:
-            class_name = drawable.get_class_name() if hasattr(drawable, 'get_class_name') else drawable.__class__.__name__
-        except Exception:
-            class_name = drawable.__class__.__name__
+            if class_name == "Point":
+                return self._is_point_drawable_visible(drawable)
 
-        try:
-            if class_name == 'Point':
-                # Use screen coordinates if available, else compute
-                # Math-only point; map via CoordinateMapper
-                x, y = self.coordinate_mapper.math_to_screen(drawable.x, drawable.y)
-                return self.is_point_within_canvas_visible_area(x, y)
+            if class_name == "Segment":
+                return self._is_segment_drawable_visible(drawable)
 
-            if class_name == 'Segment':
-                p1 = drawable.point1
-                p2 = drawable.point2
-                return self._is_math_segment_visible(p1, p2)
-
-            if class_name == 'Vector':
-                seg = getattr(drawable, 'segment', None)
-                if seg is None:
-                    return True
-                p1 = seg.point1
-                p2 = seg.point2
-                return self._is_math_segment_visible(p1, p2)
+            if class_name == "Vector":
+                return self._is_vector_drawable_visible(drawable)
 
             # Default: visible
             return True
         except Exception:
             return True
+
+    def _safe_drawable_class_name(self, drawable: Any) -> str:
+        try:
+            return (
+                drawable.get_class_name()
+                if hasattr(drawable, "get_class_name")
+                else drawable.__class__.__name__
+            )
+        except Exception:
+            return drawable.__class__.__name__
+
+    def _is_point_drawable_visible(self, drawable: Any) -> bool:
+        # Use screen coordinates if available, else compute
+        # Math-only point; map via CoordinateMapper
+        x, y = self.coordinate_mapper.math_to_screen(drawable.x, drawable.y)
+        return self.is_point_within_canvas_visible_area(x, y)
+
+    def _is_segment_drawable_visible(self, drawable: Any) -> bool:
+        return self._is_math_segment_visible(drawable.point1, drawable.point2)
+
+    def _is_vector_drawable_visible(self, drawable: Any) -> bool:
+        seg = getattr(drawable, "segment", None)
+        if seg is None:
+            return True
+        return self._is_math_segment_visible(seg.point1, seg.point2)
 
     def _is_math_segment_visible(self, p1: Any, p2: Any) -> bool:
         x1, y1 = self.coordinate_mapper.math_to_screen(p1.x, p1.y)

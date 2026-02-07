@@ -148,51 +148,83 @@ class WorkspaceManager:
         if not labels_state:
             return
         for item_state in labels_state:
-            args = item_state.get("args", {}) if isinstance(item_state, dict) else {}
-            if not isinstance(args, dict):
-                continue
-            pos = args.get("position", {}) if isinstance(args.get("position", {}), dict) else {}
-            try:
-                x = float(pos.get("x", 0.0))
-                y = float(pos.get("y", 0.0))
-            except Exception:
-                continue
-            text = str(args.get("text", "") or "")
-            name = str(item_state.get("name", "") or "")
-            color = args.get("color", None)
-            font_size = args.get("font_size", None)
-            rotation_degrees = args.get("rotation_degrees", None)
+            self._restore_label(item_state)
 
-            try:
-                label = self.canvas.create_label(
-                    x,
-                    y,
-                    text,
-                    name=name,
-                    color=color,
-                    font_size=font_size,
-                    rotation_degrees=rotation_degrees,
-                )
-            except Exception:
-                continue
+    def _restore_label(self, item_state: Any) -> None:
+        args = self._get_label_args(item_state)
+        if args is None:
+            return
+        label_position = self._get_label_position(args)
+        if label_position is None:
+            return
+        x, y = label_position
+        label = self._create_label_from_state(item_state, args, x, y)
+        if label is None:
+            return
+        self._apply_label_visibility(label, args)
+        self._apply_label_reference_scale(label, args)
+        self._apply_label_render_mode(label, args)
 
-            try:
-                label.visible = bool(args.get("visible", True))
-            except Exception:
-                pass
+    def _get_label_args(self, item_state: Any) -> Optional[Dict[str, Any]]:
+        args = item_state.get("args", {}) if isinstance(item_state, dict) else {}
+        if not isinstance(args, dict):
+            return None
+        return args
 
-            try:
-                if hasattr(label, "update_reference_scale"):
-                    label.update_reference_scale(args.get("reference_scale_factor", None))
-            except Exception:
-                pass
+    def _get_label_position(self, args: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+        pos = args.get("position", {}) if isinstance(args.get("position", {}), dict) else {}
+        try:
+            x = float(pos.get("x", 0.0))
+            y = float(pos.get("y", 0.0))
+            return x, y
+        except Exception:
+            return None
 
-            try:
-                render_mode_raw = args.get("render_mode", None)
-                if render_mode_raw is not None:
-                    label.render_mode = LabelRenderMode.from_state(render_mode_raw)
-            except Exception:
-                pass
+    def _create_label_from_state(
+        self,
+        item_state: Any,
+        args: Dict[str, Any],
+        x: float,
+        y: float,
+    ) -> Optional[Any]:
+        text = str(args.get("text", "") or "")
+        name = str(item_state.get("name", "") or "")
+        color = args.get("color", None)
+        font_size = args.get("font_size", None)
+        rotation_degrees = args.get("rotation_degrees", None)
+        try:
+            return self.canvas.create_label(
+                x,
+                y,
+                text,
+                name=name,
+                color=color,
+                font_size=font_size,
+                rotation_degrees=rotation_degrees,
+            )
+        except Exception:
+            return None
+
+    def _apply_label_visibility(self, label: Any, args: Dict[str, Any]) -> None:
+        try:
+            label.visible = bool(args.get("visible", True))
+        except Exception:
+            pass
+
+    def _apply_label_reference_scale(self, label: Any, args: Dict[str, Any]) -> None:
+        try:
+            if hasattr(label, "update_reference_scale"):
+                label.update_reference_scale(args.get("reference_scale_factor", None))
+        except Exception:
+            pass
+
+    def _apply_label_render_mode(self, label: Any, args: Dict[str, Any]) -> None:
+        try:
+            render_mode_raw = args.get("render_mode", None)
+            if render_mode_raw is not None:
+                label.render_mode = LabelRenderMode.from_state(render_mode_raw)
+        except Exception:
+            pass
 
     def _create_segments(self, state: Dict[str, Any]) -> None:
         """Create segments from workspace state."""
