@@ -1767,19 +1767,16 @@ class Canvas:
         return "unknown"
 
     def _resolve_renderer_mode_from_name(self, name: str) -> Optional[str]:
-        if "canvas2d" in name:
-            return "canvas2d"
-        if "svg" in name:
-            return "svg"
-        if "webgl" in name:
-            return "webgl"
-        return None
+        return self._resolve_renderer_mode_from_text(name)
 
     def _resolve_renderer_mode_from_module(self, module_lower: str) -> Optional[str]:
-        if "canvas2d" in module_lower:
+        return self._resolve_renderer_mode_from_text(module_lower)
+
+    def _resolve_renderer_mode_from_text(self, text: str) -> Optional[str]:
+        if "canvas2d" in text:
             return "canvas2d"
-        if "svg" in module_lower:
+        if "svg" in text:
             return "svg"
-        if "webgl" in module_lower:
+        if "webgl" in text:
             return "webgl"
         return None
