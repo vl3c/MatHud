@@ -68,6 +68,7 @@ class UndoRedoManager:
         self.canvas: "Canvas" = canvas
         self.undo_stack: List[Dict[str, Any]] = []
         self.redo_stack: List[Dict[str, Any]] = []
+        self._archive_suspension_depth: int = 0
     
     def archive(self) -> None:
         """
@@ -76,13 +77,39 @@ class UndoRedoManager:
         This method should be called whenever a change is made to the canvas
         that should be undoable.
         """
-        archived_state = {
+        if self._archive_suspension_depth > 0:
+            return
+        self.push_undo_state(self.capture_state())
+
+    def capture_state(self) -> Dict[str, Any]:
+        """Capture the current canvas state snapshot."""
+        return {
             'drawables': copy.deepcopy(self.canvas.drawable_manager.drawables._drawables),
-            'computations': copy.deepcopy(self.canvas.computations)
+            'computations': copy.deepcopy(self.canvas.computations),
         }
-        self.undo_stack.append(archived_state)
-        # Clear the redo stack when a new state is archived
+
+    def push_undo_state(self, state: Dict[str, Any]) -> None:
+        """Push a prior state onto the undo stack and clear redo history."""
+        self.undo_stack.append(copy.deepcopy(state))
         self.redo_stack = []
+
+    def restore_state(self, state: Dict[str, Any], redraw: bool = True) -> None:
+        """Restore a captured state snapshot."""
+        self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(state['drawables'])
+        self.canvas.drawable_manager.drawables.rebuild_renderables()
+        self.canvas.computations = copy.deepcopy(state.get('computations', []))
+        self._rebuild_dependency_graph()
+        if redraw:
+            self.canvas.draw()
+
+    def suspend_archiving(self) -> None:
+        """Suspend archive() calls for composite operations."""
+        self._archive_suspension_depth += 1
+
+    def resume_archiving(self) -> None:
+        """Resume archive() calls after a composite operation."""
+        if self._archive_suspension_depth > 0:
+            self._archive_suspension_depth -= 1
         
     def undo(self) -> bool:
         """
