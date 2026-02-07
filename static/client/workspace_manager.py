@@ -912,24 +912,37 @@ class WorkspaceManager:
 
     def _restore_drawables_in_dependency_order(self, state: Dict[str, Any]) -> None:
         # Create objects in the correct dependency order
-        self._create_points(state)
-        self._create_labels(state)
-        self._create_segments(state)
-        self._create_vectors(state)
-        self._create_triangles(state)
-        self._create_rectangles(state)
-        self._create_circles(state)
-        self._create_circle_arcs(state)
-        self._create_ellipses(state)
-        self._create_functions(state)
-        self._create_piecewise_functions(state)
-        self._create_parametric_functions(state)
+        self._run_restore_steps(self._pre_plot_restore_steps(), state)
         # Create colored areas after functions since they may depend on functions
         self._create_colored_areas(state)
         # Restore plot composites after functions, polygons, and colored areas.
         self._create_plots(state)
         self._materialize_discrete_plot_bars()
         self._materialize_bars_plot_bars()
+
+    def _pre_plot_restore_steps(self) -> List[Callable[[Dict[str, Any]], None]]:
+        return [
+            self._create_points,
+            self._create_labels,
+            self._create_segments,
+            self._create_vectors,
+            self._create_triangles,
+            self._create_rectangles,
+            self._create_circles,
+            self._create_circle_arcs,
+            self._create_ellipses,
+            self._create_functions,
+            self._create_piecewise_functions,
+            self._create_parametric_functions,
+        ]
+
+    def _run_restore_steps(
+        self,
+        steps: List[Callable[[Dict[str, Any]], None]],
+        state: Dict[str, Any],
+    ) -> None:
+        for step in steps:
+            step(state)
 
     def _draw_canvas_if_enabled(self) -> None:
         if getattr(self.canvas, "draw_enabled", False):

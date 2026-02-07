@@ -1466,11 +1466,12 @@ class Canvas:
 
     def create_angle(self, vx: float, vy: float, p1x: float, p1y: float, p2x: float, p2y: float, color: Optional[str] = None, angle_name: Optional[str] = None, is_reflex: bool = False, extra_graphics: bool = True) -> Optional["Drawable"]:
         """Create an angle defined by three points via AngleManager."""
-        if self.drawable_manager.angle_manager:
-            return self.drawable_manager.angle_manager.create_angle(
-                vx, vy, p1x, p1y, p2x, p2y, 
-                color=color, 
-                angle_name=angle_name, 
+        angle_manager = self._get_angle_manager()
+        if angle_manager:
+            return angle_manager.create_angle(
+                vx, vy, p1x, p1y, p2x, p2y,
+                color=color,
+                angle_name=angle_name,
                 is_reflex=is_reflex,
                 extra_graphics=extra_graphics
             )
@@ -1478,17 +1479,22 @@ class Canvas:
 
     def delete_angle(self, name: str) -> bool:
         """Remove an angle by its name via AngleManager."""
-        if self.drawable_manager.angle_manager:
-            return bool(self.drawable_manager.angle_manager.delete_angle(name))
+        angle_manager = self._get_angle_manager()
+        if angle_manager:
+            return bool(angle_manager.delete_angle(name))
         return False
 
     def update_angle(self, name: str, new_color: Optional[str] = None) -> bool:
         """Update editable angle properties via AngleManager."""
-        if self.drawable_manager.angle_manager:
-            return bool(self.drawable_manager.angle_manager.update_angle(
+        angle_manager = self._get_angle_manager()
+        if angle_manager:
+            return bool(angle_manager.update_angle(
                 name, new_color=new_color
             ))
         return False
+
+    def _get_angle_manager(self) -> Any:
+        return self.drawable_manager.angle_manager
 
     # ------------------- Circle Arc Methods -------------------
 
@@ -1515,33 +1521,37 @@ class Canvas:
         extra_graphics: bool = True,
     ) -> Optional["Drawable"]:
         """Create a circle arc drawable via ArcManager."""
-        if self.drawable_manager.arc_manager:
-            return self.drawable_manager.arc_manager.create_circle_arc(
-                point1_x=point1_x,
-                point1_y=point1_y,
-                point2_x=point2_x,
-                point2_y=point2_y,
-                point1_name=point1_name,
-                point2_name=point2_name,
-                point3_x=point3_x,
-                point3_y=point3_y,
-                point3_name=point3_name,
-                center_point_choice=center_point_choice,
-                circle_name=circle_name,
-                center_x=center_x,
-                center_y=center_y,
-                radius=radius,
-                arc_name=arc_name,
-                color=color,
-                use_major_arc=use_major_arc,
-                extra_graphics=extra_graphics,
+        arc_manager = self._get_arc_manager()
+        if arc_manager:
+            return arc_manager.create_circle_arc(
+                **self._build_create_circle_arc_kwargs(
+                    point1_x=point1_x,
+                    point1_y=point1_y,
+                    point2_x=point2_x,
+                    point2_y=point2_y,
+                    point1_name=point1_name,
+                    point2_name=point2_name,
+                    point3_x=point3_x,
+                    point3_y=point3_y,
+                    point3_name=point3_name,
+                    center_point_choice=center_point_choice,
+                    circle_name=circle_name,
+                    center_x=center_x,
+                    center_y=center_y,
+                    radius=radius,
+                    arc_name=arc_name,
+                    color=color,
+                    use_major_arc=use_major_arc,
+                    extra_graphics=extra_graphics,
+                )
             )
         return None
 
     def delete_circle_arc(self, name: str) -> bool:
         """Delete a circle arc via ArcManager."""
-        if self.drawable_manager.arc_manager:
-            return bool(self.drawable_manager.arc_manager.delete_circle_arc(name))
+        arc_manager = self._get_arc_manager()
+        if arc_manager:
+            return bool(arc_manager.delete_circle_arc(name))
         return False
 
     def update_circle_arc(
@@ -1558,21 +1568,93 @@ class Canvas:
         point2_y: Optional[float] = None,
     ) -> bool:
         """Update editable circle arc properties."""
-        if self.drawable_manager.arc_manager:
+        arc_manager = self._get_arc_manager()
+        if arc_manager:
             return bool(
-                self.drawable_manager.arc_manager.update_circle_arc(
+                arc_manager.update_circle_arc(
                     name,
-                    new_color=new_color,
-                    use_major_arc=use_major_arc,
-                    point1_name=point1_name,
-                    point1_x=point1_x,
-                    point1_y=point1_y,
-                    point2_name=point2_name,
-                    point2_x=point2_x,
-                    point2_y=point2_y,
+                    **self._build_update_circle_arc_kwargs(
+                        new_color=new_color,
+                        use_major_arc=use_major_arc,
+                        point1_name=point1_name,
+                        point1_x=point1_x,
+                        point1_y=point1_y,
+                        point2_name=point2_name,
+                        point2_x=point2_x,
+                        point2_y=point2_y,
+                    ),
                 )
             )
         return False
+
+    def _get_arc_manager(self) -> Any:
+        return self.drawable_manager.arc_manager
+
+    def _build_create_circle_arc_kwargs(
+        self,
+        *,
+        point1_x: Optional[float],
+        point1_y: Optional[float],
+        point2_x: Optional[float],
+        point2_y: Optional[float],
+        point1_name: Optional[str],
+        point2_name: Optional[str],
+        point3_x: Optional[float],
+        point3_y: Optional[float],
+        point3_name: Optional[str],
+        center_point_choice: Optional[str],
+        circle_name: Optional[str],
+        center_x: Optional[float],
+        center_y: Optional[float],
+        radius: Optional[float],
+        arc_name: Optional[str],
+        color: Optional[str],
+        use_major_arc: bool,
+        extra_graphics: bool,
+    ) -> Dict[str, Any]:
+        return {
+            "point1_x": point1_x,
+            "point1_y": point1_y,
+            "point2_x": point2_x,
+            "point2_y": point2_y,
+            "point1_name": point1_name,
+            "point2_name": point2_name,
+            "point3_x": point3_x,
+            "point3_y": point3_y,
+            "point3_name": point3_name,
+            "center_point_choice": center_point_choice,
+            "circle_name": circle_name,
+            "center_x": center_x,
+            "center_y": center_y,
+            "radius": radius,
+            "arc_name": arc_name,
+            "color": color,
+            "use_major_arc": use_major_arc,
+            "extra_graphics": extra_graphics,
+        }
+
+    def _build_update_circle_arc_kwargs(
+        self,
+        *,
+        new_color: Optional[str],
+        use_major_arc: Optional[bool],
+        point1_name: Optional[str],
+        point1_x: Optional[float],
+        point1_y: Optional[float],
+        point2_name: Optional[str],
+        point2_x: Optional[float],
+        point2_y: Optional[float],
+    ) -> Dict[str, Any]:
+        return {
+            "new_color": new_color,
+            "use_major_arc": use_major_arc,
+            "point1_name": point1_name,
+            "point1_x": point1_x,
+            "point1_y": point1_y,
+            "point2_name": point2_name,
+            "point2_x": point2_x,
+            "point2_y": point2_y,
+        }
 
     # Property delegations to CoordinateMapper for backward compatibility
     @property
