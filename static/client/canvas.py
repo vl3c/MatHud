@@ -267,13 +267,21 @@ class Canvas:
     def _render_drawables(self, renderer: Optional[RendererProtocol], apply_zoom: bool) -> None:
         """Render all drawable objects with optional zoom cache invalidation."""
         for drawable in self.drawable_manager.get_renderable_drawables():
-            if apply_zoom and hasattr(drawable, '_invalidate_cache_on_zoom'):
-                drawable._invalidate_cache_on_zoom()
-            if renderer is not None:
-                try:
-                    renderer.render(drawable, self.coordinate_mapper)
-                except Exception:
-                    pass
+            self._invalidate_drawable_zoom_cache(drawable, apply_zoom)
+            self._render_drawable_with_renderer(renderer, drawable)
+
+    def _invalidate_drawable_zoom_cache(self, drawable: Any, apply_zoom: bool) -> None:
+        if apply_zoom and hasattr(drawable, "_invalidate_cache_on_zoom"):
+            drawable._invalidate_cache_on_zoom()
+
+    def _render_drawable_with_renderer(
+        self, renderer: Optional[RendererProtocol], drawable: Any
+    ) -> None:
+        if renderer is not None:
+            try:
+                renderer.render(drawable, self.coordinate_mapper)
+            except Exception:
+                pass
 
     def _is_drawable_visible(self, drawable: "Drawable") -> bool:
         """Best-effort visibility check to avoid rendering off-canvas objects.
@@ -364,27 +372,39 @@ class Canvas:
     def clear(self) -> None:
         """Clear all drawables"""
         self.archive()
-        self.drawable_manager.drawables.clear()
-        
-        # Reset the name generator state
-        if hasattr(self.drawable_manager, 'name_generator') and hasattr(self.drawable_manager.name_generator, 'reset_state'):
-            self.drawable_manager.name_generator.reset_state()
-        
+        self._clear_drawables_collection()
+        self._reset_name_generator_state()
         self.reset()
+
+    def _clear_drawables_collection(self) -> None:
+        self.drawable_manager.drawables.clear()
+
+    def _reset_name_generator_state(self) -> None:
+        if hasattr(self.drawable_manager, "name_generator") and hasattr(
+            self.drawable_manager.name_generator, "reset_state"
+        ):
+            self.drawable_manager.name_generator.reset_state()
 
     def reset(self) -> None:
         """Reset the canvas to its initial state"""
+        self._reset_coordinate_transformations()
+        self._reset_canvas_state()
+        self._reset_drawables_state()
+        self.draw()
+
+    def _reset_coordinate_transformations(self) -> None:
         # Reset coordinate transformations using CoordinateMapper
         self.coordinate_mapper.reset_transformations()
-        
+
+    def _reset_canvas_state(self) -> None:
         # Reset other canvas state
         self.dragging = False
-        
+
+    def _reset_drawables_state(self) -> None:
         # Reset cartesian system and drawables
         self.cartesian2axis.reset()
         for drawable in self.get_drawables():
             drawable.reset()
-        self.draw()
 
     def archive(self) -> None:
         """Archive the current state for undo functionality"""
@@ -1724,19 +1744,31 @@ class Canvas:
     def _resolve_renderer_mode(self, renderer: Optional[RendererProtocol]) -> str:
         if renderer is None:
             return "none"
-        name = renderer.__class__.__name__.lower()
+        mode_from_name = self._resolve_renderer_mode_from_name(
+            renderer.__class__.__name__.lower()
+        )
+        if mode_from_name is not None:
+            return mode_from_name
+        module = getattr(renderer, "__module__", "")
+        mode_from_module = self._resolve_renderer_mode_from_module(module.lower())
+        if mode_from_module is not None:
+            return mode_from_module
+        return "unknown"
+
+    def _resolve_renderer_mode_from_name(self, name: str) -> Optional[str]:
         if "canvas2d" in name:
             return "canvas2d"
         if "svg" in name:
             return "svg"
         if "webgl" in name:
             return "webgl"
-        module = getattr(renderer, "__module__", "")
-        module_lower = module.lower()
+        return None
+
+    def _resolve_renderer_mode_from_module(self, module_lower: str) -> Optional[str]:
         if "canvas2d" in module_lower:
             return "canvas2d"
         if "svg" in module_lower:
             return "svg"
         if "webgl" in module_lower:
             return "webgl"
-        return "unknown"
+        return None
