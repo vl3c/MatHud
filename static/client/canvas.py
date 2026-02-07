@@ -349,28 +349,46 @@ class Canvas:
         cartesian origin to the zoom point.
         """
         try:
-            # Get current cartesian origin screen coordinates
-            cartesian_origin = self.cartesian2axis.origin
-            
-            # Calculate distance from cartesian origin to zoom point
-            dx = zoom_point.x - cartesian_origin.x
-            dy = zoom_point.y - cartesian_origin.y
-            distance = math.sqrt(dx * dx + dy * dy)
-            
-            # Calculate displacement magnitude
-            displacement = distance * zoom_step * zoom_direction
-            
-            # Normalize direction vector and apply displacement to coordinate mapper offset
-            if distance > 0:
-                dx /= distance
-                dy /= distance
-                
-                # Apply displacement to CoordinateMapper offset to move the entire coordinate system
-                self.coordinate_mapper.offset.x += displacement * dx
-                self.coordinate_mapper.offset.y += displacement * dy
-                
+            displacement_components = self._compute_cartesian_zoom_displacement_components(
+                zoom_point,
+                zoom_direction,
+                zoom_step,
+            )
+            if displacement_components is None:
+                return
+            dx, dy = displacement_components
+            self._apply_coordinate_mapper_offset_displacement(dx, dy)
         except Exception as e:
             print(f"Error applying cartesian zoom displacement: {str(e)}")
+
+    def _compute_cartesian_zoom_displacement_components(
+        self,
+        zoom_point: Point,
+        zoom_direction: int,
+        zoom_step: float,
+    ) -> Optional[Tuple[float, float]]:
+        # Get current cartesian origin screen coordinates
+        cartesian_origin = self.cartesian2axis.origin
+
+        # Calculate distance from cartesian origin to zoom point
+        dx = zoom_point.x - cartesian_origin.x
+        dy = zoom_point.y - cartesian_origin.y
+        distance = math.sqrt(dx * dx + dy * dy)
+
+        # Calculate displacement magnitude
+        displacement = distance * zoom_step * zoom_direction
+
+        # Normalize direction vector and return displacement vector
+        if distance <= 0:
+            return None
+        dx /= distance
+        dy /= distance
+        return displacement * dx, displacement * dy
+
+    def _apply_coordinate_mapper_offset_displacement(self, dx: float, dy: float) -> None:
+        # Apply displacement to CoordinateMapper offset to move the entire coordinate system
+        self.coordinate_mapper.offset.x += dx
+        self.coordinate_mapper.offset.y += dy
     
     # _apply_point_zoom_displacement removed (legacy)
 

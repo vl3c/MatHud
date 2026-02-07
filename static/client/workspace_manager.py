@@ -266,21 +266,31 @@ class WorkspaceManager:
 
     def _restore_segment_label(self, segment: Any, label_args: Dict[str, Any]) -> None:
         try:
-            embedded_label = getattr(segment, "label", None)
+            embedded_label = self._get_embedded_segment_label(segment)
             if embedded_label is None:
                 return
 
-            if "font_size" in label_args and label_args.get("font_size") is not None:
-                embedded_label.update_font_size(float(label_args.get("font_size")))
-
-            if "rotation_degrees" in label_args and label_args.get("rotation_degrees") is not None:
-                embedded_label.update_rotation(float(label_args.get("rotation_degrees")))
-
-            render_mode_raw = label_args.get("render_mode")
-            if isinstance(render_mode_raw, dict):
-                embedded_label.render_mode = LabelRenderMode.from_state(render_mode_raw)
+            self._apply_segment_label_font_size(embedded_label, label_args)
+            self._apply_segment_label_rotation(embedded_label, label_args)
+            self._apply_segment_label_render_mode(embedded_label, label_args)
         except Exception:
             return
+
+    def _get_embedded_segment_label(self, segment: Any) -> Any:
+        return getattr(segment, "label", None)
+
+    def _apply_segment_label_font_size(self, embedded_label: Any, label_args: Dict[str, Any]) -> None:
+        if "font_size" in label_args and label_args.get("font_size") is not None:
+            embedded_label.update_font_size(float(label_args.get("font_size")))
+
+    def _apply_segment_label_rotation(self, embedded_label: Any, label_args: Dict[str, Any]) -> None:
+        if "rotation_degrees" in label_args and label_args.get("rotation_degrees") is not None:
+            embedded_label.update_rotation(float(label_args.get("rotation_degrees")))
+
+    def _apply_segment_label_render_mode(self, embedded_label: Any, label_args: Dict[str, Any]) -> None:
+        render_mode_raw = label_args.get("render_mode")
+        if isinstance(render_mode_raw, dict):
+            embedded_label.render_mode = LabelRenderMode.from_state(render_mode_raw)
 
     def _get_point_from_state(
         self,
