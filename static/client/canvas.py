@@ -558,41 +558,12 @@ class Canvas:
             if not isinstance(bars_state, list) or not bars_state:
                 return
 
-            prefixes: List[str] = []
-
-            discrete_plots = state.get("DiscretePlots")
-            if isinstance(discrete_plots, list):
-                for item in discrete_plots:
-                    if not isinstance(item, dict):
-                        continue
-                    name = item.get("name")
-                    if isinstance(name, str) and name:
-                        prefixes.append(f"{name}_bar_")
-
-            bars_plots = state.get("BarsPlots")
-            if isinstance(bars_plots, list):
-                for item in bars_plots:
-                    if not isinstance(item, dict):
-                        continue
-                    name = item.get("name")
-                    if isinstance(name, str) and name:
-                        prefixes.append(f"{name}_bar_")
+            prefixes = self._collect_plot_derived_bar_prefixes(state)
 
             if not prefixes:
                 return
 
-            kept: List[Any] = []
-            for item in bars_state:
-                if not isinstance(item, dict):
-                    kept.append(item)
-                    continue
-                bar_name = item.get("name")
-                if not isinstance(bar_name, str):
-                    kept.append(item)
-                    continue
-                if any(bar_name.startswith(prefix) for prefix in prefixes):
-                    continue
-                kept.append(item)
+            kept = self._filter_bars_excluding_prefixes(bars_state, prefixes)
 
             if kept:
                 state["Bars"] = kept
@@ -601,6 +572,39 @@ class Canvas:
         except Exception:
             # Best-effort pruning only; never break callers.
             return
+
+    def _collect_plot_derived_bar_prefixes(self, state: Dict[str, Any]) -> List[str]:
+        prefixes: List[str] = []
+        self._append_plot_prefixes(state.get("DiscretePlots"), prefixes)
+        self._append_plot_prefixes(state.get("BarsPlots"), prefixes)
+        return prefixes
+
+    def _append_plot_prefixes(self, plots_state: Any, prefixes: List[str]) -> None:
+        if not isinstance(plots_state, list):
+            return
+        for item in plots_state:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name")
+            if isinstance(name, str) and name:
+                prefixes.append(f"{name}_bar_")
+
+    def _filter_bars_excluding_prefixes(
+        self, bars_state: List[Any], prefixes: List[str]
+    ) -> List[Any]:
+        kept: List[Any] = []
+        for item in bars_state:
+            if not isinstance(item, dict):
+                kept.append(item)
+                continue
+            bar_name = item.get("name")
+            if not isinstance(bar_name, str):
+                kept.append(item)
+                continue
+            if any(bar_name.startswith(prefix) for prefix in prefixes):
+                continue
+            kept.append(item)
+        return kept
 
     def get_point(self, x: float, y: float) -> Optional[Point]:
         """Get a point at the specified coordinates"""
