@@ -133,11 +133,14 @@ class WorkspaceManager:
         if "Points" not in state:
             return
         for item_state in state["Points"]:
-            self.canvas.create_point(
-                item_state["args"]["position"]["x"], 
-                item_state["args"]["position"]["y"],
-                name=item_state.get("name", "")
-            )
+            self._restore_point(item_state)
+
+    def _restore_point(self, item_state: Dict[str, Any]) -> None:
+        self.canvas.create_point(
+            item_state["args"]["position"]["x"],
+            item_state["args"]["position"]["y"],
+            name=item_state.get("name", ""),
+        )
 
     def _create_labels(self, state: Dict[str, Any]) -> None:
         """Create standalone labels from workspace state."""
@@ -332,19 +335,22 @@ class WorkspaceManager:
         if "Triangles" not in state:
             return
         for item_state in state["Triangles"]:
-            p1: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p1"])
-            p2: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p2"])
-            p3: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p3"])
-            if p1 and p2 and p3:
-                self.canvas.create_polygon(
-                    [
-                        (p1.x, p1.y),
-                        (p2.x, p2.y),
-                        (p3.x, p3.y),
-                    ],
-                    polygon_type=PolygonType.TRIANGLE,
-                    name=item_state.get("name", ""),
-                )
+            self._restore_triangle(item_state)
+
+    def _restore_triangle(self, item_state: Dict[str, Any]) -> None:
+        p1: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p1"])
+        p2: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p2"])
+        p3: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["p3"])
+        if p1 and p2 and p3:
+            self.canvas.create_polygon(
+                [
+                    (p1.x, p1.y),
+                    (p2.x, p2.y),
+                    (p3.x, p3.y),
+                ],
+                polygon_type=PolygonType.TRIANGLE,
+                name=item_state.get("name", ""),
+            )
 
     def _create_rectangles(self, state: Dict[str, Any]) -> None:
         """Create rectangles from workspace state using the polygon manager."""
@@ -427,70 +433,89 @@ class WorkspaceManager:
         if "Circles" not in state:
             return
         for item_state in state["Circles"]:
-            center_point: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["center"])
-            if center_point:
-                self.canvas.create_circle(
-                    center_point.x,
-                    center_point.y,
-                    item_state["args"]["radius"],
-                    name=item_state.get("name", "")
-                )
+            self._restore_circle(item_state)
+
+    def _restore_circle(self, item_state: Dict[str, Any]) -> None:
+        center_point: Optional["Point"] = self.canvas.get_point_by_name(
+            item_state["args"]["center"]
+        )
+        if center_point:
+            self.canvas.create_circle(
+                center_point.x,
+                center_point.y,
+                item_state["args"]["radius"],
+                name=item_state.get("name", ""),
+            )
 
     def _create_ellipses(self, state: Dict[str, Any]) -> None:
         """Create ellipses from workspace state."""
         if "Ellipses" not in state:
             return
         for item_state in state["Ellipses"]:
-            center_point: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["center"])
-            if center_point:
-                self.canvas.create_ellipse(
-                    center_point.x,
-                    center_point.y,
-                    item_state["args"]["radius_x"],
-                    item_state["args"]["radius_y"],
-                    rotation_angle=item_state["args"].get("rotation_angle", 0),
-                    name=item_state.get("name", "")
-                )
+            self._restore_ellipse(item_state)
+
+    def _restore_ellipse(self, item_state: Dict[str, Any]) -> None:
+        center_point: Optional["Point"] = self.canvas.get_point_by_name(
+            item_state["args"]["center"]
+        )
+        if center_point:
+            self.canvas.create_ellipse(
+                center_point.x,
+                center_point.y,
+                item_state["args"]["radius_x"],
+                item_state["args"]["radius_y"],
+                rotation_angle=item_state["args"].get("rotation_angle", 0),
+                name=item_state.get("name", ""),
+            )
 
     def _create_functions(self, state: Dict[str, Any]) -> None:
         """Create functions from workspace state."""
         if "Functions" not in state:
             return
         for item_state in state["Functions"]:
-            self.canvas.draw_function(
-                item_state["args"]["function_string"],
-                name=item_state.get("name", ""),
-                left_bound=item_state["args"].get("left_bound"),
-                right_bound=item_state["args"].get("right_bound"),
-                undefined_at=item_state["args"].get("undefined_at"),
-            )
+            self._restore_function(item_state)
+
+    def _restore_function(self, item_state: Dict[str, Any]) -> None:
+        self.canvas.draw_function(
+            item_state["args"]["function_string"],
+            name=item_state.get("name", ""),
+            left_bound=item_state["args"].get("left_bound"),
+            right_bound=item_state["args"].get("right_bound"),
+            undefined_at=item_state["args"].get("undefined_at"),
+        )
 
     def _create_piecewise_functions(self, state: Dict[str, Any]) -> None:
         """Create piecewise functions from workspace state."""
         if "PiecewiseFunctions" not in state:
             return
         for item_state in state["PiecewiseFunctions"]:
-            pieces = item_state["args"].get("pieces", [])
-            self.canvas.draw_piecewise_function(
-                pieces,
-                name=item_state.get("name", ""),
-                color=item_state["args"].get("color"),
-            )
+            self._restore_piecewise_function(item_state)
+
+    def _restore_piecewise_function(self, item_state: Dict[str, Any]) -> None:
+        pieces = item_state["args"].get("pieces", [])
+        self.canvas.draw_piecewise_function(
+            pieces,
+            name=item_state.get("name", ""),
+            color=item_state["args"].get("color"),
+        )
 
     def _create_parametric_functions(self, state: Dict[str, Any]) -> None:
         """Create parametric functions from workspace state."""
         if "ParametricFunctions" not in state:
             return
         for item_state in state["ParametricFunctions"]:
-            args = item_state.get("args", {})
-            self.canvas.draw_parametric_function(
-                args.get("x_expression", "t"),
-                args.get("y_expression", "t"),
-                name=item_state.get("name", ""),
-                t_min=args.get("t_min", 0.0),
-                t_max=args.get("t_max"),
-                color=args.get("color"),
-            )
+            self._restore_parametric_function(item_state)
+
+    def _restore_parametric_function(self, item_state: Dict[str, Any]) -> None:
+        args = item_state.get("args", {})
+        self.canvas.draw_parametric_function(
+            args.get("x_expression", "t"),
+            args.get("y_expression", "t"),
+            name=item_state.get("name", ""),
+            t_min=args.get("t_min", 0.0),
+            t_max=args.get("t_max"),
+            color=args.get("color"),
+        )
 
     def _create_colored_areas(self, state: Dict[str, Any]) -> None:
         """Create colored areas from workspace state."""
