@@ -465,27 +465,39 @@ class WorkspaceManager:
         rect_name: str,
     ) -> Optional[List[Tuple[float, float]]]:
         try:
+            return self._canonicalize_rectangle_vertices(points)
+        except PolygonCanonicalizationError:
+            return self._canonicalize_rectangle_from_diagonal(points, rect_name)
+
+    def _canonicalize_rectangle_vertices(
+        self, points: List[Optional["Point"]]
+    ) -> List[Tuple[float, float]]:
+        return canonicalize_rectangle(
+            [(point.x, point.y) for point in points if point is not None],
+            construction_mode="vertices",
+        )
+
+    def _canonicalize_rectangle_from_diagonal(
+        self,
+        points: List[Optional["Point"]],
+        rect_name: str,
+    ) -> Optional[List[Tuple[float, float]]]:
+        p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, rect_name)
+        if not p_diag1 or not p_diag2:
+            print(
+                f"Warning: Could not determine diagonal points for rectangle '{rect_name}'. Skipping."
+            )
+            return None
+        try:
             return canonicalize_rectangle(
-                [(point.x, point.y) for point in points if point is not None],
-                construction_mode="vertices",
+                [(p_diag1.x, p_diag1.y), (p_diag2.x, p_diag2.y)],
+                construction_mode="diagonal",
             )
         except PolygonCanonicalizationError:
-            p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, rect_name)
-            if not p_diag1 or not p_diag2:
-                print(
-                    f"Warning: Could not determine diagonal points for rectangle '{rect_name}'. Skipping."
-                )
-                return None
-            try:
-                return canonicalize_rectangle(
-                    [(p_diag1.x, p_diag1.y), (p_diag2.x, p_diag2.y)],
-                    construction_mode="diagonal",
-                )
-            except PolygonCanonicalizationError:
-                print(
-                    f"Warning: Unable to canonicalize rectangle '{rect_name}' from supplied coordinates. Skipping."
-                )
-                return None
+            print(
+                f"Warning: Unable to canonicalize rectangle '{rect_name}' from supplied coordinates. Skipping."
+            )
+            return None
 
     def _create_circles(self, state: Dict[str, Any]) -> None:
         """Create circles from workspace state."""

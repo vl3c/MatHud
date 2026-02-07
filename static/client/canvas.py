@@ -331,12 +331,19 @@ class Canvas:
         return self._is_math_segment_visible(seg.point1, seg.point2)
 
     def _is_math_segment_visible(self, p1: Any, p2: Any) -> bool:
+        x1, y1, x2, y2 = self._segment_screen_coordinates(p1, p2)
+        return self._is_screen_segment_visible(x1, y1, x2, y2)
+
+    def _segment_screen_coordinates(self, p1: Any, p2: Any) -> Tuple[float, float, float, float]:
         x1, y1 = self.coordinate_mapper.math_to_screen(p1.x, p1.y)
         x2, y2 = self.coordinate_mapper.math_to_screen(p2.x, p2.y)
+        return x1, y1, x2, y2
+
+    def _is_screen_segment_visible(self, x1: float, y1: float, x2: float, y2: float) -> bool:
         return (
-            self.is_point_within_canvas_visible_area(x1, y1) or
-            self.is_point_within_canvas_visible_area(x2, y2) or
-            self.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
+            self.is_point_within_canvas_visible_area(x1, y1)
+            or self.is_point_within_canvas_visible_area(x2, y2)
+            or self.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
         )
     
     # Removed legacy zoom displacement; zoom handled via CoordinateMapper
