@@ -119,33 +119,44 @@ class Canvas:
         self.transformations_manager: TransformationsManager = TransformationsManager(self)
         self.coordinate_system_manager: CoordinateSystemManager = CoordinateSystemManager(self)
 
-        # Initialize renderer lazily to avoid hard dependency in non-browser tests
-        if renderer is not None:
-            self.renderer: Optional[RendererProtocol] = renderer
-        else:
-            self.renderer = cast(Optional[RendererProtocol], create_renderer(DEFAULT_RENDERER_MODE))
+        self.renderer = self._initialize_renderer(renderer)
         self.renderer_mode: str = self._resolve_renderer_mode(self.renderer)
-        
-        if self.draw_enabled and self.renderer is not None:
-            try:
-                self.renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
-            except Exception:
-                pass
+        self._render_initial_cartesian_if_enabled()
         self._register_renderer_handlers()
 
     def add_drawable(self, drawable: "Drawable") -> None:
         self.drawable_manager.drawables.add(drawable)
 
+    def _initialize_renderer(self, renderer: Optional[RendererProtocol]) -> Optional[RendererProtocol]:
+        """Initialize renderer lazily to avoid hard dependency in non-browser tests."""
+        if renderer is not None:
+            return renderer
+        return cast(Optional[RendererProtocol], create_renderer(DEFAULT_RENDERER_MODE))
+
+    def _render_initial_cartesian_if_enabled(self) -> None:
+        if self.draw_enabled and self.renderer is not None:
+            try:
+                self.renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
+            except Exception:
+                pass
+
     def _register_renderer_handlers(self) -> None:
         """Register renderer handlers for all drawable types."""
         if self.renderer is None:
             return
+        if not self._try_register_default_drawables():
+            self._register_renderer_handlers_legacy()
+
+    def _try_register_default_drawables(self) -> bool:
+        if self.renderer is None:
+            return False
         try:
             self.renderer.register_default_drawables()
+            return True
         except AttributeError:
-            self._register_renderer_handlers_legacy()
+            return False
         except Exception:
-            self._register_renderer_handlers_legacy()
+            return False
 
     def _register_renderer_handlers_legacy(self) -> None:
         if self.renderer is None:
@@ -1254,6 +1265,17 @@ class Canvas:
             range_val: Half-size for the specified axis
             range_axis: 'x' or 'y' - which axis the range applies to
         """
+        left, right, top, bottom = self._compute_zoom_bounds(
+            center_x, center_y, range_val, range_axis
+        )
+        self.coordinate_mapper.set_visible_bounds(left, right, top, bottom)
+        self._invalidate_cartesian_cache_on_zoom()
+        self.draw(apply_zoom=True)
+        return True
+
+    def _compute_zoom_bounds(
+        self, center_x: float, center_y: float, range_val: float, range_axis: str
+    ) -> Tuple[float, float, float, float]:
         if range_axis == "x":
             left = center_x - range_val
             right = center_x + range_val
@@ -1261,18 +1283,19 @@ class Canvas:
             y_range = range_val * aspect
             top = center_y + y_range
             bottom = center_y - y_range
-        else:
-            top = center_y + range_val
-            bottom = center_y - range_val
-            aspect = self.width / self.height
-            x_range = range_val * aspect
-            left = center_x - x_range
-            right = center_x + x_range
-        self.coordinate_mapper.set_visible_bounds(left, right, top, bottom)
-        if hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
+            return left, right, top, bottom
+
+        top = center_y + range_val
+        bottom = center_y - range_val
+        aspect = self.width / self.height
+        x_range = range_val * aspect
+        left = center_x - x_range
+        right = center_x + x_range
+        return left, right, top, bottom
+
+    def _invalidate_cartesian_cache_on_zoom(self) -> None:
+        if hasattr(self.cartesian2axis, "_invalidate_cache_on_zoom"):
             self.cartesian2axis._invalidate_cache_on_zoom()
-        self.draw(apply_zoom=True)
-        return True
 
     def find_largest_connected_shape(self, shape: "Drawable") -> tuple[Optional["Drawable"], Optional[str]]:
         """Find the largest shape that shares segments with the given shape.
@@ -1281,25 +1304,35 @@ class Canvas:
         if not shape:
             return None, None
 
-        # Get all shapes from the canvas
-        rectangles = self.drawable_manager.drawables.Rectangles
-        triangles = self.drawable_manager.drawables.Triangles
-
         # If the shape is a rectangle, don't check for parent shapes
         if shape.get_class_name() == 'Rectangle':
             return None, None
 
-        # Check rectangles first as they are larger
-        for rect in rectangles:
-            if rect != shape:  # Don't compare with itself
-                shared_segs = self.get_shared_segments(shape, rect)
-                if shared_segs:  # If any segments are shared with a rectangle, return it
-                    return rect, rect.get_class_name()
+        rectangles = self.drawable_manager.drawables.Rectangles
+        rectangle_parent = self._find_parent_rectangle(shape, rectangles)
+        if rectangle_parent is not None:
+            return rectangle_parent, rectangle_parent.get_class_name()
 
         # Only check triangles if no rectangle was found and the shape isn't a triangle
         if shape.get_class_name() == 'Triangle':
             return None, None
 
+        triangles = self.drawable_manager.drawables.Triangles
+        largest_parent_shape = self._find_largest_parent_triangle(shape, triangles)
+        return (
+            largest_parent_shape,
+            largest_parent_shape.get_class_name() if largest_parent_shape else None,
+        )
+
+    def _find_parent_rectangle(self, shape: "Drawable", rectangles: List["Drawable"]) -> Optional["Drawable"]:
+        for rect in rectangles:
+            if rect != shape:  # Don't compare with itself
+                shared_segs = self.get_shared_segments(shape, rect)
+                if shared_segs:  # If any segments are shared with a rectangle, return it
+                    return rect
+        return None
+
+    def _find_largest_parent_triangle(self, shape: "Drawable", triangles: List["Drawable"]) -> Optional["Drawable"]:
         largest_parent_shape = None
         max_segments = 0
 
@@ -1310,33 +1343,13 @@ class Canvas:
                     largest_parent_shape = tri
                     max_segments = len(shared_segs)
 
-        return largest_parent_shape, largest_parent_shape.get_class_name() if largest_parent_shape else None
+        return largest_parent_shape
 
     def get_shared_segments(self, shape1: "Drawable", shape2: "Drawable") -> List["Drawable"]:
         """Check if two shapes share any segments.
         Returns a list of shared segments."""
-        shape1_segments = []
-        shape2_segments = []
-
-        # Get segments from shape1
-        if hasattr(shape1, 'segment1'):
-            shape1_segments.append(shape1.segment1)
-        if hasattr(shape1, 'segment2'):
-            shape1_segments.append(shape1.segment2)
-        if hasattr(shape1, 'segment3'):
-            shape1_segments.append(shape1.segment3)
-        if hasattr(shape1, 'segment4'):
-            shape1_segments.append(shape1.segment4)
-
-        # Get segments from shape2
-        if hasattr(shape2, 'segment1'):
-            shape2_segments.append(shape2.segment1)
-        if hasattr(shape2, 'segment2'):
-            shape2_segments.append(shape2.segment2)
-        if hasattr(shape2, 'segment3'):
-            shape2_segments.append(shape2.segment3)
-        if hasattr(shape2, 'segment4'):
-            shape2_segments.append(shape2.segment4)
+        shape1_segments = self._collect_shape_segments(shape1)
+        shape2_segments = self._collect_shape_segments(shape2)
 
         # Find shared segments
         shared_segments = []
@@ -1346,6 +1359,18 @@ class Canvas:
                     shared_segments.append(s1)
 
         return shared_segments
+
+    def _collect_shape_segments(self, shape: "Drawable") -> List["Drawable"]:
+        segments = []
+        if hasattr(shape, "segment1"):
+            segments.append(shape.segment1)
+        if hasattr(shape, "segment2"):
+            segments.append(shape.segment2)
+        if hasattr(shape, "segment3"):
+            segments.append(shape.segment3)
+        if hasattr(shape, "segment4"):
+            segments.append(shape.segment4)
+        return segments
 
     def create_colored_area(self, drawable1_name: str, drawable2_name: Optional[str] = None, left_bound: Optional[float] = None, right_bound: Optional[float] = None, color: str = default_area_fill_color, opacity: float = default_area_opacity) -> "Drawable":
         """Creates a vertical bounded colored area between two functions, two segments, or a function and a segment"""
