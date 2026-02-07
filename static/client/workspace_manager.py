@@ -965,23 +965,48 @@ class WorkspaceManager:
         )
 
     def _materialize_plot_family(self, class_name: str, materializer_name: str) -> None:
-        stats_manager = getattr(getattr(self.canvas, "drawable_manager", None), "statistics_manager", None)
-        if stats_manager is None or not hasattr(stats_manager, materializer_name):
+        stats_manager = self._get_statistics_manager_for_materialization(materializer_name)
+        if stats_manager is None:
             return
 
+        drawables = self._get_drawables_for_materialization()
+        if drawables is None:
+            return
+
+        plots = self._get_plots_by_class_name(drawables, class_name)
+        materializer = self._get_plot_materializer(stats_manager, materializer_name)
+        if materializer is None:
+            return
+
+        self._materialize_plots(plots, materializer)
+
+    def _get_statistics_manager_for_materialization(self, materializer_name: str) -> Any:
+        stats_manager = getattr(
+            getattr(self.canvas, "drawable_manager", None), "statistics_manager", None
+        )
+        if stats_manager is None or not hasattr(stats_manager, materializer_name):
+            return None
+        return stats_manager
+
+    def _get_drawables_for_materialization(self) -> Any:
         drawables = getattr(getattr(self.canvas, "drawable_manager", None), "drawables", None)
         if drawables is None or not hasattr(drawables, "get_by_class_name"):
-            return
+            return None
+        return drawables
 
+    def _get_plots_by_class_name(self, drawables: Any, class_name: str) -> List[Any]:
         try:
-            plots = list(drawables.get_by_class_name(class_name))
+            return list(drawables.get_by_class_name(class_name))
         except Exception:
-            plots = []
+            return []
 
+    def _get_plot_materializer(self, stats_manager: Any, materializer_name: str) -> Optional[Callable[[Any], None]]:
         materializer = getattr(stats_manager, materializer_name, None)
         if not callable(materializer):
-            return
+            return None
+        return materializer
 
+    def _materialize_plots(self, plots: List[Any], materializer: Callable[[Any], None]) -> None:
         for plot in plots:
             try:
                 materializer(plot)
