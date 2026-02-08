@@ -32,34 +32,39 @@
 - [x] `done` Add/confirm refactor review checklist (no logic change gate)
 
 ### Phase 1 - Core Orchestrators
-- [ ] `todo` Complete remaining Canvas decomposition work
-- [ ] `in_progress` Complete remaining WorkspaceManager decomposition work
-- [ ] `in_progress` Add helper-level unit tests for extracted pure functions
-- [ ] `in_progress` Add orchestration-phase tests for dependency order and error handling
+- [x] `done` Complete remaining Canvas decomposition work
+- [x] `done` Complete remaining WorkspaceManager decomposition work
+- [x] `done` Add helper-level unit tests for extracted pure functions
+- [x] `done` Add orchestration-phase tests for dependency order and error handling
 
 ### Phase 2 - Managers and Services
-- [ ] `in_progress` Refactor oversized manager classes into composable steps
-- [ ] `in_progress` Extract side-effect boundaries and isolate pure decision logic
-- [ ] `in_progress` Add observability hooks (phase start/end/failure, counts, timings)
-- [ ] `in_progress` Expand unit tests for newly extracted helpers
+- [x] `done` Refactor oversized manager classes into composable steps
+- [x] `done` Extract side-effect boundaries and isolate pure decision logic
+- [x] `done` Add observability hooks (phase start/end/failure, counts, timings)
+- [x] `done` Expand unit tests for newly extracted helpers
 
 ### Phase 3 - Tool Execution Pipelines
-- [ ] `todo` Split long tool execution/parsing paths into deterministic helpers
-- [ ] `todo` Add replay-friendly tracing checkpoints
-- [ ] `todo` Add parity tests for representative command workflows
-- [ ] `todo` Verify identical output/state for baseline scenarios
+- [x] `done` Split long tool execution/parsing paths into deterministic helpers
+- [x] `done` Add replay-friendly tracing checkpoints
+- [x] `done` Add parity tests for representative command workflows
+- [x] `done` Verify identical output/state for baseline scenarios
 
 ### Phase 4 - Coverage Expansion for New Elements
-- [ ] `todo` Inventory all newly extracted helpers/components introduced during refactor phases
-- [ ] `in_progress` Add focused unit tests for each new helper/component boundary
-- [ ] `todo` Add negative/error-path tests for new orchestration and observability paths
-- [ ] `todo` Track per-module coverage deltas and close major gaps
+- [x] `done` Inventory all newly extracted helpers/components introduced during refactor phases
+- [x] `done` Add focused unit tests for each new helper/component boundary
+- [x] `done` Add negative/error-path tests for new orchestration and observability paths
+- [x] `done` Track per-module coverage deltas and close major gaps (using targeted helper-test expansion in absence of pytest-cov plugin)
 
 ### Phase 5 - Final Hardening and Sign-Off
-- [ ] `todo` Run full regression matrix (client + server)
-- [ ] `todo` Run targeted high-risk end-to-end scenarios
-- [ ] `todo` Close/document any threshold exceptions
-- [ ] `todo` Final sign-off: "No behavior changes introduced"
+- [x] `done` Run full regression matrix (client + server)
+- [x] `done` Run targeted high-risk end-to-end scenarios
+- [x] `done` Close/document any threshold exceptions
+- [x] `done` Final sign-off: "No behavior changes introduced"
+
+## Threshold Exceptions
+- `static/client/canvas.py` remains above threshold due intentional role as orchestration façade over many manager APIs. Internal orchestration segments were decomposed where low-risk and test-backed; remaining breadth is API-surface coupling rather than single-logic concentration.
+- `static/functions_definitions.py` remains above threshold as a schema registry artifact with high declaration density and low procedural complexity; decomposition would increase schema drift risk.
+- Coverage delta tracking used targeted helper-test expansion and regression growth because `pytest-cov` plugin is unavailable in this environment.
 
 ## Work Log
 
@@ -241,6 +246,17 @@
   - Parity Result: no behavior change observed
   - Follow-ups: begin final hardening closeout (targeted high-risk scenarios + phase status closure updates)
 
+- Session ID: S-2026-02-08-15
+  - Date: 2026-02-08
+  - Goal: Final hardening and sign-off closure
+  - Planned Scope: run full regression matrix + targeted high-risk scenarios; close threshold exceptions; finalize no-behavior-change sign-off
+  - Actual Scope: executed full server/client matrices and targeted high-risk regression set (routes/workspace/cli server/openai tool-call pipelines); documented threshold exceptions and completed phase status closure
+  - Status: `done`
+  - Related Commits: `pending`
+  - Validation: `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (769 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2319 run, 0 failures); targeted high-risk subset command (123 passed, 3 skipped)
+  - Parity Result: no behavior change observed
+  - Follow-ups: none
+
 ### Entries
 - 2026-02-08
   - Scope: PR #16 helper extraction coverage expansion (Canvas/WorkspaceManager tests)
@@ -353,3 +369,11 @@
   - Tests Run: `py_compile` for touched files; `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m pytest -q server_tests/test_routes.py` (29 passed); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (769 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2319 run, 0 failures)
   - Parity Evidence: no behavior change observed in search-tools interception, filtering, or injection behavior
   - Notes/Blockers: pytest-cov plugin unavailable in this environment, so coverage delta tracking uses targeted helper-test expansion instead
+
+- 2026-02-08
+  - Scope: Phase 5 closeout - full regression + high-risk scenario validation + threshold exception documentation + final sign-off
+  - Status: done
+  - Commits: `pending`
+  - Tests Run: `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (769 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2319 run, 0 failures); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m pytest -q server_tests/test_openai_responses_api.py server_tests/test_routes.py server_tests/test_workspace_management.py server_tests/test_cli/test_server.py server_tests/test_openai_completions_api.py` (123 passed, 3 skipped)
+  - Parity Evidence: no behavior change observed across full and targeted matrices
+  - Notes/Blockers: none
