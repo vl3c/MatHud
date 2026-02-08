@@ -466,6 +466,19 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.manager.unregister_dependency(child=None, parent=None)
         # Should not raise any errors
 
+    def test_unregister_dependency_prunes_orphaned_lookup_entries(self) -> None:
+        """Unregistering the last edge should remove stale internal lookup references."""
+        self.manager.register_dependency(child=self.segment1, parent=self.point1)
+        self.assertIn(id(self.segment1), self.manager._object_lookup)
+        self.assertIn(id(self.point1), self.manager._object_lookup)
+
+        self.manager.unregister_dependency(child=self.segment1, parent=self.point1)
+
+        self.assertNotIn(id(self.segment1), self.manager._object_lookup)
+        self.assertNotIn(id(self.point1), self.manager._object_lookup)
+        self.assertNotIn(id(self.segment1), self.manager._parents)
+        self.assertNotIn(id(self.point1), self.manager._children)
+
     def test_get_parents_and_children(self) -> None:
         """Test getting direct parents and children"""
         # Test empty sets
@@ -519,6 +532,27 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.manager.register_dependency(child=None, parent=point1)
         self.manager.register_dependency(child=point1, parent=None)
         # Should not raise any errors
+
+    def test_register_dependency_ignores_none_endpoints(self) -> None:
+        """register_dependency should ignore None child/parent without mutating state."""
+        self.manager.register_dependency(child=None, parent=self.point1)
+        self.manager.register_dependency(child=self.segment1, parent=None)
+
+        self.assertEqual(len(self.manager.get_children(self.point1)), 0)
+        self.assertEqual(len(self.manager.get_parents(self.segment1)), 0)
+
+    def test_register_dependency_ignores_non_callable_class_name(self) -> None:
+        """register_dependency should ignore objects whose get_class_name is not callable."""
+        bad_child = SimpleMock(name="bad_child")
+        bad_child.get_class_name = "Point"
+
+        self.manager.register_dependency(child=bad_child, parent=self.point1)
+        self.assertEqual(len(self.manager.get_children(self.point1)), 0)
+
+        bad_parent = SimpleMock(name="bad_parent")
+        bad_parent.get_class_name = "Point"
+        self.manager.register_dependency(child=self.segment1, parent=bad_parent)
+        self.assertEqual(len(self.manager.get_parents(self.segment1)), 0)
 
     def test_append_attr_dependency_if_present_respects_get_class_requirement(self) -> None:
         """Helper should skip attrs lacking get_class_name when requested."""

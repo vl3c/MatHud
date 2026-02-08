@@ -97,8 +97,16 @@ class DrawableDependencyManager:
 
     def _should_skip_point_point_dependency(self, child: "Drawable", parent: "Drawable") -> bool:
         """Check if a dependency registration should be skipped (e.g., Point as child of Point)."""
-        is_child_point = hasattr(child, 'get_class_name') and child.get_class_name() == 'Point'
-        is_parent_point = hasattr(parent, 'get_class_name') and parent.get_class_name() == 'Point'
+        is_child_point = (
+            hasattr(child, 'get_class_name')
+            and callable(getattr(child, 'get_class_name', None))
+            and child.get_class_name() == 'Point'
+        )
+        is_parent_point = (
+            hasattr(parent, 'get_class_name')
+            and callable(getattr(parent, 'get_class_name', None))
+            and parent.get_class_name() == 'Point'
+        )
         return is_child_point and is_parent_point
 
     def register_dependency(self, child: "Drawable", parent: "Drawable") -> None:
@@ -109,6 +117,14 @@ class DrawableDependencyManager:
             child: The child drawable that depends on the parent
             parent: The parent drawable that child depends on
         """
+        if child is None or parent is None:
+            return
+
+        child_getter = getattr(child, 'get_class_name', None)
+        parent_getter = getattr(parent, 'get_class_name', None)
+        if not callable(child_getter) or not callable(parent_getter):
+            return
+
         # Prevent Point from being registered as a child of another Point using the helper method
         if self._should_skip_point_point_dependency(child, parent):
             return
@@ -148,9 +164,24 @@ class DrawableDependencyManager:
 
         if child_id in self._parents:
             self._parents[child_id].discard(parent_id)
+            if not self._parents[child_id]:
+                del self._parents[child_id]
 
         if parent_id in self._children:
             self._children[parent_id].discard(child_id)
+            if not self._children[parent_id]:
+                del self._children[parent_id]
+
+        self._prune_lookup_if_orphaned(child_id)
+        self._prune_lookup_if_orphaned(parent_id)
+
+    def _prune_lookup_if_orphaned(self, drawable_id: int) -> None:
+        """Drop object lookup entry when drawable has no remaining edges."""
+        if drawable_id in self._object_lookup:
+            has_parents = drawable_id in self._parents
+            has_children = drawable_id in self._children
+            if not has_parents and not has_children:
+                del self._object_lookup[drawable_id]
 
     def _verify_get_class_name_method(self, obj: Any, obj_type_name: str) -> None:
         """
