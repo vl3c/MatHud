@@ -201,27 +201,12 @@ def _intercept_search_tools(
     from static.tool_search_service import ToolSearchService
     from static.openai_api_base import ESSENTIAL_TOOLS
 
-    # Find search_tools call
-    search_tools_call = None
-    for call in tool_calls:
-        func_name = call.get('function_name') or call.get('function', {}).get('name')
-        if func_name == 'search_tools':
-            search_tools_call = call
-            break
+    search_tools_call = _find_search_tools_call(tool_calls)
 
     if search_tools_call is None:
         return tool_calls  # No search_tools, return as-is
 
-    # Extract query from search_tools arguments
-    args = search_tools_call.get('arguments', {})
-    if isinstance(args, str):
-        try:
-            args = json.loads(args)
-        except json.JSONDecodeError:
-            args = {}
-
-    query = args.get('query', '')
-    max_results = args.get('max_results', 10)
+    query, max_results = _extract_search_query_and_limit(search_tools_call)
 
     if not query:
         return tool_calls  # No query, return as-is
@@ -235,31 +220,93 @@ def _intercept_search_tools(
         )
         result = service.search_tools(query=query, max_results=max_results or 10)
 
-        # Get allowed tool names from the search results
-        allowed_names = {
-            t.get('function', {}).get('name')
-            for t in result
-            if isinstance(t, dict)
-        }
-        # Add essential tools
-        allowed_names.update(ESSENTIAL_TOOLS)
+        allowed_names = _collect_allowed_tool_names(result, ESSENTIAL_TOOLS)
 
         # Inject tools into both APIs
         if result:
             app.ai_api.inject_tools(result, include_essentials=True)
             app.responses_api.inject_tools(result, include_essentials=True)
 
-        # Filter tool_calls to only include allowed tools
-        filtered_calls = []
-        for call in tool_calls:
-            func_name = call.get('function_name') or call.get('function', {}).get('name')
-            if func_name in allowed_names:
-                filtered_calls.append(call)
-
-        return filtered_calls
+        return _filter_tool_calls_by_allowed_names(tool_calls, allowed_names)
 
     except Exception:
         return tool_calls  # On error, return original calls
+
+
+def _tool_call_name(call: Dict[str, Any]) -> Optional[str]:
+    """Extract a tool call function name from normalized or nested shapes."""
+    function_name = call.get('function_name')
+    if isinstance(function_name, str):
+        return function_name
+    function = call.get('function')
+    if isinstance(function, dict):
+        nested_name = function.get('name')
+        if isinstance(nested_name, str):
+            return nested_name
+    return None
+
+
+def _find_search_tools_call(tool_calls: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Return the first search_tools call, if any."""
+    for call in tool_calls:
+        if _tool_call_name(call) == 'search_tools':
+            return call
+    return None
+
+
+def _normalize_search_tools_args(call: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize search_tools arguments to a dictionary."""
+    args = call.get('arguments', {})
+    if isinstance(args, dict):
+        return args
+    if isinstance(args, str):
+        try:
+            loaded = json.loads(args)
+            if isinstance(loaded, dict):
+                return loaded
+        except json.JSONDecodeError:
+            pass
+    return {}
+
+
+def _extract_search_query_and_limit(call: Dict[str, Any]) -> tuple[str, int]:
+    """Extract (query, max_results) from a search_tools call."""
+    args = _normalize_search_tools_args(call)
+    query = args.get('query', '')
+    if not isinstance(query, str):
+        query = ''
+    raw_max_results = args.get('max_results', 10)
+    if isinstance(raw_max_results, int):
+        max_results = raw_max_results
+    else:
+        max_results = 10
+    return query, max_results
+
+
+def _collect_allowed_tool_names(
+    search_result: List[Dict[str, Any]],
+    essential_tools: set[str],
+) -> set[str]:
+    """Collect allowed tool names from search result plus essentials."""
+    allowed_names = {
+        t.get('function', {}).get('name')
+        for t in search_result
+        if isinstance(t, dict)
+    }
+    allowed_names.update(essential_tools)
+    return allowed_names
+
+
+def _filter_tool_calls_by_allowed_names(
+    tool_calls: List[Dict[str, Any]],
+    allowed_names: set[str],
+) -> List[Dict[str, Any]]:
+    """Filter tool calls by allowed function names."""
+    filtered_calls: List[Dict[str, Any]] = []
+    for call in tool_calls:
+        if _tool_call_name(call) in allowed_names:
+            filtered_calls.append(call)
+    return filtered_calls
 
 
 def _maybe_inject_search_tools(api: OpenAIAPIBase, tool_call_results: str) -> None:
@@ -272,21 +319,27 @@ def _maybe_inject_search_tools(api: OpenAIAPIBase, tool_call_results: str) -> No
         api: The OpenAI API instance to inject tools into.
         tool_call_results: JSON string containing tool call results.
     """
+    tools = _extract_injectable_tools(tool_call_results)
+    if tools:
+        api.inject_tools(tools, include_essentials=True)
+
+
+def _extract_injectable_tools(tool_call_results: str) -> Optional[List[Dict[str, Any]]]:
+    """Extract tools payload from a search_tools tool_call_results JSON string."""
     try:
         results = json.loads(tool_call_results)
-        if not isinstance(results, dict):
-            return
-
-        # Look for search_tools result - it has both "tools" and "query" keys
-        for tool_id, result in results.items():
-            if isinstance(result, dict) and "tools" in result and "query" in result:
-                # This is a search_tools result
-                tools = result.get("tools", [])
-                if tools and isinstance(tools, list):
-                    api.inject_tools(tools, include_essentials=True)
-                    return
     except (json.JSONDecodeError, TypeError):
-        pass
+        return None
+    if not isinstance(results, dict):
+        return None
+
+    for result in results.values():
+        if not (isinstance(result, dict) and "tools" in result and "query" in result):
+            continue
+        tools = result.get("tools")
+        if isinstance(tools, list) and tools:
+            return [cast(Dict[str, Any], tool) for tool in tools if isinstance(tool, dict)]
+    return None
 
 
 def require_auth(f: F) -> F:

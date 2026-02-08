@@ -230,6 +230,17 @@
   - Parity Result: no behavior change observed
   - Follow-ups: continue Phase 4 helper/error-path test expansion for remaining extracted boundaries
 
+- Session ID: S-2026-02-08-14
+  - Date: 2026-02-08
+  - Goal: Continue Phase 3 pipeline decomposition + Phase 4 helper coverage in routes search-tools flow
+  - Planned Scope: extract deterministic helpers for search-tools interception/injection parsing + add helper-level tests
+  - Actual Scope: extracted helper pipeline for tool-call name/args/query parsing, allowed-name collection, call filtering, and injectable-tools extraction in `static/routes.py`; added focused helper tests in `server_tests/test_routes.py`
+  - Status: `in_progress`
+  - Related Commits: `pending`
+  - Validation: `py_compile` on touched files; `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m pytest -q server_tests/test_routes.py` (29 passed); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (769 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2319 run, 0 failures)
+  - Parity Result: no behavior change observed
+  - Follow-ups: begin final hardening closeout (targeted high-risk scenarios + phase status closure updates)
+
 ### Entries
 - 2026-02-08
   - Scope: PR #16 helper extraction coverage expansion (Canvas/WorkspaceManager tests)
@@ -334,3 +345,11 @@
   - Tests Run: `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m pytest -q server_tests/test_openai_responses_api.py` (28 passed, 3 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (765 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2319 run, 0 failures)
   - Parity Evidence: no behavior change observed in tool-call accumulator merge semantics
   - Notes/Blockers: none
+
+- 2026-02-08
+  - Scope: Phase 3/4 continuation - routes search-tools interception/injection decomposition + helper-level coverage
+  - Status: in_progress
+  - Commits: `pending`
+  - Tests Run: `py_compile` for touched files; `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m pytest -q server_tests/test_routes.py` (29 passed); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (769 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2319 run, 0 failures)
+  - Parity Evidence: no behavior change observed in search-tools interception, filtering, or injection behavior
+  - Notes/Blockers: pytest-cov plugin unavailable in this environment, so coverage delta tracking uses targeted helper-test expansion instead
