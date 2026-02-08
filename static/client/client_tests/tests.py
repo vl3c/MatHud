@@ -12,6 +12,7 @@ from .test_circle import TestCircle
 from .test_circle_arc import TestCircleArc
 from .test_custom_drawable_names import TestCustomDrawableNames
 from .test_drawable_dependency_manager import TestDrawableDependencyManager
+from .test_drawable_manager import TestDrawableManagerRegionLookup
 from .test_drawable_name_generator import TestDrawableNameGenerator
 from .test_drawables_container import TestDrawablesContainer
 from .test_ellipse import TestEllipse

@@ -38,10 +38,10 @@
 - [ ] `in_progress` Add orchestration-phase tests for dependency order and error handling
 
 ### Phase 2 - Managers and Services
-- [ ] `todo` Refactor oversized manager classes into composable steps
-- [ ] `todo` Extract side-effect boundaries and isolate pure decision logic
+- [ ] `in_progress` Refactor oversized manager classes into composable steps
+- [ ] `in_progress` Extract side-effect boundaries and isolate pure decision logic
 - [ ] `todo` Add observability hooks (phase start/end/failure, counts, timings)
-- [ ] `todo` Expand unit tests for newly extracted helpers
+- [ ] `in_progress` Expand unit tests for newly extracted helpers
 
 ### Phase 3 - Tool Execution Pipelines
 - [ ] `todo` Split long tool execution/parsing paths into deterministic helpers
@@ -125,6 +125,17 @@
   - Parity Result: no behavior change observed in workspace/canvas-related regression subsets; full-suite failures are environment-related CLI server startup checks
   - Follow-ups: continue Phase 1 Canvas decomposition and re-run full suite in a clean port/runtime environment
 
+- Session ID: S-2026-02-08-05
+  - Date: 2026-02-08
+  - Goal: Move to Phase 2 manager/service decomposition with no behavior change
+  - Planned Scope: refactor `DrawableManager` region-capable lookup into composable decision helpers + add direct unit coverage
+  - Actual Scope: extracted `_region_capable_lookup_chain` and `_first_region_capable_match`; added `TestDrawableManagerRegionLookup` coverage for priority ordering/fallback
+  - Status: `in_progress`
+  - Related Commits: `pending`
+  - Validation: `py_compile` on touched files; targeted parity script (`phase2_drawable_manager_checks: PASS`); `/home/user/code/MatHud/venv/bin/python -m pytest -q server_tests/test_canvas_state_tool_schema.py server_tests/test_workspace_management.py server_tests/test_tool_search_service.py server_tests/client_renderer/test_renderer_support_plan.py` (91 passed)
+  - Parity Result: no behavior change observed
+  - Follow-ups: continue Phase 2 extractions in `DrawableManager` and adjacent managers; add observability hooks
+
 ### Entries
 - 2026-02-08
   - Scope: PR #16 helper extraction coverage expansion (Canvas/WorkspaceManager tests)
@@ -157,3 +168,11 @@
   - Tests Run: `/home/user/code/MatHud/venv/bin/python -m pytest -q server_tests` (2 failed, 752 passed, 22 skipped); `/home/user/code/MatHud/venv/bin/python -m cli.main test client --start-server --port 5055 --timeout 120` (server startup timeout)
   - Parity Evidence: targeted workspace regression subset remained green; remaining failures map to environment port/startup constraints rather than refactor logic
   - Notes/Blockers: port `127.0.0.1:5000` occupied in runtime, impacting CLI server-start test expectations
+
+- 2026-02-08
+  - Scope: Phase 2 kickoff - `DrawableManager` region-capable lookup decomposition and helper tests
+  - Status: in_progress
+  - Commits: `pending`
+  - Tests Run: `py_compile` for touched files; targeted parity script (`phase2_drawable_manager_checks: PASS`); baseline subset command (91 passed)
+  - Parity Evidence: no behavior change observed in lookup ordering/fallback behavior
+  - Notes/Blockers: direct Brython package-style client test invocation still requires `browser` runtime in this environment

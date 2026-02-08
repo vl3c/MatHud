@@ -40,7 +40,7 @@ Integration Points:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Union, cast
 
 from constants import (
     default_area_fill_color,
@@ -1081,26 +1081,25 @@ class DrawableManager:
         if not name:
             return None
 
-        polygon = self.polygon_manager.get_polygon_by_name(name)
-        if polygon is not None:
-            return polygon
+        return self._first_region_capable_match(self._region_capable_lookup_chain(name))
 
-        circle = self.circle_manager.get_circle_by_name(name)
-        if circle is not None:
-            return circle
+    def _region_capable_lookup_chain(self, name: str) -> List[Callable[[], Optional["Drawable"]]]:
+        return [
+            lambda: cast(Optional["Drawable"], self.polygon_manager.get_polygon_by_name(name)),
+            lambda: cast(Optional["Drawable"], self.circle_manager.get_circle_by_name(name)),
+            lambda: cast(Optional["Drawable"], self.ellipse_manager.get_ellipse_by_name(name)),
+            lambda: cast(Optional["Drawable"], self.arc_manager.get_circle_arc_by_name(name)),
+            lambda: cast(Optional["Drawable"], self.segment_manager.get_segment_by_name(name)),
+        ]
 
-        ellipse = self.ellipse_manager.get_ellipse_by_name(name)
-        if ellipse is not None:
-            return ellipse
-
-        arc = self.arc_manager.get_circle_arc_by_name(name)
-        if arc is not None:
-            return arc
-
-        segment = self.segment_manager.get_segment_by_name(name)
-        if segment is not None:
-            return segment
-
+    def _first_region_capable_match(
+        self,
+        lookups: List[Callable[[], Optional["Drawable"]]],
+    ) -> Optional["Drawable"]:
+        for lookup in lookups:
+            drawable = lookup()
+            if drawable is not None:
+                return drawable
         return None
 
     # ------------------- Tangent and Normal Line Methods -------------------
