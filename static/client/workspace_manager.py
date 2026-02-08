@@ -620,13 +620,19 @@ class WorkspaceManager:
     ) -> None:
         try:
             created = handler(item_state)
-            if created and (name := item_state.get("name")):
-                created.name = name
+            self._apply_restored_colored_area_name(created, item_state)
         except Exception as exc:
-            print(
-                f"Warning: Could not restore colored area '{item_state.get('name', 'Unnamed')}': {exc}"
-            )
+            self._warn_colored_area_restore_failure(item_state, exc)
             return
+
+    def _apply_restored_colored_area_name(self, created: Any, item_state: Dict[str, Any]) -> None:
+        if created and (name := item_state.get("name")):
+            created.name = name
+
+    def _warn_colored_area_restore_failure(self, item_state: Dict[str, Any], exc: Exception) -> None:
+        print(
+            f"Warning: Could not restore colored area '{item_state.get('name', 'Unnamed')}': {exc}"
+        )
 
     def _create_plots(self, state: Dict[str, Any]) -> None:
         """
@@ -997,27 +1003,10 @@ class WorkspaceManager:
 
         try:
             self.canvas.create_circle_arc(
-                point1_x=point1.x,
-                point1_y=point1.y,
-                point2_x=point2.x,
-                point2_y=point2.y,
-                point1_name=point1.name,
-                point2_name=point2.name,
-                point3_x=None,
-                point3_y=None,
-                point3_name=None,
-                center_point_choice=None,
-                circle_name=args.get("circle_name"),
-                center_x=args.get("center_x"),
-                center_y=args.get("center_y"),
-                radius=args.get("radius"),
-                arc_name=arc_state.get("name"),
-                color=args.get("color"),
-                use_major_arc=args.get("use_major_arc", False),
-                extra_graphics=False,
+                **self._build_restored_circle_arc_kwargs(arc_state, args, point1, point2)
             )
         except Exception as exc:
-            print(f"Warning: Could not restore circle arc '{arc_state.get('name', '')}': {exc}")
+            self._warn_circle_arc_restore_failure(arc_state, exc)
 
     def _resolve_circle_arc_points(self, args: Dict[str, Any]) -> Tuple[Any, Any]:
         point1_name = args.get("point1_name")
@@ -1025,6 +1014,37 @@ class WorkspaceManager:
         point1 = self.canvas.get_point_by_name(point1_name) if point1_name else None
         point2 = self.canvas.get_point_by_name(point2_name) if point2_name else None
         return point1, point2
+
+    def _build_restored_circle_arc_kwargs(
+        self,
+        arc_state: Dict[str, Any],
+        args: Dict[str, Any],
+        point1: Any,
+        point2: Any,
+    ) -> Dict[str, Any]:
+        return {
+            "point1_x": point1.x,
+            "point1_y": point1.y,
+            "point2_x": point2.x,
+            "point2_y": point2.y,
+            "point1_name": point1.name,
+            "point2_name": point2.name,
+            "point3_x": None,
+            "point3_y": None,
+            "point3_name": None,
+            "center_point_choice": None,
+            "circle_name": args.get("circle_name"),
+            "center_x": args.get("center_x"),
+            "center_y": args.get("center_y"),
+            "radius": args.get("radius"),
+            "arc_name": arc_state.get("name"),
+            "color": args.get("color"),
+            "use_major_arc": args.get("use_major_arc", False),
+            "extra_graphics": False,
+        }
+
+    def _warn_circle_arc_restore_failure(self, arc_state: Dict[str, Any], exc: Exception) -> None:
+        print(f"Warning: Could not restore circle arc '{arc_state.get('name', '')}': {exc}")
 
     def _restore_computations(self, state: Dict[str, Any]) -> None:
         """Restore computations from workspace state."""
