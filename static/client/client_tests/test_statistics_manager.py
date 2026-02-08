@@ -9,6 +9,14 @@ from drawables.discrete_plot import DiscretePlot
 from canvas import Canvas
 
 
+class _LoggerSpy:
+    def __init__(self) -> None:
+        self.messages: List[str] = []
+
+    def debug(self, message: str) -> None:
+        self.messages.append(str(message))
+
+
 class TestStatisticsManager(unittest.TestCase):
     def setUp(self) -> None:
         self.canvas = Canvas(500, 500, draw_enabled=False)
@@ -240,6 +248,48 @@ class TestStatisticsManager(unittest.TestCase):
 
     def test_delete_plot_unknown_returns_false(self) -> None:
         self.assertFalse(self.canvas.delete_plot("DoesNotExist"))
+
+    def test_plot_bars_emits_observability_start_and_end_logs(self) -> None:
+        logger_spy = _LoggerSpy()
+        self.canvas.logger = logger_spy
+
+        self.canvas.plot_bars(
+            name="ObservedBars",
+            values=[1.0, 2.0],
+            labels_below=["A", "B"],
+            labels_above=None,
+            bar_spacing=0.2,
+            bar_width=1.0,
+            stroke_color=None,
+            fill_color=None,
+            fill_opacity=None,
+            x_start=0.0,
+            y_base=0.0,
+        )
+
+        self.assertTrue(any("operation': 'plot_bars'" in msg and "stage': 'start'" in msg for msg in logger_spy.messages))
+        self.assertTrue(any("operation': 'plot_bars'" in msg and "stage': 'end'" in msg for msg in logger_spy.messages))
+        self.assertTrue(any("elapsed_ms" in msg for msg in logger_spy.messages))
+
+    def test_plot_distribution_failure_emits_observability_failure_log(self) -> None:
+        logger_spy = _LoggerSpy()
+        self.canvas.logger = logger_spy
+
+        with self.assertRaises(ValueError):
+            self.canvas.plot_distribution(
+                name="BadRep",
+                representation="invalid",
+                distribution_type="normal",
+                distribution_params={"mean": 0.0, "sigma": 1.0},
+                plot_bounds=None,
+                shade_bounds=None,
+                curve_color=None,
+                fill_color=None,
+                fill_opacity=None,
+                bar_count=None,
+            )
+
+        self.assertTrue(any("operation': 'plot_distribution'" in msg and "stage': 'failure'" in msg for msg in logger_spy.messages))
 
     def test_plot_distribution_rejects_invalid_representation(self) -> None:
         with self.assertRaises(ValueError):
@@ -559,5 +609,4 @@ class TestStatisticsManager(unittest.TestCase):
         self.assertNotIn("PartialDiscrete_bar_0", self._names_for_class("Bar"))
         self.assertNotIn("PartialDiscrete_bar_1", self._names_for_class("Bar"))
         self.assertNotIn("PartialDiscrete_bar_2", self._names_for_class("Bar"))
-
 

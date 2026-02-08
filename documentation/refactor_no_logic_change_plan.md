@@ -40,7 +40,7 @@
 ### Phase 2 - Managers and Services
 - [ ] `in_progress` Refactor oversized manager classes into composable steps
 - [ ] `in_progress` Extract side-effect boundaries and isolate pure decision logic
-- [ ] `todo` Add observability hooks (phase start/end/failure, counts, timings)
+- [ ] `in_progress` Add observability hooks (phase start/end/failure, counts, timings)
 - [ ] `in_progress` Expand unit tests for newly extracted helpers
 
 ### Phase 3 - Tool Execution Pipelines
@@ -147,6 +147,17 @@
   - Parity Result: no behavior change observed
   - Follow-ups: continue Phase 2 manager/service decomposition and add light observability hooks at orchestration boundaries
 
+- Session ID: S-2026-02-08-07
+  - Date: 2026-02-08
+  - Goal: Continue Phase 2 with observability hooks at manager orchestration boundaries
+  - Planned Scope: add start/end/failure timing hooks to `StatisticsManager` public operations + add helper-level observability tests
+  - Actual Scope: added optional logger-based hooks for `plot_distribution`, `plot_bars`, `fit_regression`, and `delete_plot`; expanded statistics manager tests for start/end/failure hook emission
+  - Status: `in_progress`
+  - Related Commits: `pending`
+  - Validation: `py_compile` on touched files; `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (756 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2315 run, 0 failures)
+  - Parity Result: no behavior change observed
+  - Follow-ups: continue Phase 2 observability rollout across remaining manager orchestration boundaries
+
 ### Entries
 - 2026-02-08
   - Scope: PR #16 helper extraction coverage expansion (Canvas/WorkspaceManager tests)
@@ -195,3 +206,11 @@
   - Tests Run: `py_compile` for touched files; targeted parity script (`phase2_colored_area_delegation_checks: PASS`); baseline subset command (91 passed)
   - Parity Evidence: no behavior change observed in colored-area deletion routing/arguments
   - Notes/Blockers: same environment limitation for direct Brython package test harness
+
+- 2026-02-08
+  - Scope: Phase 2 continuation - statistics manager observability hook extraction (start/end/failure + timing) with helper tests
+  - Status: in_progress
+  - Commits: `pending`
+  - Tests Run: `py_compile` for touched files; `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (756 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2315 run, 0 failures)
+  - Parity Evidence: no behavior change observed; observability hooks are optional and logger-dependent
+  - Notes/Blockers: direct pytest invocation for Brython client package tests requires browser runtime import path
