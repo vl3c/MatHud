@@ -173,6 +173,39 @@ class TestWorkspaceLabelRestore(unittest.TestCase):
         self.assertEqual(getattr(render_mode, "kind", None), "screen_offset")
 
 
+class TestWorkspaceManagerHelperMethods(unittest.TestCase):
+    def setUp(self) -> None:
+        self.manager = WorkspaceManager(SimpleMock())
+
+    def test_legacy_plot_arg_detectors(self) -> None:
+        self.assertTrue(self.manager._is_legacy_discrete_plot_args({"rectangle_names": ["r1"]}))
+        self.assertTrue(self.manager._is_legacy_discrete_plot_args({"fill_area_names": ["a1"]}))
+        self.assertFalse(self.manager._is_legacy_discrete_plot_args({}))
+
+        self.assertTrue(self.manager._is_legacy_continuous_plot_args({"function_name": "f"}))
+        self.assertTrue(self.manager._is_legacy_continuous_plot_args({"fill_area_name": "fa"}))
+        self.assertFalse(self.manager._is_legacy_continuous_plot_args({}))
+
+    def test_is_workspace_management_expression(self) -> None:
+        self.assertTrue(self.manager._is_workspace_management_expression("list_workspaces()"))
+        self.assertTrue(self.manager._is_workspace_management_expression("save_workspace('w')"))
+        self.assertTrue(self.manager._is_workspace_management_expression("load_workspace('w')"))
+        self.assertFalse(self.manager._is_workspace_management_expression("delete_workspace('w')"))
+        self.assertFalse(self.manager._is_workspace_management_expression("plot_distribution()"))
+
+    def test_response_helper_methods(self) -> None:
+        req = SimpleMock(text='{"status":"success","data":{"state":{"Points":[]}}}')
+        response = self.manager._response_from_request(req)
+
+        self.assertTrue(self.manager._response_is_success(response))
+        self.assertEqual(self.manager._workspace_state_from_response(response), {"Points": []})
+        self.assertEqual(self.manager._workspace_list_from_response({"data": ["a", "b"]}), ["a", "b"])
+        self.assertEqual(self.manager._workspace_list_from_response({}), [])
+        self.assertEqual(
+            self.manager._format_workspace_error("loading", {"message": "boom"}),
+            "Error loading workspace: boom",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
-

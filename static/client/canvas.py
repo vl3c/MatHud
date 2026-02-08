@@ -33,7 +33,7 @@ Dependencies:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Union, cast
 
 from constants import (
     default_area_fill_color,
@@ -119,119 +119,89 @@ class Canvas:
         self.transformations_manager: TransformationsManager = TransformationsManager(self)
         self.coordinate_system_manager: CoordinateSystemManager = CoordinateSystemManager(self)
 
-        # Initialize renderer lazily to avoid hard dependency in non-browser tests
-        if renderer is not None:
-            self.renderer: Optional[RendererProtocol] = renderer
-        else:
-            self.renderer = cast(Optional[RendererProtocol], create_renderer(DEFAULT_RENDERER_MODE))
+        self.renderer = self._initialize_renderer(renderer)
         self.renderer_mode: str = self._resolve_renderer_mode(self.renderer)
-        
-        if self.draw_enabled and self.renderer is not None:
-            try:
-                self.renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
-            except Exception:
-                pass
+        self._render_initial_cartesian_if_enabled()
         self._register_renderer_handlers()
 
     def add_drawable(self, drawable: "Drawable") -> None:
         self.drawable_manager.drawables.add(drawable)
 
+    def _initialize_renderer(self, renderer: Optional[RendererProtocol]) -> Optional[RendererProtocol]:
+        """Initialize renderer lazily to avoid hard dependency in non-browser tests."""
+        if renderer is not None:
+            return renderer
+        return cast(Optional[RendererProtocol], create_renderer(DEFAULT_RENDERER_MODE))
+
+    def _render_initial_cartesian_if_enabled(self) -> None:
+        if self.draw_enabled and self.renderer is not None:
+            try:
+                self.renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
+            except Exception:
+                pass
+
     def _register_renderer_handlers(self) -> None:
         """Register renderer handlers for all drawable types."""
         if self.renderer is None:
             return
+        if not self._try_register_default_drawables():
+            self._register_renderer_handlers_legacy()
+
+    def _try_register_default_drawables(self) -> bool:
+        if self.renderer is None:
+            return False
         try:
             self.renderer.register_default_drawables()
+            return True
         except AttributeError:
-            self._register_renderer_handlers_legacy()
+            return False
         except Exception:
-            self._register_renderer_handlers_legacy()
+            return False
 
     def _register_renderer_handlers_legacy(self) -> None:
         if self.renderer is None:
             return
+        for module_path, class_name, register_name in self._legacy_registration_specs():
+            self._register_legacy_drawable(module_path, class_name, register_name)
+
+    def _legacy_registration_specs(self) -> List[Tuple[str, str, str]]:
+        return [
+            ("drawables.point", "Point", "register_point"),
+            ("drawables.segment", "Segment", "register_segment"),
+            ("drawables.circle", "Circle", "register_circle"),
+            ("drawables.ellipse", "Ellipse", "register_ellipse"),
+            ("drawables.vector", "Vector", "register_vector"),
+            ("drawables.angle", "Angle", "register_angle"),
+            ("drawables.function", "Function", "register_function"),
+            ("drawables.triangle", "Triangle", "register_triangle"),
+            ("drawables.rectangle", "Rectangle", "register_rectangle"),
+            (
+                "drawables.functions_bounded_colored_area",
+                "FunctionsBoundedColoredArea",
+                "register_functions_bounded_colored_area",
+            ),
+            (
+                "drawables.function_segment_bounded_colored_area",
+                "FunctionSegmentBoundedColoredArea",
+                "register_function_segment_bounded_colored_area",
+            ),
+            (
+                "drawables.segments_bounded_colored_area",
+                "SegmentsBoundedColoredArea",
+                "register_segments_bounded_colored_area",
+            ),
+            ("drawables.label", "Label", "register_label"),
+            ("drawables.circle_arc", "CircleArc", "register_circle_arc"),
+        ]
+
+    def _register_legacy_drawable(self, module_path: str, class_name: str, register_name: str) -> None:
+        if self.renderer is None:
+            return
         try:
-            from drawables.point import Point as _Point
-            if hasattr(self.renderer, 'register_point'):
-                self.renderer.register_point(_Point)
-        except Exception:
-            pass
-        try:
-            from drawables.segment import Segment as _Segment
-            if hasattr(self.renderer, 'register_segment'):
-                self.renderer.register_segment(_Segment)
-        except Exception:
-            pass
-        try:
-            from drawables.circle import Circle as _Circle
-            if hasattr(self.renderer, 'register_circle'):
-                self.renderer.register_circle(_Circle)
-        except Exception:
-            pass
-        try:
-            from drawables.ellipse import Ellipse as _Ellipse
-            if hasattr(self.renderer, 'register_ellipse'):
-                self.renderer.register_ellipse(_Ellipse)
-        except Exception:
-            pass
-        try:
-            from drawables.vector import Vector as _Vector
-            if hasattr(self.renderer, 'register_vector'):
-                self.renderer.register_vector(_Vector)
-        except Exception:
-            pass
-        try:
-            from drawables.angle import Angle as _Angle
-            if hasattr(self.renderer, 'register_angle'):
-                self.renderer.register_angle(_Angle)
-        except Exception:
-            pass
-        try:
-            from drawables.function import Function as _Function
-            if hasattr(self.renderer, 'register_function'):
-                self.renderer.register_function(_Function)
-        except Exception:
-            pass
-        try:
-            from drawables.triangle import Triangle as _Triangle
-            if hasattr(self.renderer, 'register_triangle'):
-                self.renderer.register_triangle(_Triangle)
-        except Exception:
-            pass
-        try:
-            from drawables.rectangle import Rectangle as _Rectangle
-            if hasattr(self.renderer, 'register_rectangle'):
-                self.renderer.register_rectangle(_Rectangle)
-        except Exception:
-            pass
-        try:
-            from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea as _FBCA
-            if hasattr(self.renderer, 'register_functions_bounded_colored_area'):
-                self.renderer.register_functions_bounded_colored_area(_FBCA)
-        except Exception:
-            pass
-        try:
-            from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea as _FSBCA
-            if hasattr(self.renderer, 'register_function_segment_bounded_colored_area'):
-                self.renderer.register_function_segment_bounded_colored_area(_FSBCA)
-        except Exception:
-            pass
-        try:
-            from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea as _SBCA
-            if hasattr(self.renderer, 'register_segments_bounded_colored_area'):
-                self.renderer.register_segments_bounded_colored_area(_SBCA)
-        except Exception:
-            pass
-        try:
-            from drawables.label import Label as _Label
-            if hasattr(self.renderer, 'register_label'):
-                self.renderer.register_label(_Label)
-        except Exception:
-            pass
-        try:
-            from drawables.circle_arc import CircleArc as _CircleArc
-            if hasattr(self.renderer, 'register_circle_arc'):
-                self.renderer.register_circle_arc(_CircleArc)
+            module = __import__(module_path, fromlist=[class_name])
+            drawable_cls = getattr(module, class_name)
+            if hasattr(self.renderer, register_name):
+                getattr(self.renderer, register_name)(drawable_cls)
         except Exception:
             pass
 
@@ -239,50 +209,88 @@ class Canvas:
         if not self.draw_enabled:
             return
         renderer = self.renderer
-        renderer_begin = getattr(renderer, "begin_frame", None) if renderer is not None else None
-        renderer_end = getattr(renderer, "end_frame", None) if renderer is not None else None
+        renderer_end = self._begin_renderer_frame(renderer)
 
+        try:
+            self._clear_renderer_surface(renderer)
+            self._render_coordinate_system(renderer, apply_zoom)
+            self._render_drawables(renderer, apply_zoom)
+        finally:
+            self._end_renderer_frame(renderer_end)
+
+    def _begin_renderer_frame(self, renderer: Optional[RendererProtocol]) -> Optional[Any]:
+        """Best-effort frame begin hook for renderers that support batching."""
+        renderer_begin = getattr(renderer, "begin_frame", None) if renderer is not None else None
         if callable(renderer_begin):
             try:
                 renderer_begin()
             except Exception:
                 pass
+        return getattr(renderer, "end_frame", None) if renderer is not None else None
 
+    def _end_renderer_frame(self, renderer_end: Optional[Any]) -> None:
+        """Best-effort frame end hook matching _begin_renderer_frame."""
+        if callable(renderer_end):
+            try:
+                renderer_end()
+            except Exception:
+                pass
+
+    def _clear_renderer_surface(self, renderer: Optional[RendererProtocol]) -> None:
+        """Clear renderer surface unless backend explicitly skips automatic clears."""
+        if renderer is None:
+            return
+        skip_clear = bool(getattr(renderer, "SKIP_AUTO_CLEAR", False))
+        if skip_clear:
+            return
         try:
-            if renderer is not None:
-                skip_clear = bool(getattr(renderer, "SKIP_AUTO_CLEAR", False))
-                if not skip_clear:
-                    try:
-                        renderer.clear()
-                    except Exception:
-                        pass
-                try:
-                    if apply_zoom:
-                        self.coordinate_system_manager.invalidate_cache_on_zoom()
-                    if self.coordinate_system_manager.is_cartesian():
-                        if self.cartesian2axis.visible:
-                            renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
-                    else:
-                        if self.coordinate_system_manager.polar_grid.visible:
-                            renderer.render_polar(self.coordinate_system_manager.polar_grid, self.coordinate_mapper)
-                except Exception:
-                    pass
+            renderer.clear()
+        except Exception:
+            pass
 
-            # Draw all drawables - coordinate transformations handled by CoordinateMapper
-            for drawable in self.drawable_manager.get_renderable_drawables():
-                if apply_zoom and hasattr(drawable, '_invalidate_cache_on_zoom'):
-                    drawable._invalidate_cache_on_zoom()
-                if renderer is not None:
-                    try:
-                        renderer.render(drawable, self.coordinate_mapper)
-                    except Exception:
-                        pass
-        finally:
-            if callable(renderer_end):
-                try:
-                    renderer_end()
-                except Exception:
-                    pass
+    def _render_coordinate_system(self, renderer: Optional[RendererProtocol], apply_zoom: bool) -> None:
+        """Render either cartesian or polar coordinate system based on current mode."""
+        if renderer is None:
+            return
+        try:
+            self._invalidate_coordinate_system_cache_on_zoom_if_needed(apply_zoom)
+            if self.coordinate_system_manager.is_cartesian():
+                self._render_cartesian_if_visible(renderer)
+            else:
+                self._render_polar_if_visible(renderer)
+        except Exception:
+            pass
+
+    def _invalidate_coordinate_system_cache_on_zoom_if_needed(self, apply_zoom: bool) -> None:
+        if apply_zoom:
+            self.coordinate_system_manager.invalidate_cache_on_zoom()
+
+    def _render_cartesian_if_visible(self, renderer: RendererProtocol) -> None:
+        if self.cartesian2axis.visible:
+            renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
+
+    def _render_polar_if_visible(self, renderer: RendererProtocol) -> None:
+        if self.coordinate_system_manager.polar_grid.visible:
+            renderer.render_polar(self.coordinate_system_manager.polar_grid, self.coordinate_mapper)
+
+    def _render_drawables(self, renderer: Optional[RendererProtocol], apply_zoom: bool) -> None:
+        """Render all drawable objects with optional zoom cache invalidation."""
+        for drawable in self.drawable_manager.get_renderable_drawables():
+            self._invalidate_drawable_zoom_cache(drawable, apply_zoom)
+            self._render_drawable_with_renderer(renderer, drawable)
+
+    def _invalidate_drawable_zoom_cache(self, drawable: Any, apply_zoom: bool) -> None:
+        if apply_zoom and hasattr(drawable, "_invalidate_cache_on_zoom"):
+            drawable._invalidate_cache_on_zoom()
+
+    def _render_drawable_with_renderer(
+        self, renderer: Optional[RendererProtocol], drawable: Any
+    ) -> None:
+        if renderer is not None:
+            try:
+                renderer.render(drawable, self.coordinate_mapper)
+            except Exception:
+                pass
 
     def _is_drawable_visible(self, drawable: "Drawable") -> bool:
         """Best-effort visibility check to avoid rendering off-canvas objects.
@@ -290,47 +298,62 @@ class Canvas:
         Mirrors prior behavior for segments and points; other types default to visible
         because they manage their own bounds or are inexpensive.
         """
+        class_name = self._safe_drawable_class_name(drawable)
         try:
-            class_name = drawable.get_class_name() if hasattr(drawable, 'get_class_name') else drawable.__class__.__name__
-        except Exception:
-            class_name = drawable.__class__.__name__
+            if class_name == "Point":
+                return self._is_point_drawable_visible(drawable)
 
-        try:
-            if class_name == 'Point':
-                # Use screen coordinates if available, else compute
-                # Math-only point; map via CoordinateMapper
-                x, y = self.coordinate_mapper.math_to_screen(drawable.x, drawable.y)
-                return self.is_point_within_canvas_visible_area(x, y)
+            if class_name == "Segment":
+                return self._is_segment_drawable_visible(drawable)
 
-            if class_name == 'Segment':
-                p1 = drawable.point1
-                p2 = drawable.point2
-                x1, y1 = self.coordinate_mapper.math_to_screen(p1.x, p1.y)
-                x2, y2 = self.coordinate_mapper.math_to_screen(p2.x, p2.y)
-                return (
-                    self.is_point_within_canvas_visible_area(x1, y1) or
-                    self.is_point_within_canvas_visible_area(x2, y2) or
-                    self.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
-                )
-
-            if class_name == 'Vector':
-                seg = getattr(drawable, 'segment', None)
-                if seg is None:
-                    return True
-                p1 = seg.point1
-                p2 = seg.point2
-                x1, y1 = self.coordinate_mapper.math_to_screen(p1.x, p1.y)
-                x2, y2 = self.coordinate_mapper.math_to_screen(p2.x, p2.y)
-                return (
-                    self.is_point_within_canvas_visible_area(x1, y1) or
-                    self.is_point_within_canvas_visible_area(x2, y2) or
-                    self.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
-                )
+            if class_name == "Vector":
+                return self._is_vector_drawable_visible(drawable)
 
             # Default: visible
             return True
         except Exception:
             return True
+
+    def _safe_drawable_class_name(self, drawable: Any) -> str:
+        try:
+            return (
+                drawable.get_class_name()
+                if hasattr(drawable, "get_class_name")
+                else drawable.__class__.__name__
+            )
+        except Exception:
+            return drawable.__class__.__name__
+
+    def _is_point_drawable_visible(self, drawable: Any) -> bool:
+        # Use screen coordinates if available, else compute
+        # Math-only point; map via CoordinateMapper
+        x, y = self.coordinate_mapper.math_to_screen(drawable.x, drawable.y)
+        return self.is_point_within_canvas_visible_area(x, y)
+
+    def _is_segment_drawable_visible(self, drawable: Any) -> bool:
+        return self._is_math_segment_visible(drawable.point1, drawable.point2)
+
+    def _is_vector_drawable_visible(self, drawable: Any) -> bool:
+        seg = getattr(drawable, "segment", None)
+        if seg is None:
+            return True
+        return self._is_math_segment_visible(seg.point1, seg.point2)
+
+    def _is_math_segment_visible(self, p1: Any, p2: Any) -> bool:
+        x1, y1, x2, y2 = self._segment_screen_coordinates(p1, p2)
+        return self._is_screen_segment_visible(x1, y1, x2, y2)
+
+    def _segment_screen_coordinates(self, p1: Any, p2: Any) -> Tuple[float, float, float, float]:
+        x1, y1 = self.coordinate_mapper.math_to_screen(p1.x, p1.y)
+        x2, y2 = self.coordinate_mapper.math_to_screen(p2.x, p2.y)
+        return x1, y1, x2, y2
+
+    def _is_screen_segment_visible(self, x1: float, y1: float, x2: float, y2: float) -> bool:
+        return (
+            self.is_point_within_canvas_visible_area(x1, y1)
+            or self.is_point_within_canvas_visible_area(x2, y2)
+            or self.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
+        )
     
     # Removed legacy zoom displacement; zoom handled via CoordinateMapper
     
@@ -342,61 +365,94 @@ class Canvas:
         cartesian origin to the zoom point.
         """
         try:
-            # Get current cartesian origin screen coordinates
-            cartesian_origin = self.cartesian2axis.origin
-            
-            # Calculate distance from cartesian origin to zoom point
-            dx = zoom_point.x - cartesian_origin.x
-            dy = zoom_point.y - cartesian_origin.y
-            distance = math.sqrt(dx * dx + dy * dy)
-            
-            # Calculate displacement magnitude
-            displacement = distance * zoom_step * zoom_direction
-            
-            # Normalize direction vector and apply displacement to coordinate mapper offset
-            if distance > 0:
-                dx /= distance
-                dy /= distance
-                
-                # Apply displacement to CoordinateMapper offset to move the entire coordinate system
-                self.coordinate_mapper.offset.x += displacement * dx
-                self.coordinate_mapper.offset.y += displacement * dy
-                
+            displacement_components = self._compute_cartesian_zoom_displacement_components(
+                zoom_point,
+                zoom_direction,
+                zoom_step,
+            )
+            if displacement_components is None:
+                return
+            dx, dy = displacement_components
+            self._apply_coordinate_mapper_offset_displacement(dx, dy)
         except Exception as e:
             print(f"Error applying cartesian zoom displacement: {str(e)}")
+
+    def _compute_cartesian_zoom_displacement_components(
+        self,
+        zoom_point: Point,
+        zoom_direction: int,
+        zoom_step: float,
+    ) -> Optional[Tuple[float, float]]:
+        # Get current cartesian origin screen coordinates
+        cartesian_origin = self.cartesian2axis.origin
+
+        # Calculate distance from cartesian origin to zoom point
+        dx = zoom_point.x - cartesian_origin.x
+        dy = zoom_point.y - cartesian_origin.y
+        distance = math.sqrt(dx * dx + dy * dy)
+
+        # Calculate displacement magnitude
+        displacement = distance * zoom_step * zoom_direction
+
+        # Normalize direction vector and return displacement vector
+        if distance <= 0:
+            return None
+        dx /= distance
+        dy /= distance
+        return displacement * dx, displacement * dy
+
+    def _apply_coordinate_mapper_offset_displacement(self, dx: float, dy: float) -> None:
+        # Apply displacement to CoordinateMapper offset to move the entire coordinate system
+        self.coordinate_mapper.offset.x += dx
+        self.coordinate_mapper.offset.y += dy
     
     # _apply_point_zoom_displacement removed (legacy)
 
     def _draw_cartesian(self, apply_zoom: bool = False) -> None:
         # Handle cartesian system cache invalidation if needed
-        if apply_zoom and hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
-            self.cartesian2axis._invalidate_cache_on_zoom()
+        self._invalidate_cartesian_draw_cache_on_zoom_if_needed(apply_zoom)
         self.cartesian2axis.draw()
+
+    def _invalidate_cartesian_draw_cache_on_zoom_if_needed(self, apply_zoom: bool) -> None:
+        if apply_zoom and hasattr(self.cartesian2axis, "_invalidate_cache_on_zoom"):
+            self.cartesian2axis._invalidate_cache_on_zoom()
 
     def clear(self) -> None:
         """Clear all drawables"""
         self.archive()
-        self.drawable_manager.drawables.clear()
-        
-        # Reset the name generator state
-        if hasattr(self.drawable_manager, 'name_generator') and hasattr(self.drawable_manager.name_generator, 'reset_state'):
-            self.drawable_manager.name_generator.reset_state()
-        
+        self._clear_drawables_collection()
+        self._reset_name_generator_state()
         self.reset()
+
+    def _clear_drawables_collection(self) -> None:
+        self.drawable_manager.drawables.clear()
+
+    def _reset_name_generator_state(self) -> None:
+        if hasattr(self.drawable_manager, "name_generator") and hasattr(
+            self.drawable_manager.name_generator, "reset_state"
+        ):
+            self.drawable_manager.name_generator.reset_state()
 
     def reset(self) -> None:
         """Reset the canvas to its initial state"""
+        self._reset_coordinate_transformations()
+        self._reset_canvas_state()
+        self._reset_drawables_state()
+        self.draw()
+
+    def _reset_coordinate_transformations(self) -> None:
         # Reset coordinate transformations using CoordinateMapper
         self.coordinate_mapper.reset_transformations()
-        
+
+    def _reset_canvas_state(self) -> None:
         # Reset other canvas state
         self.dragging = False
-        
+
+    def _reset_drawables_state(self) -> None:
         # Reset cartesian system and drawables
         self.cartesian2axis.reset()
         for drawable in self.get_drawables():
             drawable.reset()
-        self.draw()
 
     def archive(self) -> None:
         """Archive the current state for undo functionality"""
@@ -570,41 +626,12 @@ class Canvas:
             if not isinstance(bars_state, list) or not bars_state:
                 return
 
-            prefixes: List[str] = []
-
-            discrete_plots = state.get("DiscretePlots")
-            if isinstance(discrete_plots, list):
-                for item in discrete_plots:
-                    if not isinstance(item, dict):
-                        continue
-                    name = item.get("name")
-                    if isinstance(name, str) and name:
-                        prefixes.append(f"{name}_bar_")
-
-            bars_plots = state.get("BarsPlots")
-            if isinstance(bars_plots, list):
-                for item in bars_plots:
-                    if not isinstance(item, dict):
-                        continue
-                    name = item.get("name")
-                    if isinstance(name, str) and name:
-                        prefixes.append(f"{name}_bar_")
+            prefixes = self._collect_plot_derived_bar_prefixes(state)
 
             if not prefixes:
                 return
 
-            kept: List[Any] = []
-            for item in bars_state:
-                if not isinstance(item, dict):
-                    kept.append(item)
-                    continue
-                bar_name = item.get("name")
-                if not isinstance(bar_name, str):
-                    kept.append(item)
-                    continue
-                if any(bar_name.startswith(prefix) for prefix in prefixes):
-                    continue
-                kept.append(item)
+            kept = self._filter_bars_excluding_prefixes(bars_state, prefixes)
 
             if kept:
                 state["Bars"] = kept
@@ -613,6 +640,39 @@ class Canvas:
         except Exception:
             # Best-effort pruning only; never break callers.
             return
+
+    def _collect_plot_derived_bar_prefixes(self, state: Dict[str, Any]) -> List[str]:
+        prefixes: List[str] = []
+        self._append_plot_prefixes(state.get("DiscretePlots"), prefixes)
+        self._append_plot_prefixes(state.get("BarsPlots"), prefixes)
+        return prefixes
+
+    def _append_plot_prefixes(self, plots_state: Any, prefixes: List[str]) -> None:
+        if not isinstance(plots_state, list):
+            return
+        for item in plots_state:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name")
+            if isinstance(name, str) and name:
+                prefixes.append(f"{name}_bar_")
+
+    def _filter_bars_excluding_prefixes(
+        self, bars_state: List[Any], prefixes: List[str]
+    ) -> List[Any]:
+        kept: List[Any] = []
+        for item in bars_state:
+            if not isinstance(item, dict):
+                kept.append(item)
+                continue
+            bar_name = item.get("name")
+            if not isinstance(bar_name, str):
+                kept.append(item)
+                continue
+            if any(bar_name.startswith(prefix) for prefix in prefixes):
+                continue
+            kept.append(item)
+        return kept
 
     def get_point(self, x: float, y: float) -> Optional[Point]:
         """Get a point at the specified coordinates"""
@@ -1277,6 +1337,17 @@ class Canvas:
             range_val: Half-size for the specified axis
             range_axis: 'x' or 'y' - which axis the range applies to
         """
+        left, right, top, bottom = self._compute_zoom_bounds(
+            center_x, center_y, range_val, range_axis
+        )
+        self.coordinate_mapper.set_visible_bounds(left, right, top, bottom)
+        self._invalidate_cartesian_cache_on_zoom()
+        self.draw(apply_zoom=True)
+        return True
+
+    def _compute_zoom_bounds(
+        self, center_x: float, center_y: float, range_val: float, range_axis: str
+    ) -> Tuple[float, float, float, float]:
         if range_axis == "x":
             left = center_x - range_val
             right = center_x + range_val
@@ -1284,18 +1355,19 @@ class Canvas:
             y_range = range_val * aspect
             top = center_y + y_range
             bottom = center_y - y_range
-        else:
-            top = center_y + range_val
-            bottom = center_y - range_val
-            aspect = self.width / self.height
-            x_range = range_val * aspect
-            left = center_x - x_range
-            right = center_x + x_range
-        self.coordinate_mapper.set_visible_bounds(left, right, top, bottom)
-        if hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
+            return left, right, top, bottom
+
+        top = center_y + range_val
+        bottom = center_y - range_val
+        aspect = self.width / self.height
+        x_range = range_val * aspect
+        left = center_x - x_range
+        right = center_x + x_range
+        return left, right, top, bottom
+
+    def _invalidate_cartesian_cache_on_zoom(self) -> None:
+        if hasattr(self.cartesian2axis, "_invalidate_cache_on_zoom"):
             self.cartesian2axis._invalidate_cache_on_zoom()
-        self.draw(apply_zoom=True)
-        return True
 
     def find_largest_connected_shape(self, shape: "Drawable") -> tuple[Optional["Drawable"], Optional[str]]:
         """Find the largest shape that shares segments with the given shape.
@@ -1304,25 +1376,35 @@ class Canvas:
         if not shape:
             return None, None
 
-        # Get all shapes from the canvas
-        rectangles = self.drawable_manager.drawables.Rectangles
-        triangles = self.drawable_manager.drawables.Triangles
-
         # If the shape is a rectangle, don't check for parent shapes
         if shape.get_class_name() == 'Rectangle':
             return None, None
 
-        # Check rectangles first as they are larger
-        for rect in rectangles:
-            if rect != shape:  # Don't compare with itself
-                shared_segs = self.get_shared_segments(shape, rect)
-                if shared_segs:  # If any segments are shared with a rectangle, return it
-                    return rect, rect.get_class_name()
+        rectangles = self.drawable_manager.drawables.Rectangles
+        rectangle_parent = self._find_parent_rectangle(shape, rectangles)
+        if rectangle_parent is not None:
+            return rectangle_parent, rectangle_parent.get_class_name()
 
         # Only check triangles if no rectangle was found and the shape isn't a triangle
         if shape.get_class_name() == 'Triangle':
             return None, None
 
+        triangles = self.drawable_manager.drawables.Triangles
+        largest_parent_shape = self._find_largest_parent_triangle(shape, triangles)
+        return (
+            largest_parent_shape,
+            largest_parent_shape.get_class_name() if largest_parent_shape else None,
+        )
+
+    def _find_parent_rectangle(self, shape: "Drawable", rectangles: List["Drawable"]) -> Optional["Drawable"]:
+        for rect in rectangles:
+            if rect != shape:  # Don't compare with itself
+                shared_segs = self.get_shared_segments(shape, rect)
+                if shared_segs:  # If any segments are shared with a rectangle, return it
+                    return rect
+        return None
+
+    def _find_largest_parent_triangle(self, shape: "Drawable", triangles: List["Drawable"]) -> Optional["Drawable"]:
         largest_parent_shape = None
         max_segments = 0
 
@@ -1333,33 +1415,13 @@ class Canvas:
                     largest_parent_shape = tri
                     max_segments = len(shared_segs)
 
-        return largest_parent_shape, largest_parent_shape.get_class_name() if largest_parent_shape else None
+        return largest_parent_shape
 
     def get_shared_segments(self, shape1: "Drawable", shape2: "Drawable") -> List["Drawable"]:
         """Check if two shapes share any segments.
         Returns a list of shared segments."""
-        shape1_segments = []
-        shape2_segments = []
-
-        # Get segments from shape1
-        if hasattr(shape1, 'segment1'):
-            shape1_segments.append(shape1.segment1)
-        if hasattr(shape1, 'segment2'):
-            shape1_segments.append(shape1.segment2)
-        if hasattr(shape1, 'segment3'):
-            shape1_segments.append(shape1.segment3)
-        if hasattr(shape1, 'segment4'):
-            shape1_segments.append(shape1.segment4)
-
-        # Get segments from shape2
-        if hasattr(shape2, 'segment1'):
-            shape2_segments.append(shape2.segment1)
-        if hasattr(shape2, 'segment2'):
-            shape2_segments.append(shape2.segment2)
-        if hasattr(shape2, 'segment3'):
-            shape2_segments.append(shape2.segment3)
-        if hasattr(shape2, 'segment4'):
-            shape2_segments.append(shape2.segment4)
+        shape1_segments = self._collect_shape_segments(shape1)
+        shape2_segments = self._collect_shape_segments(shape2)
 
         # Find shared segments
         shared_segments = []
@@ -1369,6 +1431,18 @@ class Canvas:
                     shared_segments.append(s1)
 
         return shared_segments
+
+    def _collect_shape_segments(self, shape: "Drawable") -> List["Drawable"]:
+        segments = []
+        if hasattr(shape, "segment1"):
+            segments.append(shape.segment1)
+        if hasattr(shape, "segment2"):
+            segments.append(shape.segment2)
+        if hasattr(shape, "segment3"):
+            segments.append(shape.segment3)
+        if hasattr(shape, "segment4"):
+            segments.append(shape.segment4)
+        return segments
 
     def create_colored_area(self, drawable1_name: str, drawable2_name: Optional[str] = None, left_bound: Optional[float] = None, right_bound: Optional[float] = None, color: str = default_area_fill_color, opacity: float = default_area_opacity) -> "Drawable":
         """Creates a vertical bounded colored area between two functions, two segments, or a function and a segment"""
@@ -1460,11 +1534,12 @@ class Canvas:
 
     def create_angle(self, vx: float, vy: float, p1x: float, p1y: float, p2x: float, p2y: float, color: Optional[str] = None, angle_name: Optional[str] = None, is_reflex: bool = False, extra_graphics: bool = True) -> Optional["Drawable"]:
         """Create an angle defined by three points via AngleManager."""
-        if self.drawable_manager.angle_manager:
-            return self.drawable_manager.angle_manager.create_angle(
-                vx, vy, p1x, p1y, p2x, p2y, 
-                color=color, 
-                angle_name=angle_name, 
+        angle_manager = self._get_angle_manager()
+        if angle_manager:
+            return angle_manager.create_angle(
+                vx, vy, p1x, p1y, p2x, p2y,
+                color=color,
+                angle_name=angle_name,
                 is_reflex=is_reflex,
                 extra_graphics=extra_graphics
             )
@@ -1472,17 +1547,22 @@ class Canvas:
 
     def delete_angle(self, name: str) -> bool:
         """Remove an angle by its name via AngleManager."""
-        if self.drawable_manager.angle_manager:
-            return bool(self.drawable_manager.angle_manager.delete_angle(name))
+        angle_manager = self._get_angle_manager()
+        if angle_manager:
+            return bool(angle_manager.delete_angle(name))
         return False
 
     def update_angle(self, name: str, new_color: Optional[str] = None) -> bool:
         """Update editable angle properties via AngleManager."""
-        if self.drawable_manager.angle_manager:
-            return bool(self.drawable_manager.angle_manager.update_angle(
+        angle_manager = self._get_angle_manager()
+        if angle_manager:
+            return bool(angle_manager.update_angle(
                 name, new_color=new_color
             ))
         return False
+
+    def _get_angle_manager(self) -> Any:
+        return self.drawable_manager.angle_manager
 
     # ------------------- Circle Arc Methods -------------------
 
@@ -1509,33 +1589,37 @@ class Canvas:
         extra_graphics: bool = True,
     ) -> Optional["Drawable"]:
         """Create a circle arc drawable via ArcManager."""
-        if self.drawable_manager.arc_manager:
-            return self.drawable_manager.arc_manager.create_circle_arc(
-                point1_x=point1_x,
-                point1_y=point1_y,
-                point2_x=point2_x,
-                point2_y=point2_y,
-                point1_name=point1_name,
-                point2_name=point2_name,
-                point3_x=point3_x,
-                point3_y=point3_y,
-                point3_name=point3_name,
-                center_point_choice=center_point_choice,
-                circle_name=circle_name,
-                center_x=center_x,
-                center_y=center_y,
-                radius=radius,
-                arc_name=arc_name,
-                color=color,
-                use_major_arc=use_major_arc,
-                extra_graphics=extra_graphics,
+        arc_manager = self._get_arc_manager()
+        if arc_manager:
+            return arc_manager.create_circle_arc(
+                **self._build_create_circle_arc_kwargs(
+                    point1_x=point1_x,
+                    point1_y=point1_y,
+                    point2_x=point2_x,
+                    point2_y=point2_y,
+                    point1_name=point1_name,
+                    point2_name=point2_name,
+                    point3_x=point3_x,
+                    point3_y=point3_y,
+                    point3_name=point3_name,
+                    center_point_choice=center_point_choice,
+                    circle_name=circle_name,
+                    center_x=center_x,
+                    center_y=center_y,
+                    radius=radius,
+                    arc_name=arc_name,
+                    color=color,
+                    use_major_arc=use_major_arc,
+                    extra_graphics=extra_graphics,
+                )
             )
         return None
 
     def delete_circle_arc(self, name: str) -> bool:
         """Delete a circle arc via ArcManager."""
-        if self.drawable_manager.arc_manager:
-            return bool(self.drawable_manager.arc_manager.delete_circle_arc(name))
+        arc_manager = self._get_arc_manager()
+        if arc_manager:
+            return bool(arc_manager.delete_circle_arc(name))
         return False
 
     def update_circle_arc(
@@ -1552,21 +1636,93 @@ class Canvas:
         point2_y: Optional[float] = None,
     ) -> bool:
         """Update editable circle arc properties."""
-        if self.drawable_manager.arc_manager:
+        arc_manager = self._get_arc_manager()
+        if arc_manager:
             return bool(
-                self.drawable_manager.arc_manager.update_circle_arc(
+                arc_manager.update_circle_arc(
                     name,
-                    new_color=new_color,
-                    use_major_arc=use_major_arc,
-                    point1_name=point1_name,
-                    point1_x=point1_x,
-                    point1_y=point1_y,
-                    point2_name=point2_name,
-                    point2_x=point2_x,
-                    point2_y=point2_y,
+                    **self._build_update_circle_arc_kwargs(
+                        new_color=new_color,
+                        use_major_arc=use_major_arc,
+                        point1_name=point1_name,
+                        point1_x=point1_x,
+                        point1_y=point1_y,
+                        point2_name=point2_name,
+                        point2_x=point2_x,
+                        point2_y=point2_y,
+                    ),
                 )
             )
         return False
+
+    def _get_arc_manager(self) -> Any:
+        return self.drawable_manager.arc_manager
+
+    def _build_create_circle_arc_kwargs(
+        self,
+        *,
+        point1_x: Optional[float],
+        point1_y: Optional[float],
+        point2_x: Optional[float],
+        point2_y: Optional[float],
+        point1_name: Optional[str],
+        point2_name: Optional[str],
+        point3_x: Optional[float],
+        point3_y: Optional[float],
+        point3_name: Optional[str],
+        center_point_choice: Optional[str],
+        circle_name: Optional[str],
+        center_x: Optional[float],
+        center_y: Optional[float],
+        radius: Optional[float],
+        arc_name: Optional[str],
+        color: Optional[str],
+        use_major_arc: bool,
+        extra_graphics: bool,
+    ) -> Dict[str, Any]:
+        return {
+            "point1_x": point1_x,
+            "point1_y": point1_y,
+            "point2_x": point2_x,
+            "point2_y": point2_y,
+            "point1_name": point1_name,
+            "point2_name": point2_name,
+            "point3_x": point3_x,
+            "point3_y": point3_y,
+            "point3_name": point3_name,
+            "center_point_choice": center_point_choice,
+            "circle_name": circle_name,
+            "center_x": center_x,
+            "center_y": center_y,
+            "radius": radius,
+            "arc_name": arc_name,
+            "color": color,
+            "use_major_arc": use_major_arc,
+            "extra_graphics": extra_graphics,
+        }
+
+    def _build_update_circle_arc_kwargs(
+        self,
+        *,
+        new_color: Optional[str],
+        use_major_arc: Optional[bool],
+        point1_name: Optional[str],
+        point1_x: Optional[float],
+        point1_y: Optional[float],
+        point2_name: Optional[str],
+        point2_x: Optional[float],
+        point2_y: Optional[float],
+    ) -> Dict[str, Any]:
+        return {
+            "new_color": new_color,
+            "use_major_arc": use_major_arc,
+            "point1_name": point1_name,
+            "point1_x": point1_x,
+            "point1_y": point1_y,
+            "point2_name": point2_name,
+            "point2_x": point2_x,
+            "point2_y": point2_y,
+        }
 
     # Property delegations to CoordinateMapper for backward compatibility
     @property
@@ -1636,19 +1792,28 @@ class Canvas:
     def _resolve_renderer_mode(self, renderer: Optional[RendererProtocol]) -> str:
         if renderer is None:
             return "none"
-        name = renderer.__class__.__name__.lower()
-        if "canvas2d" in name:
-            return "canvas2d"
-        if "svg" in name:
-            return "svg"
-        if "webgl" in name:
-            return "webgl"
+        mode_from_name = self._resolve_renderer_mode_from_name(
+            renderer.__class__.__name__.lower()
+        )
+        if mode_from_name is not None:
+            return mode_from_name
         module = getattr(renderer, "__module__", "")
-        module_lower = module.lower()
-        if "canvas2d" in module_lower:
-            return "canvas2d"
-        if "svg" in module_lower:
-            return "svg"
-        if "webgl" in module_lower:
-            return "webgl"
+        mode_from_module = self._resolve_renderer_mode_from_module(module.lower())
+        if mode_from_module is not None:
+            return mode_from_module
         return "unknown"
+
+    def _resolve_renderer_mode_from_name(self, name: str) -> Optional[str]:
+        return self._resolve_renderer_mode_from_text(name)
+
+    def _resolve_renderer_mode_from_module(self, module_lower: str) -> Optional[str]:
+        return self._resolve_renderer_mode_from_text(module_lower)
+
+    def _resolve_renderer_mode_from_text(self, text: str) -> Optional[str]:
+        if "canvas2d" in text:
+            return "canvas2d"
+        if "svg" in text:
+            return "svg"
+        if "webgl" in text:
+            return "webgl"
+        return None
