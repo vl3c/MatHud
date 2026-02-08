@@ -68,7 +68,12 @@ def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
 
     # For other providers, use lazy-loaded instances
     if provider_name not in app.providers:
-        provider_instance = create_provider_instance(provider_name, model=model)
+        create_kwargs: Dict[str, Any] = {"model": model}
+        # Keep providers in search-first mode by default to reduce initial tool payload.
+        if provider_name != PROVIDER_OLLAMA:
+            create_kwargs["tool_mode"] = "search"
+
+        provider_instance = create_provider_instance(provider_name, **create_kwargs)
         if provider_instance is None:
             raise ValueError(
                 f"Provider '{provider_name}' is not available. "

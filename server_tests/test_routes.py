@@ -251,6 +251,11 @@ class TestAPIRouting(unittest.TestCase):
         self.assertIsInstance(self.app.ai_api, OpenAIChatCompletionsAPI)
         self.assertIsInstance(self.app.responses_api, OpenAIResponsesAPI)
 
+    def test_app_apis_default_to_search_tool_mode(self) -> None:
+        """App should start in search-first tool mode for reduced initial payload."""
+        self.assertEqual(self.app.ai_api.get_tool_mode(), "search")
+        self.assertEqual(self.app.responses_api.get_tool_mode(), "search")
+
     def test_standard_model_uses_completions_api(self) -> None:
         """Test that standard models route to Chat Completions API."""
         # Set a standard model
