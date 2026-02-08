@@ -20,6 +20,7 @@ from drawables.directed_graph import DirectedGraph
 from drawables.undirected_graph import UndirectedGraph
 from drawables.tree import Tree
 from geometry.graph_state import GraphEdgeDescriptor, GraphState, GraphVertexDescriptor, TreeState
+from managers.dependency_removal import remove_drawable_with_dependencies
 from utils.graph_layout import layout_vertices
 from utils.graph_utils import Edge, GraphUtils
 
@@ -271,9 +272,9 @@ class GraphManager:
         for v_name in point_names:
             self.point_manager.delete_point_by_name(v_name)
 
-        removed = self.drawables.remove(existing)
-        if removed:
-            self.dependency_manager.remove_drawable(existing)
+        removed = remove_drawable_with_dependencies(
+            self.drawables, self.dependency_manager, existing
+        )
         if removed and self.canvas.draw_enabled:
             self.canvas.draw()
         return bool(removed)

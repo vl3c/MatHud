@@ -40,6 +40,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, cast
 from drawables.label import Label
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
+from managers.dependency_removal import remove_drawable_with_dependencies
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
 if TYPE_CHECKING:
@@ -324,11 +325,9 @@ class SegmentManager:
         self._delete_segment_dependencies(x1, y1, x2, y2, delete_children, delete_parents)
 
         # Now remove the segment itself
-        removed = self.drawables.remove(segment)
-
-        # Clean up dependency entries for this segment
-        if removed:
-            self.dependency_manager.remove_drawable(segment)
+        removed = remove_drawable_with_dependencies(
+            self.drawables, self.dependency_manager, segment
+        )
 
         # Redraw
         if self.canvas.draw_enabled:
@@ -535,17 +534,17 @@ class SegmentManager:
         rectangles = self.drawables.Rectangles
         for rectangle in rectangles.copy():
             if any(MathUtils.segment_matches_coordinates(s, x1, y1, x2, y2) for s in [rectangle.segment1, rectangle.segment2, rectangle.segment3, rectangle.segment4]):
-                removed = self.drawables.remove(rectangle)  # Direct removal from container
-                if removed and hasattr(self.dependency_manager, "remove_drawable"):
-                    self.dependency_manager.remove_drawable(rectangle)
+                remove_drawable_with_dependencies(
+                    self.drawables, self.dependency_manager, rectangle
+                )
 
         # Delete the triangles that contain the segment
         triangles = self.drawables.Triangles
         for triangle in triangles.copy():
             if any(MathUtils.segment_matches_coordinates(s, x1, y1, x2, y2) for s in [triangle.segment1, triangle.segment2, triangle.segment3]):
-                removed = self.drawables.remove(triangle)  # Direct removal from container
-                if removed and hasattr(self.dependency_manager, "remove_drawable"):
-                    self.dependency_manager.remove_drawable(triangle)
+                remove_drawable_with_dependencies(
+                    self.drawables, self.dependency_manager, triangle
+                )
 
     def _split_segments_with_point(self, x: float, y: float) -> None:
         """

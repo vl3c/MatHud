@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from drawables.piecewise_function import PiecewiseFunction
+from managers.dependency_removal import remove_drawable_with_dependencies
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
 if TYPE_CHECKING:
@@ -166,9 +167,9 @@ class PiecewiseFunctionManager:
 
         self.canvas.undo_redo_manager.archive()
 
-        removed = self.drawables.remove(pf)
-        if removed and hasattr(self.dependency_manager, "remove_drawable"):
-            self.dependency_manager.remove_drawable(pf)
+        removed = remove_drawable_with_dependencies(
+            self.drawables, self.dependency_manager, pf
+        )
 
         if self.canvas.draw_enabled:
             self.canvas.draw()

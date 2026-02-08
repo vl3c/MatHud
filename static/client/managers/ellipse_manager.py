@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from drawables.ellipse import Ellipse
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from managers.dependency_removal import remove_drawable_with_dependencies
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -226,9 +227,9 @@ class EllipseManager:
                 pass
 
         # Remove from drawables
-        removed = self.drawables.remove(ellipse)
-        if removed and hasattr(self.dependency_manager, "remove_drawable"):
-            self.dependency_manager.remove_drawable(ellipse)
+        removed = remove_drawable_with_dependencies(
+            self.drawables, self.dependency_manager, ellipse
+        )
 
         # Redraw
         if self.canvas.draw_enabled:
