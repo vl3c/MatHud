@@ -7,7 +7,7 @@
 
 ## P0 - Reliability (implement first)
 - ~~refactor oversized classes/functions into smaller composable units while preserving 1:1 behavior (no logic changes); improve observability, readability, and structural clarity~~
-- make `search_tools` the default tool-discovery path to reduce initial context payload; deprecate legacy preloaded full-tool-list model prompting
+- ~~make `search_tools` the default tool-discovery path to reduce initial context payload; deprecate legacy preloaded full-tool-list model prompting~~
 - audit canvas state structure end-to-end and redesign AI-facing state summaries for high-object-count scenes to improve readability and reasoning quality
 - implement OpenAI OAuth for first-party subscription-token usage (third-party app flow) and make OAuth the default authentication path over raw API-key entry
 - perform a deep review of drawable dependency architecture and relationship rules; verify interaction coverage across drawable types and close logic gaps
@@ -97,5 +97,6 @@ _Elaborates on P0 goals with ongoing design principles._
 - add type stubs or protocols for Brython `browser` module usage in client code
 
 ## Recent Completions
+- 2026-02-08: made `search_tools` the default tool-discovery path for app/provider initialization (search-first tool mode), with route/provider fallback handling for constructor compatibility. Validation: `pytest -q server_tests/test_routes.py` (30 passed), `pytest -q server_tests` (770 passed, 22 skipped, 117 subtests passed), `python -m cli.main test client --start-server --port 5000 --timeout 240` (2337 run, 0 failures, 0 errors). Commits: `47698ef` (feature), `86f6847` (ignore local runtime artifacts).
 - 2026-02-08: expanded client unit-test coverage for PR #16 helper extractions (Canvas/WorkspaceManager pure helpers), integrated into the Brython client test suite, and verified via `venv\Scripts\python -m cli.main test client` (2313 tests, 0 failures).
 - 2026-02-08: completed phased no-logic-change composable refactor stream (Phases 0-5), including manager/orchestrator/tool-pipeline decomposition, helper-level coverage expansion, and final hardening sign-off. Validation: full server regression (`769 passed, 22 skipped`) and full client regression (`2319 run, 0 failures`).

@@ -68,7 +68,12 @@ def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
 
     # For other providers, use lazy-loaded instances
     if provider_name not in app.providers:
-        provider_instance = create_provider_instance(provider_name, model=model)
+        create_kwargs: Dict[str, Any] = {"model": model}
+        # Keep providers in search-first mode by default to reduce initial tool payload.
+        if provider_name != PROVIDER_OLLAMA:
+            create_kwargs["tool_mode"] = "search"
+
+        provider_instance = create_provider_instance(provider_name, **create_kwargs)
         if provider_instance is None:
             raise ValueError(
                 f"Provider '{provider_name}' is not available. "
@@ -222,10 +227,12 @@ def _intercept_search_tools(
 
         allowed_names = _collect_allowed_tool_names(result, ESSENTIAL_TOOLS)
 
-        # Inject tools into both APIs
+        # Inject tools into shared APIs and the active provider (if distinct).
         if result:
             app.ai_api.inject_tools(result, include_essentials=True)
             app.responses_api.inject_tools(result, include_essentials=True)
+            if provider is not None and provider not in (app.ai_api, app.responses_api):
+                provider.inject_tools(result, include_essentials=True)
 
         return _filter_tool_calls_by_allowed_names(tool_calls, allowed_names)
 

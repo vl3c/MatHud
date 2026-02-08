@@ -180,8 +180,12 @@ class AppManager:
 
         # Initialize managers
         app.log_manager = LogManager()
+        # Default to minimal search-first tool exposure; routes inject matching
+        # tools dynamically after search_tools returns.
         app.ai_api = OpenAIChatCompletionsAPI()
+        app.ai_api.set_tool_mode("search")
         app.responses_api = OpenAIResponsesAPI()
+        app.responses_api.set_tool_mode("search")
         app.webdriver_manager = None  # Will be set after Flask starts
         app.current_attached_images = None  # User-attached images for current request
         app.providers = {}  # Lazily-loaded provider instances

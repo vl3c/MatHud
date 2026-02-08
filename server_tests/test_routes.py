@@ -251,6 +251,11 @@ class TestAPIRouting(unittest.TestCase):
         self.assertIsInstance(self.app.ai_api, OpenAIChatCompletionsAPI)
         self.assertIsInstance(self.app.responses_api, OpenAIResponsesAPI)
 
+    def test_app_apis_default_to_search_tool_mode(self) -> None:
+        """App should start in search-first tool mode for reduced initial payload."""
+        self.assertEqual(self.app.ai_api.get_tool_mode(), "search")
+        self.assertEqual(self.app.responses_api.get_tool_mode(), "search")
+
     def test_standard_model_uses_completions_api(self) -> None:
         """Test that standard models route to Chat Completions API."""
         # Set a standard model
@@ -627,6 +632,32 @@ class TestInterceptSearchTools(unittest.TestCase):
 
             mock_ai_inject.assert_called_once_with(returned_tools, include_essentials=True)
             mock_resp_inject.assert_called_once_with(returned_tools, include_essentials=True)
+
+    @patch('static.tool_search_service.ToolSearchService')
+    def test_injects_tools_into_active_provider_when_distinct(self, mock_service_class: Mock) -> None:
+        """Should inject into the active non-OpenAI provider as well."""
+        from static.routes import _intercept_search_tools
+
+        mock_service = Mock()
+        returned_tools = [{'function': {'name': 'create_circle'}}]
+        mock_service.search_tools.return_value = returned_tools
+        mock_service_class.return_value = mock_service
+
+        provider = Mock()
+        provider.client = Mock()
+        provider.get_model.return_value = self.app.ai_api.get_model()
+
+        with patch.object(self.app.ai_api, 'inject_tools') as mock_ai_inject, \
+             patch.object(self.app.responses_api, 'inject_tools') as mock_resp_inject:
+            tool_calls = [
+                {'function_name': 'search_tools', 'arguments': {'query': 'circle'}},
+            ]
+
+            _intercept_search_tools(self.app, tool_calls, provider=provider)
+
+            mock_ai_inject.assert_called_once_with(returned_tools, include_essentials=True)
+            mock_resp_inject.assert_called_once_with(returned_tools, include_essentials=True)
+            provider.inject_tools.assert_called_once_with(returned_tools, include_essentials=True)
 
 
 class TestSearchToolHelpers(unittest.TestCase):

@@ -34,6 +34,11 @@ package-lock.json
 
 # Temporary
 temp_files/
+.tmp/
+.tools/
+.wdm/
+firefox/
+geckodriver/
 
 # CLI output (screenshots, etc.)
 cli/output/*
