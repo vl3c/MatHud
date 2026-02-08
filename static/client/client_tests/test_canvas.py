@@ -32,7 +32,7 @@ class TestCanvas(unittest.TestCase):
                                       x=20, y=20, name='B')
         self.mock_segment1 = SimpleMock(canvas=None, get_class_name=SimpleMock(return_value='Segment'), reset=SimpleMock(return_value=None),
                                         get_state=SimpleMock(return_value='segment1_state'), point1=self.mock_point1, point2=self.mock_point2)
-        
+
         # Add backward-compatible drawables property for tests
         # This allows existing tests to work with the new DrawablesContainer
         # by providing getter and setter for the drawables dictionary
@@ -151,29 +151,29 @@ class TestCanvas(unittest.TestCase):
         # Test basic undo/redo functionality
         point = self.canvas.create_point(0, 0, "A")
         segment = self.canvas.create_segment(0, 0, 10, 10, "AB")
-        
+
         # Store initial state properties
         initial_point_pos = (point.x, point.y)
         initial_segment_points = (
             (segment.point1.x, segment.point1.y),
             (segment.point2.x, segment.point2.y)
         )
-        
+
         # Make some changes
         self.canvas.delete_point_by_name("A")
         self.canvas.delete_segment_by_name("AB")
-        
+
         # Verify changes
         self.assertIsNone(self.canvas.get_point_by_name("A"))
         self.assertIsNone(self.canvas.get_segment_by_name("AB"))
-        
+
         # Undo changes
         self.canvas.undo()
-        
+
         # Verify state is restored
         restored_point = self.canvas.get_point_by_name("A")
         restored_segment = self.canvas.get_segment_by_name("AB")
-        
+
         self.assertIsNotNone(restored_point)
         self.assertIsNotNone(restored_segment)
         self.assertEqual(
@@ -188,7 +188,7 @@ class TestCanvas(unittest.TestCase):
             (restored_segment.point2.x, restored_segment.point2.y),
             initial_segment_points[1]
         )
-        
+
         # Redo changes
         self.canvas.redo()
         self.assertIsNone(self.canvas.get_point_by_name("A"))
@@ -199,14 +199,14 @@ class TestCanvas(unittest.TestCase):
         # 1. Populate the canvas with various elements
         pointA = self.canvas.create_point(10, 20, "A")
         pointB = self.canvas.create_point(30, 40, "B")
-        pointC = self.canvas.create_point(50, 50, "C") 
+        pointC = self.canvas.create_point(50, 50, "C")
         pointD = self.canvas.create_point(5, 15, "D") # New point for vector
         pointE = self.canvas.create_point(25, 35, "E") # New point for vector
 
         segmentAB = self.canvas.create_segment(pointA.x, pointA.y, pointB.x, pointB.y)
-        
+
         circleC = self.canvas.create_circle(pointC.x, pointC.y, 25)
-        
+
         vectorDE = self.canvas.create_vector(pointD.x, pointD.y, pointE.x, pointE.y)
 
         self.canvas.draw_function("x**3", "f_cubed")
@@ -220,7 +220,7 @@ class TestCanvas(unittest.TestCase):
             for point_data in original_state["Points"]:
                 pos = point_data['args']['position']
                 self.canvas.create_point(pos['x'], pos['y'], point_data['name'])
-        
+
         if "Segments" in original_state:
             for seg_data in original_state["Segments"]:
                 p1_name = seg_data['args']['p1']
@@ -233,7 +233,7 @@ class TestCanvas(unittest.TestCase):
                                                seg_data['name'])
                 else:
                     self.fail(f"Could not find points {p1_name} or {p2_name} for segment {seg_data['name']}")
-        
+
         if "Circles" in original_state:
             for circ_data in original_state["Circles"]:
                 center_name = circ_data['args']['center']
@@ -269,7 +269,7 @@ class TestCanvas(unittest.TestCase):
                     left_bound=args.get("left_bound"),
                     right_bound=args.get("right_bound")
                 )
-        
+
         if "computations" in original_state:
              for comp_data in original_state["computations"]:
                 expression = comp_data.get("expression")
@@ -322,14 +322,14 @@ class TestCanvas(unittest.TestCase):
         rec_f_cubed = self.canvas.get_function("f_cubed")
         self.assertIsNotNone(rec_f_cubed)
         self.assertEqual(rec_f_cubed.function_string, "x^3")
-        
+
         # Cleaned up: Removed duplicated detailed state comparison for brevity
         # Detailed comparison of sorted lists for each type
         for key in ["Points", "Segments", "Circles", "Vectors", "Functions"]:
             original_items = sorted(original_state.get(key, []), key=lambda x: x['name'])
             reconstructed_items = sorted(reconstructed_state.get(key, []), key=lambda x: x['name'])
             self.assertListEqual(original_items, reconstructed_items, f"{key} state mismatch after sorting")
-        
+
         original_computations = sorted(original_state.get("computations", []), key=lambda x: x['expression'])
         reconstructed_computations = sorted(reconstructed_state.get("computations", []), key=lambda x: x['expression'])
         self.assertListEqual(original_computations, reconstructed_computations, "Computations state mismatch after sorting")
@@ -385,14 +385,14 @@ class TestCanvas(unittest.TestCase):
         # Test deleting a point that doesn't exist
         result = self.canvas.delete_point_by_name('NonexistentPoint')
         self.assertFalse(result, "delete_point_by_name should return False for non-existent names")
-        
+
         # Create a point and verify normal deletion still works
         p1 = self.canvas.create_point(10, 10, name="A")
         self.assertIsNotNone(self.canvas.get_point_by_name("A"))
-        
+
         # Verify the non-existent deletion didn't affect existing points
         self.assertIn(p1, self.canvas.get_drawables_by_class_name('Point'))
-        
+
         # Delete the point and verify it was removed
         self.assertTrue(self.canvas.delete_point_by_name("A"))
         self.assertIsNone(self.canvas.get_point_by_name("A"))
@@ -470,13 +470,13 @@ class TestCanvas(unittest.TestCase):
         # Create a segment and get its name
         segment = self.canvas.create_segment(10, 10, 20, 20)
         segment_name = segment.name
-        
+
         # Delete the segment by name
         self.canvas.delete_segment_by_name(segment_name)
-        
+
         # Verify segment was deleted
         self.assertNotIn(segment, self.canvas.get_drawables_by_class_name(segment.get_class_name()))
-        
+
         # Verify points still exist
         points = self.canvas.get_drawables_by_class_name('Point')
         self.assertIn(self.canvas.get_point(10, 10), points)
@@ -487,14 +487,14 @@ class TestCanvas(unittest.TestCase):
         # Test deleting a segment that doesn't exist
         result = self.canvas.delete_segment_by_name('NonexistentSegment')
         self.assertFalse(result, "delete_segment_by_name should return False for non-existent names")
-        
+
         # Create a segment and verify normal deletion still works
         segment = self.canvas.create_segment(10, 10, 20, 20)
         self.assertIsNotNone(self.canvas.get_segment_by_name(segment.name))
-        
+
         # Verify the non-existent deletion didn't affect existing segments
         self.assertIn(segment, self.canvas.get_drawables_by_class_name('Segment'))
-        
+
         # Delete the segment and verify it was removed
         self.assertTrue(self.canvas.delete_segment_by_name(segment.name))
         self.assertIsNone(self.canvas.get_segment_by_name(segment.name))
@@ -609,14 +609,14 @@ class TestCanvas(unittest.TestCase):
         # Test deleting a vector that doesn't exist
         result = self.canvas.delete_vector(100, 100, 200, 200)
         self.assertFalse(result, "delete_vector should return False for non-existent coordinates")
-        
+
         # Create a vector and verify normal deletion still works
         vector = self.canvas.create_vector(10, 10, 20, 20)
         self.assertIsNotNone(self.canvas.get_vector(10, 10, 20, 20))
-        
+
         # Verify the non-existent deletion didn't affect existing vectors
         self.assertIn(vector, self.canvas.get_drawables_by_class_name('Vector'))
-        
+
         # Delete the vector and verify it was removed
         self.assertTrue(self.canvas.delete_vector(10, 10, 20, 20))
         self.assertIsNone(self.canvas.get_vector(10, 10, 20, 20))
@@ -683,17 +683,17 @@ class TestCanvas(unittest.TestCase):
             vertices=[(100, 100), (200, 200), (300, 300)],
         )
         self.assertFalse(result, "delete_polygon should return False for non-existent triangle coordinates")
-        
+
         # Create a triangle and verify normal deletion still works
         vertices = [(10, 10), (20, 20), (30, 30)]
         triangle = self.canvas.create_polygon(vertices, polygon_type=PolygonType.TRIANGLE)
         self.assertIsNotNone(
             self.canvas.get_polygon_by_vertices(vertices, polygon_type=PolygonType.TRIANGLE)
         )
-        
+
         # Verify the non-existent deletion didn't affect existing triangles
         self.assertIn(triangle, self.canvas.get_drawables_by_class_name('Triangle'))
-        
+
         # Delete the triangle and verify it was removed
         self.assertTrue(
             self.canvas.delete_polygon(polygon_type=PolygonType.TRIANGLE, vertices=vertices)
@@ -1130,14 +1130,14 @@ class TestCanvas(unittest.TestCase):
         # Test deleting a circle that doesn't exist
         result = self.canvas.delete_circle('NonexistentCircle')
         self.assertFalse(result, "delete_circle should return False for non-existent names")
-        
+
         # Create a circle and verify normal deletion still works
         circle = self.canvas.create_circle(10, 10, 25)
         self.assertIsNotNone(self.canvas.get_circle_by_name(circle.name))
-        
+
         # Verify the non-existent deletion didn't affect existing circles
         self.assertIn(circle, self.canvas.get_drawables_by_class_name('Circle'))
-        
+
         # Delete the circle and verify it was removed
         self.assertTrue(self.canvas.delete_circle(circle.name))
         self.assertIsNone(self.canvas.get_circle_by_name(circle.name))
@@ -1162,16 +1162,16 @@ class TestCanvas(unittest.TestCase):
         center_x, center_y = 100, 100
         radius_x, radius_y = 50, 30
         rotation_angle = 45
-        
+
         new_ellipse = self.canvas.create_ellipse(
-            center_x, center_y, radius_x, radius_y, 
+            center_x, center_y, radius_x, radius_y,
             rotation_angle=rotation_angle
         )
-        
+
         self.assertIsNotNone(new_ellipse, "Failed to create a new rotated ellipse.")
-        self.assertEqual(new_ellipse.rotation_angle, rotation_angle, 
+        self.assertEqual(new_ellipse.rotation_angle, rotation_angle,
                         "Ellipse rotation angle does not match specified angle.")
-        self.assertIn(new_ellipse, 
+        self.assertIn(new_ellipse,
                      self.canvas.get_drawables_by_class_name(new_ellipse.get_class_name()),
                      "New rotated ellipse should be in canvas.")
 
@@ -1223,14 +1223,14 @@ class TestCanvas(unittest.TestCase):
         # Test deleting an ellipse that doesn't exist
         result = self.canvas.delete_ellipse('NonexistentEllipse')
         self.assertFalse(result, "delete_ellipse should return False for non-existent names")
-        
+
         # Create an ellipse and verify normal deletion still works
         ellipse = self.canvas.create_ellipse(10, 10, 25, 15)
         self.assertIsNotNone(self.canvas.get_ellipse_by_name(ellipse.name))
-        
+
         # Verify the non-existent deletion didn't affect existing ellipses
         self.assertIn(ellipse, self.canvas.get_drawables_by_class_name('Ellipse'))
-        
+
         # Delete the ellipse and verify it was removed
         self.assertTrue(self.canvas.delete_ellipse(ellipse.name))
         self.assertIsNone(self.canvas.get_ellipse_by_name(ellipse.name))
@@ -1283,14 +1283,14 @@ class TestCanvas(unittest.TestCase):
         # Test deleting a function that doesn't exist
         result = self.canvas.delete_function('NonexistentFunction')
         self.assertFalse(result, "delete_function should return False for non-existent names")
-        
+
         # Create a function and verify normal deletion still works
         func = self.canvas.draw_function("x^2", "f1")
         self.assertIsNotNone(self.canvas.get_function(func.name))
-        
+
         # Verify the non-existent deletion didn't affect existing functions
         self.assertIn(func, self.canvas.get_drawables_by_class_name('Function'))
-        
+
         # Delete the function and verify it was removed
         self.assertTrue(self.canvas.delete_function(func.name))
         self.assertIsNone(self.canvas.get_function(func.name))
@@ -1333,16 +1333,16 @@ class TestCanvas(unittest.TestCase):
         self.assertIn(s2, s3_children, "Segment s2 should be a child of s3.")
         self.assertNotIn(s3, s3_children, "Segment s3 should not be a child of itself.")
         self.assertEqual(len(s3_children), 2, "Segment s3 should have 2 children.")
-    
+
     def test_get_segment_parents(self) -> None:
         original_segment = self.canvas.create_segment(0, 0, 30, 0) # AB: A(0,0), B(30,0)
         point_c = self.canvas.create_point(10, 0) # C(10,0) on AB
-        
+
         dm = self.canvas.drawable_manager.dependency_manager
         children = list(dm.get_children(original_segment))
-        
+
         self.assertEqual(len(children), 2, "Original segment should have 2 children after split.")
-        
+
         # Retrieve child segments by their expected coordinates for reliable checking
         child_ac = self.canvas.get_segment_by_coordinates(0, 0, 10, 0) # A(0,0) to C(10,0)
         child_cb = self.canvas.get_segment_by_coordinates(10, 0, 30, 0) # C(10,0) to B(30,0)
@@ -1380,7 +1380,7 @@ class TestCanvas(unittest.TestCase):
         segment = self.canvas.create_segment(0, 0, 30, 0)
         self.canvas.drawable_manager.segment_manager._split_segments_with_point(20, 0)
         self.assertEqual(len(self.canvas.drawable_manager.dependency_manager.get_children(segment)), 2, "Segment should have 2 children.")
-        
+
         segments = self.canvas.get_drawables_by_class_name("Segment")
         points = self.canvas.get_drawables_by_class_name("Point")
         self.assertEqual(len(segments), 3, "Canvas should have 3 segments.")
@@ -1394,58 +1394,58 @@ class TestCanvas(unittest.TestCase):
         t = 0.51  # fraction along the segment (slightly past halfway)
         point_c_x = x1 * (1 - t) + x2 * t
         point_c_y = y1 * (1 - t) + y2 * t
-        
+
         print(f"Placing point C at ({point_c_x}, {point_c_y}) which should be on segment AB")
-        
+
         # Create a segment AB with the specific coordinates
         segment_ab = self.canvas.create_segment(x1, y1, x2, y2, name="AB", extra_graphics=False)
-        
+
         # Verify segment creation
         self.assertIsNotNone(segment_ab, "Segment AB should be created")
         self.assertEqual(segment_ab.point1.x, -122.0)
         self.assertEqual(segment_ab.point1.y, -69.0)
         self.assertEqual(segment_ab.point2.x, 311.0)
         self.assertEqual(segment_ab.point2.y, 154.0)
-        
+
         # Split the segment by adding the point we calculated
         self.canvas.drawable_manager.segment_manager._split_segments_with_point(point_c_x, point_c_y)
-        
+
         # Verify that the original segment has two children
         self.assertEqual(len(self.canvas.drawable_manager.dependency_manager.get_children(segment_ab)), 2, "Segment AB should have 2 children after splitting")
-        
+
         # Get the child segments (AC and CB)
         ac_segment = self.canvas.get_segment_by_coordinates(x1, y1, point_c_x, point_c_y)
         cb_segment = self.canvas.get_segment_by_coordinates(point_c_x, point_c_y, x2, y2)
-        
+
         # Verify the child segments exist
         self.assertIsNotNone(ac_segment, "Segment AC should exist")
         self.assertIsNotNone(cb_segment, "Segment CB should exist")
-        
+
         # Verify the child segments are in the parent's children
         children_ab = self.canvas.drawable_manager.dependency_manager.get_children(segment_ab)
         self.assertIn(ac_segment, children_ab, "Segment AC should be a child of AB")
         self.assertIn(cb_segment, children_ab, "Segment CB should be a child of AB")
-        
+
         # Verify point C is on the line AB (to confirm proper splitting)
         # Using MathUtil to check that C is collinear with A and B
         from utils.math_utils import MathUtils
-        
+
         a_pos = segment_ab.point1
         b_pos = segment_ab.point2
         c_pos = SimpleNamespace(x=point_c_x, y=point_c_y)
-        
+
         is_point_on_segment = MathUtils.is_point_on_segment(
-            c_pos.x, c_pos.y, 
-            a_pos.x, a_pos.y, 
+            c_pos.x, c_pos.y,
+            a_pos.x, a_pos.y,
             b_pos.x, b_pos.y
         )
-        
+
         self.assertTrue(is_point_on_segment, "Point C should be on segment AB")
-        
+
         # Verify the total number of segments
         all_segments = self.canvas.get_drawables_by_class_name("Segment")
         self.assertEqual(len(all_segments), 3, "There should be 3 segments total: AB, AC, and CB")
-        
+
         # Verify the total number of points
         all_points = self.canvas.get_drawables_by_class_name("Point")
         self.assertEqual(len(all_points), 3, "There should be 3 points total: A, B, and C")
@@ -1454,74 +1454,74 @@ class TestCanvas(unittest.TestCase):
         """Test that _split_segments_with_point correctly handles all aspects of segment splitting."""
         # Create a parent segment AB
         ab = self.canvas.create_segment(0, 0, 40, 0, name="AB", extra_graphics=False)
-        
+
         # Split the segment by adding point C at one-quarter of the segment
         self.canvas.drawable_manager.segment_manager._split_segments_with_point(10, 0)
-        
+
         # Original segment AB should have two direct children after splitting
         self.assertEqual(len(self.canvas.drawable_manager.dependency_manager.get_children(ab)), 2, "Original segment AB should have 2 children after adding point C")
-        
+
         # Get the child segments (AC and CB)
         segments = self.canvas.get_drawables_by_class_name('Segment')
         self.assertEqual(len(segments), 3, "Should have 3 segments total: AB (parent), AC, CB")
-        
-        # Find the child segments 
+
+        # Find the child segments
         ac_segment = self.canvas.get_segment_by_coordinates(0, 0, 10, 0)
         cb_segment = self.canvas.get_segment_by_coordinates(10, 0, 40, 0)
-        
+
         self.assertIsNotNone(ac_segment, "Segment AC should exist")
         self.assertIsNotNone(cb_segment, "Segment CB should exist")
-        
+
         # Verify parent-child relationships
         children_ab = self.canvas.drawable_manager.dependency_manager.get_children(ab)
         self.assertIn(ac_segment, children_ab, "Segment AC should be a child of AB")
         self.assertIn(cb_segment, children_ab, "Segment CB should be a child of AB")
-        
+
         # Now split one of the child segments by adding point D
         self.canvas.drawable_manager.segment_manager._split_segments_with_point(25, 0)
-        
+
         # Check if the segment CB was properly split into CD and DB
         cd_segment = self.canvas.get_segment_by_coordinates(10, 0, 25, 0)
         db_segment = self.canvas.get_segment_by_coordinates(25, 0, 40, 0)
-        
+
         self.assertIsNotNone(cd_segment, "Segment CD should exist")
         self.assertIsNotNone(db_segment, "Segment DB should exist")
-        
+
         # The original child segment CB should now have two children of its own
         self.assertEqual(len(self.canvas.drawable_manager.dependency_manager.get_children(cb_segment)), 2, "Segment CB should have 2 children (CD and DB)")
-        
+
         # But the original parent AB should still have CD and DB as grandchildren
         # Check that AB is in the parent chain of both CD and DB
         dm = self.canvas.drawable_manager.dependency_manager
         cd_parents = dm.get_parents(cd_segment)
         db_parents = dm.get_parents(db_segment)
-        
+
         self.assertTrue(any(p == cb_segment for p in cd_parents), "CB should be a parent of CD")
         self.assertTrue(any(p == cb_segment for p in db_parents), "CB should be a parent of DB")
-        
+
         # Verify the total number of segments
         segments_after = self.canvas.get_drawables_by_class_name('Segment')
         self.assertEqual(len(segments_after), 6, "Should have 6 segments total after splitting twice: AB (parent), AC, CB (children), CD, DB (grandchildren), and AD (additional segment between existing points)")
-        
+
         # Check that the additional segment AD exists
         ad_segment = self.canvas.get_segment_by_coordinates(0, 0, 25, 0)
         self.assertIsNotNone(ad_segment, "Segment AD should also exist as all possible segments between points are created")
-        
+
         # Delete point C and verify consequences
         c_point = self.canvas.get_point(10, 0)
         self.canvas.delete_point(10, 0)
-        
+
         # After deleting C, we should lose AC and CD, but AB, AD, and DB should still exist
         # AB's children should be updated
         segments_after_delete = self.canvas.get_drawables_by_class_name('Segment')
-        
+
         # We should have 3 segments left: AB, AD, and DB
         self.assertEqual(len(segments_after_delete), 3, "Should have 3 segments left after deleting C: AB (parent), AD, and DB")
-        
+
         # AB should still exist
         ab_after = self.canvas.get_segment_by_name("AB")
         self.assertIsNotNone(ab_after, "Segment AB should still exist after deleting C")
-        
+
         # DB should still exist
         d_to_b = self.canvas.get_segment_by_coordinates(25, 0, 40, 0)
         self.assertIsNotNone(d_to_b, "Segment DB should still exist after deleting C")
@@ -1530,25 +1530,25 @@ class TestCanvas(unittest.TestCase):
         """Test segment preservation and child registration when one point is added to a segment."""
         # 1. Create parent segment AB
         ab = self.canvas.create_segment(0, 0, 100, 0, name="AB", extra_graphics=False)
-        
+
         # 2. Add point C on AB
         c_point = self.canvas.create_point(25, 0, name="C", extra_graphics=True)
-        
+
         # 3. Check total number of segments
         all_segments = self.canvas.get_drawables_by_class_name('Segment')
         self.assertEqual(len(all_segments), 3, "Should have 3 segments total: AB, AC, CB")
-        
+
         # 4. Get child segments AC and CB
         ac_segment = self.canvas.get_segment_by_coordinates(0, 0, 25, 0)
         cb_segment = self.canvas.get_segment_by_coordinates(25, 0, 100, 0)
-        
+
         self.assertIsNotNone(ac_segment, "Segment AC should exist")
         self.assertIsNotNone(cb_segment, "Segment CB should exist")
-        
+
         # 5. Check children of AB
         children_ab = self.canvas.drawable_manager.dependency_manager.get_children(ab)
         self.assertEqual(len(children_ab), 2, "Original segment AB should have 2 children (AC and CB)")
-        
+
         # Ensure children_ab contains the actual segment objects
         # If ac_segment or cb_segment are None, this will fail earlier, which is fine.
         self.assertIn(ac_segment, children_ab, "Segment AC should be a child of AB")
@@ -1579,7 +1579,7 @@ class TestCanvas(unittest.TestCase):
         self.assertIsNotNone(pointA_after_delete, "Point A should still exist")
         self.assertIsNotNone(pointB_after_delete, "Point B should still exist")
         self.assertIsNone(pointC_after_delete, "Point C should be deleted")
-        
+
         # 11. Verify total number of segments is 1 (only AB)
         all_segments_after_delete = self.canvas.get_drawables_by_class_name('Segment')
         self.assertEqual(len(all_segments_after_delete), 1, "Should have 1 segment (AB) left after deleting point C")
@@ -1589,7 +1589,7 @@ class TestCanvas(unittest.TestCase):
         """Test segment preservation and child registration when multiple points are added and then deleted."""
         # 1. Create parent segment AB
         ab = self.canvas.create_segment(0, 0, 100, 0, name="AB", extra_graphics=False)
-        
+
         # 2. Add point C, then point D on AB
         c_point = self.canvas.create_point(25, 0, name="C", extra_graphics=True)
         d_point = self.canvas.create_point(50, 0, name="D", extra_graphics=True)
@@ -1665,7 +1665,7 @@ class TestCanvas(unittest.TestCase):
         # Test translating a point
         point = self.canvas.create_point(10, 10, "A")
         self.canvas.translate_object("A", 5, -5)
-        
+
         # Check new position
         self.assertEqual(point.x, 15)
         self.assertEqual(point.y, 5)
@@ -1677,9 +1677,9 @@ class TestCanvas(unittest.TestCase):
         original_p1_y = segment.point1.y
         original_p2_x = segment.point2.x
         original_p2_y = segment.point2.y
-        
+
         self.canvas.translate_object(segment.name, 5, 5)
-        
+
         # Check both points were translated
         self.assertEqual(segment.point1.x, original_p1_x + 5)
         self.assertEqual(segment.point1.y, original_p1_y + 5)
@@ -1689,14 +1689,14 @@ class TestCanvas(unittest.TestCase):
     def test_translate_vector(self) -> None:
         # Test translating a vector
         vector = self.canvas.create_vector(0, 0, 10, 10, "V", True)
-        
+
         original_p1_x = vector.segment.point1.x
         original_p1_y = vector.segment.point1.y
         original_p2_x = vector.segment.point2.x
         original_p2_y = vector.segment.point2.y
-        
+
         self.canvas.translate_object(vector.name, 5, 5)
-        
+
         # Check both points were translated
         self.assertEqual(vector.segment.point1.x, original_p1_x + 5)
         self.assertEqual(vector.segment.point1.y, original_p1_y + 5)
@@ -1708,9 +1708,9 @@ class TestCanvas(unittest.TestCase):
         circle = self.canvas.create_circle(100, 100, 50)
         original_center_x = circle.center.x
         original_center_y = circle.center.y
-        
+
         self.canvas.translate_object(circle.name, -10, 20)
-        
+
         # Check center was translated
         self.assertEqual(circle.center.x, original_center_x - 10)
         self.assertEqual(circle.center.y, original_center_y + 20)
@@ -1729,16 +1729,16 @@ class TestCanvas(unittest.TestCase):
         # Store original distances
         original_dx = p2.x - p1.x
         original_dy = p2.y - p1.y
-        
+
         # Translate each object
         self.canvas.translate_object("A", 5, 5)
         self.canvas.translate_object("B", 5, 5)
         self.canvas.translate_object(segment.name, 5, 5)
-        
+
         # Check relative distances are maintained
         new_dx = p2.x - p1.x
         new_dy = p2.y - p1.y
-        
+
         self.assertEqual(original_dx, new_dx)
         self.assertEqual(original_dy, new_dy)
 
@@ -1747,9 +1747,9 @@ class TestCanvas(unittest.TestCase):
         point = self.canvas.create_point(10, 10, "C")
         original_x = point.x
         original_y = point.y
-        
+
         self.canvas.translate_object("C", 0, 0)
-        
+
         self.assertEqual(point.x, original_x)
         self.assertEqual(point.y, original_y)
 
@@ -1758,19 +1758,19 @@ class TestCanvas(unittest.TestCase):
         point = self.canvas.create_point(10, 10, "A")
         original_x = point.x
         original_y = point.y
-        
+
         # Perform translation
         self.canvas.translate_object("A", 5, 5)
         point = self.canvas.get_point_by_name("A")  # Get fresh reference
         translated_x = point.x
         translated_y = point.y
-        
+
         # Undo translation
         self.canvas.undo()
         point = self.canvas.get_point_by_name("A")  # Get fresh reference
         self.assertEqual(point.x, original_x)
         self.assertEqual(point.y, original_y)
-        
+
         # Redo translation
         self.canvas.redo()
         point = self.canvas.get_point_by_name("A")  # Get fresh reference
@@ -1783,25 +1783,25 @@ class TestCanvas(unittest.TestCase):
             [(0, 0), (10, 0), (5, 10)],
             polygon_type=PolygonType.TRIANGLE,
         )
-        
+
         # Store original positions of all points
         original_points = [
             (triangle.segment1.point1.x, triangle.segment1.point1.y),
             (triangle.segment1.point2.x, triangle.segment1.point2.y),
             (triangle.segment2.point2.x, triangle.segment2.point2.y)
         ]
-        
+
         # Translate triangle
         x_offset, y_offset = 5, 5
         self.canvas.translate_object(triangle.name, x_offset, y_offset)
-        
+
         # Get points after translation
         translated_points = [
             (triangle.segment1.point1.x, triangle.segment1.point1.y),
             (triangle.segment1.point2.x, triangle.segment1.point2.y),
             (triangle.segment2.point2.x, triangle.segment2.point2.y)
         ]
-        
+
         # Verify each point was translated correctly
         for i in range(3):
             self.assertEqual(translated_points[i][0], original_points[i][0] + x_offset,
@@ -1842,28 +1842,28 @@ class TestCanvas(unittest.TestCase):
                 f = self.canvas.draw_function(func_str, f"f_{func_str}", -10, 10)
                 original_left = f.left_bound
                 original_right = f.right_bound
-                
+
                 # Translate function
                 self.canvas.translate_object(f.name, x_offset, y_offset)
-                
+
                 # Verify bounds were translated correctly for x_offset
                 if x_offset != 0:
-                    self.assertEqual(f.left_bound, original_left + x_offset, 
+                    self.assertEqual(f.left_bound, original_left + x_offset,
                         f"Left bound incorrect for {func_str} with x_offset {x_offset}")
                     self.assertEqual(f.right_bound, original_right + x_offset,
                         f"Right bound incorrect for {func_str} with x_offset {x_offset}")
-                
+
                 # Get expected function string after translation
                 expected = func_str
                 if x_offset != 0:
                     expected = replace_x(expected, x_offset)
                 if y_offset != 0:
                     expected = f"({expected}) + {y_offset}"
-                
+
                 # Verify function string was updated correctly
                 actual = f.function_string
                 self.assertEqual(
-                    actual, 
+                    actual,
                     ExpressionValidator.fix_math_expression(expected),
                     f"Function string incorrect for {func_str} with offsets ({x_offset}, {y_offset})\n"
                     f"Expected: {ExpressionValidator.fix_math_expression(expected)}\n"
@@ -1874,7 +1874,7 @@ class TestCanvas(unittest.TestCase):
                 try:
                     test_points = [-5, 0, 5]  # Test multiple points
                     original_f = ExpressionValidator.parse_function_string(func_str)
-                    
+
                     for x in test_points:
                         try:
                             # Ensure x is a valid input for the original function
@@ -1884,14 +1884,14 @@ class TestCanvas(unittest.TestCase):
                                 continue  # Skip non-positive inputs for log
                             if '1/x' in func_str and (x - x_offset) == 0:
                                 continue  # Skip zero for division
-                            
+
                             # Calculate expected result
                             orig_result = float(original_f(x - x_offset))
                             expected_result = orig_result + y_offset
-                            
+
                             # Calculate actual result
                             actual_result = float(f.function(x))
-                            
+
                             self.assertAlmostEqual(
                                 actual_result,
                                 expected_result,
@@ -1934,9 +1934,9 @@ class TestCanvas(unittest.TestCase):
     def test_segment_rotation(self) -> None:
         """Test segment rotation around its midpoint"""
         segment = self.canvas.create_segment(0, 0, 30, 0, name="AB")
-        
+
         segment.rotate(90)  # Rotate 90 degrees around midpoint
-        
+
         # Point 1 should be at (0, 0)
         self.assertAlmostEqual(segment.point1.x, 15, places=6)
         self.assertAlmostEqual(segment.point1.y, -15, places=6)
@@ -1952,7 +1952,7 @@ class TestCanvas(unittest.TestCase):
             (round(p.x, 6), round(p.y, 6))
             for p in [segment.point1, segment.point2]
         }
-        
+
         # Full rotation should return to original position
         segment.rotate(360)
         final_points = {
@@ -1968,14 +1968,14 @@ class TestCanvas(unittest.TestCase):
             polygon_type=PolygonType.TRIANGLE,
         )
         initial_points = {
-            (p.x, p.y) 
+            (p.x, p.y)
             for p in [triangle.segment1.point1, triangle.segment1.point2, triangle.segment2.point2]
         }
-        
+
         triangle.rotate(120)
-        
+
         rotated_points = {
-            (p.x, p.y) 
+            (p.x, p.y)
             for p in [triangle.segment1.point1, triangle.segment1.point2, triangle.segment2.point2]
         }
         self.assertNotEqual(initial_points, rotated_points)
@@ -1990,9 +1990,9 @@ class TestCanvas(unittest.TestCase):
             (round(p.x, 6), round(p.y, 6))
             for p in [triangle.segment1.point1, triangle.segment1.point2, triangle.segment2.point2]
         }
-        
+
         triangle.rotate(360)
-        
+
         final_points = {
             (round(p.x, 6), round(p.y, 6))
             for p in [triangle.segment1.point1, triangle.segment1.point2, triangle.segment2.point2]
@@ -2003,15 +2003,15 @@ class TestCanvas(unittest.TestCase):
         """Test rectangle rotation around its center"""
         rectangle = self._create_rectangle(0, 0, 30, 20)
         initial_points = {
-            (p.x, p.y) 
+            (p.x, p.y)
             for p in [rectangle.segment1.point1, rectangle.segment1.point2,
                     rectangle.segment2.point2, rectangle.segment3.point2]
         }
-        
+
         rectangle.rotate(45)
-        
+
         rotated_points = {
-            (p.x, p.y) 
+            (p.x, p.y)
             for p in [rectangle.segment1.point1, rectangle.segment1.point2,
                     rectangle.segment2.point2, rectangle.segment3.point2]
         }
@@ -2020,13 +2020,13 @@ class TestCanvas(unittest.TestCase):
     def test_rectangle_multiple_rotations(self) -> None:
         """Test multiple rotations on a rectangle"""
         rectangle = self._create_rectangle(0, 0, 30, 20)
-        
+
         # Define points for easier reference
         p1 = rectangle.segment1.point1
         p2 = rectangle.segment1.point2
         p3 = rectangle.segment3.point1
         p4 = rectangle.segment3.point2
-        
+
         # Store original positions
         original_points = [
             (p1.x, p1.y),
@@ -2034,7 +2034,7 @@ class TestCanvas(unittest.TestCase):
             (p3.x, p3.y),
             (p4.x, p4.y)
         ]
-        
+
         # Test cumulative rotations
         rectangle.rotate(45)
         # Store new positions after first rotation
@@ -2044,7 +2044,7 @@ class TestCanvas(unittest.TestCase):
             (p3.x, p3.y),
             (p4.x, p4.y)
         ]
-        
+
         rectangle.rotate(45)
         # Store new positions after second rotation
         new_points_after_second_rotation = [
@@ -2053,7 +2053,7 @@ class TestCanvas(unittest.TestCase):
             (p3.x, p3.y),
             (p4.x, p4.y)
         ]
-        
+
         # Verify that the points have changed after rotations
         self.assertNotEqual(original_points, new_points_after_first_rotation)
         self.assertNotEqual(new_points_after_first_rotation, new_points_after_second_rotation)
@@ -2061,34 +2061,34 @@ class TestCanvas(unittest.TestCase):
     def test_ellipse_rotation(self) -> None:
         """Test ellipse rotation around its center"""
         ellipse = self.canvas.create_ellipse(100, 100, 50, 30, rotation_angle=0)
-        
+
         ellipse.rotate(60)
-        
+
         self.assertEqual(ellipse.rotation_angle, 60)
-        self.assertEqual(ellipse.ellipse_formula, 
+        self.assertEqual(ellipse.ellipse_formula,
                         MathUtils.get_ellipse_formula(100, 100, 50, 30, 60))
 
     def test_ellipse_formula_after_rotation(self) -> None:
         """Test that ellipse formula updates correctly after rotation"""
         ellipse = self.canvas.create_ellipse(100, 100, 50, 30)
         initial_formula = ellipse.ellipse_formula
-        
+
         ellipse.rotate(45)
-        
+
         self.assertNotEqual(ellipse.ellipse_formula, initial_formula)
         self.assertEqual(ellipse.ellipse_formula,
                         MathUtils.get_ellipse_formula(100, 100, 50, 30, 45))
-        
+
     def test_non_rotatable_objects(self) -> None:
         """Test that appropriate objects cannot be rotated"""
         # Test point (should do nothing)
         point = self.canvas.create_point(0, 0)
         point.rotate(45)  # Should not raise an exception or change state
-        
+
         # Test circle (should do nothing)
         circle = self.canvas.create_circle(100, 100, 50)
         circle.rotate(45)  # Should not raise an exception or change state
-            
+
         # Test function (should do nothing)
         function = self.canvas.draw_function("x^2", "f")
         function.rotate(45)  # Should not raise an exception or change state
@@ -2100,22 +2100,22 @@ class TestCanvas(unittest.TestCase):
         rotation_angle = 45
         ellipse = self.canvas.create_ellipse(100, 100, 50, 30, initial_angle)
         initial_formula = ellipse.ellipse_formula
-        
+
         # Rotate the ellipse
         self.canvas.rotate_object(ellipse.name, rotation_angle)
-        
+
         # Verify rotation occurred
         self.assertEqual(ellipse.rotation_angle, initial_angle + rotation_angle)
         self.assertNotEqual(ellipse.ellipse_formula, initial_formula)
-        
+
         # Undo rotation
         self.canvas.undo()
-        
+
         # Verify state is restored
         ellipse = self.canvas.get_ellipse(100, 100, 50, 30)
         self.assertEqual(ellipse.rotation_angle, initial_angle)
         self.assertEqual(ellipse.ellipse_formula, initial_formula)
-        
+
         # Redo rotation
         self.canvas.redo()
         ellipse = self.canvas.get_ellipse(100, 100, 50, 30)
@@ -2127,14 +2127,14 @@ class TestCanvas(unittest.TestCase):
             expression="|sqrt((100-0)^2 + (0-0)^2)| + |sqrt((50-100)^2 + (86-0)^2)| + |sqrt((0-50)^2 + (0-86)^2)|",
             result=300
         )
-        
+
         # Test computation appears in canvas state
         state = self.canvas.get_canvas_state()
         self.assertIn('computations', state)
         self.assertEqual(len(state['computations']), 1)
         self.assertEqual(state['computations'][0]['expression'], "|sqrt((100-0)^2 + (0-0)^2)| + |sqrt((50-100)^2 + (86-0)^2)| + |sqrt((0-50)^2 + (0-86)^2)|")
         self.assertEqual(state['computations'][0]['result'], 300)
-        
+
         # Test duplicate prevention - try to add the same computation again
         self.canvas.add_computation(
             expression="|sqrt((100-0)^2 + (0-0)^2)| + |sqrt((50-100)^2 + (86-0)^2)| + |sqrt((0-50)^2 + (0-86)^2)|",
@@ -2142,25 +2142,25 @@ class TestCanvas(unittest.TestCase):
         )
         # Verify the duplicate was not added
         self.assertEqual(len(self.canvas.computations), 1)
-        
+
         # Add a different computation
         self.canvas.add_computation(
             expression="300/(2*pi)",
             result=47.75
         )
-        
+
         # Verify both unique computations exist
         self.assertEqual(len(self.canvas.computations), 2)
-        
+
         # Test that undo/redo operations don't affect computations
         point = self.canvas.create_point(0, 0, "A")  # Create a drawable to undo
         self.canvas.undo()  # Undo the point creation
-        
+
         # Verify computations are preserved after undo
         self.assertEqual(len(self.canvas.computations), 2)
         self.assertEqual(self.canvas.computations[0]['expression'], "|sqrt((100-0)^2 + (0-0)^2)| + |sqrt((50-100)^2 + (86-0)^2)| + |sqrt((0-50)^2 + (0-86)^2)|")
         self.assertEqual(self.canvas.computations[1]['expression'], "300/(2*pi)")
-        
+
         # Test redo also preserves computations
         self.canvas.redo()  # Redo the point creation
         self.assertEqual(len(self.canvas.computations), 2)
@@ -2171,39 +2171,39 @@ class TestCanvas(unittest.TestCase):
         """Test that deleting a point on a segment preserves parent segments."""
         # Create a parent segment AB
         ab = self.canvas.create_segment(0, 0, 30, 0, name="AB", extra_graphics=False)
-        
+
         # Create a point D on AB
         d = self.canvas.create_point(10, 0, name="D", extra_graphics=True)
-        
+
         # Create a point E on AB
         e = self.canvas.create_point(20, 0, name="E", extra_graphics=True)
-        
+
         # At this point we should have segments: AB, AD, DB, AE, EB
         segments = self.canvas.get_drawables_by_class_name('Segment')
         self.assertEqual(len(segments), 6, "Should have 6 segments: AB, AD, DB, AE, EB, DE")
-        
+
         # Get the segment AB to check later
         ab_after_points = self.canvas.get_segment_by_name("AB")
         self.assertIsNotNone(ab_after_points, "Segment AB should exist")
-        
+
         # Delete point D
         self.canvas.delete_point_by_name("D")
-        
+
         # After deletion, AB should still exist
         segments_after_deletion = self.canvas.get_drawables_by_class_name('Segment')
         self.assertIn(ab_after_points, segments_after_deletion, "Segment AB should still exist after deleting point D")
-        
+
         # Segments AD, DB, DE should be deleted
         ad = self.canvas.get_segment_by_coordinates(0, 0, 10, 0)
         db = self.canvas.get_segment_by_coordinates(10, 0, 30, 0)
-        
+
         self.assertIsNone(ad, "Segment AD should be deleted")
         self.assertIsNone(db, "Segment DB should be deleted")
-        
+
         # Segments AE and EB should still exist
         ae = self.canvas.get_segment_by_coordinates(0, 0, 20, 0)
         eb = self.canvas.get_segment_by_coordinates(20, 0, 30, 0)
-        
+
         self.assertIsNotNone(ae, "Segment AE should still exist")
         self.assertIsNotNone(eb, "Segment EB should still exist")
 
@@ -2217,48 +2217,48 @@ class TestCanvas(unittest.TestCase):
             name="ABC",
             extra_graphics=False,
         )
-        
+
         # Get the segments of the triangle
         segments_before = self.canvas.get_drawables_by_class_name('Segment')
-        
+
         segment_ab = self.canvas.get_segment_by_coordinates(0, 0, 30, 0)
         segment_bc = self.canvas.get_segment_by_coordinates(30, 0, 15, 20)
         segment_ca = self.canvas.get_segment_by_coordinates(15, 20, 0, 0)
-        
+
         self.assertIsNotNone(segment_ab, "Segment AB should exist")
         self.assertIsNotNone(segment_bc, "Segment BC should exist")
         self.assertIsNotNone(segment_ca, "Segment CA should exist")
-        
+
         # Store the actual count of segments before adding point D
         segments_count_before = len(segments_before)
-        
+
         # Create point D on segment AB
         pointD = self.canvas.create_point(15, 0, name="D", extra_graphics=True)
-        
+
         # Get the segments after adding point D
         segments_after_d = self.canvas.get_drawables_by_class_name("Segment")
-        
+
         # Check that the expected segments exist
         ad_segment = self.canvas.get_segment_by_coordinates(0, 0, 15, 0)
         db_segment = self.canvas.get_segment_by_coordinates(15, 0, 30, 0)
-        
+
         self.assertIsNotNone(ad_segment, "Segment AD should exist after adding D")
         self.assertIsNotNone(db_segment, "Segment DB should exist after adding D")
-        
+
         # Verify the number of segments increased
         self.assertEqual(len(segments_after_d), 5, "Adding point D should result in 5 segments (AB, BC, CA, DA, DB)")
-        
+
         # Now delete point D and verify the parent segment is preserved
         self.canvas.delete_point(15, 0)
-        
+
         # Get segments after deletion
         segments_after_deletion = self.canvas.get_drawables_by_class_name("Segment")
-        
+
         # Check that the original triangle segments still exist
         ab_segment_after = self.canvas.get_segment_by_name("AB")
         bc_segment_after = self.canvas.get_segment_by_name("BC")
         ca_segment_after = self.canvas.get_segment_by_name("CA")
-        
+
         # Verify the triangle itself is still there
         triangles_after = self.canvas.get_drawables_by_class_name('Triangle')
         self.assertEqual(len(triangles_after), 1, "Triangle should still exist after deleting point D")
@@ -2269,27 +2269,27 @@ class TestCanvas(unittest.TestCase):
         # Create a point and verify it exists
         point_coords = (42, 42)
         point = self.canvas.create_point(point_coords[0], point_coords[1], "TestPoint")
-        
+
         # Get a fresh reference to verify the point exists
         point_after_create = self.canvas.get_point(point_coords[0], point_coords[1])
         self.assertIsNotNone(point_after_create)
-        
+
         # Delete the point to test undo
         self.canvas.delete_point(point_coords[0], point_coords[1])
-        
+
         # Verify point is gone
         self.assertIsNone(self.canvas.get_point(point_coords[0], point_coords[1]))
-        
+
         # Undo the deletion
         self.canvas.undo()
-        
+
         # Verify point is back
         point_after_undo = self.canvas.get_point(point_coords[0], point_coords[1])
         self.assertIsNotNone(point_after_undo)
-        
+
         # Redo the deletion
         self.canvas.redo()
-        
+
         # Verify point is gone again
         self.assertIsNone(self.canvas.get_point(point_coords[0], point_coords[1]))
 
@@ -2299,33 +2299,33 @@ class TestCanvas(unittest.TestCase):
         p1_coords = (11, 11)
         p2_coords = (22, 22)
         p3_coords = (33, 33)
-        
+
         # Create the points
         self.canvas.create_point(p1_coords[0], p1_coords[1], "P1")
         self.canvas.create_point(p2_coords[0], p2_coords[1], "P2")
         self.canvas.create_point(p3_coords[0], p3_coords[1], "P3")
-        
+
         # Delete the points in reverse order
         self.canvas.delete_point(p3_coords[0], p3_coords[1])
         self.canvas.delete_point(p2_coords[0], p2_coords[1])
         self.canvas.delete_point(p1_coords[0], p1_coords[1])
-        
+
         # Verify all points are gone
         self.assertIsNone(self.canvas.get_point(p1_coords[0], p1_coords[1]))
         self.assertIsNone(self.canvas.get_point(p2_coords[0], p2_coords[1]))
         self.assertIsNone(self.canvas.get_point(p3_coords[0], p3_coords[1]))
-        
+
         # Undo deletions one by one
         self.canvas.undo()  # Undo P1 deletion
         self.assertIsNotNone(self.canvas.get_point(p1_coords[0], p1_coords[1]))
         self.assertIsNone(self.canvas.get_point(p2_coords[0], p2_coords[1]))
         self.assertIsNone(self.canvas.get_point(p3_coords[0], p3_coords[1]))
-        
+
         self.canvas.undo()  # Undo P2 deletion
         self.assertIsNotNone(self.canvas.get_point(p1_coords[0], p1_coords[1]))
         self.assertIsNotNone(self.canvas.get_point(p2_coords[0], p2_coords[1]))
         self.assertIsNone(self.canvas.get_point(p3_coords[0], p3_coords[1]))
-        
+
         self.canvas.undo()  # Undo P3 deletion
         self.assertIsNotNone(self.canvas.get_point(p1_coords[0], p1_coords[1]))
         self.assertIsNotNone(self.canvas.get_point(p2_coords[0], p2_coords[1]))
@@ -2336,31 +2336,31 @@ class TestCanvas(unittest.TestCase):
         # Create first point
         p1_coords = (15, 15)
         point1 = self.canvas.create_point(p1_coords[0], p1_coords[1], "PA")
-        
+
         # Create second point
         p2_coords = (25, 25)
         point2 = self.canvas.create_point(p2_coords[0], p2_coords[1], "PB")
-        
+
         # Delete second point
         self.canvas.delete_point(p2_coords[0], p2_coords[1])
-        
+
         # Verify second point is gone
         self.assertIsNone(self.canvas.get_point(p2_coords[0], p2_coords[1]))
-        
+
         # Undo the deletion to restore second point
         self.canvas.undo()
         self.assertIsNotNone(self.canvas.get_point(p2_coords[0], p2_coords[1]))
-        
+
         # Delete second point again
         self.canvas.delete_point(p2_coords[0], p2_coords[1])
-        
+
         # Create a different point (branching)
         p3_coords = (35, 35)
         point3 = self.canvas.create_point(p3_coords[0], p3_coords[1], "PC")
-        
+
         # Try to redo - should not do anything because we branched
         self.canvas.redo()
-        
+
         # Verify first and third points exist, but not second
         self.assertIsNotNone(self.canvas.get_point(p1_coords[0], p1_coords[1]))
         self.assertIsNotNone(self.canvas.get_point(p3_coords[0], p3_coords[1]))
@@ -2372,20 +2372,20 @@ class TestCanvas(unittest.TestCase):
         initial_count = len(self.canvas.get_drawables())
         self.canvas.undo()  # Should not crash
         self.assertEqual(len(self.canvas.get_drawables()), initial_count)
-        
+
         # Test redo with no future states
         self.canvas.redo()  # Should not crash
         self.assertEqual(len(self.canvas.get_drawables()), initial_count)
-        
+
         # Test creating some state and then testing limits
         point = self.canvas.create_point(10, 10, "A")
         self.canvas.undo()  # Undo creation
         self.assertIsNone(self.canvas.get_point_by_name("A"))
-        
+
         # Try multiple undos beyond history
         for _ in range(5):
             self.canvas.undo()  # Should not crash
-        
+
         # Try multiple redos beyond future
         for _ in range(5):
             self.canvas.redo()  # Should not crash
@@ -2395,18 +2395,18 @@ class TestCanvas(unittest.TestCase):
         # Create functions for colored area
         f1 = self.canvas.draw_function("x", "f1")
         f2 = self.canvas.draw_function("x^2", "f2")
-        
+
         # Create a colored area between functions
         colored_area = self.canvas.create_colored_area(f1.name, f2.name, left_bound=-5, right_bound=5, color="red")
         self.assertIsNotNone(colored_area)
-        
+
         # Verify it exists
         self.assertIn(colored_area, self.canvas.get_drawables_by_class_name(colored_area.get_class_name()))
-        
+
         # Delete by name
         result = self.canvas.delete_colored_area(colored_area.name)
         self.assertTrue(result, "delete_colored_area should return True for existing areas")
-        
+
         # Verify it's deleted
         self.assertNotIn(colored_area, self.canvas.get_drawables())
 
@@ -2415,16 +2415,16 @@ class TestCanvas(unittest.TestCase):
         # Test deleting a colored area that doesn't exist
         result = self.canvas.delete_colored_area('NonexistentColoredArea')
         self.assertFalse(result, "delete_colored_area should return False for non-existent names")
-        
+
         # Create a colored area and verify normal deletion still works
         f1 = self.canvas.draw_function("x", "f1")
         f2 = self.canvas.draw_function("x^2", "f2")
         colored_area = self.canvas.create_colored_area(f1.name, f2.name, left_bound=-3, right_bound=3, color="blue")
         self.assertIsNotNone(colored_area)
-        
+
         # Verify the non-existent deletion didn't affect existing colored areas
         self.assertIn(colored_area, self.canvas.get_drawables())
-        
+
         # Delete the colored area and verify it was removed
         self.assertTrue(self.canvas.delete_colored_area(colored_area.name))
         self.assertNotIn(colored_area, self.canvas.get_drawables())
@@ -2570,25 +2570,25 @@ class TestCanvas(unittest.TestCase):
         """Test that angles are automatically deleted when their constituent points are deleted."""
         # Create points for angle
         pointA = self.canvas.create_point(0, 0, name="A")
-        pointB = self.canvas.create_point(10, 0, name="B") 
+        pointB = self.canvas.create_point(10, 0, name="B")
         pointC = self.canvas.create_point(0, 10, name="C")
-        
+
         # Create segments
         segmentAB = self.canvas.create_segment(0, 0, 10, 0)
         segmentAC = self.canvas.create_segment(0, 0, 0, 10)
-        
+
         # Create angle
         angle = self.canvas.create_angle(0, 0, 10, 0, 0, 10)
-        
+
         # Verify angle was created
         self.assertIsNotNone(angle)
         angles = self.canvas.get_drawables_by_class_name('Angle')
         self.assertEqual(len(angles), 1)
         self.assertIn(angle, angles)
-        
+
         # Delete vertex point A - this should also delete the angle
         self.canvas.delete_point(0, 0)
-        
+
         # Verify angle was automatically deleted
         angles_after = self.canvas.get_drawables_by_class_name('Angle')
         self.assertEqual(len(angles_after), 0)
@@ -2643,28 +2643,28 @@ class TestCanvasHelperMethods(unittest.TestCase):
         self.assertIsNone(self.canvas._resolve_renderer_mode_from_text("other_renderer"))
 
     def test_angle_deletion_on_segment_deletion(self) -> None:
-        """Test that angles are automatically deleted when their constituent segments are deleted.""" 
+        """Test that angles are automatically deleted when their constituent segments are deleted."""
         # Create points for angle
         pointA = self.canvas.create_point(0, 0, name="A")
         pointB = self.canvas.create_point(10, 0, name="B")
         pointC = self.canvas.create_point(0, 10, name="C")
-        
+
         # Create segments
         segmentAB = self.canvas.create_segment(0, 0, 10, 0)
         segmentAC = self.canvas.create_segment(0, 0, 0, 10)
-        
+
         # Create angle
         angle = self.canvas.create_angle(0, 0, 10, 0, 0, 10)
-        
+
         # Verify angle was created
         self.assertIsNotNone(angle)
         angles = self.canvas.get_drawables_by_class_name('Angle')
         self.assertEqual(len(angles), 1)
         self.assertIn(angle, angles)
-        
+
         # Delete one of the segments - this should also delete the angle
         self.canvas.delete_segment(0, 0, 10, 0)  # Delete segment AB
-        
+
         # Verify angle was automatically deleted
         angles_after = self.canvas.get_drawables_by_class_name('Angle')
         self.assertEqual(len(angles_after), 0)

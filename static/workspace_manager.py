@@ -41,14 +41,14 @@ class WorkspaceRecord(TypedDict):
 
 class WorkspaceManager:
     """Server-side workspace file operations manager.
-    
+
     Manages saving, loading, listing, and deleting workspace files with
     security validation and JSON-based state storage with metadata.
     """
-    
+
     def __init__(self, workspaces_dir: str = WORKSPACES_DIR):
         """Initialize the workspace manager.
-        
+
         Args:
             workspaces_dir: Base directory for storing workspaces
         """
@@ -57,27 +57,27 @@ class WorkspaceManager:
 
     def _is_safe_workspace_name(self, name: Optional[str]) -> bool:
         """Check if a workspace name is safe to use.
-        
+
         Args:
             name: The workspace name to check
-            
+
         Returns:
             bool: True if the name is safe, False otherwise
         """
         if not name or not isinstance(name, str):
             return False
-            
+
         if not re.match(r'^[\w-]+\Z$', name):  # Only allow alphanumeric characters, underscores, and hyphens
             return False
-            
+
         return True
 
     def _is_path_in_workspace_dir(self, path: str) -> bool:
         """Check if a path is within the workspaces directory.
-        
+
         Args:
             path: The path to check
-            
+
         Returns:
             bool: True if the path is within workspaces directory, False otherwise
         """
@@ -92,44 +92,44 @@ class WorkspaceManager:
 
     def ensure_workspaces_dir(self, test_dir: Optional[str] = None) -> str:
         """Ensure the workspaces directory exists.
-        
+
         Args:
             test_dir: Optional test directory path relative to workspaces_dir
         """
         if test_dir is not None and not self._is_safe_workspace_name(test_dir):
             raise ValueError("Invalid test directory name")
-            
+
         target_dir = self.workspaces_dir if test_dir is None else os.path.join(self.workspaces_dir, test_dir)
         target_dir = os.path.abspath(target_dir)
 
         if not self._is_path_in_workspace_dir(target_dir):
             raise ValueError("Target directory must be within workspace directory")
-            
+
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
         return target_dir
 
     def get_workspace_path(self, name: Optional[str] = None, test_dir: Optional[str] = None) -> str:
         """Get the path for a workspace file.
-        
+
         Args:
             name: Optional name for the workspace file
             test_dir: Optional test directory path relative to workspaces_dir
         """
         if name is not None and not self._is_safe_workspace_name(name):
             raise ValueError("Invalid workspace name")
-            
+
         target_dir = self.ensure_workspaces_dir(test_dir)
-        
+
         if name is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             file_path = os.path.join(target_dir, f"current_workspace_{timestamp}.json")
         else:
             file_path = os.path.join(target_dir, f"{name}.json")
-            
+
         if not self._is_path_in_workspace_dir(file_path):
             raise ValueError("Workspace path must be within workspace directory")
-            
+
         return file_path
 
     def save_workspace(
@@ -139,19 +139,19 @@ class WorkspaceManager:
         test_dir: Optional[str] = None,
     ) -> bool:
         """Save a workspace state to a file.
-        
+
         Args:
             state: The state data to save
             name: Optional name for the workspace
             test_dir: Optional test directory path
-            
+
         Returns:
             bool: True if save was successful, False otherwise.
         """
         try:
             if state is None:
                 return False
-                
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             workspace_data: WorkspaceRecord = {
                 "metadata": {
@@ -161,11 +161,11 @@ class WorkspaceManager:
                 },
                 "state": state,
             }
-            
+
             file_path = self.get_workspace_path(name, test_dir)
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(workspace_data, f, indent=2)
-            
+
             return True
         except (ValueError, OSError) as e:
             print(f"Error saving workspace: {str(e)}")
@@ -173,37 +173,37 @@ class WorkspaceManager:
 
     def _get_most_recent_current_workspace(self, test_dir: Optional[str] = None) -> str:
         """Get the path of the most recent current workspace.
-        
+
         Args:
             test_dir: Optional test directory path
-            
+
         Returns:
             str: Path to the most recent current workspace file
-            
+
         Raises:
             FileNotFoundError: If no current workspace exists
         """
         target_dir = self.ensure_workspaces_dir(test_dir)
         current_workspaces: List[str] = []
-        
+
         for filename in os.listdir(target_dir):
             if filename.startswith('current_workspace_') and filename.endswith('.json'):
                 file_path = os.path.join(target_dir, filename)
                 current_workspaces.append(file_path)
-        
+
         if not current_workspaces:
             raise FileNotFoundError("No current workspace found")
-            
+
         current_workspaces.sort(key=lambda x: os.path.getmtime(x), reverse=True)
         return current_workspaces[0]
 
     def load_workspace(self, name: Optional[str] = None, test_dir: Optional[str] = None) -> WorkspaceState:
         """Load a workspace state from a file.
-        
+
         Args:
             name: Optional name of the workspace to load
             test_dir: Optional test directory path
-            
+
         Returns:
             dict: The loaded state data
         """
@@ -212,10 +212,10 @@ class WorkspaceManager:
                 file_path = self._get_most_recent_current_workspace(test_dir)
             else:
                 file_path = self.get_workspace_path(name, test_dir)
-                
+
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"No workspace found at {file_path}")
-            
+
             with open(file_path, 'r', encoding='utf-8') as f:
                 workspace_data_raw: JsonValue = json.load(f)
 
@@ -294,10 +294,10 @@ class WorkspaceManager:
 
     def list_workspaces(self, test_dir: Optional[str] = None) -> List[str]:
         """List all saved workspaces.
-        
+
         Args:
             test_dir: Optional test directory path relative to workspaces_dir
-        
+
         Returns:
             A list of workspace names (without .json extension)
         """
@@ -333,27 +333,27 @@ class WorkspaceManager:
 
     def delete_workspace(self, name: str, test_dir: Optional[str] = None) -> bool:
         """Delete a workspace file.
-        
+
         Args:
             name: Name of the workspace to delete
             test_dir: Optional test directory path
-            
+
         Returns:
             bool: True if deletion was successful, False otherwise.
         """
         try:
             if not self._is_safe_workspace_name(name):
                 return False
-                
+
             file_path = self.get_workspace_path(name, test_dir)
             if not os.path.exists(file_path):
                 return False
-                
+
             if not self._is_path_in_workspace_dir(file_path):
                 return False
-                
+
             os.remove(file_path)
             return True
         except (ValueError, OSError) as e:
             print(f"Error deleting workspace: {str(e)}")
-            return False 
+            return False

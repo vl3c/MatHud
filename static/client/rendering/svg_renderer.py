@@ -196,6 +196,8 @@ class SvgRenderer(RendererProtocol):
         self._primary_surface_id: str = surface_id
         self._offscreen_surface_id: str = f"{surface_id}-offscreen"
         self._telemetry = SvgTelemetry()
+        self._plan_cache: Dict[str, Dict[str, Any]] = {}
+        self._cartesian_cache: Optional[Dict[str, Any]] = None
         self._initialize_plan_state()
         adapter_surface_id = self._configure_surfaces()
         self._shared_primitives: SvgPrimitiveAdapter = SvgPrimitiveAdapter(
@@ -411,7 +413,7 @@ class SvgRenderer(RendererProtocol):
             return
         self._apply_cartesian_plan(plan_context, drawable_name)
 
-    def _assign_polar_dimensions(self, polar_grid: Any, width: int, height: int) -> None:
+    def _assign_polar_dimensions(self, polar_grid: Any, width: float, height: float) -> None:
         setattr(polar_grid, "width", width)
         setattr(polar_grid, "height", height)
 
@@ -424,7 +426,7 @@ class SvgRenderer(RendererProtocol):
         drawable_name: str,
     ) -> Optional[Dict[str, Any]]:
         plan_entry = self._cartesian_cache
-        if self._is_cached_plan_valid(plan_entry, signature):
+        if self._is_cached_plan_valid(plan_entry, signature) and plan_entry is not None:
             plan = plan_entry["plan"]
             plan.update_map_state(map_state)
             self._mark_screen_space_plan_dirty(plan)
@@ -527,7 +529,7 @@ class SvgRenderer(RendererProtocol):
         if entry:
             plan_obj = entry.get("plan")
             drop = getattr(self._shared_primitives, "drop_group", None)
-            if callable(drop) and getattr(plan_obj, "plan_key", None):
+            if callable(drop) and plan_obj is not None and getattr(plan_obj, "plan_key", None):
                 drop(plan_obj.plan_key)
 
     def invalidate_all_drawable_caches(self) -> None:
@@ -536,7 +538,7 @@ class SvgRenderer(RendererProtocol):
             if callable(drop):
                 for entry in self._plan_cache.values():
                     plan_obj = entry.get("plan") if isinstance(entry, dict) else None
-                    if getattr(plan_obj, "plan_key", None):
+                    if plan_obj is not None and getattr(plan_obj, "plan_key", None):
                         drop(plan_obj.plan_key)
         self._plan_cache.clear()
 
@@ -544,7 +546,7 @@ class SvgRenderer(RendererProtocol):
         if self._cartesian_cache:
             plan_obj = self._cartesian_cache.get("plan")
             drop = getattr(self._shared_primitives, "drop_group", None)
-            if callable(drop) and getattr(plan_obj, "plan_key", None):
+            if callable(drop) and plan_obj is not None and getattr(plan_obj, "plan_key", None):
                 drop(plan_obj.plan_key)
         self._cartesian_cache = None
 
@@ -558,7 +560,7 @@ class SvgRenderer(RendererProtocol):
             if entry:
                 plan_obj = entry.get("plan")
                 drop = getattr(self._shared_primitives, "drop_group", None)
-                if callable(drop) and getattr(plan_obj, "plan_key", None):
+                if callable(drop) and plan_obj is not None and getattr(plan_obj, "plan_key", None):
                     drop(plan_obj.plan_key)
         self._frame_seen_plan_keys.clear()
 
@@ -571,7 +573,7 @@ class SvgRenderer(RendererProtocol):
                     return name
         except Exception:
             pass
-        return drawable.__class__.__name__
+        return str(drawable.__class__.__name__)
 
     def _plan_cache_key(self, drawable: Any, drawable_name: str) -> str:
         name = getattr(drawable, "name", None)
@@ -766,7 +768,7 @@ class SvgRenderer(RendererProtocol):
                     pass
 
     def _initialize_plan_state(self) -> None:
-        self._plan_cache = {}
+        self._plan_cache.clear()
         self._cartesian_cache = None
 
     def _configure_surfaces(self) -> str:
@@ -786,7 +788,7 @@ class SvgRenderer(RendererProtocol):
         except Exception:
             pass
 
-    def _assign_cartesian_dimensions(self, cartesian: Any, width: int, height: int) -> None:
+    def _assign_cartesian_dimensions(self, cartesian: Any, width: float, height: float) -> None:
         setattr(cartesian, "width", width)
         setattr(cartesian, "height", height)
 
@@ -799,7 +801,7 @@ class SvgRenderer(RendererProtocol):
         drawable_name: str,
     ) -> Optional[Dict[str, Any]]:
         plan_entry = self._cartesian_cache
-        if self._is_cached_plan_valid(plan_entry, signature):
+        if self._is_cached_plan_valid(plan_entry, signature) and plan_entry is not None:
             plan = plan_entry["plan"]
             plan.update_map_state(map_state)
             self._mark_screen_space_plan_dirty(plan)
@@ -816,7 +818,7 @@ class SvgRenderer(RendererProtocol):
         return self._create_cartesian_plan_context(plan)
 
     def _skip_invisible_cartesian(
-        self, context: Dict[str, Any], drawable_name: str, width: int, height: int
+        self, context: Dict[str, Any], drawable_name: str, width: float, height: float
     ) -> bool:
         plan = context["plan"]
         plan_key = context["plan_key"]
@@ -862,7 +864,7 @@ class SvgRenderer(RendererProtocol):
         cache_key: str,
     ) -> Optional[Dict[str, Any]]:
         cached_entry = self._plan_cache.get(cache_key)
-        if self._is_cached_plan_valid(cached_entry, signature):
+        if self._is_cached_plan_valid(cached_entry, signature) and cached_entry is not None:
             plan = cached_entry["plan"]
             plan.update_map_state(map_state)
             self._mark_screen_space_plan_dirty(plan)
@@ -954,7 +956,7 @@ class SvgRenderer(RendererProtocol):
         return plan
 
     def _create_cartesian_plan_context(self, plan: OptimizedPrimitivePlan) -> Dict[str, Any]:
-        usage_counts = getattr(plan, "get_usage_counts", lambda: {})()
+        usage_counts: Dict[str, int] = getattr(plan, "get_usage_counts", lambda: {})()
         reserve = getattr(self._shared_primitives, "reserve_usage_counts", None)
         plan_key = getattr(plan, "plan_key", None)
         supports_transform = getattr(plan, "supports_transform", lambda: False)()
@@ -971,7 +973,7 @@ class SvgRenderer(RendererProtocol):
         }
 
     def _create_drawable_plan_context(self, plan: OptimizedPrimitivePlan) -> Dict[str, Any]:
-        usage_counts = getattr(plan, "get_usage_counts", lambda: {})()
+        usage_counts: Dict[str, int] = getattr(plan, "get_usage_counts", lambda: {})()
         reserve = getattr(self._shared_primitives, "reserve_usage_counts", None)
         plan_key = getattr(plan, "plan_key", None)
         supports_transform = getattr(plan, "supports_transform", lambda: False)()

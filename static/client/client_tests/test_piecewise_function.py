@@ -110,7 +110,7 @@ class TestPiecewiseFunction(unittest.TestCase):
             {"expression": "x+1", "left": 0, "right": None, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         self.assertEqual(pf.name, "f")
         self.assertEqual(len(pf.intervals), 2)
         self.assertEqual(pf.get_class_name(), "PiecewiseFunction")
@@ -121,7 +121,7 @@ class TestPiecewiseFunction(unittest.TestCase):
             {"expression": "x+1", "left": 0, "right": None, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         self.assertAlmostEqual(pf.function(-2), 4.0)
         self.assertAlmostEqual(pf.function(-1), 1.0)
 
@@ -131,7 +131,7 @@ class TestPiecewiseFunction(unittest.TestCase):
             {"expression": "x+1", "left": 0, "right": None, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         self.assertAlmostEqual(pf.function(0), 1.0)
         self.assertAlmostEqual(pf.function(1), 2.0)
         self.assertAlmostEqual(pf.function(5), 6.0)
@@ -141,7 +141,7 @@ class TestPiecewiseFunction(unittest.TestCase):
             {"expression": "x", "left": -1, "right": 1, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         result = pf.function(5)
         self.assertTrue(math.isnan(result))
 
@@ -151,7 +151,7 @@ class TestPiecewiseFunction(unittest.TestCase):
             {"expression": "1", "left": 0, "right": None, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         self.assertIn(0, pf.point_discontinuities)
 
     def test_continuous_piecewise_no_discontinuity(self) -> None:
@@ -160,7 +160,7 @@ class TestPiecewiseFunction(unittest.TestCase):
             {"expression": "x", "left": 0, "right": None, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         self.assertNotIn(0, pf.point_discontinuities)
 
     def test_three_piece_function(self) -> None:
@@ -170,7 +170,7 @@ class TestPiecewiseFunction(unittest.TestCase):
             {"expression": "1", "left": 1, "right": None, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="clamp")
-        
+
         self.assertEqual(len(pf.intervals), 3)
         self.assertAlmostEqual(pf.function(-5), -1.0)
         self.assertAlmostEqual(pf.function(0), 0.0)
@@ -182,7 +182,7 @@ class TestPiecewiseFunction(unittest.TestCase):
             {"expression": "x+1", "left": 0, "right": None, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         state = pf.get_state()
         self.assertEqual(state["name"], "f")
         self.assertIn("pieces", state["args"])
@@ -194,10 +194,10 @@ class TestPiecewiseFunction(unittest.TestCase):
             {"expression": "x+1", "left": 0, "right": None, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         import copy
         pf_copy = copy.deepcopy(pf)
-        
+
         self.assertEqual(pf_copy.name, "f")
         self.assertEqual(len(pf_copy.intervals), 2)
         self.assertIsNot(pf_copy, pf)
@@ -205,7 +205,7 @@ class TestPiecewiseFunction(unittest.TestCase):
     def test_update_color(self) -> None:
         pieces = [{"expression": "x", "left": None, "right": None, "left_inclusive": True, "right_inclusive": True}]
         pf = PiecewiseFunction(pieces, name="f", color="blue")
-        
+
         pf.update_color("red")
         self.assertEqual(pf.color, "red")
 
@@ -215,7 +215,7 @@ class TestPiecewiseFunction(unittest.TestCase):
             {"expression": "x^2", "left": 0, "right": 5, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         self.assertEqual(pf.left_bound, -5)
         self.assertEqual(pf.right_bound, 5)
 
@@ -225,7 +225,7 @@ class TestPiecewiseFunction(unittest.TestCase):
             {"expression": "x^2", "left": 0, "right": 5, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         self.assertIsNone(pf.left_bound)
         self.assertEqual(pf.right_bound, 5)
 
@@ -243,31 +243,31 @@ class TestPiecewiseFunctionRendering(unittest.TestCase):
             {"expression": "5", "left": 0, "right": 10, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="constant_piecewise")
-        
+
         # Verify function evaluates correctly
         self.assertAlmostEqual(pf.function(-5), 2.0)
         self.assertAlmostEqual(pf.function(5), 5.0)
-        
+
         # Verify bounds are computed
         self.assertEqual(pf.left_bound, -10)
         self.assertEqual(pf.right_bound, 10)
-        
+
         # Verify discontinuity is detected at x=0 but NOT at the bounds
         self.assertIn(0, pf.point_discontinuities)
         self.assertNotIn(-10, pf.point_discontinuities, "Left bound should not be a discontinuity")
         self.assertNotIn(10, pf.point_discontinuities, "Right bound should not be a discontinuity")
-        
+
         # Verify rendering works
         renderable = FunctionRenderable(pf, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         self.assertIsNotNone(result)
         self.assertIsNotNone(result.paths)
         self.assertGreater(len(result.paths), 0, "Constant piecewise function should produce paths")
-        
+
         # Should have multiple paths due to discontinuity at x=0
         self.assertGreaterEqual(len(result.paths), 2, "Step function should produce at least 2 separate paths")
-        
+
         # Should have points in each path
         for i, path in enumerate(result.paths):
             self.assertGreater(len(path), 0, f"Path {i} should have points")
@@ -279,9 +279,9 @@ class TestPiecewiseFunctionRendering(unittest.TestCase):
         ]
         pf = PiecewiseFunction(pieces, name="f")
         renderable = FunctionRenderable(pf, self.mapper)
-        
+
         result = renderable.build_screen_paths()
-        
+
         self.assertIsNotNone(result)
         self.assertIsNotNone(result.paths)
         self.assertGreater(len(result.paths), 0)
@@ -293,9 +293,9 @@ class TestPiecewiseFunctionRendering(unittest.TestCase):
         ]
         pf = PiecewiseFunction(pieces, name="step")
         renderable = FunctionRenderable(pf, self.mapper)
-        
+
         result = renderable.build_screen_paths()
-        
+
         self.assertGreater(len(result.paths), 1)
 
     def test_continuous_piecewise_can_produce_single_path(self) -> None:
@@ -305,9 +305,9 @@ class TestPiecewiseFunctionRendering(unittest.TestCase):
         ]
         pf = PiecewiseFunction(pieces, name="linear")
         renderable = FunctionRenderable(pf, self.mapper)
-        
+
         result = renderable.build_screen_paths()
-        
+
         self.assertGreater(len(result.paths), 0)
 
     def test_absolute_value_like_piecewise(self) -> None:
@@ -317,9 +317,9 @@ class TestPiecewiseFunctionRendering(unittest.TestCase):
         ]
         pf = PiecewiseFunction(pieces, name="abs_like")
         renderable = FunctionRenderable(pf, self.mapper)
-        
+
         result = renderable.build_screen_paths()
-        
+
         self.assertIsNotNone(result)
         total_points = sum(len(path) for path in result.paths)
         self.assertGreater(total_points, 2)
@@ -331,9 +331,9 @@ class TestPiecewiseFunctionRendering(unittest.TestCase):
         ]
         pf = PiecewiseFunction(pieces, name="f")
         renderable = FunctionRenderable(pf, self.mapper)
-        
+
         result = renderable.build_screen_paths()
-        
+
         self.assertGreater(len(result.paths), 0)
 
 
@@ -377,7 +377,7 @@ class TestPiecewiseFunctionUndefinedAt(unittest.TestCase):
             {"expression": "2", "left": None, "right": None, "left_inclusive": True, "right_inclusive": True, "undefined_at": [0]},
         ]
         pf = PiecewiseFunction(pieces, name="f_with_hole")
-        
+
         self.assertAlmostEqual(pf.function(-5), 2.0)
         self.assertAlmostEqual(pf.function(5), 2.0)
         self.assertTrue(math.isnan(pf.function(0)))
@@ -389,7 +389,7 @@ class TestPiecewiseFunctionUndefinedAt(unittest.TestCase):
             {"expression": "x^2", "left": 0, "right": None, "left_inclusive": True, "undefined_at": [1, 3]},
         ]
         pf = PiecewiseFunction(pieces, name="multi_hole")
-        
+
         self.assertTrue(math.isnan(pf.function(-2)))
         self.assertTrue(math.isnan(pf.function(1)))
         self.assertTrue(math.isnan(pf.function(3)))
@@ -433,7 +433,7 @@ class TestPiecewiseFunctionEdgeCases(unittest.TestCase):
             {"expression": "x^2", "left": None, "right": None, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         self.assertEqual(len(pf.intervals), 1)
         self.assertAlmostEqual(pf.function(3), 9.0)
 
@@ -454,7 +454,7 @@ class TestPiecewiseFunctionEdgeCases(unittest.TestCase):
             {"expression": "2", "left": 0, "right": None, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         self.assertAlmostEqual(pf.function(0.5), 1.0)
 
     def test_gap_in_intervals_returns_nan(self) -> None:
@@ -463,7 +463,7 @@ class TestPiecewiseFunctionEdgeCases(unittest.TestCase):
             {"expression": "2", "left": 1, "right": None, "left_inclusive": True, "right_inclusive": True},
         ]
         pf = PiecewiseFunction(pieces, name="f")
-        
+
         result = pf.function(0)
         self.assertTrue(math.isnan(result))
 

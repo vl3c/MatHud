@@ -38,32 +38,32 @@ if TYPE_CHECKING:
 
 class TransformationsManager:
     """Manages geometric transformations of drawable objects on a Canvas.
-    
+
     Coordinates translation and rotation operations with proper state management,
     object validation, and canvas integration.
     """
-    
+
     def __init__(self, canvas: "Canvas") -> None:
         """
         Initialize the TransformationsManager.
-        
+
         Args:
             canvas: The Canvas object this manager is responsible for
         """
         self.canvas: "Canvas" = canvas
-    
+
     def translate_object(self, name: str, x_offset: float, y_offset: float) -> bool:
         """
         Translates a drawable object by the specified offset.
-        
+
         Args:
             name: Name of the drawable to translate
             x_offset: Horizontal offset to apply
             y_offset: Vertical offset to apply
-            
+
         Returns:
             bool: True if the translation was successful
-            
+
         Raises:
             ValueError: If no drawable with the given name is found
         """
@@ -72,13 +72,13 @@ class TransformationsManager:
         for drawable in self.canvas.drawable_manager.get_drawables():
             if drawable.name == name:
                 break
-            
+
         if not drawable or drawable.name != name:
             raise ValueError(f"No drawable found with name '{name}'")
-            
+
         # Archive current state for undo/redo AFTER finding the object but BEFORE modifying it
         self.canvas.undo_redo_manager.archive()
-        
+
         moved_points: List[Any] = []
         get_vertices = getattr(drawable, "get_vertices", None)
         if callable(get_vertices):
@@ -94,7 +94,7 @@ class TransformationsManager:
         except Exception as e:
             # Raise an error to be handled by the AI interface
             raise ValueError(f"Error translating drawable: {str(e)}")
-            
+
         class_name_getter = getattr(drawable, "get_class_name", None)
         class_name = class_name_getter() if callable(class_name_getter) else drawable.__class__.__name__
 
@@ -109,20 +109,20 @@ class TransformationsManager:
         # Redraw the canvas
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
+
         return True
-    
+
     def rotate_object(self, name: str, angle: float) -> bool:
         """
         Rotates a drawable object by the specified angle.
-        
+
         Args:
             name: Name of the drawable to rotate
             angle: Angle in degrees to rotate the object
-            
+
         Returns:
             bool: True if the rotation was successful
-            
+
         Raises:
             ValueError: If no drawable with the given name is found or if rotation fails
         """
@@ -135,26 +135,26 @@ class TransformationsManager:
             if d.name == name:
                 drawable = d
                 break
-        
+
         if not drawable:
             raise ValueError(f"No drawable found with name '{name}'")
-            
+
         # Archive current state for undo/redo AFTER finding the object but BEFORE modifying it
         self.canvas.undo_redo_manager.archive()
-        
+
         # Apply rotation using the drawable's rotate method
         try:
             drawable.rotate(angle)
         except Exception as e:
             # Raise an error to be handled by the AI interface
             raise ValueError(f"Error rotating drawable: {str(e)}")
-            
+
         # If we got here, the rotation was successful
         # Redraw the canvas
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
-        return True 
+
+        return True
 
     def _refresh_polygon_dependencies(self, polygon: Any, points: Iterable[Any]) -> None:
         dependency_manager = getattr(self.canvas, "dependency_manager", None)

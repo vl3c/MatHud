@@ -114,7 +114,7 @@ class AngleManager:
         extra_graphics: bool = True,
     ) -> Optional[Angle]:
         """
-        Creates an angle defined by a vertex point (vx, vy) and two other points 
+        Creates an angle defined by a vertex point (vx, vy) and two other points
         (p1x, p1y) and (p2x, p2y) that define the arms of the angle.
         Points and segments will be created if they don't exist, or existing ones will be used.
 
@@ -223,7 +223,7 @@ class AngleManager:
         if not hasattr(self.drawables, 'Angles') or not isinstance(self.drawables.Angles, list):
             # print("AngleManager: DrawablesContainer has no 'Angles' list or it's not a list.")
             return None
-        for angle in self.drawables.Angles: 
+        for angle in self.drawables.Angles:
             if angle.name == name:
                 return angle
         return None
@@ -246,7 +246,7 @@ class AngleManager:
             return None
         if not segment1 or not segment2: # Ensure segments themselves are not None
             return None
-            
+
         for angle in self.drawables.Angles:
             if not (hasattr(angle, 'segment1') and hasattr(angle, 'segment2') and hasattr(angle, 'is_reflex')):
                 continue # Skip angles that don't have segment or is_reflex attributes properly set up
@@ -255,7 +255,7 @@ class AngleManager:
 
             match_segments = (angle.segment1 is segment1 and angle.segment2 is segment2) or \
                              (angle.segment1 is segment2 and angle.segment2 is segment1)
-            
+
             if match_segments:
                 if is_reflex_filter is None: # No reflex filter, first match is fine
                     return angle
@@ -265,7 +265,7 @@ class AngleManager:
 
     def get_angle_by_points(self, vertex_point: Point, arm1_point: Point, arm2_point: Point, is_reflex_filter: Optional[bool] = None) -> Optional[Angle]:
         """
-        Retrieves an Angle defined by three Point objects: a common vertex, 
+        Retrieves an Angle defined by three Point objects: a common vertex,
         and one point on each arm. The order of arm1_point and arm2_point does not matter.
         If is_reflex_filter is specified, it will also filter by the angle's is_reflex state.
 
@@ -282,9 +282,9 @@ class AngleManager:
             return None
         if not all([vertex_point, arm1_point, arm2_point]):
             return None
-            
+
         for angle in self.drawables.Angles:
-            if not all([hasattr(angle, 'vertex_point'), hasattr(angle, 'arm1_point'), 
+            if not all([hasattr(angle, 'vertex_point'), hasattr(angle, 'arm1_point'),
                         hasattr(angle, 'arm2_point'), hasattr(angle, 'is_reflex')]):
                 continue # Skip angles missing point or is_reflex attributes
             if not all([angle.vertex_point, angle.arm1_point, angle.arm2_point]):
@@ -301,11 +301,11 @@ class AngleManager:
                     return angle
                 elif angle.is_reflex == is_reflex_filter: # Reflex state also matches
                     return angle
-        return None 
+        return None
 
     def delete_angle(self, angle_name: str) -> bool:
         """
-        Removes an angle by its name. Also attempts to remove its constituent segments 
+        Removes an angle by its name. Also attempts to remove its constituent segments
         if they are no longer needed by other drawables (handled by SegmentManager).
 
         Args:
@@ -315,7 +315,7 @@ class AngleManager:
             True if the angle was found and processed for removal, False otherwise.
         """
         self.canvas.undo_redo_manager.archive()
-        
+
         angle_to_delete = self.get_angle_by_name(angle_name)
         if not angle_to_delete:
             return False
@@ -331,7 +331,7 @@ class AngleManager:
             self.dependency_manager.unregister_dependency(child=angle_to_delete, parent=segment1)
         if segment2:
             self.dependency_manager.unregister_dependency(child=angle_to_delete, parent=segment2)
-        
+
         # Also unregister dependencies on the constituent points
         if vertex_point:
             self.dependency_manager.unregister_dependency(child=angle_to_delete, parent=vertex_point)
@@ -339,10 +339,10 @@ class AngleManager:
             self.dependency_manager.unregister_dependency(child=angle_to_delete, parent=arm1_point)
         if arm2_point:
             self.dependency_manager.unregister_dependency(child=angle_to_delete, parent=arm2_point)
-        
+
         # 2. Remove angle from dependency manager's own tracking
         self.dependency_manager.remove_drawable(angle_to_delete)
-        
+
         # 3. Remove angle from the drawables container
         # This is the primary step that ensures it won't be drawn in the next canvas redraw.
         try:
@@ -366,11 +366,11 @@ class AngleManager:
                 segment2.point1.x, segment2.point1.y,
                 segment2.point2.x, segment2.point2.y
             )
-            
+
         # 5. Draw the canvas
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
+
         return True
 
     def update_angle(
@@ -472,9 +472,9 @@ class AngleManager:
         for angle in cast(List["Drawable"], list(self.drawables.Angles)): # Iterate over a copy in case of modification
             if not (hasattr(angle, 'segment1') and hasattr(angle, 'segment2')):
                 continue
-            if not (angle.segment1 and angle.segment2): 
+            if not (angle.segment1 and angle.segment2):
                 continue
-            
+
             if angle.segment1.name == updated_segment_name or angle.segment2.name == updated_segment_name:
                 if hasattr(angle, '_initialize') and callable(angle._initialize):
                     try:
@@ -511,20 +511,20 @@ class AngleManager:
         for angle in self.drawables.Angles: # No need for list copy if just collecting names
             if not (hasattr(angle, 'segment1') and hasattr(angle, 'segment2')):
                 continue
-            if not (angle.segment1 and angle.segment2): 
+            if not (angle.segment1 and angle.segment2):
                 continue
             if angle.segment1.name == removed_segment_name or angle.segment2.name == removed_segment_name:
                 angles_to_remove_names.append(angle.name)
 
         if angles_to_remove_names:
-            # Archiving once before multiple removals might be better, 
+            # Archiving once before multiple removals might be better,
             # but delete_angle handles its own archiving.
-            # self.canvas.undo_redo_manager.archive() 
-            
+            # self.canvas.undo_redo_manager.archive()
+
             for angle_name in angles_to_remove_names:
                 print(f"AngleManager: Segment '{removed_segment_name}' was removed. Removing dependent angle '{angle_name}'.")
                 self.delete_angle(angle_name) # This handles its own draw and archive
-            
+
             # A final draw might not be necessary if delete_angle always draws and is the last action.
             # if self.canvas.draw_enabled:
             #     self.canvas.draw()
@@ -546,7 +546,7 @@ class AngleManager:
             if not isinstance(angle_state, dict):
                 print(f"AngleManager: Skipping invalid angle state data (not a dict): {angle_state}")
                 continue
-            
+
             # Resolve segments via drawable_manager, then construct Angle without model canvas logic
             args: Dict[str, Any] = angle_state.get('args', {})
             seg1_name = args.get('segment1_name')
@@ -563,19 +563,19 @@ class AngleManager:
                 angle_kwargs['color'] = args['color']
 
             new_angle = Angle(segment1, segment2, **angle_kwargs)
-            
+
             if new_angle:
                 # Check for duplicates by name before adding, though from_state might handle this
                 # or Angle's name generation from segments might lead to an existing object.
                 # For simplicity, assume from_state returns a valid, potentially new, object.
                 # A robust system might use get_angle_by_segments with segments derived from names in state.
-                
+
                 self.drawables.add(new_angle) # Add to Angles list
                 if hasattr(new_angle, 'segment1') and new_angle.segment1 and \
                    hasattr(new_angle, 'segment2') and new_angle.segment2:
                     self.dependency_manager.register_dependency(child=new_angle, parent=new_angle.segment1)
                     self.dependency_manager.register_dependency(child=new_angle, parent=new_angle.segment2)
-                    
+
                     # Also register dependencies on the constituent points
                     if hasattr(new_angle, 'vertex_point') and new_angle.vertex_point:
                         self.dependency_manager.register_dependency(child=new_angle, parent=new_angle.vertex_point)
@@ -608,18 +608,18 @@ class AngleManager:
         Removes all angles managed by this manager.
         """
         self.canvas.undo_redo_manager.archive()
-        
+
         if not hasattr(self.drawables, 'Angles') or not isinstance(self.drawables.Angles, list):
             return
 
         angle_names_to_remove: List[str] = [angle.name for angle in cast(List["Drawable"], list(self.drawables.Angles)) if hasattr(angle, 'name')]
-        
+
         for angle_name in angle_names_to_remove:
             self.delete_angle(angle_name) # This will handle individual draws and further dependencies.
-        
+
         # A final draw call might be redundant if delete_angle always draws and handles all cleanup.
         # However, if delete_angle was optimized not to draw, this would be needed.
         if self.canvas.draw_enabled and not angle_names_to_remove: # Only draw if nothing was removed (and drawn individually)
             self.canvas.draw()
         elif self.canvas.draw_enabled and angle_names_to_remove: # If angles were removed, they handled their draw, one final comprehensive draw
-             self.canvas.draw() 
+             self.canvas.draw()

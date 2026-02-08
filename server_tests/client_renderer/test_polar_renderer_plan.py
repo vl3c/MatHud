@@ -13,10 +13,8 @@ from __future__ import annotations
 
 from server_tests import python_path_setup  # noqa: F401
 
-import math
 import unittest
 from types import SimpleNamespace
-from typing import Any, Dict, List, Tuple
 
 from rendering.style_manager import get_renderer_style
 
@@ -104,7 +102,7 @@ class TestPolarPlanStub(unittest.TestCase):
         """Test PlanStub visibility checking."""
         plan = PlanStub(visible=True, plan_key="polar-grid")
         self.assertTrue(plan.is_visible(800, 600))
-        
+
         plan_invisible = PlanStub(visible=False, plan_key="polar-grid")
         self.assertFalse(plan_invisible.is_visible(800, 600))
 
@@ -117,10 +115,10 @@ class TestPolarPlanStub(unittest.TestCase):
         """Test PlanStub map state update tracking."""
         plan = PlanStub(visible=True, plan_key="polar-grid")
         self.assertEqual(plan.update_calls, 0)
-        
+
         plan.update_map_state({"scale": 1.0})
         self.assertEqual(plan.update_calls, 1)
-        
+
         plan.update_map_state({"scale": 2.0})
         self.assertEqual(plan.update_calls, 2)
 
@@ -128,7 +126,7 @@ class TestPolarPlanStub(unittest.TestCase):
         """Test PlanStub needs_apply behavior."""
         plan = PlanStub(visible=True, plan_key="polar-grid")
         self.assertTrue(plan.needs_apply())
-        
+
         plan.mark_dirty()
         self.assertTrue(plan.needs_apply())
 
@@ -136,7 +134,7 @@ class TestPolarPlanStub(unittest.TestCase):
         """Test PlanStub supports_transform behavior."""
         plan = PlanStub(visible=True, plan_key="polar-grid", supports_transform=True)
         self.assertTrue(plan.supports_transform())
-        
+
         plan_no_transform = PlanStub(visible=True, plan_key="polar-grid", supports_transform=False)
         self.assertFalse(plan_no_transform.supports_transform())
 
@@ -157,7 +155,7 @@ class TestPolarRendererIntegration(unittest.TestCase):
             width=1000,
             height=800,
         )
-        
+
         self.assertEqual(polar_grid.angular_divisions, 8)
         self.assertEqual(polar_grid.radial_spacing, 2.0)
         self.assertEqual(polar_grid.width, 1000)
@@ -170,7 +168,7 @@ class TestPolarRendererIntegration(unittest.TestCase):
             canvas_height=1080,
             scale_factor=2.0,
         )
-        
+
         self.assertEqual(mapper.canvas_width, 1920)
         self.assertEqual(mapper.canvas_height, 1080)
         self.assertEqual(mapper.scale_factor, 2.0)
@@ -189,7 +187,7 @@ class TestPolarPlanCaching(unittest.TestCase):
         renderer._plan_cache = {}
         renderer._polar_cache = None
         renderer._frame_seen_plan_keys = set()
-        
+
         def resolve_polar_plan(polar_grid, mapper, map_state, signature, drawable_name):
             cache_key = f"{drawable_name}:{signature}"
             if cache_key in renderer._plan_cache:
@@ -197,61 +195,61 @@ class TestPolarPlanCaching(unittest.TestCase):
                 if entry.get("signature") == signature:
                     entry["plan"].update_map_state(map_state)
                     return {"plan": entry["plan"], "plan_key": entry["plan"].plan_key}
-            
+
             plan = PlanStub(visible=True, plan_key=f"polar-{id(polar_grid)}")
             plan.update_map_state(map_state)
             renderer._plan_cache[cache_key] = {"plan": plan, "signature": signature}
             return {"plan": plan, "plan_key": plan.plan_key}
-        
+
         renderer._resolve_polar_plan = resolve_polar_plan
         return renderer
 
     def test_polar_plan_cache_reuse(self) -> None:
         """Test that polar plans are cached and reused."""
         renderer = self._make_mock_renderer()
-        
+
         polar_grid = create_mock_polar_grid()
         mapper = create_mock_coordinate_mapper()
         map_state = {"scale": 1.0}
         signature = ("polar", 1.0, 12)
-        
+
         ctx1 = renderer._resolve_polar_plan(polar_grid, mapper, map_state, signature, "PolarGrid")
         ctx2 = renderer._resolve_polar_plan(polar_grid, mapper, map_state, signature, "PolarGrid")
-        
+
         self.assertIs(ctx1["plan"], ctx2["plan"])
         self.assertEqual(ctx1["plan"].update_calls, 2)
 
     def test_polar_plan_cache_invalidation_on_signature_change(self) -> None:
         """Test that polar plans are rebuilt when signature changes."""
         renderer = self._make_mock_renderer()
-        
+
         polar_grid = create_mock_polar_grid()
         mapper = create_mock_coordinate_mapper()
         map_state = {"scale": 1.0}
-        
+
         signature1 = ("polar", 1.0, 12)
         signature2 = ("polar", 2.0, 12)  # Different zoom
-        
+
         ctx1 = renderer._resolve_polar_plan(polar_grid, mapper, map_state, signature1, "PolarGrid")
         ctx2 = renderer._resolve_polar_plan(polar_grid, mapper, map_state, signature2, "PolarGrid")
-        
+
         self.assertIsNot(ctx1["plan"], ctx2["plan"])
 
     def test_polar_plan_different_grids(self) -> None:
         """Test that different polar grids get different plans."""
         renderer = self._make_mock_renderer()
-        
+
         polar_grid1 = create_mock_polar_grid(angular_divisions=8)
         polar_grid2 = create_mock_polar_grid(angular_divisions=12)
         mapper = create_mock_coordinate_mapper()
         map_state = {"scale": 1.0}
-        
+
         signature1 = ("polar", 1.0, 8)
         signature2 = ("polar", 1.0, 12)
-        
+
         ctx1 = renderer._resolve_polar_plan(polar_grid1, mapper, map_state, signature1, "PolarGrid")
         ctx2 = renderer._resolve_polar_plan(polar_grid2, mapper, map_state, signature2, "PolarGrid")
-        
+
         self.assertIsNot(ctx1["plan"], ctx2["plan"])
 
 

@@ -64,7 +64,7 @@ class Cartesian2Axis(Drawable):
         tick_label_font_size (int): Font size for coordinate labels
         grid_color (str): Color for grid lines
     """
-    
+
     def __init__(self, coordinate_mapper: Any, color: str = default_color) -> None:
         """Initialize Cartesian coordinate system with a CoordinateMapper and color."""
         self.name: str = "cartesian-2axis-system"
@@ -92,7 +92,7 @@ class Cartesian2Axis(Drawable):
         super().__init__(name=self.name, color=color)
 
     # Canvas removed; mapper is the single source of truth
-    
+
     def reset(self) -> None:
         """Reset coordinate system to initial state with centered origin."""
         self.current_tick_spacing = self.default_tick_spacing
@@ -100,7 +100,7 @@ class Cartesian2Axis(Drawable):
     def get_class_name(self) -> str:
         """Return the class name 'Cartesian2Axis'."""
         return 'Cartesian2Axis'
-    
+
     @property
     def origin(self) -> Position:
         """Get the screen coordinates of the mathematical origin (0,0) using CoordinateMapper."""
@@ -108,7 +108,7 @@ class Cartesian2Axis(Drawable):
         origin_y: float
         origin_x, origin_y = self.mapper.math_to_screen(0, 0)
         return Position(origin_x, origin_y)
-    
+
     def get_visible_left_bound(self) -> float:
         """Calculate visible left boundary in mathematical coordinates."""
         return cast(float, self.mapper.get_visible_left_bound())
@@ -128,7 +128,7 @@ class Cartesian2Axis(Drawable):
     def get_relative_width(self) -> float:
         """Get canvas width adjusted for current scale factor."""
         return cast(float, self.width / self.mapper.scale_factor)
-    
+
     def get_relative_height(self) -> float:
         """Get canvas height adjusted for current scale factor."""
         return cast(float, self.height / self.mapper.scale_factor)
@@ -153,12 +153,12 @@ class Cartesian2Axis(Drawable):
     def _calculate_tick_spacing(self) -> float:
         ideal_spacing: float = self._calculate_ideal_tick_spacing()
         return self._find_appropriate_spacing(ideal_spacing)
-    
+
     def _calculate_ideal_tick_spacing(self) -> float:
         relative_width: float = self.get_relative_width()  # Width of the visible cartesian system in units
         ideal: float = relative_width / self.max_ticks  # Ideal width of a tick spacing
         return ideal
-    
+
     def _find_appropriate_spacing(self, ideal_spacing: float) -> float:
         # Bias to densify sooner and coarsen later
         effective_ideal: float = ideal_spacing * self.tick_spacing_bias
@@ -318,7 +318,7 @@ class Cartesian2Axis(Drawable):
         """Get the origin position for the specified axis"""
         origin: Position = self.origin
         return cast(float, origin.x if axis == 'x' else origin.y)
-    
+
     def _get_axis_boundary(self, axis: str) -> float:
         """Get the boundary (width/height) for the specified axis"""
         return self.width if axis == 'x' else self.height

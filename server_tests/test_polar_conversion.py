@@ -21,7 +21,7 @@ from typing import Tuple
 
 def rectangular_to_polar(x: float, y: float) -> Tuple[float, float]:
     """Convert rectangular (Cartesian) coordinates to polar coordinates.
-    
+
     This is a pure Python implementation matching rectangular_to_polar.
     """
     r = math.sqrt(x * x + y * y)
@@ -31,7 +31,7 @@ def rectangular_to_polar(x: float, y: float) -> Tuple[float, float]:
 
 def polar_to_rectangular(r: float, theta: float) -> Tuple[float, float]:
     """Convert polar coordinates to rectangular (Cartesian) coordinates.
-    
+
     This is a pure Python implementation matching polar_to_rectangular.
     """
     x = r * math.cos(theta)

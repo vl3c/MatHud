@@ -7,7 +7,7 @@ Provides a single import point for all mathematical visualization classes.
 Exported Classes:
     - Drawable: Base class for all canvas objects
     - Point, Position: Point and position representations
-    - Segment, Vector: Line-based geometric objects  
+    - Segment, Vector: Line-based geometric objects
     - Triangle, Rectangle: Polygon shapes
     - Circle, Ellipse: Curved geometric objects
     - Function: Mathematical function plotting

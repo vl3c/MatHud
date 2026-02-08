@@ -53,11 +53,12 @@ class TestPeriodicityDetection(unittest.TestCase):
         # sin(x/50) has period 2*pi*50 ~ 314
         # With default test_range=20, it looks linear
         # With range_hint=600, it should be detected
-        long_period_sin = lambda x: math.sin(x / 50)
-        
+        def long_period_sin(x):
+            return math.sin(x / 50)
+
         # Without range_hint - might not detect
         is_periodic_default, _ = MathUtils.detect_function_periodicity(long_period_sin)
-        
+
         # With range_hint - should detect
         is_periodic_hint, period = MathUtils.detect_function_periodicity(
             long_period_sin, range_hint=600
@@ -72,7 +73,7 @@ class TestPeriodicityDetection(unittest.TestCase):
                 return math.tan(x)
             except:
                 return float('inf')
-        
+
         # Should not crash, may or may not detect as periodic due to asymptotes
         is_periodic, period = MathUtils.detect_function_periodicity(safe_tan)
         # Just verify it doesn't crash and returns valid types
@@ -85,7 +86,7 @@ class TestPeriodicityDetection(unittest.TestCase):
                 return 100 * math.sin(x / 50) + 50 * math.tan(x / 100)
             except:
                 return float('inf')
-        
+
         is_periodic, period = MathUtils.detect_function_periodicity(combo, range_hint=600)
         self.assertTrue(is_periodic)
 
@@ -95,7 +96,7 @@ class TestPeriodicityDetection(unittest.TestCase):
             if x == 0:
                 return float('inf')
             return 1 / x
-        
+
         # 1/x has curvature on both sides of the asymptote which may look
         # like oscillation to the chord-deviation detector. The result
         # depends on how many segments span the asymptote.
@@ -113,7 +114,7 @@ class TestPeriodicityEdgeCases(unittest.TestCase):
             if x > 0:
                 raise ValueError("test error")
             return x
-        
+
         # Should not crash
         is_periodic, period = MathUtils.detect_function_periodicity(bad_func)
         self.assertIsInstance(is_periodic, bool)
@@ -122,7 +123,7 @@ class TestPeriodicityEdgeCases(unittest.TestCase):
         """Function returning NaN should be handled gracefully."""
         def nan_func(x):
             return float('nan')
-        
+
         is_periodic, period = MathUtils.detect_function_periodicity(nan_func)
         self.assertFalse(is_periodic)
 
@@ -130,7 +131,7 @@ class TestPeriodicityEdgeCases(unittest.TestCase):
         """Function returning infinity should be handled gracefully."""
         def inf_func(x):
             return float('inf')
-        
+
         is_periodic, period = MathUtils.detect_function_periodicity(inf_func)
         self.assertFalse(is_periodic)
 

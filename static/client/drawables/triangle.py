@@ -38,26 +38,26 @@ from utils.geometry_utils import GeometryUtils
 
 class Triangle(Polygon):
     """Represents a triangle formed by three connected line segments.
-    
+
     Validates that three segments form a proper triangle and provides rotation
     capabilities around the triangle's geometric center.
-    
+
     Attributes:
         segment1 (Segment): First side of the triangle
-        segment2 (Segment): Second side of the triangle  
+        segment2 (Segment): Second side of the triangle
         segment3 (Segment): Third side of the triangle
     """
     def __init__(self, segment1: Segment, segment2: Segment, segment3: Segment, color: str = default_color) -> None:
         """Initialize a triangle from three connected line segments.
-        
+
         Validates that the segments form a proper triangle before construction.
-        
+
         Args:
             segment1 (Segment): First side of the triangle
             segment2 (Segment): Second side of the triangle
             segment3 (Segment): Third side of the triangle
             color (str): CSS color value for triangle visualization
-            
+
         Raises:
             ValueError: If the segments do not form a valid triangle
         """
@@ -74,11 +74,11 @@ class Triangle(Polygon):
 
     def _set_name(self) -> str:
         # Get unique vertices using a set first, then sort
-        vertices: Set[str] = {p.name for p in [self.segment1.point1, self.segment1.point2, 
-                                   self.segment2.point1, self.segment2.point2, 
+        vertices: Set[str] = {p.name for p in [self.segment1.point1, self.segment1.point2,
+                                   self.segment2.point1, self.segment2.point2,
                                    self.segment3.point1, self.segment3.point2]}
         vertices_list: list[str] = sorted(vertices)  # Convert to sorted list
-        return vertices_list[0] + vertices_list[1] + vertices_list[2]  # Now we're guaranteed three unique points 
+        return vertices_list[0] + vertices_list[1] + vertices_list[2]  # Now we're guaranteed three unique points
 
     def get_class_name(self) -> str:
         return 'Triangle'
@@ -89,16 +89,16 @@ class Triangle(Polygon):
             if points.count(point) != 2:
                 return False
         return True
-    
+
     def _classify_triangle(self) -> Dict[str, bool]:
         flags = GeometryUtils.triangle_type_flags_from_segments(self._segments)
         if flags is None:
             return {"equilateral": False, "isosceles": False, "scalene": False, "right": False}
-        return flags
+        return dict(flags)
 
     def get_type_flags(self) -> Dict[str, bool]:
         """Return classification flags describing the triangle."""
-        return super().get_type_flags()
+        return dict(super().get_type_flags())
 
     def is_equilateral(self) -> bool:
         return self.get_type_flags()["equilateral"]
@@ -111,7 +111,7 @@ class Triangle(Polygon):
 
     def is_right(self) -> bool:
         return self.get_type_flags()["right"]
-    
+
     def get_state(self) -> Dict[str, Any]:
         # Collect all point names into a list
         point_names: list[str] = [

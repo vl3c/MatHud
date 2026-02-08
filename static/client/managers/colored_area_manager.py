@@ -76,13 +76,13 @@ if TYPE_CHECKING:
 class ColoredAreaManager:
     """
     Manages colored area drawables for a Canvas.
-    
+
     This class is responsible for:
     - Creating colored area objects
     - Retrieving colored area objects
     - Deleting colored area objects
     """
-    
+
     def __init__(
         self,
         canvas: "Canvas",
@@ -93,7 +93,7 @@ class ColoredAreaManager:
     ) -> None:
         """
         Initialize the ColoredAreaManager.
-        
+
         Args:
             canvas: The Canvas object this manager is responsible for
             drawables_container: The container for storing drawables
@@ -106,7 +106,7 @@ class ColoredAreaManager:
         self.name_generator: "DrawableNameGenerator" = name_generator
         self.dependency_manager: "DrawableDependencyManager" = dependency_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
-        
+
     def create_colored_area(
         self,
         drawable1_name: Optional[str],
@@ -119,7 +119,7 @@ class ColoredAreaManager:
         """
         Creates a colored area between two functions, two segments, or a function and a segment.
         Automatically determines the type of colored area based on the inputs.
-        
+
         Args:
             drawable1_name: Name of first function/segment (or None for x-axis)
             drawable2_name: Name of second function/segment (or None for x-axis)
@@ -127,19 +127,19 @@ class ColoredAreaManager:
             right_bound: Optional right bound for function areas
             color: Color of the area (default: lightblue)
             opacity: Opacity of the area (default: 0.3)
-            
+
         Returns:
             The created colored area object
-            
+
         Raises:
             ValueError: If color or opacity values are invalid or if drawables not found
         """
         # Validate color and opacity before proceeding
         self.canvas._validate_color_and_opacity(color, opacity)
-        
+
         # Archive for undo
         self.canvas.undo_redo_manager.archive()
-        
+
         # Get the first drawable
         drawable1: Optional[Union[Function, Segment]] = None
         if drawable1_name is not None and drawable1_name != "x_axis":
@@ -148,7 +148,7 @@ class ColoredAreaManager:
                 drawable1 = self.drawable_manager.get_function(drawable1_name)
             if drawable1 is None:
                 raise ValueError(f"Could not find drawable with name {drawable1_name}")
-        
+
         # Get the second drawable if provided
         drawable2: Optional[Union[Function, Segment]] = None
         if drawable2_name is not None and drawable2_name != "x_axis":
@@ -157,7 +157,7 @@ class ColoredAreaManager:
                 drawable2 = self.drawable_manager.get_function(drawable2_name)
             if drawable2 is None:
                 raise ValueError(f"Could not find drawable with name {drawable2_name}")
-        
+
         if isinstance(drawable1, Segment) and isinstance(drawable2, Function):
             # Swap so the function is treated as the primary drawable
             drawable1, drawable2 = drawable2, drawable1
@@ -206,17 +206,17 @@ class ColoredAreaManager:
             colored_area = FunctionSegmentBoundedColoredArea(drawable1, drawable2, color=color, opacity=opacity)
         else:
             # Function-function case
-            colored_area = FunctionsBoundedColoredArea(drawable1, drawable2, 
+            colored_area = FunctionsBoundedColoredArea(drawable1, drawable2,
                                                      left_bound=left_bound, right_bound=right_bound,
                                                      color=color, opacity=opacity)
 
         # Add to drawables
         self.drawables.add(colored_area)
         self.dependency_manager.analyze_drawable_for_dependencies(colored_area)
-        
+
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
+
         return colored_area
 
     def create_region_colored_area(
@@ -236,7 +236,7 @@ class ColoredAreaManager:
     ) -> ClosedShapeColoredArea:
         """
         Creates a colored area from a region expression, existing shapes, or simple geometries.
-        
+
         Expression takes precedence if provided. Supports boolean operations on shapes.
         """
         self.canvas._validate_color_and_opacity(color, opacity)
@@ -340,7 +340,7 @@ class ColoredAreaManager:
             self.canvas.draw()
 
         return closed_area
-    
+
     def _create_from_expression(
         self,
         expression: str,
@@ -350,16 +350,16 @@ class ColoredAreaManager:
     ) -> ClosedShapeColoredArea:
         """Create a colored area from a boolean region expression."""
         from utils.area_expression_evaluator import AreaExpressionEvaluator
-        
+
         result = AreaExpressionEvaluator.evaluate(expression, self.canvas)
         if result.error:
             raise ValueError(result.error)
-        
+
         if result.region is None:
             raise ValueError(f"Expression '{expression}' did not produce a valid region")
-        
+
         points = result.region._sample_to_points(resolution)
-        
+
         closed_area = ClosedShapeColoredArea(
             shape_type="region",
             expression=expression,
@@ -368,24 +368,24 @@ class ColoredAreaManager:
             color=color,
             opacity=opacity,
         )
-        
+
         self.drawables.add(closed_area)
-        
+
         if self.canvas.draw_enabled:
             self.canvas.draw()
-        
+
         return closed_area
-        
+
     def delete_colored_area(self, name: str) -> bool:
         """
         Delete a colored area by its name.
-        
+
         Searches through all colored area categories to find and remove the area
         with the specified name. Archives the state for undo functionality.
-        
+
         Args:
             name (str): The name of the colored area to delete
-            
+
         Returns:
             bool: True if the colored area was found and deleted, False otherwise
         """
@@ -403,22 +403,22 @@ class ColoredAreaManager:
                     break
             if colored_area:
                 break
-                
+
         if not colored_area:
             return False
-            
+
         # Archive before deletion
         self.canvas.undo_redo_manager.archive()
-        
+
         # Remove the colored area
         self.drawables.remove(colored_area)
-        
+
         # Redraw
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
+
         return True
-        
+
     def delete_colored_areas_for_function(
         self,
         func: Union[str, Function],
@@ -427,23 +427,23 @@ class ColoredAreaManager:
     ) -> bool:
         """
         Deletes all colored areas associated with a function
-        
+
         Args:
             func: The function whose colored areas should be deleted
-            
+
         Returns:
             bool: True if any areas were deleted, False otherwise
         """
         # Check if function is a string (name) or object
         if isinstance(func, str):
             func = self.drawable_manager.get_function(func)
-            
+
         if not func:
             return False
-            
+
         # First check if there are any areas to delete
         areas_to_delete = []
-        
+
         # Check FunctionsBoundedColoredArea
         for area in self.drawables.FunctionsBoundedColoredAreas:
             if area.func1 == func or area.func2 == func:
@@ -453,22 +453,22 @@ class ColoredAreaManager:
         for area in self.drawables.FunctionSegmentBoundedColoredAreas:
             if area.func == func:
                 areas_to_delete.append(area)
-        
+
         if areas_to_delete:
             if archive:
                 self.canvas.undo_redo_manager.archive()
-            
+
             # Now delete the areas
             for area in areas_to_delete:
                 self.drawables.remove(area)
-                
+
             if self.canvas.draw_enabled:
                 self.canvas.draw()
-                
+
             return True
-            
+
         return False
-        
+
     def _expression_references_drawable_name(self, expression: str, drawable_name: str) -> bool:
         if not expression or not drawable_name:
             return False
@@ -625,28 +625,28 @@ class ColoredAreaManager:
     ) -> bool:
         """
         Deletes all colored areas associated with a segment
-        
+
         Args:
             segment: The segment whose colored areas should be deleted
-            
+
         Returns:
             bool: True if any areas were deleted, False otherwise
         """
         # Check if segment is a string (name) or object
         if isinstance(segment, str):
             segment = self.drawable_manager.get_segment_by_name(segment)
-            
+
         if not segment:
             return False
-            
+
         # First check if there are any areas to delete
         areas_to_delete = []
-        
+
         # Check SegmentsBoundedColoredArea
         for area in self.drawables.SegmentsBoundedColoredAreas:
             if area.uses_segment(segment):
                 areas_to_delete.append(area)
-                
+
         # Check FunctionSegmentBoundedColoredArea
         for area in self.drawables.FunctionSegmentBoundedColoredAreas:
             if area.uses_segment(segment):
@@ -654,7 +654,7 @@ class ColoredAreaManager:
         for area in getattr(self.drawables, "ClosedShapeColoredAreas", []):
             if hasattr(area, "uses_segment") and area.uses_segment(segment):
                 areas_to_delete.append(area)
-        
+
         # Also remove region-expression areas that reference this segment by name.
         for area in getattr(self.drawables, "ClosedShapeColoredAreas", []):
             if getattr(area, "shape_type", None) != "region":
@@ -669,30 +669,30 @@ class ColoredAreaManager:
             # Archive for undo unless this is part of a larger archived operation.
             if archive:
                 self.canvas.undo_redo_manager.archive()
-            
+
             # Now delete the areas
             for area in areas_to_delete:
                 self.drawables.remove(area)
-                
+
             if self.canvas.draw_enabled:
                 self.canvas.draw()
-                
+
             return True
-            
+
         return False
-        
+
     def get_colored_areas_for_drawable(self, drawable: Union[Function, Segment]) -> List["Drawable"]:
         """
         Gets all colored areas associated with a drawable (function or segment)
-        
+
         Args:
             drawable: The function or segment to find colored areas for
-            
+
         Returns:
             list: List of colored areas that use the drawable
         """
         areas: List["Drawable"] = []
-        
+
         if isinstance(drawable, Function):
             # Check FunctionsBoundedColoredArea
             for area in self.drawables.FunctionsBoundedColoredAreas:
@@ -703,7 +703,7 @@ class ColoredAreaManager:
             for area in self.drawables.FunctionSegmentBoundedColoredAreas:
                 if area.func == drawable:
                     areas.append(area)
-                    
+
         elif isinstance(drawable, Segment):
             # Check SegmentsBoundedColoredArea
             for area in self.drawables.SegmentsBoundedColoredAreas:
@@ -728,7 +728,7 @@ class ColoredAreaManager:
             for area in self.drawables.ClosedShapeColoredAreas:
                 if hasattr(area, "uses_ellipse") and area.uses_ellipse(drawable):
                     areas.append(area)
-                    
+
         return areas
 
     def _get_colored_area_by_name(self, name: str) -> Optional["Drawable"]:
@@ -888,4 +888,3 @@ class ColoredAreaManager:
                 area.update_left_bound(float(new_left_bound))
             if "right_bound" in pending_fields and new_right_bound is not None:
                 area.update_right_bound(float(new_right_bound))
-        return True 

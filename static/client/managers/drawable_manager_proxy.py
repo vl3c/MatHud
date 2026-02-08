@@ -2,7 +2,7 @@
 MatHud Drawable Manager Proxy System
 
 Resolves circular dependencies during manager initialization using the Proxy Pattern.
-Enables specialized managers to access each other through the main DrawableManager without 
+Enables specialized managers to access each other through the main DrawableManager without
 creating dependency cycles during object construction.
 
 Design Pattern:
@@ -35,30 +35,30 @@ if TYPE_CHECKING:
 
 class DrawableManagerProxy:
     """A proxy for the DrawableManager that forwards all attribute access to the real manager.
-    
+
     This breaks circular dependencies during initialization by deferring attribute resolution
     until runtime access. Specialized managers can access other managers through this proxy
     without creating initialization order constraints.
     """
-    
+
     def __init__(self, real_manager: "DrawableManager") -> None:
         """
         Initialize the proxy with a reference to the real manager.
-        
+
         Args:
             real_manager: The DrawableManager instance this proxy represents
         """
         self._real_manager: "DrawableManager" = real_manager
-    
+
     def __getattr__(self, name: str) -> Any:
         """
         Delegate attribute access to the real manager.
         This is called when an attribute doesn't exist on the proxy.
-        
+
         Args:
             name: The name of the attribute to access
-            
+
         Returns:
             The attribute from the real manager
         """
-        return getattr(self._real_manager, name) 
+        return getattr(self._real_manager, name)

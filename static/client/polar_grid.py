@@ -64,13 +64,13 @@ class PolarGrid(Drawable):
         self.coordinate_mapper: Any = coordinate_mapper
         self.width: float = coordinate_mapper.canvas_width
         self.height: float = coordinate_mapper.canvas_height
-        
+
         # Configuration
         self.angular_divisions: int = angular_divisions
         self.radial_spacing: float = radial_spacing
         self.show_angle_labels: bool = show_angle_labels
         self.show_radius_labels: bool = show_radius_labels
-        
+
         # Internal zoom-adaptive spacing state
         self._default_radial_spacing: float = radial_spacing
         self._current_radial_spacing: float = radial_spacing
@@ -83,7 +83,7 @@ class PolarGrid(Drawable):
         self._doubling_repeat_trigger_ratio: float = 2.5
         self._max_progression_steps: int = 8
         self._min_radial_spacing: float = 1e-6
-        
+
         # Colors
         self.circle_color: str = "lightgrey"
         self.radial_color: str = "lightgrey"
@@ -155,7 +155,7 @@ class PolarGrid(Drawable):
 
     def get_angle_labels(self) -> List[Tuple[float, str]]:
         """Get angle labels for each radial line.
-        
+
         Returns:
             List of (angle_radians, label_text) tuples
         """
@@ -168,7 +168,7 @@ class PolarGrid(Drawable):
 
     def get_radial_circles(self) -> List[float]:
         """Get the radii for concentric circles in screen pixels.
-        
+
         Returns:
             List of radii for each concentric circle
         """

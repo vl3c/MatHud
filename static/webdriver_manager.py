@@ -46,28 +46,28 @@ class SvgState(TypedDict, total=False):
 
 class WebDriverManager:
     """Manages Selenium WebDriver operations for capturing math visualizations.
-    
+
     Provides headless Firefox WebDriver for injecting SVG states and capturing
     canvas screenshots for the vision system. Handles page configuration,
     error recovery, and resource cleanup.
     """
-    
+
     def __init__(self, base_url: str = "http://127.0.0.1:5000/") -> None:
         """Initialize WebDriverManager with specified base URL.
-        
+
         Args:
             base_url: Base URL for the MatHud application (default: localhost:5000)
         """
         self.base_url: str = base_url
         self.driver: Optional[WebDriver] = None
         self._setup_driver()
-    
+
     def capture_svg_state(self, svg_state: SvgState) -> None:
         """Update SVG state and capture the canvas.
-        
+
         Main entry point for vision system image capture. Updates the SVG
         content and takes a screenshot for AI analysis.
-        
+
         Args:
             svg_state: Dictionary containing SVG content, dimensions, viewBox, and transform
         """
@@ -77,13 +77,13 @@ class WebDriverManager:
         except Exception as e:
             print(f"Failed to capture canvas: {str(e)}")
             logging.error(f"Failed to capture canvas: {str(e)}")
-    
+
     def update_svg_state(self, svg_state: SvgState) -> None:
         """Update the SVG content and attributes with the provided state.
-        
+
         Injects SVG content into the headless browser and configures container
         dimensions and SVG attributes for accurate rendering.
-        
+
         Args:
             svg_state: Dictionary with SVG content, dimensions, viewBox, and transform
         """
@@ -93,14 +93,14 @@ class WebDriverManager:
         self.driver.execute_script("""
             const svg = document.getElementById('math-svg');
             const container = document.querySelector('.math-container');
-            
+
             // Set the SVG content
             svg.outerHTML = arguments[0].content;
-            
+
             // Set container dimensions
             container.style.width = arguments[0].dimensions.width + 'px';
             container.style.height = arguments[0].dimensions.height + 'px';
-            
+
             // Set SVG attributes
             const newSvg = document.getElementById('math-svg');  // Get reference to new SVG after outerHTML
             if (arguments[0].viewBox) {
@@ -109,53 +109,53 @@ class WebDriverManager:
             if (arguments[0].transform) {
                 newSvg.setAttribute('transform', arguments[0].transform);
             }
-            
+
             return true;  // Confirm execution
         """, svg_state)
         time.sleep(1)  # Give time for the SVG to be redrawn
 
     def _setup_driver(self) -> None:
         """Initialize the Firefox WebDriver with headless mode.
-        
+
         Sets up headless Firefox WebDriver with retry logic and page configuration.
         Handles navigation to the application URL and configures page layout.
         """
         print("Initializing WebDriver...")
         firefox_options = Options()
         firefox_options.add_argument('--headless')
-        
+
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 if self.driver is None:
                     self.driver = webdriver.Firefox(options=firefox_options)
                     print("WebDriver started successfully.")
-                
+
                 time.sleep(3)  # Wait for initialization
-                
+
                 print(f"Attempting to navigate (attempt {attempt + 1}/{max_retries})...")
                 self.driver.get(self.base_url)
-                
+
                 self._configure_page_layout()
                 print("WebDriver navigation successful.")
                 return
-                
+
             except Exception as e:
                 print(f"Attempt {attempt + 1} failed: {str(e)}")
                 if self.driver:
                     self.driver.quit()
                     self.driver = None
-                
+
                 if attempt < max_retries - 1:
                     print("Retrying in 2 seconds...")
                     time.sleep(2)
                 else:
                     print("All attempts failed.")
                     raise
-    
+
     def _configure_page_layout(self) -> None:
         """Configure the page layout by hiding chat container and adjusting math container.
-        
+
         Optimizes the page layout for screenshot capture by hiding UI elements
         and maximizing the math container visibility.
         """
@@ -171,10 +171,10 @@ class WebDriverManager:
                 mathContainer.style.width = '100%';
             }
         """)
-    
+
     def capture_canvas(self) -> None:
         """Capture the math visualization canvas as a PNG image.
-        
+
         Takes a screenshot of the math container and saves it to canvas_snapshots/canvas.png.
         Handles element waiting, content verification, and size configuration.
         """
@@ -183,28 +183,28 @@ class WebDriverManager:
             snapshots_dir = "canvas_snapshots"
             if not os.path.exists(snapshots_dir):
                 os.makedirs(snapshots_dir)
-            
+
             self._wait_for_svg_elements()
             self._verify_svg_content()
             dimensions = self._get_container_dimensions()
             self._configure_svg_size(dimensions)
-            
+
             time.sleep(1)  # Give time for changes to take effect
-            
+
             canvas_path = os.path.join(snapshots_dir, "canvas.png")
             if self.driver is None:
                 raise RuntimeError("WebDriver not initialized")
             container = self.driver.find_element(By.CLASS_NAME, "math-container")
             container.screenshot(canvas_path)
             print(f"Canvas capture completed successfully (dimensions: {dimensions['width']}x{dimensions['height']})")
-            
+
         except Exception as e:
             print(f"Error in capture_canvas: {str(e)}")
             logging.error(f"Error in capture_canvas: {str(e)}")
-    
+
     def _wait_for_svg_elements(self) -> None:
         """Wait for SVG elements to be present and visible.
-        
+
         Uses WebDriverWait to ensure SVG elements are loaded before capture.
         """
         if self.driver is None:
@@ -214,14 +214,14 @@ class WebDriverManager:
         )
         WebDriverWait(self.driver, 10).until(
             EC.presence_of_all_elements_located((
-                By.CSS_SELECTOR, 
+                By.CSS_SELECTOR,
                 "#math-svg > *"
             ))
         )
-    
+
     def _verify_svg_content(self) -> None:
         """Verify that the SVG content is not empty.
-        
+
         Raises:
             Exception: If SVG content is empty
         """
@@ -230,10 +230,10 @@ class WebDriverManager:
         svg = self.driver.find_element(By.ID, "math-svg")
         if not svg.get_attribute("innerHTML").strip():
             raise Exception("SVG content is empty")
-    
+
     def _get_container_dimensions(self) -> SvgDimensions:
         """Get the actual rendered dimensions of the container.
-        
+
         Returns:
             SvgDimensions: Container dimensions with 'width' and 'height' keys
         """
@@ -248,12 +248,12 @@ class WebDriverManager:
             };
         """)
         return cast(SvgDimensions, result)
-    
+
     def _configure_svg_size(self, dimensions: SvgDimensions) -> None:
         """Configure the SVG and container size with the given dimensions.
-        
+
         Sets container and SVG styling for optimal screenshot capture.
-        
+
         Args:
             dimensions: Dictionary with 'width' and 'height' keys
         """
@@ -262,11 +262,11 @@ class WebDriverManager:
         self.driver.execute_script("""
             var container = document.querySelector('.math-container');
             var svg = document.getElementById('math-svg');
-            
+
             // Set container style
             container.style.width = arguments[0] + 'px';
             container.style.height = arguments[1] + 'px';
-            
+
             // Set SVG attributes
             svg.setAttribute('width', arguments[0]);
             svg.setAttribute('height', arguments[1]);
@@ -277,7 +277,7 @@ class WebDriverManager:
             }
             svg.style.width = '100%';
             svg.style.height = '100%';
-            
+
             // Force all SVG elements to be visible
             var elements = svg.getElementsByTagName('*');
             for(var i=0; i < elements.length; i++) {
@@ -285,12 +285,12 @@ class WebDriverManager:
                 elements[i].style.opacity = '1';
             }
         """, dimensions['width'], dimensions['height'])
-    
+
     def cleanup(self) -> None:
         """Clean up WebDriver resources.
-        
+
         Properly closes the WebDriver and releases system resources.
         """
         if self.driver:
             self.driver.quit()
-            self.driver = None 
+            self.driver = None

@@ -317,7 +317,7 @@ class AIModel:
     @staticmethod
     def get_default_model() -> AIModel:
         """Get the default AI model instance.
-        
+
         Returns:
             AIModel: Default model configuration
         """

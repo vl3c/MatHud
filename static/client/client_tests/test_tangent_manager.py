@@ -246,7 +246,8 @@ class TestMathUtilsTangentFunctions(unittest.TestCase):
     def test_numerical_derivative_at_polynomial(self) -> None:
         """Test numerical derivative of x^2 at x=3."""
         # y = x^2, y' = 2x, y'(3) = 6
-        func = lambda x: x**2
+        def func(x):
+            return x**2
         deriv = MathUtils.numerical_derivative_at(func, 3.0)
         self.assertIsNotNone(deriv)
         self.assertAlmostEqual(deriv, 6.0, places=4)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import unittest
-from typing import Optional
+from typing import Any, Optional
 from unittest.mock import Mock, patch
 
 from static.app_manager import AppManager, MatHudFlask
@@ -23,7 +23,7 @@ class TestRoutes(unittest.TestCase):
         # Set test environment variables to disable authentication
         self.original_require_auth: Optional[str] = os.environ.get('REQUIRE_AUTH')
         os.environ['REQUIRE_AUTH'] = 'false'
-        
+
         self.app: MatHudFlask = AppManager.create_app()
         self.client = self.app.test_client()
         self.app.config['TESTING'] = True
@@ -37,7 +37,7 @@ class TestRoutes(unittest.TestCase):
         if hasattr(self.app, 'webdriver_manager') and self.app.webdriver_manager:
             self.app.webdriver_manager = None
         self._remove_canvas_snapshot()
-        
+
         # Restore original REQUIRE_AUTH environment variable
         if self.original_require_auth is not None:
             os.environ['REQUIRE_AUTH'] = self.original_require_auth
@@ -57,10 +57,10 @@ class TestRoutes(unittest.TestCase):
         # Create a mock instance
         mock_instance = Mock()
         mock_webdriver_class.return_value = mock_instance
-        
+
         response = self.client.get('/init_webdriver')
         data = json.loads(response.data)
-        
+
         self.assertEqual(response.status_code, 200)
         self.assertEqual(data['status'], 'success')
         self.assertEqual(data['message'], 'WebDriver initialization successful')
@@ -115,13 +115,13 @@ class TestRoutes(unittest.TestCase):
         class MockMessage:
             content = "Test response"
             tool_calls = None
-            
+
         class MockResponse:
             message = MockMessage()
             finish_reason = "stop"
-            
+
         mock_chat.return_value = MockResponse()
-        
+
         test_message = {
             'message': json.dumps({
                 'user_message': 'test message',
@@ -232,7 +232,7 @@ class TestAPIRouting(unittest.TestCase):
         """Set up test client before each test."""
         self.original_require_auth: Optional[str] = os.environ.get('REQUIRE_AUTH')
         os.environ['REQUIRE_AUTH'] = 'false'
-        
+
         self.app: MatHudFlask = AppManager.create_app()
         self.client = self.app.test_client()
         self.app.config['TESTING'] = True
@@ -255,7 +255,7 @@ class TestAPIRouting(unittest.TestCase):
         """Test that standard models route to Chat Completions API."""
         # Set a standard model
         self.app.ai_api.set_model("gpt-4o-mini")
-        
+
         # Check model is not a reasoning model
         model = self.app.ai_api.get_model()
         self.assertFalse(model.is_reasoning_model)
@@ -265,7 +265,7 @@ class TestAPIRouting(unittest.TestCase):
         # Set a reasoning model
         self.app.ai_api.set_model("o3")
         self.app.responses_api.set_model("o3")
-        
+
         # Check both APIs have the model set
         self.assertEqual(self.app.ai_api.get_model().id, "o3")
         self.assertEqual(self.app.responses_api.get_model().id, "o3")
@@ -279,7 +279,7 @@ class TestAPIRouting(unittest.TestCase):
             {"type": "token", "text": "Hello"},
             {"type": "final", "ai_message": "Hello", "ai_tool_calls": [], "finish_reason": "stop"}
         ])
-        
+
         test_message = {
             'message': json.dumps({
                 'user_message': 'test',
@@ -288,9 +288,9 @@ class TestAPIRouting(unittest.TestCase):
             }),
             'svg_state': None
         }
-        
-        response = self.client.post('/send_message_stream', json=test_message)
-        
+
+        self.client.post('/send_message_stream', json=test_message)
+
         # Check that Chat Completions API was called (not Responses API)
         mock_stream.assert_called_once()
 
@@ -304,10 +304,10 @@ class TestAPIRouting(unittest.TestCase):
             {"type": "token", "text": "Answer"},
             {"type": "final", "ai_message": "Answer", "ai_tool_calls": [], "finish_reason": "stop"}
         ])
-        
+
         # Pre-set the model to a reasoning model
         self.app.ai_api.model = self.app.ai_api.model.from_identifier("o3")
-        
+
         test_message = {
             'message': json.dumps({
                 'user_message': 'test',
@@ -316,23 +316,23 @@ class TestAPIRouting(unittest.TestCase):
             }),
             'svg_state': None
         }
-        
-        response = self.client.post('/send_message_stream', json=test_message)
-        
+
+        self.client.post('/send_message_stream', json=test_message)
+
         # Check that Responses API was called
         mock_stream.assert_called_once()
 
     def test_model_selector_options(self) -> None:
         """Test that all expected models are configured."""
         from static.ai_model import AIModel
-        
+
         reasoning_models = ["gpt-5-chat-latest", "gpt-5.2-chat-latest", "gpt-5.2", "o3", "o4-mini"]
         standard_models = ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "gpt-5-nano", "gpt-3.5-turbo"]
-        
+
         for model_id in reasoning_models:
             model = AIModel.from_identifier(model_id)
             self.assertTrue(model.is_reasoning_model, f"{model_id} should be reasoning")
-        
+
         for model_id in standard_models:
             model = AIModel.from_identifier(model_id)
             self.assertFalse(model.is_reasoning_model, f"{model_id} should not be reasoning")
@@ -345,7 +345,7 @@ class TestStreamingResponseFormat(unittest.TestCase):
         """Set up test client before each test."""
         self.original_require_auth: Optional[str] = os.environ.get('REQUIRE_AUTH')
         os.environ['REQUIRE_AUTH'] = 'false'
-        
+
         self.app: MatHudFlask = AppManager.create_app()
         self.client = self.app.test_client()
         self.app.config['TESTING'] = True
@@ -364,7 +364,7 @@ class TestStreamingResponseFormat(unittest.TestCase):
             {"type": "token", "text": "Hello"},
             {"type": "final", "ai_message": "Hello", "ai_tool_calls": [], "finish_reason": "stop"}
         ])
-        
+
         test_message = {
             'message': json.dumps({
                 'user_message': 'test',
@@ -373,19 +373,19 @@ class TestStreamingResponseFormat(unittest.TestCase):
             }),
             'svg_state': None
         }
-        
+
         response = self.client.post('/send_message_stream', json=test_message)
-        
+
         # Check content type
         self.assertEqual(response.content_type, 'application/x-ndjson')
-        
+
         # Parse NDJSON response
         lines = response.data.decode('utf-8').strip().split('\n')
         events = [json.loads(line) for line in lines if line.strip()]
-        
+
         # Should have token and final events
         self.assertGreater(len(events), 0)
-        
+
         # Last event should be final
         self.assertEqual(events[-1]["type"], "final")
         self.assertIn("ai_message", events[-1])
@@ -401,10 +401,10 @@ class TestStreamingResponseFormat(unittest.TestCase):
             {"type": "token", "text": "The answer is"},
             {"type": "final", "ai_message": "The answer is", "ai_tool_calls": [], "finish_reason": "stop"}
         ])
-        
+
         # Pre-set the model to a reasoning model
         self.app.ai_api.model = self.app.ai_api.model.from_identifier("o3")
-        
+
         test_message = {
             'message': json.dumps({
                 'user_message': 'test',
@@ -413,13 +413,13 @@ class TestStreamingResponseFormat(unittest.TestCase):
             }),
             'svg_state': None
         }
-        
+
         response = self.client.post('/send_message_stream', json=test_message)
-        
+
         # Parse NDJSON response
         lines = response.data.decode('utf-8').strip().split('\n')
         events = [json.loads(line) for line in lines if line.strip()]
-        
+
         # Should have reasoning event
         reasoning_events = [e for e in events if e.get("type") == "reasoning"]
         self.assertGreater(len(reasoning_events), 0)
@@ -497,7 +497,6 @@ class TestInterceptSearchTools(unittest.TestCase):
     def test_essential_tools_always_allowed(self, mock_service_class: Mock) -> None:
         """Essential tools should always be allowed even if not in search results."""
         from static.routes import _intercept_search_tools
-        from static.openai_api_base import ESSENTIAL_TOOLS
 
         # Mock search_tools to return only create_circle (no essentials)
         mock_service = Mock()
@@ -563,7 +562,7 @@ class TestInterceptSearchTools(unittest.TestCase):
         ]
         mock_service_class.return_value = mock_service
 
-        tool_calls = [
+        tool_calls: list[dict[str, Any]] = [
             {
                 'function_name': 'search_tools',
                 'arguments': '{"query": "point", "max_results": 5}'  # JSON string
@@ -631,4 +630,4 @@ class TestInterceptSearchTools(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()

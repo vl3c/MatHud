@@ -65,10 +65,10 @@ if TYPE_CHECKING:
 
 class Canvas:
     """Central mathematical visualization canvas coordinating all drawable objects and interactions.
-    
+
     Manages the SVG viewport, coordinate system, geometric objects, and user interactions.
     Provides the main interface for creating, manipulating, and visualizing mathematical content.
-    
+
     Attributes:
         width (float): Canvas viewport width in pixels
         height (float): Canvas viewport height in pixels
@@ -79,7 +79,7 @@ class Canvas:
         dependency_manager (DrawableDependencyManager): Tracks drawable relationships
         undo_redo_manager (UndoRedoManager): Handles state archiving/restoration
         transformations_manager (TransformationsManager): Manages object transformations
-        
+
     Legacy Properties (delegated to coordinate_mapper):
         center (Position): Current viewport center point
         scale_factor (float): Current zoom level (1.0 = normal)
@@ -90,9 +90,9 @@ class Canvas:
     """
     def __init__(self, width: float, height: float, draw_enabled: bool = True, renderer: Optional[RendererProtocol] = None) -> None:
         """Initialize the mathematical canvas with specified dimensions.
-        
+
         Sets up the coordinate system, managers, and initial state for mathematical visualization.
-        
+
         Args:
             width (float): Canvas viewport width in pixels
             height (float): Canvas viewport height in pixels
@@ -101,17 +101,17 @@ class Canvas:
         self.computations: List[Dict[str, Any]] = []  # Store computation history
         self.width: float = width
         self.height: float = height
-        
+
         # Initialize CoordinateMapper for coordinate transformation management
         self.coordinate_mapper: CoordinateMapper = CoordinateMapper(width, height)
-        
+
         # Legacy properties for backward compatibility - delegate to coordinate_mapper
         self.dragging: bool = False
         self.draw_enabled: bool = draw_enabled
-        
+
         # Initialize coordinate system and managers
         self.cartesian2axis: Cartesian2Axis = Cartesian2Axis(self.coordinate_mapper)
-        
+
         # Add managers
         self.undo_redo_manager: UndoRedoManager = UndoRedoManager(self)
         self.drawable_manager: DrawableManager = DrawableManager(self)
@@ -316,13 +316,13 @@ class Canvas:
 
     def _safe_drawable_class_name(self, drawable: Any) -> str:
         try:
-            return (
+            return str(
                 drawable.get_class_name()
                 if hasattr(drawable, "get_class_name")
                 else drawable.__class__.__name__
             )
         except Exception:
-            return drawable.__class__.__name__
+            return str(drawable.__class__.__name__)
 
     def _is_point_drawable_visible(self, drawable: Any) -> bool:
         # Use screen coordinates if available, else compute
@@ -354,14 +354,14 @@ class Canvas:
             or self.is_point_within_canvas_visible_area(x2, y2)
             or self.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
         )
-    
+
     # Removed legacy zoom displacement; zoom handled via CoordinateMapper
-    
+
     def _apply_cartesian_zoom_displacement(self, zoom_point: Point, zoom_direction: int, zoom_step: float) -> None:
         """Apply zoom displacement to the cartesian coordinate system origin.
-        
+
         This ensures the coordinate grid participates in the zoom-towards-point effect
-        by adjusting the CoordinateMapper's offset based on the distance from the 
+        by adjusting the CoordinateMapper's offset based on the distance from the
         cartesian origin to the zoom point.
         """
         try:
@@ -405,7 +405,7 @@ class Canvas:
         # Apply displacement to CoordinateMapper offset to move the entire coordinate system
         self.coordinate_mapper.offset.x += dx
         self.coordinate_mapper.offset.y += dy
-    
+
     # _apply_point_zoom_displacement removed (legacy)
 
     def _draw_cartesian(self, apply_zoom: bool = False) -> None:
@@ -556,10 +556,10 @@ class Canvas:
 
     def set_coordinate_system(self, mode: str) -> bool:
         """Set the coordinate system mode.
-        
+
         Args:
             mode: The mode to set ("cartesian" or "polar")
-            
+
         Returns:
             True if mode was set successfully
         """
@@ -575,7 +575,7 @@ class Canvas:
         Returns:
             The current mode ("cartesian" or "polar")
         """
-        return self.coordinate_system_manager.mode
+        return str(self.coordinate_system_manager.mode)
 
     def set_grid_visible(self, visible: bool) -> bool:
         """Set the visibility of the active coordinate grid.
@@ -595,7 +595,7 @@ class Canvas:
         Returns:
             True if the active grid is visible, False otherwise
         """
-        return self.coordinate_system_manager.is_grid_visible()
+        return bool(self.coordinate_system_manager.is_grid_visible())
 
     def get_canvas_state(self) -> Dict[str, Any]:
         state = self.get_drawables_state()
@@ -732,7 +732,7 @@ class Canvas:
     def delete_label(self, name: str) -> bool:
         """Delete a label by its name."""
         return bool(self.drawable_manager.delete_label(name))
-    
+
     def update_label(
         self,
         name: str,
@@ -883,7 +883,7 @@ class Canvas:
     def delete_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float) -> bool:
         """Delete a vector by its origin and tip coordinates"""
         return bool(self.drawable_manager.delete_vector(origin_x, origin_y, tip_x, tip_y))
-    
+
     def update_vector(
         self,
         name: str,
@@ -912,7 +912,7 @@ class Canvas:
         fill_opacity: Optional[float] = None,
         bar_count: Optional[float] = None,
     ) -> Dict[str, Any]:
-        return self.drawable_manager.plot_distribution(
+        return cast(Dict[str, Any], self.drawable_manager.plot_distribution(
             name=name,
             representation=representation,
             distribution_type=distribution_type,
@@ -923,7 +923,7 @@ class Canvas:
             fill_color=fill_color,
             fill_opacity=fill_opacity,
             bar_count=bar_count,
-        )
+        ))
 
     def plot_bars(
         self,
@@ -940,7 +940,7 @@ class Canvas:
         x_start: Optional[float] = None,
         y_base: Optional[float] = None,
     ) -> Dict[str, Any]:
-        return self.drawable_manager.plot_bars(
+        return cast(Dict[str, Any], self.drawable_manager.plot_bars(
             name=name,
             values=values or [],
             labels_below=labels_below or [],
@@ -952,7 +952,7 @@ class Canvas:
             fill_opacity=fill_opacity,
             x_start=x_start,
             y_base=y_base,
-        )
+        ))
 
     def delete_plot(self, name: str) -> bool:
         return bool(self.drawable_manager.delete_plot(name))
@@ -970,7 +970,7 @@ class Canvas:
         show_points: Optional[bool] = None,
         point_color: Optional[str] = None,
     ) -> Dict[str, Any]:
-        return self.drawable_manager.fit_regression(
+        return cast(Dict[str, Any], self.drawable_manager.fit_regression(
             name=name,
             x_data=x_data if x_data is not None else [],
             y_data=y_data if y_data is not None else [],
@@ -980,7 +980,7 @@ class Canvas:
             curve_color=curve_color,
             show_points=show_points,
             point_color=point_color,
-        )
+        ))
 
     # ------------------- Graph Methods -------------------
     def create_graph(self, graph_state: "GraphState") -> "Drawable":
@@ -992,8 +992,8 @@ class Canvas:
     def get_graph(self, name: str) -> Optional["Drawable"]:
         return self.drawable_manager.get_graph(name)
 
-    def capture_graph_state(self, name: str):
-        return self.drawable_manager.capture_graph_state(name)
+    def capture_graph_state(self, name: str) -> Optional[Dict[str, Any]]:
+        return cast(Optional[Dict[str, Any]], self.drawable_manager.capture_graph_state(name))
 
     def generate_graph(
         self,
@@ -1022,7 +1022,7 @@ class Canvas:
             metadata=metadata,
         )
         graph = self.drawable_manager.create_graph(state)
-        return graph.get_state()
+        return cast(Dict[str, Any], graph.get_state())
 
     def analyze_graph(
         self,
@@ -1034,7 +1034,7 @@ class Canvas:
         state = self.drawable_manager.capture_graph_state(graph_name)
         if state is None:
             return {"error": "Graph not found or spec missing"}
-        return GraphAnalyzer.analyze(state, operation, params)
+        return cast(Dict[str, Any], GraphAnalyzer.analyze(state, operation, params))
 
     # ------------------- Circle Methods -------------------
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional["Drawable"]:
@@ -1067,7 +1067,7 @@ class Canvas:
     def delete_circle(self, name: str) -> bool:
         """Delete a circle by its name"""
         return bool(self.drawable_manager.delete_circle(name))
-    
+
     def update_circle(
         self,
         name: str,
@@ -1119,7 +1119,7 @@ class Canvas:
     def delete_ellipse(self, name: str) -> bool:
         """Delete an ellipse by its name"""
         return bool(self.drawable_manager.delete_ellipse(name))
-    
+
     def update_ellipse(
         self,
         name: str,
@@ -1169,7 +1169,7 @@ class Canvas:
     def delete_function(self, name: str) -> bool:
         """Delete a function by its name"""
         return bool(self.drawable_manager.delete_function(name))
-    
+
     def update_function(
         self,
         name: str,
@@ -1312,7 +1312,7 @@ class Canvas:
     def translate_object(self, name: str, x_offset: float, y_offset: float) -> bool:
         """Translates a drawable object by the specified offset"""
         return bool(self.transformations_manager.translate_object(name, x_offset, y_offset))
-        
+
     def rotate_object(self, name: str, angle: float) -> bool:
         """Rotates a drawable object by the specified angle"""
         return bool(self.transformations_manager.rotate_object(name, angle))
@@ -1327,10 +1327,10 @@ class Canvas:
 
     def zoom(self, center_x: float, center_y: float, range_val: float, range_axis: str) -> bool:
         """Center viewport on (center_x, center_y) with specified range on one axis.
-        
+
         The range applies to the axis specified by range_axis. The other axis
         scales according to the canvas aspect ratio.
-        
+
         Args:
             center_x: X coordinate to center the viewport on
             center_y: Y coordinate to center the viewport on
@@ -1477,23 +1477,23 @@ class Canvas:
             color=color,
             opacity=opacity,
         )
-        
+
     def delete_colored_area(self, name: str) -> bool:
         """Deletes a colored area with the given name"""
         return bool(self.drawable_manager.delete_colored_area(name))
-        
+
     def delete_colored_areas_for_function(self, func: "Drawable") -> None:
         """Deletes all colored areas associated with a function"""
         self.drawable_manager.delete_colored_areas_for_function(func)
-        
+
     def delete_colored_areas_for_segment(self, segment: "Drawable") -> None:
         """Deletes all colored areas associated with a segment"""
         self.drawable_manager.delete_colored_areas_for_segment(segment)
-        
+
     def get_colored_areas_for_drawable(self, drawable: "Drawable") -> List["Drawable"]:
         """Gets all colored areas associated with a drawable (function or segment)"""
         return cast(List["Drawable"], self.drawable_manager.get_colored_areas_for_drawable(drawable))
-        
+
     def update_colored_area(
         self,
         name: str,
@@ -1729,57 +1729,57 @@ class Canvas:
     def center(self) -> Point:
         """Current viewport center point - delegates to coordinate_mapper.origin"""
         return self.coordinate_mapper.origin
-    
+
     @center.setter
     def center(self, value: Point) -> None:
         """Set viewport center point - delegates to coordinate_mapper.origin"""
         self.coordinate_mapper.origin = value
-    
+
     @property
     def scale_factor(self) -> float:
         """Current zoom level - delegates to coordinate_mapper.scale_factor"""
         return float(self.coordinate_mapper.scale_factor)
-    
+
     @scale_factor.setter
     def scale_factor(self, value: float) -> None:
         """Set zoom level - delegates to coordinate_mapper.scale_factor"""
         self.coordinate_mapper.scale_factor = value
-    
+
     @property
     def offset(self) -> Point:
         """Current pan offset - delegates to coordinate_mapper.offset"""
         return self.coordinate_mapper.offset
-    
+
     @offset.setter
     def offset(self, value: Point) -> None:
         """Set pan offset - delegates to coordinate_mapper.offset"""
         self.coordinate_mapper.offset = value
-    
+
     @property
     def zoom_point(self) -> Point:
         """Current zoom center point - delegates to coordinate_mapper.zoom_point"""
         return self.coordinate_mapper.zoom_point
-    
+
     @zoom_point.setter
     def zoom_point(self, value: Point) -> None:
         """Set zoom center point - delegates to coordinate_mapper.zoom_point"""
         self.coordinate_mapper.zoom_point = value
-    
+
     @property
     def zoom_direction(self) -> int:
         """Current zoom direction - delegates to coordinate_mapper.zoom_direction"""
         return int(self.coordinate_mapper.zoom_direction)
-    
+
     @zoom_direction.setter
     def zoom_direction(self, value: int) -> None:
         """Set zoom direction - delegates to coordinate_mapper.zoom_direction"""
         self.coordinate_mapper.zoom_direction = value
-    
+
     @property
     def zoom_step(self) -> float:
         """Zoom step size - delegates to coordinate_mapper.zoom_step"""
         return float(self.coordinate_mapper.zoom_step)
-    
+
     @zoom_step.setter
     def zoom_step(self, value: float) -> None:
         """Set zoom step size - delegates to coordinate_mapper.zoom_step"""

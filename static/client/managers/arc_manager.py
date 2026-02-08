@@ -162,19 +162,19 @@ class ArcManager:
         arc_name: Optional[str] = None,
     ) -> Tuple["Point", bool, "Point", bool, Optional["Point"], bool]:
         """Resolve up to three points from the supplied parameters.
-        
+
         If point names are not provided, attempts to extract suggested names
         from the arc_name parameter (e.g., 'arc_AB' -> points A and B).
         Point name validation is handled by create_point via generate_point_name.
         """
         # Extract suggested point names from arc_name
         suggested_p1, suggested_p2 = self.name_generator.extract_point_names_from_arc_name(arc_name)
-        
+
         # Resolve point 1
         point1, point1_is_new = self._resolve_arc_point(
             "Point 1", point1_name, point1_x, point1_y, suggested_p1
         )
-        
+
         # Resolve point 2
         point2, point2_is_new = self._resolve_arc_point(
             "Point 2", point2_name, point2_x, point2_y, suggested_p2
@@ -197,7 +197,7 @@ class ArcManager:
         suggested_name: Optional[str],
     ) -> Tuple["Point", bool]:
         """Resolve a point for arc creation.
-        
+
         If explicit_name is provided, uses _resolve_point (lookup by name).
         If only coordinates with suggested_name, uses create_point directly
         (like segments do) to let generate_point_name handle validation.
@@ -205,11 +205,11 @@ class ArcManager:
         # Explicit name provided - use standard resolution (lookup by name first)
         if explicit_name:
             return self._resolve_point(label, explicit_name, x, y)
-        
+
         # Coordinates required when no explicit name
         if x is None or y is None:
             raise ValueError(f"{label} coordinates are required when no name is provided.")
-        
+
         # Use create_point directly with suggested name (like segments do)
         # create_point handles: coordinate lookup, name validation via generate_point_name
         point = self.point_manager.create_point(
@@ -218,7 +218,7 @@ class ArcManager:
             extra_graphics=False,
         )
         # Check if point was newly created or already existed at coordinates
-        is_new = not bool(self.point_manager.get_point(x, y) and suggested_name)
+        not bool(self.point_manager.get_point(x, y) and suggested_name)
         return point, True  # Assume new for arc creation purposes
 
     def _determine_arc_geometry(

@@ -1,8 +1,8 @@
 """
 MatHud Client-Side Workspace Persistence and State Management System
 
-Client-side workspace manager that runs in the browser using Brython. Manages workspace 
-operations including saving, loading, listing and deleting workspaces through AJAX 
+Client-side workspace manager that runs in the browser using Brython. Manages workspace
+operations including saving, loading, listing and deleting workspaces through AJAX
 communication with the Flask backend server.
 
 Key Features:
@@ -77,7 +77,7 @@ class WorkspaceManager:
     Attributes:
         canvas: The canvas instance to manage workspaces for.
     """
-    
+
     def __init__(self, canvas: "Canvas") -> None:
         """Initialize workspace manager with canvas reference."""
         self.canvas: "Canvas" = canvas
@@ -85,14 +85,14 @@ class WorkspaceManager:
     def save_workspace(self, name: Optional[str] = None) -> str:
         """
         Save the current workspace state to server via AJAX.
-        
+
         Serializes the complete canvas state including all geometric objects,
         computations, and settings, then sends it to the Flask backend server
         for persistent storage.
-        
+
         Args:
             name (str, optional): Name for the workspace. If None, saves as "current".
-            
+
         Returns:
             str: Success or error message from the save operation.
         """
@@ -108,7 +108,7 @@ class WorkspaceManager:
         req: Any = ajax.Ajax()
         req.bind('complete', on_complete)
         req.bind('error', lambda e: f'Error saving workspace: {e.text}')
-        
+
         state = self.canvas.get_canvas_state()
         # Bars are derived from DiscretePlot parameters and are rebuilt on load.
         # Do not persist them in saved workspaces.
@@ -122,7 +122,7 @@ class WorkspaceManager:
             'state': state,
             'name': name
         }
-        
+
         req.open('POST', '/save_workspace', False)  # Set to synchronous
         req.set_header('Content-Type', 'application/json')
         req.send(json.dumps(data))
@@ -281,11 +281,11 @@ class WorkspaceManager:
 
     def _apply_segment_label_font_size(self, embedded_label: Any, label_args: Dict[str, Any]) -> None:
         if "font_size" in label_args and label_args.get("font_size") is not None:
-            embedded_label.update_font_size(float(label_args.get("font_size")))
+            embedded_label.update_font_size(float(label_args.get("font_size", 0.0)))
 
     def _apply_segment_label_rotation(self, embedded_label: Any, label_args: Dict[str, Any]) -> None:
         if "rotation_degrees" in label_args and label_args.get("rotation_degrees") is not None:
-            embedded_label.update_rotation(float(label_args.get("rotation_degrees")))
+            embedded_label.update_rotation(float(label_args.get("rotation_degrees", 0.0)))
 
     def _apply_segment_label_render_mode(self, embedded_label: Any, label_args: Dict[str, Any]) -> None:
         render_mode_raw = label_args.get("render_mode")
@@ -333,7 +333,7 @@ class WorkspaceManager:
     def _point_matches_coords(self, point: Optional["Point"], coords: Optional[List[float]]) -> bool:
         if not point or not coords or len(coords) != 2:
             return False
-        return MathUtils.point_matches_coordinates(point, coords[0], coords[1])
+        return bool(MathUtils.point_matches_coordinates(point, coords[0], coords[1]))
 
     def _create_vectors(self, state: Dict[str, Any]) -> None:
         """Create vectors from workspace state."""
@@ -472,10 +472,10 @@ class WorkspaceManager:
     def _canonicalize_rectangle_vertices(
         self, points: List[Optional["Point"]]
     ) -> List[Tuple[float, float]]:
-        return canonicalize_rectangle(
+        return cast(List[Tuple[float, float]], canonicalize_rectangle(
             [(point.x, point.y) for point in points if point is not None],
             construction_mode="vertices",
-        )
+        ))
 
     def _canonicalize_rectangle_from_diagonal(
         self,
@@ -489,10 +489,10 @@ class WorkspaceManager:
             )
             return None
         try:
-            return canonicalize_rectangle(
+            return cast(Optional[List[Tuple[float, float]]], canonicalize_rectangle(
                 [(p_diag1.x, p_diag1.y), (p_diag2.x, p_diag2.y)],
                 construction_mode="diagonal",
-            )
+            ))
         except PolygonCanonicalizationError:
             print(
                 f"Warning: Unable to canonicalize rectangle '{rect_name}' from supplied coordinates. Skipping."
@@ -875,26 +875,27 @@ class WorkspaceManager:
             metadata=metadata,
         )
 
-    def _restore_closed_shape_area(self, item_state: Dict[str, Any]):
+    def _restore_closed_shape_area(self, item_state: Dict[str, Any]) -> None:
         shape_args = item_state.get("args", {})
         color, opacity, resolution = self._closed_shape_style_args(shape_args)
         shape_type = shape_args.get("shape_type")
         expression = shape_args.get("expression")
 
         if shape_type == "region" and expression:
-            return self.canvas.create_region_colored_area(
+            self.canvas.create_region_colored_area(
                 expression=expression,
                 resolution=resolution,
                 color=color,
                 opacity=opacity,
             )
+            return
 
         polygon_names, chord_name = self._closed_shape_polygon_and_chord(shape_args, shape_type)
         circle_name = shape_args.get("circle")
         ellipse_name = shape_args.get("ellipse")
         arc_clockwise = shape_args.get("arc_clockwise", False)
 
-        return self.canvas.create_region_colored_area(
+        self.canvas.create_region_colored_area(
             polygon_segment_names=polygon_names,
             circle_name=circle_name,
             ellipse_name=ellipse_name,
@@ -930,9 +931,9 @@ class WorkspaceManager:
             polygon_names = shape_args.get("segments")
         return polygon_names, chord_name
 
-    def _restore_functions_bounded_area(self, item_state: Dict[str, Any]):
+    def _restore_functions_bounded_area(self, item_state: Dict[str, Any]) -> None:
         args = item_state.get("args", {})
-        return self.canvas.create_colored_area(
+        self.canvas.create_colored_area(
             drawable1_name=args.get("func1"),
             drawable2_name=args.get("func2"),
             left_bound=args.get("left_bound"),
@@ -941,10 +942,10 @@ class WorkspaceManager:
             opacity=args.get("opacity", default_area_opacity),
         )
 
-    def _restore_generic_colored_area(self, item_state: Dict[str, Any]):
+    def _restore_generic_colored_area(self, item_state: Dict[str, Any]) -> None:
         args = item_state.get("args", {})
         drawable1_name, drawable2_name = self._generic_colored_area_drawable_names(args)
-        return self.canvas.create_colored_area(
+        self.canvas.create_colored_area(
             drawable1_name=drawable1_name,
             drawable2_name=drawable2_name,
             left_bound=args.get("left_bound"),
@@ -1069,11 +1070,11 @@ class WorkspaceManager:
     def _restore_workspace_state(self, state: Dict[str, Any]) -> None:
         """
         Main restoration orchestrator for complete workspace state.
-        
+
         Restores all geometric objects and computations in the correct dependency
         order to ensure proper relationships between objects. Clears the canvas
         first, then creates objects from points to complex shapes.
-        
+
         Args:
             state (dict): Workspace state dictionary containing all object data.
         """
@@ -1228,7 +1229,7 @@ class WorkspaceManager:
         materializer = getattr(stats_manager, materializer_name, None)
         if not callable(materializer):
             return None
-        return materializer
+        return cast(Optional[Callable[[Any], None]], materializer)
 
     def _materialize_plots(self, plots: List[Any], materializer: Callable[[Any], None]) -> None:
         for plot in plots:
@@ -1240,14 +1241,14 @@ class WorkspaceManager:
     def load_workspace(self, name: Optional[str] = None) -> str:
         """
         Load and restore workspace state from server.
-        
+
         Requests workspace data from the Flask backend server via AJAX and
         restores the complete canvas state including all geometric objects
         and computations in the correct dependency order.
-        
+
         Args:
             name (str, optional): Name of the workspace to load. If None, loads default.
-            
+
         Returns:
             str: Success or error message from the load operation.
         """
@@ -1268,7 +1269,7 @@ class WorkspaceManager:
             if self._response_is_success(response):
                 state = self._workspace_state_from_response(response)
                 if not state:
-                    return f'Error loading workspace: No state data found in response'
+                    return 'Error loading workspace: No state data found in response'
 
                 self._restore_workspace_state(state)
                 return f'Workspace "{name if name else "current"}" loaded successfully.'
@@ -1279,16 +1280,16 @@ class WorkspaceManager:
     def list_workspaces(self) -> str:
         """
         Retrieve list of available workspace names from server storage.
-        
+
         Sends an AJAX request to the Flask backend to get all available
         workspace names that can be loaded.
-        
+
         Returns:
             str: Comma-separated list of workspace names, or 'None' if empty.
         """
         def on_complete(req: Any) -> str:
             return self._parse_list_workspaces_response(req)
-                
+
         return self._execute_sync_request(
             method='GET',
             url='/list_workspaces',
@@ -1309,19 +1310,19 @@ class WorkspaceManager:
     def delete_workspace(self, name: str) -> str:
         """
         Remove workspace from server persistent storage.
-        
+
         Sends an AJAX request to the Flask backend to permanently delete
         the specified workspace from storage.
-        
+
         Args:
             name (str): Name of the workspace to delete.
-            
+
         Returns:
             str: Success or error message from the delete operation.
         """
         def on_complete(req: Any) -> str:
             return self._parse_delete_workspace_response(req, name)
-                
+
         url: str = f'/delete_workspace?name={name}'
         return self._execute_sync_request(
             method='GET',

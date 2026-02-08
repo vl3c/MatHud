@@ -52,10 +52,10 @@ class TestWorkspaceManagement(unittest.TestCase):
         test_current = "test_current_workspace"
         success = self.workspace_manager.save_workspace(cast(WorkspaceState, self.canvas.get_canvas_state()), test_current, TEST_DIR)
         self.assertTrue(success, "Save workspace should return True on success")
-        
+
         workspace_path = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{test_current}.json")
         self.assertTrue(os.path.exists(workspace_path))
-        
+
         with open(workspace_path, 'r') as f:
             data = json.load(f)
             self.assertEqual(data["metadata"]["name"], test_current)
@@ -67,14 +67,14 @@ class TestWorkspaceManagement(unittest.TestCase):
     def test_save_workspace_with_name(self) -> None:
         """Test saving workspace with a specific name."""
         self.canvas.create_circle(0, 0, 100, "C1")
-        
+
         workspace_name = "test_circle_workspace"
         success = self.workspace_manager.save_workspace(cast(WorkspaceState, self.canvas.get_canvas_state()), workspace_name, TEST_DIR)
         self.assertTrue(success, "Save workspace should return True on success")
-        
+
         workspace_path = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{workspace_name}.json")
         self.assertTrue(os.path.exists(workspace_path))
-        
+
         with open(workspace_path, 'r') as f:
             data = json.load(f)
             self.assertEqual(data["metadata"]["name"], workspace_name)
@@ -86,10 +86,10 @@ class TestWorkspaceManagement(unittest.TestCase):
         """Test saving workspace with invalid conditions."""
         success = self.workspace_manager.save_workspace(None, test_dir=TEST_DIR)
         self.assertFalse(success, "Save workspace should return False when state is None")
-        
+
         success = self.workspace_manager.save_workspace(cast(WorkspaceState, self.canvas.get_canvas_state()), "test/invalid/name", TEST_DIR)
         self.assertFalse(success, "Save workspace should return False with invalid name")
-        
+
         if os.name != 'nt':  # Skip on Windows
             test_dir = os.path.join(WORKSPACES_DIR, TEST_DIR)
             original_mode = os.stat(test_dir).st_mode
@@ -110,12 +110,12 @@ class TestWorkspaceManagement(unittest.TestCase):
         workspace_name = "test_triangle_workspace"
         success = self.workspace_manager.save_workspace(cast(WorkspaceState, self.canvas.get_canvas_state()), workspace_name, TEST_DIR)
         self.assertTrue(success, "Initial save should succeed")
-        
+
         self.canvas.clear()
         self.assertEqual(len(self.canvas.get_drawables()), 0)
-        
+
         state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
-        
+
         state_dict = cast(Dict[str, Any], state)
         self.assertIn("Polygons", state_dict)
         triangles = [
@@ -135,7 +135,7 @@ class TestWorkspaceManagement(unittest.TestCase):
         """Test loading a workspace file with invalid JSON content."""
         workspace_name = "test_invalid_json_workspace"
         workspace_path = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{workspace_name}.json")
-        
+
         with open(workspace_path, 'w') as f:
             f.write("{\"name\": \"test\", \"state\": {this_is_not_valid_json}")
 
@@ -150,7 +150,7 @@ class TestWorkspaceManagement(unittest.TestCase):
         # Case 1: Valid JSON, but missing the top-level 'state' key.
         malformed_data = {
             "metadata": {"name": workspace_name, "timestamp": "sometime"},
-            "unexpected_top_level_key": {"Points": []} 
+            "unexpected_top_level_key": {"Points": []}
         }
         with open(workspace_path, 'w') as f:
             json.dump(malformed_data, f)
@@ -167,7 +167,7 @@ class TestWorkspaceManagement(unittest.TestCase):
         }
         with open(workspace_path_2, 'w') as f:
             json.dump(malformed_data_2, f)
-        
+
         loaded_state_2 = self.workspace_manager.load_workspace(workspace_name_2, TEST_DIR)
         loaded_state_2_dict = cast(Dict[str, Any], loaded_state_2)
         self.assertIsInstance(loaded_state_2_dict, dict, "Loaded state should be a dictionary.")
@@ -232,16 +232,16 @@ class TestWorkspaceManagement(unittest.TestCase):
         for name in workspace_names:
             success = self.workspace_manager.save_workspace(cast(WorkspaceState, self.canvas.get_canvas_state()), name, TEST_DIR)
             self.assertTrue(success, f"Failed to save workspace {name}")
-        
+
         workspaces = self.workspace_manager.list_workspaces(TEST_DIR)
-        
+
         for name in workspace_names:
             self.assertIn(name, workspaces)
 
     def test_list_workspaces_with_non_workspace_files(self) -> None:
         """Test listing workspaces when non-workspace files are present."""
         self.workspace_manager.save_workspace(cast(WorkspaceState, self.canvas.get_canvas_state()), "valid_ws_for_list_test", TEST_DIR)
-        
+
         test_dir_path = os.path.join(WORKSPACES_DIR, TEST_DIR)
         with open(os.path.join(test_dir_path, "notes.txt"), 'w') as f:
             f.write("some notes")
@@ -251,7 +251,7 @@ class TestWorkspaceManagement(unittest.TestCase):
             json.dump({"metadata": {"name": "invalid_structure"}}, f) # Missing 'state' key
         with open(os.path.join(test_dir_path, ".hiddenfile"), 'w') as f:
             f.write("hidden")
-            
+
         workspaces = self.workspace_manager.list_workspaces(TEST_DIR)
         self.assertEqual(len(workspaces), 1, f"Expected 1 workspace, got {len(workspaces)}: {workspaces}")
         self.assertIn("valid_ws_for_list_test", workspaces)
@@ -271,17 +271,17 @@ class TestWorkspaceManagement(unittest.TestCase):
         """Test saving and loading workspace with computations."""
         self.canvas.add_computation("2+2", 4)
         self.canvas.add_computation("sin(pi/2)", 1)
-        
+
         workspace_name = "test_computations"
         success = self.workspace_manager.save_workspace(cast(WorkspaceState, self.canvas.get_canvas_state()), workspace_name, TEST_DIR)
         self.assertTrue(success, "Failed to save workspace with computations")
-        
+
         self.canvas.clear()
         self.assertEqual(len(self.canvas.computations), 0)
-        
+
         state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
         state_dict = cast(Dict[str, Any], state)
-        
+
         self.assertIn("computations", state_dict)
         self.assertEqual(len(state_dict["computations"]), 2)
         computations_list = cast(list, state_dict["computations"])
@@ -303,11 +303,11 @@ class TestWorkspaceManagement(unittest.TestCase):
         self.canvas.create_polygon(rect_vertices, polygon_type="rectangle", name="R1")
         self.canvas.draw_function("sin(x)", "f1")
         self.canvas.add_computation("area", 10000)
-        
+
         workspace_name = "test_complex"
         success = self.workspace_manager.save_workspace(cast(WorkspaceState, self.canvas.get_canvas_state()), workspace_name, TEST_DIR)
         self.assertTrue(success, "Failed to save complex workspace")
-        
+
         workspace_path = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{workspace_name}.json")
         with open(workspace_path, 'r') as f:
             data = json.load(f)
@@ -339,11 +339,11 @@ class TestWorkspaceManagement(unittest.TestCase):
         self.canvas.create_point(pointE_coords[0], pointE_coords[1], "E")
 
         self.canvas.create_segment(pointA_coords[0], pointA_coords[1], pointB_coords[0], pointB_coords[1], "AB")
-        self.canvas.create_circle(pointC_coords[0], pointC_coords[1], 25, "CircleC") 
+        self.canvas.create_circle(pointC_coords[0], pointC_coords[1], 25, "CircleC")
         self.canvas.create_vector(pointD_coords[0], pointD_coords[1], pointE_coords[0], pointE_coords[1], "DE")
         self.canvas.draw_function("x**2", "f1")
         self.canvas.add_computation("my_calc", 123.45)
-        
+
         original_state = self.canvas.get_canvas_state()
         workspace_name = "test_integrity_workspace_canvas_methods"
 
@@ -353,15 +353,14 @@ class TestWorkspaceManagement(unittest.TestCase):
 
         # 3. Load the workspace
         loaded_state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
-        
+
         # 4. Deeply compare the loaded state with the original state.
-        self._assert_states_equal_after_sorting(original_state, loaded_state, 
+        self._assert_states_equal_after_sorting(original_state, loaded_state,
                          "Loaded workspace state (from canvas methods) does not match the original state.")
 
     def _assert_states_equal_after_sorting(self, state1: CanvasStateDict, state2: WorkspaceState, message: str) -> None:
         """Helper to compare two canvas states after deep copying and sorting their lists."""
-        import copy
-        
+
         # Nested sort_state_lists_recursive function
         def sort_state_lists_recursive(current_state_item: Any) -> Any:
             if isinstance(current_state_item, dict):
@@ -384,13 +383,13 @@ class TestWorkspaceManagement(unittest.TestCase):
                         current_state_item.sort(key=str)
                     except TypeError:
                         # If all sorting attempts fail, leave the list as is.
-                        pass 
+                        pass
             return current_state_item
 
         # Deep copy states to avoid modifying originals during sorting
         # Ensure that metadata is handled consistently before comparison.
         # It's often removed from the loaded state before comparison.
-        
+
         state1_copy = json.loads(json.dumps(state1))
         state2_copy = json.loads(json.dumps(state2))
 
@@ -404,7 +403,7 @@ class TestWorkspaceManagement(unittest.TestCase):
 
         state1_sorted = sort_state_lists_recursive(state1_copy)
         state2_sorted = sort_state_lists_recursive(state2_copy)
-        
+
         self.assertEqual(state1_sorted, state2_sorted, message)
 
     def test_save_and_load_mock_state_preserves_integrity_with_vectors(self) -> None:
@@ -442,7 +441,7 @@ class TestWorkspaceManagement(unittest.TestCase):
 
         loaded_state = self.workspace_manager.load_workspace(workspace_name, TEST_DIR)
         loaded_state_dict = cast(Dict[str, Any], loaded_state)
-        
+
         self.assertIsNotNone(loaded_state_dict, "Loaded state content should not be None.")
         self.assertIsInstance(loaded_state_dict, dict, "Loaded state should be a dictionary.")
 
@@ -484,9 +483,9 @@ class TestWorkspaceManagement(unittest.TestCase):
         # 4. Deeply compare the loaded state with the original empty state.
         if "metadata" in loaded_state_dict:
             del loaded_state_dict["metadata"]
-        
+
         # Note: Relies on MockCanvas.get_canvas_state() returning a consistent empty structure.
-        self.assertEqual(original_empty_state, loaded_state_dict, 
+        self.assertEqual(original_empty_state, loaded_state_dict,
                          "Loaded empty workspace state does not match the original empty state.")
 
     def test_delete_workspace(self) -> None:
@@ -495,15 +494,15 @@ class TestWorkspaceManagement(unittest.TestCase):
         workspace_name = "test_delete_ws"
         success = self.workspace_manager.save_workspace(cast(WorkspaceState, self.canvas.get_canvas_state()), workspace_name, TEST_DIR)
         self.assertTrue(success, "Initial save should succeed")
-        
+
         workspace_path = os.path.join(WORKSPACES_DIR, TEST_DIR, f"{workspace_name}.json")
         self.assertTrue(os.path.exists(workspace_path))
-        
+
         success = self.workspace_manager.delete_workspace(workspace_name, TEST_DIR)
         self.assertTrue(success, "Delete workspace should return True on success")
-        
+
         self.assertFalse(os.path.exists(workspace_path))
-        
+
         workspaces = self.workspace_manager.list_workspaces(TEST_DIR)
         self.assertNotIn(workspace_name, workspaces)
 
@@ -516,9 +515,9 @@ class TestWorkspaceManagement(unittest.TestCase):
         """Test deleting a workspace with invalid name."""
         success = self.workspace_manager.delete_workspace(cast(str, None), TEST_DIR)
         self.assertFalse(success, "Delete workspace should return False for None name")
-        
+
         success = self.workspace_manager.delete_workspace("test/invalid/name", TEST_DIR)
         self.assertFalse(success, "Delete workspace should return False for invalid name")
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()

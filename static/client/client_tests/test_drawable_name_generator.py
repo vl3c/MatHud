@@ -45,7 +45,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
         """Test the print_names method outputs the expected information."""
         # Create a completely fresh generator with a new mock canvas
         mock_canvas: Any = SimpleMock()
-        
+
         # Define predictable returns for each class name
         mock_returns = {
             'Point': [SimpleMock(name='Point1'), SimpleMock(name='Point2')],
@@ -56,34 +56,34 @@ class TestDrawableNameGenerator(unittest.TestCase):
             'Ellipse': [SimpleMock(name='Ellipse1'), SimpleMock(name='Ellipse2')],
             'Function': [SimpleMock(name='Function1'), SimpleMock(name='Function2')]
         }
-        
+
         # Set up the canvas.get_drawables_by_class_name to return the appropriate mock objects
         def mock_get_drawables(class_name: str) -> List[SimpleMock]:
             return mock_returns.get(class_name, [])
 
         setattr(mock_canvas, "get_drawables_by_class_name", mock_get_drawables)
-        
+
         # Create a test generator with our fully controlled mock canvas
         test_generator = DrawableNameGenerator(mock_canvas)
-        
+
         # Capture print output
         original_print = __builtins__.print
         printed_lines = []
-        
+
         def mock_print(*args: object, **kwargs: object) -> None:
             line = ' '.join(str(arg) for arg in args)
             printed_lines.append(line)
-        
+
         # Replace print with our mock
         __builtins__.print = mock_print
-        
+
         try:
             # Call the method being tested
             test_generator.print_names()
         finally:
             # Restore original print function
             __builtins__.print = original_print
-        
+
         # Check the output
         expected_lines = [
             "Point names: ['Point1', 'Point2']",
@@ -94,9 +94,9 @@ class TestDrawableNameGenerator(unittest.TestCase):
             "Ellipse names: ['Ellipse1', 'Ellipse2']",
             "Function names: ['Function1', 'Function2']"
         ]
-        
+
         # Compare line by line for easier debugging
-        self.assertEqual(len(printed_lines), len(expected_lines), 
+        self.assertEqual(len(printed_lines), len(expected_lines),
                          f"Expected {len(expected_lines)} lines but got {len(printed_lines)}")
         for i, (actual, expected) in enumerate(zip(printed_lines, expected_lines)):
             self.assertEqual(actual, expected, f"Line {i+1} doesn't match: {actual} != {expected}")
@@ -104,34 +104,34 @@ class TestDrawableNameGenerator(unittest.TestCase):
     def test_split_point_names_basic(self) -> None:
         result = self.generator.split_point_names("A'B'CD", 4)
         self.assertEqual(result, ["A'", "B'", "C", "D"])
-    
+
     def test_split_point_names_empty(self) -> None:
         # Test with empty expression
         result = self.generator.split_point_names("", 3)
         self.assertEqual(result, ["", "", ""])
-        
+
         # Test with None expression
         result = self.generator.split_point_names(None, 2)
         self.assertEqual(result, ["", ""])
-    
+
     def test_split_point_names_with_special_chars(self) -> None:
         # Test with expression containing special characters
         result = self.generator.split_point_names("A@B#C", 3)
         self.assertEqual(result, ["A", "B", "C"])
-    
+
     def test_split_point_names_with_repeated_calls(self) -> None:
         # First call should return first n letters
         result1 = self.generator.split_point_names("ABCDE", 2)
         self.assertEqual(result1, ["A", "B"])
-        
+
         # Second call with same expression should return next n letters
         result2 = self.generator.split_point_names("ABCDE", 2)
         self.assertEqual(result2, ["C", "D"])
-        
+
         # Third call with same expression should return remaining letters and empty strings if needed
         result3 = self.generator.split_point_names("ABCDE", 2)
         self.assertEqual(result3, ["E", ""])
-    
+
     def test_generate_unique_point_name(self) -> None:
         self.get_drawables_mock = SimpleMock(return_value=[])
         setattr(self.canvas, "get_drawables_by_class_name", self.get_drawables_mock)
@@ -181,10 +181,10 @@ class TestDrawableNameGenerator(unittest.TestCase):
             "get_drawables_by_class_name",
             SimpleMock(return_value=[SimpleMock(name='A'), SimpleMock(name="B'")]),
         )
-        
+
         # Reset the dictionary for a clean test
         self.generator.used_letters_from_names = {}
-        
+
         result = self.generator.generate_point_name("AB'C")
         # The algorithm tries A first, but it's taken
         # So it adds an apostrophe to get A', which is not taken
@@ -290,7 +290,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
         # Note: Sorting "P''" and "P'''": "P''" comes before "P'''" alphabetically.
         name3 = self.generator.generate_angle_name_from_segments("P'P''", "P'P'''")
         self.assertEqual(name3, "angle_P''P'P'''")
-        
+
         # Case 4: Segments P'''P', P''P' -> Vertex P', Arms P''', P'' (sorted P'', P''') -> angle_P''P'P'''
         name4 = self.generator.generate_angle_name_from_segments("P'''P'", "P''P'")
         self.assertEqual(name4, "angle_P''P'P'''")
@@ -364,11 +364,11 @@ class TestDrawableNameGenerator(unittest.TestCase):
         p1, p2 = self.generator.extract_point_names_from_arc_name("ArcMin_CD")
         self.assertEqual(p1, "C")
         self.assertEqual(p2, "D")
-        
+
         p1, p2 = self.generator.extract_point_names_from_arc_name("ArcMaj_E'F''")
         self.assertEqual(p1, "E'")
         self.assertEqual(p2, "F''")
-        
+
         p1, p2 = self.generator.extract_point_names_from_arc_name("arc_XY")
         self.assertEqual(p1, "X")
         self.assertEqual(p2, "Y")
@@ -378,7 +378,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
         p1, p2 = self.generator.extract_point_names_from_arc_name("ArcMajor")
         self.assertIsNone(p1)
         self.assertIsNone(p2)
-        
+
         p1, p2 = self.generator.extract_point_names_from_arc_name("ArcMinor")
         self.assertIsNone(p1)
         self.assertIsNone(p2)
@@ -388,7 +388,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
         p1, p2 = self.generator.extract_point_names_from_arc_name("")
         self.assertIsNone(p1)
         self.assertIsNone(p2)
-        
+
         p1, p2 = self.generator.extract_point_names_from_arc_name(None)
         self.assertIsNone(p1)
         self.assertIsNone(p2)
@@ -413,7 +413,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
         """Test generating arc names with prime symbols in point names."""
         result = self.generator.generate_arc_name(None, "A'", "B''", False, set())
         self.assertEqual(result, "ArcMin_A'B''")
-        
+
         result = self.generator.generate_arc_name(None, "C''", "D'''", True, set())
         self.assertEqual(result, "ArcMaj_C''D'''")
 
@@ -422,7 +422,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
         existing = {"ArcMin_AB"}
         result = self.generator.generate_arc_name(None, "A", "B", False, existing)
         self.assertEqual(result, "ArcMin_AB_1")
-        
+
         existing = {"ArcMin_AB", "ArcMin_AB_1"}
         result = self.generator.generate_arc_name(None, "A", "B", False, existing)
         self.assertEqual(result, "ArcMin_AB_2")
@@ -431,7 +431,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
         """Test that proposed name with proper prefix is used directly."""
         result = self.generator.generate_arc_name("ArcMaj_CustomName", "A", "B", True, set())
         self.assertEqual(result, "ArcMaj_CustomName")
-        
+
         result = self.generator.generate_arc_name("ArcMin_XY", "A", "B", False, set())
         self.assertEqual(result, "ArcMin_XY")
 
@@ -440,7 +440,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
         # "arc_XY" strips prefix, extracts X and Y
         result = self.generator.generate_arc_name("arc_XY", "C", "D", False, set())
         self.assertEqual(result, "ArcMin_XY")
-        
+
         # "ArcMaj_PQ" strips prefix, extracts P and Q
         result = self.generator.generate_arc_name("ArcMaj_PQ", "C", "D", True, set())
         self.assertEqual(result, "ArcMaj_PQ")
@@ -450,7 +450,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
         # "ArcMajor" strips to empty, falls back to provided point names
         result = self.generator.generate_arc_name("ArcMajor", "C", "D", True, set())
         self.assertEqual(result, "ArcMaj_CD")
-        
+
         # "ArcMinor" strips to empty, falls back to provided point names
         result = self.generator.generate_arc_name("ArcMinor", "E", "F", False, set())
         self.assertEqual(result, "ArcMin_EF")

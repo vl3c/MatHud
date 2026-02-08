@@ -44,9 +44,9 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         """Test _convert_messages_to_input converts developer role to system."""
         api = OpenAIResponsesAPI()
         # API initializes with a developer message
-        
+
         result = api._convert_messages_to_input()
-        
+
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["role"], "system")  # developer -> system
 
@@ -64,17 +64,17 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             "tool_call_id": "call_1",
             "content": "Point created at (5, 0)"
         })
-        
+
         result = api._convert_messages_to_input()
-        
+
         # Should have developer/system message + assistant description + user results
         self.assertEqual(len(result), 3)
-        
+
         # Find assistant message describing the call
         assistant_msgs = [m for m in result if m["role"] == "assistant"]
         self.assertEqual(len(assistant_msgs), 1)
         self.assertIn("create_point", assistant_msgs[0]["content"])
-        
+
         # Find user message with results
         user_msgs = [m for m in result if m["role"] == "user"]
         self.assertEqual(len(user_msgs), 1)
@@ -90,9 +90,9 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             "tool_calls": [{"id": "call_1", "function": {"name": "test", "arguments": "{}"}}]
         })
         # No tool result message - pending
-        
+
         result = api._convert_messages_to_input()
-        
+
         # Should only have the initial developer/system message
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["role"], "system")
@@ -112,9 +112,9 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
                 }
             }
         ]
-        
+
         result = api._convert_tools_for_responses_api()
-        
+
         # Should be flattened for Responses API
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["type"], "function")
@@ -129,7 +129,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         """Test _handle_function_call_delta accumulates function call data."""
         api = OpenAIResponsesAPI()
         accumulator: Dict[int, Dict[str, Any]] = {}
-        
+
         # First event with call_id and name
         event1 = SimpleNamespace(
             output_index=0,
@@ -138,7 +138,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             delta='{"x":'
         )
         api._handle_function_call_delta(event1, accumulator)
-        
+
         # Second event with more arguments
         event2 = SimpleNamespace(
             output_index=0,
@@ -147,7 +147,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             delta=' 5}'
         )
         api._handle_function_call_delta(event2, accumulator)
-        
+
         self.assertEqual(accumulator[0]["id"], "call_123")
         self.assertEqual(accumulator[0]["function"]["name"], "create_point")
         self.assertEqual(accumulator[0]["function"]["arguments"], '{"x": 5}')
@@ -157,7 +157,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         """Test _extract_tool_calls extracts function calls from response."""
         api = OpenAIResponsesAPI()
         accumulator: Dict[int, Dict[str, Any]] = {}
-        
+
         # Mock response with function_call output
         response = SimpleNamespace(
             output=[
@@ -169,9 +169,9 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
                 )
             ]
         )
-        
+
         api._extract_tool_calls(response, accumulator)
-        
+
         self.assertEqual(accumulator[0]["id"], "call_456")
         self.assertEqual(accumulator[0]["function"]["name"], "create_circle")
         self.assertEqual(accumulator[0]["function"]["arguments"], '{"radius": 10}')
@@ -184,9 +184,9 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             1: {"id": "call_2", "function": {"name": "func2", "arguments": "{}"}},
             0: {"id": "call_1", "function": {"name": "func1", "arguments": "{}"}}
         }
-        
+
         result = api._normalize_tool_calls(accumulator)
-        
+
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0]["id"], "call_1")  # Index 0 first
         self.assertEqual(result[1]["id"], "call_2")  # Index 1 second
@@ -195,7 +195,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
     def test_create_assistant_message(self, mock_openai: Mock) -> None:
         """Test _create_assistant_message creates correct format."""
         api = OpenAIResponsesAPI()
-        
+
         tool_call = SimpleNamespace(
             id="call_123",
             function=SimpleNamespace(
@@ -207,9 +207,9 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             content="Test content",
             tool_calls=[tool_call]
         )
-        
+
         result = api._create_assistant_message(response_message)
-        
+
         self.assertEqual(result["role"], "assistant")
         self.assertEqual(result["content"], "Test content")
         self.assertEqual(len(result["tool_calls"]), 1)
@@ -223,9 +223,9 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         tool_calls = [
             {"id": "call_1", "function": {"name": "create_point", "arguments": '{"x": 1, "y": 2}'}}
         ]
-        
+
         result = api._prepare_tool_calls_for_response(tool_calls)
-        
+
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["function_name"], "create_point")
         self.assertEqual(result[0]["arguments"], {"x": 1, "y": 2})
@@ -237,9 +237,9 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         tool_calls = [
             {"id": "call_1", "function": {"name": "test", "arguments": "not json"}}
         ]
-        
+
         result = api._prepare_tool_calls_for_response(tool_calls)
-        
+
         self.assertEqual(result[0]["function_name"], "test")
         self.assertEqual(result[0]["arguments"], {})
 
@@ -248,7 +248,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         """Test create_response_stream yields reasoning events."""
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
-        
+
         # Create mock stream with reasoning events
         events = [
             SimpleNamespace(type="response.reasoning_text.delta", delta="Thinking..."),
@@ -257,24 +257,24 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             SimpleNamespace(type="response.completed", response=SimpleNamespace(status="stop", output=[]))
         ]
         mock_client.responses.create.return_value = iter(events)
-        
+
         api = OpenAIResponsesAPI()
         prompt = json.dumps({"user_message": "Test", "use_vision": False})
-        
+
         result_events = list(api.create_response_stream(prompt))
-        
+
         # Should have reasoning events, token events, and final
         reasoning_events = [e for e in result_events if e.get("type") == "reasoning"]
         token_events = [e for e in result_events if e.get("type") == "token"]
         final_events = [e for e in result_events if e.get("type") == "final"]
-        
+
         self.assertEqual(len(reasoning_events), 2)
         self.assertEqual(reasoning_events[0]["text"], "Thinking...")
         self.assertEqual(reasoning_events[1]["text"], " about this")
-        
+
         self.assertEqual(len(token_events), 1)
         self.assertEqual(token_events[0]["text"], "Here's the answer")
-        
+
         self.assertEqual(len(final_events), 1)
         self.assertEqual(final_events[0]["ai_message"], "Here's the answer")
 
@@ -284,12 +284,12 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
         mock_client.responses.create.side_effect = Exception("API Error")
-        
+
         api = OpenAIResponsesAPI()
         prompt = json.dumps({"user_message": "Test", "use_vision": False})
-        
+
         result_events = list(api.create_response_stream(prompt))
-        
+
         final_events = [e for e in result_events if e.get("type") == "final"]
         self.assertEqual(len(final_events), 1)
         self.assertEqual(final_events[0]["finish_reason"], "error")
@@ -299,18 +299,18 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         """Test that 'completed' status is normalized to 'stop' finish_reason."""
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
-        
+
         events = [
             SimpleNamespace(type="response.output_text.delta", delta="Done"),
             SimpleNamespace(type="response.completed", response=SimpleNamespace(status="completed", output=[]))
         ]
         mock_client.responses.create.return_value = iter(events)
-        
+
         api = OpenAIResponsesAPI()
         prompt = json.dumps({"user_message": "Test", "use_vision": False})
-        
+
         result_events = list(api.create_response_stream(prompt))
-        
+
         final_event = [e for e in result_events if e.get("type") == "final"][0]
         self.assertEqual(final_event["finish_reason"], "stop")
 
@@ -319,7 +319,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         """Test that finish_reason is 'tool_calls' when there are tool calls."""
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
-        
+
         events = [
             SimpleNamespace(
                 type="response.function_call_arguments.delta",
@@ -344,12 +344,12 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             )
         ]
         mock_client.responses.create.return_value = iter(events)
-        
+
         api = OpenAIResponsesAPI()
         prompt = json.dumps({"user_message": "Create point", "use_vision": False})
-        
+
         result_events = list(api.create_response_stream(prompt))
-        
+
         final_event = [e for e in result_events if e.get("type") == "final"][0]
         self.assertEqual(final_event["finish_reason"], "tool_calls")
         self.assertEqual(len(final_event["ai_tool_calls"]), 1)
@@ -359,7 +359,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         """Test that reasoning placeholder is only sent once per stream."""
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
-        
+
         # Multiple reasoning items without summaries
         events = [
             SimpleNamespace(
@@ -381,18 +381,18 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             SimpleNamespace(type="response.completed", response=SimpleNamespace(status="completed", output=[]))
         ]
         mock_client.responses.create.return_value = iter(events)
-        
+
         api = OpenAIResponsesAPI()
         prompt = json.dumps({"user_message": "Test", "use_vision": False})
-        
+
         result_events = list(api.create_response_stream(prompt))
-        
+
         # Count reasoning events with placeholder text
         placeholder_events = [
-            e for e in result_events 
+            e for e in result_events
             if e.get("type") == "reasoning" and "Reasoning in progress" in e.get("text", "")
         ]
-        
+
         # Should only have ONE placeholder despite multiple reasoning items
         self.assertEqual(len(placeholder_events), 1)
 
@@ -401,7 +401,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         """Test that API falls back gracefully when reasoning summary not supported."""
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
-        
+
         # First call fails with reasoning.summary error, second succeeds
         def create_side_effect(*args, **kwargs):
             if kwargs.get("reasoning"):
@@ -410,14 +410,14 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
                 SimpleNamespace(type="response.output_text.delta", delta="Hello"),
                 SimpleNamespace(type="response.completed", response=SimpleNamespace(status="completed", output=[]))
             ])
-        
+
         mock_client.responses.create.side_effect = create_side_effect
-        
+
         api = OpenAIResponsesAPI()
         prompt = json.dumps({"user_message": "Test", "use_vision": False})
-        
+
         result_events = list(api.create_response_stream(prompt))
-        
+
         # Should succeed with fallback
         final_events = [e for e in result_events if e.get("type") == "final"]
         self.assertEqual(len(final_events), 1)
@@ -429,7 +429,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         """Test that reasoning summaries are properly yielded when available."""
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
-        
+
         # Reasoning item with summary
         summary_item = SimpleNamespace(text="I need to analyze this problem")
         events = [
@@ -442,12 +442,12 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             SimpleNamespace(type="response.completed", response=SimpleNamespace(status="completed", output=[]))
         ]
         mock_client.responses.create.return_value = iter(events)
-        
+
         api = OpenAIResponsesAPI()
         prompt = json.dumps({"user_message": "Test", "use_vision": False})
-        
+
         result_events = list(api.create_response_stream(prompt))
-        
+
         # Should have reasoning event with the summary text
         reasoning_events = [e for e in result_events if e.get("type") == "reasoning"]
         self.assertEqual(len(reasoning_events), 1)
@@ -458,7 +458,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         """Test handling multiple tool calls in a single response."""
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
-        
+
         events = [
             SimpleNamespace(
                 type="response.function_call_arguments.delta",
@@ -486,12 +486,12 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             )
         ]
         mock_client.responses.create.return_value = iter(events)
-        
+
         api = OpenAIResponsesAPI()
         prompt = json.dumps({"user_message": "Create shapes", "use_vision": False})
-        
+
         result_events = list(api.create_response_stream(prompt))
-        
+
         final_event = [e for e in result_events if e.get("type") == "final"][0]
         self.assertEqual(len(final_event["ai_tool_calls"]), 2)
         self.assertEqual(final_event["ai_tool_calls"][0]["function_name"], "create_point")
@@ -502,7 +502,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         """Test create_response_stream handles function calls."""
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
-        
+
         # Create mock stream with function call events
         events = [
             SimpleNamespace(type="response.output_text.delta", delta="Creating point..."),
@@ -529,14 +529,14 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
             )
         ]
         mock_client.responses.create.return_value = iter(events)
-        
+
         api = OpenAIResponsesAPI()
         prompt = json.dumps({"user_message": "Create a point", "use_vision": False})
-        
+
         result_events = list(api.create_response_stream(prompt))
-        
+
         final_event = [e for e in result_events if e.get("type") == "final"][0]
-        
+
         self.assertEqual(len(final_event["ai_tool_calls"]), 1)
         self.assertEqual(final_event["ai_tool_calls"][0]["function_name"], "create_point")
         self.assertEqual(final_event["ai_tool_calls"][0]["arguments"], {"x": 5, "y": 10})
@@ -544,7 +544,7 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
 
 class TestOpenAIResponsesAPIIntegration(unittest.TestCase):
     """Integration tests that actually call the OpenAI Responses API.
-    
+
     These tests require a valid OPENAI_API_KEY environment variable
     and use reasoning models (GPT-5, o3, o4-mini).
     They are skipped if the key is not available.
@@ -570,18 +570,18 @@ class TestOpenAIResponsesAPIIntegration(unittest.TestCase):
         # Use o4-mini as it's a reasoning model, limit tokens
         api.set_model("o4-mini")
         api.max_tokens = 20
-        
+
         prompt = json.dumps({
             "user_message": "Say: OK",
             "use_vision": False
         })
-        
+
         events = list(api.create_response_stream(prompt))
-        
+
         # Should have final event with correct structure
         final_events = [e for e in events if e.get("type") == "final"]
         self.assertEqual(len(final_events), 1)
-        
+
         final = final_events[0]
         self.assertIn("type", final)
         self.assertEqual(final["type"], "final")
@@ -596,21 +596,21 @@ class TestOpenAIResponsesAPIIntegration(unittest.TestCase):
         api = OpenAIResponsesAPI()
         api.set_model("o4-mini")
         api.max_tokens = 30
-        
+
         prompt = json.dumps({
             "user_message": "2+2=?",
             "use_vision": False
         })
-        
+
         events = list(api.create_response_stream(prompt))
-        
+
         # Check for reasoning events (may or may not be present depending on model)
         token_events = [e for e in events if e.get("type") == "token"]
         final_events = [e for e in events if e.get("type") == "final"]
-        
+
         # Must have final event
         self.assertEqual(len(final_events), 1)
-        
+
         # Should have some response content
         total_content = "".join(
             [e.get("text", "") for e in token_events] +
@@ -623,14 +623,14 @@ class TestOpenAIResponsesAPIIntegration(unittest.TestCase):
         api = OpenAIResponsesAPI()
         api.set_model("o4-mini")
         api.max_tokens = 10
-        
+
         prompt = json.dumps({
             "user_message": "1",
             "use_vision": False
         })
-        
+
         events = list(api.create_response_stream(prompt))
-        
+
         valid_types = {"reasoning", "token", "final"}
         for event in events:
             self.assertIn("type", event)
@@ -657,7 +657,7 @@ class TestOpenAIResponsesAPIModelRouting(unittest.TestCase):
         """Test setting model to a reasoning model."""
         api = OpenAIResponsesAPI()
         api.set_model("o3")
-        
+
         self.assertEqual(api.model.id, "o3")
         self.assertTrue(api.model.is_reasoning_model)
 
@@ -666,7 +666,7 @@ class TestOpenAIResponsesAPIModelRouting(unittest.TestCase):
         """Test setting model to o4-mini."""
         api = OpenAIResponsesAPI()
         api.set_model("o4-mini")
-        
+
         self.assertEqual(api.model.id, "o4-mini")
         self.assertTrue(api.model.is_reasoning_model)
         self.assertTrue(api.model.has_vision)
@@ -676,7 +676,7 @@ class TestOpenAIResponsesAPIModelRouting(unittest.TestCase):
         """Test setting model to GPT-5-chat-latest."""
         api = OpenAIResponsesAPI()
         api.set_model("gpt-5-chat-latest")
-        
+
         self.assertEqual(api.model.id, "gpt-5-chat-latest")
         self.assertTrue(api.model.is_reasoning_model)
         self.assertTrue(api.model.has_vision)

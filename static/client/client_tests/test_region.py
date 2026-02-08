@@ -65,10 +65,10 @@ class TestRegion(unittest.TestCase):
     def test_area_with_hole(self) -> None:
         outer = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
         outer_path = CompositePath.from_points(outer + [outer[0]])
-        
+
         hole = [(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)]
         hole_path = CompositePath.from_points(hole + [hole[0]])
-        
+
         region = Region(outer_path, [hole_path])
         outer_area = 16.0
         hole_area = 4.0
@@ -80,7 +80,7 @@ class TestRegion(unittest.TestCase):
         outer_path = CompositePath.from_points(outer + [outer[0]])
         region = Region(outer_path)
         self.assertEqual(len(region.holes), 0)
-        
+
         hole = [(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)]
         hole_path = CompositePath.from_points(hole + [hole[0]])
         region.add_hole(hole_path)
@@ -90,7 +90,7 @@ class TestRegion(unittest.TestCase):
         outer = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
         outer_path = CompositePath.from_points(outer + [outer[0]])
         region = Region(outer_path)
-        
+
         open_path = CompositePath([LineSegment((0.5, 0.5), (0.6, 0.6))])
         with self.assertRaises(ValueError):
             region.add_hole(open_path)
@@ -108,10 +108,10 @@ class TestRegion(unittest.TestCase):
     def test_contains_point_in_hole(self) -> None:
         outer = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
         outer_path = CompositePath.from_points(outer + [outer[0]])
-        
+
         hole = [(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)]
         hole_path = CompositePath.from_points(hole + [hole[0]])
-        
+
         region = Region(outer_path, [hole_path])
         self.assertTrue(region.contains_point(0.5, 0.5))
         self.assertFalse(region.contains_point(2.0, 2.0))
@@ -125,7 +125,7 @@ class TestRegion(unittest.TestCase):
     def test_intersection_overlapping_squares(self) -> None:
         sq1 = Region.from_points([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
         sq2 = Region.from_points([(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)])
-        
+
         result = sq1.intersection(sq2)
         self.assertIsNotNone(result)
         self.assertAlmostEqual(result.area(), 1.0, places=1)
@@ -133,14 +133,14 @@ class TestRegion(unittest.TestCase):
     def test_intersection_non_overlapping(self) -> None:
         sq1 = Region.from_points([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         sq2 = Region.from_points([(5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0)])
-        
+
         result = sq1.intersection(sq2)
         self.assertIsNone(result)
 
     def test_union_overlapping_returns_correct_area(self) -> None:
         sq1 = Region.from_points([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
         sq2 = Region.from_points([(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)])
-        
+
         result = sq1.union(sq2)
         # Two 2x2 squares with 1x1 overlap: 4 + 4 - 1 = 7
         self.assertAlmostEqual(result.area(), 7.0, places=1)
@@ -148,7 +148,7 @@ class TestRegion(unittest.TestCase):
     def test_union_disjoint_returns_correct_area(self) -> None:
         sq1 = Region.from_points([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         sq2 = Region.from_points([(5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0)])
-        
+
         result = sq1.union(sq2)
         # Two disjoint 1x1 squares: 1 + 1 = 2
         self.assertAlmostEqual(result.area(), 2.0, places=1)
@@ -156,7 +156,7 @@ class TestRegion(unittest.TestCase):
     def test_difference_overlapping(self) -> None:
         sq1 = Region.from_points([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
         sq2 = Region.from_points([(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)])
-        
+
         result = sq1.difference(sq2)
         self.assertIsNotNone(result)
         self.assertEqual(len(result.holes), 1)
@@ -164,7 +164,7 @@ class TestRegion(unittest.TestCase):
     def test_difference_non_overlapping(self) -> None:
         sq1 = Region.from_points([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         sq2 = Region.from_points([(5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0)])
-        
+
         result = sq1.difference(sq2)
         self.assertIsNotNone(result)
         self.assertEqual(len(result.holes), 0)
@@ -202,10 +202,10 @@ class TestAreaUtilities(unittest.TestCase):
     def test_polygon_area_signed(self) -> None:
         ccw = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
         cw = [(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0)]
-        
+
         area_ccw = GeometryUtils.polygon_area(ccw)
         area_cw = GeometryUtils.polygon_area(cw)
-        
+
         self.assertGreater(area_ccw, 0)
         self.assertLess(area_cw, 0)
         self.assertAlmostEqual(abs(area_ccw), abs(area_cw), places=5)
@@ -218,10 +218,10 @@ class TestAreaUtilities(unittest.TestCase):
     def test_line_segment_area_contribution(self) -> None:
         area = GeometryUtils.line_segment_area_contribution((0.0, 0.0), (1.0, 0.0))
         self.assertAlmostEqual(area, 0.0, places=5)
-        
+
         area = GeometryUtils.line_segment_area_contribution((0.0, 0.0), (0.0, 1.0))
         self.assertAlmostEqual(area, 0.0, places=5)
-        
+
         area = GeometryUtils.line_segment_area_contribution((0.0, 0.0), (1.0, 1.0))
         self.assertAlmostEqual(area, 0.0, places=5)
 

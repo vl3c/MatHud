@@ -40,10 +40,10 @@ import utils.math_utils as math_utils
 
 class Angle(Drawable):
     """Represents an angle formed by two intersecting line segments with arc visualization.
-    
+
     Validates that two segments form a proper angle and provides arc rendering
     with angle measurement display for both standard and reflex angles.
-    
+
     Attributes:
         segment1 (Segment): First segment forming the angle
         segment2 (Segment): Second segment forming the angle
@@ -66,15 +66,15 @@ class Angle(Drawable):
         name: Optional[str] = None,
     ) -> None:
         """Initialize an angle from two intersecting line segments.
-        
+
         Validates segment intersection and extracts angle properties for visualization.
-        
+
         Args:
             segment1 (Segment): First segment forming the angle
             segment2 (Segment): Second segment forming the angle
             color (str): CSS color value for angle visualization
             is_reflex (bool): False for inner/standard angle, True for outer/reflex angle
-            
+
         Raises:
             ValueError: If segments do not form a valid angle (must share exactly one vertex)
         """
@@ -96,7 +96,7 @@ class Angle(Drawable):
         self.segment1: Segment = segment1
         self.segment2: Segment = segment2
         self.is_reflex: bool = is_reflex
-        
+
         self.vertex_point: Optional[Point]
         self.arm1_point: Optional[Point]
         self.arm2_point: Optional[Point]
@@ -113,12 +113,12 @@ class Angle(Drawable):
         except Exception:
             computed_name = None
         final_name: str = name if name is not None else computed_name if computed_name is not None else "angle"
-        
-        super().__init__(name=final_name, color=color) 
-        
+
+        super().__init__(name=final_name, color=color)
+
         self.raw_angle_degrees: Optional[float] = None # To store the fundamental CCW angle (0-360)
         self.angle_degrees: Optional[float] = None     # To store the display angle (small or reflex)
-        
+
         self._initialize()
 
     def _get_common_vertex(self, s1: Segment, s2: Segment) -> Optional[Point]:
@@ -146,7 +146,7 @@ class Angle(Drawable):
         # Identify the Point objects for the arms
         arm1_point_obj: Point = s1.point1 if s1.point1 != common_vertex_point_obj else s1.point2
         arm2_point_obj: Point = s2.point1 if s2.point1 != common_vertex_point_obj else s2.point2
-        
+
         return cast(bool, math_utils.MathUtils.are_points_valid_for_angle_geometry(
             (common_vertex_point_obj.x, common_vertex_point_obj.y),
             (arm1_point_obj.x, arm1_point_obj.y),
@@ -201,9 +201,9 @@ class Angle(Drawable):
         self.raw_angle_degrees = math_utils.MathUtils.calculate_angle_degrees(
             vertex_coords, arm1_coords, arm2_coords
         )
-        
+
         self.angle_degrees = self._calculate_display_angle(self.raw_angle_degrees, self.is_reflex, math_utils.MathUtils.EPSILON)
-        
+
         # Arc radius comes from renderer (or default constant when not provided)
 
 
@@ -221,15 +221,15 @@ class Angle(Drawable):
         """
         if self.raw_angle_degrees is None or self.angle_degrees is None:
             return None
-        
+
         # Degenerate case check (arm points at vertex)
         if (p1x == vx and p1y == vy) or (p2x == vx and p2y == vy):
             return None
-        
+
         current_arc_radius: float = arc_radius if arc_radius is not None else DEFAULT_ANGLE_ARC_SCREEN_RADIUS
-        if current_arc_radius <= 0: 
+        if current_arc_radius <= 0:
              return None
-        
+
         epsilon: float = math_utils.MathUtils.EPSILON # Use MathUtils.EPSILON
 
         # Calculate angles in a y-up frame to preserve mathematical CCW orientation
@@ -241,13 +241,13 @@ class Angle(Drawable):
         arc_start_y: float = vy - current_arc_radius * math.sin(angle_v_p1_rad)
         arc_end_x: float = vx + current_arc_radius * math.cos(angle_v_p2_rad)
         arc_end_y: float = vy - current_arc_radius * math.sin(angle_v_p2_rad)
-        
+
         final_sweep_flag: str
         final_large_arc_flag: str
         final_sweep_flag, final_large_arc_flag = self._get_arc_flags(
             self.angle_degrees, self.raw_angle_degrees, epsilon
         )
-            
+
         return {
             "arc_radius_on_screen": current_arc_radius,
             "angle_v_p1_rad": angle_v_p1_rad, # For text positioning
@@ -294,8 +294,8 @@ class Angle(Drawable):
         Returns a serializable dictionary of the angle's state.
         """
         return {
-            "name": self.name, 
-            "type": "angle",   
+            "name": self.name,
+            "type": "angle",
             "args": {
                 "segment1_name": self.segment1.name,
                 "segment2_name": self.segment2.name,
@@ -307,7 +307,7 @@ class Angle(Drawable):
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
         if id(self) in memo:
             return cast(Angle, memo[id(self)])
-        
+
         new_segment1 = deepcopy(self.segment1, memo)
         new_segment2 = deepcopy(self.segment2, memo)
         new_angle: Angle = Angle(
@@ -333,15 +333,15 @@ class Angle(Drawable):
 
         # Re-extract defining points as segments might have changed their internal point references
         self.vertex_point, self.arm1_point, self.arm2_point = self._extract_defining_points(self.segment1, self.segment2)
-        
+
         self._initialize()
-        return True 
+        return True
 
     def reset(self) -> None:
         """Resets the angle to its initial state based on its segments."""
         # The Drawable base class reset calls _initialize.
         # update_points_based_on_segments also calls _initialize and ensures points are current.
-        self.update_points_based_on_segments() 
+        self.update_points_based_on_segments()
 
     def update_color(self, color: str) -> None:
         """Update the visual color metadata for the angle."""

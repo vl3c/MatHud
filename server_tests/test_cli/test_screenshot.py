@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from cli.screenshot import generate_default_filename
 from cli.config import CLI_OUTPUT_DIR

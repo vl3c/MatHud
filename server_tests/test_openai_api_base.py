@@ -69,7 +69,7 @@ class TestOpenAIAPIBase(unittest.TestCase):
         api.messages.append({"role": "user", "content": "test"})
         api.messages.append({"role": "assistant", "content": "response"})
         self.assertEqual(len(api.messages), 3)
-        
+
         # Reset
         api.reset_conversation()
         self.assertEqual(len(api.messages), 1)
@@ -114,14 +114,14 @@ class TestOpenAIAPIBase(unittest.TestCase):
         """Test _append_tool_messages adds placeholder messages."""
         api = OpenAIAPIBase()
         initial_count = len(api.messages)
-        
+
         # Create mock tool calls
         tool_calls = [
             Mock(id="call_1"),
             Mock(id="call_2"),
         ]
         api._append_tool_messages(tool_calls)
-        
+
         self.assertEqual(len(api.messages), initial_count + 2)
         self.assertEqual(api.messages[-2]["role"], "tool")
         self.assertEqual(api.messages[-2]["tool_call_id"], "call_1")
@@ -145,10 +145,10 @@ class TestOpenAIAPIBase(unittest.TestCase):
             "tool_call_id": "call_123",
             "content": "Awaiting result..."
         })
-        
+
         results = {"status": "success", "data": "test"}
         api._update_tool_messages_with_results(json.dumps(results))
-        
+
         self.assertEqual(api.messages[-1]["content"], json.dumps(results))
 
     @patch('static.openai_api_base.OpenAI')
@@ -217,9 +217,9 @@ class TestOpenAIAPIBase(unittest.TestCase):
                 "user_message": "test"
             })
         })
-        
+
         api._remove_canvas_state_from_user_messages()
-        
+
         content = json.loads(api.messages[-1]["content"])
         self.assertNotIn("canvas_state", content)
         self.assertEqual(content["user_message"], "test")
@@ -235,9 +235,9 @@ class TestOpenAIAPIBase(unittest.TestCase):
                 {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
             ]
         })
-        
+
         api._remove_images_from_user_messages()
-        
+
         # Content should now be just the text string
         self.assertEqual(api.messages[-1]["content"], "test message")
 

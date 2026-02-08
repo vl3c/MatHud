@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import List, Tuple
 
 
 # Font configuration constants
@@ -25,11 +25,11 @@ def setup_graphviz_path() -> None:
             return
         except (subprocess.CalledProcessError, FileNotFoundError):
             pass
-        
+
         # Only setup on Windows
         if sys.platform != 'win32':
             return
-            
+
         # Common Graphviz installation paths on Windows
         potential_paths: List[Path] = [
             Path("C:/Program Files/Graphviz/bin"),
@@ -37,21 +37,21 @@ def setup_graphviz_path() -> None:
             Path("C:/Graphviz/bin"),
             Path("C:/tools/Graphviz/bin"),
         ]
-        
+
         # Find Graphviz installation
         graphviz_bin: str | None = None
         for path in potential_paths:
             if path.exists() and (path / "dot.exe").exists():
                 graphviz_bin = str(path)
                 break
-        
+
         if graphviz_bin:
             # Add to PATH for this session
             current_path = os.environ.get('PATH', '')
             if graphviz_bin not in current_path:
                 os.environ['PATH'] = f"{graphviz_bin};{current_path}"
                 print(f"  + Added Graphviz to PATH: {graphviz_bin}")
-            
+
             # Verify it works
             try:
                 subprocess.run(['dot', '-V'], check=True, capture_output=True)
@@ -63,7 +63,7 @@ def setup_graphviz_path() -> None:
             print("Please install Graphviz or add it to your PATH manually")
             print("Install with: winget install graphviz")
             print("Or download from: https://graphviz.org/download/")
-            
+
     except Exception as e:
         print(f"Warning: Could not setup Graphviz PATH: {e}")
 
@@ -83,9 +83,9 @@ def post_process_svg_fonts(svg_file: Path, diagram_font: str = DIAGRAM_FONT) -> 
     try:
         if not svg_file.exists():
             return False
-            
+
         content = svg_file.read_text(encoding='utf-8')
-        
+
         # Replace common serif fonts with configured font
         font_replacements: Tuple[Tuple[str, str], ...] = (
             ("Times New Roman", diagram_font),
@@ -96,23 +96,23 @@ def post_process_svg_fonts(svg_file: Path, diagram_font: str = DIAGRAM_FONT) -> 
             ("Times-Roman", diagram_font),
             ("TimesNewRoman", diagram_font),
         )
-        
+
         modified = False
         for old_font, new_font in font_replacements:
             if old_font in content:
                 content = content.replace(old_font, new_font)
                 modified = True
-        
+
         # Add default font if no font-family is specified in text elements
         if 'font-family' not in content and '<text' in content:
             content = content.replace('<text', f'<text font-family="{diagram_font}"')
             modified = True
-        
+
         if modified:
             svg_file.write_text(content, encoding='utf-8')
             return True
         return False
-            
+
     except Exception as e:
         print(f"  Warning: Could not update fonts in {svg_file.name}: {e}")
-        return False 
+        return False

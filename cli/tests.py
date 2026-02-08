@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -93,6 +94,63 @@ def run_server_tests(
 
     result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), env=env)
     return result.returncode
+
+
+def run_lint(
+    ruff_only: bool = False,
+    mypy_only: bool = False,
+    fix: bool = False,
+    verbose: bool = True,
+) -> int:
+    """Run linting tools (ruff and mypy).
+
+    Args:
+        ruff_only: Only run ruff, skip mypy.
+        mypy_only: Only run mypy, skip ruff.
+        fix: Apply ruff auto-fixes.
+        verbose: Enable verbose output.
+
+    Returns:
+        Combined exit code (0 if all passed).
+    """
+    python_path = get_python_path()
+    if not python_path.exists():
+        click.echo(click.style(f"Python not found at {python_path}", fg="red"), err=True)
+        return 1
+
+    combined_exit = 0
+
+    # Run ruff
+    if not mypy_only:
+        ruff_cmd = [str(python_path), "-m", "ruff", "check"]
+        if fix:
+            ruff_cmd.append("--fix")
+        ruff_cmd.append(".")
+
+        click.echo(f"Running: {' '.join(ruff_cmd)}")
+        result = subprocess.run(ruff_cmd, cwd=str(PROJECT_ROOT))
+        if result.returncode != 0:
+            click.echo(click.style("Ruff check failed.", fg="red"))
+            combined_exit = result.returncode
+        else:
+            click.echo(click.style("Ruff check passed.", fg="green"))
+
+    # Run mypy
+    if not ruff_only:
+        mypy_cmd = [str(python_path), "-m", "mypy"]
+        if not verbose:
+            mypy_cmd.append("--no-error-summary")
+
+        click.echo(f"Running: {' '.join(mypy_cmd)}")
+        result = subprocess.run(mypy_cmd, cwd=str(PROJECT_ROOT))
+        if result.returncode != 0:
+            click.echo(click.style("Mypy check failed.", fg="red"))
+            if combined_exit == 0:
+                combined_exit = result.returncode
+        else:
+            click.echo(click.style("Mypy check passed.", fg="green"))
+
+    return combined_exit
 
 
 def run_client_tests(
@@ -202,6 +260,54 @@ def server_cmd(
     raise SystemExit(exit_code)
 
 
+def install_pre_commit_hook() -> bool:
+    """Install the pre-commit hook from hooks/pre-commit into .git/hooks/.
+
+    Returns:
+        True if installed successfully, False otherwise.
+    """
+    source = PROJECT_ROOT / "hooks" / "pre-commit"
+    target = PROJECT_ROOT / ".git" / "hooks" / "pre-commit"
+
+    if not source.exists():
+        click.echo(click.style("Hook source not found: hooks/pre-commit", fg="red"), err=True)
+        return False
+
+    shutil.copy2(source, target)
+
+    # Make executable on Unix
+    if sys.platform != "win32":
+        target.chmod(target.stat().st_mode | 0o111)
+
+    click.echo(click.style(f"Pre-commit hook installed to {target}", fg="green"))
+    return True
+
+
+@test.command("lint")
+@click.option("--ruff-only", is_flag=True, help="Only run ruff, skip mypy")
+@click.option("--mypy-only", is_flag=True, help="Only run mypy, skip ruff")
+@click.option("--fix", is_flag=True, help="Apply ruff auto-fixes")
+@click.option("-q", "--quiet", is_flag=True, help="Decrease verbosity")
+@click.option("--install-hook", is_flag=True, help="Install pre-commit git hook")
+def lint_cmd(ruff_only: bool, mypy_only: bool, fix: bool, quiet: bool, install_hook: bool) -> None:
+    """Run linting (ruff + mypy)."""
+    if install_hook:
+        success = install_pre_commit_hook()
+        raise SystemExit(0 if success else 1)
+
+    if ruff_only and mypy_only:
+        click.echo(click.style("Cannot specify both --ruff-only and --mypy-only", fg="red"), err=True)
+        raise SystemExit(1)
+
+    exit_code = run_lint(
+        ruff_only=ruff_only,
+        mypy_only=mypy_only,
+        fix=fix,
+        verbose=not quiet,
+    )
+    raise SystemExit(exit_code)
+
+
 @test.command("client")
 @click.option(
     "--port",
@@ -301,8 +407,17 @@ def client_cmd(
 )
 @click.option("--with-auth", is_flag=True, help="Enable authentication for server tests")
 @click.option("--start-server", is_flag=True, help="Start server for client tests if not running")
-def all_cmd(port: int, with_auth: bool, start_server: bool) -> None:
-    """Run both server and client test suites."""
+@click.option("--skip-lint", is_flag=True, help="Skip lint checks")
+def all_cmd(port: int, with_auth: bool, start_server: bool, skip_lint: bool) -> None:
+    """Run lint, server, and client test suites."""
+    if not skip_lint:
+        click.echo(click.style("=== Running Lint ===", bold=True))
+        lint_exit = run_lint()
+        if lint_exit != 0:
+            click.echo(click.style("\nLint failed. Skipping remaining tests.", fg="red"))
+            raise SystemExit(lint_exit)
+        click.echo()
+
     click.echo(click.style("=== Running Server Tests ===", bold=True))
     server_exit = run_server_tests(with_auth=with_auth)
 
@@ -328,6 +443,7 @@ def all_cmd(port: int, with_auth: bool, start_server: bool) -> None:
             click.echo(f"Screenshot saved to: {results['screenshot']}")
         raise SystemExit(1)
 
-    click.echo(click.style(f"\nAll tests passed! (Server + {results.get('tests_run', 0)} client tests)", fg="green", bold=True))
+    lint_label = "Lint + " if not skip_lint else ""
+    click.echo(click.style(f"\nAll passed! ({lint_label}Server + {results.get('tests_run', 0)} client tests)", fg="green", bold=True))
     if results.get("screenshot"):
         click.echo(f"\nScreenshot saved to: {results['screenshot']}")

@@ -1,4 +1,6 @@
 import unittest
+from typing import Dict, List, Tuple
+
 from drawables_aggregator import Point, Position
 from cartesian_system_2axis import Cartesian2Axis
 from .simple_mock import SimpleMock
@@ -9,24 +11,24 @@ class TestCartesian2Axis(unittest.TestCase):
     def setUp(self) -> None:
         # Create a real CoordinateMapper instance
         self.coordinate_mapper = CoordinateMapper(800, 600)  # 800x600 canvas
-        
+
         # Create canvas mock with all properties that CoordinateMapper needs
         self.canvas = SimpleMock(
             width=800,  # Required by sync_from_canvas
             height=600,  # Required by sync_from_canvas
-            scale_factor=1, 
+            scale_factor=1,
             center=Position(400, 300),  # Canvas center
             cartesian2axis=None,  # Will be set after creating cartesian system
             coordinate_mapper=self.coordinate_mapper,
-            zoom_direction=0, 
+            zoom_direction=0,
             offset=Position(0, 0),  # Set to (0,0) for simpler tests
-            zoom_point=Position(0, 0), 
+            zoom_point=Position(0, 0),
             zoom_step=0.1
         )
-        
+
         # Sync canvas state with coordinate mapper
         self.coordinate_mapper.sync_from_canvas(self.canvas)
-        
+
         self.cartesian_system = Cartesian2Axis(coordinate_mapper=self.coordinate_mapper)
         self.canvas.cartesian2axis = self.cartesian_system
 
@@ -45,7 +47,7 @@ class TestCartesian2Axis(unittest.TestCase):
         right_bound = self.cartesian_system.get_visible_right_bound()
         top_bound = self.cartesian_system.get_visible_top_bound()
         bottom_bound = self.cartesian_system.get_visible_bottom_bound()
-        
+
         self.assertEqual(left_bound, -400.0)  # -self.origin.x / self.canvas.scale_factor
         self.assertEqual(right_bound, 400.0)  # (self.width - self.origin.x) / self.canvas.scale_factor
         self.assertEqual(top_bound, 300.0)    # self.origin.y / self.canvas.scale_factor
@@ -54,12 +56,12 @@ class TestCartesian2Axis(unittest.TestCase):
         # Test bounds with different scale factor - bounds are now dynamic via CoordinateMapper
         self.canvas.scale_factor = 2
         self.coordinate_mapper.sync_from_canvas(self.canvas)  # Update coordinate mapper
-        
+
         left_bound = self.cartesian_system.get_visible_left_bound()
         right_bound = self.cartesian_system.get_visible_right_bound()
         top_bound = self.cartesian_system.get_visible_top_bound()
         bottom_bound = self.cartesian_system.get_visible_bottom_bound()
-        
+
         self.assertEqual(left_bound, -200.0)  # Bounds should be halved when scale_factor doubles
         self.assertEqual(right_bound, 200.0)
         self.assertEqual(top_bound, 150.0)
@@ -98,26 +100,26 @@ class TestCartesian2Axis(unittest.TestCase):
         self.cartesian_system.tick_spacing_bias = 1.0
         self.cartesian_system.current_tick_spacing = 100
         self.canvas.zoom_direction = -1  # Zoom in
-        
+
         # Update coordinate mapper to reflect new scale
         self.coordinate_mapper.sync_from_canvas(self.canvas)
-        
+
         # Call the new zoom invalidation method
         self.cartesian_system._invalidate_cache_on_zoom()
-        
+
         # The relative width is 500, so the ideal tick spacing is 50.
         # The proposed tick spacing is also 50, which is less than twice the current tick spacing (200).
         # Therefore, the current tick spacing should be updated to the proposed tick spacing.
         self.assertEqual(self.cartesian_system.current_tick_spacing, 50)
-        
+
         # Change the zoom direction to zoom out
         self.canvas.zoom_direction = 1
         self.canvas.scale_factor = 0.5  # Decrease scale factor to simulate zooming out
         self.coordinate_mapper.sync_from_canvas(self.canvas)
-        
+
         # Call the cache invalidation method again
         self.cartesian_system._invalidate_cache_on_zoom()
-        
+
         # Now, the relative width is 2000, so the ideal tick spacing is 200.
         # With steps [1,2,5,10] the possible spacings are [100, 200, 500, 1000].
         # The closest spacing >= 200 is 200.
@@ -127,16 +129,16 @@ class TestCartesian2Axis(unittest.TestCase):
     def test_dynamic_origin_calculation(self) -> None:
         # Test that origin is calculated dynamically from CoordinateMapper
         original_origin = Position(self.cartesian_system.origin.x, self.cartesian_system.origin.y)
-        
+
         # Set a non-zero offset to test dynamic origin calculation
         self.canvas.offset = Position(10, 5)
         self.coordinate_mapper.sync_from_canvas(self.canvas)
-        
+
         # Origin should now be different due to dynamic calculation
         new_origin = self.cartesian_system.origin
         self.assertNotEqual(new_origin.x, original_origin.x)
         self.assertNotEqual(new_origin.y, original_origin.y)
-        
+
         # Verify origin is calculated dynamically from CoordinateMapper
         expected_x, expected_y = self.coordinate_mapper.math_to_screen(0, 0)
         self.assertEqual(new_origin.x, expected_x)
@@ -168,10 +170,10 @@ class TestCartesian2Axis(unittest.TestCase):
         # Test the axis helper methods we added during refactoring
         self.assertEqual(self.cartesian_system._get_axis_origin('x'), self.cartesian_system.origin.x)
         self.assertEqual(self.cartesian_system._get_axis_origin('y'), self.cartesian_system.origin.y)
-        
+
         self.assertEqual(self.cartesian_system._get_axis_boundary('x'), self.cartesian_system.width)
         self.assertEqual(self.cartesian_system._get_axis_boundary('y'), self.cartesian_system.height)
-    
+
     def test_should_continue_drawing(self) -> None:
         # Test the boundary condition method for drawing
         # Position within boundary, direction positive
@@ -180,31 +182,31 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertFalse(self.cartesian_system._should_continue_drawing(100, 100, 1))
         # Position beyond boundary, direction positive
         self.assertFalse(self.cartesian_system._should_continue_drawing(150, 100, 1))
-        
+
         # Position within boundary, direction negative
         self.assertTrue(self.cartesian_system._should_continue_drawing(50, 100, -1))
         # Position at zero, direction negative
         self.assertFalse(self.cartesian_system._should_continue_drawing(0, 100, -1))
         # Position below zero, direction negative
         self.assertFalse(self.cartesian_system._should_continue_drawing(-10, 100, -1))
-    
+
     def test_calculate_ideal_tick_spacing(self) -> None:
         # Test the refactored tick spacing calculation
         self.cartesian_system.width = 1000
         self.cartesian_system.max_ticks = 10
         self.coordinate_mapper.scale_factor = 2
-        
+
         ideal_spacing = self.cartesian_system._calculate_ideal_tick_spacing()
         self.assertEqual(ideal_spacing, 50)  # 1000/2/10 = 50
-        
+
         # Test with different values
         self.cartesian_system.width = 800
         self.cartesian_system.max_ticks = 8
         self.coordinate_mapper.scale_factor = 1
-        
+
         ideal_spacing = self.cartesian_system._calculate_ideal_tick_spacing()
         self.assertEqual(ideal_spacing, 100)  # 800/1/8 = 100
-    
+
     def test_find_appropriate_spacing(self) -> None:
         # Test the spacing selection logic
         self.cartesian_system.tick_spacing_bias = 1.0
@@ -212,15 +214,15 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(10), 10)
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(25), 50)
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(50), 50)
-        
+
         # When ideal spacing falls between standard values
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(15), 20)
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(30), 50)
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(6), 10)
-        
+
         # When ideal spacing is very small
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(0.15), 0.2)
-        
+
         # When ideal spacing is very large
         self.assertEqual(self.cartesian_system._find_appropriate_spacing(750), 1000)
 
@@ -337,22 +339,22 @@ class TestCartesian2Axis(unittest.TestCase):
         spacing2 = self.cartesian_system.current_tick_spacing
         self.assertGreaterEqual(spacing1, 10000 - 1e-6)
         self.assertGreater(spacing2, spacing1)
-    
+
     def test_relative_dimensions(self) -> None:
         # Test the relative width and height calculations
         self.cartesian_system.width = 800
         self.cartesian_system.height = 600
         self.coordinate_mapper.scale_factor = 2
-        
+
         self.assertEqual(self.cartesian_system.get_relative_width(), 400)
         self.assertEqual(self.cartesian_system.get_relative_height(), 300)
-        
+
         # Test with different scale factor
         self.coordinate_mapper.scale_factor = 0.5
         self.assertEqual(self.cartesian_system.get_relative_width(), 1600)
         self.assertEqual(self.cartesian_system.get_relative_height(), 1200)
 
-    def _count_grid_lines(self, origin, dimension_px, display_tick):
+    def _count_grid_lines(self, origin: float, dimension_px: float, display_tick: float) -> int:
         import math
         if display_tick <= 0:
             return 0
@@ -365,7 +367,7 @@ class TestCartesian2Axis(unittest.TestCase):
                 count += 1
         return count
 
-    def _calculate_adaptive_tick_spacing(self, width, scale_factor, max_ticks=10):
+    def _calculate_adaptive_tick_spacing(self, width: float, scale_factor: float, max_ticks: int = 10) -> float:
         import math
         relative_width = width / scale_factor
         ideal_spacing = relative_width / max_ticks
@@ -375,17 +377,17 @@ class TestCartesian2Axis(unittest.TestCase):
         candidates = [magnitude * m for m in [1, 2, 5, 10]]
         for spacing in candidates:
             if spacing >= ideal_spacing:
-                return spacing
-        return candidates[-1]
+                return float(spacing)
+        return float(candidates[-1])
 
-    def test_grid_line_count_constant_at_various_origins(self):
+    def test_grid_line_count_constant_at_various_origins(self) -> None:
         width_px = 800
         height_px = 600
         display_tick = 50
-        
+
         base_count_x = self._count_grid_lines(400, width_px, display_tick)
         base_count_y = self._count_grid_lines(300, height_px, display_tick)
-        
+
         offsets = [
             (0, 0),
             (100, 100),
@@ -395,13 +397,13 @@ class TestCartesian2Axis(unittest.TestCase):
             (50000, 50000),
             (-123456, -654321),
         ]
-        
+
         for ox_offset, oy_offset in offsets:
             ox = 400 + ox_offset
             oy = 300 + oy_offset
             count_x = self._count_grid_lines(ox, width_px, display_tick)
             count_y = self._count_grid_lines(oy, height_px, display_tick)
-            
+
             self.assertAlmostEqual(
                 count_x, base_count_x, delta=2,
                 msg=f"X grid line count {count_x} differs from base {base_count_x} at ox={ox}"
@@ -411,21 +413,21 @@ class TestCartesian2Axis(unittest.TestCase):
                 msg=f"Y grid line count {count_y} differs from base {base_count_y} at oy={oy}"
             )
 
-    def test_grid_line_count_bounded_across_zoom_levels(self):
+    def test_grid_line_count_bounded_across_zoom_levels(self) -> None:
         width_px = 800
         height_px = 600
-        
+
         zoom_levels = [0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 50.0, 100.0]
-        
+
         for scale_factor in zoom_levels:
             tick_spacing = self._calculate_adaptive_tick_spacing(width_px, scale_factor)
             display_tick = tick_spacing * scale_factor
-            
+
             ox = width_px / 2
             oy = height_px / 2
             count_x = self._count_grid_lines(ox, width_px, display_tick)
             count_y = self._count_grid_lines(oy, height_px, display_tick)
-            
+
             self.assertGreaterEqual(
                 count_x, 4,
                 msg=f"Too few X grid lines ({count_x}) at scale {scale_factor}"
@@ -443,33 +445,33 @@ class TestCartesian2Axis(unittest.TestCase):
                 msg=f"Too many Y grid lines ({count_y}) at scale {scale_factor}"
             )
 
-    def test_grid_line_count_constant_at_extreme_distances(self):
+    def test_grid_line_count_constant_at_extreme_distances(self) -> None:
         width_px = 800
         height_px = 600
-        
+
         scale_factors = [0.01, 1.0, 100.0]
-        
+
         for scale_factor in scale_factors:
             tick_spacing = self._calculate_adaptive_tick_spacing(width_px, scale_factor)
             display_tick = tick_spacing * scale_factor
-            
+
             base_ox = width_px / 2
             base_oy = height_px / 2
             base_count_x = self._count_grid_lines(base_ox, width_px, display_tick)
             base_count_y = self._count_grid_lines(base_oy, height_px, display_tick)
-            
+
             extreme_offsets = [
                 1e6, -1e6,
                 1e9, -1e9,
                 1e12, -1e12,
             ]
-            
+
             for offset in extreme_offsets:
                 ox = base_ox + offset
                 oy = base_oy + offset
                 count_x = self._count_grid_lines(ox, width_px, display_tick)
                 count_y = self._count_grid_lines(oy, height_px, display_tick)
-                
+
                 self.assertAlmostEqual(
                     count_x, base_count_x, delta=2,
                     msg=f"scale={scale_factor}, offset={offset}: X count {count_x} vs base {base_count_x}"
@@ -479,10 +481,10 @@ class TestCartesian2Axis(unittest.TestCase):
                     msg=f"scale={scale_factor}, offset={offset}: Y count {count_y} vs base {base_count_y}"
                 )
 
-    def test_grid_line_count_combined_zoom_and_distance(self):
+    def test_grid_line_count_combined_zoom_and_distance(self) -> None:
         width_px = 800
         height_px = 600
-        
+
         test_cases = [
             (0.1, 0),
             (0.1, 1e6),
@@ -497,28 +499,28 @@ class TestCartesian2Axis(unittest.TestCase):
             (100.0, 1e9),
             (100.0, -1e9),
         ]
-        
-        results = {}
+
+        results: Dict[float, List[Tuple[int, int, float]]] = {}
         for scale_factor, offset in test_cases:
             if scale_factor not in results:
                 results[scale_factor] = []
-            
+
             tick_spacing = self._calculate_adaptive_tick_spacing(width_px, scale_factor)
             display_tick = tick_spacing * scale_factor
-            
+
             ox = width_px / 2 + offset
             oy = height_px / 2 + offset
             count_x = self._count_grid_lines(ox, width_px, display_tick)
             count_y = self._count_grid_lines(oy, height_px, display_tick)
             results[scale_factor].append((count_x, count_y, offset))
-        
+
         for scale_factor, counts in results.items():
             x_counts = [c[0] for c in counts]
             y_counts = [c[1] for c in counts]
-            
+
             x_range = max(x_counts) - min(x_counts)
             y_range = max(y_counts) - min(y_counts)
-            
+
             self.assertLessEqual(
                 x_range, 2,
                 msg=f"At scale {scale_factor}, X counts vary too much: {counts}"

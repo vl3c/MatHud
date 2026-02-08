@@ -314,31 +314,31 @@ def require_auth(f: F) -> F:
 
 def register_routes(app: MatHudFlask) -> None:
     """Register all routes with the Flask application.
-    
+
     Configures all application endpoints including main page, AI communication,
     workspace operations, WebDriver management, and authentication routes.
-    
+
     Args:
         app: Flask application instance
     """
-    
+
     @app.route('/login', methods=['GET', 'POST'])
     def login() -> ResponseReturnValue:
         """Handle user authentication with access code."""
         if not AppManager.requires_auth():
             return redirect(url_for('get_index'))
-        
+
         # If user is already authenticated, redirect to main page
         if session.get('authenticated'):
             return redirect(url_for('get_index'))
-        
+
         if request.method == 'POST':
             client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
             current_time = time.time()
-            
+
             pin_submitted = request.form.get('pin', '')
             auth_pin = AppManager.get_auth_pin()
-            
+
             if not auth_pin:
                 flash('Authentication not configured')
                 return render_template('login.html')
@@ -356,7 +356,7 @@ def register_routes(app: MatHudFlask) -> None:
                 # 2. PIN is incorrect. Now we handle rate limiting.
                 if client_ip in login_attempts:
                     time_since_last_failed = current_time - login_attempts[client_ip]
-                    
+
                     if time_since_last_failed < 5.0:
                         # 2a. Cooldown is ACTIVE. Block and show countdown.
                         remaining_cooldown = 5.0 - time_since_last_failed
@@ -367,19 +367,19 @@ def register_routes(app: MatHudFlask) -> None:
                 # 2b. PIN was wrong, but no active cooldown. Start a new one.
                 login_attempts[client_ip] = current_time
                 flash('Invalid access code')
-                
+
                 # Cleanup logic (runs only after a failed attempt)
                 if len(login_attempts) > 1000:
                     cutoff = current_time - 3600 # 1 hour
                     for ip, timestamp in list(login_attempts.items()):
                         if timestamp < cutoff:
                             del login_attempts[ip]
-                
+
                 return render_template('login.html')
 
         # For GET request
         return render_template('login.html')
-    
+
     @app.route('/logout')
     def logout() -> ResponseReturnValue:
         """Handle user logout and session cleanup."""
@@ -387,7 +387,7 @@ def register_routes(app: MatHudFlask) -> None:
         if AppManager.requires_auth():
             return redirect(url_for('login'))
         return redirect(url_for('get_index'))
-    
+
     @app.route('/auth_status')
     def auth_status() -> ResponseReturnValue:
         """Return authentication status information."""
@@ -395,7 +395,7 @@ def register_routes(app: MatHudFlask) -> None:
             'auth_required': AppManager.requires_auth(),
             'authenticated': session.get('authenticated', False)
         })
-    
+
     @app.route('/api/available_models', methods=['GET'])
     @require_auth
     def get_available_models() -> ResponseReturnValue:
@@ -660,7 +660,7 @@ def register_routes(app: MatHudFlask) -> None:
                     status='error',
                     code=400
                 )
-            
+
             success = app.workspace_manager.save_workspace(state, name)
             if success:
                 return AppManager.make_response(message='Workspace saved successfully')
@@ -681,11 +681,11 @@ def register_routes(app: MatHudFlask) -> None:
     @require_auth
     def send_message_stream() -> ResponseReturnValue:
         """Stream AI response tokens for the provided message payload.
-        
+
         Routes to appropriate API based on model type:
         - Reasoning models (GPT-5, o3, o4-mini): Uses Responses API with reasoning streaming
         - Standard models (GPT-4.1, GPT-4o): Uses Chat Completions API
-        
+
         Returns a newline-delimited JSON stream with events of shape:
         {"type":"reasoning","text":"..."}\n for reasoning tokens (reasoning models only)
         {"type":"token","text":"..."}\n for incremental response tokens
@@ -877,7 +877,7 @@ def register_routes(app: MatHudFlask) -> None:
         try:
             name = request.args.get('name')
             state = app.workspace_manager.load_workspace(name)
-            
+
             return AppManager.make_response(data={'state': state})
         except FileNotFoundError as e:
             return AppManager.make_response(
@@ -918,7 +918,7 @@ def register_routes(app: MatHudFlask) -> None:
                     status='error',
                     code=400
                 )
-                
+
             success = app.workspace_manager.delete_workspace(name)
             if success:
                 return AppManager.make_response(message='Workspace deleted successfully')
@@ -991,11 +991,11 @@ def register_routes(app: MatHudFlask) -> None:
 
     def _process_ai_response(app: MatHudFlask, choice: Any) -> tuple[str, ToolCallList]:
         """Process the AI response choice and log the results.
-        
+
         Args:
             app: The Flask application instance
             choice: The AI response choice object
-            
+
         Returns:
             tuple: (ai_message, ai_tool_calls) - The processed message and tool calls
         """
@@ -1145,7 +1145,8 @@ def register_routes(app: MatHudFlask) -> None:
                 }))
 
             choice = provider.create_chat_completion(message)
-            ai_message, ai_tool_calls = _process_ai_response(app, choice)
+            ai_message, ai_tool_calls_processed = _process_ai_response(app, choice)
+            ai_tool_calls = cast(List[Dict[str, Any]], ai_tool_calls_processed)
             # Intercept search_tools and filter other tool calls
             if ai_tool_calls:
                 ai_tool_calls = _intercept_search_tools(app, ai_tool_calls, provider)
@@ -1169,14 +1170,14 @@ def register_routes(app: MatHudFlask) -> None:
     @require_auth
     def search_tools_route() -> ResponseReturnValue:
         """Search for tools matching a query description.
-        
+
         Uses AI-powered semantic matching to find the most relevant tools
         for a given task description.
-        
+
         Request body:
             query (str): Description of what the user wants to accomplish
             max_results (int, optional): Maximum number of tools to return (default: 10)
-            
+
         Returns:
             JSON response with matching tool definitions
         """

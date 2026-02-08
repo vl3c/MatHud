@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Pre-commit hook: runs ruff on staged Python files.
+# Install with: mathud test lint --install-hook
+
+STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM -- '*.py')
+
+if [ -z "$STAGED_PY" ]; then
+    exit 0
+fi
+
+# Use the venv python if available, otherwise system python
+if [ -f "venv/Scripts/python.exe" ]; then
+    PYTHON="venv/Scripts/python.exe"
+elif [ -f "venv/bin/python" ]; then
+    PYTHON="venv/bin/python"
+else
+    PYTHON="python"
+fi
+
+echo "Running ruff on staged files..."
+echo "$STAGED_PY" | xargs "$PYTHON" -m ruff check
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+    echo ""
+    echo "Ruff check failed. Fix issues or use --no-verify to skip."
+    exit 1
+fi

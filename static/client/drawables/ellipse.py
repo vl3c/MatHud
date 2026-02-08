@@ -34,11 +34,11 @@ from utils.math_utils import MathUtils
 
 class Ellipse(Drawable):
     """Represents an ellipse with center point, dual radii, and rotation angle.
-    
+
     Maintains center Point object, x/y radius values, and rotation angle,
     calculating ellipse equation properties for mathematical operations.
     Screen radii are calculated dynamically using CoordinateMapper.
-    
+
     Attributes:
         center (Point): Center point of the ellipse
         radius_x (float): Horizontal radius in mathematical coordinate units
@@ -48,7 +48,7 @@ class Ellipse(Drawable):
     """
     def __init__(self, center_point: Point, radius_x: float, radius_y: float, rotation_angle: float = 0, color: str = default_color) -> None:
         """Initialize an ellipse with center point, radii, and rotation.
-        
+
         Args:
             center_point (Point): Center point of the ellipse
             radius_x (float): Horizontal radius in mathematical coordinate units
@@ -65,21 +65,21 @@ class Ellipse(Drawable):
 
     def get_class_name(self) -> str:
         return 'Ellipse'
-    
+
     def _calculate_ellipse_algebraic_formula(self) -> Dict[str, float]:
         x: float = self.center.x
         y: float = self.center.y
         result: Any = MathUtils.get_ellipse_formula(x, y, self.radius_x, self.radius_y, self.rotation_angle)
         return cast(Dict[str, float], result)
-        
+
     def get_state(self) -> Dict[str, Any]:
         """Return the state of the ellipse including rotation"""
         state: Dict[str, Any] = {
-            "name": self.name, 
+            "name": self.name,
             "args": {
-                "center": self.center.name, 
-                "radius_x": self.radius_x, 
-                "radius_y": self.radius_y, 
+                "center": self.center.name,
+                "radius_x": self.radius_x,
+                "radius_y": self.radius_y,
                 "rotation_angle": self.rotation_angle,
                 "ellipse_formula": self.ellipse_formula
             }
@@ -92,8 +92,8 @@ class Ellipse(Drawable):
         # Deep copy the center point
         new_center: Point = deepcopy(self.center, memo)
         # Create a new Ellipse instance with the copied center point and other properties
-        new_ellipse: Ellipse = Ellipse(new_center, self.radius_x, self.radius_y, 
-                             color=self.color, 
+        new_ellipse: Ellipse = Ellipse(new_center, self.radius_x, self.radius_y,
+                             color=self.color,
                              rotation_angle=self.rotation_angle)
         memo[id(self)] = new_ellipse
         return new_ellipse
@@ -108,12 +108,12 @@ class Ellipse(Drawable):
         """Rotate the ellipse around its center by the given angle in degrees"""
         # Update rotation angle (keep it between 0 and 360 degrees)
         self.rotation_angle = (self.rotation_angle + angle) % 360
-        
+
         # Update ellipse formula if needed
         self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
-        
+
         # Return tuple (should_proceed, message) to match interface
-        return True, None 
+        return True, None
 
     def update_color(self, color: str) -> None:
         """Update the ellipse color metadata."""

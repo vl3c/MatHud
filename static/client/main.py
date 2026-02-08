@@ -43,10 +43,10 @@ def start_tests() -> str:
     global _test_results, _tests_running
 
     if _tests_running:
-        return window.JSON.stringify({"status": "already_running"})
+        return str(window.JSON.stringify({"status": "already_running"}))
 
     if _ai_interface is None:
-        return window.JSON.stringify({"status": "error", "error": "AIInterface not initialized"})
+        return str(window.JSON.stringify({"status": "error", "error": "AIInterface not initialized"}))
 
     _tests_running = True
     _test_results = None
@@ -105,7 +105,7 @@ def start_tests() -> str:
 
     # Schedule test execution to run asynchronously
     window.setTimeout(execute_tests, 10)
-    return window.JSON.stringify({"status": "started"})
+    return str(window.JSON.stringify({"status": "started"}))
 
 
 def get_test_results() -> str:
@@ -120,10 +120,10 @@ def get_test_results() -> str:
         - Full test results JSON if complete
     """
     if _tests_running:
-        return window.JSON.stringify({"status": "running"})
+        return str(window.JSON.stringify({"status": "running"}))
 
     if _test_results is None:
-        return window.JSON.stringify({"status": "no_results"})
+        return str(window.JSON.stringify({"status": "no_results"}))
 
     return _test_results
 

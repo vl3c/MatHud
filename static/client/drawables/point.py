@@ -32,17 +32,17 @@ from utils.math_utils import MathUtils
 
 class Point(Drawable):
     """Represents a point in 2D mathematical space with coordinate tracking and labeling.
-    
+
     Fundamental building block for all geometric constructions, maintaining mathematical
     coordinates. Rendering and coordinate transformations are handled by the renderer
     via a CoordinateMapper.
-    
+
     Attributes:
         x, y (float): Mathematical coordinates (unaffected by zoom/pan)
     """
     def __init__(self, x: float, y: float, name: str = "", color: str = default_color) -> None:
         """Initialize a point with mathematical coordinates.
-        
+
         Args:
             x (float): Mathematical x-coordinate in the coordinate system
             y (float): Mathematical y-coordinate in the coordinate system
@@ -65,7 +65,7 @@ class Point(Drawable):
             font_size_key="point_label_font_size",
             font_family_key="point_label_font_family",
         )
-    
+
     def get_class_name(self) -> str:
         return 'Point'
 
@@ -73,11 +73,11 @@ class Point(Drawable):
         def fmt(v: float) -> str:
             return str(int(v)) if isinstance(v, float) and v.is_integer() else str(v)
         return f'{fmt(self.x)},{fmt(self.y)}'
-    
+
     def get_state(self) -> Dict[str, Any]:
         state: Dict[str, Any] = {"name": self.name, "args": {"position": {"x": self.x, "y": self.y}}}
         return state
-    
+
     def __deepcopy__(self, memo: Dict[int, Any]) -> Point:
         if id(self) in memo:
             return cast(Point, memo[id(self)])
@@ -139,7 +139,7 @@ class Point(Drawable):
         self._x = float(value)
         self._sync_label_position()
 
-    @property  
+    @property
     def y(self) -> float:
         """Math y-coordinate (will be flipped to math in this migration step)."""
         return self._y
@@ -172,7 +172,7 @@ class Point(Drawable):
 
     def zoom(self) -> None:
         """Empty zoom method for backward compatibility.
-        
+
         Zoom transformations are now handled centrally by CoordinateMapper
         when drawing, so individual drawable zoom() methods do nothing.
         """
@@ -180,7 +180,7 @@ class Point(Drawable):
 
     def pan(self) -> None:
         """Empty pan method for backward compatibility.
-        
+
         Pan transformations are now handled centrally by CoordinateMapper
         when drawing, so individual drawable pan() methods do nothing.
         """

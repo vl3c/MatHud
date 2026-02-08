@@ -9,8 +9,7 @@ Note: Tests that require Kokoro will be skipped if it's not installed.
 from __future__ import annotations
 
 import unittest
-from unittest.mock import MagicMock, patch
-import numpy as np
+from unittest.mock import patch
 
 
 class TestTTSManager(unittest.TestCase):
@@ -109,7 +108,7 @@ class TestTTSManagerWithKokoro(unittest.TestCase):
     def setUpClass(cls) -> None:
         """Check if Kokoro is available."""
         try:
-            import kokoro
+            import kokoro  # noqa: F401
             cls.kokoro_available = True
         except ImportError:
             cls.kokoro_available = False

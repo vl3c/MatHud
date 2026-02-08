@@ -32,7 +32,7 @@ from typing import Optional
 
 class StyleUtils:
     """CSS styling validation utilities for mathematical visualization objects.
-    
+
     Provides static methods for validating color values, opacity settings, and other
     styling properties used throughout the MatHud canvas system.
     """
@@ -94,4 +94,4 @@ class StyleUtils:
             raise ValueError(f"Invalid CSS color: {color}")
         if not StyleUtils.validate_opacity(opacity or 0.0):
             raise ValueError(f"Invalid opacity value: {opacity}. Must be between 0 and 1")
-        return True 
+        return True

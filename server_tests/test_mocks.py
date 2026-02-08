@@ -204,7 +204,7 @@ class MockCanvas:
                 "name": name
             })
             self.rectangles.append(rectangle)
-            return rectangle
+            return cast(Dict[str, Any], rectangle)
 
         return polygon
 
@@ -264,4 +264,4 @@ class MockCanvas:
             "result": result
         })
         self.computations.append(computation)
-        return computation 
+        return computation

@@ -11,4 +11,4 @@ SITE_PACKAGES_PATH: str = os.path.join(
 
 # Add the path if it's not already there
 if SITE_PACKAGES_PATH not in sys.path:
-    sys.path.append(SITE_PACKAGES_PATH) 
+    sys.path.append(SITE_PACKAGES_PATH)

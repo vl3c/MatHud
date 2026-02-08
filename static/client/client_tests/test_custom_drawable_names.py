@@ -237,4 +237,4 @@ class TestCustomDrawableNames(unittest.TestCase):
         point2 = self.canvas.create_point(310, 310)  # No custom name
         self.assertEqual(point2.name, "A''")
         expected_names.append("A''")
-        self.assertEqual(sorted(self.canvas.name_generator.get_drawable_names('Point')), sorted(expected_names)) 
+        self.assertEqual(sorted(self.canvas.name_generator.get_drawable_names('Point')), sorted(expected_names))
