@@ -70,6 +70,37 @@ class TestCanvas(unittest.TestCase):
             extra_graphics=extra_graphics,
         )
 
+    def _assert_dependency_graph_consistent(self) -> None:
+        dm = self.canvas.drawable_manager.dependency_manager
+
+        for child_id, parent_ids in dm._parents.items():
+            self.assertIn(child_id, dm._object_lookup)
+            for parent_id in parent_ids:
+                self.assertIn(parent_id, dm._object_lookup)
+                self.assertIn(child_id, dm._children.get(parent_id, set()))
+
+        for parent_id, child_ids in dm._children.items():
+            self.assertIn(parent_id, dm._object_lookup)
+            for child_id in child_ids:
+                self.assertIn(child_id, dm._object_lookup)
+                self.assertIn(parent_id, dm._parents.get(child_id, set()))
+
+        for drawable_id in dm._object_lookup:
+            self.assertTrue(
+                drawable_id in dm._parents or drawable_id in dm._children,
+                "Object lookup should only contain drawables participating in dependency edges.",
+            )
+
+    def _assert_drawable_id_absent_from_dependency_graph(self, drawable_id: int) -> None:
+        dm = self.canvas.drawable_manager.dependency_manager
+        self.assertNotIn(drawable_id, dm._object_lookup)
+        self.assertNotIn(drawable_id, dm._parents)
+        self.assertNotIn(drawable_id, dm._children)
+        for parent_ids in dm._parents.values():
+            self.assertNotIn(drawable_id, parent_ids)
+        for child_ids in dm._children.values():
+            self.assertNotIn(drawable_id, child_ids)
+
     def test_init(self) -> None:
         self.assertEqual(self.canvas.width, 500)
         self.assertEqual(self.canvas.height, 500)
@@ -538,6 +569,45 @@ class TestCanvas(unittest.TestCase):
         # Verify: All contained child segments should be deleted
         self.assertEqual(len(self.canvas.drawable_manager.dependency_manager.get_children(ad)), 0, "Parent segment should have no children.")
         self.assertEqual(len(self.canvas.get_drawables_by_class_name('Segment')), 1, "There should be one segment left.")
+
+    def test_dependency_graph_stays_consistent_after_point_delete_recreate(self) -> None:
+        segment = self.canvas.create_segment(0, 0, 10, 0, name="AB")
+        self._assert_dependency_graph_consistent()
+
+        deleted = self.canvas.delete_point(0, 0)
+        self.assertTrue(deleted)
+        self._assert_dependency_graph_consistent()
+        self._assert_drawable_id_absent_from_dependency_graph(id(segment))
+
+        recreated = self.canvas.create_segment(0, 0, 10, 0, name="AB2")
+        self.assertIsNotNone(recreated)
+        self._assert_dependency_graph_consistent()
+
+    def test_dependency_graph_stays_consistent_after_circle_delete_recreate(self) -> None:
+        circle = self.canvas.create_circle(0, 0, 5)
+        circle_id = id(circle)
+        self._assert_dependency_graph_consistent()
+
+        self.assertTrue(self.canvas.delete_circle(circle.name))
+        self._assert_dependency_graph_consistent()
+        self._assert_drawable_id_absent_from_dependency_graph(circle_id)
+
+        recreated = self.canvas.create_circle(0, 0, 5)
+        self.assertIsNotNone(recreated)
+        self._assert_dependency_graph_consistent()
+
+    def test_dependency_graph_stays_consistent_after_ellipse_delete_recreate(self) -> None:
+        ellipse = self.canvas.create_ellipse(0, 0, 6, 3)
+        ellipse_id = id(ellipse)
+        self._assert_dependency_graph_consistent()
+
+        self.assertTrue(self.canvas.delete_ellipse(ellipse.name))
+        self._assert_dependency_graph_consistent()
+        self._assert_drawable_id_absent_from_dependency_graph(ellipse_id)
+
+        recreated = self.canvas.create_ellipse(0, 0, 6, 3)
+        self.assertIsNotNone(recreated)
+        self._assert_dependency_graph_consistent()
 
     def test_delete_segment_parents(self) -> None:
         s = self.canvas.create_segment(50, 0, 60, 0) # distinct segment
