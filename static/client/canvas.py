@@ -253,16 +253,25 @@ class Canvas:
         if renderer is None:
             return
         try:
-            if apply_zoom:
-                self.coordinate_system_manager.invalidate_cache_on_zoom()
+            self._invalidate_coordinate_system_cache_on_zoom_if_needed(apply_zoom)
             if self.coordinate_system_manager.is_cartesian():
-                if self.cartesian2axis.visible:
-                    renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
+                self._render_cartesian_if_visible(renderer)
             else:
-                if self.coordinate_system_manager.polar_grid.visible:
-                    renderer.render_polar(self.coordinate_system_manager.polar_grid, self.coordinate_mapper)
+                self._render_polar_if_visible(renderer)
         except Exception:
             pass
+
+    def _invalidate_coordinate_system_cache_on_zoom_if_needed(self, apply_zoom: bool) -> None:
+        if apply_zoom:
+            self.coordinate_system_manager.invalidate_cache_on_zoom()
+
+    def _render_cartesian_if_visible(self, renderer: RendererProtocol) -> None:
+        if self.cartesian2axis.visible:
+            renderer.render_cartesian(self.cartesian2axis, self.coordinate_mapper)
+
+    def _render_polar_if_visible(self, renderer: RendererProtocol) -> None:
+        if self.coordinate_system_manager.polar_grid.visible:
+            renderer.render_polar(self.coordinate_system_manager.polar_grid, self.coordinate_mapper)
 
     def _render_drawables(self, renderer: Optional[RendererProtocol], apply_zoom: bool) -> None:
         """Render all drawable objects with optional zoom cache invalidation."""
@@ -401,9 +410,12 @@ class Canvas:
 
     def _draw_cartesian(self, apply_zoom: bool = False) -> None:
         # Handle cartesian system cache invalidation if needed
-        if apply_zoom and hasattr(self.cartesian2axis, '_invalidate_cache_on_zoom'):
-            self.cartesian2axis._invalidate_cache_on_zoom()
+        self._invalidate_cartesian_draw_cache_on_zoom_if_needed(apply_zoom)
         self.cartesian2axis.draw()
+
+    def _invalidate_cartesian_draw_cache_on_zoom_if_needed(self, apply_zoom: bool) -> None:
+        if apply_zoom and hasattr(self.cartesian2axis, "_invalidate_cache_on_zoom"):
+            self.cartesian2axis._invalidate_cache_on_zoom()
 
     def clear(self) -> None:
         """Clear all drawables"""
