@@ -153,6 +153,55 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         self.assertEqual(accumulator[0]["function"]["arguments"], '{"x": 5}')
 
     @patch('static.openai_api_base.OpenAI')
+    def test_upsert_tool_call_entry_merges_chunks(self, mock_openai: Mock) -> None:
+        """_upsert_tool_call_entry should merge ids/names/argument chunks."""
+        api = OpenAIResponsesAPI()
+        accumulator: Dict[int, Dict[str, Any]] = {}
+
+        api._upsert_tool_call_entry(
+            accumulator,
+            index=2,
+            call_id="call_1",
+            name="create_point",
+            args_delta='{"x":',
+        )
+        api._upsert_tool_call_entry(
+            accumulator,
+            index=2,
+            call_id=None,
+            name=None,
+            args_delta=' 1}',
+        )
+
+        self.assertIn(2, accumulator)
+        self.assertEqual(accumulator[2]["id"], "call_1")
+        self.assertEqual(accumulator[2]["function"]["name"], "create_point")
+        self.assertEqual(accumulator[2]["function"]["arguments"], '{"x": 1}')
+
+    @patch('static.openai_api_base.OpenAI')
+    def test_extract_tool_calls_preserves_existing_accumulator_entries(self, mock_openai: Mock) -> None:
+        """_extract_tool_calls should not overwrite/append to existing accumulator entries."""
+        api = OpenAIResponsesAPI()
+        accumulator: Dict[int, Dict[str, Any]] = {
+            0: {"id": "call_existing", "function": {"name": "create_point", "arguments": '{"x":'}}
+        }
+        response = SimpleNamespace(
+            output=[
+                SimpleNamespace(
+                    type="function_call",
+                    call_id="call_ignored",
+                    name="create_point",
+                    arguments=" 1}",
+                )
+            ]
+        )
+
+        api._extract_tool_calls(response, accumulator)
+
+        self.assertEqual(accumulator[0]["id"], "call_existing")
+        self.assertEqual(accumulator[0]["function"]["arguments"], '{"x":')
+
+    @patch('static.openai_api_base.OpenAI')
     def test_extract_tool_calls(self, mock_openai: Mock) -> None:
         """Test _extract_tool_calls extracts function calls from response."""
         api = OpenAIResponsesAPI()
@@ -705,4 +754,3 @@ class TestOpenAIResponsesAPIModelRouting(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
