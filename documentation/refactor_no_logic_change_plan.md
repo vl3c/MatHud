@@ -158,6 +158,17 @@
   - Parity Result: no behavior change observed
   - Follow-ups: continue Phase 2 observability rollout across remaining manager orchestration boundaries
 
+- Session ID: S-2026-02-08-08
+  - Date: 2026-02-08
+  - Goal: Continue Phase 2 manager decomposition for dependency analysis paths
+  - Planned Scope: split repetitive dependency collection/register logic in `DrawableDependencyManager` into composable helpers + add helper-level tests
+  - Actual Scope: extracted `_append_and_register_dependency`, `_append_attr_dependency_if_present`, `_append_iterable_attr_dependencies`, and `_append_segment_attrs`; migrated `analyze_drawable_for_dependencies` branches to helper pipeline; added direct helper tests
+  - Status: `in_progress`
+  - Related Commits: `pending`
+  - Validation: `py_compile` on touched files; `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (756 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2317 run, 0 failures)
+  - Parity Result: no behavior change observed
+  - Follow-ups: continue Phase 2 decomposition for remaining manager/service hotspots
+
 ### Entries
 - 2026-02-08
   - Scope: PR #16 helper extraction coverage expansion (Canvas/WorkspaceManager tests)
@@ -214,3 +225,11 @@
   - Tests Run: `py_compile` for touched files; `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (756 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2315 run, 0 failures)
   - Parity Evidence: no behavior change observed; observability hooks are optional and logger-dependent
   - Notes/Blockers: direct pytest invocation for Brython client package tests requires browser runtime import path
+
+- 2026-02-08
+  - Scope: Phase 2 continuation - drawable dependency analyzer decomposition into composable helper boundaries + helper tests
+  - Status: in_progress
+  - Commits: `pending`
+  - Tests Run: `py_compile` for touched files; `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (756 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2317 run, 0 failures)
+  - Parity Evidence: no behavior change observed in dependency registration, traversal, and graph-child cleanup workflows
+  - Notes/Blockers: none

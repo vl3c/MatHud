@@ -165,6 +165,61 @@ class DrawableDependencyManager:
             # If missing, let's make sure we can still identify the object
             print(f"{obj_type_name} object type: {type(obj)}")
 
+    def _append_and_register_dependency(
+        self,
+        drawable: "Drawable",
+        dependency: Any,
+        dependencies: List["Drawable"],
+    ) -> None:
+        """Append dependency to list and register parent relation."""
+        dependencies.append(dependency)
+        self.register_dependency(drawable, dependency)
+
+    def _append_attr_dependency_if_present(
+        self,
+        drawable: "Drawable",
+        attr_name: str,
+        dependencies: List["Drawable"],
+        *,
+        require_truthy: bool = False,
+        require_get_class_name: bool = False,
+    ) -> None:
+        """Append/register a dependency stored in a single attribute."""
+        if not hasattr(drawable, attr_name):
+            return
+        dependency = getattr(drawable, attr_name)
+        if require_truthy and not dependency:
+            return
+        if require_get_class_name and not hasattr(dependency, 'get_class_name'):
+            return
+        self._append_and_register_dependency(drawable, dependency, dependencies)
+
+    def _append_iterable_attr_dependencies(
+        self,
+        drawable: "Drawable",
+        attr_name: str,
+        dependencies: List["Drawable"],
+        *,
+        require_truthy: bool = False,
+    ) -> None:
+        """Append/register dependencies from iterable attribute."""
+        if not hasattr(drawable, attr_name):
+            return
+        for dependency in getattr(drawable, attr_name):
+            if require_truthy and not dependency:
+                continue
+            self._append_and_register_dependency(drawable, dependency, dependencies)
+
+    def _append_segment_attrs(
+        self,
+        drawable: "Drawable",
+        dependencies: List["Drawable"],
+        count: int,
+    ) -> None:
+        """Append/register segment1..segmentN dependencies when present."""
+        for i in range(1, count + 1):
+            self._append_attr_dependency_if_present(drawable, f'segment{i}', dependencies)
+
     def get_parents(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
         Get all direct parents of a drawable
@@ -333,156 +388,92 @@ class DrawableDependencyManager:
             pass
 
         elif class_name == 'Segment':
-            if hasattr(drawable, 'point1'):
-                dependencies.append(drawable.point1)
-                self.register_dependency(drawable, drawable.point1)
-            if hasattr(drawable, 'point2'):
-                dependencies.append(drawable.point2)
-                self.register_dependency(drawable, drawable.point2)
+            self._append_attr_dependency_if_present(drawable, 'point1', dependencies)
+            self._append_attr_dependency_if_present(drawable, 'point2', dependencies)
 
         elif class_name == 'Vector':
-            if hasattr(drawable, 'segment'):
-                dependencies.append(drawable.segment)
-                self.register_dependency(drawable, drawable.segment)
+            self._append_attr_dependency_if_present(drawable, 'segment', dependencies)
 
         elif class_name == 'Triangle':
-            # Check for individual segment attributes
-            for i in range(1, 4):
-                segment_attr = f'segment{i}'
-                if hasattr(drawable, segment_attr):
-                    segment = getattr(drawable, segment_attr)
-                    dependencies.append(segment)
-                    self.register_dependency(drawable, segment)
+            self._append_segment_attrs(drawable, dependencies, count=3)
 
         elif class_name == 'Rectangle':
-            # Check for individual segment attributes
-            for i in range(1, 5):
-                segment_attr = f'segment{i}'
-                if hasattr(drawable, segment_attr):
-                    segment = getattr(drawable, segment_attr)
-                    dependencies.append(segment)
-                    self.register_dependency(drawable, segment)
+            self._append_segment_attrs(drawable, dependencies, count=4)
 
         elif class_name == 'Circle':
-            if hasattr(drawable, 'center'):
-                dependencies.append(drawable.center)
-                self.register_dependency(drawable, drawable.center)
+            self._append_attr_dependency_if_present(drawable, 'center', dependencies)
 
         elif class_name == 'Ellipse':
-            if hasattr(drawable, 'center'):
-                dependencies.append(drawable.center)
-                self.register_dependency(drawable, drawable.center)
+            self._append_attr_dependency_if_present(drawable, 'center', dependencies)
 
         elif class_name == 'Function':
             # Functions typically don't have drawable dependencies
             pass
 
         elif class_name == 'SegmentsBoundedColoredArea':
-            if hasattr(drawable, 'segment1') and drawable.segment1:
-                dependencies.append(drawable.segment1)
-                self.register_dependency(drawable, drawable.segment1)
-            if hasattr(drawable, 'segment2') and drawable.segment2:
-                dependencies.append(drawable.segment2)
-                self.register_dependency(drawable, drawable.segment2)
+            self._append_attr_dependency_if_present(drawable, 'segment1', dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, 'segment2', dependencies, require_truthy=True)
 
         elif class_name == 'FunctionSegmentBoundedColoredArea':
-            if hasattr(drawable, 'func') and drawable.func and hasattr(drawable.func, 'get_class_name'):
-                dependencies.append(drawable.func)
-                self.register_dependency(drawable, drawable.func)
-            if hasattr(drawable, 'segment'):
-                dependencies.append(drawable.segment)
-                self.register_dependency(drawable, drawable.segment)
+            self._append_attr_dependency_if_present(
+                drawable,
+                'func',
+                dependencies,
+                require_truthy=True,
+                require_get_class_name=True,
+            )
+            self._append_attr_dependency_if_present(drawable, 'segment', dependencies)
 
         elif class_name == 'FunctionsBoundedColoredArea':
-            if hasattr(drawable, 'func1') and drawable.func1 and hasattr(drawable.func1, 'get_class_name'):
-                dependencies.append(drawable.func1)
-                self.register_dependency(drawable, drawable.func1)
-            if hasattr(drawable, 'func2') and drawable.func2 and hasattr(drawable.func2, 'get_class_name'):
-                dependencies.append(drawable.func2)
-                self.register_dependency(drawable, drawable.func2)
+            self._append_attr_dependency_if_present(
+                drawable,
+                'func1',
+                dependencies,
+                require_truthy=True,
+                require_get_class_name=True,
+            )
+            self._append_attr_dependency_if_present(
+                drawable,
+                'func2',
+                dependencies,
+                require_truthy=True,
+                require_get_class_name=True,
+            )
 
         elif class_name == 'Angle':
             # Angles depend on their constituent segments and points
-            if hasattr(drawable, 'segment1') and drawable.segment1:
-                dependencies.append(drawable.segment1)
-                self.register_dependency(drawable, drawable.segment1)
-            if hasattr(drawable, 'segment2') and drawable.segment2:
-                dependencies.append(drawable.segment2)
-                self.register_dependency(drawable, drawable.segment2)
-            if hasattr(drawable, 'vertex_point') and drawable.vertex_point:
-                dependencies.append(drawable.vertex_point)
-                self.register_dependency(drawable, drawable.vertex_point)
-            if hasattr(drawable, 'arm1_point') and drawable.arm1_point:
-                dependencies.append(drawable.arm1_point)
-                self.register_dependency(drawable, drawable.arm1_point)
-            if hasattr(drawable, 'arm2_point') and drawable.arm2_point:
-                dependencies.append(drawable.arm2_point)
-                self.register_dependency(drawable, drawable.arm2_point)
+            self._append_attr_dependency_if_present(drawable, 'segment1', dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, 'segment2', dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, 'vertex_point', dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, 'arm1_point', dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, 'arm2_point', dependencies, require_truthy=True)
 
         elif class_name == 'CircleArc':
-            if hasattr(drawable, 'point1') and drawable.point1:
-                dependencies.append(drawable.point1)
-                self.register_dependency(drawable, drawable.point1)
-            if hasattr(drawable, 'point2') and drawable.point2:
-                dependencies.append(drawable.point2)
-                self.register_dependency(drawable, drawable.point2)
-            if hasattr(drawable, 'circle') and drawable.circle:
-                dependencies.append(drawable.circle)
-                self.register_dependency(drawable, drawable.circle)
+            self._append_attr_dependency_if_present(drawable, 'point1', dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, 'point2', dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, 'circle', dependencies, require_truthy=True)
 
         elif class_name == 'ClosedShapeColoredArea':
-            if hasattr(drawable, 'segments'):
-                for segment in drawable.segments:
-                    if segment:
-                        dependencies.append(segment)
-                        self.register_dependency(drawable, segment)
-            if hasattr(drawable, 'circle') and drawable.circle:
-                dependencies.append(drawable.circle)
-                self.register_dependency(drawable, drawable.circle)
-            if hasattr(drawable, 'ellipse') and drawable.ellipse:
-                dependencies.append(drawable.ellipse)
-                self.register_dependency(drawable, drawable.ellipse)
-            if hasattr(drawable, 'chord_segment') and drawable.chord_segment:
-                dependencies.append(drawable.chord_segment)
-                self.register_dependency(drawable, drawable.chord_segment)
+            self._append_iterable_attr_dependencies(drawable, 'segments', dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, 'circle', dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, 'ellipse', dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, 'chord_segment', dependencies, require_truthy=True)
 
         elif class_name == 'ColoredArea':
             # Base ColoredArea type
-            if hasattr(drawable, 'function'):
-                dependencies.append(drawable.function)
-                self.register_dependency(drawable, drawable.function)
-            if hasattr(drawable, 'segments'):
-                for segment in drawable.segments:
-                    dependencies.append(segment)
-                    self.register_dependency(drawable, segment)
+            self._append_attr_dependency_if_present(drawable, 'function', dependencies)
+            self._append_iterable_attr_dependencies(drawable, 'segments', dependencies)
 
         elif class_name.endswith('ColoredArea'):
             # Generic case for other ColoredArea types
-            if hasattr(drawable, 'function'):
-                dependencies.append(drawable.function)
-                self.register_dependency(drawable, drawable.function)
-            if hasattr(drawable, 'segments'):
-                for segment in drawable.segments:
-                    dependencies.append(segment)
-                    self.register_dependency(drawable, segment)
+            self._append_attr_dependency_if_present(drawable, 'function', dependencies)
+            self._append_iterable_attr_dependencies(drawable, 'segments', dependencies)
 
         elif class_name in ('Graph', 'DirectedGraph', 'UndirectedGraph', 'Tree'):
             # Graphs depend on their segments, vectors, and isolated points
-            if hasattr(drawable, '_segments'):
-                for segment in drawable._segments:
-                    if segment:
-                        dependencies.append(segment)
-                        self.register_dependency(drawable, segment)
-            if hasattr(drawable, '_vectors'):
-                for vector in drawable._vectors:
-                    if vector:
-                        dependencies.append(vector)
-                        self.register_dependency(drawable, vector)
-            if hasattr(drawable, '_isolated_points'):
-                for point in drawable._isolated_points:
-                    if point:
-                        dependencies.append(point)
-                        self.register_dependency(drawable, point)
+            self._append_iterable_attr_dependencies(drawable, '_segments', dependencies, require_truthy=True)
+            self._append_iterable_attr_dependencies(drawable, '_vectors', dependencies, require_truthy=True)
+            self._append_iterable_attr_dependencies(drawable, '_isolated_points', dependencies, require_truthy=True)
 
         return dependencies
 
