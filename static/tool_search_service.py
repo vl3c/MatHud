@@ -32,7 +32,7 @@ EXCLUDED_FROM_SEARCH = frozenset({"search_tools"})
 
 class ToolSearchService:
     """Service for semantic tool discovery using AI-powered matching.
-    
+
     Uses the app's AI model to find the most relevant tools for a given query
     by analyzing tool names and descriptions.
     """
@@ -87,7 +87,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
     @staticmethod
     def get_all_tools() -> List[FunctionDefinition]:
         """Get all available tool definitions.
-        
+
         Returns:
             List of all function definitions.
         """
@@ -96,10 +96,10 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
     @staticmethod
     def build_tool_descriptions(exclude_meta_tools: bool = True) -> str:
         """Build a compact string of all tool names and descriptions.
-        
+
         Args:
             exclude_meta_tools: If True, excludes meta-tools like search_tools.
-        
+
         Returns:
             Formatted string with tool names and descriptions.
         """
@@ -120,10 +120,10 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
     @staticmethod
     def get_tool_by_name(name: str) -> Optional[FunctionDefinition]:
         """Get a tool definition by its name.
-        
+
         Args:
             name: The tool name to look up.
-            
+
         Returns:
             The tool definition if found, None otherwise.
         """
@@ -140,15 +140,15 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         max_results: int = 10,
     ) -> List[FunctionDefinition]:
         """Search for tools matching a query description.
-        
+
         Uses AI to semantically match the query against tool descriptions
         and return the most relevant tool definitions.
-        
+
         Args:
             query: Description of what the user wants to accomplish.
             model: AI model to use for matching. Defaults to gpt-4.1-mini.
             max_results: Maximum number of tools to return (1-20).
-            
+
         Returns:
             List of matching tool definitions, ordered by relevance.
         """
@@ -210,12 +210,12 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
     @staticmethod
     def _extract_list_from_parsed(parsed: Any) -> List[str]:
         """Extract a list of strings from a parsed JSON value.
-        
+
         Handles both direct arrays and objects with 'tools' key.
-        
+
         Args:
             parsed: The parsed JSON value.
-            
+
         Returns:
             List of tool name strings.
         """
@@ -232,15 +232,15 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
     @staticmethod
     def _parse_tool_names(content: str) -> List[str]:
         """Parse tool names from AI response.
-        
+
         Handles various response formats including:
         - JSON arrays: ["tool1", "tool2"]
         - JSON objects: {"tools": ["tool1", "tool2"]}
         - Markdown code blocks with JSON
-        
+
         Args:
             content: The AI response content.
-            
+
         Returns:
             List of tool names extracted from the response.
         """
@@ -302,12 +302,12 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         max_results: int = 10,
     ) -> Dict[str, Any]:
         """Search for tools and return formatted result for AI consumption.
-        
+
         Args:
             query: Description of what the user wants to accomplish.
             model: AI model to use for matching.
             max_results: Maximum number of tools to return.
-            
+
         Returns:
             Dict with 'tools' list and 'count' for the AI to use.
         """

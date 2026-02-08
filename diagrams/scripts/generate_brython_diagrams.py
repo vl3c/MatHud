@@ -4,7 +4,7 @@ MatHud Brython Client-Side Diagram Generation Script
 
 Automatically generates comprehensive diagrams for the Brython client-side system:
 - Drawable class hierarchy diagrams
-- Manager pattern system diagrams  
+- Manager pattern system diagrams
 - Core system architecture diagrams
 - Client-server integration flow diagrams
 - Package structure diagrams
@@ -14,7 +14,7 @@ Output: generated_png/brython/ and generated_svg/brython/
 
 Dependencies:
     pip install pylint graphviz diagrams
-    
+
 Usage:
     python generate_brython_diagrams.py [--png-dir ../generated_png] [--svg-dir ../generated_svg] [--format png,svg]
 """
@@ -24,29 +24,28 @@ from __future__ import annotations
 import argparse
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Sequence, Set, Tuple
+from typing import List, Sequence, Tuple
 
 # Import shared utilities
 from utils import (
-    setup_graphviz_path, 
-    setup_font_environment, 
+    setup_graphviz_path,
+    setup_font_environment,
     post_process_svg_fonts,
-    DIAGRAM_FONT,
-    DIAGRAM_FONT_SIZE_STR
+    DIAGRAM_FONT
 )
 
 
 class BrythonDiagramGenerator:
     """
     Comprehensive diagram generator for the Brython client-side system.
-    
+
     Generates documentation diagrams for:
     - All 10+ drawable classes (Point, Segment, Vector, Triangle, Rectangle, Circle, Ellipse, Angle, Function, ColoredArea)
     - All 15+ manager classes with relationships
     - Core system classes (Canvas, AIInterface, EventHandler, WorkspaceManager)
     - Utility systems (Expression evaluator, markdown parser, name generators)
     """
-    
+
     def __init__(
         self,
         png_dir: str = "../generated_png",
@@ -57,14 +56,14 @@ class BrythonDiagramGenerator:
         self.png_dir: Path = Path(png_dir).resolve()
         self.svg_dir: Path = Path(svg_dir).resolve()
         self.formats: List[str] = list(formats) if formats is not None else ["png", "svg"]
-        
+
         # Setup Graphviz PATH for Windows
         setup_graphviz_path()
-        
+
         # Create client-specific output directories
         self.brython_png_dir: Path = self.png_dir / "client"
         self.brython_svg_dir: Path = self.svg_dir / "client"
-        
+
         if "png" in self.formats:
             self.brython_png_dir.mkdir(parents=True, exist_ok=True)
             # Create subdirectories for organization
@@ -74,7 +73,7 @@ class BrythonDiagramGenerator:
             (self.brython_png_dir / "integration").mkdir(exist_ok=True)
             (self.brython_png_dir / "testing").mkdir(exist_ok=True)
             (self.brython_png_dir / "utilities").mkdir(exist_ok=True)
-            
+
         if "svg" in self.formats:
             self.brython_svg_dir.mkdir(parents=True, exist_ok=True)
             # Create subdirectories for organization
@@ -84,16 +83,16 @@ class BrythonDiagramGenerator:
             (self.brython_svg_dir / "integration").mkdir(exist_ok=True)
             (self.brython_svg_dir / "testing").mkdir(exist_ok=True)
             (self.brython_svg_dir / "utilities").mkdir(exist_ok=True)
-            
+
         # Setup font configuration for all diagrams
         setup_font_environment()
-        
+
         # Track SVG font processing for summary
         self.svg_files_processed: int = 0
-        
+
         # Define the Brython source directory
         self.brython_source_dir: Path = Path("../../static/client").resolve()
-        
+
         # System component definitions
         self.drawable_classes: List[str] = [
             'point.py', 'segment.py', 'vector.py', 'triangle.py', 'rectangle.py',
@@ -101,7 +100,7 @@ class BrythonDiagramGenerator:
             'functions_bounded_colored_area.py', 'function_segment_bounded_colored_area.py',
             'segments_bounded_colored_area.py', 'rotatable_polygon.py', 'drawable.py'
         ]
-        
+
         self.manager_classes: List[str] = [
             'drawable_manager.py', 'point_manager.py', 'segment_manager.py',
             'vector_manager.py', 'polygon_manager.py',
@@ -110,12 +109,12 @@ class BrythonDiagramGenerator:
             'drawable_manager_proxy.py', 'transformations_manager.py', 'undo_redo_manager.py',
             'drawables_container.py'
         ]
-        
+
         self.core_system_files: List[str] = [
             'canvas.py', 'ai_interface.py', 'canvas_event_handler.py',
             'workspace_manager.py', 'result_processor.py', 'process_function_calls.py'
         ]
-        
+
         self.utility_files: List[str] = [
             'expression_evaluator.py', 'expression_validator.py', 'markdown_parser.py',
             'function_registry.py', 'result_validator.py', 'constants.py', 'geometry.py'
@@ -143,20 +142,20 @@ class BrythonDiagramGenerator:
         """Process all client SVG files for font optimization, regardless of individual generation success."""
         if "svg" not in self.formats:
             return
-            
+
         # Find all SVG files in the client output directory
         svg_files = list(self.brython_svg_dir.rglob("*.svg"))
-        
+
         if not svg_files:
             return
-            
+
         # Reset counter for comprehensive processing
         total_processed = 0
-        
+
         for svg_file in svg_files:
             if post_process_svg_fonts(svg_file):
                 total_processed += 1
-        
+
         # Update the counter to the actual total processed
         self.svg_files_processed = total_processed
 
@@ -164,36 +163,36 @@ class BrythonDiagramGenerator:
         """Generate all Brython system diagrams."""
         print("GENERATING COMPREHENSIVE BRYTHON DIAGRAMS")
         print("=" * 60)
-        
+
         if not self.check_brython_source_exists():
             return
-            
+
         # Generate all diagram categories
         self.generate_core_system_diagrams()
         print()
-        
+
         self.generate_drawable_system_diagrams()
         print()
-        
+
         self.generate_manager_system_diagrams()
         print()
-        
+
         self.generate_integration_diagrams()
         print()
-        
+
         self.generate_utility_system_diagrams()
         print()
-        
+
         self.generate_testing_diagrams()
         print()
-        
+
         self.generate_package_structure_diagrams()
         print()
-        
+
         # Process all SVG fonts comprehensively at the end
         if "svg" in self.formats:
             self._process_all_client_svg_fonts()
-        
+
         print("Brython diagram generation completed!")
         print(f"   PNG diagrams: {self.brython_png_dir}")
         print(f"   SVG diagrams: {self.brython_svg_dir}")
@@ -203,14 +202,14 @@ class BrythonDiagramGenerator:
     def generate_core_system_diagrams(self) -> None:
         """Generate diagrams for core system classes."""
         print("Generating Brython core system diagrams...")
-        
+
         # Core system classes diagram
         core_files: List[str] = [
             str(self.brython_source_dir / module)
             for module in self.core_system_files
             if (self.brython_source_dir / module).exists()
         ]
-        
+
         if core_files:
             for fmt in self.formats:
                 output_dir = self.get_brython_output_dir(fmt, "core")
@@ -222,14 +221,14 @@ class BrythonDiagramGenerator:
                     '--show-associated', '1',
                     '--show-ancestors', '1'
                 ] + core_files
-                
+
                 try:
                     subprocess.run(cmd, check=True, capture_output=True, text=True)
                     print(f"  + Core system diagram generated: {output_dir}/classes_brython_core_classes.{fmt}")
-                    
+
                     if fmt == 'svg':
                         self._process_svg_font_and_count(output_dir / f'classes_brython_core_classes.{fmt}')
-                        
+
                 except subprocess.CalledProcessError as e:
                     print(f"Error generating core system diagram: {e.stderr}")
 
@@ -242,7 +241,7 @@ class BrythonDiagramGenerator:
             ('result_processor.py', 'brython_result_processor'),
             ('process_function_calls.py', 'brython_function_execution')
         ]
-        
+
         for module_file, diagram_name in important_core_modules:
             module_path = self.brython_source_dir / module_file
             if module_path.exists():
@@ -256,33 +255,33 @@ class BrythonDiagramGenerator:
                         '--show-associated', '1',
                         str(module_path)
                     ]
-                    
+
                     try:
                         subprocess.run(cmd, check=True, capture_output=True, text=True)
                         print(f"  + {diagram_name} diagram generated: {output_dir}/classes_{diagram_name}.{fmt}")
-                        
+
                         if fmt == 'svg':
                             self._process_svg_font_and_count(output_dir / f'classes_{diagram_name}.{fmt}')
-                            
+
                     except subprocess.CalledProcessError as e:
                         print(f"Error generating {diagram_name} diagram: {e.stderr}")
 
     def generate_drawable_system_diagrams(self) -> None:
         """Generate diagrams for the drawable class hierarchy."""
         print("Generating Brython drawable system diagrams...")
-        
+
         drawables_dir = self.brython_source_dir / "drawables"
         if not drawables_dir.exists():
             print(f"  Warning: Drawables directory not found: {drawables_dir}")
             return
-            
+
         # Complete drawable hierarchy diagram
         drawable_files: List[str] = [
             str(drawables_dir / module)
             for module in self.drawable_classes
             if (drawables_dir / module).exists()
         ]
-        
+
         if drawable_files:
             for fmt in self.formats:
                 output_dir = self.get_brython_output_dir(fmt, "drawables")
@@ -295,14 +294,14 @@ class BrythonDiagramGenerator:
                     '--show-ancestors', '1',
                     '--show-builtin', '0'
                 ] + drawable_files
-                
+
                 try:
                     subprocess.run(cmd, check=True, capture_output=True, text=True)
                     print(f"  + Drawable hierarchy diagram generated: {output_dir}/classes_brython_drawable_hierarchy.{fmt}")
-                    
+
                     if fmt == 'svg':
                         self._process_svg_font_and_count(output_dir / f'classes_brython_drawable_hierarchy.{fmt}')
-                        
+
                 except subprocess.CalledProcessError as e:
                     print(f"  Error generating drawable hierarchy diagram: {e.stderr}")
 
@@ -313,52 +312,52 @@ class BrythonDiagramGenerator:
             (['colored_area.py', 'functions_bounded_colored_area.py', 'function_segment_bounded_colored_area.py', 'segments_bounded_colored_area.py'], 'brython_colored_areas'),
             (['rotatable_polygon.py', 'drawable.py', 'position.py'], 'brython_base_drawable_system')
         ]
-        
+
         for category_files, diagram_name in drawable_categories:
             category_paths = [
                 str(drawables_dir / module)
                 for module in category_files
                 if (drawables_dir / module).exists()
             ]
-            
+
             if category_paths:
                 for fmt in self.formats:
                     output_dir = self.get_brython_output_dir(fmt, "drawables")
                     cmd = [
                         'pyreverse',
-                        '-o', fmt,  
+                        '-o', fmt,
                         '-p', diagram_name,
                         '--output-directory', str(output_dir),
                         '--show-associated', '1',
                         '--show-ancestors', '1'
                     ] + category_paths
-                    
+
                     try:
                         subprocess.run(cmd, check=True, capture_output=True, text=True)
                         print(f"  + {diagram_name} diagram generated: {output_dir}/classes_{diagram_name}.{fmt}")
-                        
+
                         if fmt == 'svg':
                             self._process_svg_font_and_count(output_dir / f'classes_{diagram_name}.{fmt}')
-                            
+
                     except subprocess.CalledProcessError as e:
                         print(f"Error generating {diagram_name} diagram: {e.stderr}")
 
     def generate_manager_system_diagrams(self) -> None:
         """Generate diagrams for the manager pattern system."""
         print("Generating Brython manager system diagrams...")
-        
+
         managers_dir = self.brython_source_dir / "managers"
         if not managers_dir.exists():
             print(f"  Warning: Managers directory not found: {managers_dir}")
             return
-            
+
         # Complete manager orchestration diagram
         manager_files: List[str] = [
             str(managers_dir / module)
             for module in self.manager_classes
             if (managers_dir / module).exists()
         ]
-        
+
         if manager_files:
             for fmt in self.formats:
                 output_dir = self.get_brython_output_dir(fmt, "managers")
@@ -371,14 +370,14 @@ class BrythonDiagramGenerator:
                     '--show-ancestors', '1',
                     '--show-builtin', '0'
                 ] + manager_files
-                
+
                 try:
                     subprocess.run(cmd, check=True, capture_output=True, text=True)
                     print(f"  + Manager orchestration diagram generated: {output_dir}/classes_brython_manager_orchestration.{fmt}")
-                    
+
                     if fmt == 'svg':
                         self._process_svg_font_and_count(output_dir / f'classes_brython_manager_orchestration.{fmt}')
-                        
+
                 except subprocess.CalledProcessError as e:
                     print(f"  Error generating manager orchestration diagram: {e.stderr}")
 
@@ -389,14 +388,14 @@ class BrythonDiagramGenerator:
             (['drawable_manager.py', 'drawable_dependency_manager.py', 'drawable_manager_proxy.py', 'drawables_container.py'], 'brython_core_managers'),
             (['transformations_manager.py', 'undo_redo_manager.py'], 'brython_system_managers')
         ]
-        
+
         for category_files, diagram_name in manager_categories:
             category_paths = [
                 str(managers_dir / module)
                 for module in category_files
                 if (managers_dir / module).exists()
             ]
-            
+
             if category_paths:
                 for fmt in self.formats:
                     output_dir = self.get_brython_output_dir(fmt, "managers")
@@ -408,21 +407,21 @@ class BrythonDiagramGenerator:
                         '--show-associated', '1',
                         '--show-ancestors', '1'
                     ] + category_paths
-                    
+
                     try:
                         subprocess.run(cmd, check=True, capture_output=True, text=True)
                         print(f"  + {diagram_name} diagram generated: {output_dir}/classes_{diagram_name}.{fmt}")
-                        
+
                         if fmt == 'svg':
                             self._process_svg_font_and_count(output_dir / f'classes_{diagram_name}.{fmt}')
-                            
+
                     except subprocess.CalledProcessError as e:
                         print(f"Error generating {diagram_name} diagram: {e.stderr}")
 
     def generate_integration_diagrams(self) -> None:
         """Generate client-server integration flow diagrams."""
         print("Generating Brython integration diagrams...")
-        
+
         # AJAX and AI integration components
         integration_files: List[str] = [
             str(self.brython_source_dir / 'ai_interface.py'),
@@ -430,11 +429,11 @@ class BrythonDiagramGenerator:
             str(self.brython_source_dir / 'process_function_calls.py'),
             str(self.brython_source_dir / 'workspace_manager.py')
         ]
-        
+
         existing_integration_files: List[str] = [
             file_path for file_path in integration_files if Path(file_path).exists()
         ]
-        
+
         if existing_integration_files:
             for fmt in self.formats:
                 output_dir = self.get_brython_output_dir(fmt, "integration")
@@ -446,14 +445,14 @@ class BrythonDiagramGenerator:
                     '--show-associated', '1',
                     '--show-ancestors', '1'
                 ] + existing_integration_files
-                
+
                 try:
                     subprocess.run(cmd, check=True, capture_output=True, text=True)
                     print(f"  + AJAX communication diagram generated: {output_dir}/classes_brython_ajax_communication.{fmt}")
-                    
+
                     if fmt == 'svg':
                         self._process_svg_font_and_count(output_dir / f'classes_brython_ajax_communication.{fmt}')
-                        
+
                 except subprocess.CalledProcessError as e:
                     print(f"Error generating AJAX communication diagram: {e.stderr}")
 
@@ -464,11 +463,11 @@ class BrythonDiagramGenerator:
             str(self.brython_source_dir / 'expression_evaluator.py'),
             str(self.brython_source_dir / 'result_validator.py')
         ]
-        
+
         existing_execution_files: List[str] = [
             file_path for file_path in execution_files if Path(file_path).exists()
         ]
-        
+
         if existing_execution_files:
             for fmt in self.formats:
                 output_dir = self.get_brython_output_dir(fmt, "integration")
@@ -479,30 +478,30 @@ class BrythonDiagramGenerator:
                     '--output-directory', str(output_dir),
                     '--show-associated', '1'
                 ] + existing_execution_files
-                
+
                 try:
                     subprocess.run(cmd, check=True, capture_output=True, text=True)
                     print(f"  + Function execution pipeline diagram generated: {output_dir}/classes_brython_function_execution_pipeline.{fmt}")
-                    
+
                     if fmt == 'svg':
                         self._process_svg_font_and_count(output_dir / f'classes_brython_function_execution_pipeline.{fmt}')
-                        
+
                 except subprocess.CalledProcessError as e:
                     print(f"Error generating function execution pipeline diagram: {e.stderr}")
 
     def generate_utility_system_diagrams(self) -> None:
         """Generate diagrams for utility systems."""
         print("Generating Brython utility system diagrams...")
-        
+
         # Expression and validation utilities
         validation_files = [
             str(self.brython_source_dir / 'expression_evaluator.py'),
             str(self.brython_source_dir / 'expression_validator.py'),
             str(self.brython_source_dir / 'result_validator.py')
         ]
-        
+
         existing_validation_files = [f for f in validation_files if Path(f).exists()]
-        
+
         if existing_validation_files:
             for fmt in self.formats:
                 output_dir = self.get_brython_output_dir(fmt, "utilities")
@@ -513,14 +512,14 @@ class BrythonDiagramGenerator:
                     '--output-directory', str(output_dir),
                     '--show-associated', '1'
                 ] + existing_validation_files
-                
+
                 try:
                     subprocess.run(cmd, check=True, capture_output=True, text=True)
                     print(f"  + Expression system diagram generated: {output_dir}/classes_brython_expression_system.{fmt}")
-                    
+
                     if fmt == 'svg':
                         self._process_svg_font_and_count(output_dir / f'classes_brython_expression_system.{fmt}')
-                        
+
                 except subprocess.CalledProcessError as e:
                     print(f"Error generating expression system diagram: {e.stderr}")
 
@@ -529,9 +528,9 @@ class BrythonDiagramGenerator:
             str(self.brython_source_dir / 'markdown_parser.py'),
             str(self.brython_source_dir / 'function_registry.py')
         ]
-        
+
         existing_content_files = [f for f in content_files if Path(f).exists()]
-        
+
         if existing_content_files:
             for fmt in self.formats:
                 output_dir = self.get_brython_output_dir(fmt, "utilities")
@@ -542,21 +541,21 @@ class BrythonDiagramGenerator:
                     '--output-directory', str(output_dir),
                     '--show-associated', '1'
                 ] + existing_content_files
-                
+
                 try:
                     subprocess.run(cmd, check=True, capture_output=True, text=True)
                     print(f"  + Content processing diagram generated: {output_dir}/classes_brython_content_processing.{fmt}")
-                    
+
                     if fmt == 'svg':
                         self._process_svg_font_and_count(output_dir / f'classes_brython_content_processing.{fmt}')
-                        
+
                 except subprocess.CalledProcessError as e:
                     print(f"Error generating content processing diagram: {e.stderr}")
 
         # Name generator and utility modules
         utils_dir = self.brython_source_dir / "utils"
         name_gen_dir = self.brython_source_dir / "name_generator"
-        
+
         if utils_dir.exists():
             utils_files = [str(f) for f in utils_dir.glob("*.py") if f.name != "__init__.py"]
             if utils_files:
@@ -569,14 +568,14 @@ class BrythonDiagramGenerator:
                         '--output-directory', str(output_dir),
                         str(utils_dir)
                     ]
-                    
+
                     try:
                         subprocess.run(cmd, check=True, capture_output=True, text=True)
                         print(f"  + Utils system diagram generated: {output_dir}/classes_brython_utils.{fmt}")
-                        
+
                         if fmt == 'svg':
                             self._process_svg_font_and_count(output_dir / f'classes_brython_utils.{fmt}')
-                            
+
                     except subprocess.CalledProcessError as e:
                         print(f"Error generating utils system diagram: {e.stderr}")
 
@@ -590,24 +589,24 @@ class BrythonDiagramGenerator:
                     '--output-directory', str(output_dir),
                     str(name_gen_dir)
                 ]
-                
+
                 try:
                     subprocess.run(cmd, check=True, capture_output=True, text=True)
                     print(f"  + Name generator diagram generated: {output_dir}/classes_brython_name_generator.{fmt}")
-                    
+
                     if fmt == 'svg':
                         self._process_svg_font_and_count(output_dir / f'classes_brython_name_generator.{fmt}')
-                        
+
                 except subprocess.CalledProcessError as e:
                     print(f"Error generating name generator diagram: {e.stderr}")
 
     def generate_testing_diagrams(self) -> None:
         """Generate diagrams for the testing framework."""
         print("Generating Brython testing framework diagrams...")
-        
+
         tests_dir = self.brython_source_dir / "client_tests"
         test_runner_file = self.brython_source_dir / "test_runner.py"
-        
+
         # Test framework structure
         if tests_dir.exists():
             for fmt in self.formats:
@@ -619,14 +618,14 @@ class BrythonDiagramGenerator:
                     '--output-directory', str(output_dir),
                     str(tests_dir)
                 ]
-                
+
                 try:
                     subprocess.run(cmd, check=True, capture_output=True, text=True)
                     print(f"  + Test framework diagram generated: {output_dir}/classes_brython_test_framework.{fmt}")
-                    
+
                     if fmt == 'svg':
                         self._process_svg_font_and_count(output_dir / f'classes_brython_test_framework.{fmt}')
-                        
+
                 except subprocess.CalledProcessError as e:
                     print(f"Error generating test framework diagram: {e.stderr}")
 
@@ -641,21 +640,21 @@ class BrythonDiagramGenerator:
                     '--output-directory', str(output_dir),
                     str(test_runner_file)
                 ]
-                
+
                 try:
                     subprocess.run(cmd, check=True, capture_output=True, text=True)
                     print(f"  + Test runner diagram generated: {output_dir}/classes_brython_test_runner.{fmt}")
-                    
+
                     if fmt == 'svg':
                         self._process_svg_font_and_count(output_dir / f'classes_brython_test_runner.{fmt}')
-                        
+
                 except subprocess.CalledProcessError as e:
                     print(f"Error generating test runner diagram: {e.stderr}")
 
     def generate_package_structure_diagrams(self) -> None:
         """Generate package structure overview diagrams."""
         print("Generating Brython package structure diagrams...")
-        
+
         # Complete Brython system overview
         for fmt in self.formats:
             output_dir = self.get_brython_output_dir(fmt)
@@ -669,14 +668,14 @@ class BrythonDiagramGenerator:
                 '-m', 'yes',  # Show module names
                 str(self.brython_source_dir)
             ]
-            
+
             try:
                 subprocess.run(cmd, check=True, capture_output=True, text=True)
                 print(f"  + Complete system diagram generated: {output_dir}/packages_brython_complete_system.{fmt}")
-                
+
                 if fmt == 'svg':
                     self._process_svg_font_and_count(output_dir / f'packages_brython_complete_system.{fmt}')
-                    
+
             except subprocess.CalledProcessError as e:
                 print(f"Error generating complete system diagram: {e.stderr}")
 
@@ -688,7 +687,7 @@ class BrythonDiagramGenerator:
             ('name_generator', 'brython_name_generator_package'),
             ('client_tests', 'brython_tests_package')
         ]
-        
+
         for package_name, diagram_name in packages:
             package_dir = self.brython_source_dir / package_name
             if package_dir.exists():
@@ -702,14 +701,14 @@ class BrythonDiagramGenerator:
                         '-m', 'yes',
                         str(package_dir)
                     ]
-                    
+
                     try:
                         subprocess.run(cmd, check=True, capture_output=True, text=True)
                         print(f"  + {package_name} package diagram generated: {output_dir}/packages_{diagram_name}.{fmt}")
-                        
+
                         if fmt == 'svg':
                             self._process_svg_font_and_count(output_dir / f'packages_{diagram_name}.{fmt}')
-                            
+
                     except subprocess.CalledProcessError as e:
                         print(f"Error generating {package_name} package diagram: {e.stderr}")
 
@@ -721,27 +720,27 @@ class BrythonDiagramGenerator:
 def main() -> None:
     """Main function with command line argument parsing."""
     parser = argparse.ArgumentParser(description="Generate comprehensive Brython client-side diagrams")
-    parser.add_argument('--png-dir', default='../generated_png', 
+    parser.add_argument('--png-dir', default='../generated_png',
                        help='Output directory for PNG diagrams (default: ../generated_png)')
     parser.add_argument('--svg-dir', default='../generated_svg',
                        help='Output directory for SVG diagrams (default: ../generated_svg)')
     parser.add_argument('--format', default='png,svg',
                        help='Output formats (default: png,svg)')
-    
+
     args = parser.parse_args()
-    
+
     # Parse formats
     formats: List[str] = [fmt.strip() for fmt in args.format.split(',') if fmt.strip()]
-    
+
     # Create and run generator
     generator = BrythonDiagramGenerator(
         png_dir=args.png_dir,
         svg_dir=args.svg_dir,
         formats=formats
     )
-    
+
     generator.run()
 
 
 if __name__ == "__main__":
-    main() 
+    main()

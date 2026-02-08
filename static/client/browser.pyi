@@ -15,13 +15,13 @@ class DOMNode:
 class Document:
     """Document object."""
     def __getitem__(self, key: str) -> DOMNode: ...
-    
+
 document: Document
 
 class HTML:
     """HTML element factory."""
     def __call__(self, tag: str, **kwargs: Any) -> DOMNode: ...
-    
+
 html: HTML
 
 class Ajax:
@@ -29,14 +29,14 @@ class Ajax:
     def __init__(self, url: str, **kwargs: Any) -> None: ...
     def send(self, *args: Any) -> None: ...
     def bind(self, event: str, handler: Callable[..., None]) -> None: ...
-    
+
 ajax: Any  # Module-level alias
 
 class Window:
     """Browser window object."""
     def __getitem__(self, key: str) -> Any: ...
     def __setitem__(self, key: str, value: Any) -> None: ...
-    
+
 window: Window
 
 class Console:
@@ -44,12 +44,12 @@ class Console:
     def log(self, *args: Any) -> None: ...
     def error(self, *args: Any) -> None: ...
     def warn(self, *args: Any) -> None: ...
-    
+
 console: Console
 
 class SVG:
     """SVG element factory."""
     def __call__(self, tag: str, **kwargs: Any) -> DOMNode: ...
-    
+
 svg: SVG
 

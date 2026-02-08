@@ -33,7 +33,7 @@ from typing import Any, Dict, List
 
 class ComputationUtils:
     """Computation history management utilities for mathematical expression tracking.
-    
+
     Provides static methods for managing computation history, detecting duplicates,
     and maintaining a record of mathematical calculations performed in the canvas.
     """
@@ -41,11 +41,11 @@ class ComputationUtils:
     def has_computation(computations: List[Dict[str, Any]], expression: str) -> bool:
         """
         Check if a computation with the given expression already exists.
-        
+
         Args:
             computations: List of computation dictionaries
             expression: Expression to check
-            
+
         Returns:
             bool: True if the computation exists, False otherwise
         """
@@ -55,12 +55,12 @@ class ComputationUtils:
     def add_computation(computations: List[Dict[str, Any]], expression: str, result: Any) -> List[Dict[str, Any]]:
         """
         Add a computation to the history if it doesn't already exist.
-        
+
         Args:
             computations: List of computation dictionaries
             expression: Expression to add
             result: Result of the computation
-            
+
         Returns:
             list: Updated list of computations
         """
@@ -69,4 +69,4 @@ class ComputationUtils:
                 "expression": expression,
                 "result": result
             })
-        return computations 
+        return computations

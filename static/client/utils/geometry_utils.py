@@ -40,17 +40,17 @@ PointLike = Union["Point", Tuple[float, float]]
 
 class GeometryUtils:
     """Geometric analysis utilities for shape validation and classification.
-    
+
     Provides static methods for analyzing relationships between geometric objects,
     particularly for validating connectivity and classifying polygon shapes.
     Delegates graph theory operations to GraphUtils.
     """
-    
+
     @staticmethod
     def _segments_to_edges(segments: List["Segment"]) -> List[Edge[str]]:
         """Convert segment objects to Edge objects using point names as vertex identifiers."""
         return [Edge(segment.point1.name, segment.point2.name) for segment in segments]
-    
+
     @staticmethod
     def _build_point_graph(segments: List["Segment"]) -> Dict[str, Set[str]]:
         """
@@ -69,10 +69,10 @@ class GeometryUtils:
     def get_unique_point_names_from_segments(segments: List["Segment"]) -> List[str]:
         """
         Extract unique point names from a list of segments.
-        
+
         Args:
             segments: List of Segment objects
-            
+
         Returns:
             list: Sorted list of unique point names
         """
@@ -86,11 +86,11 @@ class GeometryUtils:
     def is_fully_connected_graph(list_of_point_names: List[str], segments: List["Segment"]) -> bool:
         """
         Check if all points in the list are connected by segments.
-        
+
         Args:
             list_of_point_names: List of point names to check
             segments: List of Segment objects
-            
+
         Returns:
             bool: True if the graph is fully connected, False otherwise
         """
@@ -191,7 +191,7 @@ class GeometryUtils:
         b: Tuple[float, float],
     ) -> float:
         """Cross product of vectors OA and OB.
-        
+
         Positive value indicates counter-clockwise turn from OA to OB.
         Negative value indicates clockwise turn.
         Zero indicates collinear points.
@@ -203,10 +203,10 @@ class GeometryUtils:
         points: Sequence[Tuple[float, float]],
     ) -> List[Tuple[float, float]]:
         """Compute convex hull using Andrew's monotone chain algorithm.
-        
+
         Args:
             points: Sequence of (x, y) coordinate tuples.
-            
+
         Returns:
             List of hull vertices in counter-clockwise order.
             Returns empty list if fewer than 3 unique points after deduplication.
@@ -215,24 +215,24 @@ class GeometryUtils:
         # Remove duplicates and sort lexicographically
         sorted_points = sorted(set(points))
         n = len(sorted_points)
-        
+
         if n < 3:
             return list(sorted_points)
-        
+
         # Build lower hull (left to right)
         lower: List[Tuple[float, float]] = []
         for p in sorted_points:
             while len(lower) >= 2 and GeometryUtils._cross_product(lower[-2], lower[-1], p) <= 0:
                 lower.pop()
             lower.append(p)
-        
+
         # Build upper hull (right to left)
         upper: List[Tuple[float, float]] = []
         for p in reversed(sorted_points):
             while len(upper) >= 2 and GeometryUtils._cross_product(upper[-2], upper[-1], p) <= 0:
                 upper.pop()
             upper.append(p)
-        
+
         # Concatenate, removing duplicate endpoints
         return lower[:-1] + upper[:-1]
 
@@ -242,11 +242,11 @@ class GeometryUtils:
         hull: Sequence[Tuple[float, float]],
     ) -> bool:
         """Check if a point is inside or on the boundary of a convex hull.
-        
+
         Args:
             point: The (x, y) point to test.
             hull: Convex hull vertices in counter-clockwise order.
-            
+
         Returns:
             True if point is inside or on the boundary of the hull.
             False if point is outside or hull has fewer than 3 vertices.
@@ -254,7 +254,7 @@ class GeometryUtils:
         n = len(hull)
         if n < 3:
             return False
-        
+
         # For a CCW hull, point is inside if it's on the left side (or on)
         # of every edge when traversing CCW
         for i in range(n):
@@ -703,22 +703,22 @@ class GeometryUtils:
     ) -> bool:
         """Check if angle is within the arc's angular range."""
         two_pi = 2 * math.pi
-        
+
         arc_span = abs(end_angle - start_angle)
         if arc_span >= two_pi - 1e-9:
             return True
-        
+
         def normalize(a: float) -> float:
             while a < 0:
                 a += two_pi
             while a >= two_pi:
                 a -= two_pi
             return a
-        
+
         angle = normalize(angle)
         start = normalize(start_angle)
         end = normalize(end_angle)
-        
+
         if not clockwise:
             if start <= end:
                 return start <= angle <= end
@@ -745,27 +745,27 @@ class GeometryUtils:
         x2, y2 = seg1_end
         x3, y3 = seg2_start
         x4, y4 = seg2_end
-        
+
         dx1 = x2 - x1
         dy1 = y2 - y1
         dx2 = x4 - x3
         dy2 = y4 - y3
-        
+
         denom = dx1 * dy2 - dy1 * dx2
         eps = GeometryUtils.INTERSECTION_EPSILON
-        
+
         if abs(denom) < eps:
             return []
-        
+
         dx3 = x3 - x1
         dy3 = y3 - y1
-        
+
         t = (dx3 * dy2 - dy3 * dx2) / denom
         u = (dx3 * dy1 - dy3 * dx1) / denom
-        
+
         if 0 <= t <= 1 and 0 <= u <= 1:
             return [(x1 + t * dx1, y1 + t * dy1)]
-        
+
         return []
 
     @staticmethod
@@ -786,18 +786,18 @@ class GeometryUtils:
             def __init__(self, p1: Tuple[float, float], p2: Tuple[float, float]):
                 self.point1 = type('P', (), {'x': p1[0], 'y': p1[1]})()
                 self.point2 = type('P', (), {'x': p2[0], 'y': p2[1]})()
-        
+
         segment = SegmentAdapter(seg_start, seg_end)
         raw_intersections = MathUtils.circle_segment_intersections(
             center[0], center[1], radius, segment
         )
-        
+
         results: List[Tuple[float, float]] = []
         for hit in raw_intersections:
             angle = hit['angle']
             if GeometryUtils._angle_in_arc_range(angle, start_angle, end_angle, clockwise):
                 results.append((hit['x'], hit['y']))
-        
+
         return results
 
     @staticmethod
@@ -820,19 +820,19 @@ class GeometryUtils:
             def __init__(self, p1: Tuple[float, float], p2: Tuple[float, float]):
                 self.point1 = type('P', (), {'x': p1[0], 'y': p1[1]})()
                 self.point2 = type('P', (), {'x': p2[0], 'y': p2[1]})()
-        
+
         segment = SegmentAdapter(seg_start, seg_end)
         rotation_degrees = math.degrees(rotation)
         raw_intersections = MathUtils.ellipse_segment_intersections(
             center[0], center[1], radius_x, radius_y, rotation_degrees, segment
         )
-        
+
         results: List[Tuple[float, float]] = []
         for hit in raw_intersections:
             angle = hit['angle']
             if GeometryUtils._angle_in_arc_range(angle, start_angle, end_angle, clockwise):
                 results.append((hit['x'], hit['y']))
-        
+
         return results
 
     @staticmethod
@@ -855,29 +855,29 @@ class GeometryUtils:
         cx1, cy1 = center1
         cx2, cy2 = center2
         eps = GeometryUtils.INTERSECTION_EPSILON
-        
+
         dx = cx2 - cx1
         dy = cy2 - cy1
         d = math.sqrt(dx * dx + dy * dy)
-        
+
         if d < eps:
             return []
         if d > radius1 + radius2 + eps:
             return []
         if d < abs(radius1 - radius2) - eps:
             return []
-        
+
         a = (radius1 * radius1 - radius2 * radius2 + d * d) / (2 * d)
         h_squared = radius1 * radius1 - a * a
         if h_squared < -eps:
             return []
-        
+
         h = math.sqrt(max(0, h_squared))
         px = cx1 + a * dx / d
         py = cy1 + a * dy / d
-        
+
         results: List[Tuple[float, float]] = []
-        
+
         if h < eps:
             point = (px, py)
             angle1 = math.atan2(point[1] - cy1, point[0] - cx1)
@@ -888,7 +888,7 @@ class GeometryUtils:
         else:
             offset_x = h * dy / d
             offset_y = h * dx / d
-            
+
             for sign in [1, -1]:
                 point = (px + sign * offset_x, py - sign * offset_y)
                 angle1 = math.atan2(point[1] - cy1, point[0] - cx1)
@@ -896,7 +896,7 @@ class GeometryUtils:
                 if (GeometryUtils._angle_in_arc_range(angle1, start_angle1, end_angle1, clockwise1) and
                     GeometryUtils._angle_in_arc_range(angle2, start_angle2, end_angle2, clockwise2)):
                     results.append(point)
-        
+
         return results
 
     @staticmethod
@@ -920,47 +920,47 @@ class GeometryUtils:
         """
         cx, cy = ellipse_center
         rot = ellipse_rotation
-        
+
         cos_rot = math.cos(-rot)
         sin_rot = math.sin(-rot)
-        
+
         circle_cx_local = (circle_center[0] - cx) * cos_rot - (circle_center[1] - cy) * sin_rot
         circle_cy_local = (circle_center[0] - cx) * sin_rot + (circle_center[1] - cy) * cos_rot
-        
+
         circle_cx_scaled = circle_cx_local / ellipse_rx
         circle_cy_scaled = circle_cy_local / ellipse_ry
-        
+
         results: List[Tuple[float, float]] = []
         num_samples = 360
-        
+
         for i in range(num_samples):
             angle = 2 * math.pi * i / num_samples
-            
+
             ex = math.cos(angle)
             ey = math.sin(angle)
-            
+
             dist_x = (ex - circle_cx_scaled) * ellipse_rx
             dist_y = (ey - circle_cy_scaled) * ellipse_ry
             dist = math.sqrt(dist_x * dist_x + dist_y * dist_y)
-            
+
             if abs(dist - circle_radius) < 0.01:
                 cos_rot_inv = math.cos(rot)
                 sin_rot_inv = math.sin(rot)
                 world_x = (ex * ellipse_rx) * cos_rot_inv - (ey * ellipse_ry) * sin_rot_inv + cx
                 world_y = (ex * ellipse_rx) * sin_rot_inv + (ey * ellipse_ry) * cos_rot_inv + cy
-                
+
                 circle_angle = math.atan2(world_y - circle_center[1], world_x - circle_center[0])
-                
+
                 if (GeometryUtils._angle_in_arc_range(angle, ellipse_start, ellipse_end, ellipse_cw) and
                     GeometryUtils._angle_in_arc_range(circle_angle, circle_start, circle_end, circle_cw)):
-                    
+
                     is_duplicate = any(
                         GeometryUtils._points_equal((world_x, world_y), existing, tol=0.001)
                         for existing in results
                     )
                     if not is_duplicate:
                         results.append((world_x, world_y))
-        
+
         return results
 
     @staticmethod
@@ -986,35 +986,35 @@ class GeometryUtils:
         """
         results: List[Tuple[float, float]] = []
         num_samples = 360
-        
+
         for i in range(num_samples):
             angle1 = 2 * math.pi * i / num_samples
-            
+
             if not GeometryUtils._angle_in_arc_range(angle1, start1, end1, cw1):
                 continue
-            
+
             cos_a = math.cos(angle1)
             sin_a = math.sin(angle1)
             cos_rot1 = math.cos(rotation1)
             sin_rot1 = math.sin(rotation1)
-            
+
             local_x = rx1 * cos_a
             local_y = ry1 * sin_a
             world_x = cos_rot1 * local_x - sin_rot1 * local_y + center1[0]
             world_y = sin_rot1 * local_x + cos_rot1 * local_y + center1[1]
-            
+
             cos_rot2 = math.cos(-rotation2)
             sin_rot2 = math.sin(-rotation2)
             dx = world_x - center2[0]
             dy = world_y - center2[1]
             local2_x = cos_rot2 * dx - sin_rot2 * dy
             local2_y = sin_rot2 * dx + cos_rot2 * dy
-            
+
             normalized = (local2_x / rx2) ** 2 + (local2_y / ry2) ** 2
-            
+
             if abs(normalized - 1.0) < 0.01:
                 angle2 = math.atan2(local2_y / ry2, local2_x / rx2)
-                
+
                 if GeometryUtils._angle_in_arc_range(angle2, start2, end2, cw2):
                     is_duplicate = any(
                         GeometryUtils._points_equal((world_x, world_y), existing, tol=0.001)
@@ -1022,7 +1022,7 @@ class GeometryUtils:
                     )
                     if not is_duplicate:
                         results.append((world_x, world_y))
-        
+
         return results
 
     # -------------------------------------------------------------------------
@@ -1033,37 +1033,37 @@ class GeometryUtils:
     def polygon_area(points: List[Tuple[float, float]]) -> float:
         """
         Calculate the signed area of a polygon using the shoelace formula.
-        
+
         Positive area indicates counter-clockwise winding.
         Negative area indicates clockwise winding.
-        
+
         Args:
             points: List of (x, y) vertices in order (not closing the loop)
-            
+
         Returns:
             Signed area of the polygon
         """
         if len(points) < 3:
             return 0.0
-        
+
         n = len(points)
         area = 0.0
         for i in range(n):
             j = (i + 1) % n
             area += points[i][0] * points[j][1]
             area -= points[j][0] * points[i][1]
-        
+
         return area / 2.0
 
     @staticmethod
     def circular_sector_area(radius: float, angle_span: float) -> float:
         """
         Calculate the area of a circular sector.
-        
+
         Args:
             radius: Circle radius
             angle_span: Angular span in radians (absolute value used)
-            
+
         Returns:
             Area of the sector
         """
@@ -1079,29 +1079,29 @@ class GeometryUtils:
     ) -> float:
         """
         Calculate the signed area contribution of a circular arc segment.
-        
+
         Uses the formula: (1/2) * integral of (x*dy - y*dx) along the arc.
         For a circular arc, this integrates to:
         Area = (r^2/2) * (theta2 - theta1) + (1/2) * (x1*y2 - x2*y1)
-        
+
         The second term accounts for the chord contribution.
-        
+
         Args:
             center: (cx, cy) center of the circle
             radius: Circle radius
             start_angle: Start angle in radians
             end_angle: End angle in radians
             clockwise: Direction of traversal
-            
+
         Returns:
             Signed area contribution (positive for CCW, negative for CW traversal)
         """
         cx, cy = center
         two_pi = 2 * math.pi
-        
+
         start = start_angle % two_pi
         end = end_angle % two_pi
-        
+
         if clockwise:
             if start <= end:
                 span = -(two_pi - (end - start))
@@ -1112,19 +1112,19 @@ class GeometryUtils:
                 span = end - start
             else:
                 span = two_pi - (start - end)
-        
+
         if abs(span) < GeometryUtils.INTERSECTION_EPSILON:
             span = two_pi if not clockwise else -two_pi
-        
+
         x1 = cx + radius * math.cos(start_angle)
         y1 = cy + radius * math.sin(start_angle)
         x2 = cx + radius * math.cos(end_angle)
         y2 = cy + radius * math.sin(end_angle)
-        
+
         sector_area = 0.5 * radius * radius * span
-        
+
         chord_area = 0.5 * (x1 * y2 - x2 * y1)
-        
+
         return sector_area + chord_area
 
     @staticmethod
@@ -1139,9 +1139,9 @@ class GeometryUtils:
     ) -> float:
         """
         Calculate the signed area contribution of an elliptical arc segment.
-        
+
         Uses numerical integration of (1/2) * (x*dy - y*dx) along the arc.
-        
+
         Args:
             center: (cx, cy) center of the ellipse
             radius_x: Semi-major axis
@@ -1150,18 +1150,18 @@ class GeometryUtils:
             start_angle: Start parameter angle in radians
             end_angle: End parameter angle in radians
             clockwise: Direction of traversal
-            
+
         Returns:
             Signed area contribution
         """
         cx, cy = center
         cos_rot = math.cos(rotation)
         sin_rot = math.sin(rotation)
-        
+
         two_pi = 2 * math.pi
         start = start_angle % two_pi
         end = end_angle % two_pi
-        
+
         if clockwise:
             if start <= end:
                 span = -(two_pi - (end - start))
@@ -1172,30 +1172,30 @@ class GeometryUtils:
                 span = end - start
             else:
                 span = two_pi - (start - end)
-        
+
         if abs(span) < GeometryUtils.INTERSECTION_EPSILON:
             span = two_pi if not clockwise else -two_pi
-        
+
         num_steps = max(100, int(abs(span) * 50))
         dt = span / num_steps
-        
+
         area = 0.0
         t = start_angle
-        
+
         for _ in range(num_steps):
             local_x = radius_x * math.cos(t)
             local_y = radius_y * math.sin(t)
             x = cos_rot * local_x - sin_rot * local_y + cx
             y = sin_rot * local_x + cos_rot * local_y + cy
-            
+
             dx_dt = -radius_x * math.sin(t)
             dy_dt = radius_y * math.cos(t)
             dx = cos_rot * dx_dt - sin_rot * dy_dt
             dy = sin_rot * dx_dt + cos_rot * dy_dt
-            
+
             area += 0.5 * (x * dy - y * dx) * dt
             t += dt
-        
+
         return area
 
     @staticmethod
@@ -1205,14 +1205,14 @@ class GeometryUtils:
     ) -> float:
         """
         Calculate the signed area contribution of a line segment.
-        
+
         Uses the formula: (1/2) * (x1*y2 - x2*y1)
         This is the shoelace contribution for one edge.
-        
+
         Args:
             start: (x1, y1) start point
             end: (x2, y2) end point
-            
+
         Returns:
             Signed area contribution
         """

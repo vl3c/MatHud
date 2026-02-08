@@ -13,7 +13,7 @@ Dependency Architecture:
 
 Core Dependency Rules:
     - Segments depend on their endpoint Points
-    - Vectors depend on their origin and tip Points  
+    - Vectors depend on their origin and tip Points
     - Triangles depend on their three Segments and six Points
     - Rectangles depend on their four Segments and four Points
     - Circles/Ellipses depend on their center Points
@@ -58,13 +58,13 @@ if TYPE_CHECKING:
 class DrawableDependencyManager:
     """
     Manages dependencies between drawable objects to maintain hierarchical structure.
-    
+
     This class:
     - Tracks parent-child relationships between drawables
     - Resolves dependency chains
     - Handles propagation of changes (like canvas references)
     """
-    
+
     def __init__(self, drawable_manager_proxy: Optional["DrawableManagerProxy"] = None) -> None:
         """Initialize the dependency manager"""
         self.drawable_manager: Optional["DrawableManagerProxy"] = drawable_manager_proxy # Store the proxy
@@ -94,7 +94,7 @@ class DrawableDependencyManager:
             'UndirectedGraph': ['Segment', 'Point'],
             'Tree': ['Segment', 'Point'],
         }
-    
+
     def _should_skip_point_point_dependency(self, child: "Drawable", parent: "Drawable") -> bool:
         """Check if a dependency registration should be skipped (e.g., Point as child of Point)."""
         is_child_point = hasattr(child, 'get_class_name') and child.get_class_name() == 'Point'
@@ -104,7 +104,7 @@ class DrawableDependencyManager:
     def register_dependency(self, child: "Drawable", parent: "Drawable") -> None:
         """
         Register a child-parent dependency
-        
+
         Args:
             child: The child drawable that depends on the parent
             parent: The parent drawable that child depends on
@@ -112,11 +112,11 @@ class DrawableDependencyManager:
         # Prevent Point from being registered as a child of another Point using the helper method
         if self._should_skip_point_point_dependency(child, parent):
             return
-        
+
         # Verify objects have get_class_name
         self._verify_get_class_name_method(child, "Child")
         self._verify_get_class_name_method(parent, "Parent")
-        
+
         child_id = id(child)
         parent_id = id(parent)
 
@@ -130,7 +130,7 @@ class DrawableDependencyManager:
 
         self._parents[child_id].add(parent_id)
         self._children[parent_id].add(child_id)
-    
+
     def unregister_dependency(self, child: Optional["Drawable"], parent: Optional["Drawable"]) -> None:
         """
         Unregister a specific child-parent dependency.
@@ -148,14 +148,14 @@ class DrawableDependencyManager:
 
         if child_id in self._parents:
             self._parents[child_id].discard(parent_id)
-        
+
         if parent_id in self._children:
             self._children[parent_id].discard(child_id)
 
     def _verify_get_class_name_method(self, obj: Any, obj_type_name: str) -> None:
         """
         Verify that an object has the get_class_name method
-        
+
         Args:
             obj: The object to verify
             obj_type_name: A string indicating the type of object (e.g., "Child", "Parent")
@@ -164,104 +164,104 @@ class DrawableDependencyManager:
             print(f"WARNING: {obj_type_name} {obj} is missing get_class_name method")
             # If missing, let's make sure we can still identify the object
             print(f"{obj_type_name} object type: {type(obj)}")
-    
+
     def get_parents(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
         Get all direct parents of a drawable
-        
+
         Args:
             drawable: The drawable to find parents for
-            
+
         Returns:
             set: Set of parent drawables
         """
         if drawable is None:
             print("Warning: Trying to get parents for None drawable")
             return set()
-        
+
         drawable_id = id(drawable)
         return {self._object_lookup[parent_id] for parent_id in self._parents.get(drawable_id, set()) if parent_id in self._object_lookup}
-    
+
     def get_children(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
         Get all direct children of a drawable
-        
+
         Args:
             drawable: The drawable to find children for
-            
+
         Returns:
             set: Set of child drawables
         """
         if drawable is None:
             print("Warning: Trying to get children for None drawable")
             return set()
-        
+
         drawable_id = id(drawable)
         return {self._object_lookup[child_id] for child_id in self._children.get(drawable_id, set()) if child_id in self._object_lookup}
-    
+
     def get_all_parents(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
         Get all parents recursively (transitive closure)
-        
+
         Args:
             drawable: The drawable to find all parents for
-            
+
         Returns:
             set: Set of all parent drawables
         """
         if drawable is None:
             print("Warning: Trying to get parents for None drawable")
             return set()
-        
+
         all_parents = set()
         # Operate on a copy to avoid modifying the original set
-        to_process = self.get_parents(drawable).copy() 
-        
+        to_process = self.get_parents(drawable).copy()
+
         while to_process:
             parent = to_process.pop()
             if parent is None:
                 print("Warning: Found None parent in dependency tree")
                 continue
-            
+
             if parent not in all_parents:
                 all_parents.add(parent)
                 to_process.update(self.get_parents(parent))
-            
+
         return all_parents
-    
+
     def get_all_children(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
         Get all children recursively (transitive closure)
-        
+
         Args:
             drawable: The drawable to find all children for
-            
+
         Returns:
             set: Set of all child drawables
         """
         if drawable is None:
             print("Warning: Trying to get children for None drawable")
             return set()
-        
+
         all_children = set()
         to_process = self.get_children(drawable)
-        
+
         while to_process:
             child = to_process.pop()
             if child is None:
                 print("Warning: Found None child in dependency tree")
                 continue
-            
+
             if child not in all_children:
                 all_children.add(child)
                 to_process.update(self.get_children(child))
-            
+
         return all_children
-    
+
     def remove_drawable(self, drawable: "Drawable") -> None:
         """
         Remove a drawable from the dependency graph
-        
+
         Args:
             drawable: The drawable to remove
         """
@@ -276,13 +276,13 @@ class DrawableDependencyManager:
             parents = self._parents.get(child_id)
             if parents and drawable_id in parents:
                 parents.discard(drawable_id)
-                
+
         # Remove from parents' children
         for parent_id in self._parents.get(drawable_id, set()).copy():
             children = self._children.get(parent_id)
             if children and drawable_id in children:
                 children.discard(drawable_id)
-                
+
         # Remove drawable's entries
         if drawable_id in self._parents:
             del self._parents[drawable_id]
@@ -294,7 +294,7 @@ class DrawableDependencyManager:
     def _notify_child_of_parent_removal(self, child: "Drawable", parent: "Drawable", parent_class: str) -> None:
         """Notify a child drawable that one of its parents has been removed."""
         child_class = child.get_class_name() if hasattr(child, 'get_class_name') else ""
-        
+
         # Handle graph types - remove the reference from internal lists
         if child_class in ('Graph', 'DirectedGraph', 'UndirectedGraph', 'Tree'):
             if parent_class == 'Segment' and hasattr(child, 'remove_segment'):
@@ -303,35 +303,35 @@ class DrawableDependencyManager:
                 child.remove_vector(parent)
             elif parent_class == 'Point' and hasattr(child, 'remove_point'):
                 child.remove_point(parent)
-    
-    
+
+
     def analyze_drawable_for_dependencies(self, drawable: "Drawable") -> List["Drawable"]:
         """
         Analyze a drawable to find and register its dependencies
-        
+
         Args:
             drawable: The drawable to analyze
-            
+
         Returns:
             list: List of identified dependencies
         """
         dependencies: List["Drawable"] = []
-        
+
         # Verify drawable has get_class_name method
         self._verify_get_class_name_method(drawable, "Drawable")
-        
+
         # Get class name safely
         if not hasattr(drawable, 'get_class_name'):
             print(f"Cannot analyze dependencies for {drawable} without get_class_name method")
             return dependencies
-            
+
         class_name = drawable.get_class_name()
-        
+
         # Handle different drawable types
         if class_name == 'Point':
             # Points don't have dependencies
             pass
-            
+
         elif class_name == 'Segment':
             if hasattr(drawable, 'point1'):
                 dependencies.append(drawable.point1)
@@ -339,12 +339,12 @@ class DrawableDependencyManager:
             if hasattr(drawable, 'point2'):
                 dependencies.append(drawable.point2)
                 self.register_dependency(drawable, drawable.point2)
-                
+
         elif class_name == 'Vector':
             if hasattr(drawable, 'segment'):
                 dependencies.append(drawable.segment)
                 self.register_dependency(drawable, drawable.segment)
-                
+
         elif class_name == 'Triangle':
             # Check for individual segment attributes
             for i in range(1, 4):
@@ -353,7 +353,7 @@ class DrawableDependencyManager:
                     segment = getattr(drawable, segment_attr)
                     dependencies.append(segment)
                     self.register_dependency(drawable, segment)
-                    
+
         elif class_name == 'Rectangle':
             # Check for individual segment attributes
             for i in range(1, 5):
@@ -362,21 +362,21 @@ class DrawableDependencyManager:
                     segment = getattr(drawable, segment_attr)
                     dependencies.append(segment)
                     self.register_dependency(drawable, segment)
-                    
+
         elif class_name == 'Circle':
             if hasattr(drawable, 'center'):
                 dependencies.append(drawable.center)
                 self.register_dependency(drawable, drawable.center)
-                
+
         elif class_name == 'Ellipse':
             if hasattr(drawable, 'center'):
                 dependencies.append(drawable.center)
                 self.register_dependency(drawable, drawable.center)
-                
+
         elif class_name == 'Function':
             # Functions typically don't have drawable dependencies
             pass
-            
+
         elif class_name == 'SegmentsBoundedColoredArea':
             if hasattr(drawable, 'segment1') and drawable.segment1:
                 dependencies.append(drawable.segment1)
@@ -384,7 +384,7 @@ class DrawableDependencyManager:
             if hasattr(drawable, 'segment2') and drawable.segment2:
                 dependencies.append(drawable.segment2)
                 self.register_dependency(drawable, drawable.segment2)
-                
+
         elif class_name == 'FunctionSegmentBoundedColoredArea':
             if hasattr(drawable, 'func') and drawable.func and hasattr(drawable.func, 'get_class_name'):
                 dependencies.append(drawable.func)
@@ -392,7 +392,7 @@ class DrawableDependencyManager:
             if hasattr(drawable, 'segment'):
                 dependencies.append(drawable.segment)
                 self.register_dependency(drawable, drawable.segment)
-                
+
         elif class_name == 'FunctionsBoundedColoredArea':
             if hasattr(drawable, 'func1') and drawable.func1 and hasattr(drawable.func1, 'get_class_name'):
                 dependencies.append(drawable.func1)
@@ -400,7 +400,7 @@ class DrawableDependencyManager:
             if hasattr(drawable, 'func2') and drawable.func2 and hasattr(drawable.func2, 'get_class_name'):
                 dependencies.append(drawable.func2)
                 self.register_dependency(drawable, drawable.func2)
-                
+
         elif class_name == 'Angle':
             # Angles depend on their constituent segments and points
             if hasattr(drawable, 'segment1') and drawable.segment1:
@@ -445,7 +445,7 @@ class DrawableDependencyManager:
             if hasattr(drawable, 'chord_segment') and drawable.chord_segment:
                 dependencies.append(drawable.chord_segment)
                 self.register_dependency(drawable, drawable.chord_segment)
-                
+
         elif class_name == 'ColoredArea':
             # Base ColoredArea type
             if hasattr(drawable, 'function'):
@@ -455,7 +455,7 @@ class DrawableDependencyManager:
                 for segment in drawable.segments:
                     dependencies.append(segment)
                     self.register_dependency(drawable, segment)
-                    
+
         elif class_name.endswith('ColoredArea'):
             # Generic case for other ColoredArea types
             if hasattr(drawable, 'function'):
@@ -483,23 +483,23 @@ class DrawableDependencyManager:
                     if point:
                         dependencies.append(point)
                         self.register_dependency(drawable, point)
-            
+
         return dependencies
-    
+
     def _find_segment_children(self, segment: Optional["Drawable"]) -> List["Drawable"]:
         """Finds children geometrically by iterating through all segments."""
         # Safety check for segment and its points
         if not segment or not hasattr(segment, 'point1') or not hasattr(segment, 'point2'):
             return []
-            
+
         # Safety check for points
         if not segment.point1 or not segment.point2:
             return []
-            
+
         sp1x, sp1y = segment.point1.x, segment.point1.y
         sp2x, sp2y = segment.point2.x, segment.point2.y
         children: List["Drawable"] = []
-        
+
         # Access segments via the proxy
         if self.drawable_manager and self.drawable_manager.drawables:
             all_segments = self.drawable_manager.drawables.Segments
@@ -507,10 +507,10 @@ class DrawableDependencyManager:
                 if s == segment:
                     continue
                 if not hasattr(s, 'point1') or not hasattr(s, 'point2'): # Safety check
-                    continue 
+                    continue
                 if not s.point1 or not s.point2:
                     continue
-                
+
                 p1x, p1y = s.point1.x, s.point1.y
                 p2x, p2y = s.point2.x, s.point2.y
                 # Check if s is geometrically within segment
@@ -522,34 +522,34 @@ class DrawableDependencyManager:
     def resolve_dependency_order(self, drawables: List["Drawable"]) -> List["Drawable"]:
         """
         Determine the correct order to process drawables based on dependencies
-        
+
         Args:
             drawables: List of drawables to process
-            
+
         Returns:
             list: Ordered list of drawables (parents before children)
         """
         # Filter out None values
         filtered_drawables: List["Drawable"] = [d for d in drawables if d is not None]
-        
+
         # Simple topological sort
         result: List["Drawable"] = []
         visited: Set["Drawable"] = set()
-        
+
         def visit(drawable: "Drawable") -> None:
             if drawable in visited:
                 return
-                
+
             visited.add(drawable)
-            
+
             # Visit all parents first
             for parent in self.get_parents(drawable):
                 visit(parent)
-                
+
             result.append(drawable)
-            
+
         # Process all drawables
         for drawable in filtered_drawables:
             visit(drawable)
-            
-        return result 
+
+        return result

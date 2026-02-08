@@ -11,7 +11,6 @@ import math
 import unittest
 
 from utils.statistics.regression import (
-    RegressionResult,
     SUPPORTED_MODEL_TYPES,
     fit_regression,
     fit_linear,
@@ -28,7 +27,6 @@ from utils.statistics.regression import (
     _matrix_multiply,
     _matrix_transpose,
     _matrix_inverse,
-    _solve_least_squares,
 )
 
 
@@ -217,7 +215,7 @@ class TestFitLinear(unittest.TestCase):
         x = [0.0, 1.0, 2.0, 3.0, 4.0]
         y = [1.0, 3.0, 5.0, 7.0, 9.0]
         result = fit_linear(x, y)
-        
+
         self.assertEqual(result["model_type"], "linear")
         self.assertAlmostEqual(result["coefficients"]["m"], 2.0, places=10)
         self.assertAlmostEqual(result["coefficients"]["b"], 1.0, places=10)
@@ -227,7 +225,7 @@ class TestFitLinear(unittest.TestCase):
         x = [1.0, 2.0, 3.0, 4.0, 5.0]
         y = [2.1, 3.9, 6.1, 7.9, 10.1]  # Approximately y = 2x
         result = fit_linear(x, y)
-        
+
         self.assertAlmostEqual(result["coefficients"]["m"], 2.0, places=1)
         self.assertGreater(result["r_squared"], 0.99)
 
@@ -246,7 +244,7 @@ class TestFitPolynomial(unittest.TestCase):
         x = [0.0, 1.0, 2.0, 3.0, 4.0]
         y = [1.0, 4.0, 9.0, 16.0, 25.0]
         result = fit_polynomial(x, y, degree=2)
-        
+
         self.assertEqual(result["model_type"], "polynomial")
         self.assertAlmostEqual(result["coefficients"]["a0"], 1.0, places=8)
         self.assertAlmostEqual(result["coefficients"]["a1"], 2.0, places=8)
@@ -258,7 +256,7 @@ class TestFitPolynomial(unittest.TestCase):
         x = [-2.0, -1.0, 0.0, 1.0, 2.0]
         y = [-8.0, -1.0, 0.0, 1.0, 8.0]
         result = fit_polynomial(x, y, degree=3)
-        
+
         self.assertAlmostEqual(result["coefficients"]["a3"], 1.0, places=8)
         self.assertAlmostEqual(result["r_squared"], 1.0, places=10)
 
@@ -286,7 +284,7 @@ class TestFitExponential(unittest.TestCase):
         x = [0.0, 1.0, 2.0, 3.0, 4.0]
         y = [2.0 * math.exp(0.5 * xi) for xi in x]
         result = fit_exponential(x, y)
-        
+
         self.assertEqual(result["model_type"], "exponential")
         self.assertAlmostEqual(result["coefficients"]["a"], 2.0, places=5)
         self.assertAlmostEqual(result["coefficients"]["b"], 0.5, places=5)
@@ -313,7 +311,7 @@ class TestFitLogarithmic(unittest.TestCase):
         x = [1.0, 2.0, 3.0, 4.0, 5.0]
         y = [1.0 + 2.0 * math.log(xi) for xi in x]
         result = fit_logarithmic(x, y)
-        
+
         self.assertEqual(result["model_type"], "logarithmic")
         self.assertAlmostEqual(result["coefficients"]["a"], 1.0, places=8)
         self.assertAlmostEqual(result["coefficients"]["b"], 2.0, places=8)
@@ -340,7 +338,7 @@ class TestFitPower(unittest.TestCase):
         x = [1.0, 4.0, 9.0, 16.0, 25.0]
         y = [2.0, 4.0, 6.0, 8.0, 10.0]
         result = fit_power(x, y)
-        
+
         self.assertEqual(result["model_type"], "power")
         self.assertAlmostEqual(result["coefficients"]["a"], 2.0, places=5)
         self.assertAlmostEqual(result["coefficients"]["b"], 0.5, places=5)
@@ -367,9 +365,9 @@ class TestFitLogistic(unittest.TestCase):
         L, k, x0 = 10.0, 1.0, 5.0
         x = [0.0, 2.0, 4.0, 5.0, 6.0, 8.0, 10.0]
         y = [L / (1 + math.exp(-k * (xi - x0))) for xi in x]
-        
+
         result = fit_logistic(x, y)
-        
+
         self.assertEqual(result["model_type"], "logistic")
         # Check that fit is reasonably good
         self.assertGreater(result["r_squared"], 0.95)
@@ -380,7 +378,7 @@ class TestFitLogistic(unittest.TestCase):
         x = [1.0, 2.0, 3.0, 4.0, 5.0]
         y = [0.1, 0.3, 0.5, 0.7, 0.9]
         result = fit_logistic(x, y)
-        
+
         self.assertEqual(result["model_type"], "logistic")
         self.assertIn("L", result["coefficients"])
         self.assertIn("k", result["coefficients"])
@@ -396,9 +394,9 @@ class TestFitSinusoidal(unittest.TestCase):
         a, b, c, d = 2.0, 1.0, 0.0, 1.0
         x = [i * 0.5 for i in range(20)]
         y = [a * math.sin(b * xi + c) + d for xi in x]
-        
+
         result = fit_sinusoidal(x, y)
-        
+
         self.assertEqual(result["model_type"], "sinusoidal")
         # Should get a good fit
         self.assertGreater(result["r_squared"], 0.9)
@@ -407,7 +405,7 @@ class TestFitSinusoidal(unittest.TestCase):
         # y = sin(x + pi/4)
         x = [i * 0.5 for i in range(20)]
         y = [math.sin(xi + math.pi/4) for xi in x]
-        
+
         result = fit_sinusoidal(x, y)
         self.assertGreater(result["r_squared"], 0.9)
 
@@ -423,7 +421,7 @@ class TestFitRegressionDispatcher(unittest.TestCase):
     """Tests for the main fit_regression dispatcher function."""
 
     def test_supported_model_types(self) -> None:
-        expected = ("linear", "polynomial", "exponential", "logarithmic", 
+        expected = ("linear", "polynomial", "exponential", "logarithmic",
                     "power", "logistic", "sinusoidal")
         self.assertEqual(SUPPORTED_MODEL_TYPES, expected)
 
@@ -438,7 +436,7 @@ class TestFitRegressionDispatcher(unittest.TestCase):
         y = [1.0, 4.0, 9.0, 16.0]
         with self.assertRaises(ValueError):
             fit_regression(x, y, "polynomial")  # Missing degree
-        
+
         result = fit_regression(x, y, "polynomial", degree=2)
         self.assertEqual(result["model_type"], "polynomial")
 
@@ -483,7 +481,7 @@ class TestFitRegressionDispatcher(unittest.TestCase):
         y = [2.0, 4.0, 6.0, 8.0]
         result = fit_regression(x, y, "LINEAR")
         self.assertEqual(result["model_type"], "linear")
-        
+
         result = fit_regression(x, y, "Linear")
         self.assertEqual(result["model_type"], "linear")
 
@@ -606,7 +604,7 @@ class TestRegressionResultStructure(unittest.TestCase):
         x = [1.0, 2.0, 3.0, 4.0]
         y = [2.0, 4.0, 6.0, 8.0]
         result = fit_linear(x, y)
-        
+
         self.assertIn("expression", result)
         self.assertIn("coefficients", result)
         self.assertIn("r_squared", result)

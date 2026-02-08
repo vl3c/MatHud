@@ -83,23 +83,23 @@ class LogManager:
         """
         level = os.environ.get("LOG_FORWARD_LEVEL", "warning").lower()
         return _get_log_level_index(level)
-    
+
     def _get_log_file_name(self) -> str:
         """Get the log file name based on current date.
-        
+
         Returns:
             str: Date-based log filename (e.g., 'mathud_session_24_03_15.log')
         """
         return datetime.now().strftime('mathud_session_%y_%m_%d.log')
-    
+
     def _setup_logging(self) -> None:
         """Initialize logging configuration.
-        
+
         Creates logs directory if needed and configures daily log file rotation.
         """
         if not os.path.exists(self.logs_dir):
             os.makedirs(self.logs_dir)
-        
+
         log_file_path = os.path.join(self.logs_dir, self._get_log_file_name())
 
         root_logger = logging.getLogger()
@@ -117,20 +117,20 @@ class LogManager:
             handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
             self._logger.addHandler(handler)
         self.log_new_session()
-    
+
     def log_new_session(self) -> None:
         """Log a new session delimiter.
-        
+
         Creates a visual separator in the log file for new application sessions.
         """
         session_delimiter = f"\n\n###### SESSION {datetime.now().strftime('%H:%M:%S')} ######\n"
         self._logger.info(session_delimiter)
-    
+
     def log_user_message(self, user_message: str) -> None:
         """Log user message and its components.
-        
+
         Parses and logs SVG state, canvas state, previous results, and user text.
-        
+
         Args:
             user_message: JSON string containing user interaction data
         """
@@ -143,7 +143,7 @@ class LogManager:
             self._logger.error("User message JSON is not an object.")
             return
         user_message_json: JsonObject = user_message_json_raw
-        
+
         svg_state = user_message_json.get("svg_state")
         if isinstance(svg_state, dict):
             self._logger.info(f'### SVG state dimensions: {svg_state.get("dimensions")}')
@@ -159,15 +159,15 @@ class LogManager:
         user_message_text = user_message_json.get("user_message")
         if user_message_text is not None:
             self._logger.info(f'### User message: {user_message_text}')
-    
+
     def log_ai_response(self, ai_message: str) -> None:
         """Log AI response message.
-        
+
         Args:
             ai_message: AI-generated response text
         """
         self._logger.info(f'### AI response: {ai_message}')
-    
+
     def log_ai_tool_calls(self, ai_tool_calls: Sequence[ProcessedToolCall] | Sequence[Dict[str, Any]] | None) -> None:
         """Log AI tool calls.
 

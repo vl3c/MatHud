@@ -5,7 +5,6 @@ Tests shared functionality for local LLM providers including
 tool capability detection and model name normalization.
 """
 
-import pytest
 
 from static.providers.local import (
     TOOL_CAPABLE_MODEL_FAMILIES,

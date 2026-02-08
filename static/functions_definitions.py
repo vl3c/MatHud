@@ -1502,7 +1502,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                         "additionalProperties": False
                     }
                 }
-            },            
+            },
             {
                 "type": "function",
                 "function": {

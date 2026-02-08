@@ -34,11 +34,11 @@ from utils.math_utils import MathUtils
 
 class Circle(Drawable):
     """Represents a circle with center point and radius, including mathematical properties.
-    
+
     Maintains a center Point object and radius value, calculating circle equation
     properties for mathematical operations and geometric intersections.
     Screen radius is calculated dynamically using CoordinateMapper.
-    
+
     Attributes:
         center (Point): Center point of the circle
         radius (float): Radius in mathematical coordinate units
@@ -46,7 +46,7 @@ class Circle(Drawable):
     """
     def __init__(self, center_point: Point, radius: float, color: str = default_color) -> None:
         """Initialize a circle with center point and radius.
-        
+
         Args:
             center_point (Point): Center point of the circle
             radius (float): Radius in mathematical coordinate units
@@ -59,14 +59,14 @@ class Circle(Drawable):
 
     def get_class_name(self) -> str:
         return 'Circle'
-    
+
     def _calculate_circle_algebraic_formula(self) -> Dict[str, float]:
         x: float = self.center.x
         y: float = self.center.y
         r: float = self.radius
         circle_formula: Dict[str, float] = MathUtils.get_circle_formula(x, y, r)
         return circle_formula
-        
+
     def get_state(self) -> Dict[str, Any]:
         radius: float = self.radius
         center: str = self.center.name
@@ -90,7 +90,7 @@ class Circle(Drawable):
         self.regenerate_name()
 
     def rotate(self, angle: float) -> None:
-        pass 
+        pass
 
     def _generate_default_name(self) -> str:
         return f"{self.center.name}({self._format_radius_for_name(self.radius)})"

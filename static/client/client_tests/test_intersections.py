@@ -162,12 +162,12 @@ class TestIntersections(unittest.TestCase):
         seg2 = LineSegment((0.0, 2.0), (2.0, 0.0))
         result = element_element_intersection(seg1, seg2)
         self.assertEqual(len(result), 1)
-        
+
         seg = LineSegment((-2.0, 0.0), (2.0, 0.0))
         arc = CircularArc((0.0, 0.0), 1.0, 0.0, 2 * math.pi)
         result = element_element_intersection(seg, arc)
         self.assertEqual(len(result), 2)
-        
+
         result = element_element_intersection(arc, seg)
         self.assertEqual(len(result), 2)
 

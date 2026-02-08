@@ -74,10 +74,10 @@ class TestGraphLayout(unittest.TestCase):
         edges = [Edge("A", "B")]
         positions = _grid_layout(["A", "B"], edges, self.box)
         self.assertEqual(len(positions), 2)
-        
+
         ax, ay = positions["A"]
         bx, by = positions["B"]
-        
+
         # Nodes should be separated
         dist = math.sqrt((ax - bx)**2 + (ay - by)**2)
         self.assertGreater(dist, 5.0)
@@ -87,7 +87,7 @@ class TestGraphLayout(unittest.TestCase):
         edges = [Edge("A", "B"), Edge("B", "C")]
         positions = _grid_layout(["A", "B", "C"], edges, self.box)
         self.assertEqual(len(positions), 3)
-        
+
         # All within box
         for vid in ["A", "B", "C"]:
             x, y = positions[vid]
@@ -101,7 +101,7 @@ class TestGraphLayout(unittest.TestCase):
         edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "A")]
         positions = _grid_layout(["A", "B", "C"], edges, self.box)
         self.assertEqual(len(positions), 3)
-        
+
         # All positions distinct
         pos_set = set(positions.values())
         self.assertEqual(len(pos_set), 3)
@@ -111,7 +111,7 @@ class TestGraphLayout(unittest.TestCase):
         edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
         positions = _grid_layout(["A", "B", "C", "D"], edges, self.box)
         self.assertEqual(len(positions), 4)
-        
+
         # All within box
         for vid in ["A", "B", "C", "D"]:
             x, y = positions[vid]
@@ -138,7 +138,7 @@ class TestGraphLayout(unittest.TestCase):
         ]
         positions = _grid_layout(vertices, edges, self.box)
         self.assertEqual(len(positions), 5)
-        
+
         # All within box
         for vid in vertices:
             x, y = positions[vid]
@@ -150,7 +150,7 @@ class TestGraphLayout(unittest.TestCase):
         edges = [Edge("R", "A"), Edge("R", "B"), Edge("A", "C"), Edge("A", "D")]
         positions = _grid_layout(["R", "A", "B", "C", "D"], edges, self.box)
         self.assertEqual(len(positions), 5)
-        
+
         # Root should be at top (higher y)
         rx, ry = positions["R"]
         ax, ay = positions["A"]
@@ -160,7 +160,7 @@ class TestGraphLayout(unittest.TestCase):
         """No two vertices should share the exact same position."""
         edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D")]
         positions = _grid_layout(["A", "B", "C", "D"], edges, self.box)
-        
+
         pos_list = list(positions.values())
         for i, p1 in enumerate(pos_list):
             for p2 in pos_list[i + 1:]:
@@ -172,7 +172,7 @@ class TestGraphLayout(unittest.TestCase):
         box = {"x": 10.0, "y": 20.0, "width": 80.0, "height": 60.0}
         edges = [Edge("A", "B"), Edge("B", "C")]
         positions = _grid_layout(["A", "B", "C"], edges, box)
-        
+
         for vid, (x, y) in positions.items():
             self.assertGreaterEqual(x, box["x"], f"{vid} x below box")
             self.assertLessEqual(x, box["x"] + box["width"], f"{vid} x above box")
@@ -204,7 +204,7 @@ class TestGraphLayout(unittest.TestCase):
         """Simple grid placement arranges nodes in grid pattern."""
         positions = _simple_grid_placement(["A", "B", "C", "D", "E", "F"], self.box)
         self.assertEqual(len(positions), 6)
-        
+
         # All unique positions
         pos_set = set()
         for x, y in positions.values():
@@ -216,7 +216,7 @@ class TestGraphLayout(unittest.TestCase):
         edges = [Edge("R", "A"), Edge("R", "B")]
         positions = _orthogonal_tree_layout(["R", "A", "B"], edges, self.box)
         self.assertEqual(len(positions), 3)
-        
+
         # Root at top
         rx, ry = positions["R"]
         ax, ay = positions["A"]
@@ -251,7 +251,7 @@ class TestGraphLayout(unittest.TestCase):
         vertices = ["A", "B", "C", "D"]
         edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         crossings = GraphUtils.count_edge_crossings(edges, positions)
         self.assertEqual(crossings, 0, f"Simple square has {crossings} edge crossings")
 
@@ -267,7 +267,7 @@ class TestGraphLayout(unittest.TestCase):
             Edge("D", "E"),
         ]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         crossings = GraphUtils.count_edge_crossings(edges, positions)
         self.assertEqual(crossings, 0, f"Two squares with bridge has {crossings} edge crossings")
 
@@ -287,7 +287,7 @@ class TestGraphLayout(unittest.TestCase):
             Edge("J", "F"), Edge("J", "G"),
         ]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         crossings = GraphUtils.count_edge_crossings(edges, positions)
         # This graph is planar, so should have 0 crossings with good layout
         self.assertEqual(crossings, 0, f"Two squares with caps has {crossings} edge crossings")
@@ -308,7 +308,7 @@ class TestGraphLayout(unittest.TestCase):
             Edge("D", "E"),
         ]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         crossings = GraphUtils.count_edge_crossings(edges, positions)
         # Two K4s with bridge is planar, so should have 0 crossings
         self.assertEqual(crossings, 0, f"Two K4 with bridge has {crossings} edge crossings")
@@ -322,7 +322,7 @@ class TestGraphLayout(unittest.TestCase):
         vertices = ["A", "B", "C", "D"]
         edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         overlaps = GraphUtils.count_edge_overlaps(edges, positions)
         self.assertEqual(overlaps, 0, f"Simple square has {overlaps} edge overlaps")
 
@@ -338,7 +338,7 @@ class TestGraphLayout(unittest.TestCase):
             Edge("D", "E"),
         ]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         overlaps = GraphUtils.count_edge_overlaps(edges, positions)
         self.assertEqual(overlaps, 0, f"Two squares with bridge has {overlaps} edge overlaps")
 
@@ -358,7 +358,7 @@ class TestGraphLayout(unittest.TestCase):
             Edge("J", "F"), Edge("J", "G"),
         ]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         overlaps = GraphUtils.count_edge_overlaps(edges, positions)
         self.assertEqual(overlaps, 0, f"Two squares with caps has {overlaps} edge overlaps")
 
@@ -378,7 +378,7 @@ class TestGraphLayout(unittest.TestCase):
             Edge("D", "E"),
         ]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         overlaps = GraphUtils.count_edge_overlaps(edges, positions)
         self.assertEqual(overlaps, 0, f"Two K4 with bridge has {overlaps} edge overlaps")
 
@@ -406,7 +406,7 @@ class TestGraphLayout(unittest.TestCase):
             Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "E"),
         ]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         overlaps = GraphUtils.count_edge_overlaps(edges, positions)
         self.assertEqual(overlaps, 0, f"Line graph has {overlaps} edge overlaps")
 
@@ -419,7 +419,7 @@ class TestGraphLayout(unittest.TestCase):
             Edge("Center", "D"), Edge("Center", "E"),
         ]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         overlaps = GraphUtils.count_edge_overlaps(edges, positions)
         self.assertEqual(overlaps, 0, f"Star graph has {overlaps} edge overlaps")
 
@@ -432,7 +432,7 @@ class TestGraphLayout(unittest.TestCase):
             Edge("D", "A"), Edge("D", "B"),
         ]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         overlaps = GraphUtils.count_edge_overlaps(edges, positions)
         self.assertEqual(overlaps, 0, f"Triangle with extensions has {overlaps} edge overlaps")
 
@@ -445,10 +445,10 @@ class TestGraphLayout(unittest.TestCase):
         vertices = ["A", "B", "C", "D"]
         edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "A")]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         orthogonal, total = GraphUtils.count_orthogonal_edges(edges, positions)
         # All 4 edges should be orthogonal
-        self.assertEqual(orthogonal, total, 
+        self.assertEqual(orthogonal, total,
             f"Simple square: {orthogonal}/{total} edges orthogonal (expected all)")
 
     def test_grid_layout_two_squares_bridge_orthogonality(self) -> None:
@@ -463,7 +463,7 @@ class TestGraphLayout(unittest.TestCase):
             Edge("D", "E"),
         ]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         orthogonal, total = GraphUtils.count_orthogonal_edges(edges, positions)
         # All 9 edges should be orthogonal
         self.assertEqual(orthogonal, total,
@@ -485,7 +485,7 @@ class TestGraphLayout(unittest.TestCase):
             Edge("J", "F"), Edge("J", "G"),
         ]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         orthogonal, total = GraphUtils.count_orthogonal_edges(edges, positions)
         # At minimum, the cycle edges (8) + bridge (1) should be orthogonal = 9
         # The cap edges (4) may or may not be orthogonal depending on layout
@@ -495,7 +495,7 @@ class TestGraphLayout(unittest.TestCase):
 
     def test_grid_layout_two_k4_bridge_orthogonality(self) -> None:
         """Two K4 (complete squares) connected by bridge - at least perimeter edges orthogonal.
-        
+
         K4 has 6 edges: 4 perimeter + 2 diagonals. The diagonals cannot all be
         orthogonal, but the 8 perimeter edges + bridge should be mostly orthogonal.
         """
@@ -511,7 +511,7 @@ class TestGraphLayout(unittest.TestCase):
             Edge("D", "E"),
         ]
         positions = _grid_layout(vertices, edges, self.box)
-        
+
         orthogonal, total = GraphUtils.count_orthogonal_edges(edges, positions)
         # 13 edges total: 8 perimeter + 4 diagonals + 1 bridge
         # K4's diagonals create constraints that may force some perimeter edges non-orthogonal
@@ -631,7 +631,7 @@ class TestGraphLayout(unittest.TestCase):
         lengths = GraphUtils.get_edge_lengths(edges, positions)
         avg_length = sum(lengths) / len(lengths) if lengths else 1.0
         relative_variance = variance / (avg_length ** 2) if avg_length > 0 else 0.0
-        
+
         self.assertLess(relative_variance, 0.05,
             f"Simple square: relative variance {relative_variance:.4f} (expected < 0.05)")
 
@@ -648,29 +648,29 @@ class TestGraphLayout(unittest.TestCase):
         edges = [Edge("A", "B"), Edge("A", "C"), Edge("B", "D"), Edge("B", "E")]
         positions = _tree_layout(["A", "B", "C", "D", "E"], edges, self.box, "A")
         self.assertEqual(len(positions), 5)
-        
+
         ax, ay = positions["A"]
         bx, by = positions["B"]
         cx, cy = positions["C"]
         dx, dy = positions["D"]
         ex, ey = positions["E"]
-        
+
         self.assertGreater(ay, by)
         self.assertGreater(by, dy)
         self.assertAlmostEqual(by, cy, places=5)
         self.assertAlmostEqual(dy, ey, places=5)
-        
+
         self.assertLess(bx, cx)
         self.assertLess(dx, ex)
 
     def test_tree_layout_children_centered_under_parent(self) -> None:
         edges = [Edge("R", "A"), Edge("R", "B")]
         positions = _tree_layout(["R", "A", "B"], edges, self.box, "R")
-        
+
         rx, ry = positions["R"]
         ax, ay = positions["A"]
         bx, by = positions["B"]
-        
+
         children_center = (ax + bx) / 2.0
         self.assertAlmostEqual(rx, children_center, places=5)
 
@@ -684,11 +684,11 @@ class TestGraphLayout(unittest.TestCase):
             Edge("A", "E"),
         ]
         positions = _tree_layout(["R", "A", "B", "C", "D", "E"], edges, self.box, "R")
-        
+
         ax, ay = positions["A"]
         bx, by = positions["B"]
         self.assertLess(ax, bx)
-        
+
         cx, _ = positions["C"]
         dx, _ = positions["D"]
         ex, _ = positions["E"]
@@ -700,15 +700,15 @@ class TestGraphLayout(unittest.TestCase):
         box = {"x": 0.0, "y": 0.0, "width": 100.0, "height": 100.0}
         edges = [Edge("P", "L"), Edge("P", "Q")]
         positions = _tree_layout(["P", "L", "Q"], edges, box, "P")
-        
+
         px, py = positions["P"]
         lx, ly = positions["L"]
         qx, qy = positions["Q"]
-        
+
         self.assertAlmostEqual(py, 100.0 - 100.0 / 2 / 2, places=3)
         self.assertAlmostEqual(ly, 100.0 - 100.0 / 2 * 1.5, places=3)
         self.assertAlmostEqual(qy, ly, places=5)
-        
+
         self.assertAlmostEqual(px, 50.0, places=3)
         self.assertAlmostEqual(lx, 25.0, places=3)
         self.assertAlmostEqual(qx, 75.0, places=3)
@@ -718,24 +718,24 @@ class TestGraphLayout(unittest.TestCase):
         box = {"x": 0.0, "y": 0.0, "width": 120.0, "height": 90.0}
         edges = [Edge("A", "B"), Edge("A", "C"), Edge("B", "D"), Edge("B", "E")]
         positions = _tree_layout(["A", "B", "C", "D", "E"], edges, box, "A")
-        
+
         ax, ay = positions["A"]
         bx, by = positions["B"]
         cx, cy = positions["C"]
         dx, dy = positions["D"]
         ex, ey = positions["E"]
-        
+
         layer_height = 90.0 / 3
         self.assertAlmostEqual(ay, 90.0 - layer_height * 0.5, places=3)
         self.assertAlmostEqual(by, 90.0 - layer_height * 1.5, places=3)
         self.assertAlmostEqual(dy, 90.0 - layer_height * 2.5, places=3)
-        
+
         self.assertGreater(ay, by)
         self.assertGreater(by, dy)
-        
+
         self.assertLess(bx, cx)
         self.assertLess(dx, ex)
-        
+
         self.assertAlmostEqual(bx, (dx + ex) / 2, places=3)
 
     # ------------------------------------------------------------------
@@ -753,7 +753,7 @@ class TestGraphLayout(unittest.TestCase):
         edges = [Edge("A", "B")]
         positions = _force_directed_layout(["A", "B"], edges, self.box, iterations=50)
         self.assertEqual(len(positions), 2)
-        
+
         ax, ay = positions["A"]
         bx, by = positions["B"]
         # Nodes should be within box with margin
@@ -785,18 +785,18 @@ class TestGraphLayout(unittest.TestCase):
         edges = [Edge("A", "B")]
         box = {"x": 0.0, "y": 0.0, "width": 200.0, "height": 200.0}
         positions = _force_directed_layout(["A", "B", "C"], edges, box, iterations=100)
-        
+
         ax, ay = positions["A"]
         bx, by = positions["B"]
         cx, cy = positions["C"]
-        
+
         # Distance A-B (connected)
         dist_ab = math.sqrt((ax - bx)**2 + (ay - by)**2)
         # Distance A-C (not connected)
         dist_ac = math.sqrt((ax - cx)**2 + (ay - cy)**2)
         # Distance B-C (not connected)
         dist_bc = math.sqrt((bx - cx)**2 + (by - cy)**2)
-        
+
         # Connected pair should be closer than at least one unconnected pair
         self.assertLess(dist_ab, max(dist_ac, dist_bc))
 
@@ -806,17 +806,17 @@ class TestGraphLayout(unittest.TestCase):
         edges = [Edge("A", "B"), Edge("C", "D"), Edge("B", "C")]
         box = {"x": 0.0, "y": 0.0, "width": 200.0, "height": 200.0}
         positions = _force_directed_layout(["A", "B", "C", "D"], edges, box, iterations=100)
-        
+
         ax, ay = positions["A"]
         bx, by = positions["B"]
         cx, cy = positions["C"]
         dx, dy = positions["D"]
-        
+
         # Cluster 1 center
         c1x, c1y = (ax + bx) / 2, (ay + by) / 2
         # Cluster 2 center
         c2x, c2y = (cx + dx) / 2, (cy + dy) / 2
-        
+
         # Cluster centers should be separated
         cluster_dist = math.sqrt((c1x - c2x)**2 + (c1y - c2y)**2)
         self.assertGreater(cluster_dist, 20.0)
@@ -842,28 +842,28 @@ class TestGraphLayout(unittest.TestCase):
         ]
         box = {"x": 0.0, "y": 0.0, "width": 1000.0, "height": 600.0}
         positions = _force_directed_layout(vertices, edges, box, iterations=100)
-        
+
         self.assertEqual(len(positions), 8)
-        
+
         # All nodes should be within box (with margin)
         for vid, (x, y) in positions.items():
             self.assertGreater(x, 50.0, f"{vid} x too small: {x}")
             self.assertLess(x, 950.0, f"{vid} x too large: {x}")
             self.assertGreater(y, 30.0, f"{vid} y too small: {y}")
             self.assertLess(y, 570.0, f"{vid} y too large: {y}")
-        
+
         # Cluster 1 center (A,B,C,D)
         c1_x = sum(positions[v][0] for v in ["A","B","C","D"]) / 4
         c1_y = sum(positions[v][1] for v in ["A","B","C","D"]) / 4
-        
+
         # Cluster 2 center (E,F,G,H)
         c2_x = sum(positions[v][0] for v in ["E","F","G","H"]) / 4
         c2_y = sum(positions[v][1] for v in ["E","F","G","H"]) / 4
-        
+
         # Cluster centers should be well separated
         cluster_dist = math.sqrt((c1_x - c2_x)**2 + (c1_y - c2_y)**2)
         self.assertGreater(cluster_dist, 100.0, f"Cluster separation too small: {cluster_dist}")
-        
+
         # Intra-cluster distances should be smaller than inter-cluster distances
         def avg_dist(v_list: list[str]) -> float:
             total = 0.0
@@ -875,11 +875,11 @@ class TestGraphLayout(unittest.TestCase):
                     total += math.sqrt((x1-x2)**2 + (y1-y2)**2)
                     count += 1
             return total / count if count > 0 else 0
-        
+
         intra_c1 = avg_dist(["A", "B", "C", "D"])
         intra_c2 = avg_dist(["E", "F", "G", "H"])
         avg_intra = (intra_c1 + intra_c2) / 2
-        
+
         # Intra-cluster average should be less than cluster center separation
         self.assertLess(avg_intra, cluster_dist)
 

@@ -9,7 +9,7 @@ from coordinate_mapper import CoordinateMapper
 class TestPolarGrid(unittest.TestCase):
     def setUp(self) -> None:
         self.coordinate_mapper = CoordinateMapper(800, 600)
-        
+
         self.canvas = SimpleMock(
             width=800,
             height=600,
@@ -22,7 +22,7 @@ class TestPolarGrid(unittest.TestCase):
             zoom_point=Position(0, 0),
             zoom_step=0.1
         )
-        
+
         self.coordinate_mapper.sync_from_canvas(self.canvas)
         self.polar_grid = PolarGrid(coordinate_mapper=self.coordinate_mapper)
         self.polar_grid.width = 800
@@ -37,10 +37,10 @@ class TestPolarGrid(unittest.TestCase):
 
     def test_angle_step(self) -> None:
         self.assertAlmostEqual(self.polar_grid.angle_step, math.pi / 12, places=10)
-        
+
         self.polar_grid.angular_divisions = 8
         self.assertAlmostEqual(self.polar_grid.angle_step, math.pi / 4, places=10)
-        
+
         self.polar_grid.angular_divisions = 6
         self.assertAlmostEqual(self.polar_grid.angle_step, math.pi / 3, places=10)
 
@@ -52,7 +52,7 @@ class TestPolarGrid(unittest.TestCase):
     def test_origin_screen_with_offset(self) -> None:
         self.canvas.offset = Position(50, -30)
         self.coordinate_mapper.sync_from_canvas(self.canvas)
-        
+
         ox, oy = self.polar_grid.origin_screen
         self.assertAlmostEqual(ox, 450, places=6)
         self.assertAlmostEqual(oy, 270, places=6)
@@ -65,28 +65,28 @@ class TestPolarGrid(unittest.TestCase):
     def test_max_radius_math(self) -> None:
         self.canvas.scale_factor = 2.0
         self.coordinate_mapper.sync_from_canvas(self.canvas)
-        
+
         max_radius_screen = self.polar_grid.max_radius_screen
         max_radius_math = self.polar_grid.max_radius_math
-        
+
         self.assertAlmostEqual(max_radius_math, max_radius_screen / 2.0, places=6)
 
     def test_display_spacing(self) -> None:
         spacing1 = self.polar_grid.display_spacing
         self.assertGreater(spacing1, 0)
-        
+
         self.canvas.scale_factor = 2.0
         self.coordinate_mapper.sync_from_canvas(self.canvas)
-        
+
         spacing2 = self.polar_grid.display_spacing
         self.assertAlmostEqual(spacing2, spacing1 * 2, places=6)
 
     def test_get_angle_labels(self) -> None:
         self.polar_grid.angular_divisions = 4
         labels = self.polar_grid.get_angle_labels()
-        
+
         self.assertEqual(len(labels), 4)
-        
+
         angles = [label[0] for label in labels]
         expected_angles = [0, math.pi / 2, math.pi, 3 * math.pi / 2]
         for actual, expected in zip(angles, expected_angles):
@@ -94,9 +94,9 @@ class TestPolarGrid(unittest.TestCase):
 
     def test_get_radial_circles(self) -> None:
         circles = self.polar_grid.get_radial_circles()
-        
+
         self.assertGreater(len(circles), 0)
-        
+
         if len(circles) >= 2:
             spacing = circles[1] - circles[0]
             for i in range(2, len(circles)):
@@ -106,14 +106,14 @@ class TestPolarGrid(unittest.TestCase):
         self.polar_grid.angular_divisions = 8
         self.polar_grid.radial_spacing = 2.0
         self.polar_grid.show_angle_labels = False
-        
+
         state = self.polar_grid.get_state()
-        
+
         self.assertIn("angular_divisions", state)
         self.assertIn("radial_spacing", state)
         self.assertIn("show_angle_labels", state)
         self.assertIn("show_radius_labels", state)
-        
+
         self.assertEqual(state["angular_divisions"], 8)
         self.assertEqual(state["radial_spacing"], 2.0)
         self.assertFalse(state["show_angle_labels"])
@@ -179,29 +179,29 @@ class TestPolarGrid(unittest.TestCase):
 class TestPolarGridConversions(unittest.TestCase):
     def test_rectangular_to_polar(self) -> None:
         from utils.math_utils import MathUtils
-        
+
         r, theta = MathUtils.rectangular_to_polar(3, 4)
         self.assertAlmostEqual(r, 5, places=10)
-        
+
         r, theta = MathUtils.rectangular_to_polar(1, 0)
         self.assertAlmostEqual(r, 1, places=10)
         self.assertAlmostEqual(theta, 0, places=10)
-        
+
         r, theta = MathUtils.rectangular_to_polar(0, 1)
         self.assertAlmostEqual(r, 1, places=10)
         self.assertAlmostEqual(theta, math.pi / 2, places=10)
 
     def test_polar_to_rectangular(self) -> None:
         from utils.math_utils import MathUtils
-        
+
         x, y = MathUtils.polar_to_rectangular(5, 0)
         self.assertAlmostEqual(x, 5, places=10)
         self.assertAlmostEqual(y, 0, places=10)
-        
+
         x, y = MathUtils.polar_to_rectangular(1, math.pi / 2)
         self.assertAlmostEqual(x, 0, places=10)
         self.assertAlmostEqual(y, 1, places=10)
-        
+
         x, y = MathUtils.polar_to_rectangular(1, math.pi / 4)
         expected = math.sqrt(2) / 2
         self.assertAlmostEqual(x, expected, places=10)
@@ -209,9 +209,9 @@ class TestPolarGridConversions(unittest.TestCase):
 
     def test_roundtrip_conversion(self) -> None:
         from utils.math_utils import MathUtils
-        
+
         test_cases = [(3, 4), (-3, 4), (-3, -4), (3, -4), (1.5, 2.5)]
-        
+
         for orig_x, orig_y in test_cases:
             r, theta = MathUtils.rectangular_to_polar(orig_x, orig_y)
             x, y = MathUtils.polar_to_rectangular(r, theta)

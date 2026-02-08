@@ -89,7 +89,7 @@ if TYPE_CHECKING:
 class DrawableManager:
     """
     Manages drawable objects for a Canvas.
-    
+
     This class coordinates specialized managers for each drawable type:
     - Points
     - Segments
@@ -100,36 +100,36 @@ class DrawableManager:
     - Rectangles
     - Colored Areas
     """
-    
+
     def __init__(self, canvas: "Canvas") -> None:
         """
         Initialize the DrawableManager.
-        
+
         Args:
             canvas: The Canvas object this manager is responsible for
         """
         self.canvas: "Canvas" = canvas
         self.name_generator: DrawableNameGenerator = DrawableNameGenerator(canvas)
         self.drawables: DrawablesContainer = DrawablesContainer()
-        
+
         # Create a proxy BEFORE dependency manager
         self.proxy: DrawableManagerProxy = DrawableManagerProxy(self)
-        
+
         # Instantiate DependencyManager with just the proxy
         self.dependency_manager: DrawableDependencyManager = DrawableDependencyManager(drawable_manager_proxy=self.proxy)
-        
+
         # Initialize specialized managers with the proxy
         self.point_manager: PointManager = PointManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
         )
-        
+
         self.segment_manager: SegmentManager = SegmentManager(
-            canvas, self.drawables, self.name_generator, self.dependency_manager, 
+            canvas, self.drawables, self.name_generator, self.dependency_manager,
             self.point_manager, self.proxy
         )
-        
+
         self.vector_manager: VectorManager = VectorManager(
-            canvas, self.drawables, self.name_generator, self.dependency_manager, 
+            canvas, self.drawables, self.name_generator, self.dependency_manager,
             self.point_manager, self.proxy
         )
 
@@ -142,11 +142,11 @@ class DrawableManager:
             self.segment_manager,
             self.proxy,
         )
-        
+
         self.function_manager: FunctionManager = FunctionManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
         )
-        
+
         self.piecewise_function_manager: PiecewiseFunctionManager = PiecewiseFunctionManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
         )
@@ -156,19 +156,19 @@ class DrawableManager:
         )
 
         self.circle_manager: CircleManager = CircleManager(
-            canvas, self.drawables, self.name_generator, self.dependency_manager, 
+            canvas, self.drawables, self.name_generator, self.dependency_manager,
             self.point_manager, self.proxy
         )
-        
+
         self.ellipse_manager: EllipseManager = EllipseManager(
-            canvas, self.drawables, self.name_generator, self.dependency_manager, 
+            canvas, self.drawables, self.name_generator, self.dependency_manager,
             self.point_manager, self.proxy
         )
-        
+
         self.colored_area_manager: ColoredAreaManager = ColoredAreaManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager, self.proxy
         )
-        
+
         self.angle_manager: AngleManager = AngleManager(
             canvas, self.drawables, self.name_generator, self.dependency_manager,
             self.point_manager, self.segment_manager, self.proxy
@@ -222,17 +222,17 @@ class DrawableManager:
 
         # No need for the loop that sets drawable_manager anymore
         # The proxy handles forwarding calls to the appropriate managers
-        
+
     # ------------------- General Drawable Methods -------------------
-    
+
     def get_drawables(self) -> List["Drawable"]:
         """Get all drawables as a flat list, with colored areas first (behind other elements)"""
         return cast(List["Drawable"], self.drawables.get_all_with_layering())
-    
+
     def get_renderable_drawables(self) -> List["Drawable"]:
         """Get only the drawables that should be rendered, preserving layering."""
         return cast(List["Drawable"], self.drawables.get_renderables_with_layering())
-    
+
     # ------------------- Point Methods -------------------
 
     # ------------------- Polygon Methods -------------------
@@ -315,11 +315,11 @@ class DrawableManager:
             Optional["Drawable"],
             self.polygon_manager.get_polygon_by_vertices(normalized_vertices, polygon_type),
         )
-    
+
     def get_point(self, x: float, y: float) -> Optional["Point"]:
         """Get a point at the specified coordinates"""
         return self.point_manager.get_point(x, y)
-        
+
     def get_point_by_name(self, name: str) -> Optional["Point"]:
         """Get a point by its name"""
         return self.point_manager.get_point_by_name(name)
@@ -353,7 +353,7 @@ class DrawableManager:
     def delete_label(self, name: str) -> bool:
         """Delete a label by its name."""
         return bool(self.label_manager.delete_label(name))
-    
+
     def update_label(
         self,
         name: str,
@@ -376,7 +376,7 @@ class DrawableManager:
                 new_rotation_degrees=new_rotation_degrees,
             )
         )
-        
+
     def create_point(
         self,
         x: float,
@@ -393,29 +393,29 @@ class DrawableManager:
             color=color,
             extra_graphics=extra_graphics,
         )
-        
+
     def delete_point(self, x: float, y: float) -> bool:
         """Delete a point at the specified coordinates"""
         return bool(self.point_manager.delete_point(x, y))
-        
+
     def delete_point_by_name(self, name: str) -> bool:
         """Delete a point by its name"""
         return bool(self.point_manager.delete_point_by_name(name))
-    
+
     # ------------------- Segment Methods -------------------
-    
+
     def get_segment_by_coordinates(self, x1: float, y1: float, x2: float, y2: float) -> Optional["Segment"]:
         """Get a segment by its endpoint coordinates"""
         return self.segment_manager.get_segment_by_coordinates(x1, y1, x2, y2)
-        
+
     def get_segment_by_name(self, name: str) -> Optional["Segment"]:
         """Get a segment by its name"""
         return self.segment_manager.get_segment_by_name(name)
-        
+
     def get_segment_by_points(self, p1: Point, p2: Point) -> Optional["Segment"]:
         """Get a segment by its endpoint points"""
         return self.segment_manager.get_segment_by_points(p1, p2)
-        
+
     def create_segment(
         self,
         x1: float,
@@ -440,11 +440,11 @@ class DrawableManager:
             label_text=label_text,
             label_visible=label_visible,
         )
-        
+
     def delete_segment(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> bool:
         """Delete a segment at the specified coordinates"""
         return bool(self.segment_manager.delete_segment(x1, y1, x2, y2, delete_children, delete_parents))
-        
+
     def delete_segment_by_name(self, name: str, delete_children: bool = True, delete_parents: bool = False) -> bool:
         """Delete a segment by its name"""
         return bool(self.segment_manager.delete_segment_by_name(name, delete_children, delete_parents))
@@ -465,13 +465,13 @@ class DrawableManager:
                 new_label_visible=new_label_visible,
             )
         )
-    
+
     # ------------------- Vector Methods -------------------
-    
+
     def get_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float) -> Optional["Vector"]:
         """Get a vector by its origin and tip coordinates"""
         return self.vector_manager.get_vector(origin_x, origin_y, tip_x, tip_y)
-        
+
     def create_vector(
         self,
         origin_x: float,
@@ -492,11 +492,11 @@ class DrawableManager:
             color=color,
             extra_graphics=extra_graphics,
         )
-        
+
     def delete_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float) -> bool:
         """Delete a vector with the specified origin and tip"""
         return bool(self.vector_manager.delete_vector(origin_x, origin_y, tip_x, tip_y))
-    
+
     def update_vector(
         self,
         name: str,
@@ -509,13 +509,13 @@ class DrawableManager:
                 new_color=new_color,
             )
         )
-    
+
     # ------------------- Function Methods -------------------
-    
+
     def get_function(self, name: str) -> Optional["Function"]:
         """Get a function by its name"""
         return self.function_manager.get_function(name)
-        
+
     def draw_function(
         self,
         function_string: str,
@@ -534,11 +534,11 @@ class DrawableManager:
             color=color,
             undefined_at=undefined_at,
         )
-        
+
     def delete_function(self, name: str) -> bool:
         """Delete a function by its name"""
         return bool(self.function_manager.delete_function(name))
-    
+
     def update_function(
         self,
         name: str,
@@ -639,15 +639,15 @@ class DrawableManager:
         )
 
     # ------------------- Circle Methods -------------------
-    
+
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional["Circle"]:
         """Get a circle by its center coordinates and radius"""
         return self.circle_manager.get_circle(center_x, center_y, radius)
-        
+
     def get_circle_by_name(self, name: str) -> Optional["Circle"]:
         """Get a circle by its name"""
         return self.circle_manager.get_circle_by_name(name)
-        
+
     def create_circle(
         self,
         center_x: float,
@@ -666,11 +666,11 @@ class DrawableManager:
             color=color,
             extra_graphics=extra_graphics,
         )
-        
+
     def delete_circle(self, name: str) -> bool:
         """Delete a circle by its name"""
         return bool(self.circle_manager.delete_circle(name))
-    
+
     def update_circle(
         self,
         name: str,
@@ -687,17 +687,17 @@ class DrawableManager:
                 new_center_y=new_center_y,
             )
         )
-    
+
     # ------------------- Ellipse Methods -------------------
-    
+
     def get_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float) -> Optional["Ellipse"]:
         """Get an ellipse by its center coordinates and radii"""
         return self.ellipse_manager.get_ellipse(center_x, center_y, radius_x, radius_y)
-        
+
     def get_ellipse_by_name(self, name: str) -> Optional["Ellipse"]:
         """Get an ellipse by its name"""
         return self.ellipse_manager.get_ellipse_by_name(name)
-        
+
     def create_ellipse(
         self,
         center_x: float,
@@ -720,11 +720,11 @@ class DrawableManager:
             color=color,
             extra_graphics=extra_graphics,
         )
-        
+
     def delete_ellipse(self, name: str) -> bool:
         """Delete an ellipse by its name"""
         return bool(self.ellipse_manager.delete_ellipse(name))
-    
+
     def update_ellipse(
         self,
         name: str,
@@ -747,9 +747,9 @@ class DrawableManager:
                 new_center_y=new_center_y,
             )
         )
-    
+
     # ------------------- Colored Area Methods -------------------
-    
+
     def create_colored_area(
         self,
         drawable1_name: str,
@@ -798,15 +798,15 @@ class DrawableManager:
             color=color,
             opacity=opacity,
         )
-        
+
     def delete_colored_area(self, name: str) -> bool:
         """Delete a colored area by its name"""
         return bool(self.colored_area_manager.delete_colored_area(name))
-        
+
     def delete_colored_areas_for_function(self, func: "Drawable", *, archive: bool = True) -> None:
         """Delete all colored areas associated with a function."""
         self.colored_area_manager.delete_colored_areas_for_function(func, archive=archive)
-        
+
     def delete_colored_areas_for_segment(self, segment: "Drawable", *, archive: bool = True) -> None:
         """Delete all colored areas associated with a segment."""
         self.colored_area_manager.delete_colored_areas_for_segment(segment, archive=archive)
@@ -826,11 +826,11 @@ class DrawableManager:
     def delete_region_expression_colored_areas_referencing_name(self, name: str, *, archive: bool = True) -> None:
         """Delete any region-expression colored areas that reference a specific drawable name."""
         self.colored_area_manager.delete_region_expression_colored_areas_referencing_name(name, archive=archive)
-        
+
     def get_colored_areas_for_drawable(self, drawable: "Drawable") -> List["Drawable"]:
         """Get all colored areas associated with a drawable"""
         return cast(List["Drawable"], self.colored_area_manager.get_colored_areas_for_drawable(drawable))
-        
+
     def update_colored_area(
         self,
         name: str,
@@ -982,7 +982,7 @@ class DrawableManager:
     def create_angle(self, vx: float, vy: float, p1x: float, p1y: float, p2x: float, p2y: float, color: Optional[str] = None, angle_name: Optional[str] = None, is_reflex: bool = False, extra_graphics: bool = True) -> Optional["Angle"]:
         """Creates an angle defined by three points."""
         return self.angle_manager.create_angle(
-            vx, vy, p1x, p1y, p2x, p2y, 
+            vx, vy, p1x, p1y, p2x, p2y,
             color=color,
             angle_name=angle_name,
             is_reflex=is_reflex,
@@ -1067,35 +1067,35 @@ class DrawableManager:
 
     def get_region_capable_drawable_by_name(self, name: str) -> Optional["Drawable"]:
         """Get a drawable that can be converted to a Region by its name.
-        
+
         Searches polygons, circles, ellipses, arcs, and segments in sequence.
         Segments are treated as half-planes for region operations.
-        
+
         Args:
             name: The name of the drawable to find
-            
+
         Returns:
             The drawable if found, None otherwise
         """
         if not name:
             return None
-        
+
         polygon = self.polygon_manager.get_polygon_by_name(name)
         if polygon is not None:
             return polygon
-        
+
         circle = self.circle_manager.get_circle_by_name(name)
         if circle is not None:
             return circle
-        
+
         ellipse = self.ellipse_manager.get_ellipse_by_name(name)
         if ellipse is not None:
             return ellipse
-        
+
         arc = self.arc_manager.get_circle_arc_by_name(name)
         if arc is not None:
             return arc
-        
+
         segment = self.segment_manager.get_segment_by_name(name)
         if segment is not None:
             return segment

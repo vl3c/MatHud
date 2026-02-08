@@ -1,8 +1,8 @@
 """
 MatHud Client-Side Workspace Persistence and State Management System
 
-Client-side workspace manager that runs in the browser using Brython. Manages workspace 
-operations including saving, loading, listing and deleting workspaces through AJAX 
+Client-side workspace manager that runs in the browser using Brython. Manages workspace
+operations including saving, loading, listing and deleting workspaces through AJAX
 communication with the Flask backend server.
 
 Key Features:
@@ -77,7 +77,7 @@ class WorkspaceManager:
     Attributes:
         canvas: The canvas instance to manage workspaces for.
     """
-    
+
     def __init__(self, canvas: "Canvas") -> None:
         """Initialize workspace manager with canvas reference."""
         self.canvas: "Canvas" = canvas
@@ -85,14 +85,14 @@ class WorkspaceManager:
     def save_workspace(self, name: Optional[str] = None) -> str:
         """
         Save the current workspace state to server via AJAX.
-        
+
         Serializes the complete canvas state including all geometric objects,
         computations, and settings, then sends it to the Flask backend server
         for persistent storage.
-        
+
         Args:
             name (str, optional): Name for the workspace. If None, saves as "current".
-            
+
         Returns:
             str: Success or error message from the save operation.
         """
@@ -108,7 +108,7 @@ class WorkspaceManager:
         req: Any = ajax.Ajax()
         req.bind('complete', on_complete)
         req.bind('error', lambda e: f'Error saving workspace: {e.text}')
-        
+
         state = self.canvas.get_canvas_state()
         # Bars are derived from DiscretePlot parameters and are rebuilt on load.
         # Do not persist them in saved workspaces.
@@ -122,7 +122,7 @@ class WorkspaceManager:
             'state': state,
             'name': name
         }
-        
+
         req.open('POST', '/save_workspace', False)  # Set to synchronous
         req.set_header('Content-Type', 'application/json')
         req.send(json.dumps(data))
@@ -1069,11 +1069,11 @@ class WorkspaceManager:
     def _restore_workspace_state(self, state: Dict[str, Any]) -> None:
         """
         Main restoration orchestrator for complete workspace state.
-        
+
         Restores all geometric objects and computations in the correct dependency
         order to ensure proper relationships between objects. Clears the canvas
         first, then creates objects from points to complex shapes.
-        
+
         Args:
             state (dict): Workspace state dictionary containing all object data.
         """
@@ -1240,14 +1240,14 @@ class WorkspaceManager:
     def load_workspace(self, name: Optional[str] = None) -> str:
         """
         Load and restore workspace state from server.
-        
+
         Requests workspace data from the Flask backend server via AJAX and
         restores the complete canvas state including all geometric objects
         and computations in the correct dependency order.
-        
+
         Args:
             name (str, optional): Name of the workspace to load. If None, loads default.
-            
+
         Returns:
             str: Success or error message from the load operation.
         """
@@ -1268,7 +1268,7 @@ class WorkspaceManager:
             if self._response_is_success(response):
                 state = self._workspace_state_from_response(response)
                 if not state:
-                    return f'Error loading workspace: No state data found in response'
+                    return 'Error loading workspace: No state data found in response'
 
                 self._restore_workspace_state(state)
                 return f'Workspace "{name if name else "current"}" loaded successfully.'
@@ -1279,16 +1279,16 @@ class WorkspaceManager:
     def list_workspaces(self) -> str:
         """
         Retrieve list of available workspace names from server storage.
-        
+
         Sends an AJAX request to the Flask backend to get all available
         workspace names that can be loaded.
-        
+
         Returns:
             str: Comma-separated list of workspace names, or 'None' if empty.
         """
         def on_complete(req: Any) -> str:
             return self._parse_list_workspaces_response(req)
-                
+
         return self._execute_sync_request(
             method='GET',
             url='/list_workspaces',
@@ -1309,19 +1309,19 @@ class WorkspaceManager:
     def delete_workspace(self, name: str) -> str:
         """
         Remove workspace from server persistent storage.
-        
+
         Sends an AJAX request to the Flask backend to permanently delete
         the specified workspace from storage.
-        
+
         Args:
             name (str): Name of the workspace to delete.
-            
+
         Returns:
             str: Success or error message from the delete operation.
         """
         def on_complete(req: Any) -> str:
             return self._parse_delete_workspace_response(req, name)
-                
+
         url: str = f'/delete_workspace?name={name}'
         return self._execute_sync_request(
             method='GET',

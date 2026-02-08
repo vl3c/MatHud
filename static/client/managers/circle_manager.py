@@ -51,13 +51,13 @@ if TYPE_CHECKING:
 class CircleManager:
     """
     Manages circle drawables for a Canvas.
-    
+
     This class is responsible for:
     - Creating circle objects with center points and radius values
     - Retrieving circle objects by coordinates, parameters, or name
     - Deleting circle objects with proper cleanup and redrawing
     """
-    
+
     def __init__(
         self,
         canvas: "Canvas",
@@ -69,7 +69,7 @@ class CircleManager:
     ) -> None:
         """
         Initialize the CircleManager.
-        
+
         Args:
             canvas: The Canvas object this manager is responsible for
             drawables_container: The container for storing drawables
@@ -85,34 +85,34 @@ class CircleManager:
         self.point_manager: "PointManager" = point_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
         self.circle_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Circle")
-        
+
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional[Circle]:
         """
         Get a circle by its center coordinates and radius.
-        
+
         Args:
             center_x (float): X-coordinate of the circle center
             center_y (float): Y-coordinate of the circle center
             radius (float): Radius of the circle
-            
+
         Returns:
             Circle: The matching circle object, or None if not found
         """
         circles = self.drawables.Circles
         for circle in circles:
-            if (circle.center.x == center_x and 
-                circle.center.y == center_y and 
+            if (circle.center.x == center_x and
+                circle.center.y == center_y and
                 circle.radius == radius):
                 return circle
         return None
-        
+
     def get_circle_by_name(self, name: str) -> Optional[Circle]:
         """
         Get a circle by its name.
-        
+
         Args:
             name (str): The name of the circle
-            
+
         Returns:
             Circle: The circle object with the given name, or None if not found
         """
@@ -121,7 +121,7 @@ class CircleManager:
             if circle.name == name:
                 return circle
         return None
-        
+
     def create_circle(
         self,
         center_x: float,
@@ -133,10 +133,10 @@ class CircleManager:
     ) -> Circle:
         """
         Create a circle with the specified center and radius.
-        
+
         Archives canvas state for undo functionality, creates center point if needed,
         and handles dependency registration and canvas redrawing.
-        
+
         Args:
             center_x (float): X-coordinate of the circle center
             center_y (float): Y-coordinate of the circle center
@@ -144,64 +144,64 @@ class CircleManager:
             name (str): Optional name for the circle (default: "")
             color (str): Optional color for the circle
             extra_graphics (bool): Whether to create additional graphics (default: True)
-            
+
         Returns:
             Circle: The newly created circle object, or existing circle if already present
         """
         # Archive before creation
         self.canvas.undo_redo_manager.archive()
-        
+
         # Check if the circle already exists
         existing_circle = self.get_circle(center_x, center_y, radius)
         if existing_circle:
             return existing_circle
-            
+
         # Extract point name from circle name
         point_names: List[str] = self.name_generator.split_point_names(name, 1)
-        
+
         # Create center point with the correct name
         center = self.point_manager.create_point(center_x, center_y, point_names[0], extra_graphics=False)
-            
+
         # Create the circle (math-only)
         color_value = str(color).strip() if color is not None else ""
         if color_value:
             new_circle = Circle(center, radius, color=color_value)
         else:
             new_circle = Circle(center, radius)
-        
+
         # Add to drawables
         self.drawables.add(new_circle)
-        
+
         # Register dependencies
         self.dependency_manager.analyze_drawable_for_dependencies(new_circle)
-        
+
         # Handle extra graphics if requested
         if extra_graphics:
             self.drawable_manager.create_drawables_from_new_connections()
-        
+
         # Draw the circle
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
+
         return new_circle
-        
+
     def delete_circle(self, name: str) -> bool:
         """
         Delete a circle by its name.
-        
+
         Archives canvas state for undo functionality, removes circle from drawables container,
         and triggers canvas redraw.
-        
+
         Args:
             name (str): The name of the circle to delete
-            
+
         Returns:
             bool: True if the circle was successfully deleted, False if not found
         """
         circle = self.get_circle_by_name(name)
         if not circle:
             return False
-            
+
         # Archive before deletion
         self.canvas.undo_redo_manager.archive()
 
@@ -214,14 +214,14 @@ class CircleManager:
                 self.drawable_manager.delete_colored_areas_for_circle(circle, archive=False)
             except Exception:
                 pass
-        
+
         # Remove from drawables
         self.drawables.remove(circle)
-        
+
         # Redraw
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
+
         return True
 
     def update_circle(

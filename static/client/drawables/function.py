@@ -77,7 +77,7 @@ class Function(Drawable):
         except Exception as e:
             raise ValueError(f"Failed to parse function string '{function_string}': {str(e)}")
         super().__init__(name=name or "f", color=color)
-    
+
     def function(self, x: float) -> float:
         """Evaluate the function at x. Returns NaN for explicit undefined points."""
         for hole in self.undefined_at:
@@ -93,21 +93,21 @@ class Function(Drawable):
         self.is_periodic, self.estimated_period = MathUtils.detect_function_periodicity(
             self.function, range_hint=range_hint
         )
-    
+
     def get_class_name(self) -> str:
         return 'Function'
 
     def get_state(self) -> Dict[str, Any]:
         function_string: str = self.function_string
         state: Dict[str, Any] = {
-            "name": self.name, 
+            "name": self.name,
             "args": {
                 "function_string": function_string,
-                "left_bound": self.left_bound, 
+                "left_bound": self.left_bound,
                 "right_bound": self.right_bound
             }
         }
-        
+
         # Only include asymptotes and discontinuities lists that have values
         if hasattr(self, 'vertical_asymptotes') and self.vertical_asymptotes:
             state["args"]["vertical_asymptotes"] = self.vertical_asymptotes
@@ -117,7 +117,7 @@ class Function(Drawable):
             state["args"]["point_discontinuities"] = self.point_discontinuities
         if self.undefined_at:
             state["args"]["undefined_at"] = self.undefined_at
-            
+
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
@@ -149,7 +149,7 @@ class Function(Drawable):
             self.left_bound += x_offset
         if self.right_bound is not None:
             self.right_bound += x_offset
-        
+
         # Translate undefined points
         if self.undefined_at and x_offset != 0:
             self.undefined_at = [h + x_offset for h in self.undefined_at]
@@ -165,19 +165,19 @@ class Function(Drawable):
                 import re
                 # Use all allowed functions from ExpressionValidator
                 protected_funcs: list[str] = sorted(ExpressionValidator.ALLOWED_FUNCTIONS, key=len, reverse=True)
-                
+
                 # Create a regex pattern that matches standalone x while protecting function names
                 func_pattern: str = '|'.join(map(re.escape, protected_funcs))
                 # Use word boundaries to match standalone 'x'
                 pattern: str = rf'\b(x)\b|({func_pattern})'
-                
+
                 def replace_match(match: Any) -> str:
                     if match.group(1):  # If it's a standalone 'x'
                         return f'(x - {x_offset})'
                     elif match.group(2):  # If it's a function name
                         return cast(str, match.group(2))  # Return the function name unchanged
                     return cast(str, match.group(0))
-                    
+
                 new_function_string: str = re.sub(pattern, replace_match, self.function_string)
             else:
                 new_function_string = self.function_string
@@ -189,7 +189,7 @@ class Function(Drawable):
             # Update function string and parse new function
             self.function_string = ExpressionValidator.fix_math_expression(new_function_string)
             self._base_function = ExpressionValidator.parse_function_string(new_function_string)
-            
+
         except Exception as e:
             print(f"Warning: Could not translate function: {str(e)}")
             # If translation fails, revert bounds
@@ -202,7 +202,7 @@ class Function(Drawable):
                 self.undefined_at = [h - x_offset for h in self.undefined_at]
 
     def rotate(self, angle: float) -> None:
-        pass 
+        pass
 
     def update_color(self, color: str) -> None:
         """Update the function color metadata."""
@@ -219,7 +219,7 @@ class Function(Drawable):
     def _calculate_asymptotes_and_discontinuities(self) -> None:
         """Calculate vertical and horizontal asymptotes and point discontinuities of the function"""
         from utils.math_utils import MathUtils
-        
+
         # Calculate asymptotes and discontinuities using MathUtil
         self.vertical_asymptotes, self.horizontal_asymptotes, self.point_discontinuities = MathUtils.calculate_asymptotes_and_discontinuities(
             self.function_string,
@@ -230,7 +230,7 @@ class Function(Drawable):
     def has_point_discontinuity_between_x(self, x1: float, x2: float) -> bool:
         """Check if there is a point discontinuity between x1 and x2"""
         return (hasattr(self, 'point_discontinuities') and any(x1 < x < x2 for x in self.point_discontinuities))
-    
+
     def has_vertical_asymptote_between_x(self, x1: float, x2: float) -> bool:
         """Check if there is a vertical asymptote between x1 and x2"""
         return (hasattr(self, 'vertical_asymptotes') and any(x1 <= x < x2 for x in self.vertical_asymptotes))

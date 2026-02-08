@@ -36,10 +36,10 @@ from utils.math_utils import MathUtils
 
 class Rectangle(Quadrilateral):
     """Represents a rectangle formed by four connected line segments.
-    
+
     Validates that four segments form a proper rectangle with right angles and
     provides rotation capabilities around the rectangle's geometric center.
-    
+
     Attributes:
         segment1 (Segment): First side of the rectangle
         segment2 (Segment): Second side of the rectangle
@@ -48,24 +48,24 @@ class Rectangle(Quadrilateral):
     """
     def __init__(self, segment1: Segment, segment2: Segment, segment3: Segment, segment4: Segment, color: str = default_color) -> None:
         """Initialize a rectangle from four connected line segments.
-        
+
         Validates that the segments form a proper rectangle with right angles.
-        
+
         Args:
             segment1 (Segment): First side of the rectangle
             segment2 (Segment): Second side of the rectangle
             segment3 (Segment): Third side of the rectangle
             segment4 (Segment): Fourth side of the rectangle
             color (str): CSS color value for rectangle visualization
-            
+
         Raises:
             ValueError: If the segments do not form a valid rectangle
         """
         if not self._segments_form_rectangle(segment1, segment2, segment3, segment4):
             raise ValueError("The segments do not form a rectangle")
-        if not MathUtils.is_rectangle(segment1.point1.x, segment1.point1.y, 
+        if not MathUtils.is_rectangle(segment1.point1.x, segment1.point1.y,
                                  segment2.point1.x, segment2.point1.y,
-                                 segment3.point1.x, segment3.point1.y, 
+                                 segment3.point1.x, segment3.point1.y,
                                  segment4.point1.x, segment4.point1.y):
             raise ValueError("The quadrilateral formed by the segments is not a rectangle")
         super().__init__(segment1, segment2, segment3, segment4, color=color)

@@ -38,10 +38,10 @@ from utils.math_utils import MathUtils
 
 class Segment(Drawable):
     """Represents a line segment between two points with mathematical line properties.
-    
+
     Maintains references to two Point objects and calculates line equation properties
     for mathematical operations and geometric intersections.
-    
+
     Attributes:
         point1 (Point): First endpoint of the segment
         point2 (Point): Second endpoint of the segment
@@ -57,7 +57,7 @@ class Segment(Drawable):
         label_visible: bool = False,
     ) -> None:
         """Initialize a line segment between two points.
-        
+
         Args:
             p1 (Point): First endpoint of the segment
             p2 (Point): Second endpoint of the segment
@@ -196,7 +196,7 @@ class Segment(Drawable):
         """Rotate a single point around a center by given angle in radians"""
         dx: float = point.x - center_x
         dy: float = point.y - center_y
-        
+
         point.x = center_x + (dx * math.cos(angle_rad) - dy * math.sin(angle_rad))
         point.y = center_y + (dx * math.sin(angle_rad) + dy * math.cos(angle_rad))
 
@@ -206,20 +206,20 @@ class Segment(Drawable):
         center_x: float
         center_y: float
         center_x, center_y = self._get_midpoint()
-        
+
         # Convert angle to radians
         angle_rad: float = math.radians(angle)
-        
+
         # Rotate both endpoints
         self._rotate_point_around_center(self.point1, center_x, center_y, angle_rad)
         self._rotate_point_around_center(self.point2, center_x, center_y, angle_rad)
-        
+
         # Update line formula
         self.line_formula = self._calculate_line_algebraic_formula()
         self._sync_label_position()
-        
+
         # Return tuple (should_proceed, message) to match interface
-        return True, None 
+        return True, None
 
     def __eq__(self, other: object) -> Any:
         """Checks if two segments are equal based on their endpoints."""
@@ -227,7 +227,7 @@ class Segment(Drawable):
             return NotImplemented
         # Use sets to ignore endpoint order
         # Assumes self.point1 and self.point2 are not None
-        # Requires Point class to have proper __eq__ and __hash__ 
+        # Requires Point class to have proper __eq__ and __hash__
         if self.point1 is None or self.point2 is None or other.point1 is None or other.point2 is None:
             return False # Or handle appropriately if None points are possible during comparison
         points_self: set[Point] = {self.point1, self.point2}
@@ -239,7 +239,7 @@ class Segment(Drawable):
         # Hash is based on the IDs of the point objects, order-independent
         if self.point1 is None or self.point2 is None:
              # Consistent with __eq__ if points can be None
-             return hash((None, None)) 
+             return hash((None, None))
         # Use frozenset of point hashes to ensure hash is consistent regardless of point1/point2 order
         # and relies on Point.__hash__ which is value-based.
         return hash(frozenset([hash(self.point1), hash(self.point2)]))

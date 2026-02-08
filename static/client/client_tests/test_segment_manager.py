@@ -101,9 +101,9 @@ class TestSegmentManager(unittest.TestCase):
         """Test that create_segment_from_points creates a segment with the given Point objects."""
         p1 = Point(0.0, 0.0, name="X")
         p2 = Point(1.0, 0.0, name="Y")
-        
+
         segment = self.segment_manager.create_segment_from_points(p1, p2)
-        
+
         self.assertIs(segment.point1, p1)
         self.assertIs(segment.point2, p2)
         self.assertEqual(segment.name, "XY")
@@ -112,20 +112,20 @@ class TestSegmentManager(unittest.TestCase):
         """Test that it returns existing segment if it references the same Point objects."""
         p1 = Point(0.0, 0.0, name="A")
         p2 = Point(1.0, 0.0, name="B")
-        
+
         segment1 = self.segment_manager.create_segment_from_points(p1, p2)
         segment2 = self.segment_manager.create_segment_from_points(p1, p2)
-        
+
         self.assertIs(segment1, segment2)
 
     def test_create_segment_from_points_returns_existing_if_same_points_reversed(self) -> None:
         """Test that it returns existing segment if points are reversed but same objects."""
         p1 = Point(0.0, 0.0, name="A")
         p2 = Point(1.0, 0.0, name="B")
-        
+
         segment1 = self.segment_manager.create_segment_from_points(p1, p2)
         segment2 = self.segment_manager.create_segment_from_points(p2, p1)
-        
+
         self.assertIs(segment1, segment2)
 
     def test_create_segment_from_points_creates_new_if_different_points_same_coords(self) -> None:
@@ -134,12 +134,12 @@ class TestSegmentManager(unittest.TestCase):
         old_p2 = Point(1.0, 0.0, name="B")
         old_segment = Segment(old_p1, old_p2)
         self.drawables.add(old_segment)
-        
+
         new_p1 = Point(0.0, 0.0, name="X")
         new_p2 = Point(1.0, 0.0, name="Y")
-        
+
         new_segment = self.segment_manager.create_segment_from_points(new_p1, new_p2)
-        
+
         self.assertIsNot(new_segment, old_segment)
         self.assertIs(new_segment.point1, new_p1)
         self.assertIs(new_segment.point2, new_p2)
@@ -151,22 +151,22 @@ class TestSegmentManager(unittest.TestCase):
         old_p2 = Point(1.0, 0.0, name="B")
         old_segment = Segment(old_p1, old_p2)
         self.drawables.add(old_segment)
-        
+
         # Verify old segment is findable by coordinates
         found = self.segment_manager.get_segment_by_coordinates(0.0, 0.0, 1.0, 0.0)
         self.assertIs(found, old_segment, "Old segment should be findable by coordinates")
-        
+
         initial_count = len(self.drawables.Segments)
         self.assertEqual(initial_count, 1)
-        
+
         new_p1 = Point(0.0, 0.0, name="X")
         new_p2 = Point(1.0, 0.0, name="Y")
         new_segment = self.segment_manager.create_segment_from_points(new_p1, new_p2)
-        
+
         # Should have exactly 1 segment
         final_count = len(self.drawables.Segments)
         self.assertEqual(final_count, 1, f"Expected 1 segment, got {final_count}")
-        
+
         # The remaining segment should reference the NEW points (not old points)
         remaining = self.drawables.Segments[0]
         self.assertIs(remaining.point1, new_p1, "Remaining segment should reference new_p1")

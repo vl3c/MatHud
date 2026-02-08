@@ -16,23 +16,23 @@ class TestMarkdownParser(unittest.TestCase):
         # Test H1
         result = self.parser.parse("# Header 1")
         self.assertIn("<h1>Header 1</h1>", result)
-        
+
         # Test H2
         result = self.parser.parse("## Header 2")
         self.assertIn("<h2>Header 2</h2>", result)
-        
+
         # Test H3
         result = self.parser.parse("### Header 3")
         self.assertIn("<h3>Header 3</h3>", result)
-        
+
         # Test H4
         result = self.parser.parse("#### Header 4")
         self.assertIn("<h4>Header 4</h4>", result)
-        
+
         # Test H5
         result = self.parser.parse("##### Header 5")
         self.assertIn("<h5>Header 5</h5>", result)
-        
+
         # Test H6
         result = self.parser.parse("###### Header 6")
         self.assertIn("<h6>Header 6</h6>", result)
@@ -42,11 +42,11 @@ class TestMarkdownParser(unittest.TestCase):
         # Test ** syntax
         result = self.parser.parse("This is **bold** text")
         self.assertIn("<strong>bold</strong>", result)
-        
+
         # Test __ syntax
         result = self.parser.parse("This is __bold__ text")
         self.assertIn("<strong>bold</strong>", result)
-        
+
         # Test multiple bold in one line
         result = self.parser.parse("**First** and __second__ bold")
         self.assertIn("<strong>First</strong>", result)
@@ -57,11 +57,11 @@ class TestMarkdownParser(unittest.TestCase):
         # Test * syntax
         result = self.parser.parse("This is *italic* text")
         self.assertIn("<em>italic</em>", result)
-        
+
         # Test _ syntax
         result = self.parser.parse("This is _italic_ text")
         self.assertIn("<em>italic</em>", result)
-        
+
         # Test multiple italic in one line
         result = self.parser.parse("*First* and _second_ italic")
         self.assertIn("<em>First</em>", result)
@@ -205,26 +205,26 @@ The famous equation is \\(E = mc^2\\).
 |---------|--------|
 | \\(2 + 2\\) | 4 |
 | \\(x^2\\) | Variable |"""
-        
+
         result = self.parser.parse(markdown)
-        
+
         # Check headers
         self.assertIn("<h1>Main Title</h1>", result)
         self.assertIn("<h2>Math Section</h2>", result)
         self.assertIn("<h3>List Example</h3>", result)
-        
+
         # Check formatting
         self.assertIn("<strong>bold</strong>", result)
         self.assertIn("<em>italic</em>", result)
         self.assertIn("<code>inline code</code>", result)
-        
+
         # Check math
         self.assertIn('class="math-inline"', result)
-        
+
         # Check list
         self.assertIn("<ul>", result)
         self.assertIn("<li>Item with", result)
-        
+
         # Check table
         self.assertIn("<table>", result)
         self.assertIn("<th>Formula</th>", result)
@@ -234,15 +234,15 @@ The famous equation is \\(E = mc^2\\).
         # Empty string
         result = self.parser.parse("")
         self.assertEqual(result, "")
-        
+
         # Only whitespace
         result = self.parser.parse("   \n  \n  ")
         # Should handle gracefully
-        
+
         # Unmatched formatting
         result = self.parser.parse("**bold without closing")
         # Should not crash
-        
+
         # Nested formatting
         result = self.parser.parse("**bold with *italic* inside**")
         # Should handle reasonably
@@ -251,11 +251,11 @@ The famous equation is \\(E = mc^2\\).
         """Test multiple math expressions in one text."""
         markdown = "First equation \\(x = 1\\) and second $$y = 2$$ then \\(z = 3\\)"
         result = self.parser.parse(markdown)
-        
+
         # Should contain multiple math spans/divs
         math_inline_count = result.count('class="math-inline"')
         math_block_count = result.count('class="math-block"')
-        
+
         self.assertEqual(math_inline_count, 2)  # Two inline expressions
         self.assertEqual(math_block_count, 1)   # One block expression
 
@@ -264,7 +264,7 @@ The famous equation is \\(E = mc^2\\).
         markdown = """| **Bold** | *Italic* | `Code` |
 |----------|----------|--------|
 | **Data** | *Info*   | `var`  |"""
-        
+
         result = self.parser.parse(markdown)
         self.assertIn("<strong>Bold</strong>", result)
         self.assertIn("<em>Italic</em>", result)
@@ -277,7 +277,7 @@ The famous equation is \\(E = mc^2\\).
 
 - Unordered item 1
 - Unordered item 2"""
-        
+
         result = self.parser.parse(markdown)
         self.assertIn("<ol>", result)
         self.assertIn("</ol>", result)
@@ -310,9 +310,9 @@ $$
 |----------|------------|
 | \\(x^2\\) | \\(2x\\) |
 | \\(\\sin x\\) | \\(\\cos x\\) |"""
-        
+
         result = self.parser.parse(markdown)
-        
+
         # Verify all elements are present
         self.assertIn("<h2>Complex Example</h2>", result)
         self.assertIn("<h3>Math Examples</h3>", result)
@@ -338,7 +338,7 @@ $$
             ("start_with_underscore", "start_with_underscore"),  # Starts with underscore case
             ("end_with_underscore_", "end_with_underscore_"),  # Ends with underscore
         ]
-        
+
         for input_text, expected_content in test_cases:
             with self.subTest(input_text=input_text):
                 result = self.parser.parse(input_text)
@@ -357,7 +357,7 @@ $$
             ("At the _beginning_ of sentence", "<em>beginning</em>"),
             ("At the end of _sentence_", "<em>sentence</em>"),
         ]
-        
+
         for input_text, expected in test_cases:
             with self.subTest(input_text=input_text):
                 result = self.parser.parse(input_text)
@@ -376,7 +376,7 @@ $$
             ("file_name.txt contains _important_ data", ["file_name.txt", "<em>important</em>"]),
             ("variable_one and variable_two with _italic_", ["variable_one", "variable_two", "<em>italic</em>"]),
         ]
-        
+
         for input_text, expected_items in test_cases:
             with self.subTest(input_text=input_text):
                 result = self.parser.parse(input_text)
@@ -393,7 +393,7 @@ $$
             ("At the __beginning__ of sentence", "<strong>beginning</strong>"),
             ("At the end of __sentence__", "<strong>sentence</strong>"),
         ]
-        
+
         for input_text, expected in test_cases:
             with self.subTest(input_text=input_text):
                 result = self.parser.parse(input_text)
@@ -418,7 +418,7 @@ $$
             ("pre__bold__post", "pre__bold__post"),  # Double underscore without spaces
             ("pre_italic_post", "pre_italic_post"),  # Single underscore without spaces
         ]
-        
+
         for input_text, expected_content in test_cases:
             with self.subTest(input_text=input_text):
                 result = self.parser.parse(input_text)
@@ -439,7 +439,7 @@ $$
             ("Parentheses (_italic_)", "<em>italic</em>"),
             ("Brackets [__bold__]", "<strong>bold</strong>"),
         ]
-        
+
         for input_text, expected in punctuation_cases:
             with self.subTest(input_text=input_text):
                 result = self.parser.parse(input_text)
@@ -449,7 +449,7 @@ $$
         """Test mixed formatting scenarios with underscores."""
         markdown = "This has _italic_ and some_variable_name and **bold_text** formatting."
         result = self.parser.parse(markdown)
-        
+
         # Should italicize spaced underscores but not variable names
         self.assertIn("<em>italic</em>", result)
         self.assertIn("some_variable_name", result)  # Should remain unchanged
@@ -470,7 +470,7 @@ $$
             "Conditional probability: P(A | B) = P(A ∩ B) / P(B).",
             "Matrix determinant: |A| for matrix A."
         ]
-        
+
         for example in math_examples:
             with self.subTest(math_expression=example):
                 result = self.parser.parse(example)
@@ -488,7 +488,7 @@ $$
 |------|-----|------|
 | John | 30  | NYC  |
 | Jane | 25  | LA   |"""
-        
+
         result = self.parser.parse(basic_table)
         self.assertIn("<table>", result)
         self.assertIn("<thead>", result)
@@ -506,7 +506,7 @@ $$
 |:-----|:------:|------:|
 | A    | B      | C     |
 | 1    | 2      | 3     |"""
-        
+
         result = self.parser.parse(aligned_table)
         self.assertIn("<table>", result)
         self.assertIn('text-align: left;', result)
@@ -525,7 +525,7 @@ $$
             "End pipe only |",
             "Middle | pipe | here"
         ]
-        
+
         for example in not_tables:
             with self.subTest(not_table=example):
                 result = self.parser.parse(example)
@@ -537,20 +537,20 @@ $$
             """| Header |
 | Not a separator |
 | Data |""",  # Second line is not a valid separator
-            
+
             """| Header |
 |====|
 | Data |""",  # Equals instead of hyphens
-            
+
             """| Header |
 | abc |
 | Data |""",  # Letters instead of hyphens
-            
+
             """| Header |
 |  |
 | Data |""",  # Empty separator
         ]
-        
+
         for example in malformed_tables:
             with self.subTest(malformed=example):
                 result = self.parser.parse(example)
@@ -562,24 +562,24 @@ $$
             """| Header |
 |--------|
 | Data |""",  # Basic separator
-            
+
             """| Left | Right |
 |:-----|------:|
 | A    | B     |""",  # With alignment
-            
+
             """| A | B | C |
 |---|:-:|--:|
 | 1 | 2 | 3 |""",  # Mixed alignment
-            
+
             """| Header |
 | --- |
 | Data |""",  # Minimal separator
-            
+
             """|Header|
 |---|
 |Data|""",  # No spaces around pipes
         ]
-        
+
         for example in valid_separators:
             with self.subTest(valid_table=example):
                 result = self.parser.parse(example)
@@ -594,7 +594,7 @@ $$
 | \\|x\\|     | abs(x) |
 | {x \\| x > 0} | positive reals |
 | \\(E = mc^2\\) | Einstein |"""
-        
+
         result = self.parser.parse(table_with_math)
         self.assertIn("<table>", result)
         self.assertIn("<th>Expression</th>", result)
@@ -624,18 +624,18 @@ Another table:
 | 1 | 2 |
 
 Final math: |a + b| ≤ |a| + |b|."""
-        
+
         result = self.parser.parse(mixed_content)
-        
+
         # Should have tables
         table_count = result.count("<table>")
         self.assertEqual(table_count, 2, "Should have exactly 2 tables")
-        
+
         # Should have math expressions that are NOT in tables
         self.assertIn("The absolute value |x| is important", result)
         self.assertIn("Set notation {y", result)
         self.assertIn("Final math: |a + b|", result)
-        
+
         # Table content should be present
         self.assertIn("<th>Function</th>", result)
         self.assertIn("<th>Definition</th>", result)
@@ -652,16 +652,16 @@ Final math: |a + b| ≤ |a| + |b|."""
             "Math expression |x| in sentence",
             "Set notation {x | x > 0} explained",
             "Conditional probability P(A | B) formula",
-            
+
             # Even with what looks like separator lines after
             """Text with | pipes | in middle
 |-----|-----|
 More text | here | too""",
-            
+
             """Math |x| and |y| values
 |---|---|
 Not a table | still | not""",
-            
+
             # Mixed content
             """Regular text with | pipes | scattered
 | Header | Column |
@@ -669,23 +669,23 @@ Not a table | still | not""",
 | Data   | Value  |
 More text | with | pipes""",
         ]
-        
+
         for example in non_pipe_starting_lines:
             with self.subTest(non_pipe_line=example):
                 result = self.parser.parse(example)
                 # Count tables - should be 0 for most, or 1 only if there's a valid table section
                 table_count = result.count("<table>")
-                
+
                 # For single line examples, should be 0
                 if '\n' not in example:
-                    self.assertEqual(table_count, 0, 
+                    self.assertEqual(table_count, 0,
                                    f"Single line not starting with pipe was parsed as table: '{example}'")
                 # For multi-line examples, check that lines not starting with pipes don't create tables
                 else:
                     lines = example.split('\n')
-                    valid_table_lines = [line for line in lines if line.strip().startswith('|')]
+                    [line for line in lines if line.strip().startswith('|')]
                     non_table_lines = [line for line in lines if not line.strip().startswith('|')]
-                    
+
                     # Non-table lines should not be in table HTML
                     for non_table_line in non_table_lines:
                         if '|' in non_table_line:
@@ -693,7 +693,7 @@ More text | with | pipes""",
                             pipe_content = non_table_line.split('|')[0].strip()
                             if pipe_content:
                                 # This content should appear in the result but not inside table tags
-                                self.assertIn(pipe_content, result, 
+                                self.assertIn(pipe_content, result,
                                             f"Content '{pipe_content}' should appear in result")
 
     def test_edge_cases_pipes_and_tables(self) -> None:
@@ -701,29 +701,29 @@ More text | with | pipes""",
         edge_cases = [
             # Single pipe in text
             ("Just a | pipe", False),
-            
+
             # Pipes at start/end
             ("|Starting pipe", False),
             ("Ending pipe|", False),
-            
+
             # Multiple pipes but no valid table structure
             ("| A | B | C |", False),  # No separator
-            
+
             # Valid minimal table
             ("""| A |
 |---|
 | 1 |""", True),
-            
+
             # Mathematical expressions
             ("Function f(x) = |x - 1| + |x + 1|", False),
             ("Probability P(A|B) = 0.5", False),
-            
+
             # Empty table cells
             ("""| A | B |
 |---|---|
 |   |   |""", True),
         ]
-        
+
         for content, should_be_table in edge_cases:
             with self.subTest(content=content, should_be_table=should_be_table):
                 result = self.parser.parse(content)

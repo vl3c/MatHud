@@ -50,13 +50,13 @@ if TYPE_CHECKING:
 class EllipseManager:
     """
     Manages ellipse drawables for a Canvas.
-    
+
     This class is responsible for:
     - Creating ellipse objects with center points, radii, and rotation angles
     - Retrieving ellipse objects by coordinates, parameters, or name
     - Deleting ellipse objects with proper cleanup and redrawing
     """
-    
+
     def __init__(
         self,
         canvas: "Canvas",
@@ -68,7 +68,7 @@ class EllipseManager:
     ) -> None:
         """
         Initialize the EllipseManager.
-        
+
         Args:
             canvas: The Canvas object this manager is responsible for
             drawables_container: The container for storing drawables
@@ -84,38 +84,38 @@ class EllipseManager:
         self.point_manager: "PointManager" = point_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
         self.ellipse_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Ellipse")
-        
+
     def get_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float) -> Optional[Ellipse]:
         """
         Get an ellipse by its center coordinates and radii.
-        
+
         Note: This method does not consider rotation angle when matching ellipses.
-        
+
         Args:
             center_x (float): X-coordinate of the ellipse center
             center_y (float): Y-coordinate of the ellipse center
             radius_x (float): Horizontal radius of the ellipse
             radius_y (float): Vertical radius of the ellipse
-            
+
         Returns:
             Ellipse: The matching ellipse object, or None if not found
         """
         ellipses = self.drawables.Ellipses
         for ellipse in ellipses:
-            if (ellipse.center.x == center_x and 
-                ellipse.center.y == center_y and 
-                ellipse.radius_x == radius_x and 
+            if (ellipse.center.x == center_x and
+                ellipse.center.y == center_y and
+                ellipse.radius_x == radius_x and
                 ellipse.radius_y == radius_y):
                 return ellipse
         return None
-        
+
     def get_ellipse_by_name(self, name: str) -> Optional[Ellipse]:
         """
         Get an ellipse by its name.
-        
+
         Args:
             name (str): The name of the ellipse
-            
+
         Returns:
             Ellipse: The ellipse object with the given name, or None if not found
         """
@@ -124,7 +124,7 @@ class EllipseManager:
             if ellipse.name == name:
                 return ellipse
         return None
-        
+
     def create_ellipse(
         self,
         center_x: float,
@@ -138,10 +138,10 @@ class EllipseManager:
     ) -> Ellipse:
         """
         Create an ellipse with the specified center, radii, and rotation angle.
-        
+
         Archives canvas state for undo functionality, creates center point if needed,
         and handles dependency registration and canvas redrawing.
-        
+
         Args:
             center_x (float): X-coordinate of the ellipse center
             center_y (float): Y-coordinate of the ellipse center
@@ -151,24 +151,24 @@ class EllipseManager:
             name (str): Optional name for the ellipse (default: "")
             color (str): Optional color for the ellipse
             extra_graphics (bool): Whether to create additional graphics (default: True)
-            
+
         Returns:
             Ellipse: The newly created ellipse object, or existing ellipse if already present
         """
         # Archive before creation
         self.canvas.undo_redo_manager.archive()
-        
+
         # Check if the ellipse already exists
         existing_ellipse = self.get_ellipse(center_x, center_y, radius_x, radius_y)
         if existing_ellipse:
             return existing_ellipse
-            
+
         # Extract point name from ellipse name
         point_names: List[str] = self.name_generator.split_point_names(name, 1)
-        
+
         # Create center point with the correct name
         center = self.point_manager.create_point(center_x, center_y, point_names[0], extra_graphics=False)
-            
+
         # Create the ellipse (math-only)
         color_value = str(color).strip() if color is not None else ""
         if color_value:
@@ -181,40 +181,40 @@ class EllipseManager:
             )
         else:
             new_ellipse = Ellipse(center, radius_x, radius_y, rotation_angle=rotation_angle)
-        
+
         # Add to drawables
         self.drawables.add(new_ellipse)
-        
+
         # Register dependencies
         self.dependency_manager.analyze_drawable_for_dependencies(new_ellipse)
-        
+
         # Handle extra graphics if requested
         if extra_graphics:
             self.drawable_manager.create_drawables_from_new_connections()
-        
+
         # Draw the ellipse
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
+
         return new_ellipse
-        
+
     def delete_ellipse(self, name: str) -> bool:
         """
         Delete an ellipse by its name.
-        
+
         Archives canvas state for undo functionality, removes ellipse from drawables container,
         and triggers canvas redraw.
-        
+
         Args:
             name (str): The name of the ellipse to delete
-            
+
         Returns:
             bool: True if the ellipse was successfully deleted, False if not found
         """
         ellipse = self.get_ellipse_by_name(name)
         if not ellipse:
             return False
-            
+
         # Archive before deletion
         self.canvas.undo_redo_manager.archive()
 
@@ -224,15 +224,15 @@ class EllipseManager:
                 self.drawable_manager.delete_colored_areas_for_ellipse(ellipse, archive=False)
             except Exception:
                 pass
-        
+
         # Remove from drawables
         self.drawables.remove(ellipse)
-        
+
         # Redraw
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
-        return True 
+
+        return True
 
     def update_ellipse(
         self,

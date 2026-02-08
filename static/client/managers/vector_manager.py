@@ -54,13 +54,13 @@ if TYPE_CHECKING:
 class VectorManager:
     """
     Manages vector drawables for a Canvas.
-    
+
     This class is responsible for:
     - Creating vector objects
     - Retrieving vector objects by various criteria
     - Deleting vector objects
     """
-    
+
     def __init__(
         self,
         canvas: "Canvas",
@@ -72,7 +72,7 @@ class VectorManager:
     ) -> None:
         """
         Initialize the VectorManager.
-        
+
         Args:
             canvas: The Canvas object this manager is responsible for
             drawables_container: The container for storing drawables
@@ -87,26 +87,26 @@ class VectorManager:
         self.dependency_manager: "DrawableDependencyManager" = dependency_manager
         self.point_manager: "PointManager" = point_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
-        
+
     def get_vector(self, x1: float, y1: float, x2: float, y2: float) -> Optional[Vector]:
         """
         Get a vector by its origin and tip coordinates.
-        
+
         Searches through all existing vectors to find one that matches the specified
         origin and tip coordinates using mathematical tolerance for coordinate matching.
-        
+
         Args:
             x1 (float): x-coordinate of the vector origin
             y1 (float): y-coordinate of the vector origin
             x2 (float): x-coordinate of the vector tip
             y2 (float): y-coordinate of the vector tip
-            
+
         Returns:
             Vector: The matching vector object, or None if no match is found
         """
         vectors = self.drawables.Vectors
         for vector in vectors:
-            if (MathUtils.point_matches_coordinates(vector.origin, x1, y1) and 
+            if (MathUtils.point_matches_coordinates(vector.origin, x1, y1) and
                 MathUtils.point_matches_coordinates(vector.tip, x2, y2)):
                 return vector
         return None
@@ -118,7 +118,7 @@ class VectorManager:
             if vector.name == name:
                 return vector
         return None
-        
+
     def create_vector(
         self,
         origin_x: float,
@@ -131,20 +131,20 @@ class VectorManager:
     ) -> Vector:
         """
         Create a vector from origin to tip coordinates.
-        
+
         Creates a new vector object between the specified origin and tip points.
         Automatically creates the necessary point objects if they don't exist,
         and generates a proper name if not provided.
-        
+
         Args:
             origin_x (float): x-coordinate of the vector origin
-            origin_y (float): y-coordinate of the vector origin  
+            origin_y (float): y-coordinate of the vector origin
             tip_x (float): x-coordinate of the vector tip
             tip_y (float): y-coordinate of the vector tip
             name (str): Optional name for the vector
             color (str): Optional color for the vector
             extra_graphics (bool): Whether to create additional related graphics
-            
+
         Returns:
             Vector: The newly created or existing vector object
         """
@@ -152,34 +152,34 @@ class VectorManager:
         existing_vector = self.get_vector(origin_x, origin_y, tip_x, tip_y)
         if existing_vector:
             return existing_vector
-            
+
         # Extract point names from vector name
         point_names: List[str] = ["", ""]
         if name:
             point_names = self.name_generator.split_point_names(name, 2)
-        
+
         # Create or get the origin and tip points
         origin = self.point_manager.create_point(origin_x, origin_y, name=point_names[0], extra_graphics=False)
         tip = self.point_manager.create_point(tip_x, tip_y, name=point_names[1], extra_graphics=False)
-        
+
         # Create the new vector
         color_value = str(color).strip() if color is not None else ""
         if color_value:
             new_vector = Vector(origin, tip, color=color_value)
         else:
             new_vector = Vector(origin, tip)
-        
+
         # Add to drawables
         self.drawables.add(new_vector)
-        
+
         # Handle extra graphics if requested
         if extra_graphics:
             self.drawable_manager.create_drawables_from_new_connections()
-        
+
         # Draw the vector
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
+
         return new_vector
 
     def create_vector_from_points(
@@ -190,17 +190,17 @@ class VectorManager:
         color: Optional[str] = None,
     ) -> Vector:
         """Create a vector from existing Point objects.
-        
+
         Unlike create_vector which takes coordinates, this method directly uses
         the provided Point objects, ensuring the vector references the exact
         points without any floating-point lookup issues.
-        
+
         Args:
             origin: The origin Point object
             tip: The tip Point object
             name: Optional name for the vector
             color: Optional color for the vector
-            
+
         Returns:
             Vector: The newly created vector object
         """
@@ -212,34 +212,34 @@ class VectorManager:
             # Remove stale vector to avoid duplicate rendering.
             self.drawables.remove(existing_vector)
             self.dependency_manager.remove_drawable(existing_vector)
-        
+
         color_value = str(color).strip() if color is not None else ""
         if color_value:
             new_vector = Vector(origin, tip, color=color_value)
         else:
             new_vector = Vector(origin, tip)
-        
+
         self.drawables.add(new_vector)
-        
+
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
+
         return new_vector
 
     def delete_vector(self, origin_x: float, origin_y: float, tip_x: float, tip_y: float) -> bool:
         """
         Delete a vector by its origin and tip coordinates.
-        
+
         Finds and removes the vector that matches the specified coordinates.
         Also handles cleanup of the underlying segment if it's not used by
         other objects. Archives the state for undo functionality.
-        
+
         Args:
             origin_x (float): x-coordinate of the vector origin
             origin_y (float): y-coordinate of the vector origin
             tip_x (float): x-coordinate of the vector tip
             tip_y (float): y-coordinate of the vector tip
-            
+
         Returns:
             bool: True if the vector was found and deleted, False otherwise
         """
@@ -250,7 +250,7 @@ class VectorManager:
                 MathUtils.point_matches_coordinates(vector.tip, tip_x, tip_y)):
                 # Archive before deletion
                 self.canvas.undo_redo_manager.archive()
-                
+
                 # Remove the vector's segment if it's not used by other objects
                 if hasattr(vector, 'segment'):
                     segment = vector.segment
@@ -259,16 +259,16 @@ class VectorManager:
                     p2x = segment.point2.x
                     p2y = segment.point2.y
                     self.canvas.drawable_manager.delete_segment(p1x, p1y, p2x, p2y)
-                
+
                 # Remove the vector
                 self.drawables.remove(vector)
-                
+
                 # Redraw
                 if self.canvas.draw_enabled:
                     self.canvas.draw()
-                    
+
                 return True
-        return False 
+        return False
 
     def update_vector(
         self,

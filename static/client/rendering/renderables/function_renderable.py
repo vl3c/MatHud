@@ -202,20 +202,20 @@ class FunctionRenderable:
         Returns a list of sample lists, one per continuous sub-range.
         """
         canvas_width = int(getattr(self.mapper, 'canvas_width', 800) or 800)
-        
+
         initial_segments = None
         if getattr(self.func, 'is_periodic', False) and getattr(self.func, 'estimated_period', None):
             range_width = right_bound - left_bound
             num_periods = range_width / self.func.estimated_period
             initial_segments = min(canvas_width, max(8, int(num_periods * 4)))
-        
+
         # Get asymptotes AND point discontinuities - both require splitting
         asymptotes = getattr(self.func, 'vertical_asymptotes', []) or []
         point_discontinuities = getattr(self.func, 'point_discontinuities', []) or []
-        
+
         # Combine all split points (asymptotes and discontinuities)
         all_split_points = sorted(set(asymptotes + point_discontinuities))
-        
+
         if all_split_points:
             return AdaptiveSampler.generate_samples_with_asymptotes(
                 left_bound, right_bound, self.func.function,
@@ -297,17 +297,17 @@ class FunctionRenderable:
         """
         left_bound, right_bound = self._get_effective_bounds()
         width, height = self._get_screen_dimensions()
-        
+
         # Get samples split by asymptotes - each sub-list is a continuous range
         sample_subranges = self._calculate_sample_points_by_subrange(left_bound, right_bound)
-        
+
         all_paths: list[list[tuple[float, float]]] = []
-        
+
         for sample_points in sample_subranges:
             paths = self._build_path_from_samples(sample_points, height)
             all_paths.extend(paths)
         return all_paths
-    
+
     def _interpolate_boundary_crossing(
         self, sx1: float, sy1: float, sx2: float, sy2: float, height: float
     ) -> Optional[tuple[float, float]]:
@@ -352,7 +352,7 @@ class FunctionRenderable:
                 prev_sx = None
                 prev_x = None
                 continue
-            
+
             if prev_x is not None and self._get_asymptote_between(prev_x, x) is not None:
                 self._finalize_path(current_path, paths)
                 current_path = []
@@ -419,7 +419,7 @@ class FunctionRenderable:
         math_x, _ = self.mapper.screen_to_math(sx, sy)
         if abs(math_x - left_bound) < 0.01:
             return
-        
+
         if self._is_inside_screen(sx, sy, width, height):
             ext_pt = self._sample_extension_backward(sx, sy, step, left_bound, height)
             if self._is_usable_sample(ext_pt, sy, height):
@@ -443,7 +443,7 @@ class FunctionRenderable:
         math_x, _ = self.mapper.screen_to_math(sx, sy)
         if abs(math_x - right_bound) < 0.01:
             return
-        
+
         if self._is_inside_screen(sx, sy, width, height):
             ext_pt = self._sample_extension_forward(sx, sy, step, right_bound, height)
             if self._is_usable_sample(ext_pt, sy, height):
@@ -522,14 +522,14 @@ class FunctionRenderable:
         """
         x1, y1 = edge_pt
         x2, y2 = inner_pt
-        
+
         # Direction from inner to edge (the way the path is going)
         dx = x1 - x2
         dy = y1 - y2
-        
+
         if abs(dy) < 1e-9:
             return None  # Horizontal line, no vertical boundary to hit
-        
+
         # Determine which boundary to hit based on direction
         if backward:
             # Extending start: continue in the direction the path came from
@@ -539,12 +539,12 @@ class FunctionRenderable:
         else:
             # Extending end: continue in the direction the path is going
             target_y = height if dy > 0 else 0.0
-        
+
         # Calculate intersection
         t = (target_y - y1) / dy
         if t < 0:
             return None  # Boundary is behind us
-        
+
         new_x = x1 + t * dx
         return (new_x, target_y)
 
@@ -627,7 +627,7 @@ class FunctionRenderable:
             # Horizontal line - clamp y to boundary
             clamped_y = max(0.0, min(y1, height))
             return (x1, clamped_y)
-        
+
         # Check which boundary we're crossing
         if (y1 < 0 and y2 >= 0) or (y1 >= 0 and y2 < 0):
             # Crossing top boundary (y=0)

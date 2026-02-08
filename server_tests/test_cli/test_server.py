@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from cli.server import ServerManager
 from cli.config import DEFAULT_HOST, DEFAULT_PORT

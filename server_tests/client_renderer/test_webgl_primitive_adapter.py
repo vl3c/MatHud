@@ -39,9 +39,9 @@ class TestWebGLPrimitiveAdapter(unittest.TestCase):
 
     def test_stroke_line_draws_lines(self) -> None:
         stroke = StrokeStyle(color="#FF0000", width=2.0)
-        
+
         self.adapter.stroke_line((10.0, 20.0), (30.0, 40.0), stroke)
-        
+
         self.assertEqual(len(self.renderer.draw_calls), 1)
         call_type, points, color = self.renderer.draw_calls[0]
         self.assertEqual(call_type, "draw_lines")
@@ -50,9 +50,9 @@ class TestWebGLPrimitiveAdapter(unittest.TestCase):
     def test_stroke_polyline_draws_line_strip(self) -> None:
         points = [(10.0, 20.0), (30.0, 40.0), (50.0, 30.0)]
         stroke = StrokeStyle(color="#00FF00", width=1.5)
-        
+
         self.adapter.stroke_polyline(points, stroke)
-        
+
         self.assertEqual(len(self.renderer.draw_calls), 1)
         call_type, drawn_points, color = self.renderer.draw_calls[0]
         self.assertEqual(call_type, "draw_line_strip")
@@ -60,40 +60,40 @@ class TestWebGLPrimitiveAdapter(unittest.TestCase):
 
     def test_fill_circle_draws_point(self) -> None:
         fill = FillStyle(color="#0000FF", opacity=0.5)
-        
+
         self.adapter.fill_circle((50.0, 60.0), 20.0, fill)
-        
+
         point_calls = [call for call in self.renderer.draw_calls if call[0] == "draw_points"]
         self.assertEqual(len(point_calls), 1)
 
     def test_stroke_circle_approximates_with_line_strip(self) -> None:
         stroke = StrokeStyle(color="#FFFF00", width=1.0)
-        
+
         self.adapter.stroke_circle((80.0, 90.0), 25.0, stroke)
-        
+
         strip_calls = [call for call in self.renderer.draw_calls if call[0] == "draw_line_strip"]
         self.assertEqual(len(strip_calls), 1)
-        
+
         _, points, _ = strip_calls[0]
         self.assertGreater(len(points), 8)
 
     def test_stroke_ellipse_approximates_with_samples(self) -> None:
         stroke = StrokeStyle(color="#FF00FF", width=1.0)
-        
+
         self.adapter.stroke_ellipse((100.0, 110.0), 30.0, 20.0, 0.5, stroke)
-        
+
         strip_calls = [call for call in self.renderer.draw_calls if call[0] == "draw_line_strip"]
         self.assertEqual(len(strip_calls), 1)
 
     def test_fill_polygon_uses_line_strip_fallback(self) -> None:
         points = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)]
         fill = FillStyle(color="#00FFFF")
-        
+
         self.adapter.fill_polygon(points, fill)
-        
+
         strip_calls = [call for call in self.renderer.draw_calls if call[0] == "draw_line_strip"]
         self.assertEqual(len(strip_calls), 1)
-        
+
         _, drawn_points, _ = strip_calls[0]
         self.assertEqual(drawn_points[0], drawn_points[-1])
 
@@ -101,20 +101,20 @@ class TestWebGLPrimitiveAdapter(unittest.TestCase):
         forward = [(0.0, 0.0), (10.0, 0.0), (10.0, 5.0)]
         reverse = [(10.0, 10.0), (0.0, 10.0), (0.0, 5.0)]
         fill = FillStyle(color="#FFAA00")
-        
+
         self.adapter.fill_joined_area(forward, reverse, fill)
-        
+
         strip_calls = [call for call in self.renderer.draw_calls if call[0] == "draw_line_strip"]
         self.assertEqual(len(strip_calls), 1)
-        
+
         _, drawn_points, _ = strip_calls[0]
         self.assertEqual(drawn_points[0], drawn_points[-1])
 
     def test_stroke_arc_approximates_with_samples(self) -> None:
         stroke = StrokeStyle(color="#AA00FF", width=1.0)
-        
+
         self.adapter.stroke_arc((120.0, 130.0), 40.0, 0.0, 1.57, True, stroke)
-        
+
         strip_calls = [call for call in self.renderer.draw_calls if call[0] == "draw_line_strip"]
         self.assertEqual(len(strip_calls), 1)
 
@@ -122,13 +122,13 @@ class TestWebGLPrimitiveAdapter(unittest.TestCase):
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
         renderer = MockWebGLRenderer()
         adapter = WebGLPrimitiveAdapter(renderer)
-        
+
         stroke = StrokeStyle(color="#FF8040", width=1.0)
         adapter.stroke_line((0.0, 0.0), (10.0, 10.0), stroke)
-        
+
         self.assertEqual(len(renderer.draw_calls), 1)
         _, _, color = renderer.draw_calls[0]
-        
+
         self.assertAlmostEqual(color[0], 1.0, places=2)
         self.assertAlmostEqual(color[1], 0x80 / 255.0, places=2)
         self.assertAlmostEqual(color[2], 0x40 / 255.0, places=2)
@@ -139,11 +139,11 @@ class TestWebGLPrimitiveAdapterSampling(unittest.TestCase):
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
         adapter = WebGLPrimitiveAdapter(renderer)
-        
+
         samples = adapter._sample_circle((50.0, 60.0), 20.0)
-        
+
         self.assertGreater(len(samples), 8)
-        
+
         first_point = samples[0]
         last_point = samples[-1]
         self.assertAlmostEqual(first_point[0], last_point[0], places=5)
@@ -153,11 +153,11 @@ class TestWebGLPrimitiveAdapterSampling(unittest.TestCase):
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
         adapter = WebGLPrimitiveAdapter(renderer)
-        
+
         samples = adapter._sample_ellipse((70.0, 80.0), 30.0, 20.0, 0.0)
-        
+
         self.assertGreater(len(samples), 8)
-        
+
         first_point = samples[0]
         last_point = samples[-1]
         self.assertAlmostEqual(first_point[0], last_point[0], places=5)
@@ -167,10 +167,10 @@ class TestWebGLPrimitiveAdapterSampling(unittest.TestCase):
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
         adapter = WebGLPrimitiveAdapter(renderer)
-        
+
         import math
         samples = adapter._sample_arc((100.0, 110.0), 50.0, 0.0, math.pi / 2, True)
-        
+
         self.assertGreater(len(samples), 2)
 
 
@@ -179,9 +179,9 @@ class TestWebGLPrimitiveAdapterEdgeCases(unittest.TestCase):
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
         adapter = WebGLPrimitiveAdapter(renderer)
-        
+
         stroke = StrokeStyle(color="#000000", width=1.0)
-        
+
         try:
             adapter.stroke_polyline([], stroke)
         except Exception as e:
@@ -191,9 +191,9 @@ class TestWebGLPrimitiveAdapterEdgeCases(unittest.TestCase):
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
         adapter = WebGLPrimitiveAdapter(renderer)
-        
+
         stroke = StrokeStyle(color="#000000", width=1.0)
-        
+
         try:
             adapter.stroke_polyline([(5.0, 5.0)], stroke)
         except Exception as e:
@@ -203,9 +203,9 @@ class TestWebGLPrimitiveAdapterEdgeCases(unittest.TestCase):
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
         adapter = WebGLPrimitiveAdapter(renderer)
-        
+
         fill = FillStyle(color="#FF0000")
-        
+
         try:
             adapter.fill_circle((10.0, 10.0), 0.0, fill)
         except Exception as e:
@@ -215,9 +215,9 @@ class TestWebGLPrimitiveAdapterEdgeCases(unittest.TestCase):
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
         adapter = WebGLPrimitiveAdapter(renderer)
-        
+
         fill = FillStyle(color="#FF0000")
-        
+
         try:
             adapter.fill_circle((10.0, 10.0), -10.0, fill)
         except Exception as e:
@@ -227,9 +227,9 @@ class TestWebGLPrimitiveAdapterEdgeCases(unittest.TestCase):
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
         adapter = WebGLPrimitiveAdapter(renderer)
-        
+
         fill = FillStyle(color="#00FF00")
-        
+
         try:
             adapter.fill_polygon([(5.0, 5.0)], fill)
         except Exception as e:

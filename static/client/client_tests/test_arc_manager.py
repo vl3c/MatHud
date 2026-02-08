@@ -138,7 +138,7 @@ class TestArcManager(unittest.TestCase):
         self.assertTrue(
             math.isclose(math.hypot(existing_point_b.x, existing_point_b.y), 5.0, rel_tol=1e-9, abs_tol=1e-9)
         )
-    
+
     def test_create_circle_arc_raises_when_points_coincide(self) -> None:
         self.point_manager.create_point(1, 0, name="A")
         with self.assertRaises(ValueError):

@@ -28,18 +28,18 @@ from constants import default_color
 
 class Drawable:
     """Abstract base class for math-space geometric objects.
-    
+
     Provides the fundamental interface and common functionality for geometric objects,
     including state serialization and transformation hooks. Rendering is handled by
     pluggable renderers and is not part of this class.
-    
+
     Attributes:
         name (str): Identifier for the object
         color (str): Color metadata (used by renderers)
     """
     def __init__(self, name: str = "", color: str = default_color, *, is_renderable: bool = True) -> None:
         """Initialize a drawable object with basic properties.
-        
+
         Args:
             name (str): Identifier for the object
             color (str): Color metadata for renderers
@@ -48,7 +48,7 @@ class Drawable:
         self._name: str = name
         self._color: str = color
         self._is_renderable: bool = bool(is_renderable)
-    
+
     @property
     def name(self) -> str:
         return self._name
@@ -75,16 +75,16 @@ class Drawable:
 
     def get_class_name(self) -> str:
         raise NotImplementedError("Subclasses must implement class_name method")
-    
+
     def get_name(self) -> str:
         return self.name
-    
+
     def reset(self) -> None:
         # No-op: legacy initializer removed
         return None
-    
+
     def get_state(self) -> Dict[str, Any]:
         raise NotImplementedError("Subclasses must implement get_state method")
-    
+
     def rotate(self, angle: float) -> None:
         raise NotImplementedError("Subclasses must implement rotate method")

@@ -7,10 +7,8 @@ and edge case handling.
 
 from __future__ import annotations
 
-import json
 import sys
 import os
-from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -591,14 +589,14 @@ class TestDynamicToolInjection:
             with patch.object(OpenAIAPIBase, "_initialize_api_key", return_value="test-key"):
                 api = OpenAIAPIBase()
                 original_count = len(api.tools)
-                
+
                 # Inject just 2 tools
                 custom_tools = [
                     {"type": "function", "function": {"name": "create_circle"}},
                     {"type": "function", "function": {"name": "create_point"}},
                 ]
                 api.inject_tools(custom_tools, include_essentials=False)
-                
+
                 assert len(api.tools) == 2
                 assert len(api.tools) < original_count
 
@@ -609,12 +607,12 @@ class TestDynamicToolInjection:
 
             with patch.object(OpenAIAPIBase, "_initialize_api_key", return_value="test-key"):
                 api = OpenAIAPIBase()
-                
+
                 custom_tools = [
                     {"type": "function", "function": {"name": "create_circle"}},
                 ]
                 api.inject_tools(custom_tools, include_essentials=True)
-                
+
                 names = {t.get("function", {}).get("name") for t in api.tools}
                 assert "create_circle" in names
                 for essential in ESSENTIAL_TOOLS:
@@ -627,14 +625,14 @@ class TestDynamicToolInjection:
 
             with patch.object(OpenAIAPIBase, "_initialize_api_key", return_value="test-key"):
                 api = OpenAIAPIBase()
-                
+
                 # Include undo in the injected tools
                 custom_tools = [
                     {"type": "function", "function": {"name": "create_circle"}},
                     {"type": "function", "function": {"name": "undo"}},
                 ]
                 api.inject_tools(custom_tools, include_essentials=True)
-                
+
                 names = [t.get("function", {}).get("name") for t in api.tools]
                 # undo should appear only once
                 assert names.count("undo") == 1
@@ -647,11 +645,11 @@ class TestDynamicToolInjection:
 
             with patch.object(OpenAIAPIBase, "_initialize_api_key", return_value="test-key"):
                 api = OpenAIAPIBase(tool_mode="full")
-                
+
                 # Inject minimal tools
                 api.inject_tools([{"type": "function", "function": {"name": "test"}}], include_essentials=False)
                 assert len(api.tools) == 1
-                
+
                 # Reset
                 api.reset_tools()
                 assert len(api.tools) == len(FUNCTIONS)
@@ -663,10 +661,10 @@ class TestDynamicToolInjection:
 
             with patch.object(OpenAIAPIBase, "_initialize_api_key", return_value="test-key"):
                 api = OpenAIAPIBase(tool_mode="search")
-                
+
                 # Inject different tools
                 api.inject_tools([{"type": "function", "function": {"name": "test"}}], include_essentials=False)
-                
+
                 # Reset
                 api.reset_tools()
                 assert len(api.tools) == len(SEARCH_MODE_TOOLS)

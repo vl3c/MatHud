@@ -15,7 +15,7 @@ class TestMathFunctions(unittest.TestCase):
         self.point2 = SimpleMock(x=1, y=1, name='B')
         # Mock segment using mocked points
         self.segment = SimpleMock(point1=self.point1, point2=self.point2)
-    
+
     def test_format_number_for_cartesian(self) -> None:
         test_cases = [
             (123456789, 6, '1.2e+8'),
@@ -494,72 +494,72 @@ class TestMathFunctions(unittest.TestCase):
         self.assertTrue(MathUtils.is_point_on_segment(0, 0, 0, 0, 2, 2))
         self.assertTrue(MathUtils.is_point_on_segment(2, 2, 0, 0, 2, 2))
         self.assertFalse(MathUtils.is_point_on_segment(3, 3, 0, 0, 2, 2))
-        
+
         # Additional test cases
         # Test case: Point on simple horizontal segment
         self.assertTrue(
             MathUtils.is_point_on_segment(5, 0, 0, 0, 10, 0),
             "Point (5,0) should be detected as being on segment from (0,0) to (10,0)"
         )
-        
+
         # Test case: Point on simple vertical segment
         self.assertTrue(
             MathUtils.is_point_on_segment(0, 5, 0, 0, 0, 10),
             "Point (0,5) should be detected as being on segment from (0,0) to (0,10)"
         )
-        
+
         # Test case: Point slightly off segment
         self.assertFalse(
             MathUtils.is_point_on_segment(5, 5.1, 0, 0, 10, 10),
             "Point (5,5.1) should be detected as NOT being on segment from (0,0) to (10,10)"
         )
-        
+
         # Test case: Point outside bounding box of segment
         self.assertFalse(
             MathUtils.is_point_on_segment(15, 15, 0, 0, 10, 10),
             "Point (15,15) should be detected as NOT being on segment from (0,0) to (10,10)"
         )
-        
+
         # Test case: Using the specific coordinates from the user's example
         self.assertTrue(
             MathUtils.is_point_on_segment(100.0, 45.332, -122.0, -69.0, 311.0, 154.0),
             "Point (100.0, 45.332) should be detected as being on segment from (-122.0, -69.0) to (311.0, 154.0)"
         )
-        
+
         # Test case: Additional real-world examples on a longer segment
         # Segment from (-245.0, 195.0) to (323.0, -215.0)
         segment_start_x, segment_start_y = -245.0, 195.0
         segment_end_x, segment_end_y = 323.0, -215.0
-        
+
         # Point C at y = 100
         self.assertTrue(
             MathUtils.is_point_on_segment(-113.39, 100.0, segment_start_x, segment_start_y, segment_end_x, segment_end_y),
             "Point C (-113.39, 100.0) should be detected as being on segment from (-245.0, 195.0) to (323.0, -215.0)"
         )
-        
+
         # Point D at y = -24
         self.assertTrue(
             MathUtils.is_point_on_segment(58.4, -24.0, segment_start_x, segment_start_y, segment_end_x, segment_end_y),
             "Point D (58.4, -24.0) should be detected as being on segment from (-245.0, 195.0) to (323.0, -215.0)"
         )
-        
+
         # Point E at x = 3
         self.assertTrue(
             MathUtils.is_point_on_segment(3.0, 15.99, segment_start_x, segment_start_y, segment_end_x, segment_end_y),
             "Point E (3.0, 15.99) should be detected as being on segment from (-245.0, 195.0) to (323.0, -215.0)"
         )
-        
+
         # Point F at x = -199
         self.assertTrue(
             MathUtils.is_point_on_segment(-199.0, 161.8, segment_start_x, segment_start_y, segment_end_x, segment_end_y),
             "Point F (-199.0, 161.8) should be detected as being on segment from (-245.0, 195.0) to (323.0, -215.0)"
         )
-        
+
         # Test case: Calculate a point that's exactly on the segment using linear interpolation
         t = 0.51
         point_x = -122.0 * (1-t) + 311.0 * t
         point_y = -69.0 * (1-t) + 154.0 * t
-        
+
         self.assertTrue(
             MathUtils.is_point_on_segment(point_x, point_y, -122.0, -69.0, 311.0, 154.0),
             f"Interpolated point ({point_x}, {point_y}) should be detected as being on segment from (-122.0, -69.0) to (311.0, 154.0)"
@@ -626,7 +626,7 @@ class TestMathFunctions(unittest.TestCase):
                 else:
                     self.assertIsNotNone(result) # Make sure it's not None before almostEqual
                     self.assertAlmostEqual(result, expected, places=5)
-        
+
         # Test with non-origin vertex
         v_offset = (5,5)
         p1_offset = (6,5) # (1,0) relative to v_offset
@@ -863,7 +863,7 @@ class TestMathFunctions(unittest.TestCase):
         # Test all zero division cases
         for expr in zero_division_cases:
             result = MathUtils.evaluate(expr)
-            self.assertTrue(isinstance(result, str) and "Error" in result, 
+            self.assertTrue(isinstance(result, str) and "Error" in result,
                           f"Expected error for expression: {expr}, got {result}")
 
         # Test nested zero division cases
@@ -875,7 +875,7 @@ class TestMathFunctions(unittest.TestCase):
             elif expr == "1/((3-3)/(4-4))":  # JavaScript returns nan for this case
                 self.assertEqual(str(result).lower(), "nan", f"Expected nan for expression: {expr}, got {result}")
             else:
-                self.assertTrue(isinstance(result, str) and "Error" in result, 
+                self.assertTrue(isinstance(result, str) and "Error" in result,
                               f"Expected error for nested expression: {expr}, got {result}")
 
         # Test with variables
@@ -911,7 +911,7 @@ class TestMathFunctions(unittest.TestCase):
             result = MathUtils.evaluate(expr, {"x": 5})  # Using x=5 for variable cases
             self.assertFalse(isinstance(result, str) and "Error" in result,
                            f"Unexpected error for valid expression: {expr}, got {result}")
-            self.assertIsInstance(result, (int, float, str), 
+            self.assertIsInstance(result, (int, float, str),
                                 f"Result should be numeric or string for expression: {expr}")
 
         # Test with different variable values
@@ -999,7 +999,7 @@ class TestMathFunctions(unittest.TestCase):
         equation = "sin(x) + 2"
         result = MathUtils.get_equation_type(equation)
         self.assertEqual(result, "Trigonometric")
-    
+
     def test_get_equation_type_with_trigonometric_equation2(self) -> None:
         equation = "cos(x + 3) - 2"
         result = MathUtils.get_equation_type(equation)
@@ -1035,32 +1035,32 @@ class TestMathFunctions(unittest.TestCase):
         equations = ["2x + 3 = y", "5x - 2 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 1, "Linear and linear should have exactly 1 solution.")
-    
+
     def test_determine_max_number_of_solutions_linear_and_quadratic(self) -> None:
         equations = ["x + 2 = y", "x^2 - 4x + 3 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 2, "Linear and quadratic should have at most 2 solutions.")
-    
+
     def test_determine_max_number_of_solutions_linear_and_cubic(self) -> None:
         equations = ["3x + 1 = y", "x^3 - 6x^2 + 11x - 6 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 3, "Linear and cubic should intersect in at most 3 points.")
-    
+
     def test_determine_max_number_of_solutions_quadratic_and_quartic(self) -> None:
         equations = ["x^2 + x - 2 = y", "x^4 - 5x^2 + 4 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 8, "Quadratic and quartic should intersect in at most 8 points.")
-    
+
     def test_determine_max_number_of_solutions_cubic_and_quartic_with_higher_order_count(self) -> None:
         equations = ["x^3 + x - 4 = y", "x^5 - x^4 + x^3 - x^2 + x - 1 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 15, "Cubic and quintic equations can theoretically intersect in at most 15 points.")
-    
+
     def test_determine_max_number_of_solutions_single_equation(self) -> None:
         equations = ["x^2 + 4x + 4 = y"]
         result = MathUtils.determine_max_number_of_solutions(equations)
         self.assertEqual(result, 0, "Single equation should not determine a solution count between equations.")
-    
+
     def test_determine_max_number_of_solutions_no_equations(self) -> None:
         equations: List[str] = []
         result = MathUtils.determine_max_number_of_solutions(equations)
@@ -1299,10 +1299,10 @@ class TestMathFunctions(unittest.TestCase):
             from drawables.function import Function
             from .simple_mock import SimpleMock
             from coordinate_mapper import CoordinateMapper
-            
+
             # Create a real CoordinateMapper instance
             coordinate_mapper = CoordinateMapper(600, 400)  # Canvas dimensions
-            
+
             # Create a mock canvas with required methods and properties
             mock_canvas = SimpleMock()
             mock_canvas.scale_factor = 50
@@ -1310,16 +1310,16 @@ class TestMathFunctions(unittest.TestCase):
             mock_canvas.cartesian2axis.origin = SimpleMock(x=300, y=200)
             mock_canvas.cartesian2axis.height = 400
             mock_canvas.coordinate_mapper = coordinate_mapper
-            
+
             # Mock the visible bounds methods
             mock_canvas.cartesian2axis.get_visible_left_bound = lambda: -10
-            mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10  
+            mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10
             mock_canvas.cartesian2axis.get_visible_top_bound = lambda: 8
             mock_canvas.cartesian2axis.get_visible_bottom_bound = lambda: -8
-            
+
             # Sync coordinate mapper with canvas state
             coordinate_mapper.sync_from_canvas(mock_canvas)
-            
+
             # Test function with vertical asymptotes: tan(x) has asymptotes at π/2 + nπ
             function = Function(
                 function_string="tan(x)",
@@ -1327,13 +1327,13 @@ class TestMathFunctions(unittest.TestCase):
                 left_bound=-5,
                 right_bound=5
             )
-            
+
             # Generate paths via FunctionRenderable
             paths = FunctionRenderable(function, coordinate_mapper).build_screen_paths().paths
-            
+
             # Test that we have multiple paths (indicating path breaks at asymptotes)
             self.assertGreater(len(paths), 1, "tan(x) should generate multiple separate paths due to vertical asymptotes")
-            
+
             # Test that no path spans across a vertical asymptote
             for path in paths:
                 if len(path) >= 2:
@@ -1341,41 +1341,41 @@ class TestMathFunctions(unittest.TestCase):
                     x_coords = [mock_canvas.coordinate_mapper.screen_to_math(p[0], p[1])[0] for p in path]
                     path_min_x = min(x_coords)
                     path_max_x = max(x_coords)
-                    
+
                     # Check that no vertical asymptote lies within this path's x range (exclusive)
-                    asymptotes_in_path = [asym for asym in function.vertical_asymptotes 
+                    asymptotes_in_path = [asym for asym in function.vertical_asymptotes
                                         if path_min_x < asym < path_max_x]
-                    
-                    self.assertEqual(len(asymptotes_in_path), 0, 
+
+                    self.assertEqual(len(asymptotes_in_path), 0,
                                    f"Path from x={path_min_x:.3f} to x={path_max_x:.3f} should not span across vertical asymptote(s) {asymptotes_in_path}")
-            
+
             # Test with another function: 1/x has asymptote at x=0
             function2 = Function(
-                function_string="1/x", 
+                function_string="1/x",
                 name="test_reciprocal",
                 left_bound=-2,
                 right_bound=2
             )
-            
+
             paths2 = FunctionRenderable(function2, coordinate_mapper).build_screen_paths().paths
-            
+
             # Should have exactly 2 paths (one for x < 0, one for x > 0)
             self.assertGreaterEqual(len(paths2), 2, "1/x should generate at least 2 separate paths due to vertical asymptote at x=0")
-            
+
             # Verify no path spans across x=0
             for path in paths2:
                 if len(path) >= 2:
                     x_coords = [mock_canvas.coordinate_mapper.screen_to_math(p[0], p[1])[0] for p in path]
                     path_min_x = min(x_coords)
                     path_max_x = max(x_coords)
-                    
+
                     # Path should not cross x=0
                     crosses_zero = path_min_x < 0 < path_max_x
-                    self.assertFalse(crosses_zero, 
+                    self.assertFalse(crosses_zero,
                                    f"Path from x={path_min_x:.3f} to x={path_max_x:.3f} should not cross the vertical asymptote at x=0")
-            
+
             print("Vertical asymptote path breaking test passed successfully")
-            
+
         except ImportError as e:
             self.skipTest(f"Function class not available for testing: {e}")
         except Exception as e:
@@ -1387,10 +1387,10 @@ class TestMathFunctions(unittest.TestCase):
             from drawables.function import Function
             from .simple_mock import SimpleMock
             from coordinate_mapper import CoordinateMapper
-            
+
             # Create a real CoordinateMapper instance
             coordinate_mapper = CoordinateMapper(600, 400)  # Canvas dimensions
-            
+
             # Create a mock canvas
             mock_canvas = SimpleMock()
             mock_canvas.scale_factor = 50
@@ -1398,16 +1398,16 @@ class TestMathFunctions(unittest.TestCase):
             mock_canvas.cartesian2axis.origin = SimpleMock(x=300, y=200)
             mock_canvas.cartesian2axis.height = 400
             mock_canvas.coordinate_mapper = coordinate_mapper
-            
+
             # Mock the visible bounds methods
             mock_canvas.cartesian2axis.get_visible_left_bound = lambda: -10
-            mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10  
+            mock_canvas.cartesian2axis.get_visible_right_bound = lambda: 10
             mock_canvas.cartesian2axis.get_visible_top_bound = lambda: 8
             mock_canvas.cartesian2axis.get_visible_bottom_bound = lambda: -8
-            
+
             # Sync coordinate mapper with canvas state
             coordinate_mapper.sync_from_canvas(mock_canvas)
-            
+
             # Test a continuous function: sin(x) should have one continuous path
             function_sin = Function(
                 function_string="sin(x)",
@@ -1415,17 +1415,17 @@ class TestMathFunctions(unittest.TestCase):
                 left_bound=-10,
                 right_bound=10
             )
-            
+
             paths_sin = FunctionRenderable(function_sin, coordinate_mapper).build_screen_paths().paths
-            
+
             # sin(x) should generate exactly one continuous path (no asymptotes)
             self.assertEqual(len(paths_sin), 1, "sin(x) should generate exactly one continuous path")
-            
+
             # Check that the path has reasonable point density (adaptive sampler uses fewer points)
             if paths_sin:
                 path = paths_sin[0]
                 self.assertGreater(len(path), 10, "Simple sine function should have sufficient points")
-                
+
                 # Check continuity within the path
                 max_gap = 0
                 for i in range(1, len(path)):
@@ -1433,10 +1433,10 @@ class TestMathFunctions(unittest.TestCase):
                     x2, _ = mock_canvas.coordinate_mapper.screen_to_math(path[i][0], path[i][1])
                     gap = abs(x2 - x1)
                     max_gap = max(max_gap, gap)
-                
+
                 # The maximum gap between consecutive points shouldn't be too large
                 self.assertLess(max_gap, 1.0, f"sin(x) should have continuous points with max gap < 1.0, found {max_gap}")
-            
+
             # Test a quadratic function: x^2 should also be one continuous path
             function_quad = Function(
                 function_string="x^2",
@@ -1444,12 +1444,12 @@ class TestMathFunctions(unittest.TestCase):
                 left_bound=-5,
                 right_bound=5
             )
-            
+
             paths_quad = FunctionRenderable(function_quad, coordinate_mapper).build_screen_paths().paths
-            
+
             # x^2 should generate exactly one continuous path
             self.assertEqual(len(paths_quad), 1, "x^2 should generate exactly one continuous path")
-            
+
             # Test a complex but safer function first
             function_moderate = Function(
                 function_string="sin(x/10) + cos(x/15)",  # Two different frequencies, no asymptotes
@@ -1457,11 +1457,11 @@ class TestMathFunctions(unittest.TestCase):
                 left_bound=-20,
                 right_bound=20
             )
-            
+
             paths_moderate = FunctionRenderable(function_moderate, coordinate_mapper).build_screen_paths().paths
             self.assertGreater(len(paths_moderate), 0, "Moderate complexity function should generate paths")
             self.assertEqual(len(paths_moderate), 1, "Moderate function should be continuous (one path)")
-            
+
             # Test the original problematic function but with a simpler version and safer range
             function_complex = Function(
                 function_string="10 * sin(x / 20)",  # Simpler version to test basic functionality
@@ -1469,15 +1469,15 @@ class TestMathFunctions(unittest.TestCase):
                 left_bound=-50,  # Even safer range
                 right_bound=50
             )
-            
+
             paths_complex = FunctionRenderable(function_complex, coordinate_mapper).build_screen_paths().paths
-            
+
             # This simplified function should definitely generate paths
-            self.assertGreater(len(paths_complex), 0, 
+            self.assertGreater(len(paths_complex), 0,
                            f"Complex function should generate at least one path. "
                            f"Function: {function_complex.function_string}, "
                            f"Generated {len(paths_complex)} paths")
-            
+
             # Test a simpler case to ensure basic functionality
             function_simple = Function(
                 function_string="sin(x/10)",  # Simple sine function
@@ -1485,11 +1485,11 @@ class TestMathFunctions(unittest.TestCase):
                 left_bound=-10,
                 right_bound=10
             )
-            
+
             paths_simple = FunctionRenderable(function_simple, coordinate_mapper).build_screen_paths().paths
             self.assertEqual(len(paths_simple), 1, "Simple sine function should generate exactly one continuous path")
             self.assertGreater(len(paths_simple[0]), 10, "Simple sine function should have sufficient points")
-            
+
             # Test the actual original problematic function in a very safe range
             try:
                 function_original = Function(
@@ -1498,23 +1498,23 @@ class TestMathFunctions(unittest.TestCase):
                     left_bound=-30,  # Very small, safe range
                     right_bound=30
                 )
-                
+
                 paths_original = FunctionRenderable(function_original, coordinate_mapper).build_screen_paths().paths
-                
+
                 # This might fail, but let's see what happens
                 if len(paths_original) > 0:
                     total_points_orig = sum(len(path) for path in paths_original)
                     self.assertGreater(total_points_orig, 5, "Original function should generate some points")
                 else:
                     print(f"WARNING: Original complex function generated 0 paths - asymptotes: {function_original.vertical_asymptotes[:3] if hasattr(function_original, 'vertical_asymptotes') else 'None'}")
-                    
+
             except Exception as e:
                 print(f"WARNING: Original complex function failed: {e}")
-            
+
             # Check path quality for any paths that were generated
             total_points = sum(len(path) for path in paths_complex)
             self.assertGreater(total_points, 10, "Complex function should generate some points across all paths")
-            
+
             if paths_complex:
                 # Check the longest path for continuity
                 longest_path = max(paths_complex, key=len)
@@ -1526,11 +1526,11 @@ class TestMathFunctions(unittest.TestCase):
                         x2, _ = mock_canvas.coordinate_mapper.screen_to_math(longest_path[i][0], longest_path[i][1])
                         gap = abs(x2 - x1)
                         max_gap = max(max_gap, gap)
-                    
+
                     self.assertLess(max_gap, 20.0, f"Complex function should have reasonably continuous points, max gap was {max_gap}")
-            
+
             print("Function path continuity test passed successfully")
-            
+
         except ImportError as e:
             self.skipTest(f"Function class not available for testing: {e}")
         except Exception as e:
@@ -1548,12 +1548,12 @@ class TestMathFunctions(unittest.TestCase):
         self.assertIsNotNone(p_diag2, "p_diag2 should not be None")
         self.assertNotEqual(p_diag1.x, p_diag2.x)
         self.assertNotEqual(p_diag1.y, p_diag2.y)
-        
+
         actual_pair = tuple(sorted((p_diag1.name, p_diag2.name)))
         expected_pairs = [("A", "C"), ("B", "D")]
         # Sort the names in the actual pair to make comparison order-independent
         # And check if this sorted pair is one of the sorted expected pairs
-        self.assertIn(actual_pair, [tuple(sorted(p)) for p in expected_pairs], 
+        self.assertIn(actual_pair, [tuple(sorted(p)) for p in expected_pairs],
                       f"Expected diagonal pair like AC or BD, got {actual_pair}")
 
     def test_find_diagonal_points_shuffled_order(self) -> None:
@@ -1600,7 +1600,7 @@ class TestMathFunctions(unittest.TestCase):
 
     def test_find_diagonal_points_less_than_4_points(self) -> None:
         points = [
-            SimpleMock(name="A", x=0, y=0), 
+            SimpleMock(name="A", x=0, y=0),
             SimpleMock(name="B", x=1, y=1)
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect5_TooFew")

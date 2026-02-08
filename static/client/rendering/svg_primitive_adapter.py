@@ -528,7 +528,7 @@ class SvgPrimitiveAdapter(RendererPrimitives):
 
     def _optimized_fill_circle(self, command: Any) -> None:
         center, radius, fill, stroke = command.args
-        screen_space = command.kwargs.get("screen_space")
+        command.kwargs.get("screen_space")
         elem, cache = self._acquire_element("fill_circle", lambda: svg.circle())
         self._set_attribute(elem, cache, "cx", self._format_number(center[0]))
         self._set_attribute(elem, cache, "cy", self._format_number(center[1]))

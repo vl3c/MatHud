@@ -58,7 +58,7 @@ if TYPE_CHECKING:
 
 class FunctionManager:
     """Manages function drawables for a Canvas with mathematical expression support."""
-    
+
     def __init__(
         self,
         canvas: "Canvas",
@@ -69,7 +69,7 @@ class FunctionManager:
     ) -> None:
         """
         Initialize the FunctionManager.
-        
+
         Args:
             canvas: The Canvas object this manager is responsible for
             drawables_container: The container for storing drawables
@@ -83,16 +83,16 @@ class FunctionManager:
         self.dependency_manager: "DrawableDependencyManager" = dependency_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
         self.function_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Function")
-        
+
     def get_function(self, name: str) -> Optional[Function]:
         """
         Get a function by its name.
-        
+
         Searches through all existing functions to find one with the specified name.
-        
+
         Args:
             name (str): The name of the function to find
-            
+
         Returns:
             Function: The function with the matching name, or None if not found
         """
@@ -101,7 +101,7 @@ class FunctionManager:
             if function.name == name:
                 return function
         return None
-        
+
     def draw_function(
         self,
         function_string: str,
@@ -113,11 +113,11 @@ class FunctionManager:
     ) -> Function:
         """
         Draw a function on the canvas.
-        
+
         Creates a new function or updates an existing one with the specified mathematical
         expression. Handles expression validation, domain bounds, and automatic plotting.
         Archives the state for undo functionality.
-        
+
         Args:
             function_string (str): Mathematical expression for the function (e.g., "x^2 + 1")
             name (str): Name identifier for the function
@@ -125,16 +125,16 @@ class FunctionManager:
             right_bound (float, optional): Right domain boundary for function evaluation
             color (str, optional): Color for the plotted function
             undefined_at (list, optional): List of x-values where the function is undefined (holes)
-            
+
         Returns:
             Function: The newly created or updated function object
-            
+
         Raises:
             ValueError: If the function string cannot be parsed or is invalid
         """
         # Archive before creation or modification
         self.canvas.undo_redo_manager.archive()
-        
+
         # Check if the function already exists
         existing_function = self.get_function(name)
         color_value = str(color).strip() if color is not None else ""
@@ -156,7 +156,7 @@ class FunctionManager:
                     if hole not in existing_function.point_discontinuities:
                         existing_function.point_discontinuities.append(hole)
                 existing_function.point_discontinuities.sort()
-            
+
             if color_value:
                 existing_function.update_color(color_value)
 
@@ -166,7 +166,7 @@ class FunctionManager:
         else:
             # Generate a proper name if needed
             name = self.name_generator.generate_function_name(name)
-                
+
             # Create the function (math-only)
             function_kwargs: Dict[str, Any] = {
                 "name": name,
@@ -178,47 +178,47 @@ class FunctionManager:
             if undefined_at:
                 function_kwargs["undefined_at"] = undefined_at
             new_function = Function(function_string, **function_kwargs)
-            
+
             # Add to drawables
             self.drawables.add(new_function)
-            
+
             # Draw the function
             if self.canvas.draw_enabled:
                 self.canvas.draw()
-                
+
             return new_function
-        
+
     def delete_function(self, name: str) -> bool:
         """
         Delete a function by its name.
-        
+
         Finds and removes the function with the specified name, along with
         any associated colored areas. Archives the state for undo functionality.
-        
+
         Args:
             name (str): The name of the function to delete
-            
+
         Returns:
             bool: True if the function was found and deleted, False otherwise
         """
         function = self.get_function(name)
         if not function:
             return False
-            
+
         # Archive before deletion
         self.canvas.undo_redo_manager.archive()
-            
+
         # Remove the function
         self.drawables.remove(function)
-            
+
         # Also delete any colored areas associated with this function
         self.canvas.drawable_manager.delete_colored_areas_for_function(function, archive=False)
-        
+
         # Redraw the canvas
         if self.canvas.draw_enabled:
             self.canvas.draw()
-            
-        return True 
+
+        return True
 
     def update_function(
         self,

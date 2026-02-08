@@ -26,7 +26,7 @@ from flask_session import Session as FlaskSession
 from static.log_manager import LogManager
 from static.openai_completions_api import OpenAIChatCompletionsAPI
 from static.openai_responses_api import OpenAIResponsesAPI
-from static.providers import ProviderRegistry, discover_providers
+from static.providers import discover_providers
 from static.workspace_manager import WorkspaceManager
 
 
@@ -60,17 +60,17 @@ class MatHudFlask(Flask):
 
 class AppManager:
     """Manages core Flask application setup and utilities for the MatHud mathematical visualization system.
-    
+
     Coordinates Flask application initialization with comprehensive dependency injection for all core services.
     Provides standardized API response formatting and error handling across the entire application.
-    
+
     Core Responsibilities:
         - Flask Application Factory: Creates and configures Flask app instances
         - Dependency Injection: Initializes and coordinates OpenAI API, WebDriver, workspace, and logging managers
         - Response Standardization: Consistent JSON API response formatting
         - Service Integration: Bridges Flask web framework with specialized application managers
         - Authentication: Session management and pseudo-login for deployed environments
-        
+
     Managed Dependencies:
         - OpenAIChatCompletionsAPI: Chat Completions API for standard models
         - OpenAIResponsesAPI: Responses API for reasoning models (GPT-5, o3, o4-mini)
@@ -78,20 +78,20 @@ class AppManager:
         - LogManager: Application-wide logging and debugging support
         - Route Registration: RESTful API endpoint configuration
     """
-    
+
     @staticmethod
     def is_deployed() -> bool:
         """Check if the application is running in a deployed environment.
-        
+
         Returns:
             bool: True if deployed (PORT environment variable is set), False for local development
         """
         return os.environ.get('PORT') is not None
-    
+
     @staticmethod
     def requires_auth() -> bool:
         """Check if authentication is required.
-        
+
         Returns:
             bool: True if authentication should be required
         """
@@ -99,18 +99,18 @@ class AppManager:
         load_dotenv()
         # Require auth if deployed OR if explicitly enabled via REQUIRE_AUTH
         return AppManager.is_deployed() or os.getenv('REQUIRE_AUTH', '').lower() in ('true', '1', 'yes')
-    
+
     @staticmethod
     def get_auth_pin() -> Optional[str]:
         """Get the authentication PIN from environment variables.
-        
+
         Returns:
             str: The authentication PIN, or None if not set
         """
         # Load .env file if it exists
         load_dotenv()
         return os.getenv("AUTH_PIN")
-    
+
     @staticmethod
     def make_response(
         data: JsonValue | None = None,
@@ -119,13 +119,13 @@ class AppManager:
         code: int = 200,
     ) -> Tuple[Response, int]:
         """Create a consistent JSON response format.
-        
+
         Args:
             data: Response payload data
             message: Human-readable status message
             status: Response status ('success', 'error', etc.)
             code: HTTP status code
-            
+
         Returns:
             tuple: (Flask JSON response, HTTP status code)
         """
@@ -135,43 +135,43 @@ class AppManager:
             'data': data,
         }
         return jsonify(response), code
-    
+
     @staticmethod
     def create_app() -> MatHudFlask:
         """Create and configure the Flask application.
-        
+
         Initializes all core managers (logging, AI API, workspace management)
         and registers application routes. WebDriver is initialized separately
         after Flask startup to avoid blocking. Configures session management
         for authentication in deployed environments using modern CacheLib backend.
-        
+
         Returns:
             Flask: Configured Flask application instance
         """
         app = MatHudFlask(__name__, template_folder='../templates', static_folder='../static')
-        
+
         # Load environment variables
         load_dotenv()
-        
+
         # Configure session management for authentication using modern CacheLib backend
         app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
-        
+
         # Create session directory if it doesn't exist
         session_dir = os.path.join(os.getcwd(), 'flask_session')
         os.makedirs(session_dir, exist_ok=True)
-        
+
         # Modern Flask-Session configuration using CacheLib
         app.config['SESSION_TYPE'] = 'cachelib'
         app.config['SESSION_CACHELIB'] = FileSystemCache(cache_dir=session_dir)
         app.config['SESSION_PERMANENT'] = False
         app.config['SESSION_KEY_PREFIX'] = 'mathud:'
-        
+
         # Security settings for deployed environments
         if AppManager.is_deployed():
             app.config['SESSION_COOKIE_SECURE'] = True
             app.config['SESSION_COOKIE_HTTPONLY'] = True
             app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-        
+
         # Initialize Flask-Session
         FlaskSession(app)
 

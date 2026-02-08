@@ -30,11 +30,11 @@ from pathlib import Path
 
 def run_tests() -> int:
     """Run the server tests with pytest.
-    
+
     Processes command line arguments and executes pytest with appropriate
     test paths and options. Handles OS-specific Python interpreter paths.
     Automatically disables authentication for testing unless --with-auth is specified.
-    
+
     Returns:
         int: pytest exit code (0 for success, non-zero for failure)
     """
@@ -42,29 +42,29 @@ def run_tests() -> int:
     test_path: str = "server_tests"
     extra_args: list[str] = []
     with_auth: bool = False
-    
+
     # Process command line arguments
     i = 1
     while i < len(sys.argv):
         arg = sys.argv[i]
-        
+
         # Handle --help flag
         if arg == "--help" or arg == "-h":
             show_help()
             return 0
-        
+
         # Handle --with-auth flag
         elif arg == "--with-auth":
             with_auth = True
             i += 1
             continue
-            
+
         # Handle -k for keyword filtering
         elif arg == "-k" and i + 1 < len(sys.argv):
             extra_args.extend(["-k", sys.argv[i+1]])
             i += 2
             continue
-            
+
         # If it's not a recognized flag, treat it as a test path
         elif not arg.startswith("-"):
             # If it's a path without extension, assume it's in server_tests
@@ -78,28 +78,28 @@ def run_tests() -> int:
                     test_path = arg
             else:
                 test_path = arg
-                
+
         # Pass through any other arguments to pytest
         else:
             extra_args.append(arg)
-            
+
         i += 1
-    
+
     # Set test environment - disable authentication by default for testing
     if not with_auth:
         os.environ['REQUIRE_AUTH'] = 'false'
         print("Test mode: authentication disabled for testing")
     else:
         print("Test mode: authentication enabled (--with-auth)")
-    
+
     # Determine the Python interpreter based on the OS
     is_windows: bool = platform.system() == "Windows"
-    
+
     if is_windows:
         python_cmd: str = "venv\\Scripts\\python"
     else:
         python_cmd = "./venv/bin/python"
-    
+
     # Build the command
     cmd: list[str] = [python_cmd, "-m", "pytest", test_path, "-v"] + extra_args
 
@@ -116,16 +116,16 @@ def run_tests() -> int:
             env["PYTHONPATH"] = client_root_str
 
     print(f"Running tests: {' '.join(cmd)}")
-    
+
     # Run the command
     result = subprocess.run(cmd, env=env)
-    
+
     # Return the exit code
     return result.returncode
 
 def show_help() -> None:
     """Show help information about this script and pytest options.
-    
+
     Displays usage information for both this wrapper script and
     common pytest command-line options.
     """
@@ -143,4 +143,4 @@ def show_help() -> None:
     print("\nFor more options: python run_server_tests.py -- --help")
 
 if __name__ == "__main__":
-    sys.exit(run_tests()) 
+    sys.exit(run_tests())

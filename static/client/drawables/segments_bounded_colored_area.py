@@ -26,10 +26,10 @@ from drawables.segment import Segment
 
 class SegmentsBoundedColoredArea(ColoredArea):
     """Creates a colored area bounded by line segments with geometric overlap detection.
-    
+
     This class creates a visual representation of the area between two line segments
     or between a segment and the x-axis, using linear interpolation for smooth boundaries.
-    
+
     Attributes:
         segment1 (Segment): The first bounding segment
         segment2 (Segment or None): The second bounding segment (None means x-axis)
@@ -37,7 +37,7 @@ class SegmentsBoundedColoredArea(ColoredArea):
 
     def __init__(self, segment1: Segment, segment2: Optional[Segment] = None, color: str = "lightblue", opacity: float = 0.3) -> None:
         """Initialize a segments bounded colored area.
-        
+
         Args:
             segment1 (Segment): The first bounding segment
             segment2 (Segment or None): The second bounding segment (None means x-axis)
@@ -59,12 +59,12 @@ class SegmentsBoundedColoredArea(ColoredArea):
         """Return the class name 'SegmentsBoundedColoredArea'."""
         return 'SegmentsBoundedColoredArea'
 
-    
+
 
     def uses_segment(self, segment: Segment) -> bool:
         """Check if this colored area uses a specific segment for dependency tracking."""
         def segments_match(s1: Segment, s2: Segment) -> bool:
-            return bool(s1.point1.x == s2.point1.x and 
+            return bool(s1.point1.x == s2.point1.x and
                    s1.point1.y == s2.point1.y and
                    s1.point2.x == s2.point2.x and
                    s1.point2.y == s2.point2.y)
@@ -84,7 +84,7 @@ class SegmentsBoundedColoredArea(ColoredArea):
         """Create a deep copy for undo/redo functionality."""
         if id(self) in memo:
             return cast(SegmentsBoundedColoredArea, memo[id(self)])
-            
+
         new_segment1 = copy.deepcopy(self.segment1, memo)
         new_segment2 = copy.deepcopy(self.segment2, memo) if self.segment2 else None
 
@@ -96,4 +96,4 @@ class SegmentsBoundedColoredArea(ColoredArea):
         )
         new_area.name = self.name
         memo[id(self)] = new_area
-        return new_area 
+        return new_area

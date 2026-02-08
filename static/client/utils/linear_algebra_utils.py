@@ -262,4 +262,3 @@ class LinearAlgebraUtils:
         if isinstance(sequence, list) and sequence and isinstance(sequence[0], list):
             return {"type": "matrix", "value": sequence}
         return {"type": "vector", "value": sequence}
- 

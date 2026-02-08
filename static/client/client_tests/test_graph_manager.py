@@ -15,7 +15,7 @@ from .simple_mock import SimpleMock
 class TestGraphManager(unittest.TestCase):
     def setUp(self) -> None:
         self.drawables = DrawablesContainer()
-        
+
         self.canvas = SimpleMock(
             name="CanvasMock",
             draw_enabled=True,
@@ -33,7 +33,7 @@ class TestGraphManager(unittest.TestCase):
             generate_point_name=lambda name: name if name else "P",
             split_point_names=lambda expr, count: ["", ""][:count],
         )
-        
+
         self.dependency_manager = SimpleMock(
             name="DependencyManagerMock",
             analyze_drawable_for_dependencies=SimpleMock(),
@@ -42,26 +42,26 @@ class TestGraphManager(unittest.TestCase):
             get_all_parents=lambda d: set(),
             remove_drawable=SimpleMock(),
         )
-        
+
         self.points_created: List[Point] = []
         def create_point(x: float, y: float, name: str = "", color: str = None, extra_graphics: bool = True) -> Point:
             p = Point(x, y, name=name if name else f"P{len(self.points_created)}")
             self.points_created.append(p)
             self.drawables.add(p)
             return p
-        
+
         self.point_manager = SimpleMock(
             name="PointManagerMock",
             create_point=create_point,
         )
-        
+
         self.segments_created: List[Segment] = []
         def create_segment_from_points(p1: Point, p2: Point, name: str = "", color: str = None, label_text: str = "", label_visible: bool = False) -> Segment:
             seg = Segment(p1, p2, color=color or "#000000")
             self.segments_created.append(seg)
             self.drawables.add(seg)
             return seg
-        
+
         self.segment_manager = SimpleMock(
             name="SegmentManagerMock",
             create_segment_from_points=create_segment_from_points,
@@ -69,13 +69,13 @@ class TestGraphManager(unittest.TestCase):
                 Point(args[0], args[1]), Point(args[2], args[3]), **{k: v for k, v in kwargs.items() if k != 'extra_graphics'}
             ),
         )
-        
+
         self.vector_manager = SimpleMock(
             name="VectorManagerMock",
             create_vector_from_points=SimpleMock(return_value=None),
             create_vector=SimpleMock(return_value=None),
         )
-        
+
         self.drawable_manager_proxy = SimpleMock(
             name="DrawableManagerProxyMock",
             create_drawables_from_new_connections=SimpleMock(),
@@ -125,12 +125,12 @@ class TestGraphManager(unittest.TestCase):
             placement_box={"x": -400, "y": -400, "width": 800, "height": 800},
             metadata=None,
         )
-        
+
         self.assertIsInstance(state, TreeState)
         self.assertEqual(state.directed, False)
-        
+
         graph = self.graph_manager.create_graph(state)
-        
+
         self.assertIsInstance(graph, Tree)
         self.assertEqual(len(self.points_created), 9)
         self.assertEqual(len(self.segments_created), 8)
@@ -157,7 +157,7 @@ class TestGraphManager(unittest.TestCase):
             placement_box=None,
             metadata=None,
         )
-        
+
         self.assertIsInstance(state, TreeState)
         self.assertEqual(state.root, "v0")
 
@@ -182,7 +182,7 @@ class TestGraphManager(unittest.TestCase):
             placement_box=None,
             metadata=None,
         )
-        
+
         self.assertIsInstance(state, TreeState)
         self.assertEqual(state.root, "v0")
 
@@ -207,11 +207,11 @@ class TestGraphManager(unittest.TestCase):
             placement_box={"x": 0, "y": 0, "width": 100, "height": 100},
             metadata=None,
         )
-        
+
         graph = self.graph_manager.create_graph(state)
-        
+
         self.assertEqual(len(self.points_created), 3)
-        
+
         root_point = None
         child_points = []
         for p in self.points_created:
@@ -219,10 +219,10 @@ class TestGraphManager(unittest.TestCase):
                 root_point = p
             else:
                 child_points.append(p)
-        
+
         self.assertIsNotNone(root_point)
         self.assertEqual(len(child_points), 2)
-        
+
         for child in child_points:
             self.assertGreater(root_point.y, child.y)
 
@@ -247,9 +247,9 @@ class TestGraphManager(unittest.TestCase):
             placement_box={"x": 0, "y": 0, "width": 100, "height": 100},
             metadata=None,
         )
-        
+
         graph = self.graph_manager.create_graph(state)
-        
+
         root_point = None
         left_child = None
         right_child = None
@@ -260,17 +260,17 @@ class TestGraphManager(unittest.TestCase):
                 left_child = p
             elif p.name == "Q":
                 right_child = p
-        
+
         self.assertIsNotNone(root_point)
         self.assertIsNotNone(left_child)
         self.assertIsNotNone(right_child)
-        
+
         children_center_x = (left_child.x + right_child.x) / 2
         self.assertAlmostEqual(root_point.x, children_center_x, places=3)
 
     def test_tree_asymmetric_layout_proportional_spacing(self) -> None:
         """Test that asymmetric trees allocate horizontal space proportionally.
-        
+
         Tree structure: R -> A, B, C; A -> D, E, F, G; C -> H
         """
         state = self.graph_manager.build_graph_state(
@@ -304,26 +304,26 @@ class TestGraphManager(unittest.TestCase):
             placement_box={"x": -400, "y": -400, "width": 800, "height": 800},
             metadata=None,
         )
-        
+
         graph = self.graph_manager.create_graph(state)
-        
+
         self.assertEqual(len(self.points_created), 9)
         self.assertEqual(len(self.segments_created), 8)
-        
+
         points_by_name = {p.name: p for p in self.points_created}
-        
+
         r_point = points_by_name["R"]
         a_point = points_by_name["A"]
         b_point = points_by_name["B"]
         c_point = points_by_name["C"]
-        
+
         self.assertGreater(r_point.y, a_point.y)
         self.assertAlmostEqual(a_point.y, b_point.y, places=3)
         self.assertAlmostEqual(b_point.y, c_point.y, places=3)
-        
+
         self.assertLess(a_point.x, b_point.x)
         self.assertLess(b_point.x, c_point.x)
-        
+
         d_point = points_by_name["D"]
         g_point = points_by_name["G"]
         a_children_center = (d_point.x + g_point.x) / 2
@@ -348,12 +348,12 @@ class TestGraphManager(unittest.TestCase):
             placement_box=None,
             metadata=None,
         )
-        
+
         graph = self.graph_manager.create_graph(state)
-        
+
         self.assertEqual(len(self.segments_created), 1)
         segment = self.segments_created[0]
-        
+
         self.assertIn(segment.point1, self.points_created)
         self.assertIn(segment.point2, self.points_created)
 

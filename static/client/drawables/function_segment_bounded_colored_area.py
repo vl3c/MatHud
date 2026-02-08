@@ -26,17 +26,17 @@ from utils.math_utils import MathUtils
 
 class FunctionSegmentBoundedColoredArea(ColoredArea):
 	"""Creates a colored area bounded by a mathematical function and a line segment.
-	
+
 	This class creates a visual representation of the area between a function
 	and a segment using math-space geometry. The renderer handles mapping to screen.
-	
+
 	Attributes:
 		func (Function, None, or number): The bounding function
 		segment (Segment): The bounding line segment
 	"""
 	def __init__(self, func: Union[Function, None, float, int], segment: Segment, color: str = "lightblue", opacity: float = 0.3) -> None:
 		"""Initialize a function segment bounded colored area.
-		
+
 		Args:
 			func (Function, None, or number): The bounding function
 			segment (Segment): The bounding line segment
@@ -109,7 +109,7 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
 		seg_left: float
 		seg_right: float
 		seg_left, seg_right = self._get_segment_bounds()
-		
+
 		# For function bounds
 		if isinstance(self.func, Function) or self._is_function_like(self.func):
 			return self._get_intersection_bounds(seg_left, seg_right)
@@ -205,7 +205,7 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
 		"""Create a deep copy for undo/redo functionality."""
 		if id(self) in memo:
 			return cast(FunctionSegmentBoundedColoredArea, memo[id(self)])
-			
+
 		new_area: FunctionSegmentBoundedColoredArea = FunctionSegmentBoundedColoredArea(
 			func=copy.deepcopy(self.func, memo),
 			segment=copy.deepcopy(self.segment, memo),
@@ -214,4 +214,4 @@ class FunctionSegmentBoundedColoredArea(ColoredArea):
 		)
 		new_area.name = self.name
 		memo[id(self)] = new_area
-		return new_area 
+		return new_area

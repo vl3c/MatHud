@@ -156,14 +156,14 @@ class TestFunctionsBoundedAreaRenderable(unittest.TestCase):
     def test_build_screen_area_with_two_functions(self) -> None:
         from rendering.renderables import FunctionsBoundedAreaRenderable
         from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
-        
+
         f1 = Function("x^2", name="f")
         f2 = Function("x", name="g")
-        
+
         area_model = FunctionsBoundedColoredArea(
             f1, f2, left_bound=-1, right_bound=1, color="green", opacity=0.4
         )
-        
+
         renderable = FunctionsBoundedAreaRenderable(area_model, self.mapper)
         result = renderable.build_screen_area()
 
@@ -174,14 +174,14 @@ class TestFunctionsBoundedAreaRenderable(unittest.TestCase):
     def test_area_with_x_bounds(self) -> None:
         from rendering.renderables import FunctionsBoundedAreaRenderable
         from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea
-        
+
         f1 = Function("2*x", name="f")
         f2 = Function("x", name="g")
-        
+
         area_model = FunctionsBoundedColoredArea(
             f1, f2, left_bound=0, right_bound=3
         )
-        
+
         renderable = FunctionsBoundedAreaRenderable(area_model, self.mapper)
         result = renderable.build_screen_area()
 
@@ -195,19 +195,19 @@ class TestSegmentsBoundedAreaRenderable(unittest.TestCase):
     def test_build_screen_area_from_segments(self) -> None:
         from rendering.renderables import SegmentsBoundedAreaRenderable
         from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
-        
+
         p1 = Point(0, 0, name="A")
         p2 = Point(4, 0, name="B")
         p3 = Point(4, 3, name="C")
         p4 = Point(0, 3, name="D")
-        
+
         seg1 = Segment(p1, p2)
         seg2 = Segment(p4, p3)
-        
+
         area_model = SegmentsBoundedColoredArea(
             seg1, seg2, color="red", opacity=0.5
         )
-        
+
         renderable = SegmentsBoundedAreaRenderable(area_model, self.mapper)
         result = renderable.build_screen_area()
 
@@ -219,16 +219,16 @@ class TestSegmentsBoundedAreaRenderable(unittest.TestCase):
     def test_triangular_area_from_segments(self) -> None:
         from rendering.renderables import SegmentsBoundedAreaRenderable
         from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
-        
+
         p1 = Point(0, 0, name="A")
         p2 = Point(3, 0, name="B")
         p3 = Point(1.5, 2.6, name="C")
-        
+
         seg1 = Segment(p1, p2)
         seg2 = Segment(p2, p3)
-        
+
         area_model = SegmentsBoundedColoredArea(seg1, seg2)
-        
+
         renderable = SegmentsBoundedAreaRenderable(area_model, self.mapper)
         result = renderable.build_screen_area()
 
@@ -238,7 +238,7 @@ class TestSegmentsBoundedAreaRenderable(unittest.TestCase):
 
 class TestBoundaryExtension(unittest.TestCase):
     """Tests for path boundary extension utilities in FunctionRenderable."""
-    
+
     def setUp(self) -> None:
         self.mapper = CoordinateMapper(640, 480)
         self.width = 640
@@ -312,7 +312,7 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("x^2", name="g")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # x^2 should have paths that extend to boundaries
         self.assertGreater(len(result.paths), 0)
 
@@ -321,10 +321,10 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("1/x", name="h")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Should have 2 sub-paths (one for x<0, one for x>0)
         self.assertGreaterEqual(len(result.paths), 1)
-        
+
         boundary_hits = 0
         for path in result.paths:
             if len(path) >= 2:
@@ -344,7 +344,7 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("x^2", name="parabola")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         self.assertGreater(len(result.paths), 0)
         # With adaptive sampling, continuous functions should produce at least one path
         # Multiple paths may occur if sampled points happen to fall off-screen
@@ -355,7 +355,7 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("x", name="linear")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         self.assertEqual(len(result.paths), 1)
         path = result.paths[0]
         # Linear function should have reasonable coverage
@@ -366,7 +366,7 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("tan(x)", name="tan")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Should produce multiple discontinuous paths
         self.assertGreater(len(result.paths), 0)
 
@@ -376,31 +376,31 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("100*sin(x/50) + 50*tan(x/100)", name="complex")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Should produce valid paths
         self.assertGreater(len(result.paths), 0)
-        
+
         # Each path should have at least one point
         for path in result.paths:
             self.assertGreaterEqual(len(path), 1)
-            
+
             # All points should have valid coordinates (not NaN or Inf)
             for x, y in path:
-                self.assertFalse(math.isnan(x), f"NaN x coordinate in path")
-                self.assertFalse(math.isnan(y), f"NaN y coordinate in path")
-                self.assertFalse(math.isinf(x), f"Infinite x coordinate in path")
-                self.assertFalse(math.isinf(y), f"Infinite y coordinate in path")
+                self.assertFalse(math.isnan(x), "NaN x coordinate in path")
+                self.assertFalse(math.isnan(y), "NaN y coordinate in path")
+                self.assertFalse(math.isinf(x), "Infinite x coordinate in path")
+                self.assertFalse(math.isinf(y), "Infinite y coordinate in path")
 
     def test_complex_sin_tan_with_wide_bounds(self) -> None:
         # Same function with wider bounds to hit multiple asymptotes
-        func = Function("100*sin(x/50) + 50*tan(x/100)", name="complex_wide", 
+        func = Function("100*sin(x/50) + 50*tan(x/100)", name="complex_wide",
                        left_bound=-500, right_bound=500)
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Should produce multiple paths due to tan asymptotes
         self.assertGreater(len(result.paths), 0)
-        
+
         # Paths should extend to boundaries properly
         for path in result.paths:
             if len(path) >= 2:
@@ -422,10 +422,10 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("1/x", name="inv")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Should have separate paths for x<0 and x>0
         self.assertGreaterEqual(len(result.paths), 1)
-        
+
         for path in result.paths:
             if len(path) < 2:
                 continue
@@ -434,7 +434,7 @@ class TestBoundaryExtension(unittest.TestCase):
             for i in range(1, len(path)):
                 x_diff = abs(path[i][0] - path[i-1][0])
                 # X difference should be reasonable (not jumping across screen)
-                self.assertLess(x_diff, self.width / 2, 
+                self.assertLess(x_diff, self.width / 2,
                     f"Large x jump detected: {x_diff}, possible diagonal line bug")
 
     def test_no_path_spans_both_screen_halves(self) -> None:
@@ -443,23 +443,23 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("1/x", name="inv")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         mid_y = self.height / 2
         tolerance = self.height * 0.1  # 10% tolerance from center
-        
+
         for idx, path in enumerate(result.paths):
             if len(path) < 2:
                 continue
-            
+
             # Get y values of all points
             y_values = [pt[1] for pt in path]
             min_y = min(y_values)
             max_y = max(y_values)
-            
+
             # A path should NOT span from top boundary area to bottom boundary area
             near_top = min_y < tolerance
             near_bottom = max_y > self.height - tolerance
-            
+
             self.assertFalse(near_top and near_bottom,
                 f"Path {idx} spans both screen halves (y: {min_y:.0f} to {max_y:.0f}), "
                 f"indicates diagonal line crossing asymptote")
@@ -469,22 +469,22 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("1/x", name="inv")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Get screen x for the asymptote at math x=0
         asymptote_screen_x, _ = self.mapper.math_to_screen(0, 0)
-        
+
         for idx, path in enumerate(result.paths):
             if len(path) < 2:
                 continue
-            
+
             # Check all points in path - they should all be on same side of asymptote
             x_values = [pt[0] for pt in path]
             left_of_asymptote = [x < asymptote_screen_x for x in x_values]
             right_of_asymptote = [x > asymptote_screen_x for x in x_values]
-            
+
             has_left = any(left_of_asymptote)
             has_right = any(right_of_asymptote)
-            
+
             self.assertFalse(has_left and has_right,
                 f"Path {idx} crosses asymptote at x={asymptote_screen_x:.0f}. "
                 f"x range: [{min(x_values):.0f}, {max(x_values):.0f}]")
@@ -494,19 +494,19 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("1/x", name="inv")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Max allowed y jump between consecutive points (half the screen height)
         max_y_jump = self.height * 0.5
-        
+
         for idx, path in enumerate(result.paths):
             if len(path) < 2:
                 continue
-            
+
             for i in range(1, len(path)):
                 y1 = path[i-1][1]
                 y2 = path[i][1]
                 y_diff = abs(y2 - y1)
-                
+
                 self.assertLess(y_diff, max_y_jump,
                     f"Path {idx} has large y-jump at point {i}: {y_diff:.0f}px "
                     f"(from y={y1:.0f} to y={y2:.0f}), indicates invalid extension")
@@ -518,10 +518,10 @@ class TestBoundaryExtension(unittest.TestCase):
                        left_bound=100, right_bound=200)
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Should produce valid paths without crashes
         self.assertGreater(len(result.paths), 0)
-        
+
         # Check that points are valid (no NaN/Inf)
         for path in result.paths:
             for x, y in path:
@@ -534,10 +534,10 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("1/x", name="inv")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Should produce multiple paths due to asymptote at x=0
         self.assertGreater(len(result.paths), 0)
-        
+
         # Verify no path crosses the asymptote (all points on same side of x=0)
         asymptote_x, _ = self.mapper.math_to_screen(0, 0)
         for path in result.paths:
@@ -555,7 +555,7 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("tan(x)", name="tan")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # tan(x) has asymptotes at pi/2 + n*pi, should produce multiple paths
         self.assertGreater(len(result.paths), 1,
             "tan(x) should have multiple paths due to asymptotes")
@@ -567,10 +567,10 @@ class TestBoundaryExtension(unittest.TestCase):
                        left_bound=-1000, right_bound=1000)
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Should produce valid paths
         self.assertGreater(len(result.paths), 0)
-        
+
         # All points should be valid (no NaN/Inf)
         for path in result.paths:
             for x, y in path:
@@ -584,7 +584,7 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("x^2", name="parabola", left_bound=-5, right_bound=5)
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         self.assertGreater(len(result.paths), 0)
         for path in result.paths:
             for x, y in path:
@@ -598,16 +598,16 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("x", name="linear", left_bound=-10, right_bound=10)
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         self.assertEqual(len(result.paths), 1)
         path = result.paths[0]
-        
+
         # Get math x values for first and last points
         first_math_x, _ = self.mapper.screen_to_math(path[0][0], path[0][1])
         last_math_x, _ = self.mapper.screen_to_math(path[-1][0], path[-1][1])
-        
+
         # First point should be near left bound, last near right bound
-        self.assertLess(abs(first_math_x - (-10)), 1.0, 
+        self.assertLess(abs(first_math_x - (-10)), 1.0,
             f"First point not at left bound: {first_math_x}")
         self.assertLess(abs(last_math_x - 10), 1.0,
             f"Last point not at right bound: {last_math_x}")
@@ -618,7 +618,7 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("1/x", name="inv", left_bound=-10, right_bound=10)
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         mid_y = self.height / 2
         for path in result.paths:
             if len(path) < 2:
@@ -640,7 +640,7 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("x^2", name="parabola")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         self.assertGreater(len(result.paths), 0)
         for path in result.paths:
             if len(path) < 3:
@@ -650,18 +650,18 @@ class TestBoundaryExtension(unittest.TestCase):
             x1, y1 = path[0]
             x2, y2 = path[1]
             x3, y3 = path[2]
-            
+
             # Direction from 1 to 2
             dx1 = x2 - x1
             dy1 = y2 - y1
             # Direction from 2 to 3
             dx2 = x3 - x2
             dy2 = y3 - y2
-            
+
             # Directions should be roughly similar (not reversed)
             if abs(dx1) > 1 and abs(dx2) > 1:
                 # X direction should be consistent
-                self.assertEqual(dx1 > 0, dx2 > 0, 
+                self.assertEqual(dx1 > 0, dx2 > 0,
                     "X direction reversal at path start")
 
     def test_asymptote_paths_extend_to_correct_boundary(self) -> None:
@@ -670,22 +670,22 @@ class TestBoundaryExtension(unittest.TestCase):
         func = Function("tan(x)", name="tan")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         for path in result.paths:
             if len(path) < 2:
                 continue
-            
+
             # Check if path is going up or down based on middle points
             mid_idx = len(path) // 2
             if mid_idx > 0 and mid_idx < len(path) - 1:
                 y_before = path[mid_idx - 1][1]
                 y_after = path[mid_idx + 1][1]
                 going_up = y_before > y_after  # y decreasing = going up in screen coords
-                
+
                 # First and last points
                 first_y = path[0][1]
                 last_y = path[-1][1]
-                
+
                 # If going up, last point should be near top (y=0)
                 # If going down, last point should be near bottom (y=height)
                 if going_up:
@@ -697,7 +697,7 @@ class TestBoundaryExtension(unittest.TestCase):
         # Test the _is_valid_extension logic
         func = Function("x", name="linear")
         renderable = FunctionRenderable(func, self.mapper)
-        
+
         # Test cases: (original_y, extension_y, should_be_valid)
         test_cases = [
             # Same half - should be valid
@@ -713,7 +713,7 @@ class TestBoundaryExtension(unittest.TestCase):
             (100, 480, False), # Top half to bottom boundary
             (400, 0, False),   # Bottom half to top boundary
         ]
-        
+
         for orig_y, ext_y, expected_valid in test_cases:
             result = renderable._is_valid_extension(orig_y, ext_y, self.height)
             self.assertEqual(result, expected_valid,
@@ -734,14 +734,14 @@ class TestRenderableEdgeCases(unittest.TestCase):
         if len(result.paths) > 0:
             path = result.paths[0]
             y_values = [point[1] for point in path]
-            
+
             if len(y_values) > 1:
                 y_range = max(y_values) - min(y_values)
                 self.assertLess(y_range, 5)
 
     def test_invalid_function_handles_gracefully(self) -> None:
         func = Function("invalid_expr", name="bad")
-        
+
         try:
             renderable = FunctionRenderable(func, self.mapper)
             renderable.build_screen_paths()
@@ -751,13 +751,13 @@ class TestRenderableEdgeCases(unittest.TestCase):
     def test_none_segment_area_handles_gracefully(self) -> None:
         from rendering.renderables import SegmentsBoundedAreaRenderable
         from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea
-        
+
         p1 = Point(0, 0, name="A")
         p2 = Point(1, 0, name="B")
         seg1 = Segment(p1, p2)
-        
+
         area_model = SegmentsBoundedColoredArea(seg1, None)
-        
+
         try:
             renderable = SegmentsBoundedAreaRenderable(area_model, self.mapper)
             renderable.build_screen_area()
@@ -769,7 +769,7 @@ class TestRenderableEdgeCases(unittest.TestCase):
         func = Function("x^2", name="narrow", left_bound=0.99, right_bound=1.01)
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         self.assertGreater(len(result.paths), 0)
         # Should still produce valid points
         for path in result.paths:
@@ -780,7 +780,7 @@ class TestRenderableEdgeCases(unittest.TestCase):
         func = Function("sin(x)", name="wide", left_bound=-10000, right_bound=10000)
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         self.assertGreater(len(result.paths), 0)
 
     def test_function_entirely_above_screen(self) -> None:
@@ -788,7 +788,7 @@ class TestRenderableEdgeCases(unittest.TestCase):
         func = Function("1000", name="high")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Should handle gracefully (may produce empty paths or paths off-screen)
         # Just ensure no crash
         self.assertIsNotNone(result)
@@ -798,7 +798,7 @@ class TestRenderableEdgeCases(unittest.TestCase):
         func = Function("-1000", name="low")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         self.assertIsNotNone(result)
 
     def test_sqrt_function_domain_edge(self) -> None:
@@ -806,14 +806,14 @@ class TestRenderableEdgeCases(unittest.TestCase):
         func = Function("sqrt(x)", name="sqrt", left_bound=-5, right_bound=10)
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Should handle undefined region gracefully
         self.assertIsNotNone(result)
         # Points should only be for x >= 0
         for path in result.paths:
             for x, y in path:
                 math_x, _ = self.mapper.screen_to_math(x, y)
-                self.assertGreaterEqual(math_x, -0.1, 
+                self.assertGreaterEqual(math_x, -0.1,
                     f"sqrt(x) point at x={math_x} which is invalid domain")
 
     def test_log_function_domain_edge(self) -> None:
@@ -821,7 +821,7 @@ class TestRenderableEdgeCases(unittest.TestCase):
         func = Function("log(x)", name="log", left_bound=-5, right_bound=10)
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Should handle undefined region gracefully
         self.assertIsNotNone(result)
 
@@ -830,9 +830,9 @@ class TestRenderableEdgeCases(unittest.TestCase):
         func = Function("tan(x)", name="tan", left_bound=-10, right_bound=10)
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # Should produce multiple separate paths
-        self.assertGreater(len(result.paths), 1, 
+        self.assertGreater(len(result.paths), 1,
             "tan(x) over [-10,10] should have multiple paths due to asymptotes")
 
     def test_steep_exponential(self) -> None:
@@ -840,7 +840,7 @@ class TestRenderableEdgeCases(unittest.TestCase):
         func = Function("exp(x)", name="exp", left_bound=-5, right_bound=10)
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         self.assertGreater(len(result.paths), 0)
         # Should have reasonable points
         for path in result.paths:
@@ -853,7 +853,7 @@ class TestRenderableEdgeCases(unittest.TestCase):
         func = Function("sin(100*x)", name="fast_sin")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         self.assertGreater(len(result.paths), 0)
 
     def test_piecewise_like_abs(self) -> None:
@@ -861,7 +861,7 @@ class TestRenderableEdgeCases(unittest.TestCase):
         func = Function("abs(x)", name="abs")
         renderable = FunctionRenderable(func, self.mapper)
         result = renderable.build_screen_paths()
-        
+
         # With adaptive sampling, abs(x) may produce 1-2 paths
         # (the corner at 0 may cause a path break with some configurations)
         self.assertGreater(len(result.paths), 0)

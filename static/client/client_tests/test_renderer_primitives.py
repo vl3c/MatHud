@@ -523,7 +523,7 @@ class TestRendererPrimitives(unittest.TestCase):
 
         text_entries = collect_text_labels(mock_document.surface)
         svg_tree = serialize_svg_tree(mock_document.surface)
-        
+
         point_label_found = False
         for text in text_entries:
             if text and text.startswith("A(") and ")" in text:
@@ -536,7 +536,7 @@ class TestRendererPrimitives(unittest.TestCase):
                         break
                     except ValueError:
                         pass
-        
+
         if not point_label_found:
             diagnostics = {
                 "text_entries": text_entries,
@@ -546,10 +546,10 @@ class TestRendererPrimitives(unittest.TestCase):
             }
             self.fail(f"Valid point label 'A(x, y)' not found. Diagnostics: {diagnostics}")
         self.assertIn("f", text_entries)
-        
+
         has_angle_class = svg_tree_contains(svg_tree, "path", "class", "angle-arc")
         has_angle_stroke = svg_tree_contains(svg_tree, "path", "stroke", self.angle_abc.color)
-        
+
         if not has_angle_class:
             self.assertTrue(
                 has_angle_stroke,

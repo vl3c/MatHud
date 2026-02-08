@@ -10,7 +10,6 @@ Run with: pytest server_tests/test_ollama_integration.py -v
 import json
 import pytest
 from typing import Any, Dict, List
-from unittest.mock import patch
 
 from static.providers.local.ollama_api import OllamaAPI
 
@@ -329,7 +328,7 @@ class TestOllamaConversationDebug:
 
         response1 = ollama_api.create_chat_completion(prompt1)
 
-        print(f"\n=== After first request ===")
+        print("\n=== After first request ===")
         print(f"Response: {response1.message.content}")
         print(f"Tool calls: {response1.message.tool_calls}")
         print(f"Finish reason: {response1.finish_reason}")
@@ -356,7 +355,7 @@ class TestOllamaConversationDebug:
 
             response2 = ollama_api.create_chat_completion(prompt2)
 
-            print(f"\n=== After tool result ===")
+            print("\n=== After tool result ===")
             print(f"Response: {response2.message.content}")
             print(f"Finish reason: {response2.finish_reason}")
             print(f"Message count: {len(ollama_api.messages)}")

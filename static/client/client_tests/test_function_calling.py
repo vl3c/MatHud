@@ -18,12 +18,12 @@ class TestProcessFunctionCalls(unittest.TestCase):
     def setUp(self) -> None:
         # Setup the mock canvas and its functions as described
         self.canvas = Canvas(500, 500, draw_enabled=False)  # Assuming a basic mock or actual Canvas class
-        self.mock_cartesian2axis = SimpleMock(draw=SimpleMock(return_value=None), 
+        self.mock_cartesian2axis = SimpleMock(draw=SimpleMock(return_value=None),
                                               reset=SimpleMock(return_value=None),
                                               get_state=SimpleMock(return_value={'Cartesian_System_Visibility': 'cartesian_state'}),
                                               origin=Position(0, 0))  # Assuming Position is defined elsewhere
         self.canvas.cartesian2axis = self.mock_cartesian2axis
-        
+
         # Mocking a function in canvas.drawables['Function']
         self.function_string, self.name = "x^2", "Quadratic"
         # Assuming draw_function method is available to add mock functions

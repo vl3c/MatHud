@@ -50,21 +50,21 @@ def throttle(wait_ms: float) -> Callable[[Callable[..., Any]], Callable[..., Any
     Decorator factory that creates a throttle decorator with specified wait time.
     Throttling ensures the function is called at a regular interval, unlike
     debouncing which waits for a pause in calls.
-    
+
     Args:
         wait_ms: The minimum time between function calls in milliseconds
-    
+
     Returns:
         A decorator function that will throttle the decorated function
     """
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         last_call: Optional[float] = None
         queued: Optional[Any] = None
-        
+
         def throttled(*args: Any, **kwargs: Any) -> None:
             nonlocal last_call, queued
             current_time: float = window.performance.now()  # Get high-resolution timestamp in ms
-            
+
             try:
                 if queued is not None:
                     window.clearTimeout(queued)
@@ -89,19 +89,19 @@ def throttle(wait_ms: float) -> Callable[[Callable[..., Any]], Callable[..., Any
                         )
             except Exception as e:
                 print(f"Error in throttle: {str(e)}")
-        
+
         return throttled
-    
+
     return decorator
 
 
 class CanvasEventHandler:
     """Manages all user interaction events for the mathematical canvas interface.
-    
+
     Coordinates mouse and keyboard events to provide intuitive navigation, input capture,
     and canvas manipulation capabilities. Implements performance optimizations through
     event throttling and efficient coordinate calculations.
-    
+
     Attributes:
         canvas (Canvas): Mathematical canvas for visualization and state updates
         ai_interface (AIInterface): Communication interface for user input processing
@@ -113,10 +113,10 @@ class CanvasEventHandler:
     """
     def __init__(self, canvas: "Canvas", ai_interface: "AIInterface") -> None:
         """Initialize event handler with canvas and AI interface integration.
-        
+
         Sets up event bindings for all supported user interactions including mouse
         events, keyboard shortcuts, touch events, and coordinate system navigation.
-        
+
         Args:
             canvas (Canvas): The mathematical canvas to handle events for
             ai_interface (AIInterface): Interface for processing user input and interactions
@@ -133,34 +133,34 @@ class CanvasEventHandler:
         self._zoom_draw_scheduled: bool = False
         self._zoom_settle_timeout_id: Optional[Any] = None
         self.bind_events()
-    
+
     def bind_events(self) -> None:
         """Bind all event handlers with error handling."""
         try:
             document["send-button"].bind("click", self.ai_interface.interact_with_ai)
-            
+
             # TEMPORARY: Run Tests Button Binding (see documentation/development/removing_run_tests_button.md)
             # Safely try to bind the run tests button if it exists and the handler is available
             run_tests_handler = getattr(self.ai_interface, "run_tests_action", None)
             if callable(run_tests_handler) and "run-tests-button" in document:
                 document["run-tests-button"].bind("click", run_tests_handler)
-                
+
             document["chat-input"].bind("keypress", self.check_enter)
             document["math-svg"].bind("wheel", self.handle_wheel)
             document["math-svg"].bind("mousedown", self.handle_mousedown)
             document["math-svg"].bind("mouseup", self.handle_mouseup)
             document["math-svg"].bind("mousemove", self.handle_mousemove)
             document["new-conversation-button"].bind("click", self.ai_interface.start_new_conversation)
-            
+
             # Mobile touch events
             document["math-svg"].bind("touchstart", self.handle_touchstart)
             document["math-svg"].bind("touchend", self.handle_touchend)
             document["math-svg"].bind("touchmove", self.handle_touchmove)
             document["math-svg"].bind("touchcancel", self.handle_touchcancel)
-            
+
             # Prevent default touch behaviors that interfere with canvas interaction
             document["math-svg"].style.touchAction = "none"
-            
+
         except Exception as e:
             print(f"Error binding events: {str(e)}")
 
@@ -221,7 +221,7 @@ class CanvasEventHandler:
             self._zoom_settle_timeout_id = window.setTimeout(_settle_callback, 80)
         except Exception:
             self._zoom_settle_timeout_id = None
-    
+
     def _update_zoom_point(self, event: Any) -> None:
         """Update the zoom point based on mouse position."""
         try:
@@ -231,7 +231,7 @@ class CanvasEventHandler:
             self.canvas.zoom_point = Position(event.clientX - rect.left, event.clientY - rect.top)
         except Exception as e:
             print(f"Error updating zoom point: {str(e)}")
-    
+
     def _adjust_scale_factor(self, delta_y: float) -> None:
         """Adjust scale factor based on wheel movement direction."""
         try:
@@ -241,14 +241,14 @@ class CanvasEventHandler:
                 self._zoom_out()
         except Exception as e:
             print(f"Error adjusting scale factor: {str(e)}")
-    
+
     def _zoom_in(self) -> None:
         """Apply zoom in with cursor anchoring using math/screen mapping."""
         try:
             self._apply_zoom_with_anchor(zoom_in_scale_factor)
         except Exception as e:
             print(f"Error zooming in: {str(e)}")
-    
+
     def _zoom_out(self) -> None:
         """Apply zoom out with cursor anchoring using math/screen mapping."""
         try:
@@ -298,7 +298,7 @@ class CanvasEventHandler:
         """Calculate appropriate decimal places for coordinate display."""
         try:
             abs_val: float = abs(value)
-            
+
             if 0 < abs_val < 1:
                 return self._get_decimal_places_for_fraction(abs_val)
             else:
@@ -306,7 +306,7 @@ class CanvasEventHandler:
         except Exception as e:
             print(f"Error calculating decimal places: {str(e)}")
             return 2  # Default to 2 decimal places on error
-    
+
     def _get_decimal_places_for_fraction(self, value: float) -> int:
         """Calculate decimal places for fractional values."""
         try:
@@ -316,7 +316,7 @@ class CanvasEventHandler:
         except Exception as e:
             print(f"Error calculating decimal places for fraction: {str(e)}")
             return 2
-    
+
     def _get_decimal_places_for_integer(self, value: float) -> int:
         """Calculate decimal places for integer or larger values."""
         try:
@@ -334,16 +334,16 @@ class CanvasEventHandler:
         """Handle mouse down events for panning and coordinate capture."""
         try:
             current_timestamp: float = time.time()
-            
+
             if self._is_double_click(current_timestamp):
                 self._handle_double_click(event)
-                
+
             self.last_click_timestamp = current_timestamp
             self._initialize_dragging(event)
         except Exception as e:
             print(f"Error handling mousedown: {str(e)}")
             self.canvas.dragging = False
-    
+
     def _is_double_click(self, current_timestamp: float) -> bool:
         """Determine if this is a double click based on timing."""
         try:
@@ -351,7 +351,7 @@ class CanvasEventHandler:
         except Exception as e:
             print(f"Error detecting double click: {str(e)}")
             return False
-    
+
     def _handle_double_click(self, event: Any) -> None:
         """Handle double click action - capture coordinates."""
         try:
@@ -359,7 +359,7 @@ class CanvasEventHandler:
             self._add_coordinates_to_chat(coordinates)
         except Exception as e:
             print(f"Error handling double click: {str(e)}")
-    
+
     def _calculate_click_coordinates(self, event: Any) -> str:
         """Calculate cartesian coordinates from click position."""
         try:
@@ -368,28 +368,28 @@ class CanvasEventHandler:
             canvas_y: float = event.clientY - rect.top
             scale_factor: float = self.canvas.scale_factor
             origin: Position = self.canvas.cartesian2axis.origin
-            
+
             x: float = (canvas_x - origin.x) * 1/scale_factor
             y: float = (origin.y - canvas_y) * 1/scale_factor
-            
+
             decimal_places_x: int = self.get_decimal_places(x)
             decimal_places_y: int = self.get_decimal_places(y)
-            
+
             x = round(x, decimal_places_x)
             y = round(y, decimal_places_y)
-            
+
             return f"({x}, {y}) "
         except Exception as e:
             print(f"Error calculating coordinates: {str(e)}")
             return "(error) "
-    
+
     def _add_coordinates_to_chat(self, coordinates: str) -> None:
         """Add the coordinates to the chat input field."""
         try:
             document["chat-input"].value += coordinates
         except Exception as e:
             print(f"Error adding coordinates to chat: {str(e)}")
-    
+
     def _initialize_dragging(self, event: Any) -> None:
         """Initialize dragging state with current mouse position."""
         try:
@@ -413,19 +413,19 @@ class CanvasEventHandler:
         try:
             if not self.canvas.dragging:
                 return
-                
+
             self._update_mouse_position(event)
             self._update_canvas_position(event)
         except Exception as e:
             print(f"Error handling mousemove: {str(e)}")
-    
+
     def _update_mouse_position(self, event: Any) -> None:
         """Update the tracked mouse position."""
         try:
             self.current_mouse_position = Position(event.clientX, event.clientY)
         except Exception as e:
             print(f"Error updating mouse position: {str(e)}")
-    
+
     @throttle(mousemove_throttle_ms)
     def _update_canvas_position(self, event: Any) -> None:
         """Update canvas position with throttling for smooth performance."""
@@ -437,7 +437,7 @@ class CanvasEventHandler:
                 self.canvas.draw(False)
         except Exception as e:
             print(f"Error updating canvas position: {str(e)}")
-    
+
     def _calculate_drag_offset(self) -> Position:
         """Calculate the drag offset based on mouse movement."""
         try:
@@ -449,7 +449,7 @@ class CanvasEventHandler:
         except Exception as e:
             print(f"Error calculating drag offset: {str(e)}")
             return Position(0, 0)
-    
+
     def _apply_offset_to_canvas(self, offset: Position) -> None:
         """Apply the calculated offset to the canvas."""
         try:
@@ -457,7 +457,7 @@ class CanvasEventHandler:
             self.canvas.offset.y += offset.y
         except Exception as e:
             print(f"Error applying offset to canvas: {str(e)}")
-    
+
     def _update_last_mouse_position(self) -> None:
         """Update the last mouse position to the current position."""
         try:
@@ -469,7 +469,7 @@ class CanvasEventHandler:
         """Handle touch start events for mobile panning and zooming."""
         try:
             event.preventDefault()  # Prevent default scrolling/zooming
-            
+
             touches: Any = event.touches
             if len(touches) == 1:
                 # Single touch - start panning (similar to mousedown)
@@ -478,44 +478,44 @@ class CanvasEventHandler:
             elif len(touches) == 2:
                 # Two fingers - start pinch-to-zoom
                 self._handle_pinch_start(touches)
-                
+
         except Exception as e:
             print(f"Error handling touchstart: {str(e)}")
-    
+
     def _handle_single_touch_start(self, touch: Any) -> None:
         """Handle single touch start for panning."""
         try:
             current_timestamp: float = time.time()
-            
+
             # Check for double tap (similar to double click)
             if self._is_double_click(current_timestamp):
                 self._handle_double_tap(touch)
-                
+
             self.last_click_timestamp = current_timestamp
             self._initialize_touch_dragging(touch)
         except Exception as e:
             print(f"Error handling single touch start: {str(e)}")
-    
+
     def _handle_pinch_start(self, touches: Any) -> None:
         """Initialize pinch-to-zoom gesture."""
         try:
             touch1: Any = touches[0]
             touch2: Any = touches[1]
-            
+
             # Calculate initial distance between fingers
             self.initial_pinch_distance = self._calculate_touch_distance(touch1, touch2)
             self.last_pinch_distance = self.initial_pinch_distance
-            
+
             # Set zoom point to center between the two touches
             center_x: float = (touch1.clientX + touch2.clientX) / 2
             center_y: float = (touch1.clientY + touch2.clientY) / 2
-            
+
             rect: Any = document["math-svg"].getBoundingClientRect()
             self.canvas.zoom_point = Position(center_x - rect.left, center_y - rect.top)
-            
+
         except Exception as e:
             print(f"Error handling pinch start: {str(e)}")
-    
+
     def _calculate_touch_distance(self, touch1: Any, touch2: Any) -> float:
         """Calculate distance between two touch points."""
         try:
@@ -530,7 +530,7 @@ class CanvasEventHandler:
         """Handle touch move events for panning and pinch-to-zoom."""
         try:
             event.preventDefault()  # Prevent default scrolling
-            
+
             touches: Any = event.touches
             if len(touches) == 1 and self.canvas.dragging:
                 # Single finger - panning
@@ -538,10 +538,10 @@ class CanvasEventHandler:
             elif len(touches) == 2:
                 # Two fingers - pinch-to-zoom
                 self._handle_pinch_zoom(touches)
-                
+
         except Exception as e:
             print(f"Error handling touchmove: {str(e)}")
-    
+
     def _handle_touch_pan(self, touch: Any) -> None:
         """Handle single finger panning."""
         try:
@@ -550,23 +550,23 @@ class CanvasEventHandler:
                 'clientX': touch.clientX,
                 'clientY': touch.clientY
             })
-            
+
             self._update_mouse_position(mock_event)
             self._update_canvas_position(mock_event)
         except Exception as e:
             print(f"Error handling touch pan: {str(e)}")
-    
+
     def _handle_pinch_zoom(self, touches: Any) -> None:
         """Handle two-finger pinch-to-zoom."""
         try:
             touch1: Any = touches[0]
             touch2: Any = touches[1]
             current_distance: float = self._calculate_touch_distance(touch1, touch2)
-            
+
             if self.last_pinch_distance and current_distance > 0:
                 # Calculate scale change
                 scale_change: float = current_distance / self.last_pinch_distance
-                
+
                 # Apply zoom with sensitivity adjustment
                 if scale_change > 1.02:  # Zoom in threshold
                     self.canvas.scale_factor *= 1.02
@@ -576,9 +576,9 @@ class CanvasEventHandler:
                     self.canvas.scale_factor *= 0.98
                     self.canvas.zoom_direction = 1
                     self._schedule_zoom_redraw()
-                    
+
             self.last_pinch_distance = current_distance
-            
+
         except Exception as e:
             print(f"Error handling pinch zoom: {str(e)}")
 
@@ -586,15 +586,15 @@ class CanvasEventHandler:
         """Handle touch end events."""
         try:
             event.preventDefault()
-            
+
             # Reset dragging state
             self.canvas.dragging = False
             self.current_mouse_position = None
-            
+
             # Reset pinch state
             self.initial_pinch_distance = None
             self.last_pinch_distance = None
-            
+
         except Exception as e:
             print(f"Error handling touchend: {str(e)}")
 
@@ -604,7 +604,7 @@ class CanvasEventHandler:
             self.handle_touchend(event)
         except Exception as e:
             print(f"Error handling touchcancel: {str(e)}")
-    
+
     def _handle_double_tap(self, touch: Any) -> None:
         """Handle double tap action - capture coordinates."""
         try:
@@ -613,12 +613,12 @@ class CanvasEventHandler:
                 'clientX': touch.clientX,
                 'clientY': touch.clientY
             })
-            
+
             coordinates: str = self._calculate_click_coordinates(mock_event)
             self._add_coordinates_to_chat(coordinates)
         except Exception as e:
             print(f"Error handling double tap: {str(e)}")
-    
+
     def _initialize_touch_dragging(self, touch: Any) -> None:
         """Initialize dragging state with current touch position."""
         try:
@@ -627,4 +627,4 @@ class CanvasEventHandler:
             self.canvas.last_mouse_position = self.current_mouse_position
         except Exception as e:
             print(f"Error initializing touch dragging: {str(e)}")
-            self.canvas.dragging = False 
+            self.canvas.dragging = False

@@ -19,4 +19,4 @@ __all__ = [
     'PointNameGenerator',
     'FunctionNameGenerator',
     'ArcNameGenerator',
-] 
+]

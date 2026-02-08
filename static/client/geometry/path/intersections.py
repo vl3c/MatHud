@@ -116,7 +116,7 @@ def path_path_intersections(path1: CompositePath, path2: CompositePath) -> List[
     """Find all intersection points between two composite paths."""
     results: List[Point] = []
     GeometryUtils = _get_geometry_utils()
-    
+
     for elem1 in path1:
         for elem2 in path2:
             points = element_element_intersection(elem1, elem2)
@@ -127,5 +127,5 @@ def path_path_intersections(path1: CompositePath, path2: CompositePath) -> List[
                 )
                 if not is_duplicate:
                     results.append(point)
-    
+
     return results

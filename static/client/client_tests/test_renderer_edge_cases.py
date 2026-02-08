@@ -73,7 +73,7 @@ class TestPointEdgeCases(unittest.TestCase):
 
     def test_point_with_nan_coordinates_does_not_crash(self) -> None:
         point = Point(float('nan'), 5.0, name="P")
-        
+
         try:
             shared.render_point_helper(self.primitives, point, self.mapper, self.style)
         except Exception as e:
@@ -81,7 +81,7 @@ class TestPointEdgeCases(unittest.TestCase):
 
     def test_point_with_infinity_coordinates_does_not_crash(self) -> None:
         point = Point(float('inf'), 10.0, name="P")
-        
+
         try:
             shared.render_point_helper(self.primitives, point, self.mapper, self.style)
         except Exception as e:
@@ -89,7 +89,7 @@ class TestPointEdgeCases(unittest.TestCase):
 
     def test_point_with_negative_infinity_does_not_crash(self) -> None:
         point = Point(5.0, float('-inf'), name="P")
-        
+
         try:
             shared.render_point_helper(self.primitives, point, self.mapper, self.style)
         except Exception as e:
@@ -97,7 +97,7 @@ class TestPointEdgeCases(unittest.TestCase):
 
     def test_point_with_very_large_coordinates_does_not_crash(self) -> None:
         point = Point(1e100, 1e100, name="P")
-        
+
         try:
             shared.render_point_helper(self.primitives, point, self.mapper, self.style)
         except Exception as e:
@@ -106,7 +106,7 @@ class TestPointEdgeCases(unittest.TestCase):
     def test_point_with_zero_radius_in_style_does_not_crash(self) -> None:
         point = Point(5, 5, name="P")
         style = {"point_radius": 0, "point_color": "#000"}
-        
+
         try:
             shared.render_point_helper(self.primitives, point, self.mapper, style)
         except Exception as e:
@@ -115,7 +115,7 @@ class TestPointEdgeCases(unittest.TestCase):
     def test_point_with_negative_radius_in_style_does_not_crash(self) -> None:
         point = Point(5, 5, name="P")
         style = {"point_radius": -5, "point_color": "#000"}
-        
+
         try:
             shared.render_point_helper(self.primitives, point, self.mapper, style)
         except Exception as e:
@@ -132,7 +132,7 @@ class TestSegmentEdgeCases(unittest.TestCase):
         p1 = Point(0, 0, name="A")
         p2 = Point(float('nan'), 5, name="B")
         segment = Segment(p1, p2)
-        
+
         try:
             shared.render_segment_helper(self.primitives, segment, self.mapper, self.style)
         except Exception as e:
@@ -142,7 +142,7 @@ class TestSegmentEdgeCases(unittest.TestCase):
         p1 = Point(0, 0, name="A")
         p2 = Point(float('inf'), float('inf'), name="B")
         segment = Segment(p1, p2)
-        
+
         try:
             shared.render_segment_helper(self.primitives, segment, self.mapper, self.style)
         except Exception as e:
@@ -151,7 +151,7 @@ class TestSegmentEdgeCases(unittest.TestCase):
     def test_segment_with_coincident_points_does_not_crash(self) -> None:
         p = Point(5, 5, name="P")
         segment = Segment(p, p)
-        
+
         try:
             shared.render_segment_helper(self.primitives, segment, self.mapper, self.style)
         except Exception as e:
@@ -161,7 +161,7 @@ class TestSegmentEdgeCases(unittest.TestCase):
         p1 = Point(-1e50, -1e50, name="A")
         p2 = Point(1e50, 1e50, name="B")
         segment = Segment(p1, p2)
-        
+
         try:
             shared.render_segment_helper(self.primitives, segment, self.mapper, self.style)
         except Exception as e:
@@ -177,7 +177,7 @@ class TestCircleEdgeCases(unittest.TestCase):
     def test_circle_with_nan_radius_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
         circle = Circle(center, radius=float('nan'))
-        
+
         try:
             shared.render_circle_helper(self.primitives, circle, self.mapper, self.style)
         except Exception as e:
@@ -186,7 +186,7 @@ class TestCircleEdgeCases(unittest.TestCase):
     def test_circle_with_infinity_radius_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
         circle = Circle(center, radius=float('inf'))
-        
+
         try:
             shared.render_circle_helper(self.primitives, circle, self.mapper, self.style)
         except Exception as e:
@@ -195,7 +195,7 @@ class TestCircleEdgeCases(unittest.TestCase):
     def test_circle_with_zero_radius_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
         circle = Circle(center, radius=0)
-        
+
         try:
             shared.render_circle_helper(self.primitives, circle, self.mapper, self.style)
         except Exception as e:
@@ -204,7 +204,7 @@ class TestCircleEdgeCases(unittest.TestCase):
     def test_circle_with_negative_radius_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
         circle = Circle(center, radius=-10)
-        
+
         try:
             shared.render_circle_helper(self.primitives, circle, self.mapper, self.style)
         except Exception as e:
@@ -213,7 +213,7 @@ class TestCircleEdgeCases(unittest.TestCase):
     def test_circle_with_nan_center_does_not_crash(self) -> None:
         center = Point(float('nan'), float('nan'), name="O")
         circle = Circle(center, radius=10)
-        
+
         try:
             shared.render_circle_helper(self.primitives, circle, self.mapper, self.style)
         except Exception as e:
@@ -233,7 +233,7 @@ class TestVectorEdgeCases(unittest.TestCase):
     def test_zero_length_vector_does_not_crash(self) -> None:
         p = Point(5, 5, name="P")
         vector = Vector(p, p)
-        
+
         try:
             shared.render_vector_helper(self.primitives, vector, self.mapper, self.style)
         except Exception as e:
@@ -243,7 +243,7 @@ class TestVectorEdgeCases(unittest.TestCase):
         p1 = Point(0, 0, name="A")
         p2 = Point(float('nan'), 0, name="B")
         vector = Vector(p1, p2)
-        
+
         try:
             shared.render_vector_helper(self.primitives, vector, self.mapper, self.style)
         except Exception as e:
@@ -253,7 +253,7 @@ class TestVectorEdgeCases(unittest.TestCase):
         p1 = Point(0, 0, name="A")
         p2 = Point(float('inf'), 0, name="B")
         vector = Vector(p1, p2)
-        
+
         try:
             shared.render_vector_helper(self.primitives, vector, self.mapper, self.style)
         except Exception as e:
@@ -269,7 +269,7 @@ class TestEllipseEdgeCases(unittest.TestCase):
     def test_ellipse_with_zero_radius_x_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
         ellipse = Ellipse(center, radius_x=0, radius_y=10)
-        
+
         try:
             shared.render_ellipse_helper(self.primitives, ellipse, self.mapper, self.style)
         except Exception as e:
@@ -278,7 +278,7 @@ class TestEllipseEdgeCases(unittest.TestCase):
     def test_ellipse_with_zero_radius_y_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
         ellipse = Ellipse(center, radius_x=10, radius_y=0)
-        
+
         try:
             shared.render_ellipse_helper(self.primitives, ellipse, self.mapper, self.style)
         except Exception as e:
@@ -287,7 +287,7 @@ class TestEllipseEdgeCases(unittest.TestCase):
     def test_ellipse_with_nan_radii_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
         ellipse = Ellipse(center, radius_x=float('nan'), radius_y=float('nan'))
-        
+
         try:
             shared.render_ellipse_helper(self.primitives, ellipse, self.mapper, self.style)
         except Exception as e:
@@ -296,7 +296,7 @@ class TestEllipseEdgeCases(unittest.TestCase):
     def test_ellipse_with_negative_radii_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
         ellipse = Ellipse(center, radius_x=-10, radius_y=-5)
-        
+
         try:
             shared.render_ellipse_helper(self.primitives, ellipse, self.mapper, self.style)
         except Exception as e:
@@ -305,7 +305,7 @@ class TestEllipseEdgeCases(unittest.TestCase):
     def test_ellipse_with_nan_rotation_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
         ellipse = Ellipse(center, radius_x=10, radius_y=5, rotation_angle=float('nan'))
-        
+
         try:
             shared.render_ellipse_helper(self.primitives, ellipse, self.mapper, self.style)
         except Exception as e:
@@ -320,7 +320,7 @@ class TestLabelEdgeCases(unittest.TestCase):
 
     def test_label_with_empty_text_does_not_crash(self) -> None:
         label = Label(5, 5, "")
-        
+
         try:
             shared.render_label_helper(self.primitives, label, self.mapper, self.style)
         except Exception as e:
@@ -336,7 +336,7 @@ class TestLabelEdgeCases(unittest.TestCase):
     def test_label_with_very_long_text_does_not_crash(self) -> None:
         long_text = "A" * 150
         label = Label(5, 5, long_text)
-        
+
         try:
             shared.render_label_helper(self.primitives, label, self.mapper, self.style)
         except Exception as e:
@@ -344,7 +344,7 @@ class TestLabelEdgeCases(unittest.TestCase):
 
     def test_label_with_nan_font_size_does_not_crash(self) -> None:
         label = Label(5, 5, "Test", font_size=float('nan'))
-        
+
         try:
             shared.render_label_helper(self.primitives, label, self.mapper, self.style)
         except Exception as e:
@@ -352,7 +352,7 @@ class TestLabelEdgeCases(unittest.TestCase):
 
     def test_label_with_zero_font_size_does_not_crash(self) -> None:
         label = Label(5, 5, "Test", font_size=0)
-        
+
         try:
             shared.render_label_helper(self.primitives, label, self.mapper, self.style)
         except Exception as e:
@@ -360,7 +360,7 @@ class TestLabelEdgeCases(unittest.TestCase):
 
     def test_label_with_negative_font_size_does_not_crash(self) -> None:
         label = Label(5, 5, "Test", font_size=-10)
-        
+
         try:
             shared.render_label_helper(self.primitives, label, self.mapper, self.style)
         except Exception as e:
@@ -368,7 +368,7 @@ class TestLabelEdgeCases(unittest.TestCase):
 
     def test_label_with_nan_position_does_not_crash(self) -> None:
         label = Label(float('nan'), float('nan'), "Test")
-        
+
         try:
             shared.render_label_helper(self.primitives, label, self.mapper, self.style)
         except Exception as e:
@@ -393,7 +393,7 @@ class TestCartesianEdgeCases(unittest.TestCase):
             current_tick_spacing=50,
             default_tick_spacing=50,
         )
-        
+
         try:
             shared.render_cartesian_helper(self.primitives, cartesian, self.mapper, self.style)
         except Exception as e:
@@ -406,7 +406,7 @@ class TestCartesianEdgeCases(unittest.TestCase):
             current_tick_spacing=50,
             default_tick_spacing=50,
         )
-        
+
         try:
             shared.render_cartesian_helper(self.primitives, cartesian, self.mapper, self.style)
         except Exception as e:
@@ -419,7 +419,7 @@ class TestCartesianEdgeCases(unittest.TestCase):
             current_tick_spacing=0,
             default_tick_spacing=50,
         )
-        
+
         try:
             shared.render_cartesian_helper(self.primitives, cartesian, self.mapper, self.style)
         except Exception as e:
@@ -432,7 +432,7 @@ class TestCartesianEdgeCases(unittest.TestCase):
             current_tick_spacing=-50,
             default_tick_spacing=50,
         )
-        
+
         try:
             shared.render_cartesian_helper(self.primitives, cartesian, self.mapper, self.style)
         except Exception as e:

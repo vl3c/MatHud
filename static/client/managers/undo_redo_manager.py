@@ -51,17 +51,17 @@ if TYPE_CHECKING:
 class UndoRedoManager:
     """
     Manages undo and redo operations for a Canvas object.
-    
+
     This class is responsible for:
     - Archiving canvas states (for undo operations)
     - Handling undo operations (restore previous state)
     - Handling redo operations (restore undone state)
     """
-    
+
     def __init__(self, canvas: "Canvas") -> None:
         """
         Initialize the UndoRedoManager.
-        
+
         Args:
             canvas: The Canvas object this manager is responsible for
         """
@@ -69,11 +69,11 @@ class UndoRedoManager:
         self.undo_stack: List[Dict[str, Any]] = []
         self.redo_stack: List[Dict[str, Any]] = []
         self._archive_suspension_depth: int = 0
-    
+
     def archive(self) -> None:
         """
         Archives the current state of the canvas for undo operations.
-        
+
         This method should be called whenever a change is made to the canvas
         that should be undoable.
         """
@@ -110,95 +110,95 @@ class UndoRedoManager:
         """Resume archive() calls after a composite operation."""
         if self._archive_suspension_depth > 0:
             self._archive_suspension_depth -= 1
-        
+
     def undo(self) -> bool:
         """
         Restores the last archived state from the undo stack.
-        
+
         Returns:
             bool: True if an undo was performed, False otherwise
         """
         if not self.undo_stack:
             return False
-            
+
         # Get the last archived state
         last_state = self.undo_stack.pop()
-        
+
         # Archive current state for redo
         current_state = {
             'drawables': copy.deepcopy(self.canvas.drawable_manager.drawables._drawables),
             'computations': copy.deepcopy(self.canvas.computations)
         }
         self.redo_stack.append(current_state)
-        
+
         # Restore only the drawables from the last state
         self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(last_state['drawables'])
         self.canvas.drawable_manager.drawables.rebuild_renderables()
-        
+
         # Ensure all objects are properly initialized
         self._rebuild_dependency_graph()
-        
+
         # Make sure to reset any cached or derived values
         # This ensures a complete state reset
         self.canvas.draw()
-        
+
         return True
-    
+
     def redo(self) -> bool:
         """
         Restores the last undone state from the redo stack.
-        
+
         Returns:
             bool: True if a redo was performed, False otherwise
         """
         if not self.redo_stack:
             return False
-            
+
         # Get the last undone state
         next_state = self.redo_stack.pop()
-        
+
         # Archive current state for undo
         current_state = {
             'drawables': copy.deepcopy(self.canvas.drawable_manager.drawables._drawables),
             'computations': copy.deepcopy(self.canvas.computations)
         }
         self.undo_stack.append(current_state)
-        
+
         # Restore only the drawables from the next state
         self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(next_state['drawables'])
         self.canvas.drawable_manager.drawables.rebuild_renderables()
-        
+
         # Ensure all objects are properly initialized
         self._rebuild_dependency_graph()
-        
+
         # Make sure to reset any cached or derived values
         # This ensures a complete state reset
         self.canvas.draw()
-        
+
         return True
-    
+
     def can_undo(self) -> bool:
         """
         Checks if there are any states that can be undone.
-        
+
         Returns:
             bool: True if undo is possible, False otherwise
         """
         return len(self.undo_stack) > 0
-    
+
     def can_redo(self) -> bool:
         """
         Checks if there are any states that can be redone.
-        
+
         Returns:
             bool: True if redo is possible, False otherwise
         """
         return len(self.redo_stack) > 0
-    
+
     def _rebuild_dependency_graph(self) -> None:
         """
         Rebuilds the dependency relationships between drawables.
-        
+
         This is necessary after loading a saved state, as the serialization
         process may lose dependency links which need to be re-established
         with the new object instances.
@@ -213,11 +213,11 @@ class UndoRedoManager:
         # which is an instance of DrawableDependencyManager.
         if hasattr(self.canvas, 'dependency_manager') and self.canvas.dependency_manager is not None:
             dependency_manager = self.canvas.dependency_manager
-            
+
             # Clear existing dependency relationships from the manager
             dependency_manager._parents.clear()
             dependency_manager._children.clear()
-            
+
             # Re-analyze each drawable to rebuild the dependency graph
             # The analyze_drawable_for_dependencies method in DrawableDependencyManager
             # is responsible for handling various drawable types and their specific dependencies.
@@ -234,4 +234,4 @@ class UndoRedoManager:
         Clears all undo and redo history.
         """
         self.undo_stack = []
-        self.redo_stack = [] 
+        self.redo_stack = []

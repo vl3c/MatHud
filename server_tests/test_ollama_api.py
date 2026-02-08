@@ -5,10 +5,8 @@ Tests Ollama-specific functionality including server availability checking,
 model discovery, and tool-capable model filtering.
 """
 
-import shutil
 from unittest.mock import MagicMock, patch
 
-import pytest
 import requests as requests_lib
 
 from static.providers.local.ollama_api import OllamaAPI

@@ -35,10 +35,10 @@ from drawables.segment import Segment
 
 class Vector(Drawable):
     """Represents a directed line segment (vector) with origin, tip, and arrow head visualization.
-    
+
     Extends the concept of a line segment to include directionality, displayed with
     an arrow head at the tip to indicate vector direction and magnitude.
-    
+
     Attributes:
         segment (Segment): Underlying line segment providing mathematical properties
         origin (Point): Starting point of the vector (property access to segment.point1)
@@ -46,7 +46,7 @@ class Vector(Drawable):
     """
     def __init__(self, origin: Point, tip: Point, color: str = default_color) -> None:
         """Initialize a vector with origin and tip points.
-        
+
         Args:
             origin (Point): Starting point of the vector
             tip (Point): Ending point of the vector (where arrow head is drawn)
@@ -55,17 +55,17 @@ class Vector(Drawable):
         self.segment: Segment = Segment(origin, tip, color=color)
         name: str = self.segment.name
         super().__init__(name=name, color=color)
-    
+
     @property
     def origin(self) -> Point:
         """Get the origin point of the vector."""
         return self.segment.point1
-        
+
     @property
     def tip(self) -> Point:
         """Get the tip point of the vector."""
         return self.segment.point2
-    
+
     def get_class_name(self) -> str:
         return 'Vector'
 
@@ -80,7 +80,7 @@ class Vector(Drawable):
             "_origin_coords": [self.segment.point1.x, self.segment.point1.y],
             "_tip_coords": [self.segment.point2.x, self.segment.point2.y],
         }
-    
+
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
         # Check if the vector has already been deep copied
         if id(self) in memo:
@@ -104,8 +104,8 @@ class Vector(Drawable):
         message: Optional[str]
         should_proceed, message = self.segment.rotate(angle)
         if not should_proceed:
-            return False, message      
-        return True, None 
+            return False, message
+        return True, None
 
     def update_color(self, color: str) -> None:
         """Update the vector color and underlying segment color."""

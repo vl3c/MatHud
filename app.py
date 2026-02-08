@@ -67,10 +67,10 @@ if __name__ == '__main__':
 
         # Check if we're running in a deployment environment
         is_deployed = os.environ.get('PORT') is not None
-        
+
         # Enable debug mode for local development
         debug_mode = not is_deployed  # Debug only when running locally
-        
+
         if is_deployed:
             # For deployment: run Flask directly without threading
             host = '0.0.0.0'  # Bind to all interfaces for deployment
@@ -80,7 +80,7 @@ if __name__ == '__main__':
             # For local development: use threading approach with debug capability
             host = '127.0.0.1'  # Localhost for development
             print(f"Starting Flask app on {host}:{port} (development mode, debug={debug_mode})")
-            
+
             from threading import Thread
             server = Thread(target=app.run, kwargs={
                 'host': host,
@@ -90,7 +90,7 @@ if __name__ == '__main__':
             })
             server.daemon = True  # Make the server thread a daemon so it exits when main thread exits
             server.start()
-            
+
             # Wait for Flask to start
             time.sleep(3)
 
@@ -113,10 +113,10 @@ if __name__ == '__main__':
                     print("WebDriver initialized successfully")
                 except Exception as e:
                     print(f"Failed to initialize WebDriver: {str(e)}")
-            
+
             print(f"MatHud is running at http://{host}:{port}")
             print("Press Ctrl+C to stop the server")
-            
+
             # Keep the main thread alive but responsive to keyboard interrupts
             while True:
                 time.sleep(1)

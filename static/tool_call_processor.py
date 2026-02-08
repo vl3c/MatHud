@@ -38,7 +38,7 @@ class ProcessedToolCall(TypedDict):
 
 class ToolCallProcessor:
     """Static class for processing tool calls into JSON-serializable format.
-    
+
     Provides utilities to convert OpenAI tool call objects into simplified
     dictionaries that can be sent to the client-side function processing system.
     """
@@ -46,10 +46,10 @@ class ToolCallProcessor:
     @staticmethod
     def jsonify_tool_call(tool_call: ToolCallObject) -> ProcessedToolCall:
         """Convert a single tool call into a simplified JSON-serializable dictionary representation.
-        
+
         Args:
             tool_call: OpenAI tool call object with function name and arguments
-            
+
         Returns:
             ProcessedToolCall: Simplified tool call with 'function_name' and 'arguments' keys
         """
@@ -62,19 +62,19 @@ class ToolCallProcessor:
         except json.JSONDecodeError:
             arguments = {}
             logging.error(f"Failed to decode arguments for function {function_name}.")
-        
+
         processed_call: ProcessedToolCall = {"function_name": function_name, "arguments": arguments}
         return processed_call
 
     @staticmethod
     def jsonify_tool_calls(tool_calls: Sequence[ToolCallObject]) -> List[ProcessedToolCall]:
         """Convert a list of tool calls into a simplified JSON-serializable format.
-        
+
         Args:
             tool_calls: Sequence of OpenAI tool call objects
-            
+
         Returns:
             List[ProcessedToolCall]: List of simplified tool call dictionaries
         """
         simplified_calls = [ToolCallProcessor.jsonify_tool_call(tool_call) for tool_call in tool_calls]
-        return simplified_calls 
+        return simplified_calls

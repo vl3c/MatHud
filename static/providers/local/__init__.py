@@ -284,8 +284,6 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         Returns:
             Response choice object compatible with OpenAI format
         """
-        from types import SimpleNamespace
-
         user_message = self._parse_and_prepare_message(full_prompt)
         if user_message is not None:
             self.messages.append(user_message)
@@ -459,7 +457,6 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
     def _process_response(self, choice: Any) -> Any:
         """Process the API response and update conversation history."""
         from types import SimpleNamespace
-        import json
 
         message = choice.message
         text_content = message.content or ""

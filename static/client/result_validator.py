@@ -22,21 +22,21 @@ from constants import successful_call_message
 
 class ResultValidator:
     """Handles validation of function call results and error detection.
-    
+
     Provides static methods for validating result structure and determining
     whether function calls completed successfully or encountered errors.
     """
-    
+
     @staticmethod
     def validate_results(results: Dict[str, Any]) -> bool:
         """Validates that results have the correct structure and data types.
-        
+
         Checks that the results dictionary contains only allowed types and
         has proper string keys, regardless of whether the results contain errors.
-        
+
         Args:
             results (dict): Dictionary of results to validate with string keys
-            
+
         Returns:
             bool: True if the results have valid structure, False otherwise
         """
@@ -46,17 +46,17 @@ class ResultValidator:
             k and isinstance(k, str) and ResultValidator._is_allowed_value(v, allow_list=False)
             for k, v in results.items()
         )
-    
+
     @staticmethod
     def is_successful_result(value: Any) -> bool:
         """Checks if a result value represents a successful computation.
-        
+
         Determines whether a result contains actual computed data vs error messages,
         empty values, or success acknowledgment messages.
-        
+
         Args:
             value: The result value to check (any type)
-            
+
         Returns:
             bool: True if the result represents successful computation, False for errors/empty
         """

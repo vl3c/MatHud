@@ -11,9 +11,9 @@ class TestFunction(unittest.TestCase):
     def setUp(self) -> None:
         # Create a real CoordinateMapper instance
         self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
-        
+
         self.canvas = SimpleMock(
-            scale_factor=1, 
+            scale_factor=1,
             cartesian2axis=SimpleMock(
                 origin=Position(250, 250),  # Canvas center for 500x500
                 get_visible_left_bound=SimpleMock(return_value=-10),
@@ -33,10 +33,10 @@ class TestFunction(unittest.TestCase):
             zoom_step=0.1,
             offset=Position(0, 0)
         )
-        
+
         # Sync canvas state with coordinate mapper
         self.coordinate_mapper.sync_from_canvas(self.canvas)
-        
+
         self.left_bound = -9
         self.right_bound = 9
         self.function_string = "x*2"
@@ -62,31 +62,31 @@ class TestFunction(unittest.TestCase):
         screen_polyline = renderable.build_screen_paths()
         paths = screen_polyline.paths
         self.assertTrue(len(paths) > 0)
-        
+
         # Check that we have points in our paths
         points_count = sum(len(path) for path in paths)
         self.assertTrue(points_count > 0)
-        
+
         # Check x bounds and count points within and outside y bounds
         points_within_bounds = 0
         points_outside_bounds = 0
         top_bound = self.canvas.cartesian2axis.get_visible_top_bound()
         bottom_bound = self.canvas.cartesian2axis.get_visible_bottom_bound()
-        
+
         for path in paths:
             for point_tuple in path:
                 # Convert tuple (x, y) to screen coordinates for bounds checking
                 math_x, math_y = self.canvas.coordinate_mapper.screen_to_math(point_tuple[0], point_tuple[1])
                 self.assertTrue(self.canvas.cartesian2axis.get_visible_left_bound() <= math_x <= self.canvas.cartesian2axis.get_visible_right_bound())
-                
+
                 # Count points within and outside y bounds
                 if bottom_bound <= math_y <= top_bound:
                     points_within_bounds += 1
                 else:
                     points_outside_bounds += 1
-        
+
         # Ensure majority of points are within bounds
-        self.assertGreater(points_within_bounds, points_outside_bounds, 
+        self.assertGreater(points_within_bounds, points_outside_bounds,
                           "Majority of points should be within y bounds")
 
     def test_get_state(self) -> None:
@@ -103,12 +103,12 @@ class TestFunction(unittest.TestCase):
     def test_caching_mechanism(self) -> None:
         # Test that points are cached and reused in FunctionRenderable
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
-        
+
         # First call should generate paths
         first_call = renderable.build_screen_paths()
         self.assertIsNotNone(first_call.paths)
         self.assertTrue(len(first_call.paths) > 0)
-        
+
         # Second call should use cached paths (same result)
         second_call = renderable.build_screen_paths()
         self.assertEqual(len(first_call.paths), len(second_call.paths))
@@ -116,38 +116,38 @@ class TestFunction(unittest.TestCase):
     def test_cache_invalidation_on_zoom_new_mechanism(self) -> None:
         """Test that cache is invalidated when invalidate_cache() is called on FunctionRenderable"""
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
-        
+
         # Generate initial cache
         initial_paths = renderable.build_screen_paths()
         self.assertTrue(len(initial_paths.paths) > 0)
-        
+
         # Simulate zoom by calling cache invalidation
         renderable.invalidate_cache()
-        
+
         # Build paths again after invalidation
         new_paths = renderable.build_screen_paths()
-        
+
         # Should still generate valid paths (cache regenerated)
         self.assertTrue(len(new_paths.paths) > 0)
-        
+
     def test_zoom_via_canvas_draw_mechanism(self) -> None:
         """Test zoom cache invalidation through the Canvas.draw(apply_zoom=True) pattern using FunctionRenderable"""
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
-        
+
         # Generate initial cache
         initial_paths = renderable.build_screen_paths()
         self.assertTrue(len(initial_paths.paths) > 0)
-        
+
         # Simulate what Canvas.draw(apply_zoom=True) does:
         # 1. Check if renderable has invalidate_cache method
         # 2. Call it if it exists
         # 3. Call build_screen_paths()
         if hasattr(renderable, 'invalidate_cache'):
             renderable.invalidate_cache()
-            
+
         # Build paths again after cache invalidation
         new_paths = renderable.build_screen_paths()
-        
+
         # Verify paths are regenerated successfully
         self.assertTrue(len(new_paths.paths) > 0)
 
@@ -155,16 +155,16 @@ class TestFunction(unittest.TestCase):
         # Test that high amplitude functions get more samples
         low_amp_function = Function("sin(x)", "LowAmp")
         high_amp_function = Function("5*sin(x)", "HighAmp")
-        
+
         low_amp_renderable = FunctionRenderable(low_amp_function, self.canvas.coordinate_mapper)
         high_amp_renderable = FunctionRenderable(high_amp_function, self.canvas.coordinate_mapper)
-        
+
         low_amp_paths = low_amp_renderable.build_screen_paths().paths
         high_amp_paths = high_amp_renderable.build_screen_paths().paths
-        
+
         low_amp_points = sum(len(path) for path in low_amp_paths)
         high_amp_points = sum(len(path) for path in high_amp_paths)
-        
+
         # High amplitude function should have at least as many points
         self.assertGreaterEqual(high_amp_points, low_amp_points,
                               f"Expected high amplitude function ({high_amp_points} points) to have at least as many points as low amplitude ({low_amp_points})")
@@ -174,15 +174,15 @@ class TestFunction(unittest.TestCase):
         discontinuous_function = Function("1/x", "Discontinuous", step=0.5)  # Smaller step size
         renderable = FunctionRenderable(discontinuous_function, self.canvas.coordinate_mapper)
         paths = renderable.build_screen_paths().paths
-        
+
         # Flatten all points from all paths for testing
         flat_points = []
         for path in paths:
             flat_points.extend(path)
-            
+
         # Sort points by x-value to ensure chronological order for checking gaps
         flat_points.sort(key=lambda p: p[0])  # Sort by x coordinate (first element of tuple)
-        
+
         # Find gaps in x coordinates that indicate discontinuity
         has_discontinuity = False
         for i in range(1, len(flat_points)):
@@ -190,11 +190,11 @@ class TestFunction(unittest.TestCase):
             math_x2, math_y2 = self.canvas.coordinate_mapper.screen_to_math(flat_points[i][0], flat_points[i][1])
             # Check for either a large x gap or a transition through bounds
             if (abs(math_x2 - math_x1) > discontinuous_function.step * 2) or \
-               (abs(math_y2 - math_y1) > (self.canvas.cartesian2axis.get_visible_top_bound() - 
+               (abs(math_y2 - math_y1) > (self.canvas.cartesian2axis.get_visible_top_bound() -
                                           self.canvas.cartesian2axis.get_visible_bottom_bound())):
                 has_discontinuity = True
                 break
-        
+
         self.assertTrue(has_discontinuity)
 
     def test_bounds_checking(self) -> None:
@@ -203,23 +203,23 @@ class TestFunction(unittest.TestCase):
         # scale_factor = 250 / 5 = 50
         self.coordinate_mapper.scale_factor = 50
         self.canvas.scale_factor = 50
-        
+
         # Update the canvas cartesian2axis mock to reflect new bounds
         self.canvas.cartesian2axis.get_visible_left_bound.return_value = -5
         self.canvas.cartesian2axis.get_visible_right_bound.return_value = 5
         self.canvas.cartesian2axis.get_visible_top_bound.return_value = 5
         self.canvas.cartesian2axis.get_visible_bottom_bound.return_value = -5
-        
+
         # Need to update the function's bounds as well
         self.function.left_bound = -5
         self.function.right_bound = 5
-        
+
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
         paths = renderable.build_screen_paths().paths
-        
+
         # Ensure we have paths
         self.assertTrue(len(paths) > 0)
-        
+
         for path in paths:
             # Ensure each path has points
             self.assertTrue(len(path) > 0)
@@ -235,11 +235,11 @@ class TestFunction(unittest.TestCase):
     def test_should_regenerate_points(self) -> None:
         # Test conditions for point regeneration using FunctionRenderable
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
-        
+
         # Generate initial paths
         initial_paths = renderable.build_screen_paths()
         self.assertTrue(len(initial_paths.paths) > 0)
-        
+
         # Invalidate cache and regenerate
         renderable.invalidate_cache()
         new_paths = renderable.build_screen_paths()
@@ -250,7 +250,7 @@ class TestFunction(unittest.TestCase):
         # Create a function that should generate no valid points
         empty_function = Function("sin(1/0)", "Empty")  # This should fail evaluation
         renderable = FunctionRenderable(empty_function, self.canvas.coordinate_mapper)
-        
+
         # Should not raise error when building paths with invalid function
         try:
             paths = renderable.build_screen_paths()
@@ -264,9 +264,9 @@ class TestFunction(unittest.TestCase):
         # Test that deepcopy properly handles Function objects (cache handled by renderables)
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
         renderable.build_screen_paths()  # Generate initial cache in renderable
-        
+
         function_copy = copy.deepcopy(self.function)
-        
+
         # Function copy should be independent and structurally equal
         self.assertEqual(function_copy.function_string, self.function.function_string)
         self.assertEqual(function_copy.name, self.function.name)
@@ -276,17 +276,17 @@ class TestFunction(unittest.TestCase):
         complex_function = Function("sin(x*10)", "Complex")
         renderable = FunctionRenderable(complex_function, self.canvas.coordinate_mapper)
         paths = renderable.build_screen_paths().paths
-        
+
         # Can't have more paths or points than horizontal canvas pixels
         canvas_width = self.canvas.width
-        
+
         # Check number of paths is reasonable
         self.assertLessEqual(len(paths), canvas_width, "Should not exceed canvas width in paths")
-        
+
         # Check total number of points is reasonable (allow +1 for endpoint-inclusive sampling)
         total_points = sum(len(path) for path in paths)
         self.assertLessEqual(total_points, canvas_width + 1, "Should not exceed canvas width + 1 in points")
-        
+
         # Check minimum distance between consecutive points in each path
         for path in paths:
             if len(path) > 1:  # Only check paths with at least 2 points
@@ -298,7 +298,7 @@ class TestFunction(unittest.TestCase):
     def test_high_frequency_trig_functions(self) -> None:
         # Adaptive sampler generates points up to canvas width for periodic functions
         canvas_width = self.canvas.width
-        
+
         test_cases = [
             ("10*sin(10*x)", "High frequency and amplitude", 20),
             ("sin(20*x)", "High frequency only", 20),
@@ -306,7 +306,7 @@ class TestFunction(unittest.TestCase):
             ("2*sin(3*x)", "Medium frequency and amplitude", 20),
             ("100*sin(50*x)", "Very high frequency and amplitude", 20),
         ]
-        
+
         for function_string, description, min_points in test_cases:
             with self.subTest(function_string=function_string, description=description):
                 try:
@@ -315,14 +315,14 @@ class TestFunction(unittest.TestCase):
                     paths = renderable.build_screen_paths().paths
                     self.assertIsNotNone(paths)
                     self.assertGreater(len(paths), 0)
-                    
+
                     # Count total points across all paths
                     total_points = sum(len(path) for path in paths)
-                    
+
                     # Check bounds: at least min_points, at most canvas width + 1 (endpoint-inclusive)
-                    self.assertGreaterEqual(total_points, min_points, 
+                    self.assertGreaterEqual(total_points, min_points,
                                          f"{function_string} ({description}): {total_points} points, expected at least {min_points}")
-                    self.assertLessEqual(total_points, canvas_width + 1, 
+                    self.assertLessEqual(total_points, canvas_width + 1,
                                        f"{function_string} ({description}): {total_points} points, exceeds canvas width + 1")
                 except Exception as e:
                     self.fail(f"Failed to handle {function_string}: {str(e)}")
@@ -331,11 +331,11 @@ class TestFunction(unittest.TestCase):
         # Test that FunctionRenderable can build screen paths successfully
         renderable = FunctionRenderable(self.function, self.canvas.coordinate_mapper)
         paths = renderable.build_screen_paths()
-        
+
         # Should have valid paths
         self.assertIsNotNone(paths.paths)
         self.assertTrue(len(paths.paths) > 0)
-        
+
         # Each path should contain tuples of (x, y) coordinates
         for path in paths.paths:
             if len(path) > 0:
@@ -345,22 +345,22 @@ class TestFunction(unittest.TestCase):
 
 class TestFunctionUndefinedAt(unittest.TestCase):
     """Tests for undefined_at (hole) support in Function."""
-    
+
     def test_function_with_single_undefined_point(self) -> None:
         """Test that a function with a single undefined point returns NaN at that point."""
         import math
         f = Function("2", "constant_with_hole", undefined_at=[0])
-        
+
         self.assertAlmostEqual(f.function(-5), 2.0)
         self.assertAlmostEqual(f.function(5), 2.0)
         self.assertTrue(math.isnan(f.function(0)))
         self.assertIn(0, f.point_discontinuities)
-    
+
     def test_function_with_multiple_undefined_points(self) -> None:
         """Test that a function with multiple undefined points returns NaN at those points."""
         import math
         f = Function("x^2", "parabola_with_holes", undefined_at=[-1, 0, 1])
-        
+
         self.assertAlmostEqual(f.function(-5), 25.0)
         self.assertAlmostEqual(f.function(0.5), 0.25)
         self.assertTrue(math.isnan(f.function(-1)))
@@ -369,28 +369,28 @@ class TestFunctionUndefinedAt(unittest.TestCase):
         self.assertIn(-1, f.point_discontinuities)
         self.assertIn(0, f.point_discontinuities)
         self.assertIn(1, f.point_discontinuities)
-    
+
     def test_function_get_state_includes_undefined_at(self) -> None:
         """Test that get_state includes undefined_at when present."""
         f = Function("x", "linear_with_hole", undefined_at=[0])
         state = f.get_state()
         self.assertIn("undefined_at", state["args"])
         self.assertEqual(state["args"]["undefined_at"], [0])
-    
+
     def test_function_get_state_omits_undefined_at_when_empty(self) -> None:
         """Test that get_state does not include undefined_at when empty."""
         f = Function("x", "linear")
         state = f.get_state()
         self.assertNotIn("undefined_at", state["args"])
-    
+
     def test_function_deepcopy_preserves_undefined_at(self) -> None:
         """Test that deepcopy preserves undefined_at."""
         f = Function("x^2", "parabola_with_hole", undefined_at=[0, 2])
         f_copy = copy.deepcopy(f)
-        
+
         self.assertEqual(f_copy.undefined_at, [0, 2])
         self.assertIsNot(f_copy.undefined_at, f.undefined_at)
-    
+
     def test_function_without_undefined_at_has_empty_list(self) -> None:
         """Test that a function without undefined_at has an empty list."""
         f = Function("sin(x)", "sine")

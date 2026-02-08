@@ -675,7 +675,6 @@ class StatisticsManager:
             height = self._normal_pdf_value(x_mid, mean, sigma)
 
             bar_name = f"{plot_name}_bar_{i}"
-            label_text = None
 
             if bar_manager is not None and hasattr(bar_manager, "create_bar"):
                 bar_manager.create_bar(

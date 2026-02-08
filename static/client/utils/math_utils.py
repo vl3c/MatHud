@@ -49,10 +49,10 @@ SegmentLike = Any
 
 class MathUtils:
     """Comprehensive mathematical utilities class for geometric analysis and symbolic computation.
-    
+
     Provides static methods for all mathematical operations required by the MatHud canvas system,
     including coordinate validation, geometric calculations, equation generation, and symbolic mathematics.
-    
+
     Class Attributes:
         EPSILON (float): Global tolerance constant (1e-9) for floating-point comparisons
     """
@@ -102,15 +102,15 @@ class MathUtils:
     @staticmethod
     def point_matches_coordinates(point: PointLike, x: Number, y: Number) -> bool:
         """Check if a point matches given coordinates within tolerance.
-        
+
         Uses global EPSILON tolerance for floating-point comparison to handle
         precision issues in coordinate matching.
-        
+
         Args:
             point: Point object with x and y attributes
             x (float): Target x-coordinate to match
             y (float): Target y-coordinate to match
-            
+
         Returns:
             bool: True if point coordinates match within tolerance, False otherwise
         """
@@ -130,15 +130,15 @@ class MathUtils:
         y2: Number,
     ) -> bool:
         """Check if a segment matches given endpoint coordinates in any order.
-        
+
         Tests both possible orderings of endpoints since segments are undirected.
         Uses tolerance-based coordinate matching.
-        
+
         Args:
             segment: Segment object with point1 and point2 attributes
             x1, y1 (float): First endpoint coordinates
             x2, y2 (float): Second endpoint coordinates
-            
+
         Returns:
             bool: True if segment endpoints match coordinates (in either order), False otherwise
         """
@@ -149,14 +149,14 @@ class MathUtils:
     @staticmethod
     def segment_matches_point_names(segment: SegmentLike, p1_name: str, p2_name: str) -> bool:
         """Check if a segment connects two points by their names.
-        
+
         Tests both possible orderings of point names since segments are undirected.
-        
+
         Args:
             segment: Segment object with point1 and point2 attributes
             p1_name (str): Name of first point
             p2_name (str): Name of second point
-            
+
         Returns:
             bool: True if segment connects the named points (in either order), False otherwise
         """
@@ -168,14 +168,14 @@ class MathUtils:
     @staticmethod
     def segment_has_end_point(segment: SegmentLike, x: Number, y: Number) -> bool:
         """Check if a segment has an endpoint at the given coordinates.
-        
+
         Uses tolerance-based coordinate matching to check if either endpoint
         of the segment matches the provided coordinates.
-        
+
         Args:
             segment: Segment object with point1 and point2 attributes
             x, y (float): Coordinates to check as potential endpoint
-            
+
         Returns:
             bool: True if coordinates match either segment endpoint, False otherwise
         """
@@ -187,13 +187,13 @@ class MathUtils:
     @staticmethod
     def get_2D_distance(p1: PointLike, p2: PointLike) -> float:
         """Calculate Euclidean distance between two points in 2D space.
-        
+
         Uses the standard distance formula: sqrt((x2-x1)² + (y2-y1)²)
-        
+
         Args:
             p1: Point object with x and y attributes
             p2: Point object with x and y attributes
-            
+
         Returns:
             float: Euclidean distance between the two points
         """
@@ -277,13 +277,13 @@ class MathUtils:
     @staticmethod
     def get_2D_midpoint(p1: PointLike, p2: PointLike) -> Tuple[float, float]:
         """Calculate the midpoint between two points in 2D space.
-        
+
         Returns the point exactly halfway between the two input points.
-        
+
         Args:
             p1: Point object with x and y attributes
             p2: Point object with x and y attributes
-            
+
         Returns:
             tuple: (x, y) coordinates of the midpoint
         """
@@ -301,15 +301,15 @@ class MathUtils:
         sp2y: Number,
     ) -> bool:
         """Check if a point lies on a line segment between two endpoints.
-        
+
         Uses bounding box check followed by adaptive collinearity test.
         Handles vertical and horizontal lines specially for better precision.
-        
+
         Args:
             px, py (float): Coordinates of point to test
             sp1x, sp1y (float): Coordinates of segment first endpoint
             sp2x, sp2y (float): Coordinates of segment second endpoint
-            
+
         Returns:
             bool: True if point lies on the segment, False otherwise
         """
@@ -320,11 +320,11 @@ class MathUtils:
         # For vertical lines, check if x values match
         if abs(sp1x - sp2x) < 1e-10:
             return abs(px - sp1x) < 1e-5
-        
+
         # For horizontal lines, check if y values match
         if abs(sp1y - sp2y) < 1e-10:
             return abs(py - sp1y) < 1e-5
-        
+
         # Check if point is on the line defined by the segment
         # Using the cross product approach to check if three points are collinear
         from drawables.point import Position
@@ -332,14 +332,14 @@ class MathUtils:
         p1 = Position(sp2x, sp2y)
         p2 = Position(px, py)
         cross_product = MathUtils.cross_product(origin, p1, p2)
-        
+
         # Calculate segment length for a better threshold
         segment_length = math.sqrt((sp2x - sp1x)**2 + (sp2y - sp1y)**2)
-        
+
         # Calculate a threshold as a proportion of the segment length
         # This makes it work well for both small and large coordinate values
         threshold = max(1e-5, segment_length * 0.01)  # 1% of segment length as threshold
-        
+
         return abs(cross_product) < threshold
 
     @staticmethod
@@ -579,13 +579,13 @@ class MathUtils:
     @staticmethod
     def get_triangle_area(p1: PointLike, p2: PointLike, p3: PointLike) -> float:
         """Calculate the area of a triangle using Heron's formula.
-        
+
         Computes triangle area from three vertices using side lengths
         and the semi-perimeter formula.
-        
+
         Args:
             p1, p2, p3: Point objects with x and y attributes representing triangle vertices
-            
+
         Returns:
             float: Area of the triangle
         """
@@ -596,16 +596,16 @@ class MathUtils:
         s = (a + b + c) / 2
         area = math.sqrt(s * (s - a) * (s - b) * (s - c))
         return area
-    
+
     @staticmethod
     def get_triangle_centroid(p1: PointLike, p2: PointLike, p3: PointLike) -> Tuple[float, float]:
         """Calculate the centroid (geometric center) of a triangle.
-        
+
         Returns the point where the three medians of the triangle intersect.
-        
+
         Args:
             p1, p2, p3: Point objects with x and y attributes representing triangle vertices
-            
+
         Returns:
             tuple: (x, y) coordinates of the triangle centroid
         """
@@ -616,14 +616,14 @@ class MathUtils:
     @staticmethod
     def get_rectangle_area(diagonal_p1: PointLike, diagonal_p2: PointLike) -> float:
         """Calculate the area of a rectangle from diagonal points.
-        
+
         Assumes the rectangle is axis-aligned and computes area
         from the width and height derived from diagonal endpoints.
-        
+
         Args:
             diagonal_p1: Point object representing one corner of rectangle
             diagonal_p2: Point object representing opposite corner of rectangle
-            
+
         Returns:
             float: Area of the rectangle
         """
@@ -635,33 +635,33 @@ class MathUtils:
     @staticmethod
     def cross_product(origin: PointLike, p1: PointLike, p2: PointLike) -> float:
         """Calculate the 2D cross product of two vectors from an origin point.
-        
+
         Computes the z-component of the cross product of vectors (origin->p1) and (origin->p2).
         Used for orientation testing and area calculations.
-        
+
         Args:
             origin: Point object representing vector origin
             p1: Point object representing end of first vector
             p2: Point object representing end of second vector
-            
+
         Returns:
             float: Cross product value (positive for counter-clockwise, negative for clockwise)
         """
         result = (p1.x - origin.x) * (p2.y - origin.y) - (p2.x - origin.x) * (p1.y - origin.y)
         return float(result)
-    
+
     @staticmethod
     def dot_product(origin: PointLike, p1: PointLike, p2: PointLike) -> float:
         """Calculate the dot product of two vectors from an origin point.
-        
+
         Computes the dot product of vectors (origin->p1) and (origin->p2).
         Used for angle calculations and orthogonality testing.
-        
+
         Args:
             origin: Point object representing vector origin
             p1: Point object representing end of first vector
             p2: Point object representing end of second vector
-            
+
         Returns:
             float: Dot product value
         """
@@ -680,7 +680,7 @@ class MathUtils:
         Calculates the angle in degrees formed by three points: vertex, point on arm1, point on arm2.
         The angle is measured counter-clockwise from the vector (vertex -> arm1) to (vertex -> arm2).
         Returns the angle in the range [0, 360) degrees, or None if calculation is not possible.
-        
+
         Args:
             vertex_coords (tuple): (x, y) coordinates of the vertex.
             arm1_coords (tuple): (x, y) coordinates of a point on the first arm.
@@ -699,7 +699,7 @@ class MathUtils:
         # Vector from vertex to arm2_point
         v2x = p2x - vx
         v2y = p2y - vy
-        
+
         # Angle of v1 and v2 with respect to positive x-axis
         angle1_rad = math.atan2(v1y, v1x)
         angle2_rad = math.atan2(v2y, v2x)
@@ -713,12 +713,12 @@ class MathUtils:
             angle_rad -= 2 * math.pi
         elif angle_rad < -math.pi:
             angle_rad += 2 * math.pi
-        
+
         # Convert to degrees and normalize to [0, 360)
         angle_degrees = math.degrees(angle_rad)
         if angle_degrees < 0:
             angle_degrees += 360
-        
+
         return angle_degrees
 
     @staticmethod
@@ -754,21 +754,21 @@ class MathUtils:
         # Check if arm1_point is coincident with arm2_point (overlapping arms)
         if abs(p1x - p2x) < MathUtils.EPSILON and abs(p1y - p2y) < MathUtils.EPSILON:
             return False
-            
+
         return True
 
     @staticmethod
     def is_right_angle(origin: PointLike, p1: PointLike, p2: PointLike) -> bool:
         """Check if two vectors from an origin form a right angle (90 degrees).
-        
+
         Uses dot product test with tolerance for floating-point precision.
         Two vectors are perpendicular if their dot product is zero.
-        
+
         Args:
             origin: Point object representing vertex of the angle
             p1: Point object representing end of first vector
             p2: Point object representing end of second vector
-            
+
         Returns:
             bool: True if vectors form a right angle, False otherwise
         """
@@ -796,10 +796,10 @@ class MathUtils:
             for j, p2 in enumerate(points):
                 if i != j and abs(p1.x - p2.x) < TOLERANCE and abs(p1.y - p2.y) < TOLERANCE:
                     return False
-        
+
         # Calculate all pairwise distances
         distances = [MathUtils.get_2D_distance(p1, p2) for i, p1 in enumerate(points) for j, p2 in enumerate(points) if i < j]
-        
+
         # Group similar distances using tolerance
         grouped_distances: List[List[float]] = []
         for d in distances:
@@ -811,11 +811,11 @@ class MathUtils:
                     break
             if not found_group:
                 grouped_distances.append([d])
-        
+
         # Count occurrences in each group
         distance_counts = [len(group) for group in grouped_distances]
         distance_counts.sort()
-        
+
         # Check for valid rectangle patterns (2 groups with [2,4] counts for squares, or 3 groups with [2,2,2] counts for rectangles)
         if len(distance_counts) not in [2, 3]:
             return False
@@ -839,12 +839,12 @@ class MathUtils:
     @staticmethod
     def evaluate_expression_using_python(expression: str) -> float:
         """[DEPRECATED] Evaluate a mathematical expression at x=0.
-        
+
         Legacy method for quick expression evaluation. Use symbolic methods instead.
-        
+
         Args:
             expression (str): Mathematical expression string
-            
+
         Returns:
             float: Result of evaluating expression at x=0
         """
@@ -862,15 +862,15 @@ class MathUtils:
         p3y: Number,
     ) -> int:
         """Determine the orientation of three points in 2D space.
-        
+
         Uses cross product to determine if three points form a clockwise,
         counter-clockwise, or collinear arrangement.
-        
+
         Args:
             p1x, p1y (float): Coordinates of first point
             p2x, p2y (float): Coordinates of second point
             p3x, p3y (float): Coordinates of third point
-            
+
         Returns:
             int: 0 for collinear, 1 for clockwise, 2 for counter-clockwise
         """
@@ -962,7 +962,7 @@ class MathUtils:
     def get_circle_formula(x: Number, y: Number, r: Number) -> str:
         # Return the algebraic expression
         return f"(x - {x})**2 + (y - {y})**2 = {r}**2"
-    
+
     @staticmethod
     def get_ellipse_formula(
         x: Number,
@@ -999,20 +999,20 @@ class MathUtils:
             angle_rad = math.radians(rotation_angle)
             cos_a = math.cos(angle_rad)
             sin_a = math.sin(angle_rad)
-            
+
             # Calculate coefficients for the rotated ellipse equation
             A = (cos_a**2/rx**2) + (sin_a**2/ry**2)
             B = 2*cos_a*sin_a*(1/rx**2 - 1/ry**2)
             C = (sin_a**2/rx**2) + (cos_a**2/ry**2)
-            
+
             # Format coefficients to 4 decimal places for readability
             A = round(A, 4)
             B = round(B, 4)
             C = round(C, 4)
-            
+
             # Handle special cases for coefficient signs in the formula
             b_term = f"+ {B}" if B >= 0 else f"- {abs(B)}"
-            
+
             return f"{A}*(x - {fx})**2 {b_term}*(x - {fy})*(y - {fy}) + {C}*(y - {fy})**2 = 1"
 
     @staticmethod
@@ -1099,33 +1099,33 @@ class MathUtils:
                 result = window.math.format(window.math.evaluate(js_expression))
             else:
                 result = window.math.format(window.math.evaluate(js_expression, variables))
-            
+
             converted_result = MathUtils.try_convert_to_number(result)
-            
+
             # Check for division by zero
             if "lim" not in expression and "limit" not in expression and \
                 (converted_result == float('-inf') or \
                  converted_result == float('inf') or \
                     str(converted_result).lower() in ['-inf', 'inf', 'infinity', '-infinity']):
                 raise ZeroDivisionError()
-            
+
             return converted_result
         except ZeroDivisionError:
-            return f"Error: ZeroDivisionError"
+            return "Error: ZeroDivisionError"
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
 
     @staticmethod
     def derivative(expression: str, variable: str) -> str:
         """Calculate the derivative of a mathematical expression.
-        
+
         Uses Nerdamer symbolic computation for analytical differentiation.
         Supports all standard functions and multi-variable expressions.
-        
+
         Args:
             expression (str): Mathematical expression to differentiate
             variable (str): Variable to differentiate with respect to (e.g., "x")
-            
+
         Returns:
             str: Derivative expression as string or error message
         """
@@ -1137,15 +1137,15 @@ class MathUtils:
     @staticmethod
     def limit(expression: str, variable: str, value_to_approach: Union[Number, str]) -> str:
         """Calculate the limit of a mathematical expression.
-        
+
         Uses Nerdamer symbolic computation for limit evaluation.
         Supports finite limits and limits at infinity.
-        
+
         Args:
             expression (str): Mathematical expression
             variable (str): Variable approaching the limit (e.g., "x")
             value_to_approach (str/float): Value or "inf"/"-inf" for infinity
-            
+
         Returns:
             str: Limit result as string or error message
         """
@@ -1167,16 +1167,16 @@ class MathUtils:
         upper_bound: Optional[Number] = None,
     ) -> str:
         """Calculate the integral of a mathematical expression.
-        
+
         Uses Nerdamer symbolic computation for integration.
         Supports both indefinite and definite integrals.
-        
+
         Args:
             expression (str): Mathematical expression to integrate
             variable (str): Variable of integration (e.g., "x")
             lower_bound (float): Optional lower bound for definite integral
             upper_bound (float): Optional upper bound for definite integral
-            
+
         Returns:
             str: Integral result as string or error message
         """
@@ -1193,13 +1193,13 @@ class MathUtils:
     @staticmethod
     def simplify(expression: str) -> str:
         """Simplify a mathematical expression to its simplest form.
-        
+
         Uses Nerdamer symbolic computation for algebraic simplification.
         Combines like terms, factors, and reduces expressions.
-        
+
         Args:
             expression (str): Mathematical expression to simplify
-            
+
         Returns:
             str: Simplified expression as string or error message
         """
@@ -1211,13 +1211,13 @@ class MathUtils:
     @staticmethod
     def expand(expression: str) -> str:
         """Expand a mathematical expression by distributing operations.
-        
+
         Uses Nerdamer symbolic computation for algebraic expansion.
         Expands products, powers, and nested expressions.
-        
+
         Args:
             expression (str): Mathematical expression to expand
-            
+
         Returns:
             str: Expanded expression as string or error message
         """
@@ -1229,13 +1229,13 @@ class MathUtils:
     @staticmethod
     def factor(expression: str) -> str:
         """Factor a mathematical expression into its factored form.
-        
+
         Uses Nerdamer symbolic computation for algebraic factorization.
         Factors polynomials and extracts common factors.
-        
+
         Args:
             expression (str): Mathematical expression to factor
-            
+
         Returns:
             str: Factored expression as string or error message
         """
@@ -1252,7 +1252,7 @@ class MathUtils:
             expanded_equation = MathUtils.expand(equation)
             # Remove whitespaces for easier processing
             expanded_equation = expanded_equation.replace(' ', '')
-            
+
             # Split into left and right sides if equation contains =
             if '=' in expanded_equation:
                 left, right = expanded_equation.split('=')
@@ -1270,12 +1270,12 @@ class MathUtils:
             if higher_order_match:
                 power = higher_order_match.group(1)
                 return f"Order {power}"
-            
+
             # Check for multiple variables
             # Pattern: any letters a-z or A-Z
             # Matches: 'x', 'y', 'X', 'Y'
-            variables = set(re.findall(r'[a-zA-Z]', expanded_equation))
-            
+            set(re.findall(r'[a-zA-Z]', expanded_equation))
+
             # Check for trigonometric equations
             # Pattern: trig function followed by parentheses and content
             # Matches: 'sin(x)', 'cos(2x)', 'tan(x+y)'
@@ -1283,7 +1283,7 @@ class MathUtils:
             trigonometric_match = re.search(r'\b(sin|cos|tan|csc|sec|cot)\s*\(([^)]+)\)', expanded_equation)
             if trigonometric_match:
                 return "Trigonometric"
-            
+
             # Check for non-linear terms with multiple variables
             # Pattern: letter followed optionally by * followed by letter
             # Matches: 'xy', 'x*y', 'x y', 'yx'
@@ -1292,7 +1292,7 @@ class MathUtils:
             # (linear equations like x + y = 4 should not be flagged as non-linear)
             if re.search(r'[a-zA-Z]\s*[*]?\s*[a-zA-Z]', expanded_equation):
                 return "Other Non-linear"
-            
+
             # Check for quartic equations
             # Pattern: letter followed by ^4
             # Matches: 'x^4', 'y^4'
@@ -1300,7 +1300,7 @@ class MathUtils:
             quartic_match = re.search(r'\b[a-zA-Z]\^4\b', expanded_equation)
             if quartic_match:
                 return "Quartic"
-            
+
             # Check for cubic equations
             # Pattern: letter followed by ^3
             # Matches: 'x^3', 'y^3'
@@ -1308,7 +1308,7 @@ class MathUtils:
             cubic_match = re.search(r'\b[a-zA-Z]\^3\b', expanded_equation)
             if cubic_match:
                 return "Cubic"
-            
+
             # Check for quadratic equations
             # Pattern: letter followed by ^2
             # Matches: 'x^2', 'y^2'
@@ -1316,7 +1316,7 @@ class MathUtils:
             quadratic_match = re.search(r'\b[a-zA-Z]\^2\b', expanded_equation)
             if quadratic_match:
                 return "Quadratic"
-            
+
             # Check for linear equations
             # Pattern: single letter
             # Matches: 'x', 'y' (when not part of another term)
@@ -1324,9 +1324,9 @@ class MathUtils:
             linear_match = re.search(r'\b[a-zA-Z]\b', expanded_equation)
             if linear_match:
                 return "Linear"
-            
+
             return "Unknown"
-        
+
         except Exception as e:
             return f"Error: {e}"
 
@@ -1384,14 +1384,14 @@ class MathUtils:
     @staticmethod
     def solve(equation: str, variable: str) -> str:
         """Solve an equation for a specific variable.
-        
+
         Uses Nerdamer symbolic computation for equation solving.
         Supports linear, quadratic, polynomial, and transcendental equations.
-        
+
         Args:
             equation (str): Mathematical equation (e.g., "x^2 + 2*x - 3 = 0")
             variable (str): Variable to solve for (e.g., "x")
-            
+
         Returns:
             str: JSON string of solutions or error message
         """
@@ -1440,17 +1440,17 @@ class MathUtils:
             eq2 = ExpressionValidator.fix_math_expression(eq2, python_compatible=False)
             # Split by '=' to separate the left and right sides of the equation and take the side containing the variable
             eq2 = eq2.split('=')[0] if 'x' in eq2.split('=')[0] else eq2.split('=')[1]
-            
+
             linear, quadratic = (eq1, eq2) if "^2" in eq2 else (eq2, eq1)
 
             system_eq = f"{quadratic} - ({linear})"
             system_eq = MathUtils.expand(system_eq)
 
             # Extract m, n = coefficients of the linear equation (assuming y = mx + n form)
-            lin_coeffs_str = window.nerdamer.coeffs(linear, 'x').text() # The coefficients are placed in the index of their power. So constants are in the 0th place, x^2 would be in the 2nd place, etc. 
+            lin_coeffs_str = window.nerdamer.coeffs(linear, 'x').text() # The coefficients are placed in the index of their power. So constants are in the 0th place, x^2 would be in the 2nd place, etc.
             lin_coeffs = literal_eval(lin_coeffs_str)
             m, n = lin_coeffs[1], lin_coeffs[0]
-            
+
             # Extract a, b, c = coefficients of system equation
             quadratic_coeffs_str = window.nerdamer.coeffs(system_eq, 'x').text()
             quadratic_coeffs = literal_eval(quadratic_coeffs_str)
@@ -1463,11 +1463,11 @@ class MathUtils:
 
             x1 = (-b + math.sqrt(discriminant)) / (2*a)
             x2 = (-b - math.sqrt(discriminant)) / (2*a)
-            
+
             # If the linear equation is not directly in terms of y, adjust accordingly
             y1 = m*x1 + n
             y2 = m*x2 + n
-            
+
             # Format solutions
             solutions = []
             if discriminant > 0:  # Two solutions
@@ -1478,10 +1478,10 @@ class MathUtils:
             elif discriminant == 0:  # One solution
                 solutions.append(('x', x1))
                 solutions.append(('y', y1))
-            
+
             # Prepare the solution dictionary (assuming a single solution format for simplification)
             solution_dict = {sol[0]: sol[1] for sol in solutions}
-            
+
             # Convert solution_dict to string format
             solution_strings = [f"{k} = {v}" for k, v in solution_dict.items()]
             return ', '.join(solution_strings)
@@ -1560,13 +1560,13 @@ class MathUtils:
                 eq1 += "= y"
                 eq2 += "= y"
                 equations = [eq1, eq2]
-    
+
             from expression_validator import ExpressionValidator
             equations = [ExpressionValidator.fix_math_expression(eq, python_compatible=False) for eq in equations]
-    
+
             max_solutions_of_system = MathUtils.determine_max_number_of_solutions(equations)
             print(f"Max solutions for system of equations {equations}: {max_solutions_of_system}")
-            
+
             if max_solutions_of_system == 4:
                 # Solve two quadratic equations
                 print("Solving two quadratic equations")
@@ -2187,10 +2187,10 @@ class MathUtils:
     @staticmethod
     def mean(values: Sequence[Number]) -> float:
         """Calculate the arithmetic mean (average) of a list of values.
-        
+
         Args:
             values (list): List of numeric values
-            
+
         Returns:
             float: Arithmetic mean of the values
         """
@@ -2199,10 +2199,10 @@ class MathUtils:
     @staticmethod
     def median(values: Sequence[Number]) -> float:
         """Calculate the median (middle value) of a list of values.
-        
+
         Args:
             values (list): List of numeric values
-            
+
         Returns:
             float: Median value
         """
@@ -2211,10 +2211,10 @@ class MathUtils:
     @staticmethod
     def mode(values: Sequence[Number]) -> float:
         """Calculate the mode (most frequent value) of a list of values.
-        
+
         Args:
             values (list): List of numeric values
-            
+
         Returns:
             float: Most frequent value
         """
@@ -2223,10 +2223,10 @@ class MathUtils:
     @staticmethod
     def stdev(values: Sequence[Number]) -> float:
         """Calculate the sample standard deviation of a list of values.
-        
+
         Args:
             values (list): List of numeric values
-            
+
         Returns:
             float: Sample standard deviation
         """
@@ -2235,10 +2235,10 @@ class MathUtils:
     @staticmethod
     def variance(values: Sequence[Number]) -> float:
         """Calculate the sample variance of a list of values.
-        
+
         Args:
             values (list): List of numeric values
-            
+
         Returns:
             float: Sample variance
         """
@@ -2253,15 +2253,15 @@ class MathUtils:
         """Calculate vertical asymptotes of a function within given bounds"""
         import re
         from expression_validator import ExpressionValidator
-        
+
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
         vertical_asymptotes: List[float] = []
-        
+
         # For logarithmic functions
         if 'log' in function_string:
             vertical_asymptotes.append(0.0)
-            
+
         # For rational functions
         if '/' in function_string:
             denominator = function_string.split('/')[-1].strip()
@@ -2271,7 +2271,7 @@ class MathUtils:
                 vertical_asymptotes.extend(float(x) for x in zeros)
             except:
                 pass
-                
+
         # For tangent functions
         if 'tan' in function_string:
             # Find all tangent terms in the function
@@ -2288,11 +2288,11 @@ class MathUtils:
                     coeff_match = re.search(r'([+-]?\d+\.?\d*)\s*\*?\s*x', tan_arg)
                     if coeff_match:
                         coeff = float(coeff_match.group(1))
-                    
+
                 # Get bounds
                 left = left_bound if left_bound is not None else -1000
                 right = right_bound if right_bound is not None else 1000
-                
+
                 # Calculate asymptotes within bounds
                 # Asymptotes occur at x = (pi/2 + n*pi)/coeff
                 n = math.floor(left * coeff / math.pi - 0.5)
@@ -2303,18 +2303,18 @@ class MathUtils:
                     if x >= left:
                         vertical_asymptotes.append(x)
                     n += 1
-                    
+
         return sorted(vertical_asymptotes)
 
     @staticmethod
     def calculate_horizontal_asymptotes(function_string: str) -> List[float]:
         """Calculate horizontal asymptotes of a function"""
         from expression_validator import ExpressionValidator
-        
+
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
         horizontal_asymptotes: List[float] = []
-        
+
         try:
             # Check limit as x approaches infinity
             limit_inf = float(MathUtils.limit(function_string, 'x', 'inf'))
@@ -2322,7 +2322,7 @@ class MathUtils:
                 horizontal_asymptotes.append(limit_inf)
         except:
             pass
-            
+
         try:
             # Check limit as x approaches negative infinity
             limit_neg_inf = float(MathUtils.limit(function_string, 'x', '-inf'))
@@ -2330,7 +2330,7 @@ class MathUtils:
                 horizontal_asymptotes.append(limit_neg_inf)
         except:
             pass
-            
+
         return sorted(horizontal_asymptotes)
 
     @staticmethod
@@ -2341,7 +2341,7 @@ class MathUtils:
     ) -> Tuple[List[float], List[float], List[float]]:
         """Calculate vertical and horizontal asymptotes and point discontinuities of a function"""
         from expression_validator import ExpressionValidator
-        
+
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
         vertical_asymptotes = MathUtils.calculate_vertical_asymptotes(function_string, left_bound, right_bound)
@@ -2358,11 +2358,11 @@ class MathUtils:
         """Calculate point discontinuities of a function within given bounds"""
         import re
         from expression_validator import ExpressionValidator
-        
+
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
         point_discontinuities_set: Set[float] = set()
-        
+
         # For piecewise functions (indicated by presence of conditional operators)
         # Match both Python-style (if/else) and mathematical notation (<, >, etc.)
         if any(op in function_string for op in ['if', 'else', '<', '>', '<=', '>=', '==']):
@@ -2376,7 +2376,7 @@ class MathUtils:
             for pattern in condition_patterns:
                 matches = re.findall(pattern, function_string)
                 point_discontinuities_set.update(float(x) for x in matches)
-        
+
         # For floor and ceil functions
         if 'floor' in function_string or 'ceil' in function_string:
             # If bounds are provided, check each integer within bounds
@@ -2384,7 +2384,7 @@ class MathUtils:
                 left = math.ceil(left_bound)
                 right = math.floor(right_bound)
                 point_discontinuities_set.update(range(left, right + 1))
-        
+
         # For absolute value function at its corners
         if 'abs' in function_string:
             # Extract all arguments of abs functions
@@ -2397,10 +2397,10 @@ class MathUtils:
                     point_discontinuities_set.update(float(x) for x in zeros)
                 except:
                     pass
-        
+
         # Convert to list and sort
         point_discontinuities_list = sorted(point_discontinuities_set)
-        
+
         # Filter points within bounds if provided
         if left_bound is not None and right_bound is not None:
             point_discontinuities_list = [x for x in point_discontinuities_list if left_bound <= x <= right_bound]
@@ -2419,25 +2419,25 @@ class MathUtils:
     ) -> bool:
         """
         Check if a triangle matches the given coordinates (in any order).
-        
+
         Args:
             triangle: The triangle object to check
             x1, y1, x2, y2, x3, y3: The coordinates to match against
-            
+
         Returns:
             bool: True if the triangle matches the coordinates, False otherwise
         """
         # Get the unique vertices of the triangle
         vertices = triangle.get_vertices()
-        
+
         # Extract the coordinates from the vertices
         triangle_points = set()
         for vertex in vertices:
             triangle_points.add((vertex.x, vertex.y))
-        
+
         # Create a set of the target coordinates
         target_points = {(x1, y1), (x2, y2), (x3, y3)}
-        
+
         # Check if the sets of coordinates are the same
         return triangle_points == target_points
 
@@ -2448,11 +2448,11 @@ class MathUtils:
     ) -> Tuple[Optional[PointLike], Optional[PointLike]]:
         """Helper to find two diagonal points from a list of four points.
         Finds the pair of points that would best serve as diagonal corners of a rectangle.
-        
+
         Args:
             points: A list of four Point objects.
             rect_name_for_warning: The name of the rectangle for warning messages.
-            
+
         Returns:
             A tuple (p_diag1, p_diag2) of diagonal points, or (None, None) if not found.
         """
@@ -2461,23 +2461,23 @@ class MathUtils:
 
         # Find all possible diagonal pairs (points that differ in both x and y)
         potential_diagonals = []
-        
+
         for i in range(len(points)):
             for j in range(i + 1, len(points)):
                 p1 = points[i]
                 p2 = points[j]
-                
+
                 # Check if points differ in both x and y coordinates (potential diagonal)
                 dx = abs(p1.x - p2.x)
                 dy = abs(p1.y - p2.y)
-                
+
                 if dx > MathUtils.EPSILON and dy > MathUtils.EPSILON:
                     distance = math.sqrt(dx**2 + dy**2)
                     potential_diagonals.append((p1, p2, distance, dx, dy))
-        
+
         if not potential_diagonals:
             return None, None
-            
+
         # Sort by a combination of factors that make good rectangle diagonals:
         # 1. Prefer more balanced rectangles (closer dx/dy ratio to 1.0)
         # 2. Then by distance as secondary criterion
@@ -2490,10 +2490,10 @@ class MathUtils:
             balance_score = 1.0 / aspect_ratio  # Higher score for more balanced rectangles
             # Return tuple for sorting: (balance_score descending, distance descending)
             return (-balance_score, -distance)
-        
+
         # Sort potential diagonals by our scoring criteria
         potential_diagonals.sort(key=diagonal_score)
-        
+
         # Return the best diagonal pair
         best_diagonal = potential_diagonals[0]
         return best_diagonal[0], best_diagonal[1]
@@ -2501,11 +2501,11 @@ class MathUtils:
     @staticmethod
     def rectangular_to_polar(x: float, y: float) -> Tuple[float, float]:
         """Convert rectangular (Cartesian) coordinates to polar coordinates.
-        
+
         Args:
             x: The x-coordinate in rectangular system
             y: The y-coordinate in rectangular system
-            
+
         Returns:
             Tuple of (r, theta) where r is the radius and theta is the angle in radians.
             Theta is in the range (-pi, pi].
@@ -2517,11 +2517,11 @@ class MathUtils:
     @staticmethod
     def polar_to_rectangular(r: float, theta: float) -> Tuple[float, float]:
         """Convert polar coordinates to rectangular (Cartesian) coordinates.
-        
+
         Args:
             r: The radius (distance from origin)
             theta: The angle in radians from the positive x-axis
-            
+
         Returns:
             Tuple of (x, y) coordinates in rectangular system
         """
@@ -2538,27 +2538,27 @@ class MathUtils:
     ) -> Tuple[bool, Optional[float]]:
         """
         Detect if a function is periodic by probing for oscillations.
-        
+
         Tests the function over a range centered at 0 to detect if
         midpoints deviate from chords, indicating oscillation.
-        
+
         Args:
             eval_func: Function to evaluate y = f(x)
             test_range: Base range to test over (centered at 0)
             probe_count: Number of probe segments
             range_hint: Optional hint from function bounds to scale test_range
-            
+
         Returns:
             Tuple of (is_periodic, estimated_period or None)
         """
         # Scale test_range based on range_hint for long-period functions
         if range_hint is not None and range_hint > test_range:
             test_range = min(range_hint, 1000.0)
-        
+
         left = -test_range / 2
         segment_width = test_range / probe_count
         deviation_count = 0
-        
+
         for i in range(probe_count):
             seg_left = left + i * segment_width
             seg_right = seg_left + segment_width
@@ -2579,7 +2579,7 @@ class MathUtils:
                     deviation_count += 1
             except Exception:
                 continue
-        
+
         if deviation_count >= probe_count // 4:
             estimated_periods = deviation_count
             estimated_period = test_range / estimated_periods

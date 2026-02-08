@@ -9,25 +9,25 @@ class TestPoint(unittest.TestCase):
     def setUp(self) -> None:
         # Create a real CoordinateMapper instance
         self.coordinate_mapper = CoordinateMapper(500, 500)  # 500x500 canvas
-        
+
         # Create canvas mock with all properties that CoordinateMapper needs
         self.canvas = SimpleMock(
             width=500,  # Required by sync_from_canvas
             height=500,  # Required by sync_from_canvas
-            scale_factor=1, 
+            scale_factor=1,
             center=Position(250, 250),  # Canvas center
             cartesian2axis=SimpleMock(origin=Position(250, 250)),  # Coordinate system origin
             coordinate_mapper=self.coordinate_mapper,
             is_point_within_canvas_visible_area=SimpleMock(return_value=True),
-            zoom_point=Position(1, 1), 
-            zoom_direction=1, 
-            zoom_step=0.1, 
+            zoom_point=Position(1, 1),
+            zoom_direction=1,
+            zoom_step=0.1,
             offset=Position(0, 0)  # Set to (0,0) for simpler tests
         )
-        
+
         # Sync canvas state with coordinate mapper
         self.coordinate_mapper.sync_from_canvas(self.canvas)
-        
+
         self.point = Point(1, 2, name="p1", color="red")
 
     def test_initialize(self) -> None:
@@ -74,13 +74,13 @@ class TestPoint(unittest.TestCase):
         # Test translating the point in mathematical coordinate space
         original_math_x = self.point.x
         original_math_y = self.point.y
-        
+
         self.point.translate(2, 3)  # Translate by (2, 3) in math space
-        
+
         # Check that original position was updated
         self.assertEqual(self.point.x, original_math_x + 2)
         self.assertEqual(self.point.y, original_math_y + 3)
-        
+
         # Check that screen coordinates were recalculated
         # New math coords (3, 5) -> screen (253, 245)
         x, y = self.coordinate_mapper.math_to_screen(self.point.x, self.point.y)

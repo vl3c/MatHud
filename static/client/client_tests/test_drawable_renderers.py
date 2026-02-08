@@ -101,7 +101,7 @@ class TestVectorRenderer(unittest.TestCase):
 
         polygon_calls = [call for call in self.primitives.calls if call[0] == "fill_polygon"]
         self.assertEqual(len(polygon_calls), 1)
-        
+
         _, args, _ = polygon_calls[0]
         points = args[0]
         self.assertEqual(len(points), 3)
@@ -150,7 +150,7 @@ class TestAngleRenderer(unittest.TestCase):
 
         text_calls = [call for call in self.primitives.calls if call[0] == "draw_text"]
         self.assertGreaterEqual(len(text_calls), 1)
-        
+
         _, args, _ = text_calls[0]
         text = args[0]
         self.assertIn("°", text)
@@ -248,10 +248,10 @@ class TestEllipseRenderer(unittest.TestCase):
 
         ellipse_calls = [call for call in self.primitives.calls if call[0] == "stroke_ellipse"]
         self.assertEqual(len(ellipse_calls), 1)
-        
+
         _, args, _ = ellipse_calls[0]
         rotation_rad = args[3]
-        
+
         expected_rad = -math.radians(90)
         self.assertAlmostEqual(rotation_rad, expected_rad, places=5)
 
@@ -281,7 +281,7 @@ class TestLabelRenderer(unittest.TestCase):
 
         text_calls = [call for call in self.primitives.calls if call[0] == "draw_text"]
         self.assertGreaterEqual(len(text_calls), 1)
-        
+
         _, args, _ = text_calls[0]
         text = args[0]
         self.assertEqual(text, "Test Label")
@@ -301,7 +301,7 @@ class TestLabelRenderer(unittest.TestCase):
 
         text_calls = [call for call in self.primitives.calls if call[0] == "draw_text"]
         self.assertGreaterEqual(len(text_calls), 1)
-        
+
         _, args, _ = text_calls[0]
         font = args[2]
         self.assertEqual(font.size, 18)
@@ -309,13 +309,13 @@ class TestLabelRenderer(unittest.TestCase):
     def test_label_zoom_adjusted_font_size(self) -> None:
         from drawables.position import Position
         self.mapper.apply_zoom(0.5, Position(320, 240))
-        
+
         label = Label(2, 3, "Zoom Test", font_size=16, reference_scale_factor=1.0)
 
         shared.render_label_helper(self.primitives, label, self.mapper, self.style)
 
         text_calls = [call for call in self.primitives.calls if call[0] == "draw_text"]
-        
+
         if len(text_calls) > 0:
             _, args, _ = text_calls[0]
             font = args[2]

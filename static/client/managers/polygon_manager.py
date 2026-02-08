@@ -211,7 +211,7 @@ class PolygonManager:
             raise ValueError(f"Polygon '{polygon_name}' was not found.")
 
         pending_fields = self._collect_requested_fields(new_color)
-        policy = self._resolve_edit_policy(polygon, pending_fields)
+        self._resolve_edit_policy(polygon, pending_fields)
         self._validate_color_request(pending_fields, new_color)
 
         self.canvas.undo_redo_manager.archive()

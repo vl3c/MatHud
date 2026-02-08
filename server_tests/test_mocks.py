@@ -264,4 +264,4 @@ class MockCanvas:
             "result": result
         })
         self.computations.append(computation)
-        return computation 
+        return computation

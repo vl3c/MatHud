@@ -26,17 +26,17 @@ from drawables.drawable import Drawable
 
 class ColoredArea(Drawable):
     """Abstract base class for all colored area visualizations between geometric objects.
-    
+
     Provides the foundation for area fill operations with SVG path generation
     and common styling capabilities for opacity and color.
-    
+
     Attributes:
         opacity (float): Fill opacity value between 0.0 and 1.0
         color (str): CSS color value for area fill
     """
     def __init__(self, name: str, color: str = "lightblue", opacity: float = 0.3) -> None:
         """Initialize a colored area with basic properties.
-        
+
         Args:
             name (str): Unique identifier for the colored area
             color (str): CSS color value for area fill
@@ -73,6 +73,6 @@ class ColoredArea(Drawable):
         """
         if id(self) in memo:
             return memo[id(self)]
-        
+
         # This will be overridden by subclasses
         raise NotImplementedError("Subclasses must implement __deepcopy__")

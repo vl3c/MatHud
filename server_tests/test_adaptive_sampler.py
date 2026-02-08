@@ -15,7 +15,6 @@ sys.path.insert(0, 'static/client/rendering/renderables')
 from adaptive_sampler import (
     AdaptiveSampler,
     MAX_DEPTH,
-    PIXEL_TOLERANCE,
 )
 
 
@@ -81,7 +80,7 @@ class TestAdaptiveSamplerBasic(unittest.TestCase):
         """Test that samples cover the full range with no gaps for linear functions."""
         left, right = -10.0, 10.0
         samples = get_samples(left, right, lambda x: x, scaled_transform)
-        
+
         # First sample should be at left bound
         self.assertEqual(samples[0], left)
         # Last sample should be at right bound
@@ -93,7 +92,7 @@ class TestAdaptiveSamplerBasic(unittest.TestCase):
     def test_linear_wide_range_includes_all_points(self) -> None:
         """
         Test that y=x over a wide range still includes first point.
-        
+
         This catches the bug where panning vertically causes the lower portion
         of y=x to disappear because the first off-screen point was lost.
         """
@@ -101,10 +100,10 @@ class TestAdaptiveSamplerBasic(unittest.TestCase):
         # in screen coordinate terms depending on the transform
         left, right = -100.0, 100.0
         samples = get_samples(left, right, lambda x: x, scaled_transform)
-        
+
         self.assertEqual(samples[0], left, "First sample must be at left bound")
         self.assertEqual(samples[-1], right, "Last sample must be at right bound")
-        
+
         # Verify midpoint is included
         mid = (left + right) / 2
         self.assertIn(mid, samples, "Midpoint should be in samples")
@@ -241,7 +240,7 @@ class TestAdaptiveSamplerPerformance(unittest.TestCase):
         """Curved functions should use more samples than linear."""
         linear_samples = get_samples(-10, 10, lambda x: x, scaled_transform)
         curved_samples = get_samples(-10, 10, lambda x: x * x, scaled_transform)
-        
+
         self.assertGreater(len(curved_samples), len(linear_samples),
             f"Curved ({len(curved_samples)}) should use more samples than linear ({len(linear_samples)})")
 
@@ -264,45 +263,50 @@ class TestAdaptiveSamplerBenchmarks(unittest.TestCase):
 
     def test_linear_benchmark(self) -> None:
         """Benchmark linear function y=x."""
-        eval_func = lambda x: x
+        def eval_func(x):
+            return x
         adaptive_ms = self._time_adaptive(eval_func)
         adaptive_count = len(get_samples(self.LEFT, self.RIGHT, eval_func, scaled_transform))
-        
+
         print(f"\n### Linear (y=x): {adaptive_ms:.3f}ms, {adaptive_count} samples")
         self.assertLessEqual(adaptive_count, 20, "Linear should use minimal samples")
 
     def test_quadratic_benchmark(self) -> None:
         """Benchmark quadratic function y=x^2."""
-        eval_func = lambda x: x * x
+        def eval_func(x):
+            return x * x
         adaptive_ms = self._time_adaptive(eval_func)
         adaptive_count = len(get_samples(self.LEFT, self.RIGHT, eval_func, scaled_transform))
-        
+
         print(f"\n### Quadratic (y=x^2): {adaptive_ms:.3f}ms, {adaptive_count} samples")
 
     def test_sin_benchmark(self) -> None:
         """Benchmark sin function."""
-        eval_func = lambda x: math.sin(x)
+        def eval_func(x):
+            return math.sin(x)
         adaptive_ms = self._time_adaptive(eval_func)
         adaptive_count = len(get_samples(self.LEFT, self.RIGHT, eval_func, scaled_transform))
-        
+
         print(f"\n### Sin (y=sin(x)): {adaptive_ms:.3f}ms, {adaptive_count} samples")
 
     def test_high_amplitude_sin_benchmark(self) -> None:
         """Benchmark high amplitude sin function."""
-        eval_func = lambda x: math.sin(x) * 100
+        def eval_func(x):
+            return math.sin(x) * 100
         adaptive_ms = self._time_adaptive(eval_func)
         adaptive_count = len(get_samples(self.LEFT, self.RIGHT, eval_func, scaled_transform))
-        
+
         print(f"\n### High Amplitude Sin (y=100*sin(x)): {adaptive_ms:.3f}ms, {adaptive_count} samples")
 
     def test_high_frequency_sin_benchmark(self) -> None:
         """Benchmark high frequency sin(10x)."""
-        eval_func = lambda x: 10 * math.sin(10 * x)
+        def eval_func(x):
+            return 10 * math.sin(10 * x)
         adaptive_ms = self._time_adaptive(eval_func)
         adaptive_count = len(get_samples(self.LEFT, self.RIGHT, eval_func, scaled_transform))
-        
+
         print(f"\n### High Freq Sin (y=10*sin(10x)): {adaptive_ms:.3f}ms, {adaptive_count} samples")
-        self.assertGreater(adaptive_count, 20, 
+        self.assertGreater(adaptive_count, 20,
             f"High frequency sin should produce >20 samples, got {adaptive_count}")
 
 

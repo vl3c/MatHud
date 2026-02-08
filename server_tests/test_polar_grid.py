@@ -33,11 +33,11 @@ class Position:
 
 class MockPolarGrid:
     """Mock PolarGrid implementation for testing core logic.
-    
+
     This mirrors the essential logic of the real PolarGrid class
     without browser dependencies.
     """
-    
+
     def __init__(
         self,
         coordinate_mapper: Any,
@@ -54,15 +54,15 @@ class MockPolarGrid:
         self.width = None
         self.height = None
         self._cached_display_spacing = None
-    
+
     @property
     def class_name(self) -> str:
         return "PolarGrid"
-    
+
     @property
     def angle_step(self) -> float:
         return 2 * math.pi / self.angular_divisions
-    
+
     @property
     def origin_screen(self) -> Tuple[float, float]:
         if self.width is None or self.height is None:
@@ -70,7 +70,7 @@ class MockPolarGrid:
         ox = self.width / 2 + self.coordinate_mapper.offset.x
         oy = self.height / 2 + self.coordinate_mapper.offset.y
         return (ox, oy)
-    
+
     @property
     def max_radius_screen(self) -> float:
         if self.width is None or self.height is None:
@@ -85,22 +85,22 @@ class MockPolarGrid:
             dist = math.sqrt((cx - ox)**2 + (cy - oy)**2)
             max_dist = max(max_dist, dist)
         return max_dist * 1.1
-    
+
     @property
     def max_radius_math(self) -> float:
         return self.max_radius_screen / self.coordinate_mapper.scale_factor
-    
+
     @property
     def display_spacing(self) -> float:
         return abs(self.radial_spacing) * self.coordinate_mapper.scale_factor * 50
-    
+
     def get_angle_labels(self) -> List[Tuple[float, str]]:
         labels = []
         for i in range(self.angular_divisions):
             angle = i * self.angle_step
             labels.append((angle, f"{int(math.degrees(angle))}"))
         return labels
-    
+
     def get_radial_circles(self) -> List[float]:
         circles = []
         spacing = self.display_spacing
@@ -111,7 +111,7 @@ class MockPolarGrid:
             circles.append(n * spacing)
             n += 1
         return circles
-    
+
     def get_state(self) -> Dict[str, Any]:
         return {
             "angular_divisions": self.angular_divisions,
@@ -119,7 +119,7 @@ class MockPolarGrid:
             "show_angle_labels": self.show_angle_labels,
             "show_radius_labels": self.show_radius_labels,
         }
-    
+
     def set_state(self, state: Dict[str, Any]) -> None:
         if "angular_divisions" in state:
             self.angular_divisions = state["angular_divisions"]
@@ -129,7 +129,7 @@ class MockPolarGrid:
             self.show_angle_labels = state["show_angle_labels"]
         if "show_radius_labels" in state:
             self.show_radius_labels = state["show_radius_labels"]
-    
+
     def _invalidate_cache_on_zoom(self) -> None:
         self._cached_display_spacing = None
 
@@ -148,23 +148,23 @@ def create_mock_coordinate_mapper(
     """Create a mock CoordinateMapper with configurable properties."""
     origin_x = canvas_width / 2
     origin_y = canvas_height / 2
-    
+
     def math_to_screen(mx: float, my: float):
         sx = origin_x + mx * scale_factor + offset_x
         sy = origin_y - my * scale_factor + offset_y
         return (sx, sy)
-    
+
     def screen_to_math(sx: float, sy: float):
         mx = (sx - offset_x - origin_x) / scale_factor
         my = (origin_y + offset_y - sy) / scale_factor
         return (mx, my)
-    
+
     def scale_value(v: float):
         return v * scale_factor
-    
+
     def unscale_value(v: float):
         return v / scale_factor
-    
+
     return SimpleMock(
         canvas_width=canvas_width,
         canvas_height=canvas_height,
@@ -185,7 +185,7 @@ class TestPolarGridInitialization(unittest.TestCase):
         """Test PolarGrid initializes with correct defaults."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper)
-        
+
         self.assertEqual(grid.coordinate_mapper, mapper)
         self.assertEqual(grid.angular_divisions, 12)
         self.assertEqual(grid.radial_spacing, 1.0)
@@ -198,21 +198,21 @@ class TestPolarGridInitialization(unittest.TestCase):
         """Test PolarGrid with custom angular divisions."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper, angular_divisions=8)
-        
+
         self.assertEqual(grid.angular_divisions, 8)
 
     def test_custom_radial_spacing(self) -> None:
         """Test PolarGrid with custom radial spacing."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper, radial_spacing=2.5)
-        
+
         self.assertEqual(grid.radial_spacing, 2.5)
 
     def test_label_visibility_options(self) -> None:
         """Test PolarGrid with label visibility options."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper, show_angle_labels=False, show_radius_labels=False)
-        
+
         self.assertFalse(grid.show_angle_labels)
         self.assertFalse(grid.show_radius_labels)
 
@@ -224,10 +224,10 @@ class TestPolarGridDimensions(unittest.TestCase):
         """Test setting grid dimensions."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper)
-        
+
         grid.width = 1000
         grid.height = 800
-        
+
         self.assertEqual(grid.width, 1000)
         self.assertEqual(grid.height, 800)
 
@@ -237,7 +237,7 @@ class TestPolarGridDimensions(unittest.TestCase):
         grid = PolarGrid(mapper)
         grid.width = 800
         grid.height = 600
-        
+
         max_radius = grid.max_radius_screen
         # Should be at least the diagonal from center to corner
         expected_min = math.sqrt((400)**2 + (300)**2)
@@ -249,10 +249,10 @@ class TestPolarGridDimensions(unittest.TestCase):
         grid = PolarGrid(mapper)
         grid.width = 800
         grid.height = 600
-        
+
         max_radius_screen = grid.max_radius_screen
         max_radius_math = grid.max_radius_math
-        
+
         # Math radius should be screen radius divided by scale factor
         self.assertAlmostEqual(max_radius_math, max_radius_screen / 2.0, places=6)
 
@@ -264,7 +264,7 @@ class TestPolarGridAngularCalculations(unittest.TestCase):
         """Test angle step with 12 divisions (30 degrees each)."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper, angular_divisions=12)
-        
+
         angle_step = grid.angle_step
         self.assertAlmostEqual(angle_step, math.pi / 6, places=10)  # 30 degrees
 
@@ -272,7 +272,7 @@ class TestPolarGridAngularCalculations(unittest.TestCase):
         """Test angle step with 8 divisions (45 degrees each)."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper, angular_divisions=8)
-        
+
         angle_step = grid.angle_step
         self.assertAlmostEqual(angle_step, math.pi / 4, places=10)  # 45 degrees
 
@@ -280,7 +280,7 @@ class TestPolarGridAngularCalculations(unittest.TestCase):
         """Test angle step with 6 divisions (60 degrees each)."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper, angular_divisions=6)
-        
+
         angle_step = grid.angle_step
         self.assertAlmostEqual(angle_step, math.pi / 3, places=10)  # 60 degrees
 
@@ -288,12 +288,12 @@ class TestPolarGridAngularCalculations(unittest.TestCase):
         """Test angle label generation."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper, angular_divisions=4)
-        
+
         labels = grid.get_angle_labels()
-        
+
         # Should have 4 labels at 0, 90, 180, 270 degrees
         self.assertEqual(len(labels), 4)
-        
+
         # Check angles are evenly spaced
         angles = [label[0] for label in labels]
         expected_angles = [0, math.pi / 2, math.pi, 3 * math.pi / 2]
@@ -310,7 +310,7 @@ class TestPolarGridRadialCalculations(unittest.TestCase):
         grid = PolarGrid(mapper, radial_spacing=1.0)
         grid.width = 800
         grid.height = 600
-        
+
         display_spacing = grid.display_spacing
         # With scale_factor=1.0 and radial_spacing=1.0, display_spacing should be close to 1.0 * scale
         self.assertGreater(display_spacing, 0)
@@ -319,17 +319,17 @@ class TestPolarGridRadialCalculations(unittest.TestCase):
         """Test display spacing adjusts with zoom."""
         mapper1 = create_mock_coordinate_mapper(scale_factor=1.0)
         mapper2 = create_mock_coordinate_mapper(scale_factor=2.0)
-        
+
         grid1 = PolarGrid(mapper1, radial_spacing=1.0)
         grid2 = PolarGrid(mapper2, radial_spacing=1.0)
-        
+
         grid1.width = grid2.width = 800
         grid1.height = grid2.height = 600
-        
+
         # Display spacing should be different due to different scale factors
         spacing1 = grid1.display_spacing
         spacing2 = grid2.display_spacing
-        
+
         # With 2x zoom, display spacing should be 2x larger
         self.assertAlmostEqual(spacing2, spacing1 * 2, places=6)
 
@@ -340,12 +340,12 @@ class TestPolarGridRadialCalculations(unittest.TestCase):
         grid = PolarGrid(mapper, radial_spacing=1.0)
         grid.width = 800
         grid.height = 600
-        
+
         circles = grid.get_radial_circles()
-        
+
         # Should have multiple circles (max_radius is about 500-600 pixels, spacing is 50)
         self.assertGreater(len(circles), 0)
-        
+
         # Circles should be at regular intervals
         if len(circles) >= 2:
             spacing = circles[1] - circles[0]
@@ -362,9 +362,9 @@ class TestPolarGridOrigin(unittest.TestCase):
         grid = PolarGrid(mapper)
         grid.width = 800
         grid.height = 600
-        
+
         ox, oy = grid.origin_screen
-        
+
         # Origin should be at canvas center
         self.assertAlmostEqual(ox, 400, places=6)
         self.assertAlmostEqual(oy, 300, places=6)
@@ -378,9 +378,9 @@ class TestPolarGridOrigin(unittest.TestCase):
         grid = PolarGrid(mapper)
         grid.width = 800
         grid.height = 600
-        
+
         ox, oy = grid.origin_screen
-        
+
         # Origin should be offset from center
         self.assertAlmostEqual(ox, 450, places=6)  # 400 + 50
         self.assertAlmostEqual(oy, 270, places=6)  # 300 - 30
@@ -394,14 +394,14 @@ class TestPolarGridState(unittest.TestCase):
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper, angular_divisions=8, radial_spacing=2.0,
                         show_angle_labels=False, show_radius_labels=True)
-        
+
         state = grid.get_state()
-        
+
         self.assertIn("angular_divisions", state)
         self.assertIn("radial_spacing", state)
         self.assertIn("show_angle_labels", state)
         self.assertIn("show_radius_labels", state)
-        
+
         self.assertEqual(state["angular_divisions"], 8)
         self.assertEqual(state["radial_spacing"], 2.0)
         self.assertFalse(state["show_angle_labels"])
@@ -411,16 +411,16 @@ class TestPolarGridState(unittest.TestCase):
         """Test state restoration."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper)
-        
+
         state = {
             "angular_divisions": 6,
             "radial_spacing": 3.0,
             "show_angle_labels": False,
             "show_radius_labels": False,
         }
-        
+
         grid.set_state(state)
-        
+
         self.assertEqual(grid.angular_divisions, 6)
         self.assertEqual(grid.radial_spacing, 3.0)
         self.assertFalse(grid.show_angle_labels)
@@ -430,11 +430,11 @@ class TestPolarGridState(unittest.TestCase):
         """Test partial state restoration preserves unset values."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper, angular_divisions=12, radial_spacing=1.0)
-        
+
         # Only update some properties
         state = {"angular_divisions": 8}
         grid.set_state(state)
-        
+
         self.assertEqual(grid.angular_divisions, 8)
         self.assertEqual(grid.radial_spacing, 1.0)  # Should be unchanged
 
@@ -446,7 +446,7 @@ class TestPolarGridCacheInvalidation(unittest.TestCase):
         """Test that cache invalidation method exists and can be called."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper)
-        
+
         # Should not raise
         grid._invalidate_cache_on_zoom()
 
@@ -456,14 +456,14 @@ class TestPolarGridCacheInvalidation(unittest.TestCase):
         grid = PolarGrid(mapper)
         grid.width = 800
         grid.height = 600
-        
+
         # Access some cached properties
         _ = grid.max_radius_screen
         _ = grid.display_spacing
-        
+
         # Invalidate cache
         grid._invalidate_cache_on_zoom()
-        
+
         # Properties should still be accessible after invalidation
         max_radius = grid.max_radius_screen
         self.assertGreater(max_radius, 0)
@@ -476,7 +476,7 @@ class TestPolarGridClassName(unittest.TestCase):
         """Test class_name property returns correct value."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper)
-        
+
         self.assertEqual(grid.class_name, "PolarGrid")
 
 
@@ -499,11 +499,11 @@ class TestPolarGridEdgeCases(unittest.TestCase):
         """Test behavior with negative radial spacing."""
         mapper = create_mock_coordinate_mapper()
         grid = PolarGrid(mapper, radial_spacing=-1.0)
-        
+
         # Should use absolute value or handle gracefully
         grid.width = 800
         grid.height = 600
-        
+
         # display_spacing should be positive
         spacing = grid.display_spacing
         self.assertGreaterEqual(abs(spacing), 0)
@@ -514,7 +514,7 @@ class TestPolarGridEdgeCases(unittest.TestCase):
         grid = PolarGrid(mapper)
         grid.width = 10
         grid.height = 10
-        
+
         # Should still calculate valid values
         max_radius = grid.max_radius_screen
         self.assertGreater(max_radius, 0)
@@ -525,7 +525,7 @@ class TestPolarGridEdgeCases(unittest.TestCase):
         grid = PolarGrid(mapper)
         grid.width = 10000
         grid.height = 10000
-        
+
         max_radius = grid.max_radius_screen
         self.assertGreater(max_radius, 0)
         self.assertLess(max_radius, float('inf'))

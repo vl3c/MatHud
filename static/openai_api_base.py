@@ -42,7 +42,7 @@ ESSENTIAL_TOOLS = frozenset({
 
 def _build_search_mode_tools() -> List[FunctionDefinition]:
     """Build the minimal tool set for search mode.
-    
+
     Returns:
         List containing search_tools and essential tools only.
     """
@@ -61,7 +61,7 @@ SEARCH_MODE_TOOLS: List[FunctionDefinition] = _build_search_mode_tools()
 
 class OpenAIAPIBase:
     """Base class for OpenAI API implementations."""
-    
+
     DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. DO NOT try to perform calculations by yourself, use the tools provided instead. Always analyze the canvas state before proceeding. Canvas state is included with user messages, but after tool calls you may not receive updated state. If you need to re-check the live canvas state between actions, call get_current_canvas_state. Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
 
     @staticmethod
@@ -98,7 +98,7 @@ class OpenAIAPIBase:
         tool_mode: ToolMode = "full",
     ) -> None:
         """Initialize OpenAI API client and conversation state.
-        
+
         Args:
             model: AI model to use. Defaults to the default model.
             temperature: Sampling temperature.
@@ -120,7 +120,7 @@ class OpenAIAPIBase:
 
     def _resolve_tools(self) -> Sequence[FunctionDefinition]:
         """Resolve the active tool set based on mode and custom tools.
-        
+
         Returns:
             The appropriate tool set for the current configuration.
         """
@@ -132,7 +132,7 @@ class OpenAIAPIBase:
 
     def get_tool_mode(self) -> ToolMode:
         """Get the current tool mode.
-        
+
         Returns:
             The current tool mode ("full" or "search").
         """
@@ -140,13 +140,13 @@ class OpenAIAPIBase:
 
     def set_tool_mode(self, mode: ToolMode) -> None:
         """Set the tool mode and update available tools.
-        
+
         Args:
             mode: The tool mode to set ("full" or "search").
         """
         if mode not in ("full", "search"):
             raise ValueError(f"Invalid tool mode: {mode}. Must be 'full' or 'search'.")
-        
+
         if self._tool_mode != mode:
             self._tool_mode = mode
             # Only update tools if not using custom tools
@@ -231,7 +231,7 @@ class OpenAIAPIBase:
         for message in reversed(self.messages):
             if message.get("role") == "user" and "content" in message:
                 content = message["content"]
-                
+
                 if isinstance(content, list):
                     for part in content:
                         if isinstance(part, dict) and part.get("type") == "text":

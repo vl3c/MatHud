@@ -51,10 +51,10 @@ if TYPE_CHECKING:
 
 class AIInterface:
     """Communication bridge between the mathematical canvas and backend AI services.
-    
+
     Orchestrates the complete interaction cycle from user input to AI response processing,
     including function call execution, state management, and visual presentation.
-    
+
     Attributes:
         canvas (Canvas): Mathematical canvas for visualization and state management
         workspace_manager (WorkspaceManager): Handles workspace persistence operations
@@ -63,12 +63,12 @@ class AIInterface:
         undoable_functions (tuple): Functions that support undo/redo operations
         markdown_parser (MarkdownParser): Converts markdown text to HTML for rich formatting
     """
-    
+
     # Timeout in milliseconds for AI responses (60 seconds for local LLMs)
     AI_RESPONSE_TIMEOUT_MS: int = 60000
     # Extended timeout for reasoning models and local LLMs (5 minutes)
     REASONING_TIMEOUT_MS: int = 300000
-    
+
     # Maximum number of images per message
     MAX_ATTACHED_IMAGES: int = 5
     # Warning threshold for image size (10MB)
@@ -374,7 +374,7 @@ class AIInterface:
         """Store valid function call results in the canvas state, skipping special cases and formatting values."""
         if not ProcessFunctionCalls.validate_results(call_results):
             return
-            
+
         for key, value in call_results.items():
             # Skip storing workspace management functions and test results in computations
             if key.startswith("list_workspaces") or \
@@ -388,10 +388,10 @@ class AIInterface:
 
             # Format numeric results consistently
             if isinstance(value, (int, float)):
-                formatted_value = float(value)  # Always convert numeric values to float
+                float(value)  # Always convert numeric values to float
             else:
-                formatted_value = value
-                
+                pass
+
             # DISABLED: Saving basic calculations to canvas state (takes up too many tokens, not useful info to store)
             # self.canvas.add_computation(
             #     expression=key,  # The key is already the expression
@@ -401,7 +401,7 @@ class AIInterface:
     def _parse_markdown_to_html(self, text: str) -> str:
         """Parse markdown text to HTML using the dedicated markdown parser."""
         return cast(str, self.markdown_parser.parse(text))
-    
+
     def _render_math(self) -> None:
         """Trigger MathJax rendering for newly added content."""
         try:
@@ -409,7 +409,7 @@ class AIInterface:
             if hasattr(window, 'MathJax') and hasattr(window.MathJax, 'typesetPromise'):
                 # Re-render math in the chat history
                 window.MathJax.typesetPromise([document["chat-history"]])
-        except Exception as e:
+        except Exception:
             # MathJax not available or error occurred, continue silently
             pass
 
@@ -945,7 +945,7 @@ class AIInterface:
             try:
                 container = html.DIV(Class="chat-message normal")
                 label = html.SPAN("AI: ", Class="chat-sender ai")
-                
+
                 # Collapsible dropdown for reasoning
                 details = html.DETAILS(Class="reasoning-dropdown")
                 # Start collapsed by default (user can expand if curious)
@@ -954,16 +954,16 @@ class AIInterface:
                 reasoning_content.text = ""
                 details <= summary
                 details <= reasoning_content
-                
+
                 # Content area for the actual response (hidden initially)
                 response_content = html.DIV(Class="chat-content")
                 response_content.text = ""
-                
+
                 container <= label
                 container <= details
                 container <= response_content
                 document["chat-history"] <= container
-                
+
                 self._reasoning_element = reasoning_content
                 self._reasoning_details = details
                 self._reasoning_summary = summary
@@ -1194,11 +1194,11 @@ class AIInterface:
             # Use extended timeout for reasoning phase
             self._start_response_timeout(use_reasoning_timeout=True)
             self._is_reasoning = True
-            
+
             # Don't repeat the placeholder if we already have it
             if "(Reasoning in progress...)" in text and "(Reasoning in progress...)" in self._reasoning_buffer:
                 return
-            
+
             self._reasoning_buffer += text
             self._ensure_reasoning_element()
             if self._reasoning_element is not None:
@@ -1212,7 +1212,7 @@ class AIInterface:
         try:
             # Reset timeout since we're receiving data (use normal timeout for response)
             self._start_response_timeout(use_reasoning_timeout=False)
-            
+
             # If we were in reasoning phase, collapse the reasoning dropdown
             if self._is_reasoning and self._reasoning_details is not None:
                 try:
@@ -1223,14 +1223,14 @@ class AIInterface:
                     except Exception:
                         pass
                 self._is_reasoning = False
-            
+
             # When continuing after tool calls, clear the buffer and start fresh
             # The AI will re-state any necessary context in its new response
             # This prevents duplication when AI restates previous confirmations
             if self._needs_continuation_separator:
                 self._stream_buffer = ""
                 self._needs_continuation_separator = False
-            
+
             self._stream_buffer += text
             # Use reasoning element's response area if it exists, otherwise create normal element
             if self._stream_content_element is None and self._reasoning_element is None:
@@ -1251,7 +1251,7 @@ class AIInterface:
             # Prefer the accumulated buffer (contains all text across tool calls)
             # Only use final_message as fallback if buffer is empty
             text_to_render = self._stream_buffer if self._stream_buffer.strip() else (final_message or "")
-            
+
             # If we have reasoning content and actual text, create a combined element
             if self._reasoning_buffer and self._stream_message_container is not None:
                 # Preserve raw source for copy actions
@@ -1261,7 +1261,7 @@ class AIInterface:
                     parsed_content = self._parse_markdown_to_html(text_to_render)
                     self._stream_content_element.innerHTML = parsed_content
                     self._stream_content_element.classList.add("markdown")
-                    
+
                     # Update summary to show elapsed time and ensure dropdown stays closed
                     if self._reasoning_summary is not None and self._request_start_time is not None:
                         try:
@@ -1271,7 +1271,7 @@ class AIInterface:
                             self._reasoning_summary.text = f"Thought for {elapsed_seconds} seconds"
                         except Exception:
                             pass
-                    
+
                     # Ensure dropdown is closed
                     if self._reasoning_details is not None:
                         try:
@@ -1281,7 +1281,7 @@ class AIInterface:
                                 self._reasoning_details.attrs["open"] = False
                             except Exception:
                                 pass
-                    
+
                     self._render_math()
                     document["chat-history"].scrollTop = document["chat-history"].scrollHeight
                 else:
@@ -1331,7 +1331,7 @@ class AIInterface:
 
     def _remove_empty_response_container(self) -> None:
         """Remove the current response container if it has no actual text content.
-        
+
         This cleans up "Thinking..." boxes when the AI only performs tool calls
         without providing a text response. Never removes a container with actual text.
         """
@@ -1667,7 +1667,7 @@ class AIInterface:
 
     def _start_response_timeout(self, use_reasoning_timeout: bool = False) -> None:
         """Start a timeout that will re-enable controls if no response is received.
-        
+
         Args:
             use_reasoning_timeout: If True, use extended timeout for reasoning models
         """
@@ -1704,7 +1704,7 @@ class AIInterface:
                 self._enable_send_controls()
         except Exception as e:
             print(f"Error handling response timeout: {e}")
-    
+
     def _abort_current_stream(self) -> None:
         """Abort the current streaming connection if one is active."""
         try:
@@ -1739,7 +1739,7 @@ class AIInterface:
         except Exception as e:
             print(f"Error saving partial response: {e}")
 
-    def _process_ai_response(self, ai_message: str, tool_calls: Any, finish_reason: str) -> None:     
+    def _process_ai_response(self, ai_message: str, tool_calls: Any, finish_reason: str) -> None:
         self._debug_log_ai_response(ai_message, tool_calls, finish_reason)
 
         if finish_reason == "stop" or finish_reason == "error":
@@ -1763,7 +1763,7 @@ class AIInterface:
     def _on_complete(self, request: Any) -> None:
         """Handle request completion and process AI response."""
         try:
-            if request.status == 200 or request.status == 0:                
+            if request.status == 200 or request.status == 0:
                 # Extract data from the proper response structure
                 response_data = request.json.get('data')
                 if not response_data:
@@ -1919,7 +1919,7 @@ class AIInterface:
             prompt_json["attached_images"] = attached_images
         prompt = json.dumps(prompt_json)
         print(f'Prompt for AI (stream): {prompt[:500]}...' if len(prompt) > 500 else f'Prompt for AI (stream): {prompt}')
-        
+
         # For new user messages, reset all state including containers and buffers
         # For tool call results, preserve everything to keep intermediary text visible
         if user_message is not None and tool_call_results is None:
@@ -1969,7 +1969,7 @@ class AIInterface:
 
         # Convert to JSON string
         prompt = json.dumps(prompt_json)
-        
+
         # For new user messages, reset all state including containers and buffers
         # For tool call results, preserve everything to keep intermediary text visible
         if user_message is not None and tool_call_results is None:

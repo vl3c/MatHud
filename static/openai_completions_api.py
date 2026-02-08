@@ -25,7 +25,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
         """Create an assistant message from the API response message."""
         content = getattr(response_message, "content", "")
         assistant_message: MessageDict = {
-            "role": "assistant", 
+            "role": "assistant",
             "content": content,
         }
 
@@ -42,7 +42,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 }
                 for tool_call in tool_calls
             ]
-        
+
         return assistant_message
 
     def create_chat_completion(self, full_prompt: str) -> Any:
@@ -71,13 +71,13 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             return self._create_error_response()
 
         choice = response.choices[0]
-        
+
         assistant_message = self._create_assistant_message(choice.message)
         self.messages.append(assistant_message)
-        
+
         self._append_tool_messages(getattr(choice.message, "tool_calls", None))
         self._clean_conversation_history()
-        
+
         return choice
 
     def create_chat_completion_stream(self, full_prompt: str) -> Iterator[StreamEvent]:

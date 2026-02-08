@@ -93,7 +93,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
 
     def _convert_tools_for_responses_api(self) -> List[Dict[str, Any]]:
         """Convert Chat Completions tool format to Responses API format.
-        
+
         Chat Completions: {"type": "function", "function": {"name": ..., "description": ..., "parameters": ...}}
         Responses API: {"type": "function", "name": ..., "description": ..., "parameters": ...}
         """
@@ -111,17 +111,17 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
 
     def _convert_messages_to_input(self) -> List[Dict[str, Any]]:
         """Convert chat messages format to Responses API input format.
-        
+
         The Responses API doesn't support tool_calls in input messages.
         We convert tool call/result pairs into assistant+user message pairs.
         """
         input_messages: List[Dict[str, Any]] = []
         i = 0
-        
+
         while i < len(self.messages):
             msg = self.messages[i]
             role = msg.get("role", "user")
-            
+
             if role == "developer":
                 i = self._handle_developer_message(msg, input_messages, i)
             elif role == "assistant" and msg.get("tool_calls"):
@@ -130,7 +130,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
                 i = self._handle_orphan_tool_message(i)
             else:
                 i = self._handle_regular_message(msg, role, input_messages, i)
-        
+
         self._flush_log()
         self._log(f"[Responses API] Final input has {len(input_messages)} messages")
         self._flush_log()
@@ -151,7 +151,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         """Convert assistant tool calls and results to text message pairs."""
         tool_calls = msg.get("tool_calls", [])
         tool_results, end_index = self._collect_tool_results(index + 1)
-        
+
         if tool_results:
             assistant_msg = self._create_tool_call_description(tool_calls)
             user_msg = self._create_tool_results_message(tool_results)
@@ -208,19 +208,19 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
 
     def _collect_tool_results(self, start_index: int) -> tuple[List[str], int]:
         """Collect tool result contents starting from the given index.
-        
+
         Returns:
             Tuple of (list of result contents, index after last tool message)
         """
         tool_results: List[str] = []
         j = start_index
-        
+
         while j < len(self.messages) and self.messages[j].get("role") == "tool":
             tool_content = self.messages[j].get("content", "")
             if tool_content and tool_content != "Awaiting result...":
                 tool_results.append(tool_content)
             j += 1
-        
+
         return tool_results, j
 
     def _create_tool_call_description(self, tool_calls: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -231,7 +231,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             name = func.get("name", "unknown")
             args = func.get("arguments", "{}")
             call_descriptions.append(f"Called {name} with {args}")
-        
+
         content = "I called the following functions: " + "; ".join(call_descriptions)
         return {"role": "assistant", "content": content}
 
@@ -403,7 +403,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         call_id = getattr(item, "call_id", None)
         name = getattr(item, "name", None)
         self._log(f"[Responses API]   Function call: id={call_id}, name={name}")
-        
+
         entry = accumulator.setdefault(output_index, {"id": None, "function": {"name": "", "arguments": ""}})
         if call_id:
             entry["id"] = call_id
@@ -469,7 +469,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         """Build and return the final response event."""
         normalized = self._normalize_tool_calls(state["tool_calls_accumulator"])
         self._log(f"[Responses API] Normalized tool calls: {normalized}")
-        
+
         self._finalize_stream(state["accumulated_text"], normalized)
         ai_tool_calls = self._prepare_tool_calls_for_response(normalized)
         self._log(f"[Responses API] Final ai_tool_calls: {ai_tool_calls}")
