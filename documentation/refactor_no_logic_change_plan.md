@@ -219,6 +219,17 @@
   - Parity Result: no behavior change observed
   - Follow-ups: continue Phase 4 negative/error-path coverage across remaining extracted helper boundaries
 
+- Session ID: S-2026-02-08-13
+  - Date: 2026-02-08
+  - Goal: Continue Phase 4 focused coverage for new Responses API helper boundaries
+  - Planned Scope: add direct idempotency coverage for `_create_tool_call_entry_if_missing`
+  - Actual Scope: added helper-level idempotency test to ensure existing accumulator entries are preserved when completed response output is processed
+  - Status: `in_progress`
+  - Related Commits: `pending`
+  - Validation: `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m pytest -q server_tests/test_openai_responses_api.py` (28 passed, 3 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (765 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2319 run, 0 failures)
+  - Parity Result: no behavior change observed
+  - Follow-ups: continue Phase 4 helper/error-path test expansion for remaining extracted boundaries
+
 ### Entries
 - 2026-02-08
   - Scope: PR #16 helper extraction coverage expansion (Canvas/WorkspaceManager tests)
@@ -314,4 +325,12 @@
   - Commits: `pending`
   - Tests Run: `py_compile` for touched files; `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (764 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2319 run, 0 failures)
   - Parity Evidence: no behavior change observed; tests only validate helper guard behavior
+  - Notes/Blockers: none
+
+- 2026-02-08
+  - Scope: Phase 4 continuation - responses helper idempotency coverage (`_create_tool_call_entry_if_missing`)
+  - Status: in_progress
+  - Commits: `pending`
+  - Tests Run: `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m pytest -q server_tests/test_openai_responses_api.py` (28 passed, 3 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (765 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2319 run, 0 failures)
+  - Parity Evidence: no behavior change observed in tool-call accumulator merge semantics
   - Notes/Blockers: none

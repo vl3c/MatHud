@@ -202,6 +202,31 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         self.assertEqual(accumulator[0]["function"]["arguments"], '{"x":')
 
     @patch('static.openai_api_base.OpenAI')
+    def test_create_tool_call_entry_if_missing_is_idempotent(self, mock_openai: Mock) -> None:
+        """_create_tool_call_entry_if_missing should not replace existing entry."""
+        api = OpenAIResponsesAPI()
+        accumulator: Dict[int, Dict[str, Any]] = {}
+
+        api._create_tool_call_entry_if_missing(
+            accumulator,
+            index=3,
+            call_id="call_a",
+            name="draw",
+            arguments="{}",
+        )
+        api._create_tool_call_entry_if_missing(
+            accumulator,
+            index=3,
+            call_id="call_b",
+            name="draw2",
+            arguments='{"x":1}',
+        )
+
+        self.assertEqual(accumulator[3]["id"], "call_a")
+        self.assertEqual(accumulator[3]["function"]["name"], "draw")
+        self.assertEqual(accumulator[3]["function"]["arguments"], "{}")
+
+    @patch('static.openai_api_base.OpenAI')
     def test_extract_tool_calls(self, mock_openai: Mock) -> None:
         """Test _extract_tool_calls extracts function calls from response."""
         api = OpenAIResponsesAPI()
