@@ -227,10 +227,12 @@ def _intercept_search_tools(
 
         allowed_names = _collect_allowed_tool_names(result, ESSENTIAL_TOOLS)
 
-        # Inject tools into both APIs
+        # Inject tools into shared APIs and the active provider (if distinct).
         if result:
             app.ai_api.inject_tools(result, include_essentials=True)
             app.responses_api.inject_tools(result, include_essentials=True)
+            if provider is not None and provider not in (app.ai_api, app.responses_api):
+                provider.inject_tools(result, include_essentials=True)
 
         return _filter_tool_calls_by_allowed_names(tool_calls, allowed_names)
 

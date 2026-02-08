@@ -633,6 +633,32 @@ class TestInterceptSearchTools(unittest.TestCase):
             mock_ai_inject.assert_called_once_with(returned_tools, include_essentials=True)
             mock_resp_inject.assert_called_once_with(returned_tools, include_essentials=True)
 
+    @patch('static.tool_search_service.ToolSearchService')
+    def test_injects_tools_into_active_provider_when_distinct(self, mock_service_class: Mock) -> None:
+        """Should inject into the active non-OpenAI provider as well."""
+        from static.routes import _intercept_search_tools
+
+        mock_service = Mock()
+        returned_tools = [{'function': {'name': 'create_circle'}}]
+        mock_service.search_tools.return_value = returned_tools
+        mock_service_class.return_value = mock_service
+
+        provider = Mock()
+        provider.client = Mock()
+        provider.get_model.return_value = self.app.ai_api.get_model()
+
+        with patch.object(self.app.ai_api, 'inject_tools') as mock_ai_inject, \
+             patch.object(self.app.responses_api, 'inject_tools') as mock_resp_inject:
+            tool_calls = [
+                {'function_name': 'search_tools', 'arguments': {'query': 'circle'}},
+            ]
+
+            _intercept_search_tools(self.app, tool_calls, provider=provider)
+
+            mock_ai_inject.assert_called_once_with(returned_tools, include_essentials=True)
+            mock_resp_inject.assert_called_once_with(returned_tools, include_essentials=True)
+            provider.inject_tools.assert_called_once_with(returned_tools, include_essentials=True)
+
 
 class TestSearchToolHelpers(unittest.TestCase):
     """Helper-level tests for search tool interception/injection parsing."""
