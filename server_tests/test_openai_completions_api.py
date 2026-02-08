@@ -297,6 +297,31 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
         self.assertEqual(len(final_events), 1)
         self.assertEqual(final_events[0]["finish_reason"], "error")
 
+    @patch('static.openai_api_base.OpenAI')
+    def test_extract_choice_from_chunk_handles_missing_choices(self, mock_openai: Mock) -> None:
+        """_extract_choice_from_chunk should return None for malformed chunks."""
+        api = OpenAIChatCompletionsAPI()
+        self.assertIsNone(api._extract_choice_from_chunk(SimpleNamespace()))
+        self.assertIsNone(api._extract_choice_from_chunk(SimpleNamespace(choices=[])))
+
+    @patch('static.openai_api_base.OpenAI')
+    def test_extract_content_piece_returns_empty_for_non_string(self, mock_openai: Mock) -> None:
+        """_extract_content_piece should only return string content."""
+        api = OpenAIChatCompletionsAPI()
+        self.assertEqual(api._extract_content_piece(None), "")
+        self.assertEqual(api._extract_content_piece(SimpleNamespace(content=None)), "")
+        self.assertEqual(api._extract_content_piece(SimpleNamespace(content=123)), "")
+        self.assertEqual(api._extract_content_piece(SimpleNamespace(content="ok")), "ok")
+
+    @patch('static.openai_api_base.OpenAI')
+    def test_extract_tool_call_delta_index_defaults_to_zero(self, mock_openai: Mock) -> None:
+        """_extract_tool_call_delta_index should normalize missing/invalid indexes."""
+        api = OpenAIChatCompletionsAPI()
+        self.assertEqual(api._extract_tool_call_delta_index(SimpleNamespace(index=2)), 2)
+        self.assertEqual(api._extract_tool_call_delta_index(SimpleNamespace(index=None)), 0)
+        self.assertEqual(api._extract_tool_call_delta_index({"index": 3}), 3)
+        self.assertEqual(api._extract_tool_call_delta_index({"index": "bad"}), 0)
+
 
 class TestOpenAIChatCompletionsAPIIntegration(unittest.TestCase):
     """Integration tests that actually call the OpenAI API.

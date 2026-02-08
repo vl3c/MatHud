@@ -51,7 +51,7 @@
 
 ### Phase 4 - Coverage Expansion for New Elements
 - [ ] `todo` Inventory all newly extracted helpers/components introduced during refactor phases
-- [ ] `todo` Add focused unit tests for each new helper/component boundary
+- [ ] `in_progress` Add focused unit tests for each new helper/component boundary
 - [ ] `todo` Add negative/error-path tests for new orchestration and observability paths
 - [ ] `todo` Track per-module coverage deltas and close major gaps
 
@@ -186,6 +186,17 @@
   - Parity Result: no behavior change observed
   - Follow-ups: continue Phase 3 decomposition in remaining provider/tool-call paths; begin Phase 4 coverage inventory once Phase 3 slices stabilize
 
+- Session ID: S-2026-02-08-10
+  - Date: 2026-02-08
+  - Goal: Start Phase 4 coverage expansion for newly extracted helpers
+  - Planned Scope: add focused unit tests for new helper boundaries in `OpenAIChatCompletionsAPI`
+  - Actual Scope: added coverage for malformed chunk handling, content extraction guard behavior, and tool-call index normalization helper
+  - Status: `in_progress`
+  - Related Commits: `pending`
+  - Validation: `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m pytest -q server_tests/test_openai_completions_api.py` (17 passed, 3 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (762 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2317 run, 0 failures)
+  - Parity Result: no behavior change observed
+  - Follow-ups: continue Phase 4 across remaining newly extracted helper boundaries (statistics/dependency/openai stream helpers)
+
 ### Entries
 - 2026-02-08
   - Scope: PR #16 helper extraction coverage expansion (Canvas/WorkspaceManager tests)
@@ -257,4 +268,12 @@
   - Commits: `pending`
   - Tests Run: `py_compile` for touched files; `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m pytest -q server_tests/test_openai_completions_api.py` (14 passed, 3 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (759 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2317 run, 0 failures)
   - Parity Evidence: no behavior change observed in streamed token emission, final events, or tool-call serialization
+  - Notes/Blockers: none
+
+- 2026-02-08
+  - Scope: Phase 4 kickoff - focused unit coverage for newly extracted chat-completions helper boundaries
+  - Status: in_progress
+  - Commits: `pending`
+  - Tests Run: `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m pytest -q server_tests/test_openai_completions_api.py` (17 passed, 3 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (762 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2317 run, 0 failures)
+  - Parity Evidence: no behavior change observed; tests only exercise helper boundaries and guard branches
   - Notes/Blockers: none
