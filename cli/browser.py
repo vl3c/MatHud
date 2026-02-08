@@ -6,6 +6,7 @@ Provides headless Chrome automation using Selenium with webdriver-manager.
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Any, Optional
 
@@ -59,6 +60,9 @@ class BrowserAutomation:
         """Set up the Chrome WebDriver."""
         if self.driver is not None:
             return
+        # Keep webdriver-manager cache inside the project tree in constrained
+        # environments where $HOME is not writable.
+        os.environ.setdefault("WDM_LOCAL", "1")
 
         options = Options()
         if self.headless:

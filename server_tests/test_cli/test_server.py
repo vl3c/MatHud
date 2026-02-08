@@ -268,12 +268,59 @@ class TestServerManagerStart:
         manager = ServerManager(port=5000)
 
         with patch.object(manager, "is_server_running", return_value=False):
-            with patch.object(manager, "_is_port_available", return_value=False):
-                with patch.object(manager, "_find_listener_pid_on_port", return_value=41268):
-                    success, message = manager.start()
-                    assert success is False
-                    assert "port 5000 is already in use" in message.lower()
-                    assert "41268" in message
+            with patch.object(manager, "get_pid", return_value=None):
+                mock_path_instance = MagicMock()
+                mock_path_instance.exists.return_value = True
+                with patch("cli.server.get_python_path", return_value=mock_path_instance):
+                    with patch.object(manager, "_is_port_available", return_value=False):
+                        with patch.object(manager, "_find_listener_pid_on_port", return_value=41268):
+                            success, message = manager.start()
+                            assert success is False
+                            assert "port 5000 is already in use" in message.lower()
+                            assert "41268" in message
+
+    def test_start_auto_increment_uses_next_available_port(self) -> None:
+        """start can auto-increment to the next free port when requested."""
+        manager = ServerManager(port=5000)
+        mock_process = MagicMock()
+        mock_process.pid = 24680
+        mock_path_instance = MagicMock()
+        mock_path_instance.exists.return_value = True
+
+        with patch.object(manager, "is_server_running", return_value=False):
+            with patch.object(manager, "get_pid", return_value=None):
+                with patch("cli.server.get_python_path", return_value=mock_path_instance):
+                    with patch.object(manager, "_is_port_available", return_value=False):
+                        with patch.object(manager, "_find_next_available_port", return_value=5001):
+                            with patch("cli.server.subprocess.Popen", return_value=mock_process) as mock_popen:
+                                with patch.object(manager, "_save_pid"):
+                                    success, message = manager.start(wait=False, auto_increment_port=True)
+                                    assert success is True
+                                    assert manager.port == 5001
+                                    assert "5001" in message
+                                    popen_args = mock_popen.call_args[0][0]
+                                    assert "--port" in popen_args
+                                    assert "5001" in popen_args
+
+    def test_start_auto_increment_exhausted_returns_port_in_use(self) -> None:
+        """start returns a clear error when no fallback port is available."""
+        manager = ServerManager(port=5000)
+
+        with patch.object(manager, "is_server_running", return_value=False):
+            with patch.object(manager, "get_pid", return_value=None):
+                mock_path_instance = MagicMock()
+                mock_path_instance.exists.return_value = True
+                with patch("cli.server.get_python_path", return_value=mock_path_instance):
+                    with patch.object(manager, "_is_port_available", return_value=False):
+                        with patch.object(manager, "_find_next_available_port", return_value=None):
+                            with patch.object(manager, "_find_listener_pid_on_port", return_value=41268):
+                                success, message = manager.start(
+                                    auto_increment_port=True,
+                                    max_port_tries=3,
+                                )
+                                assert success is False
+                                assert "port 5000 is already in use" in message.lower()
+                                assert "41268" in message
 
 
 class TestServerManagerStop:

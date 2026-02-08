@@ -181,10 +181,17 @@ def run_client_tests(
     if not manager.is_server_running():
         if start_server:
             click.echo("Starting server...")
-            success, message = manager.start(wait=True)
+            success, message = manager.start(
+                wait=True,
+                auto_increment_port=True,
+                max_port_tries=25,
+            )
             if not success:
                 return {"status": "error", "error": f"Failed to start server: {message}"}
             server_was_started = True
+            # If the requested port was occupied, startup may have advanced to the next
+            # available port. Keep browser and shutdown paths aligned with the manager.
+            port = manager.port
         else:
             return {
                 "status": "error",

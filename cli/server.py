@@ -94,13 +94,38 @@ class ServerManager:
 
     def _is_port_available(self) -> bool:
         """Check whether host:port can be bound by a new process."""
+        return self._is_port_available_for(self.port)
+
+    def _is_port_available_for(self, port: int) -> bool:
+        """Check whether host:port can be bound by a new process."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
-                sock.bind((self.host, self.port))
+                sock.bind((self.host, port))
                 return True
             except OSError:
                 return False
+
+    def _set_port(self, port: int) -> None:
+        """Update active port and derived base URL."""
+        self.port = port
+        self.base_url = f"http://{self.host}:{port}"
+
+    def _find_next_available_port(self, max_attempts: int = 10) -> Optional[int]:
+        """Find next bindable port after current one.
+
+        Args:
+            max_attempts: Number of sequential ports to probe.
+
+        Returns:
+            Next available port, or None if none found in range.
+        """
+        if max_attempts <= 0:
+            return None
+        for candidate in range(self.port + 1, self.port + 1 + max_attempts):
+            if self._is_port_available_for(candidate):
+                return candidate
+        return None
 
     def _find_listener_pid_on_port(self) -> Optional[int]:
         """Best-effort lookup for PID currently listening on host:port."""
@@ -190,11 +215,19 @@ class ServerManager:
         if PID_FILE.exists():
             PID_FILE.unlink()
 
-    def start(self, wait: bool = True) -> tuple[bool, str]:
+    def start(
+        self,
+        wait: bool = True,
+        *,
+        auto_increment_port: bool = False,
+        max_port_tries: int = 10,
+    ) -> tuple[bool, str]:
         """Start the Flask server in the background.
 
         Args:
             wait: If True, wait for the server to be ready before returning.
+            auto_increment_port: If True, try next ports when requested port is occupied.
+            max_port_tries: Maximum number of next ports to try when auto incrementing.
 
         Returns:
             Tuple of (success, message).
@@ -203,22 +236,8 @@ class ServerManager:
         if self.is_server_running():
             return False, f"Server is already running at {self.base_url}"
 
-        # Fail fast when another process already owns the port.
-        if not self._is_port_available():
-            owner_pid = self._find_listener_pid_on_port()
-            if owner_pid is not None:
-                return (
-                    False,
-                    f"Port {self.port} is already in use by PID {owner_pid}. "
-                    f"Choose another port or stop that process.",
-                )
-            return (
-                False,
-                f"Port {self.port} is already in use. "
-                f"Choose another port or stop the existing listener.",
-            )
-
-        # Check for stale PID
+        # Check for stale PID before port probing, so tests/diagnostics remain deterministic
+        # even when default ports are occupied by unrelated processes.
         existing_pid = self.get_pid()
         if existing_pid:
             return False, f"Server process {existing_pid} exists but is not responding. Use 'mathud server stop' first."
@@ -227,9 +246,45 @@ class ServerManager:
         if not python_path.exists():
             return False, f"Python interpreter not found at {python_path}. Run from project root with venv activated."
 
+        # Fail fast when another process already owns the port.
+        if not self._is_port_available():
+            if auto_increment_port:
+                next_port = self._find_next_available_port(max_attempts=max_port_tries)
+                if next_port is not None:
+                    self._set_port(next_port)
+                else:
+                    owner_pid = self._find_listener_pid_on_port()
+                    if owner_pid is not None:
+                        return (
+                            False,
+                            f"Port {self.port} is already in use by PID {owner_pid}. "
+                            f"Choose another port or stop that process.",
+                        )
+                    return (
+                        False,
+                        f"Port {self.port} is already in use. "
+                        f"Choose another port or stop the existing listener.",
+                    )
+            else:
+                owner_pid = self._find_listener_pid_on_port()
+                if owner_pid is not None:
+                    return (
+                        False,
+                        f"Port {self.port} is already in use by PID {owner_pid}. "
+                        f"Choose another port or stop that process.",
+                    )
+                return (
+                    False,
+                    f"Port {self.port} is already in use. "
+                    f"Choose another port or stop the existing listener.",
+                )
+
         # Set environment to disable auth for CLI operations
         env = os.environ.copy()
         env["REQUIRE_AUTH"] = "false"
+        # Force non-debug server mode for CLI-managed processes. In constrained
+        # environments debug mode can fail due shared-memory restrictions.
+        env["PORT"] = str(self.port)
 
         # Start server as background process
         # Use CREATE_NEW_PROCESS_GROUP on Windows, start_new_session on Unix
