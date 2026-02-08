@@ -208,6 +208,17 @@
   - Parity Result: no behavior change observed
   - Follow-ups: continue Phase 3 decomposition for remaining provider/tool pipeline branches and expand Phase 4 helper/error-path coverage matrix
 
+- Session ID: S-2026-02-08-12
+  - Date: 2026-02-08
+  - Goal: Continue Phase 4 coverage expansion for observability helper guard paths
+  - Planned Scope: add direct unit coverage for `StatisticsManager` observability helper no-op/error-swallow behavior
+  - Actual Scope: added tests for logger-absent and logger-failure guard paths in statistics manager observability helper
+  - Status: `in_progress`
+  - Related Commits: `pending`
+  - Validation: `py_compile` on touched files; `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (764 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2319 run, 0 failures)
+  - Parity Result: no behavior change observed
+  - Follow-ups: continue Phase 4 negative/error-path coverage across remaining extracted helper boundaries
+
 ### Entries
 - 2026-02-08
   - Scope: PR #16 helper extraction coverage expansion (Canvas/WorkspaceManager tests)
@@ -295,4 +306,12 @@
   - Commits: `pending`
   - Tests Run: `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m pytest -q server_tests/test_openai_responses_api.py` (27 passed, 3 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (764 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2317 run, 0 failures)
   - Parity Evidence: no behavior change observed in response streaming, tool-call JSON assembly, and final finish-reason handling
+  - Notes/Blockers: none
+
+- 2026-02-08
+  - Scope: Phase 4 continuation - statistics observability helper guard/error-path coverage
+  - Status: in_progress
+  - Commits: `pending`
+  - Tests Run: `py_compile` for touched files; `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test server -q` (764 passed, 22 skipped); `/home/user/code/MatHud/workspaces/refactor-composable-architecture-phase1/venv/bin/python -m cli.main test client --start-server --port 5000 --timeout 240` (2319 run, 0 failures)
+  - Parity Evidence: no behavior change observed; tests only validate helper guard behavior
   - Notes/Blockers: none

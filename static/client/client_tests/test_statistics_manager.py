@@ -17,6 +17,11 @@ class _LoggerSpy:
         self.messages.append(str(message))
 
 
+class _LoggerRaises:
+    def debug(self, message: str) -> None:
+        raise RuntimeError(f"debug failed: {message}")
+
+
 class TestStatisticsManager(unittest.TestCase):
     def setUp(self) -> None:
         self.canvas = Canvas(500, 500, draw_enabled=False)
@@ -290,6 +295,18 @@ class TestStatisticsManager(unittest.TestCase):
             )
 
         self.assertTrue(any("operation': 'plot_distribution'" in msg and "stage': 'failure'" in msg for msg in logger_spy.messages))
+
+    def test_log_operation_debug_no_logger_is_noop(self) -> None:
+        stats = self.canvas.drawable_manager.statistics_manager
+        self.canvas.logger = None
+        # Should not raise
+        stats._log_operation_debug("plot_bars", "start", details={"x": 1})
+
+    def test_log_operation_debug_swallow_logger_debug_errors(self) -> None:
+        stats = self.canvas.drawable_manager.statistics_manager
+        self.canvas.logger = _LoggerRaises()
+        # Should not raise even when logger.debug fails
+        stats._log_operation_debug("plot_distribution", "failure", elapsed_ms=1.23)
 
     def test_plot_distribution_rejects_invalid_representation(self) -> None:
         with self.assertRaises(ValueError):
@@ -609,4 +626,3 @@ class TestStatisticsManager(unittest.TestCase):
         self.assertNotIn("PartialDiscrete_bar_0", self._names_for_class("Bar"))
         self.assertNotIn("PartialDiscrete_bar_1", self._names_for_class("Bar"))
         self.assertNotIn("PartialDiscrete_bar_2", self._names_for_class("Bar"))
-
