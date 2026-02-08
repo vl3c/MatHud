@@ -65,9 +65,14 @@ class DrawableDependencyManager:
     - Handles propagation of changes (like canvas references)
     """
 
-    def __init__(self, drawable_manager_proxy: Optional["DrawableManagerProxy"] = None) -> None:
+    def __init__(
+        self,
+        drawable_manager_proxy: Optional["DrawableManagerProxy"] = None,
+        debug_logging: bool = False,
+    ) -> None:
         """Initialize the dependency manager"""
         self.drawable_manager: Optional["DrawableManagerProxy"] = drawable_manager_proxy # Store the proxy
+        self._debug_logging: bool = bool(debug_logging)
         # Re-add internal state maps needed by other methods
         self._parents: Dict[int, Set[int]] = {}
         self._children: Dict[int, Set[int]] = {}
@@ -94,6 +99,34 @@ class DrawableDependencyManager:
             'UndirectedGraph': ['Segment', 'Point'],
             'Tree': ['Segment', 'Point'],
         }
+
+    def _describe_drawable(self, drawable: Optional["Drawable"]) -> str:
+        if drawable is None:
+            return "None"
+        class_name = drawable.get_class_name() if hasattr(drawable, "get_class_name") else type(drawable).__name__
+        name = getattr(drawable, "name", "")
+        suffix = f"({name})" if name else ""
+        return f"{class_name}{suffix}#{id(drawable)}"
+
+    def _debug_log_dependency_event(
+        self,
+        event: str,
+        *,
+        child: Optional["Drawable"] = None,
+        parent: Optional["Drawable"] = None,
+        drawable: Optional["Drawable"] = None,
+    ) -> None:
+        if not self._debug_logging:
+            return
+
+        message = f"[deps] {event}"
+        if child is not None:
+            message += f" child={self._describe_drawable(child)}"
+        if parent is not None:
+            message += f" parent={self._describe_drawable(parent)}"
+        if drawable is not None:
+            message += f" drawable={self._describe_drawable(drawable)}"
+        print(message)
 
     def _should_skip_point_point_dependency(self, child: "Drawable", parent: "Drawable") -> bool:
         """Check if a dependency registration should be skipped (e.g., Point as child of Point)."""
@@ -146,6 +179,7 @@ class DrawableDependencyManager:
 
         self._parents[child_id].add(parent_id)
         self._children[parent_id].add(child_id)
+        self._debug_log_dependency_event("register", child=child, parent=parent)
 
     def unregister_dependency(self, child: Optional["Drawable"], parent: Optional["Drawable"]) -> None:
         """
@@ -174,6 +208,7 @@ class DrawableDependencyManager:
 
         self._prune_lookup_if_orphaned(child_id)
         self._prune_lookup_if_orphaned(parent_id)
+        self._debug_log_dependency_event("unregister", child=child, parent=parent)
 
     def _prune_lookup_if_orphaned(self, drawable_id: int) -> None:
         """Drop object lookup entry when drawable has no remaining edges."""
@@ -376,6 +411,7 @@ class DrawableDependencyManager:
             del self._children[drawable_id]
         if drawable_id in self._object_lookup:
             del self._object_lookup[drawable_id]
+        self._debug_log_dependency_event("remove_drawable", drawable=drawable)
 
     def _notify_child_of_parent_removal(self, child: "Drawable", parent: "Drawable", parent_class: str) -> None:
         """Notify a child drawable that one of its parents has been removed."""

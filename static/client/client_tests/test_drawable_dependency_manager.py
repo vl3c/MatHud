@@ -540,6 +540,24 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.assertEqual(self.manager._children, {})
         self.assertEqual(self.manager._object_lookup, {})
 
+    def test_debug_logging_mode_preserves_dependency_behavior(self) -> None:
+        manager = DrawableDependencyManager(
+            drawable_manager_proxy=self.mock_drawable_manager,
+            debug_logging=True,
+        )
+        manager.register_dependency(child=self.segment1, parent=self.point1)
+        manager.register_dependency(child=self.segment1, parent=self.point2)
+
+        self.assertIn(self.point1, manager.get_parents(self.segment1))
+        self.assertIn(self.point2, manager.get_parents(self.segment1))
+
+        manager.unregister_dependency(child=self.segment1, parent=self.point2)
+        self.assertEqual(manager.get_parents(self.segment1), {self.point1})
+
+        manager.remove_drawable(self.segment1)
+        self.assertEqual(manager.get_parents(self.segment1), set())
+        self.assertEqual(manager.get_children(self.point1), set())
+
     def test_get_parents_and_children(self) -> None:
         """Test getting direct parents and children"""
         # Test empty sets
