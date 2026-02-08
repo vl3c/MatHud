@@ -1261,15 +1261,15 @@ class WorkspaceManager:
 
     def _parse_load_workspace_response(self, req: Any, name: Optional[str]) -> str:
         try:
-            response: Dict[str, Any] = json.loads(req.text)
-            if response.get('status') == 'success':
-                state: Optional[Dict[str, Any]] = response.get('data', {}).get('state')
+            response = self._response_from_request(req)
+            if self._response_is_success(response):
+                state = self._workspace_state_from_response(response)
                 if not state:
                     return f'Error loading workspace: No state data found in response'
 
                 self._restore_workspace_state(state)
                 return f'Workspace "{name if name else "current"}" loaded successfully.'
-            return f'Error loading workspace: {response.get("message")}'
+            return self._format_workspace_error("loading", response)
         except Exception as e:
             return f'Error loading workspace: {str(e)}'
 
@@ -1295,11 +1295,11 @@ class WorkspaceManager:
 
     def _parse_list_workspaces_response(self, req: Any) -> str:
         try:
-            response: Dict[str, Any] = json.loads(req.text)
-            if response.get('status') == 'success':
-                workspaces: List[str] = response.get('data', [])
+            response = self._response_from_request(req)
+            if self._response_is_success(response):
+                workspaces = self._workspace_list_from_response(response)
                 return ', '.join(workspaces) if workspaces else 'None'
-            return f'Error listing workspaces: {response.get("message")}'
+            return self._format_workspace_error("listing", response)
         except Exception as e:
             return f'Error listing workspaces: {str(e)}'
 
@@ -1329,12 +1329,27 @@ class WorkspaceManager:
 
     def _parse_delete_workspace_response(self, req: Any, name: str) -> str:
         try:
-            response: Dict[str, Any] = json.loads(req.text)
-            if response.get('status') == 'success':
+            response = self._response_from_request(req)
+            if self._response_is_success(response):
                 return f'Workspace "{name}" deleted successfully.'
-            return f'Error deleting workspace: {response.get("message")}'
+            return self._format_workspace_error("deleting", response)
         except Exception as e:
             return f'Error deleting workspace: {str(e)}'
+
+    def _response_from_request(self, req: Any) -> Dict[str, Any]:
+        return cast(Dict[str, Any], json.loads(req.text))
+
+    def _response_is_success(self, response: Dict[str, Any]) -> bool:
+        return bool(response.get("status") == "success")
+
+    def _workspace_state_from_response(self, response: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return cast(Optional[Dict[str, Any]], response.get("data", {}).get("state"))
+
+    def _workspace_list_from_response(self, response: Dict[str, Any]) -> List[str]:
+        return cast(List[str], response.get("data", []))
+
+    def _format_workspace_error(self, action_gerund: str, response: Dict[str, Any]) -> str:
+        return f'Error {action_gerund} workspace: {response.get("message")}'
 
     def _execute_sync_request(
         self,
