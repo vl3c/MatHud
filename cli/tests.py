@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -259,13 +260,41 @@ def server_cmd(
     raise SystemExit(exit_code)
 
 
+def install_pre_commit_hook() -> bool:
+    """Install the pre-commit hook from hooks/pre-commit into .git/hooks/.
+
+    Returns:
+        True if installed successfully, False otherwise.
+    """
+    source = PROJECT_ROOT / "hooks" / "pre-commit"
+    target = PROJECT_ROOT / ".git" / "hooks" / "pre-commit"
+
+    if not source.exists():
+        click.echo(click.style("Hook source not found: hooks/pre-commit", fg="red"), err=True)
+        return False
+
+    shutil.copy2(source, target)
+
+    # Make executable on Unix
+    if sys.platform != "win32":
+        target.chmod(target.stat().st_mode | 0o111)
+
+    click.echo(click.style(f"Pre-commit hook installed to {target}", fg="green"))
+    return True
+
+
 @test.command("lint")
 @click.option("--ruff-only", is_flag=True, help="Only run ruff, skip mypy")
 @click.option("--mypy-only", is_flag=True, help="Only run mypy, skip ruff")
 @click.option("--fix", is_flag=True, help="Apply ruff auto-fixes")
 @click.option("-q", "--quiet", is_flag=True, help="Decrease verbosity")
-def lint_cmd(ruff_only: bool, mypy_only: bool, fix: bool, quiet: bool) -> None:
+@click.option("--install-hook", is_flag=True, help="Install pre-commit git hook")
+def lint_cmd(ruff_only: bool, mypy_only: bool, fix: bool, quiet: bool, install_hook: bool) -> None:
     """Run linting (ruff + mypy)."""
+    if install_hook:
+        success = install_pre_commit_hook()
+        raise SystemExit(0 if success else 1)
+
     if ruff_only and mypy_only:
         click.echo(click.style("Cannot specify both --ruff-only and --mypy-only", fg="red"), err=True)
         raise SystemExit(1)
