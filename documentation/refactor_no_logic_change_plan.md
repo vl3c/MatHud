@@ -26,16 +26,16 @@
 ## Phase Plan
 
 ### Phase 0 - Baseline and Guardrails
-- [ ] `todo` Inventory oversized files/classes/methods (ranked by impact/risk)
-- [ ] `todo` Establish size thresholds and exception rules
-- [ ] `todo` Capture baseline behavior tests/golden outputs for top hotspots
-- [ ] `todo` Add/confirm refactor review checklist (no logic change gate)
+- [x] `done` Inventory oversized files/classes/methods (ranked by impact/risk)
+- [x] `done` Establish size thresholds and exception rules
+- [x] `done` Capture baseline behavior tests/golden outputs for top hotspots
+- [x] `done` Add/confirm refactor review checklist (no logic change gate)
 
 ### Phase 1 - Core Orchestrators
 - [ ] `todo` Complete remaining Canvas decomposition work
-- [ ] `todo` Complete remaining WorkspaceManager decomposition work
-- [ ] `todo` Add helper-level unit tests for extracted pure functions
-- [ ] `todo` Add orchestration-phase tests for dependency order and error handling
+- [ ] `in_progress` Complete remaining WorkspaceManager decomposition work
+- [ ] `in_progress` Add helper-level unit tests for extracted pure functions
+- [ ] `in_progress` Add orchestration-phase tests for dependency order and error handling
 
 ### Phase 2 - Managers and Services
 - [ ] `todo` Refactor oversized manager classes into composable steps
@@ -92,6 +92,39 @@
   - Parity Result: no behavior change observed
   - Follow-ups: continue Phase 1 decomposition tracking
 
+- Session ID: S-2026-02-08-02
+  - Date: 2026-02-08
+  - Goal: Complete Phase 0 baseline/guardrails for no-logic-change refactor plan
+  - Planned Scope: hotspot inventory + thresholds + baseline evidence + checklist
+  - Actual Scope: Completed as planned
+  - Status: `done`
+  - Related Commits: `pending`
+  - Validation: `/home/user/code/MatHud/venv/bin/python -m pytest -q server_tests/test_canvas_state_tool_schema.py server_tests/test_workspace_management.py server_tests/test_tool_search_service.py server_tests/client_renderer/test_renderer_support_plan.py` (91 passed)
+  - Parity Result: no behavior change observed
+  - Follow-ups: begin Phase 1 decomposition (Canvas/WorkspaceManager)
+
+- Session ID: S-2026-02-08-03
+  - Date: 2026-02-08
+  - Goal: Start Phase 1 with WorkspaceManager orchestration decomposition
+  - Planned Scope: extract save-workspace request pipeline into composable helpers + add orchestration/error tests
+  - Actual Scope: extracted `save_workspace` to helper pipeline (`_execute_sync_json_request`, payload/parse helpers); added orchestration-order and error-path tests
+  - Status: `in_progress`
+  - Related Commits: `pending`
+  - Validation: `py_compile` on modified files; targeted orchestration parity script (`phase1_workspace_orchestration_checks: PASS`); `/home/user/code/MatHud/venv/bin/python -m pytest -q server_tests/test_workspace_management.py server_tests/test_canvas_state_tool_schema.py` (22 passed)
+  - Parity Result: no behavior change observed
+  - Follow-ups: continue WorkspaceManager decomposition, then Canvas decomposition + broader client-suite validation
+
+- Session ID: S-2026-02-08-04
+  - Date: 2026-02-08
+  - Goal: Continue Phase 1 decomposition and run full test sweep
+  - Planned Scope: extract shared load/list/delete response parsing helpers; execute all server/client tests
+  - Actual Scope: added shared workspace response parser path + success-message helpers; expanded orchestration/response test coverage; ran full server suite and client CLI test command
+  - Status: `in_progress`
+  - Related Commits: `pending`
+  - Validation: `/home/user/code/MatHud/venv/bin/python -m pytest -q server_tests` (2 failed, 752 passed, 22 skipped; failures tied to occupied port 5000 environment); `/home/user/code/MatHud/venv/bin/python -m cli.main test client --start-server --port 5055 --timeout 120` (failed: server startup timeout in environment)
+  - Parity Result: no behavior change observed in workspace/canvas-related regression subsets; full-suite failures are environment-related CLI server startup checks
+  - Follow-ups: continue Phase 1 Canvas decomposition and re-run full suite in a clean port/runtime environment
+
 ### Entries
 - 2026-02-08
   - Scope: PR #16 helper extraction coverage expansion (Canvas/WorkspaceManager tests)
@@ -100,3 +133,27 @@
   - Tests Run: `venv\Scripts\python -m cli.main test client` (2313 run, 0 failures)
   - Parity Evidence: no behavior change observed; test suite remained green
   - Notes/Blockers: none
+
+- 2026-02-08
+  - Scope: Phase 0 completion artifacts (inventory, thresholds, baseline tests, no-logic-change checklist)
+  - Status: done
+  - Commits: `pending`
+  - Tests Run: `/home/user/code/MatHud/venv/bin/python -m pytest -q server_tests/test_canvas_state_tool_schema.py server_tests/test_workspace_management.py server_tests/test_tool_search_service.py server_tests/client_renderer/test_renderer_support_plan.py` (91 passed)
+  - Parity Evidence: no behavior change observed; baseline snapshot stored at `documentation/baselines/phase0_golden_outputs.json`
+  - Notes/Blockers: local venv initially missing `pytest`, `python-dotenv`, and `openai`; installed for baseline execution
+
+- 2026-02-08
+  - Scope: Phase 1 kickoff - WorkspaceManager save pipeline decomposition + orchestration/error test coverage
+  - Status: in_progress
+  - Commits: `pending`
+  - Tests Run: `py_compile` for touched files; targeted orchestration parity script (`PASS`); `/home/user/code/MatHud/venv/bin/python -m pytest -q server_tests/test_workspace_management.py server_tests/test_canvas_state_tool_schema.py` (22 passed)
+  - Parity Evidence: no behavior change observed in validated baseline subset
+  - Notes/Blockers: direct Brython client test collection requires `browser` runtime; used targeted parity script for new orchestration assertions in this environment
+
+- 2026-02-08
+  - Scope: Phase 1 continuation - shared load/list/delete response decomposition + full suite execution
+  - Status: in_progress
+  - Commits: `pending`
+  - Tests Run: `/home/user/code/MatHud/venv/bin/python -m pytest -q server_tests` (2 failed, 752 passed, 22 skipped); `/home/user/code/MatHud/venv/bin/python -m cli.main test client --start-server --port 5055 --timeout 120` (server startup timeout)
+  - Parity Evidence: targeted workspace regression subset remained green; remaining failures map to environment port/startup constraints rather than refactor logic
+  - Notes/Blockers: port `127.0.0.1:5000` occupied in runtime, impacting CLI server-start test expectations

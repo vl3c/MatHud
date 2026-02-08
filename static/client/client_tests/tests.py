@@ -103,6 +103,7 @@ from .test_arc_manager import TestArcManager
 from .test_workspace_manager import (
     TestWorkspaceLabelRestore,
     TestWorkspaceManagerHelperMethods,
+    TestWorkspaceManagerOrchestration,
     TestWorkspaceSegmentPersistence,
 )
 from .test_workspace_plots import TestWorkspacePlotsRestore

@@ -207,5 +207,158 @@ class TestWorkspaceManagerHelperMethods(unittest.TestCase):
         )
 
 
+class TestWorkspaceManagerOrchestration(unittest.TestCase):
+    def test_execute_sync_request_runs_build_open_finalize_in_order(self) -> None:
+        manager = WorkspaceManager(SimpleMock())
+        events = []
+
+        def fake_build(on_complete: object, error_prefix: str) -> str:
+            events.append(("build", error_prefix))
+            return "REQ"
+
+        def fake_open(req: object, method: str, url: str) -> None:
+            events.append(("open", req, method, url))
+
+        def fake_finalize(req: object, on_complete: object) -> str:
+            events.append(("finalize", req))
+            return "ok"
+
+        manager._build_sync_request = fake_build  # type: ignore[assignment]
+        manager._open_and_send_sync_request = fake_open  # type: ignore[assignment]
+        manager._finalize_sync_request = fake_finalize  # type: ignore[assignment]
+
+        result = manager._execute_sync_request(
+            method="GET",
+            url="/list_workspaces",
+            on_complete=lambda req: "unused",
+            error_prefix="Error listing workspaces",
+        )
+
+        self.assertEqual(result, "ok")
+        self.assertEqual(
+            events,
+            [
+                ("build", "Error listing workspaces"),
+                ("open", "REQ", "GET", "/list_workspaces"),
+                ("finalize", "REQ"),
+            ],
+        )
+
+    def test_execute_sync_json_request_runs_build_open_finalize_in_order(self) -> None:
+        manager = WorkspaceManager(SimpleMock())
+        events = []
+        payload = {"state": {"Points": []}, "name": "w1"}
+
+        def fake_build(on_complete: object, error_prefix: str) -> str:
+            events.append(("build", error_prefix))
+            return "REQ"
+
+        def fake_open(req: object, method: str, url: str, sent_payload: object) -> None:
+            events.append(("open_json", req, method, url, sent_payload))
+
+        def fake_finalize(req: object, on_complete: object) -> str:
+            events.append(("finalize", req))
+            return "ok-json"
+
+        manager._build_sync_request = fake_build  # type: ignore[assignment]
+        manager._open_and_send_sync_json_request = fake_open  # type: ignore[assignment]
+        manager._finalize_sync_request = fake_finalize  # type: ignore[assignment]
+
+        result = manager._execute_sync_json_request(
+            method="POST",
+            url="/save_workspace",
+            payload=payload,
+            on_complete=lambda req: "unused",
+            error_prefix="Error saving workspace",
+        )
+
+        self.assertEqual(result, "ok-json")
+        self.assertEqual(
+            events,
+            [
+                ("build", "Error saving workspace"),
+                ("open_json", "REQ", "POST", "/save_workspace", payload),
+                ("finalize", "REQ"),
+            ],
+        )
+
+    def test_save_workspace_uses_json_request_and_drops_bars(self) -> None:
+        state = {"Bars": [{"name": "bar1"}], "Points": [{"name": "A"}]}
+        canvas = SimpleMock(get_canvas_state=lambda: state)
+        manager = WorkspaceManager(canvas)
+        captured = {}
+
+        def fake_execute_json(
+            method: str,
+            url: str,
+            payload: dict,
+            on_complete: object,
+            error_prefix: str,
+        ) -> str:
+            captured["method"] = method
+            captured["url"] = url
+            captured["payload"] = payload
+            captured["error_prefix"] = error_prefix
+            return on_complete(SimpleMock(text='{"status":"success"}'))  # type: ignore[misc]
+
+        manager._execute_sync_json_request = fake_execute_json  # type: ignore[assignment]
+
+        result = manager.save_workspace("ws1")
+
+        self.assertEqual(result, 'Workspace "ws1" saved successfully.')
+        self.assertEqual(captured.get("method"), "POST")
+        self.assertEqual(captured.get("url"), "/save_workspace")
+        self.assertEqual(captured.get("error_prefix"), "Error saving workspace")
+        payload = captured["payload"]
+        self.assertEqual(payload["name"], "ws1")
+        self.assertNotIn("Bars", payload["state"])
+        self.assertIn("Points", payload["state"])
+
+    def test_parse_save_workspace_response_handles_invalid_json(self) -> None:
+        manager = WorkspaceManager(SimpleMock())
+        req = SimpleMock(text="{not-json")
+        message = manager._parse_save_workspace_response(req, "bad")
+        self.assertTrue(message.startswith("Error saving workspace:"))
+
+    def test_parse_load_workspace_response_success_restores_state(self) -> None:
+        manager = WorkspaceManager(SimpleMock())
+        restored = {}
+
+        def fake_restore(state: dict) -> None:
+            restored["state"] = state
+
+        manager._restore_workspace_state = fake_restore  # type: ignore[assignment]
+        req = SimpleMock(text='{"status":"success","data":{"state":{"Points":[{"name":"A"}]}}}')
+
+        message = manager._parse_load_workspace_response(req, "demo")
+
+        self.assertEqual(message, 'Workspace "demo" loaded successfully.')
+        self.assertEqual(restored.get("state"), {"Points": [{"name": "A"}]})
+
+    def test_parse_load_workspace_response_missing_state_message(self) -> None:
+        manager = WorkspaceManager(SimpleMock())
+        req = SimpleMock(text='{"status":"success","data":{}}')
+
+        message = manager._parse_load_workspace_response(req, None)
+
+        self.assertEqual(message, "Error loading workspace: No state data found in response")
+
+    def test_parse_list_workspaces_response_success_formats_csv(self) -> None:
+        manager = WorkspaceManager(SimpleMock())
+        req = SimpleMock(text='{"status":"success","data":["w1","w2"]}')
+
+        message = manager._parse_list_workspaces_response(req)
+
+        self.assertEqual(message, "w1, w2")
+
+    def test_parse_delete_workspace_response_error_uses_error_contract(self) -> None:
+        manager = WorkspaceManager(SimpleMock())
+        req = SimpleMock(text='{"status":"error","message":"missing"}')
+
+        message = manager._parse_delete_workspace_response(req, "x")
+
+        self.assertEqual(message, "Error deleting workspace: missing")
+
+
 if __name__ == "__main__":
     unittest.main()
