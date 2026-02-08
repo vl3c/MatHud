@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import tempfile
 import time
+from pathlib import Path
 from typing import Any, Optional
 
 from selenium import webdriver
@@ -55,11 +58,13 @@ class BrowserAutomation:
         self.viewport_width = viewport_width
         self.viewport_height = viewport_height
         self.driver: Optional[webdriver.Chrome] = None
+        self._profile_dir: Optional[Path] = None
 
     def setup(self) -> None:
         """Set up the Chrome WebDriver."""
         if self.driver is not None:
             return
+        runtime_root = self._ensure_writable_browser_runtime_dirs()
         # Keep webdriver-manager cache inside the project tree in constrained
         # environments where $HOME is not writable.
         os.environ.setdefault("WDM_LOCAL", "1")
@@ -76,13 +81,90 @@ class BrowserAutomation:
         # Prevent info bars
         options.add_argument("--disable-infobars")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        if os.name != "nt" and runtime_root is not None:
+            # WSL/containerized environments may fail Chrome startup if
+            # chromedriver relies on DevTools over HTTP and default profile dirs.
+            options.add_argument("--remote-debugging-pipe")
+            profiles_root = runtime_root / "profiles"
+            profiles_root.mkdir(parents=True, exist_ok=True)
+            self._profile_dir = Path(
+                tempfile.mkdtemp(prefix="chrome-profile-", dir=str(profiles_root))
+            )
+            options.add_argument(f"--user-data-dir={self._profile_dir}")
 
-        service = Service(ChromeDriverManager().install())
+        bundled = self._resolve_bundled_binaries()
+        if bundled is not None:
+            chrome_bin, driver_bin = bundled
+            options.binary_location = str(chrome_bin)
+            service = Service(executable_path=str(driver_bin))
+        else:
+            service = Service(ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=options)
         self.driver.set_window_size(self.viewport_width, self.viewport_height)
         # Set generous timeouts for long-running operations
         self.driver.set_script_timeout(300)  # 5 minutes for scripts
         self.driver.set_page_load_timeout(60)  # 1 minute for page loads
+
+    def _ensure_writable_browser_runtime_dirs(self) -> Optional[Path]:
+        """Ensure browser subprocesses use writable runtime/cache directories.
+
+        In restricted Linux/WSL environments, Chromium can fail during startup
+        when HOME or XDG paths are not writable.
+        """
+        if os.name == "nt":
+            return None
+
+        root = Path(__file__).resolve().parent.parent
+        runtime_root = root / ".tmp" / "browser-runtime"
+        home_dir = runtime_root / "home"
+        cache_dir = runtime_root / "cache"
+        config_dir = runtime_root / "config"
+        run_dir = runtime_root / "run"
+        for path in (home_dir, cache_dir, config_dir, run_dir):
+            path.mkdir(parents=True, exist_ok=True)
+
+        current_home = os.environ.get("HOME", "")
+        if not current_home or not os.access(current_home, os.W_OK):
+            os.environ["HOME"] = str(home_dir)
+
+        os.environ.setdefault("XDG_CACHE_HOME", str(cache_dir))
+        os.environ.setdefault("XDG_CONFIG_HOME", str(config_dir))
+        os.environ.setdefault("XDG_RUNTIME_DIR", str(run_dir))
+        return runtime_root
+
+    def _resolve_bundled_binaries(self) -> Optional[tuple[Path, Path]]:
+        """Return preferred Chrome/chromedriver paths when available.
+
+        Resolution order:
+        1) Explicit env vars
+        2) System-installed binaries (Fedora/Ubuntu/etc.)
+        3) Bundled project-local binaries
+        """
+        env_chrome = os.environ.get("MATHUD_CHROME_BIN", "").strip()
+        env_driver = os.environ.get("MATHUD_CHROMEDRIVER_BIN", "").strip()
+        if env_chrome and env_driver:
+            chrome = Path(env_chrome)
+            driver = Path(env_driver)
+            if chrome.exists() and driver.exists():
+                return chrome, driver
+
+        system_driver = shutil.which("chromedriver")
+        system_chrome = (
+            shutil.which("chromium")
+            or shutil.which("chromium-browser")
+            or shutil.which("google-chrome")
+            or shutil.which("google-chrome-stable")
+        )
+        if system_driver and system_chrome:
+            return Path(system_chrome), Path(system_driver)
+
+        root = Path(__file__).resolve().parent.parent
+        bundle_root = root / ".tools" / "chrome-for-testing" / "latest"
+        chrome = bundle_root / "chrome-linux64" / "chrome"
+        driver = bundle_root / "chromedriver-linux64" / "chromedriver"
+        if chrome.exists() and driver.exists():
+            return chrome, driver
+        return None
 
     def cleanup(self) -> None:
         """Clean up the WebDriver."""
@@ -92,6 +174,9 @@ class BrowserAutomation:
             except Exception:
                 pass
             self.driver = None
+        if self._profile_dir is not None:
+            shutil.rmtree(self._profile_dir, ignore_errors=True)
+            self._profile_dir = None
 
     def __enter__(self) -> "BrowserAutomation":
         """Context manager entry."""

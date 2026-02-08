@@ -60,16 +60,18 @@ if __name__ == '__main__':
 
     try:
         # Priority: CLI argument > environment variable > default (5000)
-        port = args.port or int(os.environ.get('PORT', 5000))
+        env_port = os.environ.get('PORT')
+        port = args.port if args.port is not None else int(env_port or 5000)
 
         # Store port in app config for WebDriverManager to use
         app.config['SERVER_PORT'] = port
 
         # Check if we're running in a deployment environment
-        is_deployed = os.environ.get('PORT') is not None
+        is_deployed = args.port is None and env_port is not None
+        force_non_debug = os.environ.get('MATHUD_NON_DEBUG', '').lower() in ('1', 'true', 'yes')
 
         # Enable debug mode for local development
-        debug_mode = not is_deployed  # Debug only when running locally
+        debug_mode = not (is_deployed or force_non_debug)
 
         if is_deployed:
             # For deployment: run Flask directly without threading

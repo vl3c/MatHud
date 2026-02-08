@@ -282,9 +282,9 @@ class ServerManager:
         # Set environment to disable auth for CLI operations
         env = os.environ.copy()
         env["REQUIRE_AUTH"] = "false"
-        # Force non-debug server mode for CLI-managed processes. In constrained
-        # environments debug mode can fail due shared-memory restrictions.
-        env["PORT"] = str(self.port)
+        # Force non-debug server mode for CLI-managed processes without
+        # triggering deployment-mode auth behaviors.
+        env["MATHUD_NON_DEBUG"] = "1"
 
         # Start server as background process
         # Use CREATE_NEW_PROCESS_GROUP on Windows, start_new_session on Unix
