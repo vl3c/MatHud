@@ -411,13 +411,13 @@ class ColoredAreaManager:
         self.canvas.undo_redo_manager.archive()
 
         # Remove the colored area
-        self.drawables.remove(colored_area)
+        removed = self._remove_colored_area_drawable(colored_area)
 
         # Redraw
         if self.canvas.draw_enabled:
             self.canvas.draw()
 
-        return True
+        return bool(removed)
 
     def delete_colored_areas_for_function(
         self,
@@ -460,7 +460,7 @@ class ColoredAreaManager:
 
             # Now delete the areas
             for area in areas_to_delete:
-                self.drawables.remove(area)
+                self._remove_colored_area_drawable(area)
 
             if self.canvas.draw_enabled:
                 self.canvas.draw()
@@ -507,7 +507,7 @@ class ColoredAreaManager:
             self.canvas.undo_redo_manager.archive()
 
         for area in areas_to_delete:
-            self.drawables.remove(area)
+            self._remove_colored_area_drawable(area)
 
         if self.canvas.draw_enabled:
             self.canvas.draw()
@@ -551,7 +551,7 @@ class ColoredAreaManager:
             self.canvas.undo_redo_manager.archive()
 
         for area in areas_to_delete:
-            self.drawables.remove(area)
+            self._remove_colored_area_drawable(area)
 
         if self.canvas.draw_enabled:
             self.canvas.draw()
@@ -595,7 +595,7 @@ class ColoredAreaManager:
             self.canvas.undo_redo_manager.archive()
 
         for area in areas_to_delete:
-            self.drawables.remove(area)
+            self._remove_colored_area_drawable(area)
 
         if self.canvas.draw_enabled:
             self.canvas.draw()
@@ -672,7 +672,7 @@ class ColoredAreaManager:
 
             # Now delete the areas
             for area in areas_to_delete:
-                self.drawables.remove(area)
+                self._remove_colored_area_drawable(area)
 
             if self.canvas.draw_enabled:
                 self.canvas.draw()
@@ -680,6 +680,13 @@ class ColoredAreaManager:
             return True
 
         return False
+
+    def _remove_colored_area_drawable(self, area: "Drawable") -> bool:
+        """Remove a colored-area drawable and clean dependency graph entries."""
+        removed = self.drawables.remove(area)
+        if removed and hasattr(self.dependency_manager, "remove_drawable"):
+            self.dependency_manager.remove_drawable(area)
+        return bool(removed)
 
     def get_colored_areas_for_drawable(self, drawable: Union[Function, Segment]) -> List["Drawable"]:
         """

@@ -226,13 +226,15 @@ class EllipseManager:
                 pass
 
         # Remove from drawables
-        self.drawables.remove(ellipse)
+        removed = self.drawables.remove(ellipse)
+        if removed and hasattr(self.dependency_manager, "remove_drawable"):
+            self.dependency_manager.remove_drawable(ellipse)
 
         # Redraw
         if self.canvas.draw_enabled:
             self.canvas.draw()
 
-        return True
+        return bool(removed)
 
     def update_ellipse(
         self,

@@ -272,6 +272,8 @@ class GraphManager:
             self.point_manager.delete_point_by_name(v_name)
 
         removed = self.drawables.remove(existing)
+        if removed:
+            self.dependency_manager.remove_drawable(existing)
         if removed and self.canvas.draw_enabled:
             self.canvas.draw()
         return bool(removed)
@@ -438,4 +440,3 @@ class GraphManager:
             vector = None
 
         return segment, vector
-

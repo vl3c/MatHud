@@ -216,13 +216,15 @@ class CircleManager:
                 pass
 
         # Remove from drawables
-        self.drawables.remove(circle)
+        removed = self.drawables.remove(circle)
+        if removed and hasattr(self.dependency_manager, "remove_drawable"):
+            self.dependency_manager.remove_drawable(circle)
 
         # Redraw
         if self.canvas.draw_enabled:
             self.canvas.draw()
 
-        return True
+        return bool(removed)
 
     def update_circle(
         self,

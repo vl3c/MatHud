@@ -201,13 +201,15 @@ class PointManager:
         self._delete_point_dependencies(x, y)
 
         # Now remove the point itself
-        self.drawables.remove(point)
+        removed = self.drawables.remove(point)
+        if removed and hasattr(self.dependency_manager, "remove_drawable"):
+            self.dependency_manager.remove_drawable(point)
 
         # Redraw the canvas
         if self.canvas.draw_enabled:
             self.canvas.draw()
 
-        return True
+        return bool(removed)
 
     def delete_point_by_name(self, name: str) -> bool:
         """
