@@ -19,9 +19,13 @@ class TestFunctionManager(unittest.TestCase):
                 archive=SimpleMock(),
             ),
         )
+        self.canvas.drawable_manager = SimpleMock(
+            delete_colored_areas_for_function=SimpleMock()
+        )
         self.drawables = DrawablesContainer()
         self.name_generator = SimpleMock(name="NameGeneratorMock")
         self.dependency_manager = SimpleMock(name="DependencyManagerMock")
+        self.dependency_manager.remove_drawable = SimpleMock()
         self.drawable_manager_proxy = SimpleMock(name="DrawableManagerProxyMock")
 
         self.manager = FunctionManager(
@@ -77,7 +81,15 @@ class TestFunctionManager(unittest.TestCase):
         self.assertEqual(func.left_bound, -3.0)
         self.assertEqual(func.right_bound, 4.0)
 
+    def test_delete_function_removes_dependency_entry(self) -> None:
+        func = self._add_function(name="f1")
+
+        removed = self.manager.delete_function("f1")
+
+        self.assertTrue(removed)
+        self.dependency_manager.remove_drawable.assert_called_once_with(func)
+        self.canvas.drawable_manager.delete_colored_areas_for_function.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
-

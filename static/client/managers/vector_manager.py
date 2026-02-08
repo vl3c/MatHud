@@ -261,13 +261,15 @@ class VectorManager:
                     self.canvas.drawable_manager.delete_segment(p1x, p1y, p2x, p2y)
 
                 # Remove the vector
-                self.drawables.remove(vector)
+                removed = self.drawables.remove(vector)
+                if removed and hasattr(self.dependency_manager, "remove_drawable"):
+                    self.dependency_manager.remove_drawable(vector)
 
                 # Redraw
                 if self.canvas.draw_enabled:
                     self.canvas.draw()
 
-                return True
+                return bool(removed)
         return False
 
     def update_vector(

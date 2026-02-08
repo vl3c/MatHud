@@ -164,6 +164,8 @@ class ParametricFunctionManager:
 
         # Remove from container
         result = self.drawables.remove(func)
+        if result and hasattr(self.dependency_manager, "remove_drawable"):
+            self.dependency_manager.remove_drawable(func)
 
         # Trigger render if enabled
         if result and getattr(self.canvas, "draw_enabled", False):

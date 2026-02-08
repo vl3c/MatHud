@@ -535,13 +535,17 @@ class SegmentManager:
         rectangles = self.drawables.Rectangles
         for rectangle in rectangles.copy():
             if any(MathUtils.segment_matches_coordinates(s, x1, y1, x2, y2) for s in [rectangle.segment1, rectangle.segment2, rectangle.segment3, rectangle.segment4]):
-                self.drawables.remove(rectangle) # Direct removal from container
+                removed = self.drawables.remove(rectangle)  # Direct removal from container
+                if removed and hasattr(self.dependency_manager, "remove_drawable"):
+                    self.dependency_manager.remove_drawable(rectangle)
 
         # Delete the triangles that contain the segment
         triangles = self.drawables.Triangles
         for triangle in triangles.copy():
             if any(MathUtils.segment_matches_coordinates(s, x1, y1, x2, y2) for s in [triangle.segment1, triangle.segment2, triangle.segment3]):
-                self.drawables.remove(triangle) # Direct removal from container
+                removed = self.drawables.remove(triangle)  # Direct removal from container
+                if removed and hasattr(self.dependency_manager, "remove_drawable"):
+                    self.dependency_manager.remove_drawable(triangle)
 
     def _split_segments_with_point(self, x: float, y: float) -> None:
         """

@@ -31,6 +31,7 @@ class TestParametricFunctionManager(unittest.TestCase):
             generate_parametric_function_name=SimpleMock(return_value="p1"),
         )
         self.dependency_manager = SimpleMock(name="DependencyManagerMock")
+        self.dependency_manager.remove_drawable = SimpleMock()
         self.proxy = SimpleMock(name="ProxyMock")
 
         self.manager = ParametricFunctionManager(
@@ -139,6 +140,7 @@ class TestParametricFunctionManager(unittest.TestCase):
         self.manager.delete_parametric_function("Circle")
 
         self.canvas.undo_redo_manager.archive.assert_called_once()
+        self.dependency_manager.remove_drawable.assert_called_once()
 
     def test_delete_parametric_function_returns_false_for_missing(self) -> None:
         """Test delete returns False for missing function."""

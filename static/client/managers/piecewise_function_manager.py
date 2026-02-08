@@ -166,12 +166,14 @@ class PiecewiseFunctionManager:
 
         self.canvas.undo_redo_manager.archive()
 
-        self.drawables.remove(pf)
+        removed = self.drawables.remove(pf)
+        if removed and hasattr(self.dependency_manager, "remove_drawable"):
+            self.dependency_manager.remove_drawable(pf)
 
         if self.canvas.draw_enabled:
             self.canvas.draw()
 
-        return True
+        return bool(removed)
 
     def update_piecewise_function(
         self,
@@ -257,4 +259,3 @@ class PiecewiseFunctionManager:
         """Apply validated updates to the piecewise function."""
         if "color" in pending_fields and new_color is not None:
             pf.update_color(str(new_color))
-

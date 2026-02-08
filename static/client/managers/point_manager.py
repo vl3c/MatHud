@@ -268,13 +268,17 @@ class PointManager:
         rectangles = self.drawables.Rectangles
         for rectangle in rectangles.copy():
             if any(MathUtils.segment_has_end_point(segment, x, y) for segment in [rectangle.segment1, rectangle.segment2, rectangle.segment3, rectangle.segment4]):
-                self.drawables.remove(rectangle)
+                removed = self.drawables.remove(rectangle)
+                if removed and hasattr(self.dependency_manager, "remove_drawable"):
+                    self.dependency_manager.remove_drawable(rectangle)
 
         # Delete the triangles that contain the point
         triangles = self.drawables.Triangles
         for triangle in triangles.copy():
             if any(MathUtils.segment_has_end_point(segment, x, y) for segment in [triangle.segment1, triangle.segment2, triangle.segment3]):
-                self.drawables.remove(triangle)
+                removed = self.drawables.remove(triangle)
+                if removed and hasattr(self.dependency_manager, "remove_drawable"):
+                    self.dependency_manager.remove_drawable(triangle)
 
         # Collect all segments that contain the point
         segments_to_delete: List[Segment] = []

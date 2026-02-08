@@ -209,7 +209,9 @@ class FunctionManager:
         self.canvas.undo_redo_manager.archive()
 
         # Remove the function
-        self.drawables.remove(function)
+        removed = self.drawables.remove(function)
+        if removed and hasattr(self.dependency_manager, "remove_drawable"):
+            self.dependency_manager.remove_drawable(function)
 
         # Also delete any colored areas associated with this function
         self.canvas.drawable_manager.delete_colored_areas_for_function(function, archive=False)
@@ -218,7 +220,7 @@ class FunctionManager:
         if self.canvas.draw_enabled:
             self.canvas.draw()
 
-        return True
+        return bool(removed)
 
     def update_function(
         self,

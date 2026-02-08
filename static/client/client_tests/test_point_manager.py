@@ -20,6 +20,7 @@ class TestPointManagerUpdates(unittest.TestCase):
 
         self.drawables = DrawablesContainer()
         self.dependency_manager = DrawableDependencyManager()
+        self.dependency_manager.remove_drawable = MagicMock()
         self.generated_names: list[str] = []
 
         def generate_point_name(preferred: str | None) -> str:
@@ -201,7 +202,14 @@ class TestPointManagerUpdates(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.point_manager.update_point("A", new_x=point_b.x, new_y=point_b.y)
 
+    def test_delete_point_removes_dependency_entry(self) -> None:
+        point = self.point_manager.create_point(0, 0, "A", extra_graphics=False)
+
+        removed = self.point_manager.delete_point(point.x, point.y)
+
+        self.assertTrue(removed)
+        self.dependency_manager.remove_drawable.assert_called_with(point)
+
 
 if __name__ == "__main__":
     unittest.main()
-

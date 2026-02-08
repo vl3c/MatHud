@@ -30,6 +30,7 @@ class TestEllipseManager(unittest.TestCase):
         )
         self.dependency_manager = SimpleMock(
             name="DependencyManagerMock",
+            remove_drawable=SimpleMock(),
         )
 
         self.ellipse_manager = EllipseManager(
@@ -125,7 +126,14 @@ class TestEllipseManager(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.ellipse_manager.update_ellipse("EllipseA", new_radius_x=5.0)
 
+    def test_delete_ellipse_removes_dependency_entry(self) -> None:
+        ellipse = self._add_ellipse(name="EllipseA")
+
+        removed = self.ellipse_manager.delete_ellipse("EllipseA")
+
+        self.assertTrue(removed)
+        self.dependency_manager.remove_drawable.assert_called_once_with(ellipse)
+
 
 if __name__ == "__main__":
     unittest.main()
-

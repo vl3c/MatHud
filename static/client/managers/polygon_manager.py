@@ -253,6 +253,8 @@ class PolygonManager:
                 pass
 
         removed = self.drawables.remove(target)
+        if removed and hasattr(self.dependency_manager, "remove_drawable"):
+            self.dependency_manager.remove_drawable(target)
         if removed:
             for segment in self._iter_polygon_segments(target):
                 self.segment_manager.delete_segment(
@@ -633,4 +635,3 @@ class PolygonManager:
         """Normalize vertex coordinates for comparison, rounding to mitigate floating drift."""
         rounded = {(round(float(x), 6), round(float(y), 6)) for x, y in vertices}
         return tuple(sorted(rounded))
-
