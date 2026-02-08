@@ -815,33 +815,51 @@ class WorkspaceManager:
         metadata: Any,
     ) -> Any:
         # Legacy Plot saved before subclasses existed.
-        if args.get("rectangle_names") or args.get("fill_area_names"):
-            return DiscretePlot(
-                name,
+        if self._is_legacy_discrete_plot_args(args):
+            return self._build_discrete_plot(
+                name=name,
+                args=args,
                 plot_type=plot_type,
                 distribution_type=distribution_type,
-                bar_count=args.get("bar_count"),
-                bar_labels=args.get("bar_labels"),
-                curve_color=args.get("curve_color"),
-                fill_color=args.get("fill_color"),
-                fill_opacity=args.get("fill_opacity"),
-                rectangle_names=args.get("rectangle_names"),
-                fill_area_names=args.get("fill_area_names"),
                 distribution_params=distribution_params,
                 bounds=bounds,
                 metadata=metadata,
             )
-        if args.get("function_name") or args.get("fill_area_name"):
-            return ContinuousPlot(
-                name,
+        if self._is_legacy_continuous_plot_args(args):
+            return self._build_continuous_plot(
+                name=name,
+                args=args,
                 plot_type=plot_type,
                 distribution_type=distribution_type,
-                function_name=args.get("function_name"),
-                fill_area_name=args.get("fill_area_name"),
                 distribution_params=distribution_params,
                 bounds=bounds,
                 metadata=metadata,
             )
+        return self._build_base_plot(
+            name=name,
+            plot_type=plot_type,
+            distribution_type=distribution_type,
+            distribution_params=distribution_params,
+            bounds=bounds,
+            metadata=metadata,
+        )
+
+    def _is_legacy_discrete_plot_args(self, args: Dict[str, Any]) -> bool:
+        return bool(args.get("rectangle_names") or args.get("fill_area_names"))
+
+    def _is_legacy_continuous_plot_args(self, args: Dict[str, Any]) -> bool:
+        return bool(args.get("function_name") or args.get("fill_area_name"))
+
+    def _build_base_plot(
+        self,
+        *,
+        name: str,
+        plot_type: str,
+        distribution_type: Any,
+        distribution_params: Any,
+        bounds: Any,
+        metadata: Any,
+    ) -> Plot:
         return Plot(
             name,
             plot_type=plot_type,
