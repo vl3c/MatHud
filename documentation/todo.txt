@@ -95,3 +95,6 @@ _Elaborates on P0 goals with ongoing design principles._
 
 ## Static Typing Rollout
 - add type stubs or protocols for Brython `browser` module usage in client code
+
+## Recent Completions
+- 2026-02-08: expanded client unit-test coverage for PR #16 helper extractions (Canvas/WorkspaceManager pure helpers), integrated into the Brython client test suite, and verified via `venv\Scripts\python -m cli.main test client` (2313 tests, 0 failures).
