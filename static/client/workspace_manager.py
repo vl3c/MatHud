@@ -1051,10 +1051,13 @@ class WorkspaceManager:
         if "computations" not in state:
             return
         for comp in state["computations"]:
-            # Skip workspace management functions
-            if self._is_workspace_management_expression(comp["expression"]):
-                continue
-            self.canvas.add_computation(comp["expression"], comp["result"])
+            self._restore_computation_if_applicable(comp)
+
+    def _restore_computation_if_applicable(self, comp: Dict[str, Any]) -> None:
+        # Skip workspace management functions
+        if self._is_workspace_management_expression(comp["expression"]):
+            return
+        self.canvas.add_computation(comp["expression"], comp["result"])
 
     def _is_workspace_management_expression(self, expression: str) -> bool:
         return (
@@ -1360,7 +1363,7 @@ class WorkspaceManager:
     ) -> str:
         req = self._build_sync_request(on_complete, error_prefix)
         self._open_and_send_sync_request(req, method, url)
-        return on_complete(req)
+        return self._finalize_sync_request(req, on_complete)
 
     def _build_sync_request(
         self,
@@ -1375,3 +1378,6 @@ class WorkspaceManager:
     def _open_and_send_sync_request(self, req: Any, method: str, url: str) -> None:
         req.open(method, url, False)  # Set to synchronous
         req.send()
+
+    def _finalize_sync_request(self, req: Any, on_complete: Callable[[Any], str]) -> str:
+        return on_complete(req)
