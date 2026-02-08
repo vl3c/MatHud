@@ -74,5 +74,57 @@ class TestDrawableManagerRegionLookup(unittest.TestCase):
         self.assertEqual(order, ["a", "b", "c"])
 
 
+class TestDrawableManagerColoredAreaDelegation(unittest.TestCase):
+    def _build_manager(self) -> DrawableManager:
+        manager = DrawableManager.__new__(DrawableManager)
+        manager.colored_area_manager = SimpleMock(
+            delete_colored_areas_for_function=SimpleMock(),
+            delete_colored_areas_for_segment=SimpleMock(),
+            delete_colored_areas_for_circle=SimpleMock(),
+            delete_colored_areas_for_ellipse=SimpleMock(),
+            delete_colored_areas_for_circle_arc=SimpleMock(),
+            delete_region_expression_colored_areas_referencing_name=SimpleMock(),
+        )
+        return manager
+
+    def test_delete_colored_areas_for_function_delegates(self) -> None:
+        manager = self._build_manager()
+        target = object()
+        manager.delete_colored_areas_for_function(target, archive=False)
+        manager.colored_area_manager.delete_colored_areas_for_function.assert_called_once_with(target, archive=False)
+
+    def test_delete_colored_areas_for_segment_delegates(self) -> None:
+        manager = self._build_manager()
+        target = object()
+        manager.delete_colored_areas_for_segment(target, archive=True)
+        manager.colored_area_manager.delete_colored_areas_for_segment.assert_called_once_with(target, archive=True)
+
+    def test_delete_colored_areas_for_circle_delegates(self) -> None:
+        manager = self._build_manager()
+        target = object()
+        manager.delete_colored_areas_for_circle(target, archive=False)
+        manager.colored_area_manager.delete_colored_areas_for_circle.assert_called_once_with(target, archive=False)
+
+    def test_delete_colored_areas_for_ellipse_delegates(self) -> None:
+        manager = self._build_manager()
+        target = object()
+        manager.delete_colored_areas_for_ellipse(target, archive=False)
+        manager.colored_area_manager.delete_colored_areas_for_ellipse.assert_called_once_with(target, archive=False)
+
+    def test_delete_colored_areas_for_circle_arc_delegates(self) -> None:
+        manager = self._build_manager()
+        target = object()
+        manager.delete_colored_areas_for_circle_arc(target, archive=True)
+        manager.colored_area_manager.delete_colored_areas_for_circle_arc.assert_called_once_with(target, archive=True)
+
+    def test_delete_region_expression_colored_areas_referencing_name_delegates(self) -> None:
+        manager = self._build_manager()
+        manager.delete_region_expression_colored_areas_referencing_name("A", archive=False)
+        manager.colored_area_manager.delete_region_expression_colored_areas_referencing_name.assert_called_once_with(
+            "A",
+            archive=False,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

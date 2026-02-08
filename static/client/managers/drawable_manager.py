@@ -806,27 +806,35 @@ class DrawableManager:
 
     def delete_colored_areas_for_function(self, func: "Drawable", *, archive: bool = True) -> None:
         """Delete all colored areas associated with a function."""
-        self.colored_area_manager.delete_colored_areas_for_function(func, archive=archive)
+        self._delete_colored_areas_for_target("delete_colored_areas_for_function", func, archive=archive)
 
     def delete_colored_areas_for_segment(self, segment: "Drawable", *, archive: bool = True) -> None:
         """Delete all colored areas associated with a segment."""
-        self.colored_area_manager.delete_colored_areas_for_segment(segment, archive=archive)
+        self._delete_colored_areas_for_target("delete_colored_areas_for_segment", segment, archive=archive)
 
     def delete_colored_areas_for_circle(self, circle: "Drawable", *, archive: bool = True) -> None:
         """Delete all colored areas associated with a circle."""
-        self.colored_area_manager.delete_colored_areas_for_circle(circle, archive=archive)
+        self._delete_colored_areas_for_target("delete_colored_areas_for_circle", circle, archive=archive)
 
     def delete_colored_areas_for_ellipse(self, ellipse: "Drawable", *, archive: bool = True) -> None:
         """Delete all colored areas associated with an ellipse."""
-        self.colored_area_manager.delete_colored_areas_for_ellipse(ellipse, archive=archive)
+        self._delete_colored_areas_for_target("delete_colored_areas_for_ellipse", ellipse, archive=archive)
 
     def delete_colored_areas_for_circle_arc(self, arc: "Drawable", *, archive: bool = True) -> None:
         """Delete all colored areas associated with a circle arc (expression-based regions)."""
-        self.colored_area_manager.delete_colored_areas_for_circle_arc(arc, archive=archive)
+        self._delete_colored_areas_for_target("delete_colored_areas_for_circle_arc", arc, archive=archive)
 
     def delete_region_expression_colored_areas_referencing_name(self, name: str, *, archive: bool = True) -> None:
         """Delete any region-expression colored areas that reference a specific drawable name."""
-        self.colored_area_manager.delete_region_expression_colored_areas_referencing_name(name, archive=archive)
+        self._delete_colored_areas_for_target(
+            "delete_region_expression_colored_areas_referencing_name",
+            name,
+            archive=archive,
+        )
+
+    def _delete_colored_areas_for_target(self, method_name: str, target: Any, *, archive: bool) -> None:
+        deletion_method = getattr(self.colored_area_manager, method_name)
+        deletion_method(target, archive=archive)
 
     def get_colored_areas_for_drawable(self, drawable: "Drawable") -> List["Drawable"]:
         """Get all colored areas associated with a drawable"""
