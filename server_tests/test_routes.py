@@ -629,5 +629,48 @@ class TestInterceptSearchTools(unittest.TestCase):
             mock_resp_inject.assert_called_once_with(returned_tools, include_essentials=True)
 
 
+class TestSearchToolHelpers(unittest.TestCase):
+    """Helper-level tests for search tool interception/injection parsing."""
+
+    def test_extract_search_query_and_limit_handles_json_args(self) -> None:
+        from static.routes import _extract_search_query_and_limit
+
+        call = {"function_name": "search_tools", "arguments": '{"query":"area","max_results":3}'}
+        query, limit = _extract_search_query_and_limit(call)
+        self.assertEqual(query, "area")
+        self.assertEqual(limit, 3)
+
+    def test_extract_search_query_and_limit_defaults_on_invalid(self) -> None:
+        from static.routes import _extract_search_query_and_limit
+
+        call = {"function_name": "search_tools", "arguments": "not-json"}
+        query, limit = _extract_search_query_and_limit(call)
+        self.assertEqual(query, "")
+        self.assertEqual(limit, 10)
+
+    def test_extract_injectable_tools_returns_tools_payload(self) -> None:
+        from static.routes import _extract_injectable_tools
+
+        payload = json.dumps(
+            {
+                "tool_call_1": {
+                    "query": "circle",
+                    "tools": [{"function": {"name": "create_circle"}}],
+                }
+            }
+        )
+        tools = _extract_injectable_tools(payload)
+        self.assertIsNotNone(tools)
+        assert tools is not None
+        self.assertEqual(tools[0]["function"]["name"], "create_circle")
+
+    def test_extract_injectable_tools_ignores_non_search_payload(self) -> None:
+        from static.routes import _extract_injectable_tools
+
+        payload = json.dumps({"tool_call_1": {"value": 123}})
+        tools = _extract_injectable_tools(payload)
+        self.assertIsNone(tools)
+
+
 if __name__ == '__main__':
     unittest.main()

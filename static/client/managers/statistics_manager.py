@@ -15,7 +15,8 @@ Key Features:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+import time
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from constants import default_area_fill_color, default_area_opacity
 from drawables.bars_plot import BarsPlot
@@ -53,6 +54,40 @@ class StatisticsManager:
         self.function_manager = function_manager
         self.colored_area_manager = colored_area_manager
 
+    def _get_debug_logger(self) -> Optional[Any]:
+        """Return canvas logger when it supports debug logging."""
+        logger = getattr(self.canvas, "logger", None)
+        if logger is None:
+            return None
+        if not callable(getattr(logger, "debug", None)):
+            return None
+        return logger
+
+    def _log_operation_debug(
+        self,
+        operation: str,
+        stage: str,
+        elapsed_ms: Optional[float] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Best-effort observability log for orchestration boundaries."""
+        logger = self._get_debug_logger()
+        if logger is None:
+            return
+        payload: Dict[str, Any] = {
+            "component": "statistics_manager",
+            "operation": operation,
+            "stage": stage,
+        }
+        if elapsed_ms is not None:
+            payload["elapsed_ms"] = round(float(elapsed_ms), 3)
+        if details:
+            payload.update(details)
+        try:
+            logger.debug(f"[statistics_manager] {payload}")
+        except Exception:
+            pass
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -70,112 +105,141 @@ class StatisticsManager:
         fill_opacity: Optional[float],
         bar_count: Optional[float],
     ) -> Dict[str, Any]:
-        dist = str(distribution_type or "").strip().lower()
-        if dist != "normal":
-            raise ValueError(f"Unsupported distribution_type '{distribution_type}'")
-
-        rep = str(representation or "").strip().lower()
-        if rep not in ("continuous", "discrete"):
-            raise ValueError("representation must be 'continuous' or 'discrete'")
-
-        mean, sigma = self._parse_normal_params(distribution_params)
-        plot_bounds_dict = plot_bounds if isinstance(plot_bounds, dict) else {}
-        plot_left_raw = plot_bounds_dict.get("left_bound")
-        plot_right_raw = plot_bounds_dict.get("right_bound")
-        resolved_left, resolved_right = self._resolve_bounds(mean, sigma, plot_left_raw, plot_right_raw)
-
-        plot_name = self._generate_unique_name(
-            self.name_generator.filter_string(name or "") or "normal_plot"
+        started_at = time.perf_counter()
+        self._log_operation_debug(
+            "plot_distribution",
+            "start",
+            details={
+                "representation": str(representation or ""),
+                "distribution_type": str(distribution_type or ""),
+            },
         )
+        result_payload: Optional[Dict[str, Any]] = None
+        try:
+            dist = str(distribution_type or "").strip().lower()
+            if dist != "normal":
+                raise ValueError(f"Unsupported distribution_type '{distribution_type}'")
 
-        if rep == "discrete":
-            return self._plot_distribution_discrete(
-                plot_name=plot_name,
-                distribution_type=dist,
-                mean=mean,
-                sigma=sigma,
-                left_bound=resolved_left,
-                right_bound=resolved_right,
-                curve_color=curve_color,
-                fill_color=fill_color,
-                fill_opacity=fill_opacity,
-                bar_count=bar_count,
+            rep = str(representation or "").strip().lower()
+            if rep not in ("continuous", "discrete"):
+                raise ValueError("representation must be 'continuous' or 'discrete'")
+
+            mean, sigma = self._parse_normal_params(distribution_params)
+            plot_bounds_dict = plot_bounds if isinstance(plot_bounds, dict) else {}
+            plot_left_raw = plot_bounds_dict.get("left_bound")
+            plot_right_raw = plot_bounds_dict.get("right_bound")
+            resolved_left, resolved_right = self._resolve_bounds(mean, sigma, plot_left_raw, plot_right_raw)
+
+            plot_name = self._generate_unique_name(
+                self.name_generator.filter_string(name or "") or "normal_plot"
             )
 
-        expression = normal_pdf_expression(mean, sigma)
+            if rep == "discrete":
+                result_payload = self._plot_distribution_discrete(
+                    plot_name=plot_name,
+                    distribution_type=dist,
+                    mean=mean,
+                    sigma=sigma,
+                    left_bound=resolved_left,
+                    right_bound=resolved_right,
+                    curve_color=curve_color,
+                    fill_color=fill_color,
+                    fill_opacity=fill_opacity,
+                    bar_count=bar_count,
+                )
+                return result_payload
 
-        function_preferred = f"{plot_name}_pdf"
-        function_name = self.name_generator.generate_function_name(function_preferred)
-        function_obj = self.function_manager.draw_function(
-            expression,
-            name=function_name,
-            left_bound=resolved_left,
-            right_bound=resolved_right,
-            color=curve_color,
-        )
-        function_name = getattr(function_obj, "name", function_name)
+            expression = normal_pdf_expression(mean, sigma)
 
-        shade_left = resolved_left
-        shade_right = resolved_right
-        shade_bounds_dict = shade_bounds if isinstance(shade_bounds, dict) else {}
-        if shade_bounds_dict:
-            shade_left_raw = shade_bounds_dict.get("left_bound")
-            shade_right_raw = shade_bounds_dict.get("right_bound")
-            if shade_left_raw is not None:
-                shade_left = float(shade_left_raw)
-            if shade_right_raw is not None:
-                shade_right = float(shade_right_raw)
-            if not math.isfinite(shade_left) or not math.isfinite(shade_right):
-                raise ValueError("shade_bounds left_bound and right_bound must be finite")
+            function_preferred = f"{plot_name}_pdf"
+            function_name = self.name_generator.generate_function_name(function_preferred)
+            function_obj = self.function_manager.draw_function(
+                expression,
+                name=function_name,
+                left_bound=resolved_left,
+                right_bound=resolved_right,
+                color=curve_color,
+            )
+            function_name = getattr(function_obj, "name", function_name)
 
-        # Clamp shade interval into plot interval.
-        shade_left = max(resolved_left, shade_left)
-        shade_right = min(resolved_right, shade_right)
-        if shade_left >= shade_right:
-            raise ValueError("shade_bounds must define a non-empty interval within plot_bounds")
+            shade_left = resolved_left
+            shade_right = resolved_right
+            shade_bounds_dict = shade_bounds if isinstance(shade_bounds, dict) else {}
+            if shade_bounds_dict:
+                shade_left_raw = shade_bounds_dict.get("left_bound")
+                shade_right_raw = shade_bounds_dict.get("right_bound")
+                if shade_left_raw is not None:
+                    shade_left = float(shade_left_raw)
+                if shade_right_raw is not None:
+                    shade_right = float(shade_right_raw)
+                if not math.isfinite(shade_left) or not math.isfinite(shade_right):
+                    raise ValueError("shade_bounds left_bound and right_bound must be finite")
 
-        area = self.colored_area_manager.create_colored_area(
-            drawable1_name=function_name,
-            drawable2_name=None,
-            left_bound=shade_left,
-            right_bound=shade_right,
-            color=self._normalize_fill_color(fill_color),
-            opacity=self._normalize_fill_opacity(fill_opacity),
-        )
+            # Clamp shade interval into plot interval.
+            shade_left = max(resolved_left, shade_left)
+            shade_right = min(resolved_right, shade_right)
+            if shade_left >= shade_right:
+                raise ValueError("shade_bounds must define a non-empty interval within plot_bounds")
 
-        fill_area_name = self._generate_unique_name(f"{plot_name}_fill")
-        try:
-            area.name = fill_area_name
-        except Exception:
-            fill_area_name = getattr(area, "name", fill_area_name)
+            area = self.colored_area_manager.create_colored_area(
+                drawable1_name=function_name,
+                drawable2_name=None,
+                left_bound=shade_left,
+                right_bound=shade_right,
+                color=self._normalize_fill_color(fill_color),
+                opacity=self._normalize_fill_opacity(fill_opacity),
+            )
 
-        plot = ContinuousPlot(
-            plot_name,
-            plot_type="distribution",
-            distribution_type=dist,
-            function_name=function_name,
-            fill_area_name=fill_area_name,
-            distribution_params={"mean": mean, "sigma": sigma},
-            bounds={"left": resolved_left, "right": resolved_right},
-        )
-        self.drawables.add(plot)
+            fill_area_name = self._generate_unique_name(f"{plot_name}_fill")
+            try:
+                area.name = fill_area_name
+            except Exception:
+                fill_area_name = getattr(area, "name", fill_area_name)
 
-        # Non-renderable composite; dependency analyzer currently ignores it but keep call for symmetry.
-        try:
-            self.dependency_manager.analyze_drawable_for_dependencies(plot)
-        except Exception:
-            pass
+            plot = ContinuousPlot(
+                plot_name,
+                plot_type="distribution",
+                distribution_type=dist,
+                function_name=function_name,
+                fill_area_name=fill_area_name,
+                distribution_params={"mean": mean, "sigma": sigma},
+                bounds={"left": resolved_left, "right": resolved_right},
+            )
+            self.drawables.add(plot)
 
-        return {
-            "plot_name": plot_name,
-            "representation": "continuous",
-            "distribution_type": dist,
-            "distribution_params": {"mean": mean, "sigma": sigma},
-            "bounds": {"left": resolved_left, "right": resolved_right},
-            "shade_bounds": {"left": shade_left, "right": shade_right},
-            "function_name": function_name,
-            "fill_area_name": fill_area_name,
-        }
+            # Non-renderable composite; dependency analyzer currently ignores it but keep call for symmetry.
+            try:
+                self.dependency_manager.analyze_drawable_for_dependencies(plot)
+            except Exception:
+                pass
+
+            result_payload = {
+                "plot_name": plot_name,
+                "representation": "continuous",
+                "distribution_type": dist,
+                "distribution_params": {"mean": mean, "sigma": sigma},
+                "bounds": {"left": resolved_left, "right": resolved_right},
+                "shade_bounds": {"left": shade_left, "right": shade_right},
+                "function_name": function_name,
+                "fill_area_name": fill_area_name,
+            }
+            return result_payload
+        except Exception as exc:
+            self._log_operation_debug(
+                "plot_distribution",
+                "failure",
+                elapsed_ms=(time.perf_counter() - started_at) * 1000.0,
+                details={"error": str(exc)},
+            )
+            raise
+        finally:
+            if result_payload is not None:
+                self._log_operation_debug(
+                    "plot_distribution",
+                    "end",
+                    elapsed_ms=(time.perf_counter() - started_at) * 1000.0,
+                    details={"plot_name": result_payload.get("plot_name", "")},
+                )
 
     def plot_bars(
         self,
@@ -192,35 +256,43 @@ class StatisticsManager:
         x_start: Optional[float],
         y_base: Optional[float],
     ) -> Dict[str, Any]:
-        if not isinstance(values, list) or not values:
-            raise ValueError("values must be a non-empty list")
-        if not isinstance(labels_below, list) or len(labels_below) != len(values):
-            raise ValueError("labels_below length must match values length")
-        if labels_above is not None:
-            if not isinstance(labels_above, list) or len(labels_above) != len(values):
-                raise ValueError("labels_above length must match values length")
-
-        spacing = 0.2 if bar_spacing is None else float(bar_spacing)
-        if not math.isfinite(spacing) or spacing < 0.0:
-            raise ValueError("bar_spacing must be a finite number >= 0")
-
-        width = 1.0 if bar_width is None else float(bar_width)
-        if not math.isfinite(width) or width <= 0.0:
-            raise ValueError("bar_width must be a finite number > 0")
-
-        x0 = 0.0 if x_start is None else float(x_start)
-        if not math.isfinite(x0):
-            raise ValueError("x_start must be finite")
-
-        y0 = 0.0 if y_base is None else float(y_base)
-        if not math.isfinite(y0):
-            raise ValueError("y_base must be finite")
-
-        plot_name = self._generate_unique_name(
-            self.name_generator.filter_string(name or "") or "bars_plot"
+        started_at = time.perf_counter()
+        self._log_operation_debug(
+            "plot_bars",
+            "start",
+            details={"requested_bar_count": len(values) if isinstance(values, list) else None},
         )
+        result_payload: Optional[Dict[str, Any]] = None
+        try:
+            if not isinstance(values, list) or not values:
+                raise ValueError("values must be a non-empty list")
+            if not isinstance(labels_below, list) or len(labels_below) != len(values):
+                raise ValueError("labels_below length must match values length")
+            if labels_above is not None:
+                if not isinstance(labels_above, list) or len(labels_above) != len(values):
+                    raise ValueError("labels_above length must match values length")
 
-        plot = BarsPlot(
+            spacing = 0.2 if bar_spacing is None else float(bar_spacing)
+            if not math.isfinite(spacing) or spacing < 0.0:
+                raise ValueError("bar_spacing must be a finite number >= 0")
+
+            width = 1.0 if bar_width is None else float(bar_width)
+            if not math.isfinite(width) or width <= 0.0:
+                raise ValueError("bar_width must be a finite number > 0")
+
+            x0 = 0.0 if x_start is None else float(x_start)
+            if not math.isfinite(x0):
+                raise ValueError("x_start must be finite")
+
+            y0 = 0.0 if y_base is None else float(y_base)
+            if not math.isfinite(y0):
+                raise ValueError("y_base must be finite")
+
+            plot_name = self._generate_unique_name(
+                self.name_generator.filter_string(name or "") or "bars_plot"
+            )
+
+            plot = BarsPlot(
             plot_name,
             plot_type="bars",
             values=[float(v) for v in values],
@@ -234,21 +306,41 @@ class StatisticsManager:
             fill_color=self._normalize_fill_color(fill_color),
             fill_opacity=self._normalize_fill_opacity(fill_opacity),
         )
-        self.drawables.add(plot)
+            self.drawables.add(plot)
 
-        self.materialize_bars_plot(plot)
+            self.materialize_bars_plot(plot)
 
-        if getattr(self.canvas, "draw_enabled", False):
-            try:
-                self.canvas.draw()
-            except Exception:
-                pass
+            if getattr(self.canvas, "draw_enabled", False):
+                try:
+                    self.canvas.draw()
+                except Exception:
+                    pass
 
-        return {
-            "plot_name": plot_name,
-            "plot_type": "bars",
-            "bar_count": len(values),
-        }
+            result_payload = {
+                "plot_name": plot_name,
+                "plot_type": "bars",
+                "bar_count": len(values),
+            }
+            return result_payload
+        except Exception as exc:
+            self._log_operation_debug(
+                "plot_bars",
+                "failure",
+                elapsed_ms=(time.perf_counter() - started_at) * 1000.0,
+                details={"error": str(exc)},
+            )
+            raise
+        finally:
+            if result_payload is not None:
+                self._log_operation_debug(
+                    "plot_bars",
+                    "end",
+                    elapsed_ms=(time.perf_counter() - started_at) * 1000.0,
+                    details={
+                        "plot_name": result_payload.get("plot_name", ""),
+                        "bar_count": result_payload.get("bar_count", 0),
+                    },
+                )
 
     def fit_regression(
         self,
@@ -286,112 +378,143 @@ class StatisticsManager:
             Dict with function_name, expression, coefficients, r_squared,
             model_type, bounds, and optionally point_names
         """
-        # Validate model type
+        started_at = time.perf_counter()
         model = str(model_type or "").strip().lower()
-        if model not in SUPPORTED_MODEL_TYPES:
-            raise ValueError(
-                f"Unsupported model_type '{model_type}'. "
-                f"Supported: {', '.join(SUPPORTED_MODEL_TYPES)}"
-            )
-
-        # Validate degree for polynomial
-        if model == "polynomial":
-            if degree is None:
-                raise ValueError("degree is required for polynomial regression")
-            if not isinstance(degree, int) or degree < 1:
-                raise ValueError("degree must be a positive integer")
-
-        # Fit the regression model
-        result = _fit_regression(x_data, y_data, model, degree)
-        expression = result["expression"]
-        coefficients = result["coefficients"]
-        r_squared = result["r_squared"]
-
-        # Generate base name for function and points
-        default_name = f"{model}_fit"
-        base_name = self.name_generator.filter_string(name or "") or default_name
-
-        # Determine plot bounds
-        x_min = min(x_data)
-        x_max = max(x_data)
-        x_range = x_max - x_min
-        padding = x_range * 0.1 if x_range > 0 else 1.0
-
-        left_bound = x_min - padding
-        right_bound = x_max + padding
-
-        if plot_bounds is not None and isinstance(plot_bounds, dict):
-            if plot_bounds.get("left_bound") is not None:
-                left_bound = float(plot_bounds["left_bound"])
-            if plot_bounds.get("right_bound") is not None:
-                right_bound = float(plot_bounds["right_bound"])
-
-        if not math.isfinite(left_bound) or not math.isfinite(right_bound):
-            raise ValueError("plot_bounds must contain finite values")
-        if left_bound >= right_bound:
-            raise ValueError("left_bound must be less than right_bound")
-
-        # Draw the fitted function
-        function_name = self.name_generator.generate_function_name(base_name)
-        function_obj = self.function_manager.draw_function(
-            expression,
-            name=function_name,
-            left_bound=left_bound,
-            right_bound=right_bound,
-            color=curve_color,
+        self._log_operation_debug(
+            "fit_regression",
+            "start",
+            details={
+                "model_type": model,
+                "data_points": len(x_data) if isinstance(x_data, list) else None,
+            },
         )
-        function_name = getattr(function_obj, "name", function_name)
+        result_dict: Optional[Dict[str, Any]] = None
+        try:
+            # Validate model type
+            if model not in SUPPORTED_MODEL_TYPES:
+                raise ValueError(
+                    f"Unsupported model_type '{model_type}'. "
+                    f"Supported: {', '.join(SUPPORTED_MODEL_TYPES)}"
+                )
 
-        # Optionally plot the data points
-        point_names: List[str] = []
-        should_show_points = show_points if show_points is not None else True
+            # Validate degree for polynomial
+            if model == "polynomial":
+                if degree is None:
+                    raise ValueError("degree is required for polynomial regression")
+                if not isinstance(degree, int) or degree < 1:
+                    raise ValueError("degree must be a positive integer")
 
-        if should_show_points:
-            point_manager = self._get_point_manager()
-            if point_manager is not None:
-                for i, (x, y) in enumerate(zip(x_data, y_data)):
-                    point_preferred = f"{base_name}_pt{i}"
-                    try:
-                        created_point = point_manager.create_point(
-                            x=x,
-                            y=y,
-                            name=point_preferred,
-                            color=point_color,
-                            extra_graphics=False,
-                        )
-                        if created_point is not None:
-                            point_names.append(created_point.name)
-                    except Exception as e:
-                        # Log point creation failure for debugging
+            # Fit the regression model
+            result = _fit_regression(x_data, y_data, model, degree)
+            expression = result["expression"]
+            coefficients = result["coefficients"]
+            r_squared = result["r_squared"]
+
+            # Generate base name for function and points
+            default_name = f"{model}_fit"
+            base_name = self.name_generator.filter_string(name or "") or default_name
+
+            # Determine plot bounds
+            x_min = min(x_data)
+            x_max = max(x_data)
+            x_range = x_max - x_min
+            padding = x_range * 0.1 if x_range > 0 else 1.0
+
+            left_bound = x_min - padding
+            right_bound = x_max + padding
+
+            if plot_bounds is not None and isinstance(plot_bounds, dict):
+                if plot_bounds.get("left_bound") is not None:
+                    left_bound = float(plot_bounds["left_bound"])
+                if plot_bounds.get("right_bound") is not None:
+                    right_bound = float(plot_bounds["right_bound"])
+
+            if not math.isfinite(left_bound) or not math.isfinite(right_bound):
+                raise ValueError("plot_bounds must contain finite values")
+            if left_bound >= right_bound:
+                raise ValueError("left_bound must be less than right_bound")
+
+            # Draw the fitted function
+            function_name = self.name_generator.generate_function_name(base_name)
+            function_obj = self.function_manager.draw_function(
+                expression,
+                name=function_name,
+                left_bound=left_bound,
+                right_bound=right_bound,
+                color=curve_color,
+            )
+            function_name = getattr(function_obj, "name", function_name)
+
+            # Optionally plot the data points
+            point_names: List[str] = []
+            should_show_points = show_points if show_points is not None else True
+
+            if should_show_points:
+                point_manager = self._get_point_manager()
+                if point_manager is not None:
+                    for i, (x, y) in enumerate(zip(x_data, y_data)):
+                        point_preferred = f"{base_name}_pt{i}"
                         try:
-                            logger = getattr(self.canvas, "logger", None)
-                            if logger is not None:
-                                logger.debug(
-                                    f"Failed to create regression point {point_preferred}: {e}"
-                                )
-                        except Exception:
-                            pass
+                            created_point = point_manager.create_point(
+                                x=x,
+                                y=y,
+                                name=point_preferred,
+                                color=point_color,
+                                extra_graphics=False,
+                            )
+                            if created_point is not None:
+                                point_names.append(created_point.name)
+                        except Exception as e:
+                            # Log point creation failure for debugging
+                            try:
+                                logger = getattr(self.canvas, "logger", None)
+                                if logger is not None:
+                                    logger.debug(
+                                        f"Failed to create regression point {point_preferred}: {e}"
+                                    )
+                            except Exception:
+                                pass
 
-        # Trigger redraw
-        if getattr(self.canvas, "draw_enabled", False):
-            try:
-                self.canvas.draw()
-            except Exception:
-                pass
+            # Trigger redraw
+            if getattr(self.canvas, "draw_enabled", False):
+                try:
+                    self.canvas.draw()
+                except Exception:
+                    pass
 
-        result_dict: Dict[str, Any] = {
-            "function_name": function_name,
-            "expression": expression,
-            "coefficients": coefficients,
-            "r_squared": r_squared,
-            "model_type": model,
-            "bounds": {"left": left_bound, "right": right_bound},
-        }
+            result_dict = {
+                "function_name": function_name,
+                "expression": expression,
+                "coefficients": coefficients,
+                "r_squared": r_squared,
+                "model_type": model,
+                "bounds": {"left": left_bound, "right": right_bound},
+            }
 
-        if point_names:
-            result_dict["point_names"] = point_names
+            if point_names:
+                result_dict["point_names"] = point_names
 
-        return result_dict
+            return result_dict
+        except Exception as exc:
+            self._log_operation_debug(
+                "fit_regression",
+                "failure",
+                elapsed_ms=(time.perf_counter() - started_at) * 1000.0,
+                details={"model_type": model, "error": str(exc)},
+            )
+            raise
+        finally:
+            if result_dict is not None:
+                self._log_operation_debug(
+                    "fit_regression",
+                    "end",
+                    elapsed_ms=(time.perf_counter() - started_at) * 1000.0,
+                    details={
+                        "model_type": model,
+                        "function_name": result_dict.get("function_name", ""),
+                        "point_count": len(cast(List[str], result_dict.get("point_names", []))),
+                    },
+                )
 
     def _get_point_manager(self) -> Optional["PointManager"]:
         """Get the point manager from the canvas."""
@@ -404,39 +527,59 @@ class StatisticsManager:
         return None
 
     def delete_plot(self, name: str) -> bool:
-        plot = self._get_plot_by_name(name)
-        if plot is None:
-            return False
-
-        plot_class = plot.get_class_name() if hasattr(plot, "get_class_name") else ""
-
-        if plot_class == "DiscretePlot":
-            self._delete_discrete_plot(plot)
-        elif plot_class == "BarsPlot":
-            self._delete_bars_plot(plot)
-        elif plot_class == "ContinuousPlot":
-            self._delete_continuous_plot(plot)
-        else:
-            # Legacy best-effort deletion.
-            self._delete_legacy_plot(plot)
-
+        started_at = time.perf_counter()
+        self._log_operation_debug("delete_plot", "start", details={"name": name})
+        deleted = False
         try:
-            self.drawables.remove(plot)
-        except Exception:
-            pass
+            plot = self._get_plot_by_name(name)
+            if plot is None:
+                return False
 
-        try:
-            self.dependency_manager.remove_drawable(plot)
-        except Exception:
-            pass
+            plot_class = plot.get_class_name() if hasattr(plot, "get_class_name") else ""
 
-        if getattr(self.canvas, "draw_enabled", False):
+            if plot_class == "DiscretePlot":
+                self._delete_discrete_plot(plot)
+            elif plot_class == "BarsPlot":
+                self._delete_bars_plot(plot)
+            elif plot_class == "ContinuousPlot":
+                self._delete_continuous_plot(plot)
+            else:
+                # Legacy best-effort deletion.
+                self._delete_legacy_plot(plot)
+
             try:
-                self.canvas.draw()
+                self.drawables.remove(plot)
             except Exception:
                 pass
 
-        return True
+            try:
+                self.dependency_manager.remove_drawable(plot)
+            except Exception:
+                pass
+
+            if getattr(self.canvas, "draw_enabled", False):
+                try:
+                    self.canvas.draw()
+                except Exception:
+                    pass
+
+            deleted = True
+            return True
+        except Exception as exc:
+            self._log_operation_debug(
+                "delete_plot",
+                "failure",
+                elapsed_ms=(time.perf_counter() - started_at) * 1000.0,
+                details={"name": name, "error": str(exc)},
+            )
+            raise
+        finally:
+            self._log_operation_debug(
+                "delete_plot",
+                "end",
+                elapsed_ms=(time.perf_counter() - started_at) * 1000.0,
+                details={"name": name, "deleted": deleted},
+            )
 
     def materialize_discrete_plot(self, plot: Any) -> None:
         """
@@ -929,5 +1072,3 @@ class StatisticsManager:
         if not math.isfinite(value):
             return float(default_area_opacity)
         return max(0.0, min(value, 1.0))
-
-

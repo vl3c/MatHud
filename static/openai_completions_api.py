@@ -47,15 +47,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
 
     def create_chat_completion(self, full_prompt: str) -> Any:
         """Create chat completion with OpenAI API."""
-        prompt_json = self._parse_prompt_json(full_prompt)
-        tool_call_results = prompt_json.get("tool_call_results") if prompt_json else None
-
-        if tool_call_results:
-            self._update_tool_messages_with_results(tool_call_results)
-        else:
-            message_content = self._prepare_message_content(full_prompt)
-            message: MessageDict = {"role": "user", "content": message_content}
-            self.messages.append(message)
+        self._prepare_messages_for_request(full_prompt)
 
         try:
             response = self.client.chat.completions.create(
@@ -82,15 +74,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
 
     def create_chat_completion_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
         """Stream chat completion tokens with OpenAI API."""
-        prompt_json = self._parse_prompt_json(full_prompt)
-        tool_call_results = prompt_json.get("tool_call_results") if prompt_json else None
-
-        if tool_call_results:
-            self._update_tool_messages_with_results(tool_call_results)
-        else:
-            message_content = self._prepare_message_content(full_prompt)
-            user_message: MessageDict = {"role": "user", "content": message_content}
-            self.messages.append(user_message)
+        self._prepare_messages_for_request(full_prompt)
 
         accumulated_text = ""
         tool_calls_accumulator: Dict[int, Dict[str, Any]] = {}
@@ -106,27 +90,23 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             )
 
             for chunk in stream:
-                try:
-                    choice = chunk.choices[0]
-                except Exception:
+                choice = self._extract_choice_from_chunk(chunk)
+                if choice is None:
                     continue
 
-                delta = getattr(choice, "delta", None)
-                if delta is None:
-                    delta = getattr(choice, "message", None)
+                delta = self._extract_delta_from_choice(choice)
+                content_piece = self._extract_content_piece(delta)
+                if content_piece:
+                    accumulated_text += content_piece
+                    yield {"type": "token", "text": content_piece}
 
-                if delta is not None:
-                    content_piece = getattr(delta, "content", None)
-                    if isinstance(content_piece, str) and content_piece:
-                        accumulated_text += content_piece
-                        yield {"type": "token", "text": content_piece}
+                tool_calls_delta = self._extract_tool_calls_delta(delta)
+                if tool_calls_delta:
+                    self._accumulate_tool_calls(tool_calls_delta, tool_calls_accumulator)
 
-                    tool_calls_delta = getattr(delta, "tool_calls", None)
-                    if tool_calls_delta:
-                        self._accumulate_tool_calls(tool_calls_delta, tool_calls_accumulator)
-
-                if getattr(choice, "finish_reason", None) is not None:
-                    finish_reason = getattr(choice, "finish_reason", None)
+                choice_finish_reason = getattr(choice, "finish_reason", None)
+                if choice_finish_reason is not None:
+                    finish_reason = choice_finish_reason
                     break
 
         except Exception as exc:
@@ -154,40 +134,125 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             "finish_reason": finish_reason or "stop",
         }
 
+    def _prepare_messages_for_request(self, full_prompt: str) -> None:
+        """Prepare conversation messages for a new request turn."""
+        prompt_json = self._parse_prompt_json(full_prompt)
+        tool_call_results = prompt_json.get("tool_call_results") if prompt_json else None
+        if tool_call_results:
+            self._update_tool_messages_with_results(tool_call_results)
+            return
+
+        message_content = self._prepare_message_content(full_prompt)
+        user_message: MessageDict = {"role": "user", "content": message_content}
+        self.messages.append(user_message)
+
+    def _extract_choice_from_chunk(self, chunk: Any) -> Optional[Any]:
+        """Best-effort extraction of first choice from streaming chunk."""
+        try:
+            return chunk.choices[0]
+        except Exception:
+            return None
+
+    def _extract_delta_from_choice(self, choice: Any) -> Optional[Any]:
+        """Extract stream delta object, supporting both delta and message shapes."""
+        delta = getattr(choice, "delta", None)
+        if delta is None:
+            delta = getattr(choice, "message", None)
+        return delta
+
+    def _extract_content_piece(self, delta: Optional[Any]) -> str:
+        """Extract text token content from a stream delta."""
+        if delta is None:
+            return ""
+        content_piece = getattr(delta, "content", None)
+        if isinstance(content_piece, str):
+            return content_piece
+        return ""
+
+    def _extract_tool_calls_delta(self, delta: Optional[Any]) -> Any:
+        """Extract tool_calls delta payload from a stream delta."""
+        if delta is None:
+            return None
+        return getattr(delta, "tool_calls", None)
+
     def _accumulate_tool_calls(self, tool_calls_delta: Any, accumulator: Dict[int, Dict[str, Any]]) -> None:
         """Accumulate streaming tool call deltas."""
         for tc in tool_calls_delta:
             try:
-                index = getattr(tc, "index", None)
-                if isinstance(tc, dict):
-                    index = tc.get("index", index)
-                if index is None:
-                    index = 0
-                entry = accumulator.setdefault(
-                    index,
-                    {"id": None, "function": {"name": "", "arguments": ""}},
-                )
-                tc_id = getattr(tc, "id", None)
-                if isinstance(tc, dict):
-                    tc_id = tc.get("id", tc_id)
-                if tc_id is not None:
-                    entry["id"] = tc_id
-                func = getattr(tc, "function", None)
-                if isinstance(tc, dict):
-                    func = tc.get("function", func)
-                if func is not None:
-                    name_part = getattr(func, "name", None)
-                    if isinstance(func, dict):
-                        name_part = func.get("name", name_part)
-                    if isinstance(name_part, str) and name_part:
-                        entry["function"]["name"] = name_part
-                    args_part = getattr(func, "arguments", None)
-                    if isinstance(func, dict):
-                        args_part = func.get("arguments", args_part)
-                    if isinstance(args_part, str) and args_part:
-                        entry["function"]["arguments"] += args_part
+                self._accumulate_single_tool_call_delta(tc, accumulator)
             except Exception:
                 continue
+
+    def _accumulate_single_tool_call_delta(self, tc: Any, accumulator: Dict[int, Dict[str, Any]]) -> None:
+        """Accumulate a single tool call delta into the accumulator."""
+        index = self._extract_tool_call_delta_index(tc)
+        entry = self._get_or_create_tool_call_entry(accumulator, index)
+
+        tc_id = self._extract_tool_call_delta_id(tc)
+        if tc_id is not None:
+            entry["id"] = tc_id
+
+        func = self._extract_tool_call_delta_function(tc)
+        if func is None:
+            return
+
+        name_part = self._extract_function_name_part(func)
+        if isinstance(name_part, str) and name_part:
+            entry["function"]["name"] = name_part
+
+        args_part = self._extract_function_arguments_part(func)
+        if isinstance(args_part, str) and args_part:
+            entry["function"]["arguments"] += args_part
+
+    def _extract_tool_call_delta_index(self, tc: Any) -> int:
+        """Extract tool call index, defaulting to 0."""
+        index = getattr(tc, "index", None)
+        if isinstance(tc, dict):
+            index = tc.get("index", index)
+        if isinstance(index, int):
+            return index
+        return 0
+
+    def _get_or_create_tool_call_entry(
+        self,
+        accumulator: Dict[int, Dict[str, Any]],
+        index: int,
+    ) -> Dict[str, Any]:
+        """Get/create accumulator entry for a tool call index."""
+        return accumulator.setdefault(
+            index,
+            {"id": None, "function": {"name": "", "arguments": ""}},
+        )
+
+    def _extract_tool_call_delta_id(self, tc: Any) -> Optional[str]:
+        """Extract tool call id from object or dict delta."""
+        tc_id = getattr(tc, "id", None)
+        if isinstance(tc, dict):
+            tc_id = tc.get("id", tc_id)
+        if isinstance(tc_id, str):
+            return tc_id
+        return None
+
+    def _extract_tool_call_delta_function(self, tc: Any) -> Any:
+        """Extract nested function payload from object or dict delta."""
+        func = getattr(tc, "function", None)
+        if isinstance(tc, dict):
+            func = tc.get("function", func)
+        return func
+
+    def _extract_function_name_part(self, func: Any) -> Any:
+        """Extract function name chunk from function payload."""
+        name_part = getattr(func, "name", None)
+        if isinstance(func, dict):
+            name_part = func.get("name", name_part)
+        return name_part
+
+    def _extract_function_arguments_part(self, func: Any) -> Any:
+        """Extract function arguments chunk from function payload."""
+        args_part = getattr(func, "arguments", None)
+        if isinstance(func, dict):
+            args_part = func.get("arguments", args_part)
+        return args_part
 
     def _normalize_tool_calls(self, accumulator: Dict[int, Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Normalize accumulated tool calls into a list."""
@@ -252,5 +317,4 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 "arguments": func_args,
             })
         return result
-
 

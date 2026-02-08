@@ -1,0 +1,32 @@
+{
+  "canonical_rectangle_diagonal_0_0_4_2": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      4.0,
+      0.0
+    ],
+    [
+      4.0,
+      2.0
+    ],
+    [
+      0.0,
+      2.0
+    ]
+  ],
+  "generated_at_utc": "2026-02-08T13:23:50.345051+00:00",
+  "get_current_canvas_state_parameters": {
+    "additionalProperties": false,
+    "properties": {},
+    "required": [],
+    "type": "object"
+  },
+  "get_current_canvas_state_strict": true,
+  "polygon_type_rectangle_token": "rectangle",
+  "polygon_type_triangle_token": "triangle",
+  "tool_count": 79,
+  "workspace_schema_version": 1
+}

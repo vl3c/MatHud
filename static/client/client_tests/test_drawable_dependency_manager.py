@@ -520,6 +520,48 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.manager.register_dependency(child=point1, parent=None)
         # Should not raise any errors
 
+    def test_append_attr_dependency_if_present_respects_get_class_requirement(self) -> None:
+        """Helper should skip attrs lacking get_class_name when requested."""
+        drawable = self._create_mock_drawable("Carrier", "FunctionSegmentBoundedColoredArea")
+        function_like = self._create_mock_drawable("F1", "Function")
+        drawable.func = function_like
+        dependencies = []
+
+        self.manager._append_attr_dependency_if_present(
+            drawable,
+            "func",
+            dependencies,
+            require_truthy=True,
+            require_get_class_name=True,
+        )
+        self.assertEqual(len(dependencies), 1)
+        self.assertIn(function_like, dependencies)
+
+        drawable.func = SimpleMock(name="NoClassName")
+        dependencies2 = []
+        self.manager._append_attr_dependency_if_present(
+            drawable,
+            "func",
+            dependencies2,
+            require_truthy=True,
+            require_get_class_name=True,
+        )
+        self.assertEqual(len(dependencies2), 0)
+
+    def test_append_segment_attrs_collects_expected_count(self) -> None:
+        """Helper should collect segment1..segmentN attributes that exist."""
+        triangle = self._create_mock_drawable("Tri", "Triangle")
+        triangle.segment1 = self.segment1
+        triangle.segment2 = self.segment2
+        triangle.segment3 = self.segment3
+        dependencies = []
+
+        self.manager._append_segment_attrs(triangle, dependencies, count=3)
+        self.assertEqual(len(dependencies), 3)
+        self.assertIn(self.segment1, dependencies)
+        self.assertIn(self.segment2, dependencies)
+        self.assertIn(self.segment3, dependencies)
+
     def test_analyze_drawable_for_dependencies_comprehensive(self) -> None:
         """Test analyzing dependencies for all supported drawable types"""
         # Test Circle

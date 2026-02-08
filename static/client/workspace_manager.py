@@ -97,19 +97,36 @@ class WorkspaceManager:
             str: Success or error message from the save operation.
         """
         def on_complete(req: Any) -> str:
-            try:
-                response: Dict[str, Any] = json.loads(req.text)
-                if response.get('status') == 'success':
-                    return f'Workspace "{name if name else "current"}" saved successfully.'
-                return f'Error saving workspace: {response.get("message")}'
-            except Exception as e:
-                return f'Error saving workspace: {str(e)}'
+            return self._parse_save_workspace_response(req, name)
 
-        req: Any = ajax.Ajax()
-        req.bind('complete', on_complete)
-        req.bind('error', lambda e: f'Error saving workspace: {e.text}')
+        return self._execute_sync_json_request(
+            method="POST",
+            url="/save_workspace",
+            payload=self._build_save_workspace_payload(name),
+            on_complete=on_complete,
+            error_prefix="Error saving workspace",
+        )
 
+    def _parse_save_workspace_response(self, req: Any, name: Optional[str]) -> str:
+        try:
+            response = self._response_from_request(req)
+            if self._response_is_success(response):
+                return f'Workspace "{name if name else "current"}" saved successfully.'
+            return self._format_workspace_error("saving", response)
+        except Exception as e:
+            return f'Error saving workspace: {str(e)}'
+
+    def _build_save_workspace_payload(self, name: Optional[str]) -> Dict[str, Any]:
+        return {
+            "state": self._snapshot_persistable_canvas_state(),
+            "name": name,
+        }
+
+    def _snapshot_persistable_canvas_state(self) -> Any:
         state = self.canvas.get_canvas_state()
+        return self._drop_plot_derived_bars(state)
+
+    def _drop_plot_derived_bars(self, state: Any) -> Any:
         # Bars are derived from DiscretePlot parameters and are rebuilt on load.
         # Do not persist them in saved workspaces.
         try:
@@ -117,16 +134,7 @@ class WorkspaceManager:
                 del state["Bars"]
         except Exception:
             pass
-
-        data: Dict[str, Any] = {
-            'state': state,
-            'name': name
-        }
-
-        req.open('POST', '/save_workspace', False)  # Set to synchronous
-        req.set_header('Content-Type', 'application/json')
-        req.send(json.dumps(data))
-        return on_complete(req)
+        return state
 
     def _create_points(self, state: Dict[str, Any]) -> None:
         """Create points from workspace state."""
@@ -1264,18 +1272,23 @@ class WorkspaceManager:
         )
 
     def _parse_load_workspace_response(self, req: Any, name: Optional[str]) -> str:
-        try:
-            response = self._response_from_request(req)
-            if self._response_is_success(response):
-                state = self._workspace_state_from_response(response)
-                if not state:
-                    return 'Error loading workspace: No state data found in response'
+        return self._parse_workspace_response(
+            req=req,
+            action_gerund="loading",
+            on_success=lambda response: self._build_load_workspace_success_message(response, name),
+            exception_prefix="Error loading workspace",
+        )
 
-                self._restore_workspace_state(state)
-                return f'Workspace "{name if name else "current"}" loaded successfully.'
-            return self._format_workspace_error("loading", response)
-        except Exception as e:
-            return f'Error loading workspace: {str(e)}'
+    def _build_load_workspace_success_message(
+        self,
+        response: Dict[str, Any],
+        name: Optional[str],
+    ) -> str:
+        state = self._workspace_state_from_response(response)
+        if not state:
+            return "Error loading workspace: No state data found in response"
+        self._restore_workspace_state(state)
+        return f'Workspace "{name if name else "current"}" loaded successfully.'
 
     def list_workspaces(self) -> str:
         """
@@ -1298,14 +1311,16 @@ class WorkspaceManager:
         )
 
     def _parse_list_workspaces_response(self, req: Any) -> str:
-        try:
-            response = self._response_from_request(req)
-            if self._response_is_success(response):
-                workspaces = self._workspace_list_from_response(response)
-                return ', '.join(workspaces) if workspaces else 'None'
-            return self._format_workspace_error("listing", response)
-        except Exception as e:
-            return f'Error listing workspaces: {str(e)}'
+        return self._parse_workspace_response(
+            req=req,
+            action_gerund="listing",
+            on_success=self._build_list_workspaces_success_message,
+            exception_prefix="Error listing workspaces",
+        )
+
+    def _build_list_workspaces_success_message(self, response: Dict[str, Any]) -> str:
+        workspaces = self._workspace_list_from_response(response)
+        return ", ".join(workspaces) if workspaces else "None"
 
     def delete_workspace(self, name: str) -> str:
         """
@@ -1332,13 +1347,27 @@ class WorkspaceManager:
         )
 
     def _parse_delete_workspace_response(self, req: Any, name: str) -> str:
+        return self._parse_workspace_response(
+            req=req,
+            action_gerund="deleting",
+            on_success=lambda _response: f'Workspace "{name}" deleted successfully.',
+            exception_prefix="Error deleting workspace",
+        )
+
+    def _parse_workspace_response(
+        self,
+        req: Any,
+        action_gerund: str,
+        on_success: Callable[[Dict[str, Any]], str],
+        exception_prefix: str,
+    ) -> str:
         try:
             response = self._response_from_request(req)
             if self._response_is_success(response):
-                return f'Workspace "{name}" deleted successfully.'
-            return self._format_workspace_error("deleting", response)
+                return on_success(response)
+            return self._format_workspace_error(action_gerund, response)
         except Exception as e:
-            return f'Error deleting workspace: {str(e)}'
+            return f"{exception_prefix}: {str(e)}"
 
     def _response_from_request(self, req: Any) -> Dict[str, Any]:
         return cast(Dict[str, Any], json.loads(req.text))
@@ -1366,6 +1395,18 @@ class WorkspaceManager:
         self._open_and_send_sync_request(req, method, url)
         return self._finalize_sync_request(req, on_complete)
 
+    def _execute_sync_json_request(
+        self,
+        method: str,
+        url: str,
+        payload: Dict[str, Any],
+        on_complete: Callable[[Any], str],
+        error_prefix: str,
+    ) -> str:
+        req = self._build_sync_request(on_complete, error_prefix)
+        self._open_and_send_sync_json_request(req, method, url, payload)
+        return self._finalize_sync_request(req, on_complete)
+
     def _build_sync_request(
         self,
         on_complete: Callable[[Any], str],
@@ -1379,6 +1420,17 @@ class WorkspaceManager:
     def _open_and_send_sync_request(self, req: Any, method: str, url: str) -> None:
         req.open(method, url, False)  # Set to synchronous
         req.send()
+
+    def _open_and_send_sync_json_request(
+        self,
+        req: Any,
+        method: str,
+        url: str,
+        payload: Dict[str, Any],
+    ) -> None:
+        req.open(method, url, False)  # Set to synchronous
+        req.set_header("Content-Type", "application/json")
+        req.send(json.dumps(payload))
 
     def _finalize_sync_request(self, req: Any, on_complete: Callable[[Any], str]) -> str:
         return on_complete(req)

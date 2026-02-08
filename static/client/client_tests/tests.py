@@ -12,6 +12,10 @@ from .test_circle import TestCircle
 from .test_circle_arc import TestCircleArc
 from .test_custom_drawable_names import TestCustomDrawableNames
 from .test_drawable_dependency_manager import TestDrawableDependencyManager
+from .test_drawable_manager import (
+    TestDrawableManagerRegionLookup,
+    TestDrawableManagerColoredAreaDelegation,
+)
 from .test_drawable_name_generator import TestDrawableNameGenerator
 from .test_drawables_container import TestDrawablesContainer
 from .test_ellipse import TestEllipse
@@ -103,6 +107,7 @@ from .test_arc_manager import TestArcManager
 from .test_workspace_manager import (
     TestWorkspaceLabelRestore,
     TestWorkspaceManagerHelperMethods,
+    TestWorkspaceManagerOrchestration,
     TestWorkspaceSegmentPersistence,
 )
 from .test_workspace_plots import TestWorkspacePlotsRestore
@@ -336,6 +341,7 @@ class Tests:
             TestWorkspaceSegmentPersistence,
             TestWorkspaceLabelRestore,
             TestWorkspaceManagerHelperMethods,
+            TestWorkspaceManagerOrchestration,
             TestWorkspacePlotsRestore,
             TestMathFunctions,
             TestNumberTheory,
@@ -433,6 +439,8 @@ class Tests:
             TestWindowMocks,
             TestCanvasEventHandlerTouch,
             TestDrawableDependencyManager,
+            TestDrawableManagerRegionLookup,
+            TestDrawableManagerColoredAreaDelegation,
             TestDrawablesContainer,
             TestFunctionBoundedColoredAreaIntegration,
             TestLinearAlgebraUtils,

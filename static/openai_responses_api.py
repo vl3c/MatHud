@@ -404,11 +404,13 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         name = getattr(item, "name", None)
         self._log(f"[Responses API]   Function call: id={call_id}, name={name}")
 
-        entry = accumulator.setdefault(output_index, {"id": None, "function": {"name": "", "arguments": ""}})
-        if call_id:
-            entry["id"] = call_id
-        if name:
-            entry["function"]["name"] = name
+        self._upsert_tool_call_entry(
+            accumulator,
+            index=output_index,
+            call_id=call_id,
+            name=name,
+            args_delta=None,
+        )
 
     def _handle_reasoning_delta(self, event: Any) -> Iterator[StreamEvent]:
         """Handle response.reasoning_text.delta events."""
@@ -492,13 +494,13 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             call_id = getattr(event, "call_id", None)
             delta = getattr(event, "delta", "")
             name = getattr(event, "name", None)
-            entry = acc.setdefault(index, {"id": None, "function": {"name": "", "arguments": ""}})
-            if call_id:
-                entry["id"] = call_id
-            if name:
-                entry["function"]["name"] = name
-            if delta:
-                entry["function"]["arguments"] += delta
+            self._upsert_tool_call_entry(
+                acc,
+                index=index,
+                call_id=call_id,
+                name=name,
+                args_delta=delta,
+            )
         except Exception:
             pass
 
@@ -508,16 +510,64 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             output = getattr(response, "output", [])
             for idx, item in enumerate(output):
                 if getattr(item, "type", None) == "function_call":
-                    if idx not in acc:
-                        acc[idx] = {
-                            "id": getattr(item, "call_id", None),
-                            "function": {
-                                "name": getattr(item, "name", ""),
-                                "arguments": getattr(item, "arguments", "")
-                            }
-                        }
+                    self._create_tool_call_entry_if_missing(
+                        acc,
+                        index=idx,
+                        call_id=getattr(item, "call_id", None),
+                        name=getattr(item, "name", None),
+                        arguments=getattr(item, "arguments", None),
+                    )
         except Exception:
             pass
+
+    def _create_tool_call_entry_if_missing(
+        self,
+        accumulator: Dict[int, Dict[str, Any]],
+        *,
+        index: int,
+        call_id: Optional[str],
+        name: Optional[str],
+        arguments: Optional[str],
+    ) -> None:
+        """Create a completed tool-call entry only when none exists yet."""
+        if index in accumulator:
+            return
+        accumulator[index] = {
+            "id": call_id,
+            "function": {
+                "name": name or "",
+                "arguments": arguments or "",
+            },
+        }
+
+    def _get_or_create_tool_call_entry(
+        self,
+        accumulator: Dict[int, Dict[str, Any]],
+        index: int,
+    ) -> Dict[str, Any]:
+        """Get/create accumulator entry for a tool call index."""
+        return accumulator.setdefault(
+            index,
+            {"id": None, "function": {"name": "", "arguments": ""}},
+        )
+
+    def _upsert_tool_call_entry(
+        self,
+        accumulator: Dict[int, Dict[str, Any]],
+        *,
+        index: int,
+        call_id: Optional[str],
+        name: Optional[str],
+        args_delta: Optional[str],
+    ) -> None:
+        """Merge call metadata and argument chunks into accumulator entry."""
+        entry = self._get_or_create_tool_call_entry(accumulator, index)
+        if call_id:
+            entry["id"] = call_id
+        if name:
+            entry["function"]["name"] = name
+        if args_delta:
+            entry["function"]["arguments"] += args_delta
 
     def _normalize_tool_calls(self, acc: Dict[int, Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Normalize accumulated tool calls into a list."""
@@ -593,4 +643,3 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
                 args = {}
             result.append({"function_name": func.get("name") or "", "arguments": args})
         return result
-

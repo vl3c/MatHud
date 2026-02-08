@@ -40,7 +40,7 @@ Integration Points:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Union, cast
 
 from constants import (
     default_area_fill_color,
@@ -806,27 +806,35 @@ class DrawableManager:
 
     def delete_colored_areas_for_function(self, func: "Drawable", *, archive: bool = True) -> None:
         """Delete all colored areas associated with a function."""
-        self.colored_area_manager.delete_colored_areas_for_function(func, archive=archive)
+        self._delete_colored_areas_for_target("delete_colored_areas_for_function", func, archive=archive)
 
     def delete_colored_areas_for_segment(self, segment: "Drawable", *, archive: bool = True) -> None:
         """Delete all colored areas associated with a segment."""
-        self.colored_area_manager.delete_colored_areas_for_segment(segment, archive=archive)
+        self._delete_colored_areas_for_target("delete_colored_areas_for_segment", segment, archive=archive)
 
     def delete_colored_areas_for_circle(self, circle: "Drawable", *, archive: bool = True) -> None:
         """Delete all colored areas associated with a circle."""
-        self.colored_area_manager.delete_colored_areas_for_circle(circle, archive=archive)
+        self._delete_colored_areas_for_target("delete_colored_areas_for_circle", circle, archive=archive)
 
     def delete_colored_areas_for_ellipse(self, ellipse: "Drawable", *, archive: bool = True) -> None:
         """Delete all colored areas associated with an ellipse."""
-        self.colored_area_manager.delete_colored_areas_for_ellipse(ellipse, archive=archive)
+        self._delete_colored_areas_for_target("delete_colored_areas_for_ellipse", ellipse, archive=archive)
 
     def delete_colored_areas_for_circle_arc(self, arc: "Drawable", *, archive: bool = True) -> None:
         """Delete all colored areas associated with a circle arc (expression-based regions)."""
-        self.colored_area_manager.delete_colored_areas_for_circle_arc(arc, archive=archive)
+        self._delete_colored_areas_for_target("delete_colored_areas_for_circle_arc", arc, archive=archive)
 
     def delete_region_expression_colored_areas_referencing_name(self, name: str, *, archive: bool = True) -> None:
         """Delete any region-expression colored areas that reference a specific drawable name."""
-        self.colored_area_manager.delete_region_expression_colored_areas_referencing_name(name, archive=archive)
+        self._delete_colored_areas_for_target(
+            "delete_region_expression_colored_areas_referencing_name",
+            name,
+            archive=archive,
+        )
+
+    def _delete_colored_areas_for_target(self, method_name: str, target: Any, *, archive: bool) -> None:
+        deletion_method = getattr(self.colored_area_manager, method_name)
+        deletion_method(target, archive=archive)
 
     def get_colored_areas_for_drawable(self, drawable: "Drawable") -> List["Drawable"]:
         """Get all colored areas associated with a drawable"""
@@ -1081,26 +1089,25 @@ class DrawableManager:
         if not name:
             return None
 
-        polygon = self.polygon_manager.get_polygon_by_name(name)
-        if polygon is not None:
-            return polygon
+        return self._first_region_capable_match(self._region_capable_lookup_chain(name))
 
-        circle = self.circle_manager.get_circle_by_name(name)
-        if circle is not None:
-            return circle
+    def _region_capable_lookup_chain(self, name: str) -> List[Callable[[], Optional["Drawable"]]]:
+        return [
+            lambda: cast(Optional["Drawable"], self.polygon_manager.get_polygon_by_name(name)),
+            lambda: cast(Optional["Drawable"], self.circle_manager.get_circle_by_name(name)),
+            lambda: cast(Optional["Drawable"], self.ellipse_manager.get_ellipse_by_name(name)),
+            lambda: cast(Optional["Drawable"], self.arc_manager.get_circle_arc_by_name(name)),
+            lambda: cast(Optional["Drawable"], self.segment_manager.get_segment_by_name(name)),
+        ]
 
-        ellipse = self.ellipse_manager.get_ellipse_by_name(name)
-        if ellipse is not None:
-            return ellipse
-
-        arc = self.arc_manager.get_circle_arc_by_name(name)
-        if arc is not None:
-            return arc
-
-        segment = self.segment_manager.get_segment_by_name(name)
-        if segment is not None:
-            return segment
-
+    def _first_region_capable_match(
+        self,
+        lookups: List[Callable[[], Optional["Drawable"]]],
+    ) -> Optional["Drawable"]:
+        for lookup in lookups:
+            drawable = lookup()
+            if drawable is not None:
+                return drawable
         return None
 
     # ------------------- Tangent and Normal Line Methods -------------------
