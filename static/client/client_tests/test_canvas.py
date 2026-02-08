@@ -2594,6 +2594,54 @@ class TestCanvas(unittest.TestCase):
         self.assertEqual(len(angles_after), 0)
         self.assertNotIn(angle, angles_after)
 
+
+class TestCanvasHelperMethods(unittest.TestCase):
+    def setUp(self) -> None:
+        self.canvas = Canvas(500, 500, draw_enabled=False)
+
+    def test_compute_zoom_bounds_for_x_axis(self) -> None:
+        left, right, top, bottom = self.canvas._compute_zoom_bounds(2.0, 3.0, 10.0, "x")
+        self.assertEqual(left, -8.0)
+        self.assertEqual(right, 12.0)
+        self.assertEqual(top, 13.0)
+        self.assertEqual(bottom, -7.0)
+
+    def test_compute_zoom_bounds_for_y_axis(self) -> None:
+        left, right, top, bottom = self.canvas._compute_zoom_bounds(2.0, 3.0, 10.0, "y")
+        self.assertEqual(left, -8.0)
+        self.assertEqual(right, 12.0)
+        self.assertEqual(top, 13.0)
+        self.assertEqual(bottom, -7.0)
+
+    def test_collect_plot_derived_bar_prefixes_and_filter(self) -> None:
+        state = {
+            "DiscretePlots": [{"name": "HistA"}, {"name": ""}, {"no_name": True}],
+            "BarsPlots": [{"name": "Poll"}],
+        }
+        prefixes = self.canvas._collect_plot_derived_bar_prefixes(state)
+        self.assertEqual(prefixes, ["HistA_bar_", "Poll_bar_"])
+
+        kept = self.canvas._filter_bars_excluding_prefixes(
+            [
+                {"name": "HistA_bar_0"},
+                {"name": "Poll_bar_3"},
+                {"name": "CustomBar"},
+                {"no_name": True},
+                123,
+            ],
+            prefixes,
+        )
+        self.assertEqual(kept, [{"name": "CustomBar"}, {"no_name": True}, 123])
+
+    def test_resolve_renderer_mode_helpers(self) -> None:
+        self.assertEqual(self.canvas._resolve_renderer_mode_from_text("canvas2drenderer"), "canvas2d")
+        self.assertEqual(self.canvas._resolve_renderer_mode_from_name("svgrenderer"), "svg")
+        self.assertEqual(
+            self.canvas._resolve_renderer_mode_from_module("rendering.webgl_renderer"),
+            "webgl",
+        )
+        self.assertIsNone(self.canvas._resolve_renderer_mode_from_text("other_renderer"))
+
     def test_angle_deletion_on_segment_deletion(self) -> None:
         """Test that angles are automatically deleted when their constituent segments are deleted.""" 
         # Create points for angle

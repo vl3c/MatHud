@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Tuple, Type, cast
 
 from browser import aio
 
-from .test_canvas import TestCanvas
+from .test_canvas import TestCanvas, TestCanvasHelperMethods
 from .test_cartesian import TestCartesian2Axis
 from .test_circle import TestCircle
 from .test_circle_arc import TestCircleArc
@@ -100,7 +100,11 @@ from .test_angle import TestAngle
 from .test_angle_manager import TestAngleManager
 from .test_undo_redo_manager import TestUndoRedoManager
 from .test_arc_manager import TestArcManager
-from .test_workspace_manager import TestWorkspaceLabelRestore, TestWorkspaceSegmentPersistence
+from .test_workspace_manager import (
+    TestWorkspaceLabelRestore,
+    TestWorkspaceManagerHelperMethods,
+    TestWorkspaceSegmentPersistence,
+)
 from .test_workspace_plots import TestWorkspacePlotsRestore
 from .test_zoom import (
     TestZoomXAxisRange,
@@ -331,6 +335,7 @@ class Tests:
             TestCartesianEdgeCases,
             TestWorkspaceSegmentPersistence,
             TestWorkspaceLabelRestore,
+            TestWorkspaceManagerHelperMethods,
             TestWorkspacePlotsRestore,
             TestMathFunctions,
             TestNumberTheory,
@@ -414,6 +419,7 @@ class Tests:
             TestSegmentsBoundedColoredArea,
             TestCartesian2Axis,
             TestCanvas,
+            TestCanvasHelperMethods,
             TestZoomXAxisRange,
             TestZoomYAxisRange,
             TestZoomAspectRatios,
