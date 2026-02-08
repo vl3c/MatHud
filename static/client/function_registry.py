@@ -19,7 +19,7 @@ Dependencies:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, cast
 
 from utils.math_utils import MathUtils
 from process_function_calls import ProcessFunctionCalls
@@ -218,7 +218,7 @@ class FunctionRegistry:
         return functions
 
     @staticmethod
-    def _create_search_tools_handler():
+    def _create_search_tools_handler() -> Callable[..., Dict[str, Any]]:
         """Create a handler for the search_tools function.
 
         Returns a function that makes a request to the backend /search_tools endpoint.
@@ -272,7 +272,7 @@ class FunctionRegistry:
                     try:
                         response = json_module.loads(req.text)
                         if response.get("status") == "success" and response.get("data"):
-                            return response["data"]
+                            return cast(Dict[str, Any], response["data"])
                         else:
                             default_result["error"] = response.get("message", "Unknown error")
                     except Exception as e:

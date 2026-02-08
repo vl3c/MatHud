@@ -9,7 +9,7 @@ math-only and the renderer consumes a clean representation.
 from __future__ import annotations
 
 import math
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, cast
 
 from rendering.primitives import MathPolyline, ScreenPolyline
 from rendering.renderables.adaptive_sampler import AdaptiveSampler
@@ -96,7 +96,7 @@ class FunctionRenderable:
             left_bound = max(left_bound, self.func.left_bound)
         if self.func.right_bound is not None:
             right_bound = min(right_bound, self.func.right_bound)
-        return left_bound, right_bound
+        return cast(float, left_bound), cast(float, right_bound)
 
     def _is_discontinuity(self, x: float) -> bool:
         try:
@@ -110,13 +110,13 @@ class FunctionRenderable:
         if not hasattr(self.func, 'get_vertical_asymptote_between_x'):
             return None
         try:
-            return self.func.get_vertical_asymptote_between_x(x1, x2)
+            return cast(Optional[float], self.func.get_vertical_asymptote_between_x(x1, x2))
         except Exception:
             return None
 
     def _evaluate_function(self, x: float) -> Optional[float]:
         try:
-            return self.func.function(x)
+            return cast(Optional[float], self.func.function(x))
         except Exception:
             return None
 
@@ -165,7 +165,7 @@ class FunctionRenderable:
                 x += step
                 continue
 
-            current_path.append((x, y))
+            current_path.append((x, cast(float, y)))
             x += step
 
         if current_path:
@@ -217,11 +217,11 @@ class FunctionRenderable:
         all_split_points = sorted(set(asymptotes + point_discontinuities))
 
         if all_split_points:
-            return AdaptiveSampler.generate_samples_with_asymptotes(
+            return cast(list[list[float]], AdaptiveSampler.generate_samples_with_asymptotes(
                 left_bound, right_bound, self.func.function,
                 self.mapper.math_to_screen, all_split_points, initial_segments,
                 max_samples=canvas_width
-            )
+            ))
         else:
             # No split points - single range
             samples, _ = AdaptiveSampler.generate_samples(
@@ -368,7 +368,7 @@ class FunctionRenderable:
                 prev_x = x
                 continue
 
-            sx, sy = scaled_point[0], scaled_point[1]
+            sx, sy = scaled_point[0], cast(float, scaled_point[1])
             on_screen = self._is_on_screen(sy, height)
             prev_on_screen = prev_sy is not None and self._is_on_screen(prev_sy, height)
 
@@ -422,7 +422,7 @@ class FunctionRenderable:
 
         if self._is_inside_screen(sx, sy, width, height):
             ext_pt = self._sample_extension_backward(sx, sy, step, left_bound, height)
-            if self._is_usable_sample(ext_pt, sy, height):
+            if self._is_usable_sample(ext_pt, sy, height) and ext_pt is not None:
                 path.insert(0, ext_pt)
             else:
                 # Check for asymptote - if present, don't extrapolate across it
@@ -446,7 +446,7 @@ class FunctionRenderable:
 
         if self._is_inside_screen(sx, sy, width, height):
             ext_pt = self._sample_extension_forward(sx, sy, step, right_bound, height)
-            if self._is_usable_sample(ext_pt, sy, height):
+            if self._is_usable_sample(ext_pt, sy, height) and ext_pt is not None:
                 path.append(ext_pt)
             else:
                 # Check for asymptote - if present, don't extrapolate across it
@@ -493,7 +493,7 @@ class FunctionRenderable:
         # Clamp to left_bound - evaluate function at left_bound
         clamped_pt, _ = self._eval_scaled_point(left_bound)
         if clamped_pt[0] is not None:
-            return (clamped_pt[0], clamped_pt[1])
+            return (clamped_pt[0], cast(float, clamped_pt[1]))
         return None
 
     def _clamp_to_right_bound(self, pt: tuple[float, float], right_bound: float) -> Optional[tuple[float, float]]:
@@ -504,7 +504,7 @@ class FunctionRenderable:
         # Clamp to right_bound - evaluate function at right_bound
         clamped_pt, _ = self._eval_scaled_point(right_bound)
         if clamped_pt[0] is not None:
-            return (clamped_pt[0], clamped_pt[1])
+            return (clamped_pt[0], cast(float, clamped_pt[1]))
         return None
 
     def _is_at_boundary(self, y: float, height: float) -> bool:
@@ -594,7 +594,7 @@ class FunctionRenderable:
         prev_pt, _ = self._eval_scaled_point(sample_x)
         if prev_pt[0] is None:
             return None
-        return self._clamp_to_boundary(sx, sy, prev_pt[0], prev_pt[1], height)
+        return self._clamp_to_boundary(sx, sy, prev_pt[0], cast(float, prev_pt[1]), height)
 
     def _sample_extension_forward(
         self, sx: float, sy: float, step: float, right_bound: float, height: float
@@ -614,7 +614,7 @@ class FunctionRenderable:
         next_pt, _ = self._eval_scaled_point(sample_x)
         if next_pt[0] is None:
             return None
-        return self._clamp_to_boundary(sx, sy, next_pt[0], next_pt[1], height)
+        return self._clamp_to_boundary(sx, sy, next_pt[0], cast(float, next_pt[1]), height)
 
     def _compute_boundary_intersection(
         self, x1: float, y1: float, x2: float, y2: float, height: float

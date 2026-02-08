@@ -84,6 +84,7 @@ if TYPE_CHECKING:
     from drawables.rectangle import Rectangle
     from drawables.angle import Angle
     from drawables.colored_area import ColoredArea
+    from drawables.circle_arc import CircleArc
     from geometry.graph_state import GraphState
 
 class DrawableManager:
@@ -868,7 +869,7 @@ class DrawableManager:
         fill_opacity: Optional[float],
         bar_count: Optional[float],
     ) -> Dict[str, Any]:
-        return self.statistics_manager.plot_distribution(
+        return cast(Dict[str, Any], self.statistics_manager.plot_distribution(
             name=name,
             representation=representation,
             distribution_type=distribution_type,
@@ -879,7 +880,7 @@ class DrawableManager:
             fill_color=fill_color,
             fill_opacity=fill_opacity,
             bar_count=bar_count,
-        )
+        ))
 
     def plot_bars(
         self,
@@ -896,7 +897,7 @@ class DrawableManager:
         x_start: Optional[float],
         y_base: Optional[float],
     ) -> Dict[str, Any]:
-        return self.statistics_manager.plot_bars(
+        return cast(Dict[str, Any], self.statistics_manager.plot_bars(
             name=name,
             values=values,
             labels_below=labels_below,
@@ -908,7 +909,7 @@ class DrawableManager:
             fill_opacity=fill_opacity,
             x_start=x_start,
             y_base=y_base,
-        )
+        ))
 
     def delete_plot(self, name: str) -> bool:
         return bool(self.statistics_manager.delete_plot(name))
@@ -926,7 +927,7 @@ class DrawableManager:
         show_points: Optional[bool],
         point_color: Optional[str],
     ) -> Dict[str, Any]:
-        return self.statistics_manager.fit_regression(
+        return cast(Dict[str, Any], self.statistics_manager.fit_regression(
             name=name,
             x_data=x_data,
             y_data=y_data,
@@ -936,7 +937,7 @@ class DrawableManager:
             curve_color=curve_color,
             show_points=show_points,
             point_color=point_color,
-        )
+        ))
 
     # ------------------- Graph Methods -------------------
     def create_graph(self, graph_state: "GraphState") -> "Drawable":
@@ -970,13 +971,13 @@ class DrawableManager:
         )
 
     def delete_graph(self, name: str) -> bool:
-        return self.graph_manager.delete_graph(name)
+        return bool(self.graph_manager.delete_graph(name))
 
     def get_graph(self, name: str) -> Optional["Drawable"]:
         return self.graph_manager.get_graph(name)
 
-    def capture_graph_state(self, name: str):
-        return self.graph_manager.capture_state(name)
+    def capture_graph_state(self, name: str) -> None:
+        self.graph_manager.capture_state(name)
 
     # ------------------- Angle Methods -------------------
     def create_angle(self, vx: float, vy: float, p1x: float, p1y: float, p2x: float, p2y: float, color: Optional[str] = None, angle_name: Optional[str] = None, is_reflex: bool = False, extra_graphics: bool = True) -> Optional["Angle"]:
@@ -1020,7 +1021,7 @@ class DrawableManager:
         color: Optional[str] = None,
         use_major_arc: bool = False,
         extra_graphics: bool = True,
-    ):
+    ) -> Optional["CircleArc"]:
         """Create a circle arc drawable."""
         return self.arc_manager.create_circle_arc(
             point1_x=point1_x,

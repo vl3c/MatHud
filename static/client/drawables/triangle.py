@@ -94,11 +94,11 @@ class Triangle(Polygon):
         flags = GeometryUtils.triangle_type_flags_from_segments(self._segments)
         if flags is None:
             return {"equilateral": False, "isosceles": False, "scalene": False, "right": False}
-        return flags
+        return dict(flags)
 
     def get_type_flags(self) -> Dict[str, bool]:
         """Return classification flags describing the triangle."""
-        return super().get_type_flags()
+        return dict(super().get_type_flags())
 
     def is_equilateral(self) -> bool:
         return self.get_type_flags()["equilateral"]

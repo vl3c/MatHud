@@ -18,7 +18,7 @@ Dependencies:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
 from .point import PointNameGenerator
 from .function import FunctionNameGenerator
@@ -184,7 +184,7 @@ class DrawableNameGenerator:
 
     def generate_label_name(self, preferred_name: Optional[str]) -> str:
         """Generate a unique label name, using preferred_name when provided."""
-        return self.label_generator.generate_label_name(preferred_name)
+        return str(self.label_generator.generate_label_name(preferred_name))
 
     def extract_point_names_from_arc_name(
         self, arc_name: Optional[str]
@@ -197,7 +197,7 @@ class DrawableNameGenerator:
         Returns:
             Tuple of (point1_name, point2_name)
         """
-        return self.arc_generator.extract_point_names_from_arc_name(arc_name)
+        return cast(Tuple[Optional[str], Optional[str]], self.arc_generator.extract_point_names_from_arc_name(arc_name))
 
     def generate_arc_name(
         self,
@@ -219,9 +219,9 @@ class DrawableNameGenerator:
         Returns:
             Unique arc name
         """
-        return self.arc_generator.generate_arc_name(
+        return str(self.arc_generator.generate_arc_name(
             proposed_name, point1_name, point2_name, use_major_arc, existing_names
-        )
+        ))
 
     def _is_valid_point_list(self, points: List[str]) -> bool:
         """Helper to check if a list of points is valid for angle name generation.

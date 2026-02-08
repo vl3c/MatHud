@@ -11,7 +11,7 @@ import base64
 import json
 import logging
 import os
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from types import SimpleNamespace
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -208,6 +208,14 @@ class OpenAIAPIBase:
     def get_model(self) -> AIModel:
         """Get the current AI model instance."""
         return self.model
+
+    def create_chat_completion(self, full_prompt: str) -> Any:
+        """Create a chat completion. Implemented by subclasses."""
+        raise NotImplementedError
+
+    def create_chat_completion_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
+        """Stream a chat completion. Implemented by subclasses."""
+        raise NotImplementedError
 
     def reset_conversation(self) -> None:
         """Reset the conversation history to start a new session."""

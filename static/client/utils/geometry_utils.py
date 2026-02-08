@@ -25,7 +25,7 @@ Dependencies:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Set, Tuple, Union, cast
 
 from itertools import combinations
 from .math_utils import MathUtils
@@ -63,7 +63,7 @@ class GeometryUtils:
             dict: point name -> connected point names
         """
         edges = GeometryUtils._segments_to_edges(segments)
-        return GraphUtils.build_adjacency_map(edges)
+        return cast(Dict[str, Set[str]], GraphUtils.build_adjacency_map(edges))
 
     @staticmethod
     def get_unique_point_names_from_segments(segments: List["Segment"]) -> List[str]:
@@ -116,7 +116,7 @@ class GeometryUtils:
             - The graph formed by the segments is connected
         """
         edges = GeometryUtils._segments_to_edges(segments)
-        return GraphUtils.is_simple_cycle(edges)
+        return bool(GraphUtils.is_simple_cycle(edges))
 
     @staticmethod
     def order_segments_into_loop(segments: List["Segment"]) -> Optional[List["Point"]]:
@@ -281,7 +281,7 @@ class GeometryUtils:
             - The graph formed by the segments is connected
         """
         edges = GeometryUtils._segments_to_edges(segments)
-        return GraphUtils.is_simple_path(edges)
+        return bool(GraphUtils.is_simple_path(edges))
 
     @staticmethod
     def order_segments_into_path(segments: List["Segment"]) -> Optional[List["Point"]]:

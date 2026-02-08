@@ -472,7 +472,7 @@ class PointManager:
             return None
 
         candidate = pending_fields["name"]
-        filtered_candidate = (
+        filtered_candidate: str = str(
             self.name_generator.filter_string(candidate)
             if hasattr(self.name_generator, "filter_string")
             else candidate

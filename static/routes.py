@@ -1145,7 +1145,8 @@ def register_routes(app: MatHudFlask) -> None:
                 }))
 
             choice = provider.create_chat_completion(message)
-            ai_message, ai_tool_calls = _process_ai_response(app, choice)
+            ai_message, ai_tool_calls_processed = _process_ai_response(app, choice)
+            ai_tool_calls = cast(List[Dict[str, Any]], ai_tool_calls_processed)
             # Intercept search_tools and filter other tool calls
             if ai_tool_calls:
                 ai_tool_calls = _intercept_search_tools(app, ai_tool_calls, provider)

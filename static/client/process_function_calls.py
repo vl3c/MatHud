@@ -142,4 +142,4 @@ class ProcessFunctionCalls:
             Dictionary with 'type' and 'value' keys
         """
         result: AreaExpressionResult = AreaExpressionEvaluator.evaluate(expression, canvas)
-        return result.to_dict()
+        return cast(Dict[str, Any], result.to_dict())

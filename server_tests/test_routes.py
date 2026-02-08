@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import unittest
-from typing import Optional
+from typing import Any, Optional
 from unittest.mock import Mock, patch
 
 from static.app_manager import AppManager, MatHudFlask
@@ -562,7 +562,7 @@ class TestInterceptSearchTools(unittest.TestCase):
         ]
         mock_service_class.return_value = mock_service
 
-        tool_calls = [
+        tool_calls: list[dict[str, Any]] = [
             {
                 'function_name': 'search_tools',
                 'arguments': '{"query": "point", "max_results": 5}'  # JSON string

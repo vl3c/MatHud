@@ -1626,7 +1626,7 @@ class MathUtils:
             JSON string with solutions, variables, and method information.
         """
         from numeric_solver import solve_numeric as _solve_numeric
-        return _solve_numeric(equations, variables, initial_guesses, tolerance, max_iterations)
+        return str(_solve_numeric(equations, variables, initial_guesses, tolerance, max_iterations))
 
     @staticmethod
     def random(min_value: Number = 0, max_value: Number = 1) -> float:

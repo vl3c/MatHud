@@ -316,13 +316,13 @@ class Canvas:
 
     def _safe_drawable_class_name(self, drawable: Any) -> str:
         try:
-            return (
+            return str(
                 drawable.get_class_name()
                 if hasattr(drawable, "get_class_name")
                 else drawable.__class__.__name__
             )
         except Exception:
-            return drawable.__class__.__name__
+            return str(drawable.__class__.__name__)
 
     def _is_point_drawable_visible(self, drawable: Any) -> bool:
         # Use screen coordinates if available, else compute
@@ -575,7 +575,7 @@ class Canvas:
         Returns:
             The current mode ("cartesian" or "polar")
         """
-        return self.coordinate_system_manager.mode
+        return str(self.coordinate_system_manager.mode)
 
     def set_grid_visible(self, visible: bool) -> bool:
         """Set the visibility of the active coordinate grid.
@@ -595,7 +595,7 @@ class Canvas:
         Returns:
             True if the active grid is visible, False otherwise
         """
-        return self.coordinate_system_manager.is_grid_visible()
+        return bool(self.coordinate_system_manager.is_grid_visible())
 
     def get_canvas_state(self) -> Dict[str, Any]:
         state = self.get_drawables_state()
@@ -912,7 +912,7 @@ class Canvas:
         fill_opacity: Optional[float] = None,
         bar_count: Optional[float] = None,
     ) -> Dict[str, Any]:
-        return self.drawable_manager.plot_distribution(
+        return cast(Dict[str, Any], self.drawable_manager.plot_distribution(
             name=name,
             representation=representation,
             distribution_type=distribution_type,
@@ -923,7 +923,7 @@ class Canvas:
             fill_color=fill_color,
             fill_opacity=fill_opacity,
             bar_count=bar_count,
-        )
+        ))
 
     def plot_bars(
         self,
@@ -940,7 +940,7 @@ class Canvas:
         x_start: Optional[float] = None,
         y_base: Optional[float] = None,
     ) -> Dict[str, Any]:
-        return self.drawable_manager.plot_bars(
+        return cast(Dict[str, Any], self.drawable_manager.plot_bars(
             name=name,
             values=values or [],
             labels_below=labels_below or [],
@@ -952,7 +952,7 @@ class Canvas:
             fill_opacity=fill_opacity,
             x_start=x_start,
             y_base=y_base,
-        )
+        ))
 
     def delete_plot(self, name: str) -> bool:
         return bool(self.drawable_manager.delete_plot(name))
@@ -970,7 +970,7 @@ class Canvas:
         show_points: Optional[bool] = None,
         point_color: Optional[str] = None,
     ) -> Dict[str, Any]:
-        return self.drawable_manager.fit_regression(
+        return cast(Dict[str, Any], self.drawable_manager.fit_regression(
             name=name,
             x_data=x_data if x_data is not None else [],
             y_data=y_data if y_data is not None else [],
@@ -980,7 +980,7 @@ class Canvas:
             curve_color=curve_color,
             show_points=show_points,
             point_color=point_color,
-        )
+        ))
 
     # ------------------- Graph Methods -------------------
     def create_graph(self, graph_state: "GraphState") -> "Drawable":
@@ -992,8 +992,8 @@ class Canvas:
     def get_graph(self, name: str) -> Optional["Drawable"]:
         return self.drawable_manager.get_graph(name)
 
-    def capture_graph_state(self, name: str):
-        return self.drawable_manager.capture_graph_state(name)
+    def capture_graph_state(self, name: str) -> Optional[Dict[str, Any]]:
+        return cast(Optional[Dict[str, Any]], self.drawable_manager.capture_graph_state(name))
 
     def generate_graph(
         self,
@@ -1022,7 +1022,7 @@ class Canvas:
             metadata=metadata,
         )
         graph = self.drawable_manager.create_graph(state)
-        return graph.get_state()
+        return cast(Dict[str, Any], graph.get_state())
 
     def analyze_graph(
         self,
@@ -1034,7 +1034,7 @@ class Canvas:
         state = self.drawable_manager.capture_graph_state(graph_name)
         if state is None:
             return {"error": "Graph not found or spec missing"}
-        return GraphAnalyzer.analyze(state, operation, params)
+        return cast(Dict[str, Any], GraphAnalyzer.analyze(state, operation, params))
 
     # ------------------- Circle Methods -------------------
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional["Drawable"]:

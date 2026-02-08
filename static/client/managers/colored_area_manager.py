@@ -888,4 +888,3 @@ class ColoredAreaManager:
                 area.update_left_bound(float(new_left_bound))
             if "right_bound" in pending_fields and new_right_bound is not None:
                 area.update_right_bound(float(new_right_bound))
-        return True

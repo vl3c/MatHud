@@ -447,7 +447,8 @@ class SegmentManager:
     ) -> Optional[str]:
         if "label_text" not in pending_fields:
             return None
-        return Label.validate_text("" if new_label_text is None else new_label_text)
+        result = Label.validate_text("" if new_label_text is None else new_label_text)
+        return str(result) if result is not None else None
 
     def _normalize_label_visibility(
         self,

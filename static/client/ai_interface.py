@@ -1713,7 +1713,7 @@ class AIInterface:
         except Exception as e:
             print(f"Error aborting stream: {e}")
 
-    def stop_ai_processing(self):
+    def stop_ai_processing(self) -> None:
         """Stop the current AI processing, abort the stream, and restore UI controls."""
         self._stop_requested = True
         self._abort_current_stream()
@@ -1725,7 +1725,7 @@ class AIInterface:
         self._print_system_message_in_chat("Generation stopped.")
         self._enable_send_controls()
 
-    def _save_partial_response(self, partial_message):
+    def _save_partial_response(self, partial_message: str) -> None:
         """Save interrupted partial response to the backend conversation history."""
         try:
             payload = json.dumps({"partial_message": partial_message})

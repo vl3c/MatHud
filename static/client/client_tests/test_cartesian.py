@@ -1,4 +1,6 @@
 import unittest
+from typing import Dict, List, Tuple
+
 from drawables_aggregator import Point, Position
 from cartesian_system_2axis import Cartesian2Axis
 from .simple_mock import SimpleMock
@@ -352,7 +354,7 @@ class TestCartesian2Axis(unittest.TestCase):
         self.assertEqual(self.cartesian_system.get_relative_width(), 1600)
         self.assertEqual(self.cartesian_system.get_relative_height(), 1200)
 
-    def _count_grid_lines(self, origin, dimension_px, display_tick):
+    def _count_grid_lines(self, origin: float, dimension_px: float, display_tick: float) -> int:
         import math
         if display_tick <= 0:
             return 0
@@ -365,7 +367,7 @@ class TestCartesian2Axis(unittest.TestCase):
                 count += 1
         return count
 
-    def _calculate_adaptive_tick_spacing(self, width, scale_factor, max_ticks=10):
+    def _calculate_adaptive_tick_spacing(self, width: float, scale_factor: float, max_ticks: int = 10) -> float:
         import math
         relative_width = width / scale_factor
         ideal_spacing = relative_width / max_ticks
@@ -375,10 +377,10 @@ class TestCartesian2Axis(unittest.TestCase):
         candidates = [magnitude * m for m in [1, 2, 5, 10]]
         for spacing in candidates:
             if spacing >= ideal_spacing:
-                return spacing
-        return candidates[-1]
+                return float(spacing)
+        return float(candidates[-1])
 
-    def test_grid_line_count_constant_at_various_origins(self):
+    def test_grid_line_count_constant_at_various_origins(self) -> None:
         width_px = 800
         height_px = 600
         display_tick = 50
@@ -411,7 +413,7 @@ class TestCartesian2Axis(unittest.TestCase):
                 msg=f"Y grid line count {count_y} differs from base {base_count_y} at oy={oy}"
             )
 
-    def test_grid_line_count_bounded_across_zoom_levels(self):
+    def test_grid_line_count_bounded_across_zoom_levels(self) -> None:
         width_px = 800
         height_px = 600
 
@@ -443,7 +445,7 @@ class TestCartesian2Axis(unittest.TestCase):
                 msg=f"Too many Y grid lines ({count_y}) at scale {scale_factor}"
             )
 
-    def test_grid_line_count_constant_at_extreme_distances(self):
+    def test_grid_line_count_constant_at_extreme_distances(self) -> None:
         width_px = 800
         height_px = 600
 
@@ -479,7 +481,7 @@ class TestCartesian2Axis(unittest.TestCase):
                     msg=f"scale={scale_factor}, offset={offset}: Y count {count_y} vs base {base_count_y}"
                 )
 
-    def test_grid_line_count_combined_zoom_and_distance(self):
+    def test_grid_line_count_combined_zoom_and_distance(self) -> None:
         width_px = 800
         height_px = 600
 
@@ -498,7 +500,7 @@ class TestCartesian2Axis(unittest.TestCase):
             (100.0, -1e9),
         ]
 
-        results = {}
+        results: Dict[float, List[Tuple[int, int, float]]] = {}
         for scale_factor, offset in test_cases:
             if scale_factor not in results:
                 results[scale_factor] = []

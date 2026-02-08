@@ -103,7 +103,7 @@ class Rectangle(Quadrilateral):
 
     def get_vertices(self) -> Set[Point]:
         """Return the set of unique vertices of the rectangle"""
-        return super().get_vertices()
+        return set(super().get_vertices())
 
     def update_color(self, color: str) -> None:
         """Update the rectangle and its edge colors."""

@@ -50,7 +50,7 @@ class TestWindowMocks(unittest.TestCase):
 
     def test_set_timeout(self) -> None:
         """Test that setTimeout stores the callback and returns the expected timer ID."""
-        def callback():
+        def callback() -> None:
             return None
         wait_time = 100
 
@@ -78,7 +78,7 @@ class TestWindowMocks(unittest.TestCase):
 
     def test_mock_chain(self) -> None:
         """Test that the entire mock chain works together."""
-        def callback():
+        def callback() -> None:
             return None
 
         # Set initial time

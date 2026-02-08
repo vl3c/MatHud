@@ -595,7 +595,7 @@ class ExpressionValidator(ast.NodeVisitor):
 
         def evaluator(x: float) -> float:
             variables = ExpressionValidator._get_variables_and_functions(x)
-            return eval(compiled_code, variables)
+            return float(eval(compiled_code, variables))
 
         return evaluator
 
@@ -667,7 +667,7 @@ class ExpressionValidator(ast.NodeVisitor):
 
         def evaluator(t: float) -> float:
             variables = ExpressionValidator._get_variables_and_functions_parametric(t)
-            return eval(compiled_code, variables)
+            return float(eval(compiled_code, variables))
 
         return evaluator
 
