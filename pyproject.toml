@@ -32,6 +32,7 @@ dev = [
     "pytest",
     "mypy==1.11.2",
     "types-requests",
+    "ruff>=0.8.0",
 ]
 
 [project.scripts]
@@ -39,6 +40,20 @@ mathud = "cli.main:cli"
 
 [tool.setuptools.packages.find]
 include = ["cli*", "static*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"static/client/**/*.py" = ["F401", "E402", "F811", "E722", "E731", "E741", "E701", "W191", "E101"]
+"static/client/client_tests/**/*.py" = ["F841"]
+"server_tests/**/*.py" = ["E402", "E741", "E731"]
+"diagrams/**/*.py" = ["F401"]
 
 [tool.mypy]
 python_version = "3.11"
