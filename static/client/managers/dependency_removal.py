@@ -1,3 +1,11 @@
+"""Shared helpers for dependency-aware drawable removal.
+
+This module centralizes a common removal pattern used across managers:
+remove a drawable from the drawables container and, if successful, also
+remove its dependency-graph entries. Keeping this logic in one place helps
+prevent stale dependency edges and preserves graph invariants.
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
