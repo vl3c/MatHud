@@ -46,3 +46,11 @@ cli/output/*
 
 # CLI server PID file
 .mathud_server.pid
+
+# SelfAssembler artifacts
+selfassembler.yaml
+logs/
+plans/
+.worktrees/
+.sa-wrapper.sh
+*.egg-info/
