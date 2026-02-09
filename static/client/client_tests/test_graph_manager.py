@@ -53,6 +53,7 @@ class TestGraphManager(unittest.TestCase):
         self.point_manager = SimpleMock(
             name="PointManagerMock",
             create_point=create_point,
+            delete_point_by_name=SimpleMock(return_value=True),
         )
 
         self.segments_created: List[Segment] = []
@@ -65,6 +66,7 @@ class TestGraphManager(unittest.TestCase):
         self.segment_manager = SimpleMock(
             name="SegmentManagerMock",
             create_segment_from_points=create_segment_from_points,
+            delete_segment=SimpleMock(return_value=True),
             create_segment=lambda *args, **kwargs: create_segment_from_points(
                 Point(args[0], args[1]), Point(args[2], args[3]), **{k: v for k, v in kwargs.items() if k != 'extra_graphics'}
             ),
@@ -74,6 +76,7 @@ class TestGraphManager(unittest.TestCase):
             name="VectorManagerMock",
             create_vector_from_points=SimpleMock(return_value=None),
             create_vector=SimpleMock(return_value=None),
+            delete_vector=SimpleMock(return_value=True),
         )
 
         self.drawable_manager_proxy = SimpleMock(
@@ -428,7 +431,26 @@ class TestGraphManager(unittest.TestCase):
         self.assertIsNotNone(captured)
         self.assertEqual(captured.root, "X")
 
+    def test_delete_graph_removes_dependency_entry(self) -> None:
+        state = self.graph_manager.build_graph_state(
+            name="delete_test",
+            graph_type="tree",
+            vertices=[{"name": "A"}, {"name": "B"}],
+            edges=[{"source": 0, "target": 1}],
+            adjacency_matrix=None,
+            directed=None,
+            root="A",
+            layout=None,
+            placement_box=None,
+            metadata=None,
+        )
+        graph = self.graph_manager.create_graph(state)
+
+        removed = self.graph_manager.delete_graph("delete_test")
+
+        self.assertTrue(removed)
+        self.dependency_manager.remove_drawable.assert_called_once_with(graph)
+
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -32,6 +32,7 @@ class TestCircleManager(unittest.TestCase):
         self.dependency_manager = SimpleMock(
             name="DependencyManagerMock",
             analyze_drawable_for_dependencies=SimpleMock(),
+            remove_drawable=SimpleMock(),
         )
 
         self.circle_manager = CircleManager(
@@ -111,7 +112,14 @@ class TestCircleManager(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.circle_manager.update_circle("CircleA")
 
+    def test_delete_circle_removes_dependency_entry(self) -> None:
+        circle = self._add_circle(name="CircleA")
+
+        removed = self.circle_manager.delete_circle("CircleA")
+
+        self.assertTrue(removed)
+        self.dependency_manager.remove_drawable.assert_called_once_with(circle)
+
 
 if __name__ == "__main__":
     unittest.main()
-

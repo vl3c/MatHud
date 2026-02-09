@@ -67,6 +67,24 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.segment3 = self._create_mock_segment("S3", self.point3, self.point1)
         self.triangle = self._create_mock_drawable("T1", "Triangle")
 
+    def _assert_internal_graph_invariants(self) -> None:
+        for child_id, parent_ids in self.manager._parents.items():
+            self.assertIn(child_id, self.manager._object_lookup)
+            for parent_id in parent_ids:
+                self.assertIn(parent_id, self.manager._object_lookup)
+                self.assertIn(child_id, self.manager._children.get(parent_id, set()))
+
+        for parent_id, child_ids in self.manager._children.items():
+            self.assertIn(parent_id, self.manager._object_lookup)
+            for child_id in child_ids:
+                self.assertIn(child_id, self.manager._object_lookup)
+                self.assertIn(parent_id, self.manager._parents.get(child_id, set()))
+
+        for drawable_id in self.manager._object_lookup:
+            self.assertTrue(
+                drawable_id in self.manager._parents or drawable_id in self.manager._children
+            )
+
     def test_register_dependency(self) -> None:
         """Test registering dependencies between drawables"""
         # Register segment1 depends on point1 and point2
@@ -142,6 +160,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         # Check that segment1 has no parents
         parents = self.manager.get_parents(self.segment1)
         self.assertEqual(len(parents), 0, "Segment1 should have no parents after removal")
+        self._assert_internal_graph_invariants()
 
     def test_resolve_dependency_order(self) -> None:
         """Test resolving dependencies in the correct order"""
@@ -466,6 +485,79 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.manager.unregister_dependency(child=None, parent=None)
         # Should not raise any errors
 
+    def test_unregister_dependency_prunes_orphaned_lookup_entries(self) -> None:
+        """Unregistering the last edge should remove stale internal lookup references."""
+        self.manager.register_dependency(child=self.segment1, parent=self.point1)
+        self.assertIn(id(self.segment1), self.manager._object_lookup)
+        self.assertIn(id(self.point1), self.manager._object_lookup)
+
+        self.manager.unregister_dependency(child=self.segment1, parent=self.point1)
+
+        self.assertNotIn(id(self.segment1), self.manager._object_lookup)
+        self.assertNotIn(id(self.point1), self.manager._object_lookup)
+        self.assertNotIn(id(self.segment1), self.manager._parents)
+        self.assertNotIn(id(self.point1), self.manager._children)
+        self._assert_internal_graph_invariants()
+
+    def test_internal_graph_invariants_hold_after_chained_removals(self) -> None:
+        self.manager.register_dependency(child=self.segment1, parent=self.point1)
+        self.manager.register_dependency(child=self.segment1, parent=self.point2)
+        self.manager.register_dependency(child=self.segment2, parent=self.point2)
+        self.manager.register_dependency(child=self.segment2, parent=self.point3)
+        self.manager.register_dependency(child=self.triangle, parent=self.segment1)
+        self.manager.register_dependency(child=self.triangle, parent=self.segment2)
+
+        self._assert_internal_graph_invariants()
+        self.manager.remove_drawable(self.segment1)
+        self._assert_internal_graph_invariants()
+        self.manager.remove_drawable(self.triangle)
+        self._assert_internal_graph_invariants()
+        self.manager.remove_drawable(self.segment2)
+        self._assert_internal_graph_invariants()
+
+    def test_edge_neutral_drawables_register_no_dependencies(self) -> None:
+        edge_neutral_classes = [
+            "Label",
+            "Bar",
+            "Plot",
+            "BarsPlot",
+            "ContinuousPlot",
+            "DiscretePlot",
+            "ParametricFunction",
+            "PiecewiseFunction",
+        ]
+
+        for class_name in edge_neutral_classes:
+            drawable = self._create_mock_drawable(f"{class_name}1", class_name)
+            dependencies = self.manager.analyze_drawable_for_dependencies(drawable)
+            self.assertEqual(
+                len(dependencies),
+                0,
+                f"{class_name} should remain edge-neutral in dependency analysis.",
+            )
+
+        self.assertEqual(self.manager._parents, {})
+        self.assertEqual(self.manager._children, {})
+        self.assertEqual(self.manager._object_lookup, {})
+
+    def test_debug_logging_mode_preserves_dependency_behavior(self) -> None:
+        manager = DrawableDependencyManager(
+            drawable_manager_proxy=self.mock_drawable_manager,
+            debug_logging=True,
+        )
+        manager.register_dependency(child=self.segment1, parent=self.point1)
+        manager.register_dependency(child=self.segment1, parent=self.point2)
+
+        self.assertIn(self.point1, manager.get_parents(self.segment1))
+        self.assertIn(self.point2, manager.get_parents(self.segment1))
+
+        manager.unregister_dependency(child=self.segment1, parent=self.point2)
+        self.assertEqual(manager.get_parents(self.segment1), {self.point1})
+
+        manager.remove_drawable(self.segment1)
+        self.assertEqual(manager.get_parents(self.segment1), set())
+        self.assertEqual(manager.get_children(self.point1), set())
+
     def test_get_parents_and_children(self) -> None:
         """Test getting direct parents and children"""
         # Test empty sets
@@ -519,6 +611,27 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.manager.register_dependency(child=None, parent=point1)
         self.manager.register_dependency(child=point1, parent=None)
         # Should not raise any errors
+
+    def test_register_dependency_ignores_none_endpoints(self) -> None:
+        """register_dependency should ignore None child/parent without mutating state."""
+        self.manager.register_dependency(child=None, parent=self.point1)
+        self.manager.register_dependency(child=self.segment1, parent=None)
+
+        self.assertEqual(len(self.manager.get_children(self.point1)), 0)
+        self.assertEqual(len(self.manager.get_parents(self.segment1)), 0)
+
+    def test_register_dependency_ignores_non_callable_class_name(self) -> None:
+        """register_dependency should ignore objects whose get_class_name is not callable."""
+        bad_child = SimpleMock(name="bad_child")
+        bad_child.get_class_name = "Point"
+
+        self.manager.register_dependency(child=bad_child, parent=self.point1)
+        self.assertEqual(len(self.manager.get_children(self.point1)), 0)
+
+        bad_parent = SimpleMock(name="bad_parent")
+        bad_parent.get_class_name = "Point"
+        self.manager.register_dependency(child=self.segment1, parent=bad_parent)
+        self.assertEqual(len(self.manager.get_parents(self.segment1)), 0)
 
     def test_append_attr_dependency_if_present_respects_get_class_requirement(self) -> None:
         """Helper should skip attrs lacking get_class_name when requested."""

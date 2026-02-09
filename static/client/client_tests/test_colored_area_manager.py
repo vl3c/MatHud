@@ -38,6 +38,7 @@ class TestColoredAreaManager(unittest.TestCase):
         self.name_generator = SimpleMock(name="NameGeneratorMock")
         self.dependency_manager = SimpleMock(name="DependencyManagerMock")
         self.dependency_manager.analyze_drawable_for_dependencies = SimpleMock(return_value=[])
+        self.dependency_manager.remove_drawable = SimpleMock()
         self.drawable_manager_proxy = SimpleMock(name="DrawableManagerProxyMock")
 
         def get_segment_by_name(name: str) -> Optional[Segment]:
@@ -278,6 +279,14 @@ class TestColoredAreaManager(unittest.TestCase):
         self.assertEqual(area.color, "skyblue")
         self.assertEqual(area.opacity, 0.4)
         self.assertEqual(area.resolution, default_closed_shape_resolution)
+
+    def test_delete_colored_area_removes_dependency_entry(self) -> None:
+        area = self._add_segments_area()
+
+        removed = self.manager.delete_colored_area(area.name)
+
+        self.assertTrue(removed)
+        self.dependency_manager.remove_drawable.assert_called_once_with(area)
 
     def test_create_closed_shape_with_triangle_name(self) -> None:
         point_a = Point(0.0, 0.0, "A")
@@ -567,4 +576,3 @@ class TestColoredAreaManager(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -40,6 +40,7 @@ from drawables.point import Point
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from managers.dependency_removal import remove_drawable_with_dependencies
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
@@ -201,13 +202,15 @@ class PointManager:
         self._delete_point_dependencies(x, y)
 
         # Now remove the point itself
-        self.drawables.remove(point)
+        removed = remove_drawable_with_dependencies(
+            self.drawables, self.dependency_manager, point
+        )
 
         # Redraw the canvas
         if self.canvas.draw_enabled:
             self.canvas.draw()
 
-        return True
+        return bool(removed)
 
     def delete_point_by_name(self, name: str) -> bool:
         """
@@ -266,13 +269,17 @@ class PointManager:
         rectangles = self.drawables.Rectangles
         for rectangle in rectangles.copy():
             if any(MathUtils.segment_has_end_point(segment, x, y) for segment in [rectangle.segment1, rectangle.segment2, rectangle.segment3, rectangle.segment4]):
-                self.drawables.remove(rectangle)
+                remove_drawable_with_dependencies(
+                    self.drawables, self.dependency_manager, rectangle
+                )
 
         # Delete the triangles that contain the point
         triangles = self.drawables.Triangles
         for triangle in triangles.copy():
             if any(MathUtils.segment_has_end_point(segment, x, y) for segment in [triangle.segment1, triangle.segment2, triangle.segment3]):
-                self.drawables.remove(triangle)
+                remove_drawable_with_dependencies(
+                    self.drawables, self.dependency_manager, triangle
+                )
 
         # Collect all segments that contain the point
         segments_to_delete: List[Segment] = []

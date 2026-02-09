@@ -47,6 +47,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from drawables.function import Function
 from expression_validator import ExpressionValidator
+from managers.dependency_removal import remove_drawable_with_dependencies
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
 if TYPE_CHECKING:
@@ -209,7 +210,9 @@ class FunctionManager:
         self.canvas.undo_redo_manager.archive()
 
         # Remove the function
-        self.drawables.remove(function)
+        removed = remove_drawable_with_dependencies(
+            self.drawables, self.dependency_manager, function
+        )
 
         # Also delete any colored areas associated with this function
         self.canvas.drawable_manager.delete_colored_areas_for_function(function, archive=False)
@@ -218,7 +221,7 @@ class FunctionManager:
         if self.canvas.draw_enabled:
             self.canvas.draw()
 
-        return True
+        return bool(removed)
 
     def update_function(
         self,

@@ -27,6 +27,7 @@ from drawables.quadrilateral import Quadrilateral
 from drawables.rectangle import Rectangle
 from drawables.triangle import Triangle
 from drawables.position import Position
+from managers.dependency_removal import remove_drawable_with_dependencies
 from managers.polygon_type import PolygonType
 from managers.edit_policy import EditRule, get_drawable_edit_policy
 from itertools import combinations
@@ -252,7 +253,9 @@ class PolygonManager:
             except Exception:
                 pass
 
-        removed = self.drawables.remove(target)
+        removed = remove_drawable_with_dependencies(
+            self.drawables, self.dependency_manager, target
+        )
         if removed:
             for segment in self._iter_polygon_segments(target):
                 self.segment_manager.delete_segment(
@@ -633,4 +636,3 @@ class PolygonManager:
         """Normalize vertex coordinates for comparison, rounding to mitigate floating drift."""
         rounded = {(round(float(x), 6), round(float(y), 6)) for x, y in vertices}
         return tuple(sorted(rounded))
-

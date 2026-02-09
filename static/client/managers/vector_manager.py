@@ -40,6 +40,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, List, Optional
 
 from drawables.vector import Vector
+from managers.dependency_removal import remove_drawable_with_dependencies
 from utils.math_utils import MathUtils
 
 if TYPE_CHECKING:
@@ -261,13 +262,15 @@ class VectorManager:
                     self.canvas.drawable_manager.delete_segment(p1x, p1y, p2x, p2y)
 
                 # Remove the vector
-                self.drawables.remove(vector)
+                removed = remove_drawable_with_dependencies(
+                    self.drawables, self.dependency_manager, vector
+                )
 
                 # Redraw
                 if self.canvas.draw_enabled:
                     self.canvas.draw()
 
-                return True
+                return bool(removed)
         return False
 
     def update_vector(

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from constants import default_color
 from drawables.parametric_function import ParametricFunction
+from managers.dependency_removal import remove_drawable_with_dependencies
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -163,7 +164,9 @@ class ParametricFunctionManager:
         self._archive_for_undo()
 
         # Remove from container
-        result = self.drawables.remove(func)
+        result = remove_drawable_with_dependencies(
+            self.drawables, self.dependency_manager, func
+        )
 
         # Trigger render if enabled
         if result and getattr(self.canvas, "draw_enabled", False):

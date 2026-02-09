@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from drawables.piecewise_function import PiecewiseFunction
+from managers.dependency_removal import remove_drawable_with_dependencies
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
 if TYPE_CHECKING:
@@ -166,12 +167,14 @@ class PiecewiseFunctionManager:
 
         self.canvas.undo_redo_manager.archive()
 
-        self.drawables.remove(pf)
+        removed = remove_drawable_with_dependencies(
+            self.drawables, self.dependency_manager, pf
+        )
 
         if self.canvas.draw_enabled:
             self.canvas.draw()
 
-        return True
+        return bool(removed)
 
     def update_piecewise_function(
         self,
@@ -257,4 +260,3 @@ class PiecewiseFunctionManager:
         """Apply validated updates to the piecewise function."""
         if "color" in pending_fields and new_color is not None:
             pf.update_color(str(new_color))
-

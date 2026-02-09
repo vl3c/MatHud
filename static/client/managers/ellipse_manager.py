@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from drawables.ellipse import Ellipse
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from managers.dependency_removal import remove_drawable_with_dependencies
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -226,13 +227,15 @@ class EllipseManager:
                 pass
 
         # Remove from drawables
-        self.drawables.remove(ellipse)
+        removed = remove_drawable_with_dependencies(
+            self.drawables, self.dependency_manager, ellipse
+        )
 
         # Redraw
         if self.canvas.draw_enabled:
             self.canvas.draw()
 
-        return True
+        return bool(removed)
 
     def update_ellipse(
         self,
