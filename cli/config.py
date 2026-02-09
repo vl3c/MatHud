@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import platform as _platform
 from pathlib import Path
 
 # Project root directory (parent of cli/)
@@ -24,7 +25,11 @@ BROWSER_WAIT_TIMEOUT = 60  # seconds to wait for page elements
 APP_READY_TIMEOUT = 30  # seconds to wait for app to be ready
 
 # Test settings
-CLIENT_TEST_TIMEOUT = 180  # 3 minutes max for client tests
+# Client tests in Brython are ~3-5x slower on ARM64 than x86_64
+if _platform.machine() in ("aarch64", "arm64"):
+    CLIENT_TEST_TIMEOUT = 600  # 10 minutes for ARM64
+else:
+    CLIENT_TEST_TIMEOUT = 180  # 3 minutes for x86_64
 CLIENT_TEST_POLL_INTERVAL = 2  # seconds between polling for results
 
 # Screenshot settings

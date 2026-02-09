@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import shutil
 import tempfile
 import time
@@ -92,13 +93,25 @@ class BrowserAutomation:
             )
             options.add_argument(f"--user-data-dir={self._profile_dir}")
 
+        if platform.machine() in ("aarch64", "arm64"):
+            options.add_argument("--disable-software-rasterizer")
+            options.add_argument("--disable-background-timer-throttling")
+
         bundled = self._resolve_bundled_binaries()
         if bundled is not None:
             chrome_bin, driver_bin = bundled
             options.binary_location = str(chrome_bin)
             service = Service(executable_path=str(driver_bin))
         else:
-            service = Service(ChromeDriverManager().install())
+            try:
+                service = Service(ChromeDriverManager().install())
+            except Exception as e:
+                raise RuntimeError(
+                    f"Could not auto-detect or download Chrome/chromedriver: {e}\n"
+                    "On ARM64/aarch64, install system packages:\n"
+                    "  sudo apt install chromium chromium-driver\n"
+                    "Or set MATHUD_CHROME_BIN and MATHUD_CHROMEDRIVER_BIN environment variables."
+                ) from e
         self.driver = webdriver.Chrome(service=service, options=options)
         self.driver.set_window_size(self.viewport_width, self.viewport_height)
         # Set generous timeouts for long-running operations
@@ -164,6 +177,15 @@ class BrowserAutomation:
         driver = bundle_root / "chromedriver-linux64" / "chromedriver"
         if chrome.exists() and driver.exists():
             return chrome, driver
+
+        # Last resort: check common system paths directly
+        common_chromes = ["/usr/bin/chromium-browser", "/usr/bin/chromium", "/usr/bin/google-chrome"]
+        common_drivers = ["/usr/bin/chromedriver"]
+        for chrome_path in common_chromes:
+            for driver_path in common_drivers:
+                if Path(chrome_path).exists() and Path(driver_path).exists():
+                    return Path(chrome_path), Path(driver_path)
+
         return None
 
     def cleanup(self) -> None:
@@ -384,7 +406,9 @@ class BrowserAutomation:
         Returns:
             Test results dictionary.
         """
-        result = self.execute_js("return window.getMatHudTestResults()")
+        # ARM64 renderer can be very slow while Brython runs tests
+        js_timeout = 120 if platform.machine() in ("aarch64", "arm64") else 30
+        result = self.execute_js("return window.getMatHudTestResults()", timeout=js_timeout)
         if result:
             parsed: dict[str, Any] = json.loads(result)
             return parsed
@@ -402,7 +426,9 @@ class BrowserAutomation:
         """
         start_time = time.time()
         consecutive_errors = 0
-        max_consecutive_errors = 5
+        is_arm = platform.machine() in ("aarch64", "arm64")
+        max_consecutive_errors = 30 if is_arm else 5
+        effective_interval = max(poll_interval, 10) if is_arm else poll_interval
 
         while time.time() - start_time < timeout:
             try:
@@ -421,7 +447,7 @@ class BrowserAutomation:
                         "error": f"Too many consecutive errors polling results: {e}",
                     }
 
-            time.sleep(poll_interval)
+            time.sleep(effective_interval)
 
         return {
             "status": "timeout",
