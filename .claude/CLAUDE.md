@@ -211,6 +211,39 @@ window.getMatHudTestResults()
 
 This allows Claude Code to get test results as structured JSON without parsing screenshots.
 
+## Running Client Tests Headlessly (CI / Sandbox / Unattended)
+
+Client tests CANNOT be run with pytest — they depend on the Brython runtime which only
+exists inside a browser. Running `pytest` on files under `static/client/` will always fail
+with `ImportError: cannot import name 'aio' from 'browser'`.
+
+To run client tests headlessly (e.g. inside a Docker container or CI):
+
+```bash
+# 1. Start the Flask server in the background
+python app.py &
+sleep 5  # wait for server to be ready
+
+# 2. Run client tests via the CLI (uses Selenium + headless Chromium)
+python -m cli.main test client --start-server --timeout 600 --json
+
+# Or if server is already running on a specific port:
+python -m cli.main test client --port 5000 --timeout 600 --json
+```
+
+The `--json` flag returns structured results. The `--start-server` flag auto-starts Flask.
+
+**Important**: When running "all tests", run server and client test suites separately:
+```bash
+# Server tests (pytest-based, pure Python)
+python -m pytest server_tests/ -v
+
+# Client tests (Selenium-based, runs in browser)
+python -m cli.main test client --start-server --timeout 600 --json
+```
+
+Never pass `static/client/` paths to pytest — it will fail on every Brython import.
+
 ## Common Issues & Solutions
 1. If a test raises `ModuleNotFoundError: No module named 'browser'`, move it to the Brython runner.
 2. Remember everything under `static/client/` requires the browser runtime; CPython cannot import `browser`.
