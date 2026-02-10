@@ -502,6 +502,29 @@ class TestSearchToolsFunctionDefinition:
         assert "max_results" in params["properties"]
         assert "query" in params["required"]
 
+    def test_numeric_integrate_has_required_schema(self) -> None:
+        """numeric_integrate should expose method and step controls."""
+        tool = ToolSearchService.get_tool_by_name("numeric_integrate")
+        assert tool is not None
+
+        func = tool["function"]
+        assert func["name"] == "numeric_integrate"
+        params = func["parameters"]
+        assert params["type"] == "object"
+        assert "expression" in params["properties"]
+        assert "variable" in params["properties"]
+        assert "lower_bound" in params["properties"]
+        assert "upper_bound" in params["properties"]
+        assert "method" in params["properties"]
+        assert "steps" in params["properties"]
+
+    def test_evaluate_expression_description_mentions_series_helpers(self) -> None:
+        tool = ToolSearchService.get_tool_by_name("evaluate_expression")
+        assert tool is not None
+        description = tool["function"].get("description", "")
+        assert "summation(" in description
+        assert "product(" in description
+
 
 class TestSearchToolsExclusion:
     """Test that search_tools is excluded from search results."""

@@ -958,6 +958,19 @@ class TestMathFunctions(unittest.TestCase):
         result = float(result)  # convert result to float
         self.assertAlmostEqual(result, 0.333, places=3)
 
+    def test_numeric_integrate_simpson(self) -> None:
+        result = MathUtils.numeric_integrate("x^2", "x", 0, 1, "simpson", 200)
+        self.assertAlmostEqual(float(result["value"]), 1.0 / 3.0, places=8)
+        self.assertGreaterEqual(float(result["error_estimate"]), 0.0)
+
+    def test_numeric_integrate_rejects_bad_bounds(self) -> None:
+        with self.assertRaises(ValueError):
+            MathUtils.numeric_integrate("x", "x", 1, 1, "trapezoid", 10)
+
+    def test_numeric_integrate_rejects_too_many_steps(self) -> None:
+        with self.assertRaises(ValueError):
+            MathUtils.numeric_integrate("x", "x", 0, 1, "midpoint", 10001)
+
     def test_simplify(self) -> None:
         result = MathUtils.simplify('x^2 + 2*x + 1')
         self.assertEqual(result, "(1+x)^2")
@@ -1991,6 +2004,10 @@ class TestSequencesAndSeries(unittest.TestCase):
         # Sum of 2^n from 0 to 4 = 1+2+4+8+16 = 31
         self.assertEqual(MathUtils.summation("2^n", "n", 0, 4), "31")
 
+    def test_summation_rejects_too_many_terms(self) -> None:
+        with self.assertRaises(ValueError):
+            MathUtils.summation("n", "n", 0, 1000)  # 1001 terms
+
     # ========== product tests ==========
     def test_product_factorial(self) -> None:
         """Test product to compute factorial."""
@@ -2009,6 +2026,10 @@ class TestSequencesAndSeries(unittest.TestCase):
     def test_product_single_term(self) -> None:
         """Test product with single term."""
         self.assertEqual(MathUtils.product("n", "n", 5, 5), "5")
+
+    def test_product_rejects_too_many_terms(self) -> None:
+        with self.assertRaises(ValueError):
+            MathUtils.product("n", "n", 0, 1000)  # 1001 terms
 
     # ========== arithmetic_sum tests ==========
     def test_arithmetic_sum_basic(self) -> None:

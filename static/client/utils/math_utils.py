@@ -58,6 +58,8 @@ class MathUtils:
     """
     # Epsilon (tolerance)
     EPSILON = 1e-9
+    MAX_SERIES_TERMS = 1000
+    MAX_NUMERIC_INTEGRATION_STEPS = 10000
 
     @staticmethod
     def _ensure_non_negative_integer(value: Number, name: str) -> int:
@@ -1191,6 +1193,61 @@ class MathUtils:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
 
     @staticmethod
+    def numeric_integrate(
+        expression: str,
+        variable: str,
+        lower_bound: Number,
+        upper_bound: Number,
+        method: str = "simpson",
+        steps: int = 200,
+    ) -> Dict[str, Number]:
+        """Numerically integrate an expression over a finite interval.
+
+        This is intended for fast approximation workflows where symbolic
+        integration is unnecessary or unavailable.
+        """
+        from utils.numeric_integration import integrate as integrate_numeric
+
+        if not isinstance(expression, str) or not expression.strip():
+            raise ValueError("expression must be a non-empty string")
+        if not isinstance(variable, str) or not variable.strip():
+            raise ValueError("variable must be a non-empty string")
+
+        lower = float(lower_bound)
+        upper = float(upper_bound)
+        if not math.isfinite(lower) or not math.isfinite(upper):
+            raise ValueError("lower_bound and upper_bound must be finite")
+        if lower >= upper:
+            raise ValueError("lower_bound must be less than upper_bound")
+
+        if isinstance(steps, bool) or not isinstance(steps, int):
+            raise TypeError("steps must be an integer")
+        if steps <= 0:
+            raise ValueError("steps must be positive")
+        if steps > MathUtils.MAX_NUMERIC_INTEGRATION_STEPS:
+            raise ValueError(
+                f"steps cannot exceed {MathUtils.MAX_NUMERIC_INTEGRATION_STEPS}"
+            )
+
+        expr = window.nerdamer(expression)
+
+        def eval_fn(x: float) -> float:
+            return float(expr.sub(variable, x).evaluate().text())
+
+        result = integrate_numeric(
+            eval_fn=eval_fn,
+            lower_bound=lower,
+            upper_bound=upper,
+            method=method,
+            steps=steps,
+        )
+        return {
+            "value": result["value"],
+            "error_estimate": result["error_estimate"],
+            "steps": result["steps"],
+        }
+
+    @staticmethod
     def simplify(expression: str) -> str:
         """Simplify a mathematical expression to its simplest form.
 
@@ -1918,6 +1975,11 @@ class MathUtils:
         end = int(end)
         if start > end:
             return "0"
+        term_count = end - start + 1
+        if term_count > MathUtils.MAX_SERIES_TERMS:
+            raise ValueError(
+                f"summation supports at most {MathUtils.MAX_SERIES_TERMS} terms"
+            )
         total = 0.0
         for i in range(start, end + 1):
             value = float(window.nerdamer(expression).sub(variable, i).evaluate().text())
@@ -1949,6 +2011,11 @@ class MathUtils:
         end = int(end)
         if start > end:
             return "1"
+        term_count = end - start + 1
+        if term_count > MathUtils.MAX_SERIES_TERMS:
+            raise ValueError(
+                f"product supports at most {MathUtils.MAX_SERIES_TERMS} terms"
+            )
         total = 1.0
         for i in range(start, end + 1):
             value = float(window.nerdamer(expression).sub(variable, i).evaluate().text())

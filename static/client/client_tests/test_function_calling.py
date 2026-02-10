@@ -11,6 +11,7 @@ from process_function_calls import ProcessFunctionCalls
 from .simple_mock import SimpleMock
 from utils.linear_algebra_utils import LinearAlgebraUtils
 from utils.linear_algebra_utils import LinearAlgebraResult
+from utils.math_utils import MathUtils
 from workspace_manager import WorkspaceManager
 
 
@@ -117,6 +118,51 @@ class TestProcessFunctionCalls(unittest.TestCase):
         expression = "NonExistentFunction(10)"
         result = ProcessFunctionCalls.evaluate_expression(expression, variables=None, canvas=self.canvas)
         self.assertTrue("Sorry" in result)
+
+    def test_numeric_integrate_function_call(self) -> None:
+        available_functions = {"numeric_integrate": MathUtils.numeric_integrate}
+        calls = [
+            {
+                "function_name": "numeric_integrate",
+                "arguments": {
+                    "expression": "x^2",
+                    "variable": "x",
+                    "lower_bound": 0,
+                    "upper_bound": 1,
+                    "method": "simpson",
+                    "steps": 100,
+                },
+            }
+        ]
+        results = ProcessFunctionCalls.get_results(calls, available_functions, (), self.canvas)
+        self.assertTrue(ProcessFunctionCalls.validate_results(results))
+        key, payload = next(iter(results.items()))
+        self.assertIn("numeric_integrate(", key)
+        self.assertIsInstance(payload, dict)
+        self.assertAlmostEqual(float(payload["value"]), 1.0 / 3.0, places=6)
+        self.assertIn("error_estimate", payload)
+
+    def test_numeric_integrate_function_call_uses_defaults_when_optional_args_omitted(self) -> None:
+        available_functions = {"numeric_integrate": MathUtils.numeric_integrate}
+        calls = [
+            {
+                "function_name": "numeric_integrate",
+                "arguments": {
+                    "expression": "x^2",
+                    "variable": "x",
+                    "lower_bound": 0,
+                    "upper_bound": 1,
+                },
+            }
+        ]
+        results = ProcessFunctionCalls.get_results(calls, available_functions, (), self.canvas)
+        self.assertTrue(ProcessFunctionCalls.validate_results(results))
+        key, payload = next(iter(results.items()))
+        self.assertIn("numeric_integrate(", key)
+        self.assertIsInstance(payload, dict)
+        self.assertAlmostEqual(float(payload["value"]), 1.0 / 3.0, places=6)
+        self.assertEqual(int(payload["steps"]), 400)
+        self.assertIn("error_estimate", payload)
 
     def test_evaluate_linear_algebra_expression_delegates_to_utils(self) -> None:
         captured_calls: List[Any] = []

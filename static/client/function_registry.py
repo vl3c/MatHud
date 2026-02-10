@@ -160,6 +160,7 @@ class FunctionRegistry:
             "limit": MathUtils.limit,
             "derive": MathUtils.derivative,
             "integrate": MathUtils.integral,
+            "numeric_integrate": MathUtils.numeric_integrate,
             "simplify": MathUtils.simplify,
             "expand": MathUtils.expand,
             "factor": MathUtils.factor,
