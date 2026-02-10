@@ -145,6 +145,59 @@ class AIInterface:
                 "error_tests": [{"test": "Test Runner Import", "error": f"Could not import test runner: {e}"}]
             })
 
+    def compare_canvas_state(self) -> None:
+        """Send current canvas state to debug endpoint and log full-vs-summary output."""
+        try:
+            payload = json.dumps({"canvas_state": self.canvas.get_canvas_state()})
+            req = ajax.ajax(timeout=20000)
+            req.bind('complete', self._on_compare_canvas_state_complete)
+            req.bind('error', self._on_compare_canvas_state_error)
+            req.open('POST', '/api/debug/canvas-state-comparison', True)
+            req.set_header('content-type', 'application/json')
+            req.send(payload)
+            console.log("[MatHud] Requested canvas-state comparison...")
+        except Exception as e:
+            console.error(f"[MatHud] Failed to request canvas-state comparison: {e}")
+
+    def _on_compare_canvas_state_complete(self, req: Any) -> None:
+        """Handle debug canvas-state comparison response."""
+        try:
+            if int(getattr(req, "status", 0) or 0) >= 400:
+                console.error(f"[MatHud] compareCanvasState failed: HTTP {req.status} {req.text}")
+                return
+
+            raw = json.loads(str(getattr(req, "text", "")))
+            data = raw.get("data", {}) if isinstance(raw, dict) else {}
+            metrics = data.get("metrics", {}) if isinstance(data, dict) else {}
+            full_state = data.get("full", {}) if isinstance(data, dict) else {}
+            summary_state = data.get("summary", {}) if isinstance(data, dict) else {}
+
+            console.log("=== Canvas State Comparison ===")
+            console.log(
+                "Full state:",
+                f"{metrics.get('full_bytes', 0)} bytes (~{metrics.get('full_estimated_tokens', 0)} tokens)"
+            )
+            console.log(
+                "Summary:",
+                f"{metrics.get('summary_bytes', 0)} bytes (~{metrics.get('summary_estimated_tokens', 0)} tokens)"
+            )
+            console.log("Reduction:", f"{metrics.get('reduction_pct', 0.0)}%")
+            console.log("Full state object:")
+            console.log(full_state)
+            console.log("Summary state object:")
+            console.log(summary_state)
+        except Exception as e:
+            console.error(f"[MatHud] Failed to parse canvas-state comparison response: {e}")
+
+    def _on_compare_canvas_state_error(self, req: Any) -> None:
+        """Handle debug canvas-state comparison request error."""
+        try:
+            status = getattr(req, "status", "unknown")
+            text = getattr(req, "text", "")
+            console.error(f"[MatHud] compareCanvasState request error ({status}): {text}")
+        except Exception:
+            console.error("[MatHud] compareCanvasState request error")
+
     async def run_tests_async(
         self,
         should_stop: Optional[Callable[[], bool]] = None,

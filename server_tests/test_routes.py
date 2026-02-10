@@ -203,6 +203,50 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(len(self.app.responses_api.messages), 1)
         self.assertEqual(self.app.responses_api.messages[0]["role"], "developer")
 
+    def test_debug_canvas_state_comparison_returns_metrics(self) -> None:
+        payload = {
+            "canvas_state": {
+                "Points": [
+                    {"name": "B", "args": {"position": {"x": 1, "y": 2}}},
+                    {"name": "A", "args": {"position": {"x": 0, "y": 0}}},
+                ],
+                "Segments": [
+                    {
+                        "name": "s1",
+                        "args": {"p1": "A", "p2": "B", "label": {"text": "", "visible": False}},
+                        "_p1_coords": [0, 0],
+                        "_p2_coords": [1, 2],
+                    }
+                ],
+            }
+        }
+
+        response = self.client.post('/api/debug/canvas-state-comparison', json=payload)
+        data = json.loads(response.data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["status"], "success")
+        self.assertIn("metrics", data["data"])
+        self.assertIn("summary", data["data"])
+        self.assertIn("full", data["data"])
+
+        summary_segments = data["data"]["summary"]["Segments"]
+        self.assertEqual(summary_segments[0]["name"], "s1")
+        self.assertNotIn("_p1_coords", summary_segments[0])
+
+    def test_debug_canvas_state_comparison_is_disabled_when_deployed(self) -> None:
+        with patch("static.routes.AppManager.requires_auth", return_value=False), patch(
+            "static.routes.AppManager.is_deployed", return_value=True
+        ):
+            response = self.client.post(
+                '/api/debug/canvas-state-comparison',
+                json={"canvas_state": {"Points": []}},
+            )
+
+        data = json.loads(response.data)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(data["status"], "error")
+
     def test_error_handling(self) -> None:
         """Test error handling in routes."""
         # Test invalid workspace name
