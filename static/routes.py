@@ -27,6 +27,7 @@ from flask.typing import ResponseReturnValue
 
 from static.ai_model import AIModel, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OLLAMA
 from static.app_manager import AppManager, MatHudFlask
+from static.canvas_state_summarizer import compare_canvas_states
 from static.openai_api_base import OpenAIAPIBase
 from static.providers import ProviderRegistry, create_provider_instance
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
@@ -673,6 +674,36 @@ def register_routes(app: MatHudFlask) -> None:
             }
 
         return AppManager.make_response(data=cast(JsonValue, result))
+
+    @app.route('/api/debug/canvas-state-comparison', methods=['POST'])
+    @require_auth
+    def debug_canvas_state_comparison() -> ResponseReturnValue:
+        """Development-only endpoint for full vs summary canvas-state comparison."""
+        if AppManager.is_deployed():
+            return AppManager.make_response(
+                message='Not found',
+                status='error',
+                code=404,
+            )
+
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return AppManager.make_response(
+                message='Invalid request body',
+                status='error',
+                code=400,
+            )
+
+        canvas_state = payload.get('canvas_state')
+        if not isinstance(canvas_state, dict):
+            return AppManager.make_response(
+                message='canvas_state must be an object',
+                status='error',
+                code=400,
+            )
+
+        comparison = compare_canvas_states(canvas_state)
+        return AppManager.make_response(data=cast(JsonValue, comparison))
 
     @app.route('/')
     @require_auth

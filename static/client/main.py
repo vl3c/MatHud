@@ -202,6 +202,9 @@ def main() -> None:
 
     # Expose canvas redraw for resize handling
     window.redrawMatHudCanvas = redraw_canvas
+    # Expose state-comparison helper for debugging summary design.
+    # Usage: window.compareCanvasState()
+    window.compareCanvasState = _ai_interface.compare_canvas_state
 
 
 # Run the main function when the script loads
