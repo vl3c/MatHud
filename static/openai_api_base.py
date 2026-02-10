@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from static.ai_model import AIModel
+from static.canvas_state_summarizer import compare_canvas_states
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
 
 # Use the shared MatHud logger for file logging
@@ -62,7 +63,12 @@ SEARCH_MODE_TOOLS: List[FunctionDefinition] = _build_search_mode_tools()
 class OpenAIAPIBase:
     """Base class for OpenAI API implementations."""
 
-    DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. DO NOT try to perform calculations by yourself, use the tools provided instead. Always analyze the canvas state before proceeding. Canvas state is included with user messages, but after tool calls you may not receive updated state. If you need to re-check the live canvas state between actions, call get_current_canvas_state. Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
+    DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. DO NOT try to perform calculations by yourself, use the tools provided instead. Always analyze the canvas state before proceeding. Canvas state is included with user messages, but is provided as a compact summary by default to reduce noise; when you need complete details, call get_current_canvas_state. Canvas state may be stale after tool calls, so re-check live state between actions when needed. Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
+
+    CANVAS_SUMMARY_MODE_ENV = "AI_CANVAS_SUMMARY_MODE"
+    CANVAS_HYBRID_MAX_BYTES_ENV = "AI_CANVAS_HYBRID_FULL_MAX_BYTES"
+    DEFAULT_CANVAS_SUMMARY_MODE = "hybrid"
+    DEFAULT_CANVAS_HYBRID_FULL_MAX_BYTES = 6000
 
     @staticmethod
     def _initialize_api_key() -> str:
@@ -338,13 +344,14 @@ class OpenAIAPIBase:
         Handles both vision toggle (canvas snapshot) and user-attached images.
         Images work independently: attached images are sent regardless of vision toggle.
         """
+        normalized_prompt = self._normalize_prompt_canvas_state(full_prompt)
         try:
-            prompt_json = json.loads(full_prompt)
+            prompt_json = json.loads(normalized_prompt)
         except json.JSONDecodeError:
-            return full_prompt
+            return normalized_prompt
 
         if not isinstance(prompt_json, dict):
-            return full_prompt
+            return normalized_prompt
 
         user_message = str(prompt_json.get("user_message", ""))
         use_vision = bool(prompt_json.get("use_vision", False))
@@ -357,7 +364,7 @@ class OpenAIAPIBase:
 
         # If no vision and no attached images, return plain text prompt
         if not use_vision and not attached_images:
-            return full_prompt
+            return normalized_prompt
 
         # Create enhanced prompt with images
         enhanced_prompt = self._create_enhanced_prompt_with_image(
@@ -365,7 +372,60 @@ class OpenAIAPIBase:
             attached_images=attached_images,
             include_canvas_snapshot=use_vision,
         )
-        return enhanced_prompt if enhanced_prompt else full_prompt
+        return enhanced_prompt if enhanced_prompt else normalized_prompt
+
+    def _normalize_prompt_canvas_state(self, full_prompt: str) -> str:
+        """Normalize prompt canvas payload according to summary mode."""
+        mode = self._get_canvas_summary_mode()
+        if mode == "off":
+            return full_prompt
+
+        prompt_json = self._parse_prompt_json(full_prompt)
+        if not isinstance(prompt_json, dict):
+            return full_prompt
+
+        canvas_state = prompt_json.get("canvas_state")
+        if not isinstance(canvas_state, dict):
+            return full_prompt
+
+        comparison = compare_canvas_states(canvas_state)
+        metrics = comparison.get("metrics", {})
+        summary_state = comparison.get("summary", {})
+        full_bytes = int(metrics.get("full_bytes", 0) or 0)
+        include_full_state = mode == "hybrid" and self._should_include_full_state_in_hybrid(full_bytes)
+
+        prompt_json["canvas_state_summary"] = {
+            "mode": mode,
+            "includes_full_state": include_full_state,
+            "state": summary_state,
+            "metrics": metrics,
+        }
+
+        if not include_full_state:
+            del prompt_json["canvas_state"]
+
+        return json.dumps(prompt_json)
+
+    def _get_canvas_summary_mode(self) -> str:
+        raw_mode = os.getenv(self.CANVAS_SUMMARY_MODE_ENV, self.DEFAULT_CANVAS_SUMMARY_MODE).strip().lower()
+        if raw_mode in ("off", "hybrid", "summary_only"):
+            return raw_mode
+        return self.DEFAULT_CANVAS_SUMMARY_MODE
+
+    def _get_canvas_hybrid_full_max_bytes(self) -> int:
+        raw_limit = os.getenv(self.CANVAS_HYBRID_MAX_BYTES_ENV, str(self.DEFAULT_CANVAS_HYBRID_FULL_MAX_BYTES))
+        try:
+            value = int(raw_limit)
+            if value <= 0:
+                raise ValueError
+            return value
+        except (TypeError, ValueError):
+            return self.DEFAULT_CANVAS_HYBRID_FULL_MAX_BYTES
+
+    def _should_include_full_state_in_hybrid(self, full_bytes: int) -> bool:
+        if full_bytes <= 0:
+            return False
+        return full_bytes <= self._get_canvas_hybrid_full_max_bytes()
 
     def _create_error_response(
         self,
@@ -413,5 +473,4 @@ class OpenAIAPIBase:
             return prompt_json if isinstance(prompt_json, dict) else None
         except (json.JSONDecodeError, TypeError):
             return None
-
 

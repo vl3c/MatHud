@@ -23,6 +23,10 @@ class TestOpenAIAPIBase(unittest.TestCase):
         # Ensure OPENAI_API_KEY is set for tests
         self.original_api_key = os.environ.get('OPENAI_API_KEY')
         os.environ['OPENAI_API_KEY'] = 'test-api-key'
+        self.original_summary_mode = os.environ.get('AI_CANVAS_SUMMARY_MODE')
+        self.original_hybrid_max = os.environ.get('AI_CANVAS_HYBRID_FULL_MAX_BYTES')
+        os.environ.pop('AI_CANVAS_SUMMARY_MODE', None)
+        os.environ.pop('AI_CANVAS_HYBRID_FULL_MAX_BYTES', None)
 
     def tearDown(self) -> None:
         """Clean up after tests."""
@@ -30,6 +34,14 @@ class TestOpenAIAPIBase(unittest.TestCase):
             os.environ['OPENAI_API_KEY'] = self.original_api_key
         else:
             os.environ.pop('OPENAI_API_KEY', None)
+        if self.original_summary_mode is None:
+            os.environ.pop('AI_CANVAS_SUMMARY_MODE', None)
+        else:
+            os.environ['AI_CANVAS_SUMMARY_MODE'] = self.original_summary_mode
+        if self.original_hybrid_max is None:
+            os.environ.pop('AI_CANVAS_HYBRID_FULL_MAX_BYTES', None)
+        else:
+            os.environ['AI_CANVAS_HYBRID_FULL_MAX_BYTES'] = self.original_hybrid_max
 
     @patch('static.openai_api_base.OpenAI')
     def test_initialization_default_model(self, mock_openai: Mock) -> None:
@@ -178,9 +190,70 @@ class TestOpenAIAPIBase(unittest.TestCase):
     def test_prepare_message_content_no_vision(self, mock_openai: Mock) -> None:
         """Test _prepare_message_content without vision returns original prompt."""
         api = OpenAIAPIBase()
+        os.environ['AI_CANVAS_SUMMARY_MODE'] = 'off'
         prompt = json.dumps({"user_message": "test", "use_vision": False})
         result = api._prepare_message_content(prompt)
         self.assertEqual(result, prompt)
+
+    @patch('static.openai_api_base.OpenAI')
+    def test_prepare_message_content_summary_only_removes_full_canvas_state(self, mock_openai: Mock) -> None:
+        api = OpenAIAPIBase()
+        os.environ['AI_CANVAS_SUMMARY_MODE'] = 'summary_only'
+        prompt = json.dumps(
+            {
+                "user_message": "test",
+                "use_vision": False,
+                "canvas_state": {"Points": [{"name": "A", "args": {"position": {"x": 1, "y": 2}}}]},
+            }
+        )
+        result = api._prepare_message_content(prompt)
+        parsed = json.loads(result)
+
+        self.assertNotIn("canvas_state", parsed)
+        self.assertIn("canvas_state_summary", parsed)
+        summary = parsed["canvas_state_summary"]
+        self.assertEqual(summary["mode"], "summary_only")
+        self.assertFalse(summary["includes_full_state"])
+        self.assertIn("state", summary)
+        self.assertIn("metrics", summary)
+
+    @patch('static.openai_api_base.OpenAI')
+    def test_prepare_message_content_hybrid_keeps_small_full_state(self, mock_openai: Mock) -> None:
+        api = OpenAIAPIBase()
+        os.environ['AI_CANVAS_SUMMARY_MODE'] = 'hybrid'
+        os.environ['AI_CANVAS_HYBRID_FULL_MAX_BYTES'] = '999999'
+        prompt = json.dumps(
+            {
+                "user_message": "test",
+                "use_vision": False,
+                "canvas_state": {"Points": [{"name": "A", "args": {"position": {"x": 1, "y": 2}}}]},
+            }
+        )
+        result = api._prepare_message_content(prompt)
+        parsed = json.loads(result)
+
+        self.assertIn("canvas_state", parsed)
+        self.assertIn("canvas_state_summary", parsed)
+        self.assertTrue(parsed["canvas_state_summary"]["includes_full_state"])
+
+    @patch('static.openai_api_base.OpenAI')
+    def test_prepare_message_content_hybrid_drops_large_full_state(self, mock_openai: Mock) -> None:
+        api = OpenAIAPIBase()
+        os.environ['AI_CANVAS_SUMMARY_MODE'] = 'hybrid'
+        os.environ['AI_CANVAS_HYBRID_FULL_MAX_BYTES'] = '10'
+        prompt = json.dumps(
+            {
+                "user_message": "test",
+                "use_vision": False,
+                "canvas_state": {"Points": [{"name": "A", "args": {"position": {"x": 1, "y": 2}}}]},
+            }
+        )
+        result = api._prepare_message_content(prompt)
+        parsed = json.loads(result)
+
+        self.assertNotIn("canvas_state", parsed)
+        self.assertIn("canvas_state_summary", parsed)
+        self.assertFalse(parsed["canvas_state_summary"]["includes_full_state"])
 
     @patch('static.openai_api_base.OpenAI')
     def test_prepare_message_content_invalid_json(self, mock_openai: Mock) -> None:
@@ -272,4 +345,3 @@ class TestOpenAIAPIBaseInitialization(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
