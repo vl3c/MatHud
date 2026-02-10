@@ -222,6 +222,7 @@ from .test_tts_controller import (
 from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
+from .test_series import TestSeries
 
 class Tests:
     """Encapsulates execution and formatting of client-side tests."""
@@ -493,6 +494,7 @@ class Tests:
             TestTTSControllerSingleton,
             TestTTSControllerSpeak,
             TestTTSControllerErrorHandling,
+            TestSeries,
         ]
 
     def _create_test_suite(self) -> unittest.TestSuite:
