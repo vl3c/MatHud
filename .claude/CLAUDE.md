@@ -164,11 +164,7 @@ Surfaces are layered inside `#math-container`: WebGL (z-index 20), Canvas2D (z-i
 1. **Pure Python tests** (regular `pytest`): `test_markdown_parser.py`, `test_expression_validator.py`, `test_math_functions.py`, and server-side Flask route suites.
 2. **Brython-dependent tests** (browser runner): `test_canvas.py`, geometry suites such as `test_angle.py` or `test_point.py`, any `test_drawable_*.py`, and every module that imports `from browser import ...`.
 
-> **MANDATORY — Fixture registration:** whenever you add a new client test file under `static/client/client_tests/`, you **must** perform both steps below or the tests will be silently skipped:
-> 1. **Import** the `Test*` class at the top of `static/client/client_tests/tests.py` (alongside the other imports).
-> 2. **Append** it to the list returned by `_get_test_cases()` in the same file.
->
-> Without both steps the Brython runner will never execute the new tests.
+> **Fixture registration:** whenever you add a new client test file under `static/client/client_tests/`, be sure to import its `Test*` class and include it in `test_cases` inside `static/client/client_tests/tests.py` so the Brython runner executes it.
 
 ## Running Tests
 - **Server tests**: `python -m cli.main test server` (or `python run_server_tests.py`)
@@ -214,39 +210,6 @@ window.getMatHudTestResults()
 ```
 
 This allows Claude Code to get test results as structured JSON without parsing screenshots.
-
-## Running Client Tests Headlessly (CI / Sandbox / Unattended)
-
-Client tests CANNOT be run with pytest — they depend on the Brython runtime which only
-exists inside a browser. Running `pytest` on files under `static/client/` will always fail
-with `ImportError: cannot import name 'aio' from 'browser'`.
-
-To run client tests headlessly (e.g. inside a Docker container or CI):
-
-```bash
-# 1. Start the Flask server in the background
-python app.py &
-sleep 5  # wait for server to be ready
-
-# 2. Run client tests via the CLI (uses Selenium + headless Chromium)
-python -m cli.main test client --start-server --timeout 600 --json
-
-# Or if server is already running on a specific port:
-python -m cli.main test client --port 5000 --timeout 600 --json
-```
-
-The `--json` flag returns structured results. The `--start-server` flag auto-starts Flask.
-
-**Important**: When running "all tests", run server and client test suites separately:
-```bash
-# Server tests (pytest-based, pure Python)
-python -m pytest server_tests/ -v
-
-# Client tests (Selenium-based, runs in browser)
-python -m cli.main test client --start-server --timeout 600 --json
-```
-
-Never pass `static/client/` paths to pytest — it will fail on every Brython import.
 
 ## Common Issues & Solutions
 1. If a test raises `ModuleNotFoundError: No module named 'browser'`, move it to the Brython runner.
