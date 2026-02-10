@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import copy
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple, cast
 
 
 _DRAWABLE_FIELD_PRUNE_RULES: Dict[str, set[str]] = {
@@ -46,7 +46,7 @@ def summarize_canvas_state(full_state: Dict[str, Any]) -> Dict[str, Any]:
         elif isinstance(value, dict):
             summary[key] = _strip_empty_values(value)
 
-    return _canonicalize(summary)
+    return cast(Dict[str, Any], _canonicalize(summary))
 
 
 def compare_canvas_states(full_state: Dict[str, Any]) -> Dict[str, Any]:
@@ -110,7 +110,7 @@ def _prune_drawable_object(obj: Dict[str, Any], prune_fields: set[str]) -> Dict[
             pruned[key] = _strip_empty_values(obj[key])
 
     _prune_default_label_metadata(pruned)
-    return _strip_empty_values(pruned)
+    return cast(Dict[str, Any], _strip_empty_values(pruned))
 
 
 def _prune_default_label_metadata(obj: Dict[str, Any]) -> None:

@@ -63,7 +63,7 @@ SEARCH_MODE_TOOLS: List[FunctionDefinition] = _build_search_mode_tools()
 class OpenAIAPIBase:
     """Base class for OpenAI API implementations."""
 
-    DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. DO NOT try to perform calculations by yourself, use the tools provided instead. Always analyze the canvas state before proceeding. Canvas state is included with user messages, but is provided as a compact summary by default to reduce noise; when you need complete details, call get_current_canvas_state. Canvas state may be stale after tool calls, so re-check live state between actions when needed. Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
+    DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. DO NOT try to perform calculations by yourself, use the tools provided instead. Always analyze the canvas state before proceeding. Canvas state is included with user messages; for large scenes it may be summarized to reduce noise. When you need complete details, call get_current_canvas_state. Canvas state may be stale after tool calls, so re-check live state between actions when needed. Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
 
     CANVAS_SUMMARY_MODE_ENV = "AI_CANVAS_SUMMARY_MODE"
     CANVAS_HYBRID_MAX_BYTES_ENV = "AI_CANVAS_HYBRID_FULL_MAX_BYTES"
@@ -254,8 +254,9 @@ class OpenAIAPIBase:
                                 continue
                             try:
                                 text_json = json.loads(text_content)
-                                if isinstance(text_json, dict) and "canvas_state" in text_json:
-                                    del text_json["canvas_state"]
+                                if isinstance(text_json, dict):
+                                    text_json.pop("canvas_state", None)
+                                    text_json.pop("canvas_state_summary", None)
                                     part["text"] = json.dumps(text_json)
                             except json.JSONDecodeError:
                                 pass
@@ -264,8 +265,9 @@ class OpenAIAPIBase:
                 if isinstance(content, str) and "canvas_state" in content:
                     try:
                         message_content_json = json.loads(content)
-                        if isinstance(message_content_json, dict) and "canvas_state" in message_content_json:
-                            del message_content_json["canvas_state"]
+                        if isinstance(message_content_json, dict):
+                            message_content_json.pop("canvas_state", None)
+                            message_content_json.pop("canvas_state_summary", None)
                             message["content"] = json.dumps(message_content_json)
                     except json.JSONDecodeError:
                         pass
@@ -394,12 +396,14 @@ class OpenAIAPIBase:
         full_bytes = int(metrics.get("full_bytes", 0) or 0)
         include_full_state = mode == "hybrid" and self._should_include_full_state_in_hybrid(full_bytes)
 
-        prompt_json["canvas_state_summary"] = {
+        summary_payload: Dict[str, Any] = {
             "mode": mode,
             "includes_full_state": include_full_state,
-            "state": summary_state,
             "metrics": metrics,
         }
+        if not include_full_state:
+            summary_payload["state"] = summary_state
+        prompt_json["canvas_state_summary"] = summary_payload
 
         if not include_full_state:
             del prompt_json["canvas_state"]
@@ -473,4 +477,3 @@ class OpenAIAPIBase:
             return prompt_json if isinstance(prompt_json, dict) else None
         except (json.JSONDecodeError, TypeError):
             return None
-
