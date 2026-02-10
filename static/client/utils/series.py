@@ -31,7 +31,7 @@ def _require_positive_int(n: int, name: str) -> int:
         TypeError: If *n* is not an ``int``.
         ValueError: If *n* is not positive.
     """
-    if not isinstance(n, int):
+    if isinstance(n, bool) or not isinstance(n, int):
         raise TypeError(f"{name} must be an integer")
     if n <= 0:
         raise ValueError(f"{name} must be positive")
@@ -45,7 +45,7 @@ def _require_finite(value: float, name: str) -> float:
         TypeError: If *value* is not numeric.
         ValueError: If *value* is infinite or NaN.
     """
-    if not isinstance(value, (int, float)):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError(f"{name} must be a number")
     value = float(value)
     if not math.isfinite(value):

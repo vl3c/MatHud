@@ -73,8 +73,12 @@ class TestSeries(unittest.TestCase):
             arithmetic_partial_sums(1, 1, 0)
         with self.assertRaises(TypeError):
             arithmetic_partial_sums(1, 1, 2.5)  # type: ignore[arg-type]
+        with self.assertRaises(TypeError):
+            arithmetic_partial_sums(1, 1, True)  # type: ignore[arg-type]
         with self.assertRaises(ValueError):
             taylor_exp_partial_sums(float("inf"), 5)
+        with self.assertRaises(TypeError):
+            taylor_exp_partial_sums(False, 5)  # type: ignore[arg-type]
         with self.assertRaises(ValueError):
             harmonic_partial_sums(-1)
 

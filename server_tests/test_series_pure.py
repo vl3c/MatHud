@@ -42,6 +42,10 @@ class TestValidation(unittest.TestCase):
         with self.assertRaises(TypeError):
             _require_positive_int(3.0, "n")  # type: ignore[arg-type]
 
+    def test_require_positive_int_rejects_bool(self) -> None:
+        with self.assertRaises(TypeError):
+            _require_positive_int(True, "n")  # type: ignore[arg-type]
+
     def test_require_finite_accepts_numbers(self) -> None:
         self.assertEqual(_require_finite(3.14, "x"), 3.14)
         self.assertEqual(_require_finite(0, "x"), 0.0)
@@ -69,6 +73,10 @@ class TestValidation(unittest.TestCase):
     def test_require_finite_rejects_none(self) -> None:
         with self.assertRaises(TypeError):
             _require_finite(None, "x")  # type: ignore[arg-type]
+
+    def test_require_finite_rejects_bool(self) -> None:
+        with self.assertRaises(TypeError):
+            _require_finite(False, "x")  # type: ignore[arg-type]
 
     def test_all_functions_reject_n_zero(self) -> None:
         """Every series function should reject n=0."""
@@ -116,6 +124,25 @@ class TestValidation(unittest.TestCase):
                     func(float("inf"), 5)
                 with self.assertRaises(ValueError):
                     func(float("nan"), 5)
+
+    def test_all_functions_reject_bool_inputs(self) -> None:
+        """Bools should not be accepted as numeric/int inputs."""
+        with self.assertRaises(TypeError):
+            arithmetic_partial_sums(1, 1, True)  # type: ignore[arg-type]
+        with self.assertRaises(TypeError):
+            geometric_partial_sums(1, 2, False)  # type: ignore[arg-type]
+        with self.assertRaises(TypeError):
+            harmonic_partial_sums(True)  # type: ignore[arg-type]
+        with self.assertRaises(TypeError):
+            fibonacci_partial_sums(False)  # type: ignore[arg-type]
+        with self.assertRaises(TypeError):
+            taylor_exp_partial_sums(True, 5)  # type: ignore[arg-type]
+        with self.assertRaises(TypeError):
+            taylor_sin_partial_sums(False, 5)  # type: ignore[arg-type]
+        with self.assertRaises(TypeError):
+            taylor_cos_partial_sums(True, 5)  # type: ignore[arg-type]
+        with self.assertRaises(TypeError):
+            leibniz_partial_sums(False)  # type: ignore[arg-type]
 
 
 class TestArithmeticSeries(unittest.TestCase):
