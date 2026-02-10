@@ -1347,7 +1347,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "evaluate_expression",
-                    "description": "Evaluate a mathematical expression. Supports arithmetic/algebra plus sequence and series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2). Also supports trigonometric, logarithmic, combinatorics, matrix determinant, statistics, and number-theory helpers.",
+                    "description": "Calculate or evaluate a mathematical expression and return the numerical result. Use for arithmetic (+, -, *, /, ^), algebra, and math functions. Supports variables (x, y), constants (e, pi), and functions: sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime, prev_prime, totient, divisors, mean, median, mode, stdev, variance, random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2).",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -1560,22 +1560,20 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "description": "Upper finite bound of integration."
                             },
                             "method": {
-                                "type": ["string", "null"],
-                                "enum": ["trapezoid", "midpoint", "simpson", None],
-                                "description": "Numeric integration method. Defaults to 'simpson' when null."
+                                "type": "string",
+                                "enum": ["trapezoid", "midpoint", "simpson"],
+                                "description": "Numeric integration method. Optional; defaults to 'simpson' when omitted."
                             },
                             "steps": {
-                                "type": ["number", "null"],
-                                "description": "Number of subintervals. Must be a positive integer and <= 10000. Defaults to 200 when null."
+                                "type": "integer",
+                                "description": "Number of subintervals. Must be a positive integer and <= 10000. Optional; defaults to 200 when omitted."
                             }
                         },
                         "required": [
                             "expression",
                             "variable",
                             "lower_bound",
-                            "upper_bound",
-                            "method",
-                            "steps"
+                            "upper_bound"
                         ],
                         "additionalProperties": False
                     }

@@ -142,6 +142,28 @@ class TestProcessFunctionCalls(unittest.TestCase):
         self.assertAlmostEqual(float(payload["value"]), 1.0 / 3.0, places=6)
         self.assertIn("error_estimate", payload)
 
+    def test_numeric_integrate_function_call_uses_defaults_when_optional_args_omitted(self) -> None:
+        available_functions = {"numeric_integrate": MathUtils.numeric_integrate}
+        calls = [
+            {
+                "function_name": "numeric_integrate",
+                "arguments": {
+                    "expression": "x^2",
+                    "variable": "x",
+                    "lower_bound": 0,
+                    "upper_bound": 1,
+                },
+            }
+        ]
+        results = ProcessFunctionCalls.get_results(calls, available_functions, (), self.canvas)
+        self.assertTrue(ProcessFunctionCalls.validate_results(results))
+        key, payload = next(iter(results.items()))
+        self.assertIn("numeric_integrate(", key)
+        self.assertIsInstance(payload, dict)
+        self.assertAlmostEqual(float(payload["value"]), 1.0 / 3.0, places=6)
+        self.assertEqual(int(payload["steps"]), 400)
+        self.assertIn("error_estimate", payload)
+
     def test_evaluate_linear_algebra_expression_delegates_to_utils(self) -> None:
         captured_calls: List[Any] = []
 
