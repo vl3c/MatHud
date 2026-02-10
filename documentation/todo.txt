@@ -71,7 +71,7 @@ _Elaborates on P0 goals with ongoing design principles._
 - declarative geometric constructions and relation proofs/checks
 - linear algebra workflows (rref/eigen decomposition and related explainability output)
 - ~~series partial-sum utilities~~
-- remaining: sequence/summation/product and numeric integration flows optimized for conversational use
+- ~~remaining: sequence/summation/product and numeric integration flows optimized for conversational use~~
 - inequality/system region generation driven by intent + constraints
 - conic and advanced curve workflows with parameter exploration
 
@@ -98,6 +98,7 @@ _Elaborates on P0 goals with ongoing design principles._
 - add type stubs or protocols for Brython `browser` module usage in client code
 
 ## Recent Completions
+- 2026-02-10: completed conversational sequence/summation/product + numeric integration flow hardening by shipping strict-compatible `numeric_integrate` tool schema defaults (optional `method`/`steps`), restoring explicit `evaluate_expression` function-token discoverability while retaining series helpers, and adding function-call pipeline coverage for omitted optional integration args. Validation: `python run_server_tests.py` (847 passed, 24 skipped, 123 subtests) and `./venv/bin/python -m cli.main test client --start-server --timeout 240` (2372 run, 0 failures, 0 errors).
 - 2026-02-10: added series partial-sum utilities (`static/client/utils/series.py`) with broad pure-Python and Brython-side coverage, plus registration into the client test runner. Follow-up hardening: bool inputs now rejected in numeric/int validators to avoid silent acceptance of `True`/`False` as numbers. Validation: `python -m pytest -q server_tests/test_series_pure.py` (69 passed, 6 subtests), `python -m cli.main test client --start-server --no-screenshot` (2367 run, 0 failures, 0 errors). Commit: `2c3efde`.
 - 2026-02-08: dependency-architecture hardening phase completed for interactive drawables: normalized dependency cleanup in delete flows (point/circle/ellipse/graph/colored-area/function/parametric/piecewise/polygon/vector + direct triangle/rectangle removals), added dependency-graph invariant/lifecycle tests (delete/recreate), and codified/documented edge-neutral dependency contracts (Label, plot/bar families, parametric/piecewise). Added policy matrix docs in `documentation/development/dependency_policy_matrix.md`. Validation: `pytest -q server_tests` (771 passed, 22 skipped, 117 subtests), `python -m cli.main test client --start-server --port 5006 --timeout 240` (2351 run, 0 failures, 0 errors). Commits: `c601ec3`, `ee1202d`, `614edc4`.
 - 2026-02-08: dependency-architecture hardening slice: guarded dependency registration against `None`/invalid drawable endpoints and added orphan-pruning on dependency unregister in `DrawableDependencyManager` (prevents polluted/stale dependency graph entries from malformed or removed relationships), with focused client dependency-manager tests. Validation: `pytest -q server_tests` (771 passed, 22 skipped, 117 subtests), `python -m cli.main test client --start-server --port 5000 --timeout 240` (2340 run, 0 failures, 0 errors).
