@@ -164,7 +164,11 @@ Surfaces are layered inside `#math-container`: WebGL (z-index 20), Canvas2D (z-i
 1. **Pure Python tests** (regular `pytest`): `test_markdown_parser.py`, `test_expression_validator.py`, `test_math_functions.py`, and server-side Flask route suites.
 2. **Brython-dependent tests** (browser runner): `test_canvas.py`, geometry suites such as `test_angle.py` or `test_point.py`, any `test_drawable_*.py`, and every module that imports `from browser import ...`.
 
-> **Fixture registration:** whenever you add a new client test file under `static/client/client_tests/`, be sure to import its `Test*` class and include it in `test_cases` inside `static/client/client_tests/tests.py` so the Brython runner executes it.
+> **MANDATORY — Fixture registration:** whenever you add a new client test file under `static/client/client_tests/`, you **must** perform both steps below or the tests will be silently skipped:
+> 1. **Import** the `Test*` class at the top of `static/client/client_tests/tests.py` (alongside the other imports).
+> 2. **Append** it to the list returned by `_get_test_cases()` in the same file.
+>
+> Without both steps the Brython runner will never execute the new tests.
 
 ## Running Tests
 - **Server tests**: `python -m cli.main test server` (or `python run_server_tests.py`)
