@@ -408,11 +408,19 @@ class OpenAIAPIBase:
         if not isinstance(canvas_state, dict):
             return full_prompt
 
+        # Fast path for hybrid mode: keep small full states untouched and avoid
+        # running summarization/comparison machinery.
+        if mode == "hybrid":
+            full_state_bytes = self._measure_canvas_state_bytes(canvas_state)
+            if self._should_include_full_state_in_hybrid(full_state_bytes):
+                return full_prompt
+
         comparison = compare_canvas_states(canvas_state)
         metrics = comparison.get("metrics", {})
         summary_state = comparison.get("summary", {})
-        full_bytes = int(metrics.get("full_bytes", 0) or 0)
-        include_full_state = mode == "hybrid" and self._should_include_full_state_in_hybrid(full_bytes)
+        # If we reach this point, hybrid-under-threshold has already returned
+        # via the fast path above, so this branch always excludes full state.
+        include_full_state = False
 
         summary_payload: Dict[str, Any] = {
             "mode": mode,
@@ -448,6 +456,12 @@ class OpenAIAPIBase:
         if full_bytes <= 0:
             return False
         return full_bytes <= self._get_canvas_hybrid_full_max_bytes()
+
+    def _measure_canvas_state_bytes(self, canvas_state: Dict[str, Any]) -> int:
+        try:
+            return len(json.dumps(canvas_state, separators=(",", ":"), sort_keys=True).encode("utf-8"))
+        except (TypeError, ValueError):
+            return 0
 
     def _is_canvas_summary_telemetry_enabled(self) -> bool:
         raw = os.getenv(self.CANVAS_SUMMARY_TELEMETRY_ENV, "").strip().lower()
@@ -492,6 +506,8 @@ class OpenAIAPIBase:
                 metrics_raw = summary_payload.get("metrics")
                 if isinstance(metrics_raw, dict):
                     summary_metrics = metrics_raw
+            elif mode == "hybrid" and isinstance(normalized_prompt_json.get("canvas_state"), dict):
+                includes_full_state = True
 
         telemetry_payload: Dict[str, Any] = {
             "mode": mode,

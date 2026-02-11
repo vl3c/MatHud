@@ -239,11 +239,8 @@ class TestOpenAIAPIBase(unittest.TestCase):
         parsed = json.loads(result)
 
         self.assertIn("canvas_state", parsed)
-        self.assertIn("canvas_state_summary", parsed)
-        summary = parsed["canvas_state_summary"]
-        self.assertTrue(summary["includes_full_state"])
-        self.assertNotIn("state", summary)
-        self.assertIn("metrics", summary)
+        self.assertNotIn("canvas_state_summary", parsed)
+        self.assertEqual(parsed["canvas_state"], {"Points": [{"name": "A", "args": {"position": {"x": 1, "y": 2}}}]})
 
     @patch('static.openai_api_base.OpenAI')
     def test_prepare_message_content_hybrid_drops_large_full_state(self, mock_openai: Mock) -> None:
@@ -378,6 +375,31 @@ class TestOpenAIAPIBase(unittest.TestCase):
         self.assertEqual(payload["prompt_kind"], "multimodal")
         self.assertIn("normalized_prompt_bytes", payload)
         self.assertIn("output_payload_bytes", payload)
+
+    @patch('static.openai_api_base.OpenAI')
+    @patch('static.openai_api_base._logger')
+    def test_prepare_message_content_telemetry_hybrid_small_scene_infers_full_state(self, mock_logger: Mock, mock_openai: Mock) -> None:
+        api = OpenAIAPIBase()
+        os.environ['AI_CANVAS_SUMMARY_MODE'] = 'hybrid'
+        os.environ['AI_CANVAS_HYBRID_FULL_MAX_BYTES'] = '999999'
+        os.environ['AI_CANVAS_SUMMARY_TELEMETRY'] = '1'
+        prompt = json.dumps(
+            {
+                "user_message": "test",
+                "use_vision": False,
+                "canvas_state": {"Points": [{"name": "A", "args": {"position": {"x": 1, "y": 2}}}]},
+            }
+        )
+
+        result = api._prepare_message_content(prompt)
+        parsed = json.loads(result)
+        self.assertIn("canvas_state", parsed)
+        self.assertNotIn("canvas_state_summary", parsed)
+
+        args = mock_logger.info.call_args[0]
+        payload = json.loads(args[1])
+        self.assertEqual(payload["mode"], "hybrid")
+        self.assertTrue(payload["includes_full_state"])
 
     @patch('static.openai_api_base.OpenAI')
     def test_create_error_response(self, mock_openai: Mock) -> None:
