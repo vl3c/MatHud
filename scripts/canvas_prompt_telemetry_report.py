@@ -35,6 +35,7 @@ def _default_log_file() -> Optional[Path]:
     logs_dir = Path("logs")
     if not logs_dir.exists():
         return None
+    # Sort oldest->newest by mtime and pick the newest entry.
     candidates = sorted(logs_dir.glob("mathud_session_*.log"), key=lambda p: p.stat().st_mtime)
     if not candidates:
         return None
@@ -102,6 +103,8 @@ def _build_report(rows: List[Dict[str, Any]]) -> Report:
 
 def _write_csv(rows: List[Dict[str, Any]], csv_out: Path) -> None:
     csv_out.parent.mkdir(parents=True, exist_ok=True)
+    # Explicit allowlist: keep CSV columns stable across telemetry evolutions.
+    # Add new field names here when they should be exported.
     fieldnames = [
         "mode",
         "prompt_kind",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -48,7 +49,7 @@ class TestCanvasPromptTelemetryReportScript(unittest.TestCase):
             )
 
             cmd = [
-                "python",
+                sys.executable,
                 str(SCRIPT_PATH),
                 "--log-file",
                 str(log_file),
@@ -104,7 +105,7 @@ class TestCanvasPromptTelemetryReportScript(unittest.TestCase):
             )
 
             cmd = [
-                "python",
+                sys.executable,
                 str(SCRIPT_PATH),
                 "--log-file",
                 str(log_file),
