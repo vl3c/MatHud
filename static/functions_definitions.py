@@ -147,11 +147,30 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "get_current_canvas_state",
-                    "description": "Returns the current serialized canvas state (drawables, cartesian state, computations) without modifying the canvas",
+                    "description": "Returns the current serialized canvas state (drawables, cartesian state, computations) without modifying the canvas. Optional filters can narrow by drawable collections or object names.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
-                        "properties": {},
+                        "properties": {
+                            "drawable_types": {
+                                "type": ["array", "null"],
+                                "description": "Optional drawable collection filters (e.g. ['Points','Segments','Circles']). Case-insensitive; singular or plural accepted.",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "object_names": {
+                                "type": ["array", "null"],
+                                "description": "Optional object-name filters across drawable collections (e.g. ['A','B','f']).",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "include_computations": {
+                                "type": ["boolean", "null"],
+                                "description": "Whether to include the computations list in the returned state. Defaults to true."
+                            }
+                        },
                         "required": [],
                         "additionalProperties": False
                     }

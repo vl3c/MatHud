@@ -88,7 +88,14 @@ class FunctionRegistry:
             "reset_canvas": canvas.reset,
             "clear_canvas": canvas.clear,
             "zoom": canvas.zoom,
-            "get_current_canvas_state": lambda: {"type": "canvas_state", "value": canvas.get_canvas_state()},
+            "get_current_canvas_state": lambda drawable_types=None, object_names=None, include_computations=True: {
+                "type": "canvas_state",
+                "value": canvas.get_canvas_state_filtered(
+                    drawable_types=drawable_types,
+                    object_names=object_names,
+                    include_computations=include_computations,
+                ),
+            },
 
             # ===== POINT OPERATIONS =====
             "create_point": canvas.create_point,

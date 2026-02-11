@@ -150,6 +150,49 @@ class TestCanvas(unittest.TestCase):
         state = self.canvas.get_canvas_state()
         self.assertEqual(state, {'Points': ['point1_state'], 'Segments': ['segment1_state'], 'Cartesian_System_Visibility': 'cartesian_state', 'coordinate_system': {'mode': 'cartesian'}})
 
+    def test_get_canvas_state_filtered_no_filters_matches_full_state(self) -> None:
+        self.canvas.add_drawable(self.mock_point1)
+        self.canvas.add_drawable(self.mock_segment1)
+        self.canvas.computations = [{"expression": "2+2", "result": 4}]
+
+        full_state = self.canvas.get_canvas_state()
+        filtered_state = self.canvas.get_canvas_state_filtered()
+
+        self.assertEqual(filtered_state, full_state)
+
+    def test_get_canvas_state_filtered_by_drawable_type(self) -> None:
+        self.canvas.add_drawable(self.mock_point1)
+        self.canvas.add_drawable(self.mock_segment1)
+
+        filtered_state = self.canvas.get_canvas_state_filtered(drawable_types=["point"])
+
+        self.assertIn("Points", filtered_state)
+        self.assertNotIn("Segments", filtered_state)
+        self.assertEqual(filtered_state["Points"], ["point1_state"])
+        self.assertEqual(filtered_state.get("Cartesian_System_Visibility"), "cartesian_state")
+        self.assertEqual(filtered_state.get("coordinate_system"), {"mode": "cartesian"})
+
+    def test_get_canvas_state_filtered_by_object_names_and_without_computations(self) -> None:
+        self.mock_point1.get_state = SimpleMock(return_value={"name": "A", "x": 10, "y": 10})
+        self.mock_point2.get_state = SimpleMock(return_value={"name": "B", "x": 20, "y": 20})
+        self.mock_segment1.get_state = SimpleMock(return_value={"name": "s1", "args": {"p1": "A", "p2": "B"}})
+
+        self.canvas.add_drawable(self.mock_point1)
+        self.canvas.add_drawable(self.mock_point2)
+        self.canvas.add_drawable(self.mock_segment1)
+        self.canvas.computations = [{"expression": "3+3", "result": 6}]
+
+        filtered_state = self.canvas.get_canvas_state_filtered(
+            object_names=["a", "S1"],
+            include_computations=False,
+        )
+
+        self.assertIn("Points", filtered_state)
+        self.assertEqual(filtered_state["Points"], [{"name": "A", "x": 10, "y": 10}])
+        self.assertIn("Segments", filtered_state)
+        self.assertEqual(filtered_state["Segments"], [{"name": "s1", "args": {"p1": "A", "p2": "B"}}])
+        self.assertNotIn("computations", filtered_state)
+
     def test_clear(self) -> None:
         self.canvas.add_drawable(self.mock_point1)
         self.canvas.add_drawable(self.mock_segment1)

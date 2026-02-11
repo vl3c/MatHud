@@ -113,6 +113,44 @@ class TestProcessFunctionCalls(unittest.TestCase):
         self.assertIsInstance(state, dict)
         self.assertEqual(state.get("Cartesian_System_Visibility"), "cartesian_state")
 
+    def test_get_current_canvas_state_tool_supports_filters(self) -> None:
+        self.canvas.create_point(0, 0, "A")
+        self.canvas.create_point(1, 1, "B")
+        self.canvas.create_segment(0, 0, 1, 1, "s1")
+        self.canvas.computations = [{"expression": "1+1", "result": 2}]
+
+        workspace_manager = WorkspaceManager(self.canvas)
+        available_functions = FunctionRegistry.get_available_functions(self.canvas, workspace_manager)
+        undoable_functions = FunctionRegistry.get_undoable_functions()
+        calls = [{
+            "function_name": "get_current_canvas_state",
+            "arguments": {
+                "drawable_types": ["point"],
+                "object_names": ["a"],
+                "include_computations": False,
+            },
+        }]
+
+        results = ProcessFunctionCalls.get_results(calls, available_functions, undoable_functions, self.canvas)
+
+        self.assertTrue(ProcessFunctionCalls.validate_results(results))
+        self.assertIn(
+            "get_current_canvas_state(drawable_types:['point'], object_names:['a'], include_computations:False)",
+            results,
+        )
+        payload = next(iter(results.values()))
+        self.assertIsInstance(payload, dict)
+        self.assertEqual(payload.get("type"), "canvas_state")
+
+        state = payload.get("value")
+        self.assertIsInstance(state, dict)
+        self.assertIn("Points", state)
+        self.assertEqual(len(state["Points"]), 1)
+        self.assertEqual(state["Points"][0].get("name"), "A")
+        self.assertNotIn("Segments", state)
+        self.assertNotIn("computations", state)
+        self.assertEqual(state.get("Cartesian_System_Visibility"), "cartesian_state")
+
     def test_evaluate_expression_invalid_function(self) -> None:
         # Testing with an invalid function expression
         expression = "NonExistentFunction(10)"
