@@ -157,9 +157,12 @@ def _is_empty_value(value: Any) -> bool:
 
 def _is_drawable_bucket(items: List[Any]) -> bool:
     if not items:
-        return True
-    first = items[0]
-    return isinstance(first, dict) and ("name" in first or "args" in first)
+        return False
+
+    # Classify as drawable bucket only when sampled entries look like drawables.
+    # This avoids accidental classification of unrelated list-valued metadata.
+    sample = items[:3]
+    return all(isinstance(entry, dict) and ("name" in entry or "args" in entry) for entry in sample)
 
 
 def _stable_sort_drawables(items: List[Any]) -> List[Any]:

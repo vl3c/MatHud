@@ -600,15 +600,7 @@ class Canvas:
     def get_canvas_state(self) -> Dict[str, Any]:
         state = self.get_drawables_state()
         self._prune_plot_derived_bars_from_state(state)
-        cartesian_state = self.get_cartesian2axis_state()
-        if cartesian_state is not None:
-            state.update(cartesian_state)
-        coord_system_state = self.coordinate_system_manager.get_state()
-        if coord_system_state:
-            state["coordinate_system"] = coord_system_state
-        if self.computations:  # Add computations to state if they exist
-            state["computations"] = self.computations
-        return state
+        return self._assemble_canvas_state(state, include_computations=True)
 
     def get_canvas_state_filtered(
         self,
@@ -632,6 +624,17 @@ class Canvas:
         if normalized_names:
             state = self._filter_state_by_object_names(state, normalized_names)
 
+        return self._assemble_canvas_state(
+            state,
+            include_computations=(include_computations is not False),
+        )
+
+    def _assemble_canvas_state(
+        self,
+        state: Dict[str, Any],
+        include_computations: bool,
+    ) -> Dict[str, Any]:
+        """Attach shared non-drawable state to a drawable bucket snapshot."""
         cartesian_state = self.get_cartesian2axis_state()
         if cartesian_state is not None:
             state.update(cartesian_state)
@@ -640,7 +643,7 @@ class Canvas:
         if coord_system_state:
             state["coordinate_system"] = coord_system_state
 
-        if include_computations is not False and self.computations:
+        if include_computations and self.computations:
             state["computations"] = self.computations
 
         return state
@@ -711,6 +714,9 @@ class Canvas:
         state: Dict[str, Any],
         object_names: List[str],
     ) -> Dict[str, Any]:
+        # This method intentionally filters drawable buckets only. Non-drawable
+        # metadata (cartesian visibility, coordinate_system, computations) is
+        # attached later in _assemble_canvas_state().
         exact_names: Set[str] = set(object_names)
         lower_names: Set[str] = {name.lower() for name in object_names}
 
