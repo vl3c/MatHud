@@ -90,6 +90,25 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    3. Sessions use `flask-session` with a CacheLib-backed store; cookies are upgraded to secure/HTTP-only in deployed mode.
 3. Vision capture requires Firefox. The first request that needs Selenium will call `/init_webdriver`, which in turn relies on `geckodriver-autoinstaller` to download the driver if necessary.
 
+### 5.1 Canvas Prompt Summary Controls
+
+MatHud now supports adaptive canvas-state prompt normalization to reduce AI context noise for large scenes while preserving full detail for small scenes.
+
+```env
+AI_CANVAS_SUMMARY_MODE=hybrid          # off | hybrid | summary_only
+AI_CANVAS_HYBRID_FULL_MAX_BYTES=6000   # hybrid threshold for sending full canvas_state
+AI_CANVAS_SUMMARY_TELEMETRY=0          # 1/true/on to emit canvas_prompt_telemetry logs
+```
+
+1. `off`: send original payload unchanged.
+2. `hybrid` (default): keep full `canvas_state` for small scenes, attach `canvas_state_summary` and remove full state for large scenes.
+3. `summary_only`: always remove full `canvas_state` and send summary envelope.
+
+Developer utilities:
+1. Browser console helper: `window.compareCanvasState()` (development mode) prints full vs summary structures with byte/token metrics.
+2. Log report script: `python scripts/canvas_prompt_telemetry_report.py --mode hybrid --json-out /tmp/canvas_summary_report.json`
+3. Deep-dive rollout notes: `documentation/development/canvas_prompt_summary_rollout.md`
+
 ## 6. Working with MatHud
 
 ### 6.1 Canvas Interaction
