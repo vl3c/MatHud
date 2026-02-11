@@ -22,6 +22,7 @@ from openai import OpenAI
 from static.ai_model import AIModel
 from static.canvas_state_summarizer import compare_canvas_states
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
+from static.token_estimation import estimate_tokens_from_bytes
 
 # Use the shared MatHud logger for file logging
 _logger = logging.getLogger("mathud")
@@ -352,68 +353,46 @@ class OpenAIAPIBase:
         start_time = time.perf_counter() if telemetry_enabled else 0.0
         normalized_prompt = self._normalize_prompt_canvas_state(full_prompt)
         prompt_kind = "text"
+        message_content: MessageContent = normalized_prompt
+        prompt_json: Optional[Dict[str, Any]] = None
+
         try:
-            prompt_json = json.loads(normalized_prompt)
+            parsed = json.loads(normalized_prompt)
         except json.JSONDecodeError:
-            if telemetry_enabled:
-                self._log_canvas_summary_telemetry(
-                    full_prompt=full_prompt,
-                    normalized_prompt=normalized_prompt,
-                    normalized_prompt_json=None,
-                    prompt_kind=prompt_kind,
-                    elapsed_ms=(time.perf_counter() - start_time) * 1000.0,
+            parsed = None
+
+        if isinstance(parsed, dict):
+            prompt_json = parsed
+            user_message = str(prompt_json.get("user_message", ""))
+            use_vision = bool(prompt_json.get("use_vision", False))
+
+            # Extract attached images from the prompt JSON
+            attached_images_raw = prompt_json.get("attached_images")
+            attached_images: Optional[List[str]] = None
+            if isinstance(attached_images_raw, list):
+                attached_images = [img for img in attached_images_raw if isinstance(img, str)]
+
+            # If vision/images are present, use multimodal payload.
+            if use_vision or attached_images:
+                prompt_kind = "multimodal"
+                enhanced_prompt = self._create_enhanced_prompt_with_image(
+                    user_message=user_message,
+                    attached_images=attached_images,
+                    include_canvas_snapshot=use_vision,
                 )
-            return normalized_prompt
+                if enhanced_prompt:
+                    message_content = enhanced_prompt
 
-        if not isinstance(prompt_json, dict):
-            if telemetry_enabled:
-                self._log_canvas_summary_telemetry(
-                    full_prompt=full_prompt,
-                    normalized_prompt=normalized_prompt,
-                    normalized_prompt_json=None,
-                    prompt_kind=prompt_kind,
-                    elapsed_ms=(time.perf_counter() - start_time) * 1000.0,
-                )
-            return normalized_prompt
-
-        user_message = str(prompt_json.get("user_message", ""))
-        use_vision = bool(prompt_json.get("use_vision", False))
-
-        # Extract attached images from the prompt JSON
-        attached_images_raw = prompt_json.get("attached_images")
-        attached_images: Optional[List[str]] = None
-        if isinstance(attached_images_raw, list):
-            attached_images = [img for img in attached_images_raw if isinstance(img, str)]
-
-        # If no vision and no attached images, return plain text prompt
-        if not use_vision and not attached_images:
-            if telemetry_enabled:
-                self._log_canvas_summary_telemetry(
-                    full_prompt=full_prompt,
-                    normalized_prompt=normalized_prompt,
-                    normalized_prompt_json=prompt_json,
-                    prompt_kind=prompt_kind,
-                    elapsed_ms=(time.perf_counter() - start_time) * 1000.0,
-                )
-            return normalized_prompt
-
-        # Create enhanced prompt with images
-        prompt_kind = "multimodal"
-        enhanced_prompt = self._create_enhanced_prompt_with_image(
-            user_message=user_message,
-            attached_images=attached_images,
-            include_canvas_snapshot=use_vision,
-        )
-        result: MessageContent = enhanced_prompt if enhanced_prompt else normalized_prompt
         if telemetry_enabled:
             self._log_canvas_summary_telemetry(
                 full_prompt=full_prompt,
                 normalized_prompt=normalized_prompt,
                 normalized_prompt_json=prompt_json,
+                output_content=message_content,
                 prompt_kind=prompt_kind,
                 elapsed_ms=(time.perf_counter() - start_time) * 1000.0,
             )
-        return result
+        return message_content
 
     def _normalize_prompt_canvas_state(self, full_prompt: str) -> str:
         """Normalize prompt canvas payload according to summary mode."""
@@ -474,25 +453,32 @@ class OpenAIAPIBase:
         raw = os.getenv(self.CANVAS_SUMMARY_TELEMETRY_ENV, "").strip().lower()
         return raw in {"1", "true", "yes", "on"}
 
-    def _estimate_tokens_from_bytes(self, payload_bytes: int) -> int:
-        if payload_bytes <= 0:
-            return 0
-        return max(1, payload_bytes // 4)
-
     def _log_canvas_summary_telemetry(
         self,
         *,
         full_prompt: str,
         normalized_prompt: str,
         normalized_prompt_json: Optional[Dict[str, Any]],
+        output_content: MessageContent,
         prompt_kind: str,
         elapsed_ms: float,
     ) -> None:
-        full_bytes = len(full_prompt.encode("utf-8"))
-        normalized_bytes = len(normalized_prompt.encode("utf-8"))
+        full_prompt_bytes = len(full_prompt.encode("utf-8"))
+        normalized_prompt_bytes = len(normalized_prompt.encode("utf-8"))
+        output_payload_bytes = normalized_prompt_bytes
+        if isinstance(output_content, str):
+            output_payload_bytes = len(output_content.encode("utf-8"))
+        elif isinstance(output_content, list):
+            try:
+                output_payload_bytes = len(
+                    json.dumps(output_content, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+                )
+            except (TypeError, ValueError):
+                output_payload_bytes = normalized_prompt_bytes
+
         reduction_pct = 0.0
-        if full_bytes > 0:
-            reduction_pct = round((1.0 - (normalized_bytes / float(full_bytes))) * 100.0, 2)
+        if full_prompt_bytes > 0:
+            reduction_pct = round((1.0 - (output_payload_bytes / float(full_prompt_bytes))) * 100.0, 2)
 
         mode = self._get_canvas_summary_mode()
         includes_full_state: Optional[bool] = None
@@ -511,10 +497,12 @@ class OpenAIAPIBase:
             "mode": mode,
             "prompt_kind": prompt_kind,
             "normalize_elapsed_ms": round(elapsed_ms, 2),
-            "input_bytes": full_bytes,
-            "normalized_bytes": normalized_bytes,
-            "input_estimated_tokens": self._estimate_tokens_from_bytes(full_bytes),
-            "normalized_estimated_tokens": self._estimate_tokens_from_bytes(normalized_bytes),
+            "input_bytes": full_prompt_bytes,
+            "normalized_prompt_bytes": normalized_prompt_bytes,
+            "output_payload_bytes": output_payload_bytes,
+            "input_estimated_tokens": estimate_tokens_from_bytes(full_prompt_bytes),
+            "normalized_prompt_estimated_tokens": estimate_tokens_from_bytes(normalized_prompt_bytes),
+            "output_payload_estimated_tokens": estimate_tokens_from_bytes(output_payload_bytes),
             "reduction_pct": reduction_pct,
             "includes_full_state": includes_full_state,
         }

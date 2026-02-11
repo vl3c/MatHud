@@ -11,6 +11,7 @@ import copy
 import json
 from typing import Any, Dict, List, Tuple, cast
 
+from static.token_estimation import estimate_tokens_from_text
 
 _DRAWABLE_FIELD_PRUNE_RULES: Dict[str, set[str]] = {
     "Segments": {"_p1_coords", "_p2_coords"},
@@ -24,8 +25,6 @@ _DRAWABLE_FIELD_PRUNE_RULES: Dict[str, set[str]] = {
 }
 
 _ALWAYS_PRUNE_PREFIXES: Tuple[str, ...] = ("_",)
-_ESTIMATED_TOKEN_RATIO: int = 4  # rough estimate: ~4 chars/token
-
 # Keys that should always stay present when found at object level.
 _IDENTITY_KEYS: set[str] = {"name", "args"}
 
@@ -69,8 +68,8 @@ def compare_canvas_states(full_state: Dict[str, Any]) -> Dict[str, Any]:
         "metrics": {
             "full_bytes": full_bytes,
             "summary_bytes": summary_bytes,
-            "full_estimated_tokens": _estimate_tokens(full_json),
-            "summary_estimated_tokens": _estimate_tokens(summary_json),
+            "full_estimated_tokens": estimate_tokens_from_text(full_json),
+            "summary_estimated_tokens": estimate_tokens_from_text(summary_json),
             "reduction_pct": reduction_pct,
         },
     }
@@ -192,9 +191,3 @@ def _canonicalize(value: Any) -> Any:
             return [_canonicalize(v) for v in maybe_sorted]
         return [_canonicalize(v) for v in value]
     return value
-
-
-def _estimate_tokens(serialized_json: str) -> int:
-    if not serialized_json:
-        return 0
-    return max(1, len(serialized_json) // _ESTIMATED_TOKEN_RATIO)

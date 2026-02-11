@@ -334,7 +334,8 @@ class TestOpenAIAPIBase(unittest.TestCase):
         self.assertEqual(payload["prompt_kind"], "text")
         self.assertIn("normalize_elapsed_ms", payload)
         self.assertIn("input_bytes", payload)
-        self.assertIn("normalized_bytes", payload)
+        self.assertIn("normalized_prompt_bytes", payload)
+        self.assertIn("output_payload_bytes", payload)
 
     @patch('static.openai_api_base.OpenAI')
     @patch('static.openai_api_base._logger')
@@ -352,6 +353,31 @@ class TestOpenAIAPIBase(unittest.TestCase):
         _ = api._prepare_message_content(prompt)
 
         mock_logger.info.assert_not_called()
+
+    @patch('static.openai_api_base.OpenAI')
+    @patch('static.openai_api_base._logger')
+    def test_prepare_message_content_telemetry_multimodal_reports_output_payload_size(self, mock_logger: Mock, mock_openai: Mock) -> None:
+        api = OpenAIAPIBase()
+        os.environ['AI_CANVAS_SUMMARY_MODE'] = 'summary_only'
+        os.environ['AI_CANVAS_SUMMARY_TELEMETRY'] = '1'
+        prompt = json.dumps(
+            {
+                "user_message": "test",
+                "use_vision": False,
+                "attached_images": ["data:image/png;base64,AAAA"],
+                "canvas_state": {"Points": [{"name": "A", "args": {"position": {"x": 1, "y": 2}}}]},
+            }
+        )
+
+        result = api._prepare_message_content(prompt)
+        self.assertIsInstance(result, list)
+        mock_logger.info.assert_called()
+
+        args = mock_logger.info.call_args[0]
+        payload = json.loads(args[1])
+        self.assertEqual(payload["prompt_kind"], "multimodal")
+        self.assertIn("normalized_prompt_bytes", payload)
+        self.assertIn("output_payload_bytes", payload)
 
     @patch('static.openai_api_base.OpenAI')
     def test_create_error_response(self, mock_openai: Mock) -> None:
