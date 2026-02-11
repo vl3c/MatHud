@@ -418,6 +418,8 @@ class OpenAIAPIBase:
         comparison = compare_canvas_states(canvas_state)
         metrics = comparison.get("metrics", {})
         summary_state = comparison.get("summary", {})
+        # If we reach this point, hybrid-under-threshold has already returned
+        # via the fast path above, so this branch always excludes full state.
         include_full_state = False
 
         summary_payload: Dict[str, Any] = {
