@@ -171,7 +171,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                                 "description": "Whether to include the computations list in the returned state. Defaults to true."
                             }
                         },
-                        "required": [],
+                        "required": ["drawable_types", "object_names", "include_computations"],
                         "additionalProperties": False
                     }
                 }
