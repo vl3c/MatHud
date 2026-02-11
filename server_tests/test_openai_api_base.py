@@ -25,8 +25,10 @@ class TestOpenAIAPIBase(unittest.TestCase):
         os.environ['OPENAI_API_KEY'] = 'test-api-key'
         self.original_summary_mode = os.environ.get('AI_CANVAS_SUMMARY_MODE')
         self.original_hybrid_max = os.environ.get('AI_CANVAS_HYBRID_FULL_MAX_BYTES')
+        self.original_summary_telemetry = os.environ.get('AI_CANVAS_SUMMARY_TELEMETRY')
         os.environ.pop('AI_CANVAS_SUMMARY_MODE', None)
         os.environ.pop('AI_CANVAS_HYBRID_FULL_MAX_BYTES', None)
+        os.environ.pop('AI_CANVAS_SUMMARY_TELEMETRY', None)
 
     def tearDown(self) -> None:
         """Clean up after tests."""
@@ -42,6 +44,10 @@ class TestOpenAIAPIBase(unittest.TestCase):
             os.environ.pop('AI_CANVAS_HYBRID_FULL_MAX_BYTES', None)
         else:
             os.environ['AI_CANVAS_HYBRID_FULL_MAX_BYTES'] = self.original_hybrid_max
+        if self.original_summary_telemetry is None:
+            os.environ.pop('AI_CANVAS_SUMMARY_TELEMETRY', None)
+        else:
+            os.environ['AI_CANVAS_SUMMARY_TELEMETRY'] = self.original_summary_telemetry
 
     @patch('static.openai_api_base.OpenAI')
     def test_initialization_default_model(self, mock_openai: Mock) -> None:
@@ -301,6 +307,51 @@ class TestOpenAIAPIBase(unittest.TestCase):
         prompt = "plain text prompt"
         result = api._prepare_message_content(prompt)
         self.assertEqual(result, prompt)
+
+    @patch('static.openai_api_base.OpenAI')
+    @patch('static.openai_api_base._logger')
+    def test_prepare_message_content_emits_telemetry_when_enabled(self, mock_logger: Mock, mock_openai: Mock) -> None:
+        api = OpenAIAPIBase()
+        os.environ['AI_CANVAS_SUMMARY_MODE'] = 'summary_only'
+        os.environ['AI_CANVAS_SUMMARY_TELEMETRY'] = '1'
+        prompt = json.dumps(
+            {
+                "user_message": "test",
+                "use_vision": False,
+                "canvas_state": {"Points": [{"name": "A", "args": {"position": {"x": 1, "y": 2}}}]},
+            }
+        )
+
+        result = api._prepare_message_content(prompt)
+        parsed = json.loads(result)
+        self.assertIn("canvas_state_summary", parsed)
+        mock_logger.info.assert_called()
+
+        args = mock_logger.info.call_args[0]
+        self.assertIn("canvas_prompt_telemetry", args[0])
+        payload = json.loads(args[1])
+        self.assertEqual(payload["mode"], "summary_only")
+        self.assertEqual(payload["prompt_kind"], "text")
+        self.assertIn("normalize_elapsed_ms", payload)
+        self.assertIn("input_bytes", payload)
+        self.assertIn("normalized_bytes", payload)
+
+    @patch('static.openai_api_base.OpenAI')
+    @patch('static.openai_api_base._logger')
+    def test_prepare_message_content_skips_telemetry_when_disabled(self, mock_logger: Mock, mock_openai: Mock) -> None:
+        api = OpenAIAPIBase()
+        os.environ['AI_CANVAS_SUMMARY_MODE'] = 'summary_only'
+        os.environ['AI_CANVAS_SUMMARY_TELEMETRY'] = '0'
+        prompt = json.dumps(
+            {
+                "user_message": "test",
+                "use_vision": False,
+                "canvas_state": {"Points": [{"name": "A", "args": {"position": {"x": 1, "y": 2}}}]},
+            }
+        )
+        _ = api._prepare_message_content(prompt)
+
+        mock_logger.info.assert_not_called()
 
     @patch('static.openai_api_base.OpenAI')
     def test_create_error_response(self, mock_openai: Mock) -> None:

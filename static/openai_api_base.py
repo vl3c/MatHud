@@ -11,6 +11,7 @@ import base64
 import json
 import logging
 import os
+import time
 from collections.abc import Iterator, Sequence
 from types import SimpleNamespace
 from typing import Any, Dict, List, Literal, Optional, Union
@@ -67,6 +68,7 @@ class OpenAIAPIBase:
 
     CANVAS_SUMMARY_MODE_ENV = "AI_CANVAS_SUMMARY_MODE"
     CANVAS_HYBRID_MAX_BYTES_ENV = "AI_CANVAS_HYBRID_FULL_MAX_BYTES"
+    CANVAS_SUMMARY_TELEMETRY_ENV = "AI_CANVAS_SUMMARY_TELEMETRY"
     DEFAULT_CANVAS_SUMMARY_MODE = "hybrid"
     DEFAULT_CANVAS_HYBRID_FULL_MAX_BYTES = 6000
 
@@ -346,13 +348,32 @@ class OpenAIAPIBase:
         Handles both vision toggle (canvas snapshot) and user-attached images.
         Images work independently: attached images are sent regardless of vision toggle.
         """
+        telemetry_enabled = self._is_canvas_summary_telemetry_enabled()
+        start_time = time.perf_counter() if telemetry_enabled else 0.0
         normalized_prompt = self._normalize_prompt_canvas_state(full_prompt)
+        prompt_kind = "text"
         try:
             prompt_json = json.loads(normalized_prompt)
         except json.JSONDecodeError:
+            if telemetry_enabled:
+                self._log_canvas_summary_telemetry(
+                    full_prompt=full_prompt,
+                    normalized_prompt=normalized_prompt,
+                    normalized_prompt_json=None,
+                    prompt_kind=prompt_kind,
+                    elapsed_ms=(time.perf_counter() - start_time) * 1000.0,
+                )
             return normalized_prompt
 
         if not isinstance(prompt_json, dict):
+            if telemetry_enabled:
+                self._log_canvas_summary_telemetry(
+                    full_prompt=full_prompt,
+                    normalized_prompt=normalized_prompt,
+                    normalized_prompt_json=None,
+                    prompt_kind=prompt_kind,
+                    elapsed_ms=(time.perf_counter() - start_time) * 1000.0,
+                )
             return normalized_prompt
 
         user_message = str(prompt_json.get("user_message", ""))
@@ -366,15 +387,33 @@ class OpenAIAPIBase:
 
         # If no vision and no attached images, return plain text prompt
         if not use_vision and not attached_images:
+            if telemetry_enabled:
+                self._log_canvas_summary_telemetry(
+                    full_prompt=full_prompt,
+                    normalized_prompt=normalized_prompt,
+                    normalized_prompt_json=prompt_json,
+                    prompt_kind=prompt_kind,
+                    elapsed_ms=(time.perf_counter() - start_time) * 1000.0,
+                )
             return normalized_prompt
 
         # Create enhanced prompt with images
+        prompt_kind = "multimodal"
         enhanced_prompt = self._create_enhanced_prompt_with_image(
             user_message=user_message,
             attached_images=attached_images,
             include_canvas_snapshot=use_vision,
         )
-        return enhanced_prompt if enhanced_prompt else normalized_prompt
+        result: MessageContent = enhanced_prompt if enhanced_prompt else normalized_prompt
+        if telemetry_enabled:
+            self._log_canvas_summary_telemetry(
+                full_prompt=full_prompt,
+                normalized_prompt=normalized_prompt,
+                normalized_prompt_json=prompt_json,
+                prompt_kind=prompt_kind,
+                elapsed_ms=(time.perf_counter() - start_time) * 1000.0,
+            )
+        return result
 
     def _normalize_prompt_canvas_state(self, full_prompt: str) -> str:
         """Normalize prompt canvas payload according to summary mode."""
@@ -430,6 +469,59 @@ class OpenAIAPIBase:
         if full_bytes <= 0:
             return False
         return full_bytes <= self._get_canvas_hybrid_full_max_bytes()
+
+    def _is_canvas_summary_telemetry_enabled(self) -> bool:
+        raw = os.getenv(self.CANVAS_SUMMARY_TELEMETRY_ENV, "").strip().lower()
+        return raw in {"1", "true", "yes", "on"}
+
+    def _estimate_tokens_from_bytes(self, payload_bytes: int) -> int:
+        if payload_bytes <= 0:
+            return 0
+        return max(1, payload_bytes // 4)
+
+    def _log_canvas_summary_telemetry(
+        self,
+        *,
+        full_prompt: str,
+        normalized_prompt: str,
+        normalized_prompt_json: Optional[Dict[str, Any]],
+        prompt_kind: str,
+        elapsed_ms: float,
+    ) -> None:
+        full_bytes = len(full_prompt.encode("utf-8"))
+        normalized_bytes = len(normalized_prompt.encode("utf-8"))
+        reduction_pct = 0.0
+        if full_bytes > 0:
+            reduction_pct = round((1.0 - (normalized_bytes / float(full_bytes))) * 100.0, 2)
+
+        mode = self._get_canvas_summary_mode()
+        includes_full_state: Optional[bool] = None
+        summary_metrics: Optional[Dict[str, Any]] = None
+        if isinstance(normalized_prompt_json, dict):
+            summary_payload = normalized_prompt_json.get("canvas_state_summary")
+            if isinstance(summary_payload, dict):
+                includes_full_state_raw = summary_payload.get("includes_full_state")
+                if isinstance(includes_full_state_raw, bool):
+                    includes_full_state = includes_full_state_raw
+                metrics_raw = summary_payload.get("metrics")
+                if isinstance(metrics_raw, dict):
+                    summary_metrics = metrics_raw
+
+        telemetry_payload: Dict[str, Any] = {
+            "mode": mode,
+            "prompt_kind": prompt_kind,
+            "normalize_elapsed_ms": round(elapsed_ms, 2),
+            "input_bytes": full_bytes,
+            "normalized_bytes": normalized_bytes,
+            "input_estimated_tokens": self._estimate_tokens_from_bytes(full_bytes),
+            "normalized_estimated_tokens": self._estimate_tokens_from_bytes(normalized_bytes),
+            "reduction_pct": reduction_pct,
+            "includes_full_state": includes_full_state,
+        }
+        if summary_metrics is not None:
+            telemetry_payload["summary_metrics"] = summary_metrics
+
+        _logger.info("canvas_prompt_telemetry %s", json.dumps(telemetry_payload, sort_keys=True))
 
     def _create_error_response(
         self,
