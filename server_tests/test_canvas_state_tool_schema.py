@@ -45,7 +45,18 @@ class TestCanvasStateToolSchema(unittest.TestCase):
         props = _require_dict(params.get("properties"), "get_current_canvas_state.properties")
         required = _require_list(params.get("required"), "get_current_canvas_state.required")
 
-        self.assertEqual(props, {})
-        self.assertEqual(required, [])
+        self.assertEqual(set(required), {"drawable_types", "object_names", "include_computations"})
+        self.assertEqual(set(props.keys()), {"drawable_types", "object_names", "include_computations"})
 
+        drawable_types = _require_dict(props.get("drawable_types"), "drawable_types")
+        self.assertEqual(drawable_types.get("type"), ["array", "null"])
+        drawable_items = _require_dict(drawable_types.get("items"), "drawable_types.items")
+        self.assertEqual(drawable_items.get("type"), "string")
 
+        object_names = _require_dict(props.get("object_names"), "object_names")
+        self.assertEqual(object_names.get("type"), ["array", "null"])
+        object_name_items = _require_dict(object_names.get("items"), "object_names.items")
+        self.assertEqual(object_name_items.get("type"), "string")
+
+        include_computations = _require_dict(props.get("include_computations"), "include_computations")
+        self.assertEqual(include_computations.get("type"), ["boolean", "null"])

@@ -439,17 +439,28 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         # Extract just the user message for cleaner conversation history
         user_message = prompt_json.get("user_message", "")
         if user_message:
-            # Include canvas state summary if present (but not the full state)
-            canvas_state = prompt_json.get("canvas_state", {})
-            if canvas_state:
-                # Create a brief summary instead of the full state
-                summary_parts = []
-                for key, items in canvas_state.items():
-                    if isinstance(items, list) and items:
-                        summary_parts.append(f"{len(items)} {key}")
-                if summary_parts:
-                    state_summary = f"\n[Canvas: {', '.join(summary_parts)}]"
-                    return f"{user_message}{state_summary}"
+            summary_parts: List[str] = []
+
+            # Prefer server-normalized summary payload when available.
+            canvas_state_summary = prompt_json.get("canvas_state_summary")
+            if isinstance(canvas_state_summary, dict):
+                summary_state = canvas_state_summary.get("state", {})
+                if isinstance(summary_state, dict):
+                    for key, items in summary_state.items():
+                        if isinstance(items, list) and items:
+                            summary_parts.append(f"{len(items)} {key}")
+
+            # Backward compatibility fallback for prompts without summary payload.
+            if not summary_parts:
+                canvas_state = prompt_json.get("canvas_state", {})
+                if isinstance(canvas_state, dict):
+                    for key, items in canvas_state.items():
+                        if isinstance(items, list) and items:
+                            summary_parts.append(f"{len(items)} {key}")
+
+            if summary_parts:
+                state_summary = f"\n[Canvas: {', '.join(summary_parts)}]"
+                return f"{user_message}{state_summary}"
             return str(user_message)
 
         return full_prompt

@@ -33,7 +33,7 @@ Dependencies:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Tuple, Union, cast
 
 from constants import (
     default_area_fill_color,
@@ -600,15 +600,142 @@ class Canvas:
     def get_canvas_state(self) -> Dict[str, Any]:
         state = self.get_drawables_state()
         self._prune_plot_derived_bars_from_state(state)
+        return self._assemble_canvas_state(state, include_computations=True)
+
+    def get_canvas_state_filtered(
+        self,
+        drawable_types: Optional[List[str]] = None,
+        object_names: Optional[List[str]] = None,
+        include_computations: Optional[bool] = True,
+    ) -> Dict[str, Any]:
+        """
+        Return current canvas state with optional drawable/name filtering.
+
+        Empty or missing filters preserve full-state behavior.
+        """
+        state = self.get_drawables_state()
+        self._prune_plot_derived_bars_from_state(state)
+
+        normalized_types = self._normalize_string_list_filter(drawable_types)
+        if normalized_types:
+            state = self._filter_state_by_drawable_types(state, normalized_types)
+
+        normalized_names = self._normalize_string_list_filter(object_names)
+        if normalized_names:
+            state = self._filter_state_by_object_names(state, normalized_names)
+
+        return self._assemble_canvas_state(
+            state,
+            include_computations=(include_computations is not False),
+        )
+
+    def _assemble_canvas_state(
+        self,
+        state: Dict[str, Any],
+        include_computations: bool,
+    ) -> Dict[str, Any]:
+        """Attach shared non-drawable state to a drawable bucket snapshot."""
         cartesian_state = self.get_cartesian2axis_state()
         if cartesian_state is not None:
             state.update(cartesian_state)
+
         coord_system_state = self.coordinate_system_manager.get_state()
         if coord_system_state:
             state["coordinate_system"] = coord_system_state
-        if self.computations:  # Add computations to state if they exist
+
+        if include_computations and self.computations:
             state["computations"] = self.computations
+
         return state
+
+    def _normalize_string_list_filter(self, values: Optional[List[str]]) -> List[str]:
+        if not isinstance(values, list):
+            return []
+        normalized: List[str] = []
+        for value in values:
+            if isinstance(value, str):
+                trimmed = value.strip()
+                if trimmed:
+                    normalized.append(trimmed)
+        return normalized
+
+    def _filter_state_by_drawable_types(
+        self,
+        state: Dict[str, Any],
+        requested_types: List[str],
+    ) -> Dict[str, Any]:
+        allowed_keys = self._resolve_drawable_collection_keys(state, requested_types)
+        if not allowed_keys:
+            return {}
+
+        filtered: Dict[str, Any] = {}
+        for key, value in state.items():
+            if key in allowed_keys:
+                filtered[key] = value
+        return filtered
+
+    def _resolve_drawable_collection_keys(
+        self,
+        state: Dict[str, Any],
+        requested_types: List[str],
+    ) -> Set[str]:
+        alias_to_key: Dict[str, str] = {}
+        for key, value in state.items():
+            if not isinstance(value, list):
+                continue
+            aliases = self._build_collection_aliases(key)
+            for alias in aliases:
+                alias_to_key[alias] = key
+
+        resolved: Set[str] = set()
+        for requested in requested_types:
+            requested_alias = self._canonical_filter_token(requested)
+            key = alias_to_key.get(requested_alias)
+            if key is not None:
+                resolved.add(key)
+        return resolved
+
+    def _build_collection_aliases(self, collection_key: str) -> Set[str]:
+        aliases: Set[str] = set()
+        canonical = self._canonical_filter_token(collection_key)
+        if canonical:
+            aliases.add(canonical)
+            if canonical.endswith("ies") and len(canonical) > 3:
+                aliases.add(canonical[:-3] + "y")
+            if canonical.endswith("s") and len(canonical) > 1:
+                aliases.add(canonical[:-1])
+        return aliases
+
+    def _canonical_filter_token(self, token: str) -> str:
+        return "".join(ch for ch in token.lower() if ch.isalnum())
+
+    def _filter_state_by_object_names(
+        self,
+        state: Dict[str, Any],
+        object_names: List[str],
+    ) -> Dict[str, Any]:
+        # This method intentionally filters drawable buckets only. Non-drawable
+        # metadata (cartesian visibility, coordinate_system, computations) is
+        # attached later in _assemble_canvas_state().
+        exact_names: Set[str] = set(object_names)
+        lower_names: Set[str] = {name.lower() for name in object_names}
+
+        filtered: Dict[str, Any] = {}
+        for key, value in state.items():
+            if not isinstance(value, list):
+                continue
+            matched_items: List[Any] = []
+            for item in value:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name")
+                if not isinstance(name, str):
+                    continue
+                if name in exact_names or name.lower() in lower_names:
+                    matched_items.append(item)
+            if matched_items:
+                filtered[key] = matched_items
+        return filtered
 
     def _prune_plot_derived_bars_from_state(self, state: Dict[str, Any]) -> None:
         """
