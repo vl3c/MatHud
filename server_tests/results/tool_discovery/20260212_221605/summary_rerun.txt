@@ -1,0 +1,32 @@
+Tool Discovery Results
+- cases: 190
+- statuses: {'fail': 20, 'pass': 170}
+- positive cases: 180 (evaluated: 180)
+- top1: 153/180 (85.0%)
+- top3: 165/180 (91.7%)
+- top5: 165/180 (91.7%)
+- negative pass: 5/10 (50.0%)
+
+By Category
+- confusion_probe: {'pass': 8}
+- mechanical_command: {'pass': 3, 'fail': 3}
+- mechanical_create: {'pass': 6}
+- mechanical_delete: {'pass': 16}
+- mechanical_update: {'pass': 13}
+- multi_tool: {'fail': 2, 'pass': 18}
+- negative: {'fail': 5, 'pass': 5}
+- unique_intent: {'pass': 101, 'fail': 10}
+
+Top Confused Pairs (expected -> predicted top1, with expected still in top5)
+- create_colored_area -> draw_function: 3
+- draw_tangent_line -> draw_function: 3
+- create_circle_arc -> create_circle: 2
+- draw_normal_line -> draw_function: 2
+- integrate -> draw_function: 1
+- evaluate_linear_algebra_expression -> evaluate_expression: 1
+- fit_regression -> evaluate_expression: 1
+- create_polygon -> create_point: 1
+
+Confusion by Cluster
+- area_cluster: 1
+- stats_cluster: 1
