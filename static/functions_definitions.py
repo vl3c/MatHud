@@ -693,7 +693,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "create_circle_arc",
-                    "description": "Creates a circle arc between two points. When explicit center/radius data is supplied or an existing circle is referenced, all provided endpoints are projected onto that circle along their originating rays. Alternatively, provide three points plus 'center_point_choice' to indicate which point represents the center; the remaining two points define the arc and are projected onto the derived circle.",
+                    "description": "Creates an arc on a circle. Use this for requests like 'draw an arc with center (x,y), radius r' or 'arc on circle C between two points'. Supports standalone center/radius arcs, arcs on an existing circle, or deriving from three points with center_point_choice.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -1388,7 +1388,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "evaluate_linear_algebra_expression",
-                    "description": "Evaluates a linear algebra expression using named matrices, vectors, or scalars. Supports operations such as addition, subtraction, multiplication, transpose and inverse.",
+                    "description": "Evaluates matrix/vector/scalar expressions (linear algebra). Use for determinant, inverse, transpose, matrix multiplication, and eigen computations with named objects.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -1449,7 +1449,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "convert",
-                    "description": "Converts a value from one unit to another",
+                    "description": "Converts a numeric value between units (e.g., degrees to radians, km to m, F to C). For Cartesian/polar coordinate conversion, use convert_coordinates instead.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -1724,7 +1724,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "translate_object",
-                    "description": "Translates a drawable object or function by the specified x and y offsets",
+                    "description": "Moves/shifts/translates an existing drawable object or function by x and y offsets (dx, dy).",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -2104,7 +2104,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "analyze_graph",
-                    "description": "Analyzes a graph or tree for operations like shortest path, MST, bridges, articulation points, Euler status, bipartite check, BFS/DFS orders, levels, diameter, LCA, convex hull of vertices, or point-in-hull containment. Accepts an existing graph name.",
+                    "description": "Analyzes an existing graph/tree for connectivity and structural queries (connectedness, shortest path, BFS/DFS, bipartite, bridges, articulation points, diameter, etc.). Use generate_graph first if the graph does not exist yet.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -2509,7 +2509,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "calculate_area",
-                    "description": "Calculates the area of a region defined by a boolean expression over drawable shapes. Supports circles, ellipses, arcs (circular segments), polygons (triangles, rectangles, etc.), and segments (treated as half-planes - area to the LEFT of segment direction). Use operators: & (intersection), | (union), - (difference), ^ (symmetric difference). Parentheses supported for grouping.",
+                    "description": "Calculates geometric area (triangle, polygon, circle, arc segment, region unions/intersections) from canvas drawables or boolean region expressions. Use this for 'area of a triangle/circle/region'.",
                     "strict": True,
                     "parameters": {
                         "type": "object",

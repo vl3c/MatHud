@@ -253,12 +253,14 @@ class TestSearchToolsWithMock:
     def test_search_handles_api_error(
         self, service: ToolSearchService, mock_client: MagicMock
     ) -> None:
-        """search_tools should return empty list on API error."""
+        """search_tools should use fallback ranking on API error."""
         mock_client.chat.completions.create.side_effect = Exception("API Error")
 
         result = service.search_tools("draw a circle")
 
-        assert result == []
+        assert len(result) > 0
+        names = [t["function"]["name"] for t in result]
+        assert "create_circle" in names
 
     def test_search_handles_empty_response(
         self, service: ToolSearchService, mock_client: MagicMock
