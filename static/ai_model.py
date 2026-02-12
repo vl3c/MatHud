@@ -56,6 +56,7 @@ ModelIdentifier = Literal[
     "x-ai/grok-code-fast-1",
     "z-ai/glm-4.7",
     "minimax/minimax-m2.1",
+    "anthropic/claude-sonnet-4.5",
     # OpenRouter models (free)
     "meta-llama/llama-3.3-70b-instruct:free",
     "google/gemma-3-27b-it:free",
@@ -219,6 +220,12 @@ class AIModel:
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
             "display_name": "MiniMax M2.1",
+        },
+        "anthropic/claude-sonnet-4.5": {
+            "has_vision": True,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "Claude Sonnet 4.5 (OpenRouter)",
         },
         # ===================
         # OpenRouter Models (Free)
