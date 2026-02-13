@@ -11,8 +11,6 @@ commands:
   typecheck: "python -m mypy ."
 
 phases:
-  lint_check:
-    soft_fail: true
   test_execution:
     command_timeout: 900
   final_verification:
