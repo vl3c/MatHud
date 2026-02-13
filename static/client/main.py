@@ -61,8 +61,8 @@ def start_tests() -> str:
 
     def execute_tests() -> None:
         global _test_results, _tests_running
-        assert _ai_interface is not None
         try:
+            assert _ai_interface is not None
             results = _ai_interface.run_tests()
             _test_results = window.JSON.stringify(results)
 
