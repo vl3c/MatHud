@@ -8,3 +8,9 @@ commands:
   test: "python -m pytest server_tests/ -v && python -m cli.main test client --start-server --timeout 720 --no-screenshot --json"
   lint: "python -m ruff check ."
   typecheck: "python -m mypy ."
+
+phases:
+  test_execution:
+    command_timeout: 900
+  final_verification:
+    command_timeout: 900
