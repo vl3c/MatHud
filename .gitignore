@@ -53,3 +53,11 @@ plans/
 .worktrees/
 .sa-wrapper.sh
 *.egg-info/
+
+# SelfAssembler runtime artifacts
+.selfassembler-run.yaml
+logs/
+plans/
+.worktrees/
+.sa-wrapper.sh
+*.egg-info/
