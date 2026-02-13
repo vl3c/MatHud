@@ -212,5 +212,13 @@ class AppManager:
                 print("TTS: Kokoro initialized successfully")
             else:
                 print("TTS: Kokoro not available (install with: pip install kokoro)")
-        except (Exception, SystemExit) as e:
+        except SystemExit as e:
+            # Some third-party imports can call sys.exit() in unsupported
+            # environments; only suppress the known externally-managed error.
+            message = str(e)
+            if "externally-managed-environment" in message.lower():
+                print(f"TTS: Failed to initialize ({e})")
+            else:
+                raise
+        except Exception as e:
             print(f"TTS: Failed to initialize ({e})")

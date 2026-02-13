@@ -47,13 +47,6 @@ cli/output/*
 # CLI server PID file
 .mathud_server.pid
 
-# SelfAssembler artifacts
-logs/
-plans/
-.worktrees/
-.sa-wrapper.sh
-*.egg-info/
-
 # SelfAssembler runtime artifacts
 .selfassembler-run.yaml
 logs/
