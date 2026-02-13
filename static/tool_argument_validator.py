@@ -438,7 +438,7 @@ class ToolArgumentValidator:
                 )
 
         # Unknown keys
-        if additional is False and properties:
+        if additional is False and properties is not None:
             allowed_keys = set(properties.keys())
             for key in canonical_args:
                 if key not in allowed_keys:
