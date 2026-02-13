@@ -684,9 +684,9 @@ class ColoredAreaManager:
 
     def _remove_colored_area_drawable(self, area: "Drawable") -> bool:
         """Remove a colored-area drawable and clean dependency graph entries."""
-        return remove_drawable_with_dependencies(
+        return bool(remove_drawable_with_dependencies(
             self.drawables, self.dependency_manager, area
-        )
+        ))
 
     def get_colored_areas_for_drawable(self, drawable: Union[Function, Segment]) -> List["Drawable"]:
         """

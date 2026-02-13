@@ -400,12 +400,12 @@ class TestCanvas(unittest.TestCase):
         # Cleaned up: Removed duplicated detailed state comparison for brevity
         # Detailed comparison of sorted lists for each type
         for key in ["Points", "Segments", "Circles", "Vectors", "Functions"]:
-            original_items = sorted(original_state.get(key, []), key=lambda x: x['name'])
-            reconstructed_items = sorted(reconstructed_state.get(key, []), key=lambda x: x['name'])
+            original_items = sorted(original_state.get(key, []), key=lambda x: str(x['name']))
+            reconstructed_items = sorted(reconstructed_state.get(key, []), key=lambda x: str(x['name']))
             self.assertListEqual(original_items, reconstructed_items, f"{key} state mismatch after sorting")
 
-        original_computations = sorted(original_state.get("computations", []), key=lambda x: x['expression'])
-        reconstructed_computations = sorted(reconstructed_state.get("computations", []), key=lambda x: x['expression'])
+        original_computations = sorted(original_state.get("computations", []), key=lambda x: str(x['expression']))
+        reconstructed_computations = sorted(reconstructed_state.get("computations", []), key=lambda x: str(x['expression']))
         self.assertListEqual(original_computations, reconstructed_computations, "Computations state mismatch after sorting")
 
     # Point tests

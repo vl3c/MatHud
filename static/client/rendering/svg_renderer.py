@@ -956,7 +956,7 @@ class SvgRenderer(RendererProtocol):
         return plan
 
     def _create_cartesian_plan_context(self, plan: OptimizedPrimitivePlan) -> Dict[str, Any]:
-        usage_counts: Dict[str, int] = getattr(plan, "get_usage_counts", lambda: {})()
+        usage_counts: Any = getattr(plan, "get_usage_counts", lambda: {})()
         reserve = getattr(self._shared_primitives, "reserve_usage_counts", None)
         plan_key = getattr(plan, "plan_key", None)
         supports_transform = getattr(plan, "supports_transform", lambda: False)()
@@ -973,7 +973,7 @@ class SvgRenderer(RendererProtocol):
         }
 
     def _create_drawable_plan_context(self, plan: OptimizedPrimitivePlan) -> Dict[str, Any]:
-        usage_counts: Dict[str, int] = getattr(plan, "get_usage_counts", lambda: {})()
+        usage_counts: Any = getattr(plan, "get_usage_counts", lambda: {})()
         reserve = getattr(self._shared_primitives, "reserve_usage_counts", None)
         plan_key = getattr(plan, "plan_key", None)
         supports_transform = getattr(plan, "supports_transform", lambda: False)()

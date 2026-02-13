@@ -181,7 +181,7 @@ class TestFunction(unittest.TestCase):
             flat_points.extend(path)
 
         # Sort points by x-value to ensure chronological order for checking gaps
-        flat_points.sort(key=lambda p: p[0])  # Sort by x coordinate (first element of tuple)
+        flat_points.sort(key=lambda p: float(p[0]))  # Sort by x coordinate (first element of tuple)
 
         # Find gaps in x coordinates that indicate discontinuity
         has_discontinuity = False

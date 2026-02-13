@@ -690,9 +690,9 @@ class Canvas:
         resolved: Set[str] = set()
         for requested in requested_types:
             requested_alias = self._canonical_filter_token(requested)
-            key = alias_to_key.get(requested_alias)
-            if key is not None:
-                resolved.add(key)
+            matched_key = alias_to_key.get(requested_alias)
+            if matched_key is not None:
+                resolved.add(matched_key)
         return resolved
 
     def _build_collection_aliases(self, collection_key: str) -> Set[str]:

@@ -19,7 +19,7 @@ import json
 import math
 import os
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Set as AbstractSet
 from typing import Any, Dict, List, Optional, TypeVar, Union, cast
 
 from flask import Response, flash, jsonify, redirect, render_template, request, session, stream_with_context, url_for
@@ -293,7 +293,7 @@ def _extract_search_query_and_limit(call: Dict[str, Any]) -> tuple[str, int]:
 
 def _collect_allowed_tool_names(
     search_result: List[Dict[str, Any]],
-    essential_tools: set[str],
+    essential_tools: AbstractSet[str],
 ) -> set[str]:
     """Collect allowed tool names from search result plus essentials."""
     allowed_names = {
@@ -791,13 +791,14 @@ def register_routes(app: MatHudFlask) -> None:
             )
         request_payload: JsonObject = request_payload_raw
 
-        message = request_payload.get('message')
-        if not isinstance(message, str) or not message:
+        message_raw = request_payload.get('message')
+        if not isinstance(message_raw, str) or not message_raw:
             return AppManager.make_response(
                 message='Message is required',
                 status='error',
                 code=400,
             )
+        message: str = message_raw
 
         try:
             message_json_value: JsonValue = json.loads(message)
