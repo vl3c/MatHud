@@ -7,6 +7,7 @@
 commands:
   test: "python -m pytest server_tests/ -v && python -m cli.main test client --start-server --timeout 720 --no-screenshot --json"
   lint: "python -m ruff check ."
+  format: "python -m ruff check --fix . && python -m ruff format ."
   typecheck: "python -m mypy ."
 
 phases:
