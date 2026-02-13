@@ -1,0 +1,10 @@
+# MatHud-specific SelfAssembler overrides
+# Merged with the claw2pr template at task launch time
+#
+# Server tests: pytest on server_tests/ only (Brython files break under CPython)
+# Client tests: Selenium + headless Chromium via CLI (runs Brython tests in-browser)
+
+commands:
+  test: "python -m pytest server_tests/ -v && python -m cli.main test client --start-server --timeout 720 --no-screenshot --json"
+  lint: "python -m ruff check ."
+  typecheck: "python -m mypy ."

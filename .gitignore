@@ -48,7 +48,6 @@ cli/output/*
 .mathud_server.pid
 
 # SelfAssembler artifacts
-selfassembler.yaml
 logs/
 plans/
 .worktrees/
