@@ -1,0 +1,2348 @@
+{
+  "metadata": {
+    "schema_version": 1,
+    "description": "Tool discovery benchmark cases for search_tools semantic routing.",
+    "expected_tool_count": 79,
+    "expected_tool_hash": "ae51bab482526d31320b100c85238a6db4ab9aa5c6c6a9037494d4c0686a6675",
+    "confusion_clusters": {
+      "convert_cluster": [
+        "convert",
+        "convert_coordinates"
+      ],
+      "solve_cluster": [
+        "solve",
+        "solve_numeric",
+        "solve_system_of_equations"
+      ],
+      "function_cluster": [
+        "draw_function",
+        "draw_piecewise_function",
+        "draw_parametric_function"
+      ],
+      "stats_cluster": [
+        "plot_distribution",
+        "plot_bars",
+        "fit_regression"
+      ],
+      "workspace_cluster": [
+        "save_workspace",
+        "load_workspace",
+        "list_workspaces",
+        "delete_workspace"
+      ]
+    },
+    "thresholds": {
+      "top1_min": 0.82,
+      "top3_min": 0.93,
+      "confusion_hard_miss_max": 0.05
+    }
+  },
+  "cases": [
+    {
+      "id": "c_arc_and_area",
+      "query": "Create a circle arc and calculate area of full circle radius 3.",
+      "expected_any": [
+        "create_circle_arc",
+        "calculate_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "geometry_cluster"
+    },
+    {
+      "id": "c_area_then_integrate",
+      "query": "Shade area under y=x from 0 to 2 and compute integral.",
+      "expected_any": [
+        "create_colored_area",
+        "integrate"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "area_cluster"
+    },
+    {
+      "id": "c_colored_area_and_function",
+      "query": "Draw y=x^2 and shade from x=0 to x=1.",
+      "expected_any": [
+        "draw_function",
+        "create_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "area_cluster"
+    },
+    {
+      "id": "c_convert_coords",
+      "query": "Convert (6,8) cartesian to polar, then evaluate r^2.",
+      "expected_any": [
+        "convert_coordinates",
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "convert_cluster"
+    },
+    {
+      "id": "c_convert_units",
+      "query": "Convert 90 degrees to radians, then simplify the result.",
+      "expected_any": [
+        "convert",
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "convert_cluster"
+    },
+    {
+      "id": "c_coordinate_and_grid",
+      "query": "Set coordinate system to polar and show grid.",
+      "expected_any": [
+        "set_coordinate_system",
+        "set_grid_visible"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "coordinate_cluster"
+    },
+    {
+      "id": "c_distribution_vs_bars",
+      "query": "Show normal distribution then make bars for groups A,B,C.",
+      "expected_any": [
+        "plot_distribution",
+        "plot_bars"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "stats_cluster"
+    },
+    {
+      "id": "c_draw_function_vs_parametric",
+      "query": "Plot y=cos(x) and also x=cos(t), y=sin(t).",
+      "expected_any": [
+        "draw_function",
+        "draw_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "c_graph_generation_analysis",
+      "query": "Create a graph with nodes A,B,C,D and analyze connectivity.",
+      "expected_any": [
+        "generate_graph",
+        "analyze_graph"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "graph_cluster"
+    },
+    {
+      "id": "c_label_on_function",
+      "query": "Plot y=sin(x) and add label 'peak' near (1.57,1).",
+      "expected_any": [
+        "draw_function",
+        "create_label"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "c_linear_algebra_and_regression",
+      "query": "Compute determinant of [[2,1],[1,2]] and fit regression on points.",
+      "expected_any": [
+        "evaluate_linear_algebra_expression",
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "stats_cluster"
+    },
+    {
+      "id": "c_load_then_convert_coords",
+      "query": "Load workspace polar_demo and convert (3,4) to polar.",
+      "expected_any": [
+        "load_workspace",
+        "convert_coordinates"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "workspace_cluster"
+    },
+    {
+      "id": "c_piecewise_vs_regular",
+      "query": "Graph f(x)=x^2 for x<0 and x for x>=0, then draw tangent at x=1.",
+      "expected_any": [
+        "draw_piecewise_function",
+        "draw_tangent_line"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "c_solve_numeric_vs_symbolic",
+      "query": "Solve x^3 - x - 1 = 0 numerically near 1.",
+      "expected_any": [
+        "solve_numeric"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "solve_cluster"
+    },
+    {
+      "id": "c_solve_symbolic",
+      "query": "Solve x^2 - 9 = 0 exactly.",
+      "expected_any": [
+        "solve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "solve_cluster"
+    },
+    {
+      "id": "c_solve_system",
+      "query": "Solve system: x+y=10, x-y=2.",
+      "expected_any": [
+        "solve_system_of_equations"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "solve_cluster"
+    },
+    {
+      "id": "c_transform_combo",
+      "query": "Create a polygon then rotate it 45 degrees and translate right 2.",
+      "expected_any": [
+        "create_polygon",
+        "rotate_object",
+        "translate_object"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "transform_cluster"
+    },
+    {
+      "id": "c_undo_redo_sequence",
+      "query": "Undo and then redo the last action.",
+      "expected_any": [
+        "undo",
+        "redo"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "history_cluster"
+    },
+    {
+      "id": "c_workspace_roundtrip",
+      "query": "Save workspace as tmp_demo and then list workspaces.",
+      "expected_any": [
+        "save_workspace",
+        "list_workspaces"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "workspace_cluster"
+    },
+    {
+      "id": "c_zoom_after_plot",
+      "query": "Plot y=x^3 then zoom around origin to range 2.",
+      "expected_any": [
+        "draw_function",
+        "zoom"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "multi_tool",
+      "difficulty": "hard",
+      "cluster": "view_cluster"
+    },
+    {
+      "id": "cf_convert_not_coords",
+      "query": "Convert 32 F to C.",
+      "expected_any": [
+        "convert"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "convert_cluster"
+    },
+    {
+      "id": "cf_coords_not_convert",
+      "query": "Convert (1,1) cartesian to polar.",
+      "expected_any": [
+        "convert_coordinates"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "convert_cluster"
+    },
+    {
+      "id": "cf_numeric_not_solve",
+      "query": "Find an approximate root of tan(x)=x near 4.5.",
+      "expected_any": [
+        "solve_numeric"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "solve_cluster"
+    },
+    {
+      "id": "cf_parametric_not_regular",
+      "query": "Draw x=cos(t), y=sin(t).",
+      "expected_any": [
+        "draw_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "cf_piecewise_not_regular",
+      "query": "Graph f(x)=1 for x<0 and -1 for x>=0.",
+      "expected_any": [
+        "draw_piecewise_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "cf_regular_not_piecewise",
+      "query": "Plot y=|x|.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "function_cluster"
+    },
+    {
+      "id": "cf_solve_not_numeric",
+      "query": "Solve x^2+2x+1=0 exactly.",
+      "expected_any": [
+        "solve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "solve_cluster"
+    },
+    {
+      "id": "cf_system_not_single",
+      "query": "Solve x+y=1 and 2x-y=4.",
+      "expected_any": [
+        "solve_system_of_equations"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "confusion_probe",
+      "difficulty": "hard",
+      "cluster": "solve_cluster"
+    },
+    {
+      "id": "m_clear_canvas",
+      "query": "Clear all objects from the canvas.",
+      "expected_any": [
+        "clear_canvas"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_command",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_create_angle",
+      "query": "Please create a angle on the canvas.",
+      "expected_any": [
+        "create_angle"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_create",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_create_circle",
+      "query": "Please create a circle on the canvas.",
+      "expected_any": [
+        "create_circle"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_create",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_create_ellipse",
+      "query": "Please create a ellipse on the canvas.",
+      "expected_any": [
+        "create_ellipse"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_create",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_create_point",
+      "query": "Please create a point on the canvas.",
+      "expected_any": [
+        "create_point"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_create",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_create_segment",
+      "query": "Please create a segment on the canvas.",
+      "expected_any": [
+        "create_segment"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_create",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_create_vector",
+      "query": "Please create a vector on the canvas.",
+      "expected_any": [
+        "create_vector"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_create",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_angle",
+      "query": "Delete the existing angle from the drawing.",
+      "expected_any": [
+        "delete_angle"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_circle",
+      "query": "Delete the existing circle from the drawing.",
+      "expected_any": [
+        "delete_circle"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_circle_arc",
+      "query": "Delete the existing circle arc from the drawing.",
+      "expected_any": [
+        "delete_circle_arc"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_colored_area",
+      "query": "Delete the existing colored area from the drawing.",
+      "expected_any": [
+        "delete_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_ellipse",
+      "query": "Delete the existing ellipse from the drawing.",
+      "expected_any": [
+        "delete_ellipse"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_function",
+      "query": "Delete the existing function from the drawing.",
+      "expected_any": [
+        "delete_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_graph",
+      "query": "Delete the existing graph from the drawing.",
+      "expected_any": [
+        "delete_graph"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_label",
+      "query": "Delete the existing label from the drawing.",
+      "expected_any": [
+        "delete_label"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_parametric_function",
+      "query": "Delete the existing parametric function from the drawing.",
+      "expected_any": [
+        "delete_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_piecewise_function",
+      "query": "Delete the existing piecewise function from the drawing.",
+      "expected_any": [
+        "delete_piecewise_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_plot",
+      "query": "Delete the existing plot from the drawing.",
+      "expected_any": [
+        "delete_plot"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_point",
+      "query": "Delete the existing point from the drawing.",
+      "expected_any": [
+        "delete_point"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_polygon",
+      "query": "Delete the existing polygon from the drawing.",
+      "expected_any": [
+        "delete_polygon"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_segment",
+      "query": "Delete the existing segment from the drawing.",
+      "expected_any": [
+        "delete_segment"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_vector",
+      "query": "Delete the existing vector from the drawing.",
+      "expected_any": [
+        "delete_vector"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_delete_workspace",
+      "query": "Delete the existing workspace from the drawing.",
+      "expected_any": [
+        "delete_workspace"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_delete",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_get_current_canvas_state",
+      "query": "Return the current canvas state JSON.",
+      "expected_any": [
+        "get_current_canvas_state"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_command",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_redo",
+      "query": "Redo the action I just undid.",
+      "expected_any": [
+        "redo"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_command",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_reset_canvas",
+      "query": "Reset the canvas view to default zoom and position.",
+      "expected_any": [
+        "reset_canvas"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_command",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_run_tests",
+      "query": "Run the canvas test suite now.",
+      "expected_any": [
+        "run_tests"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_command",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_undo",
+      "query": "Undo my last action.",
+      "expected_any": [
+        "undo"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_command",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_angle",
+      "query": "Update the angle properties without recreating it.",
+      "expected_any": [
+        "update_angle"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_circle",
+      "query": "Update the circle properties without recreating it.",
+      "expected_any": [
+        "update_circle"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_circle_arc",
+      "query": "Update the circle arc properties without recreating it.",
+      "expected_any": [
+        "update_circle_arc"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_colored_area",
+      "query": "Update the colored area properties without recreating it.",
+      "expected_any": [
+        "update_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_ellipse",
+      "query": "Update the ellipse properties without recreating it.",
+      "expected_any": [
+        "update_ellipse"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_function",
+      "query": "Update the function properties without recreating it.",
+      "expected_any": [
+        "update_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_label",
+      "query": "Update the label properties without recreating it.",
+      "expected_any": [
+        "update_label"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_parametric_function",
+      "query": "Update the parametric function properties without recreating it.",
+      "expected_any": [
+        "update_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_piecewise_function",
+      "query": "Update the piecewise function properties without recreating it.",
+      "expected_any": [
+        "update_piecewise_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_point",
+      "query": "Update the point properties without recreating it.",
+      "expected_any": [
+        "update_point"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_polygon",
+      "query": "Update the polygon properties without recreating it.",
+      "expected_any": [
+        "update_polygon"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_segment",
+      "query": "Update the segment properties without recreating it.",
+      "expected_any": [
+        "update_segment"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "m_update_vector",
+      "query": "Update the vector properties without recreating it.",
+      "expected_any": [
+        "update_vector"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "mechanical_update",
+      "difficulty": "easy"
+    },
+    {
+      "id": "n_ambiguous_convert",
+      "query": "Convert this for me please.",
+      "expected_any": [],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "negative",
+      "difficulty": "hard"
+    },
+    {
+      "id": "n_ambiguous_draw",
+      "query": "Draw something nice.",
+      "expected_any": [],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "negative",
+      "difficulty": "hard"
+    },
+    {
+      "id": "n_chitchat",
+      "query": "Hey, how is your day going?",
+      "expected_any": [],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "negative",
+      "difficulty": "hard"
+    },
+    {
+      "id": "n_compare_models",
+      "query": "Which model should I use for coding?",
+      "expected_any": [],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "negative",
+      "difficulty": "hard"
+    },
+    {
+      "id": "n_empty_like",
+      "query": "...",
+      "expected_any": [],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "negative",
+      "difficulty": "hard"
+    },
+    {
+      "id": "n_explain_only",
+      "query": "Explain what a derivative is without calculating.",
+      "expected_any": [],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "negative",
+      "difficulty": "hard"
+    },
+    {
+      "id": "n_meta_question",
+      "query": "What tools do you have available?",
+      "expected_any": [],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "negative",
+      "difficulty": "hard"
+    },
+    {
+      "id": "n_non_math",
+      "query": "Write a haiku about winter.",
+      "expected_any": [],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "negative",
+      "difficulty": "hard"
+    },
+    {
+      "id": "n_policy_safe",
+      "query": "I need advice on studying for finals.",
+      "expected_any": [],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "negative",
+      "difficulty": "hard"
+    },
+    {
+      "id": "n_vague_help",
+      "query": "Can you help me with math?",
+      "expected_any": [],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "negative",
+      "difficulty": "hard"
+    },
+    {
+      "id": "u_analyze_graph_1",
+      "query": "Analyze this graph for connected components and cycles.",
+      "expected_any": [
+        "analyze_graph"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_analyze_graph_2",
+      "query": "Run graph analysis to get degree statistics.",
+      "expected_any": [
+        "analyze_graph"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_analyze_graph_3",
+      "query": "Check whether the current graph is connected and bipartite.",
+      "expected_any": [
+        "analyze_graph"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_calculate_area_1",
+      "query": "Calculate area of triangle with vertices (0,0), (4,0), (0,3).",
+      "expected_any": [
+        "calculate_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_calculate_area_2",
+      "query": "Find the area enclosed by polygon P.",
+      "expected_any": [
+        "calculate_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_calculate_area_3",
+      "query": "Compute the area of the circle with radius 5.",
+      "expected_any": [
+        "calculate_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_convert_1",
+      "query": "Convert 45 degrees to radians.",
+      "expected_any": [
+        "convert"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_convert_2",
+      "query": "Change 3 kilometers into meters.",
+      "expected_any": [
+        "convert"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_convert_3",
+      "query": "Convert 100 Fahrenheit to Celsius.",
+      "expected_any": [
+        "convert"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_convert_coordinates_1",
+      "query": "Convert point (3,4) from rectangular to polar.",
+      "expected_any": [
+        "convert_coordinates"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_convert_coordinates_2",
+      "query": "Change (r=5, theta=0.927) from polar to cartesian.",
+      "expected_any": [
+        "convert_coordinates"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_convert_coordinates_3",
+      "query": "Translate coordinates between cartesian and polar forms.",
+      "expected_any": [
+        "convert_coordinates"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_circle_arc_1",
+      "query": "Draw an arc of a circle centered at (0,0), radius 5, from 0 to pi/2.",
+      "expected_any": [
+        "create_circle_arc"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_circle_arc_2",
+      "query": "Create a circular arc around (2,2) with radius 3 between angles 30deg and 120deg.",
+      "expected_any": [
+        "create_circle_arc"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_circle_arc_3",
+      "query": "I need only the top half arc of a circle centered at origin with radius 4.",
+      "expected_any": [
+        "create_circle_arc"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_colored_area_1",
+      "query": "Shade the area under y=x^2 from x=0 to x=2.",
+      "expected_any": [
+        "create_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_colored_area_2",
+      "query": "Color the region between y=sin(x) and y=0 on [0,pi].",
+      "expected_any": [
+        "create_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_colored_area_3",
+      "query": "Fill the area between y=x and y=x^2 from x=0 to 1.",
+      "expected_any": [
+        "create_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_label_1",
+      "query": "Place a label saying 'local max' near x=2, y=5.",
+      "expected_any": [
+        "create_label"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_label_2",
+      "query": "Add text annotation 'intersection' at coordinates (-1, 3).",
+      "expected_any": [
+        "create_label"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_label_3",
+      "query": "Put a note on the graph: 'asymptote here' around (4, -2).",
+      "expected_any": [
+        "create_label"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_polygon_1",
+      "query": "Draw a triangle with vertices at (0,0), (4,0), (2,3).",
+      "expected_any": [
+        "create_polygon"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_polygon_2",
+      "query": "Make a quadrilateral through points (0,0), (2,1), (3,3), (1,4).",
+      "expected_any": [
+        "create_polygon"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_polygon_3",
+      "query": "Create a polygon with vertices (-1,-1), (2,-1), (3,1), (1,2), (-1,1).",
+      "expected_any": [
+        "create_polygon"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_region_colored_area_1",
+      "query": "Shade the closed region bounded by points A, B, C and D.",
+      "expected_any": [
+        "create_region_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_region_colored_area_2",
+      "query": "Color the polygonal region enclosed by segments AB, BC, CD, DA.",
+      "expected_any": [
+        "create_region_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_create_region_colored_area_3",
+      "query": "Fill the interior of region R formed by boundary segments.",
+      "expected_any": [
+        "create_region_colored_area"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_derive_1",
+      "query": "Differentiate x^4 + 2x.",
+      "expected_any": [
+        "derive"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_derive_2",
+      "query": "Find derivative of sin(x)*e^x.",
+      "expected_any": [
+        "derive"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_derive_3",
+      "query": "Compute d/dx of ln(x^2+1).",
+      "expected_any": [
+        "derive"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_function_1",
+      "query": "Plot y = x^2 - 4x + 3.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_function_2",
+      "query": "Graph f(x)=sin(x)/x.",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_function_3",
+      "query": "Draw the curve y = e^(-x) * cos(3x).",
+      "expected_any": [
+        "draw_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_normal_line_1",
+      "query": "Draw the normal line to y=x^2 at x=1.",
+      "expected_any": [
+        "draw_normal_line"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_normal_line_2",
+      "query": "For y=sin(x), show the normal at x=0.",
+      "expected_any": [
+        "draw_normal_line"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_normal_line_3",
+      "query": "Add the normal to f(x)=x^3-2x at x=2.",
+      "expected_any": [
+        "draw_normal_line"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_parametric_function_1",
+      "query": "Plot the parametric curve x=cos(t), y=sin(2t).",
+      "expected_any": [
+        "draw_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_parametric_function_2",
+      "query": "Graph a parametric spiral x=t*cos(t), y=t*sin(t).",
+      "expected_any": [
+        "draw_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_parametric_function_3",
+      "query": "Draw x=3cos(t), y=2sin(t) for 0<=t<=2pi.",
+      "expected_any": [
+        "draw_parametric_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_piecewise_function_1",
+      "query": "Plot a piecewise function: x^2 for x<0 and 2x+1 for x>=0.",
+      "expected_any": [
+        "draw_piecewise_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_piecewise_function_2",
+      "query": "Graph f(x) with two rules: -x when x<2, and x-4 when x>=2.",
+      "expected_any": [
+        "draw_piecewise_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_piecewise_function_3",
+      "query": "Draw piecewise: 0 for x<0, x for 0<=x<=1, and 1 for x>1.",
+      "expected_any": [
+        "draw_piecewise_function"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_tangent_line_1",
+      "query": "Draw the tangent line to y=x^3 at x=2.",
+      "expected_any": [
+        "draw_tangent_line"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_tangent_line_2",
+      "query": "For y=sin(x), show the tangent at x=pi/4.",
+      "expected_any": [
+        "draw_tangent_line"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_draw_tangent_line_3",
+      "query": "Add tangent to f(x)=ln(x) at x=1.",
+      "expected_any": [
+        "draw_tangent_line"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_evaluate_expression_1",
+      "query": "Compute (3^4 - 5*2) / 7.",
+      "expected_any": [
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_evaluate_expression_2",
+      "query": "Evaluate sin(pi/6) + cos(pi/3).",
+      "expected_any": [
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_evaluate_expression_3",
+      "query": "What is sqrt(50) - 2^3?",
+      "expected_any": [
+        "evaluate_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_evaluate_linear_algebra_expression_1",
+      "query": "Compute determinant of [[1,2],[3,4]].",
+      "expected_any": [
+        "evaluate_linear_algebra_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_evaluate_linear_algebra_expression_2",
+      "query": "Find eigenvalues of matrix [[2,1],[1,2]].",
+      "expected_any": [
+        "evaluate_linear_algebra_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_evaluate_linear_algebra_expression_3",
+      "query": "Multiply matrices [[1,0],[2,3]] and [[4,5],[6,7]].",
+      "expected_any": [
+        "evaluate_linear_algebra_expression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_expand_1",
+      "query": "Expand (x+2)^3.",
+      "expected_any": [
+        "expand"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_expand_2",
+      "query": "Multiply out (x-1)(x+4).",
+      "expected_any": [
+        "expand"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_expand_3",
+      "query": "Expand (a+b-c)^2.",
+      "expected_any": [
+        "expand"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_factor_1",
+      "query": "Factor x^2 - 5x + 6.",
+      "expected_any": [
+        "factor"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_factor_2",
+      "query": "Factor 2x^2 + 8x.",
+      "expected_any": [
+        "factor"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_factor_3",
+      "query": "Write x^3-1 in factored form.",
+      "expected_any": [
+        "factor"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_fit_regression_1",
+      "query": "Fit a linear regression to points (1,2), (2,3), (3,5).",
+      "expected_any": [
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_fit_regression_2",
+      "query": "Compute best-fit line for this scatter data.",
+      "expected_any": [
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_fit_regression_3",
+      "query": "Run polynomial regression of degree 2 on the sample points.",
+      "expected_any": [
+        "fit_regression"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_generate_graph_1",
+      "query": "Generate a graph with nodes A,B,C and edges A-B, B-C.",
+      "expected_any": [
+        "generate_graph"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_generate_graph_2",
+      "query": "Create a network graph with vertices 1..5 and a cycle.",
+      "expected_any": [
+        "generate_graph"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_generate_graph_3",
+      "query": "Build a directed graph from edges s->a, a->b, b->t.",
+      "expected_any": [
+        "generate_graph"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_integrate_1",
+      "query": "Integrate x*cos(x) dx.",
+      "expected_any": [
+        "integrate"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_integrate_2",
+      "query": "Find the indefinite integral of 1/(1+x^2).",
+      "expected_any": [
+        "integrate"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_integrate_3",
+      "query": "Compute integral from 0 to 1 of x^2 dx.",
+      "expected_any": [
+        "integrate"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_limit_1",
+      "query": "Find limit as x approaches 0 of sin(x)/x.",
+      "expected_any": [
+        "limit"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_limit_2",
+      "query": "Compute lim x->infinity (1+1/x)^x.",
+      "expected_any": [
+        "limit"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_limit_3",
+      "query": "Evaluate limit x->2 of (x^2-4)/(x-2).",
+      "expected_any": [
+        "limit"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_list_workspaces_1",
+      "query": "List all my saved workspaces.",
+      "expected_any": [
+        "list_workspaces"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_list_workspaces_2",
+      "query": "What workspace names are available?",
+      "expected_any": [
+        "list_workspaces"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_list_workspaces_3",
+      "query": "Show my workspace inventory.",
+      "expected_any": [
+        "list_workspaces"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_load_workspace_1",
+      "query": "Load workspace named exam_review.",
+      "expected_any": [
+        "load_workspace"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_load_workspace_2",
+      "query": "Open my saved workspace trig_unit.",
+      "expected_any": [
+        "load_workspace"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_load_workspace_3",
+      "query": "Restore session derivatives_practice.",
+      "expected_any": [
+        "load_workspace"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_bars_1",
+      "query": "Make a bar chart for categories A,B,C with values 3,7,5.",
+      "expected_any": [
+        "plot_bars"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_bars_2",
+      "query": "Plot bars for months Jan..Mar with counts 10,12,9.",
+      "expected_any": [
+        "plot_bars"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_bars_3",
+      "query": "Create a histogram-like bar plot from these grouped values.",
+      "expected_any": [
+        "plot_bars"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_1",
+      "query": "Plot a normal distribution with mean 0 and std dev 1.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_2",
+      "query": "Show the binomial distribution for n=10, p=0.3.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_plot_distribution_3",
+      "query": "Graph a Poisson distribution with lambda 4.",
+      "expected_any": [
+        "plot_distribution"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_rotate_object_1",
+      "query": "Rotate triangle T by 30 degrees around point A.",
+      "expected_any": [
+        "rotate_object"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_rotate_object_2",
+      "query": "Turn segment AB 90 degrees about A.",
+      "expected_any": [
+        "rotate_object"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_rotate_object_3",
+      "query": "Rotate circle arc Q by -45 degrees around origin.",
+      "expected_any": [
+        "rotate_object"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_save_workspace_1",
+      "query": "Save this workspace as exam_review.",
+      "expected_any": [
+        "save_workspace"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_save_workspace_2",
+      "query": "Store current canvas state under name trig_unit.",
+      "expected_any": [
+        "save_workspace"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_save_workspace_3",
+      "query": "Persist this session with the name derivatives_practice.",
+      "expected_any": [
+        "save_workspace"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_set_coordinate_system_1",
+      "query": "Switch the canvas to polar coordinates.",
+      "expected_any": [
+        "set_coordinate_system"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_set_coordinate_system_2",
+      "query": "Change coordinate mode from Cartesian to polar.",
+      "expected_any": [
+        "set_coordinate_system"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_set_coordinate_system_3",
+      "query": "Set coordinate system to cartesian.",
+      "expected_any": [
+        "set_coordinate_system"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_set_grid_visible_1",
+      "query": "Hide the grid lines.",
+      "expected_any": [
+        "set_grid_visible"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_set_grid_visible_2",
+      "query": "Turn on the coordinate grid.",
+      "expected_any": [
+        "set_grid_visible"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_set_grid_visible_3",
+      "query": "Set grid visibility to false.",
+      "expected_any": [
+        "set_grid_visible"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_simplify_1",
+      "query": "Simplify (x^2 - 1)/(x-1).",
+      "expected_any": [
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_simplify_2",
+      "query": "Reduce expression: 2sin(x)cos(x).",
+      "expected_any": [
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_simplify_3",
+      "query": "Simplify (a*b + a*c)/a.",
+      "expected_any": [
+        "simplify"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_solve_1",
+      "query": "Solve x^2 - 5x + 6 = 0.",
+      "expected_any": [
+        "solve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_solve_2",
+      "query": "Find x such that 3x+7=19.",
+      "expected_any": [
+        "solve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_solve_3",
+      "query": "Solve for x: sin(x)=0 on principal solutions.",
+      "expected_any": [
+        "solve"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_solve_numeric_1",
+      "query": "Numerically solve cos(x)=x near 0.7.",
+      "expected_any": [
+        "solve_numeric"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_solve_numeric_2",
+      "query": "Find a numeric root of x^5-x-1=0.",
+      "expected_any": [
+        "solve_numeric"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_solve_numeric_3",
+      "query": "Use numerical solving for e^-x = x.",
+      "expected_any": [
+        "solve_numeric"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_solve_system_of_equations_1",
+      "query": "Solve the system x+y=5 and x-y=1.",
+      "expected_any": [
+        "solve_system_of_equations"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_solve_system_of_equations_2",
+      "query": "Find (x,y) for 2x+3y=7 and x-y=4.",
+      "expected_any": [
+        "solve_system_of_equations"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_solve_system_of_equations_3",
+      "query": "Solve equations: a+b=10 and 2a-b=1.",
+      "expected_any": [
+        "solve_system_of_equations"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_translate_object_1",
+      "query": "Move circle C right 3 and up 1.",
+      "expected_any": [
+        "translate_object"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_translate_object_2",
+      "query": "Translate segment AB by vector (2,-4).",
+      "expected_any": [
+        "translate_object"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_translate_object_3",
+      "query": "Shift polygon P left 5 units.",
+      "expected_any": [
+        "translate_object"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_zoom_1",
+      "query": "Zoom so x is centered at 0 and y around 10, with x range plus minus 2.",
+      "expected_any": [
+        "zoom"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_zoom_2",
+      "query": "Focus the viewport around (3, -2) with y-range about 5.",
+      "expected_any": [
+        "zoom"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    },
+    {
+      "id": "u_zoom_3",
+      "query": "Reframe the graph to center at origin and show a narrow x window of 1.5.",
+      "expected_any": [
+        "zoom"
+      ],
+      "forbidden": [
+        "search_tools"
+      ],
+      "category": "unique_intent",
+      "difficulty": "normal"
+    }
+  ]
+}

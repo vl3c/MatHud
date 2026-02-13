@@ -1,0 +1,8 @@
+Model: openai/gpt-oss-20b:free (OpenRouter)
+Pause seconds: 4
+Corpus: server_tests/data/tool_discovery_cases.yaml (190 cases)
+Runner: scripts/run_tool_discovery_live.py
+Benchmark test: server_tests/test_tool_discovery_live.py
+Notes:
+- Rerun uses hardened fallback/parser and updated tool descriptions.
+- Full rerun CSV is the primary result artifact.

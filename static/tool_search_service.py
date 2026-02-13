@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -46,6 +47,13 @@ Available tools:
 User query: "{query}"
 
 Return a JSON array of up to {max_results} tool names. Example: ["create_circle", "create_point"]"""
+    _STOPWORDS = frozenset(
+        {
+            "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
+            "how", "i", "if", "in", "is", "it", "me", "of", "on", "or",
+            "please", "show", "the", "to", "up", "use", "with", "you",
+        }
+    )
 
     def __init__(
         self,
@@ -66,6 +74,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             self.client = OpenAI(api_key=api_key)
 
         self.default_model = default_model
+        self.last_error: Optional[str] = None
 
     @staticmethod
     def _initialize_api_key() -> str:
@@ -155,6 +164,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if not query or not query.strip():
             _logger.warning("Tool search called with empty query")
             return []
+        self.last_error = None
 
         # Clamp max_results to valid range
         max_results = max(1, min(20, max_results))
@@ -188,6 +198,9 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
 
             # Parse the JSON array of tool names
             tool_names = self._parse_tool_names(content)
+            if not tool_names:
+                # Fallback for non-compliant model outputs
+                tool_names = self._fallback_tool_names(query, max_results)
 
             # Look up full definitions for each tool name (excluding meta-tools)
             matched_tools: List[FunctionDefinition] = []
@@ -204,8 +217,63 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
             return matched_tools
 
         except Exception as e:
+            self.last_error = str(e)
             _logger.error(f"Tool search failed: {e}")
-            return []
+            fallback_names = self._fallback_tool_names(query, max_results)
+            fallback_tools: List[FunctionDefinition] = []
+            for name in fallback_names:
+                tool = self.get_tool_by_name(name)
+                if tool is not None:
+                    fallback_tools.append(tool)
+            return fallback_tools
+
+    @classmethod
+    def _tokenize(cls, text: str) -> List[str]:
+        tokens = [t for t in re.findall(r"[a-z0-9_]+", text.lower()) if t]
+        return [t for t in tokens if t not in cls._STOPWORDS and len(t) > 1]
+
+    @classmethod
+    def _tool_score(cls, query_tokens: List[str], tool_name: str, description: str) -> float:
+        if not query_tokens:
+            return 0.0
+        name_text = tool_name.lower().replace("_", " ")
+        desc_text = description.lower()
+        score = 0.0
+        for token in query_tokens:
+            if token == tool_name.lower():
+                score += 8.0
+            if token in name_text:
+                score += 3.0
+            if token in desc_text:
+                score += 1.0
+        # Intent boosts for common confusion clusters.
+        if any(t in query_tokens for t in ("move", "shift", "translate")) and tool_name == "translate_object":
+            score += 4.0
+        if any(t in query_tokens for t in ("area", "shade", "region")) and tool_name in {"calculate_area", "create_colored_area", "create_region_colored_area"}:
+            score += 2.0
+        if any(t in query_tokens for t in ("distribution", "gaussian", "normal")) and tool_name == "plot_distribution":
+            score += 4.0
+        if any(t in query_tokens for t in ("determinant", "eigenvalue", "matrix", "vector")) and tool_name == "evaluate_linear_algebra_expression":
+            score += 4.0
+        if any(t in query_tokens for t in ("undo", "redo", "history")) and tool_name in {"undo", "redo"}:
+            score += 4.0
+        return score
+
+    @classmethod
+    def _fallback_tool_names(cls, query: str, max_results: int) -> List[str]:
+        query_tokens = cls._tokenize(query)
+        scored: List[tuple[float, str]] = []
+        for tool in FUNCTIONS:
+            func = tool.get("function", {})
+            name = func.get("name", "")
+            if not name or name in EXCLUDED_FROM_SEARCH:
+                continue
+            description = func.get("description", "")
+            score = cls._tool_score(query_tokens, name, description)
+            if score > 0:
+                scored.append((score, name))
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        return [name for _, name in scored[:max_results]]
 
     @staticmethod
     def _extract_list_from_parsed(parsed: Any) -> List[str]:
