@@ -90,7 +90,7 @@ class TestWorkspaceManagement(unittest.TestCase):
         success = self.workspace_manager.save_workspace(cast(WorkspaceState, self.canvas.get_canvas_state()), "test/invalid/name", TEST_DIR)
         self.assertFalse(success, "Save workspace should return False with invalid name")
 
-        if os.name != 'nt':  # Skip on Windows
+        if os.name != 'nt' and os.getuid() != 0:  # Skip on Windows and root
             test_dir = os.path.join(WORKSPACES_DIR, TEST_DIR)
             original_mode = os.stat(test_dir).st_mode
             try:
