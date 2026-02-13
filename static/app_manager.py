@@ -212,5 +212,5 @@ class AppManager:
                 print("TTS: Kokoro initialized successfully")
             else:
                 print("TTS: Kokoro not available (install with: pip install kokoro)")
-        except Exception as e:
+        except (Exception, SystemExit) as e:
             print(f"TTS: Failed to initialize ({e})")

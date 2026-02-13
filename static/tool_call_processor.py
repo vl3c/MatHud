@@ -15,6 +15,8 @@ import json
 import logging
 from typing import Any, Dict, List, Protocol, Sequence, TypedDict
 
+from static.tool_argument_validator import ToolArgumentValidator
+
 
 class ToolCallFunction(Protocol):
     """Protocol for OpenAI tool call function attribute."""
@@ -62,6 +64,17 @@ class ToolCallProcessor:
         except json.JSONDecodeError:
             arguments = {}
             logging.error(f"Failed to decode arguments for function {function_name}.")
+
+        # Validate and canonicalize arguments against the tool's JSON schema.
+        # Log-only mode: warnings are emitted for invalid arguments but
+        # execution is never blocked.  Canonicalized arguments are used only
+        # when validation passes; original arguments pass through on failure.
+        result = ToolArgumentValidator.validate(function_name, arguments)
+        if not result["valid"]:
+            for error in result["errors"]:
+                logging.warning(error)
+        else:
+            arguments = result["arguments"]
 
         processed_call: ProcessedToolCall = {"function_name": function_name, "arguments": arguments}
         return processed_call
