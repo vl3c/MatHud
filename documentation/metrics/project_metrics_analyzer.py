@@ -498,7 +498,7 @@ class ProjectMetricsAnalyzer:
                 f.write("-" * 40 + "\n")
 
                 # Sort files by line count (descending)
-                files.sort(key=lambda x: x['lines'], reverse=True)
+                files.sort(key=lambda x: int(x['lines']), reverse=True)
 
                 for file_info in files:
                     f.write(f"{file_info['path']:<40} {file_info['lines']:>6} lines")

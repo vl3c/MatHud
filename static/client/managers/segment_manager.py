@@ -325,7 +325,7 @@ class SegmentManager:
         self._delete_segment_dependencies(x1, y1, x2, y2, delete_children, delete_parents)
 
         # Now remove the segment itself
-        removed = remove_drawable_with_dependencies(
+        remove_drawable_with_dependencies(
             self.drawables, self.dependency_manager, segment
         )
 

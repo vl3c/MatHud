@@ -638,7 +638,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         drawable = self._create_mock_drawable("Carrier", "FunctionSegmentBoundedColoredArea")
         function_like = self._create_mock_drawable("F1", "Function")
         drawable.func = function_like
-        dependencies = []
+        dependencies: list = []
 
         self.manager._append_attr_dependency_if_present(
             drawable,
@@ -651,7 +651,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.assertIn(function_like, dependencies)
 
         drawable.func = SimpleMock(name="NoClassName")
-        dependencies2 = []
+        dependencies2: list = []
         self.manager._append_attr_dependency_if_present(
             drawable,
             "func",
@@ -667,7 +667,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         triangle.segment1 = self.segment1
         triangle.segment2 = self.segment2
         triangle.segment3 = self.segment3
-        dependencies = []
+        dependencies: list = []
 
         self.manager._append_segment_attrs(triangle, dependencies, count=3)
         self.assertEqual(len(dependencies), 3)

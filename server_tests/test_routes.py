@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import unittest
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 from unittest.mock import Mock, patch
 
 from static.app_manager import AppManager, MatHudFlask
@@ -637,7 +637,7 @@ class TestInterceptSearchTools(unittest.TestCase):
         mock_service_class.return_value = mock_service
 
         # Some API responses use 'function' key with nested 'name'
-        tool_calls = [
+        tool_calls: List[Dict[str, Any]] = [
             {'function': {'name': 'search_tools'}, 'arguments': {'query': 'circle'}},
             {'function': {'name': 'create_circle'}, 'arguments': {}},
             {'function': {'name': 'delete_all'}, 'arguments': {}},
