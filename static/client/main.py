@@ -61,9 +61,12 @@ def start_tests() -> str:
 
     def execute_tests() -> None:
         global _test_results, _tests_running
+        ai_interface = _ai_interface
         try:
-            assert _ai_interface is not None
-            results = _ai_interface.run_tests()
+            if ai_interface is None:
+                raise RuntimeError("AIInterface not initialized")
+
+            results = ai_interface.run_tests()
             _test_results = window.JSON.stringify(results)
 
             # Format and display results in chat (like the button does)
@@ -84,7 +87,7 @@ def start_tests() -> str:
                 for err in results['error_tests']:
                     summary += f"- **{err['test']}**: {err['error']}\n"
 
-            _ai_interface._print_ai_message_in_chat(summary)
+            ai_interface._print_ai_message_in_chat(summary)
 
         except Exception as e:
             _test_results = window.JSON.stringify({
@@ -94,7 +97,8 @@ def start_tests() -> str:
                 "failing_tests": [],
                 "error_tests": [{"test": "Test Runner", "error": str(e)}]
             })
-            _ai_interface._print_ai_message_in_chat(f"Error running tests: {str(e)}")
+            if ai_interface is not None:
+                ai_interface._print_ai_message_in_chat(f"Error running tests: {str(e)}")
         finally:
             _tests_running = False
             # Re-enable button
