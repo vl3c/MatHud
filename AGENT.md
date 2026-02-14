@@ -9,3 +9,9 @@
 - Prioritize deterministic execution and state integrity (atomic actions, rollback, reliable undo/redo).
 - Prefer explicit, explainable action reporting (what was resolved, what changed, and why).
 - Keep canvas behavior and documentation aligned with conversational, AI-led usage.
+
+# Project Rules
+
+The following rules MUST be followed:
+
+- Do not add Co-Authored-By, signature lines, or AI attribution to commits, PRs, or code comments

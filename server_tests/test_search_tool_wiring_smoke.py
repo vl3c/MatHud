@@ -53,7 +53,7 @@ class TestSearchToolWiringSmoke(unittest.TestCase):
         )
 
         payload = {
-            "message": json.dumps({"user_message": "draw circle", "use_vision": False}),
+            "message": json.dumps({"user_message": "draw circle", "use_vision": False, "ai_model": "gpt-4.1"}),
             "svg_state": None,
         }
         response = self.client.post("/send_message_stream", json=payload)
@@ -140,7 +140,7 @@ class TestSearchToolWiringSmoke(unittest.TestCase):
         mock_intercept.return_value = filtered_calls
 
         payload = {
-            "message": json.dumps({"user_message": "plot x^2", "use_vision": False}),
+            "message": json.dumps({"user_message": "plot x^2", "use_vision": False, "ai_model": "gpt-4.1"}),
             "svg_state": None,
         }
         response = self.client.post("/send_message", json=payload)

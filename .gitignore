@@ -47,7 +47,8 @@ cli/output/*
 # CLI server PID file
 .mathud_server.pid
 
-# SelfAssembler artifacts
+# SelfAssembler runtime artifacts
+.selfassembler-run.yaml
 logs/
 plans/
 .worktrees/

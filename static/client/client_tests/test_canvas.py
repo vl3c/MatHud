@@ -2707,6 +2707,127 @@ class TestCanvas(unittest.TestCase):
         self.assertEqual(len(angles_after), 0)
         self.assertNotIn(angle, angles_after)
 
+    def test_vector_creation_registers_dependency(self) -> None:
+        """Creating a vector should register its segment as a parent dependency."""
+        vector = self.canvas.create_vector(10, 10, 20, 20)
+        self.assertIsNotNone(vector)
+        parents = self.canvas.dependency_manager.get_parents(vector)
+        segment_parents = [p for p in parents if hasattr(p, 'get_class_name') and p.get_class_name() == 'Segment']
+        self.assertEqual(len(segment_parents), 1, "Vector should have exactly 1 segment parent")
+        self.assertIs(segment_parents[0], vector.segment)
+
+    def test_point_deletion_cascades_to_pentagon(self) -> None:
+        """Deleting a vertex point of a pentagon should remove the pentagon."""
+        vertices = [
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (3.0, 1.5),
+            (1.0, 3.0),
+            (-1.0, 1.5),
+        ]
+        pentagon = self.canvas.create_polygon(vertices, polygon_type=PolygonType.PENTAGON)
+        self.assertIsNotNone(pentagon)
+        self.assertIn(pentagon, self.canvas.get_drawables_by_class_name('Pentagon'))
+
+        # Delete the first vertex
+        self.canvas.delete_point(0.0, 0.0)
+
+        # Pentagon should be removed
+        self.assertNotIn(pentagon, self.canvas.get_drawables_by_class_name('Pentagon'))
+
+    def test_segment_deletion_cascades_to_pentagon(self) -> None:
+        """Deleting an edge segment of a pentagon should remove the pentagon."""
+        vertices = [
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (3.0, 1.5),
+            (1.0, 3.0),
+            (-1.0, 1.5),
+        ]
+        pentagon = self.canvas.create_polygon(vertices, polygon_type=PolygonType.PENTAGON)
+        self.assertIsNotNone(pentagon)
+        edge_segments = pentagon.get_segments()
+        self.assertTrue(len(edge_segments) > 0)
+
+        # Delete the first edge segment
+        seg = edge_segments[0]
+        self.canvas.delete_segment(seg.point1.x, seg.point1.y, seg.point2.x, seg.point2.y)
+
+        # Pentagon should be removed
+        self.assertNotIn(pentagon, self.canvas.get_drawables_by_class_name('Pentagon'))
+
+    def test_point_deletion_cascades_to_hexagon(self) -> None:
+        """Deleting a vertex point of a hexagon should remove the hexagon."""
+        vertices = [
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (3.0, 1.0),
+            (2.0, 2.0),
+            (0.0, 2.0),
+            (-1.0, 1.0),
+        ]
+        hexagon = self.canvas.create_polygon(vertices, polygon_type=PolygonType.HEXAGON)
+        self.assertIsNotNone(hexagon)
+        self.assertIn(hexagon, self.canvas.get_drawables_by_class_name('Hexagon'))
+
+        self.canvas.delete_point(0.0, 0.0)
+
+        self.assertNotIn(hexagon, self.canvas.get_drawables_by_class_name('Hexagon'))
+
+    def test_segment_deletion_cascades_to_hexagon(self) -> None:
+        """Deleting an edge segment of a hexagon should remove the hexagon."""
+        vertices = [
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (3.0, 1.0),
+            (2.0, 2.0),
+            (0.0, 2.0),
+            (-1.0, 1.0),
+        ]
+        hexagon = self.canvas.create_polygon(vertices, polygon_type=PolygonType.HEXAGON)
+        self.assertIsNotNone(hexagon)
+        edge_segments = hexagon.get_segments()
+        self.assertTrue(len(edge_segments) > 0)
+
+        seg = edge_segments[0]
+        self.canvas.delete_segment(seg.point1.x, seg.point1.y, seg.point2.x, seg.point2.y)
+
+        self.assertNotIn(hexagon, self.canvas.get_drawables_by_class_name('Hexagon'))
+
+    def test_point_deletion_cascades_to_quadrilateral(self) -> None:
+        """Deleting a vertex of a quadrilateral should remove it (exercises segment1..4 attrs)."""
+        vertices = [
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (5.0, 3.0),
+            (1.0, 3.0),
+        ]
+        quad = self.canvas.create_polygon(vertices, polygon_type=PolygonType.QUADRILATERAL)
+        self.assertIsNotNone(quad)
+        self.assertIn(quad, self.canvas.get_drawables_by_class_name('Quadrilateral'))
+
+        self.canvas.delete_point(0.0, 0.0)
+
+        self.assertNotIn(quad, self.canvas.get_drawables_by_class_name('Quadrilateral'))
+
+    def test_segment_deletion_cascades_to_quadrilateral(self) -> None:
+        """Deleting an edge of a quadrilateral should remove it (exercises segment1..4 attrs)."""
+        vertices = [
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (5.0, 3.0),
+            (1.0, 3.0),
+        ]
+        quad = self.canvas.create_polygon(vertices, polygon_type=PolygonType.QUADRILATERAL)
+        self.assertIsNotNone(quad)
+        edge_segments = quad.get_segments()
+        self.assertTrue(len(edge_segments) > 0)
+
+        seg = edge_segments[0]
+        self.canvas.delete_segment(seg.point1.x, seg.point1.y, seg.point2.x, seg.point2.y)
+
+        self.assertNotIn(quad, self.canvas.get_drawables_by_class_name('Quadrilateral'))
+
 
 class TestCanvasHelperMethods(unittest.TestCase):
     def setUp(self) -> None:
