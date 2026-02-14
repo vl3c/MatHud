@@ -840,6 +840,11 @@ def register_routes(app: MatHudFlask) -> None:
 
         app.log_manager.log_user_message(message)
 
+        # Log action trace if present (sent as top-level field, not in prompt)
+        action_trace_raw = request_payload.get('action_trace')
+        if isinstance(action_trace_raw, dict):
+            app.log_manager.log_action_trace(action_trace_raw)
+
         handle_vision_capture(
             app,
             use_vision,
@@ -1163,6 +1168,11 @@ def register_routes(app: MatHudFlask) -> None:
             provider = app.ai_api
 
         app.log_manager.log_user_message(message)
+
+        # Log action trace if present (sent as top-level field, not in prompt)
+        action_trace_raw_legacy = request_payload.get('action_trace')
+        if isinstance(action_trace_raw_legacy, dict):
+            app.log_manager.log_action_trace(action_trace_raw_legacy)
 
         handle_vision_capture(
             app,

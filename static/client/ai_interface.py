@@ -44,6 +44,7 @@ from markdown_parser import MarkdownParser
 from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
 from tts_controller import get_tts_controller, TTSController
+from managers.action_trace_collector import ActionTraceCollector
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -125,6 +126,32 @@ class AIInterface:
         # TTS state
         self._tts_controller: TTSController = get_tts_controller()
         self._tts_settings_modal: Optional[Any] = None  # DOMNode for TTS settings modal
+        # Action trace collector for deterministic tool-execution logs
+        self._trace_collector: ActionTraceCollector = ActionTraceCollector()
+        self._register_trace_js_api()
+
+    def _register_trace_js_api(self) -> None:
+        """Expose trace inspection functions on the browser ``window`` object."""
+
+        def _safe_json_to_js(data: Any) -> Any:
+            """Serialize Python data to a JS object, returning error dict on failure."""
+            try:
+                return window.JSON.parse(json.dumps(data))
+            except Exception as exc:
+                return window.JSON.parse(json.dumps({"error": str(exc)}))
+
+        window.getActionTraces = lambda: _safe_json_to_js(
+            self._trace_collector.export_traces_json()
+        )
+        window.getLastActionTrace = lambda: _safe_json_to_js(
+            self._trace_collector.get_last_trace_json()
+        )
+        window.clearActionTraces = lambda: self._trace_collector.clear()
+        window.replayLastTrace = lambda: _safe_json_to_js(
+            self._trace_collector.replay_last_trace(
+                self.available_functions, self.undoable_functions, self.canvas,
+            )
+        )
 
     def run_tests(self) -> Dict[str, Any]:
         """Run unit tests for the AIInterface class and return results to the AI as the function result."""
@@ -1450,24 +1477,60 @@ class AIInterface:
 
             # Processing tool calls - keep the "Thinking..." container visible
             # It will be removed/updated when the final response arrives
+            state_before = self.canvas.get_canvas_state()
+            t0 = window.performance.now()
+            traced_calls: list[Dict[str, Any]] = []
             try:
-                call_results = ProcessFunctionCalls.get_results(ai_tool_calls, self.available_functions, self.undoable_functions, self.canvas)
+                call_results, traced_calls = ProcessFunctionCalls.get_results_traced(
+                    ai_tool_calls, self.available_functions, self.undoable_functions, self.canvas,
+                )
                 self._store_results_in_canvas_state(call_results)
                 self._add_tool_call_entries(ai_tool_calls, call_results)
 
                 if self._stop_requested:
+                    # Still capture trace for the executed tool calls
+                    try:
+                        state_after = self.canvas.get_canvas_state()
+                        total_ms = window.performance.now() - t0
+                        trace = self._trace_collector.build_trace(
+                            state_before, state_after, traced_calls, total_ms,
+                        )
+                        self._trace_collector.store(trace)
+                    except Exception:
+                        pass
                     self._finalize_stream_message()
                     self._print_system_message_in_chat("Generation stopped.")
                     self._enable_send_controls()
                     return
+
+                state_after = self.canvas.get_canvas_state()
+                total_ms = window.performance.now() - t0
+                trace = self._trace_collector.build_trace(
+                    state_before, state_after, traced_calls, total_ms,
+                )
+                self._trace_collector.store(trace)
+                trace_summary = self._trace_collector.build_compact_summary(trace)
 
                 # Reset timeout with extended duration - AI needs time to process tool results
                 self._start_response_timeout(use_reasoning_timeout=True)
                 # Mark that we need a newline separator before the next text
                 if self._stream_buffer.strip():
                     self._needs_continuation_separator = True
-                self._send_prompt_to_ai(None, json.dumps(call_results))
+                self._send_prompt_to_ai(
+                    None, json.dumps(call_results),
+                    canvas_state=state_after, action_trace=trace_summary,
+                )
             except Exception as e:
+                # Always capture trace even on partial failure
+                try:
+                    state_after = self.canvas.get_canvas_state()
+                    total_ms = window.performance.now() - t0
+                    trace = self._trace_collector.build_trace(
+                        state_before, state_after, traced_calls, total_ms,
+                    )
+                    self._trace_collector.store(trace)
+                except Exception:
+                    pass
                 print(f"Error processing streamed tool calls: {e}")
                 self._enable_send_controls()
         except Exception as e:
@@ -1799,11 +1862,37 @@ class AIInterface:
             self._print_ai_message_in_chat(ai_message)
             self._enable_send_controls()
         else: # finish_reason == "tool_calls" or "function_call"
+            state_before = self.canvas.get_canvas_state()
+            t0 = window.performance.now()
+            traced_calls: list[Dict[str, Any]] = []
             try:
-                call_results = ProcessFunctionCalls.get_results(tool_calls, self.available_functions, self.undoable_functions, self.canvas)
+                call_results, traced_calls = ProcessFunctionCalls.get_results_traced(
+                    tool_calls, self.available_functions, self.undoable_functions, self.canvas,
+                )
                 self._store_results_in_canvas_state(call_results)
-                self._send_prompt_to_ai(None, json.dumps(call_results))
+
+                state_after = self.canvas.get_canvas_state()
+                total_ms = window.performance.now() - t0
+                trace = self._trace_collector.build_trace(
+                    state_before, state_after, traced_calls, total_ms,
+                )
+                self._trace_collector.store(trace)
+                trace_summary = self._trace_collector.build_compact_summary(trace)
+
+                self._send_prompt_to_ai(
+                    None, json.dumps(call_results),
+                    canvas_state=state_after, action_trace=trace_summary,
+                )
             except Exception as e:
+                try:
+                    state_after = self.canvas.get_canvas_state()
+                    total_ms = window.performance.now() - t0
+                    trace = self._trace_collector.build_trace(
+                        state_before, state_after, traced_calls, total_ms,
+                    )
+                    self._trace_collector.store(trace)
+                except Exception:
+                    pass
                 print(f"Error processing tool calls: {e}")
                 traceback.print_exc()
                 self._enable_send_controls()  # Enable controls if there's an error
@@ -1839,9 +1928,16 @@ class AIInterface:
             traceback.print_exc()
             self._enable_send_controls()
 
-    def _create_request_payload(self, prompt: Optional[str], include_svg: bool = True) -> Dict[str, Any]:
+    def _create_request_payload(
+        self,
+        prompt: Optional[str],
+        include_svg: bool = True,
+        action_trace: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Create the JSON payload for the request, optionally including SVG and Canvas2D state."""
         payload: Dict[str, Any] = {'message': prompt}
+        if action_trace is not None:
+            payload['action_trace'] = action_trace
         vision_enabled = self._is_vision_enabled(prompt)
         renderer_mode = getattr(self.canvas, "renderer_mode", None)
         if isinstance(renderer_mode, str):
@@ -1941,15 +2037,19 @@ class AIInterface:
             print(f"Falling back to non-streaming request due to error: {e}")
             self._make_request(payload)
 
-    def _send_request(self, prompt: Optional[str]) -> None:
+    def _send_request(
+        self,
+        prompt: Optional[str],
+        action_trace: Optional[Dict[str, Any]] = None,
+    ) -> None:
         try:
             # Try to send request with SVG state
-            payload = self._create_request_payload(prompt, include_svg=True)
+            payload = self._create_request_payload(prompt, include_svg=True, action_trace=action_trace)
             self._start_streaming_request(payload)
         except Exception as e:
             print(f"Error preparing request with SVG: {str(e)}")
             # Fall back to sending request without SVG state
-            payload = self._create_request_payload(prompt, include_svg=False)
+            payload = self._create_request_payload(prompt, include_svg=False, action_trace=action_trace)
             self._start_streaming_request(payload)
 
     def _send_prompt_to_ai_stream(
@@ -2002,8 +2102,11 @@ class AIInterface:
         user_message: Optional[str] = None,
         tool_call_results: Optional[str] = None,
         attached_images: Optional[list[str]] = None,
+        canvas_state: Optional[Dict[str, Any]] = None,
+        action_trace: Optional[Dict[str, Any]] = None,
     ) -> None:
-        canvas_state = self.canvas.get_canvas_state()
+        if canvas_state is None:
+            canvas_state = self.canvas.get_canvas_state()
 
         # Only use vision when we have a user message and no tool call results
         use_vision = document["vision-toggle"].checked and user_message is not None and tool_call_results is None
@@ -2039,7 +2142,7 @@ class AIInterface:
             self._needs_continuation_separator = False
             self._reset_tool_call_log_state()
 
-        self._send_request(prompt)
+        self._send_request(prompt, action_trace=action_trace)
 
     def send_user_message(self, message: str) -> None:
         """Sends a message as if the user typed it.

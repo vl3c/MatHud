@@ -177,6 +177,14 @@ class LogManager:
         if ai_tool_calls is not None:
             self._logger.info(f'### AI tool calls: {list(ai_tool_calls)}')
 
+    def log_action_trace(self, trace_summary: Dict[str, Any]) -> None:
+        """Log a structured action trace summary as a JSON line.
+
+        Args:
+            trace_summary: Compact trace dict (trace_id, tool_count, state_delta, etc.)
+        """
+        self._logger.info("action_trace %s", json.dumps(trace_summary, sort_keys=True))
+
     # ========== Browser Forwarding Methods ==========
 
     def queue_for_browser(

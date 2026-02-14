@@ -223,6 +223,14 @@ from .brython_io import BrythonTestStream
 from .ai_result_formatter import AITestResult
 
 from .test_series import TestSeries
+from .test_action_trace_collector import (
+    TestComputeStateDelta,
+    TestBuildTrace,
+    TestStoreAndRetrieve,
+    TestExportTracesJson,
+    TestCompactSummary,
+)
+from .test_result_processor_traced import TestGetResultsTraced
 
 class Tests:
     """Encapsulates execution and formatting of client-side tests."""
@@ -495,6 +503,12 @@ class Tests:
             TestTTSControllerSpeak,
             TestTTSControllerErrorHandling,
             TestSeries,
+            TestComputeStateDelta,
+            TestBuildTrace,
+            TestStoreAndRetrieve,
+            TestExportTracesJson,
+            TestCompactSummary,
+            TestGetResultsTraced,
         ]
 
     def _create_test_suite(self) -> unittest.TestSuite:

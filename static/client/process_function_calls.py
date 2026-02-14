@@ -101,6 +101,31 @@ class ProcessFunctionCalls:
         )
 
     @staticmethod
+    def get_results_traced(
+        calls: List[Dict[str, Any]],
+        available_functions: Dict[str, Any],
+        undoable_functions: Tuple[str, ...],
+        canvas: "Canvas",
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        """Execute tool calls with per-call tracing metadata.
+
+        Same execution semantics as get_results() but additionally records
+        per-call timing and result metadata for action tracing.
+
+        Args:
+            calls: List of function call dictionaries from AI
+            available_functions: Mapping of function names to implementations
+            undoable_functions: Function names that support undo operations
+            canvas: Canvas instance for state archiving and computation tracking
+
+        Returns:
+            Tuple of (results dict, list of traced call records)
+        """
+        return ResultProcessor.get_results_traced(
+            calls, available_functions, undoable_functions, canvas,
+        )
+
+    @staticmethod
     def validate_results(results: Dict[str, Any]) -> bool:
         """Validates result structure and data types for integrity.
 
