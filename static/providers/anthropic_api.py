@@ -27,6 +27,9 @@ _logger = logging.getLogger("mathud")
 def _get_anthropic_api_key() -> str:
     """Get the Anthropic API key from environment."""
     load_dotenv()
+    parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
+    if os.path.exists(parent_env):
+        load_dotenv(parent_env)
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY not found in environment or .env file")

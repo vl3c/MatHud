@@ -83,10 +83,12 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         if api_key:
             return api_key
 
-        dotenv_path = ".env"
-        if os.path.exists(dotenv_path):
-            load_dotenv(dotenv_path)
-            api_key = os.getenv("OPENAI_API_KEY")
+        # Load from project .env, then parent .env (API keys may live outside repo)
+        load_dotenv()
+        parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
+        if os.path.exists(parent_env):
+            load_dotenv(parent_env)
+        api_key = os.getenv("OPENAI_API_KEY")
 
         if not api_key:
             raise ValueError("OPENAI_API_KEY not found in environment or .env file")
