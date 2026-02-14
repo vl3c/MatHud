@@ -54,3 +54,7 @@ plans/
 .worktrees/
 .sa-wrapper.sh
 *.egg-info/
+
+# Package caches
+.pip-cache/
+.uv/
