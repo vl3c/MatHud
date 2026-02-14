@@ -1,7 +1,7 @@
 # Drawable Dependency Policy Matrix
 
-Date: 2026-02-08
-Branch: `feat/drawable-dependency-audit`
+Date: 2026-02-14
+Branch: `main`
 
 ## Interactable Drawable Rules
 
@@ -9,9 +9,17 @@ Branch: `feat/drawable-dependency-audit`
 |---|---|---|---|
 | Point | none | Deleting point cascades to dependent segment/vector/circle/ellipse/angle/arc paths via managers and dependency graph | Point->Point edges are intentionally suppressed |
 | Segment | `point1`, `point2` | Deleting segment removes segment and dependency node, cascades to dependents (angle, vector, polygon shapes, split-chain children) | Split chains preserve selected ancestor semantics |
-| Vector | `segment` | Deleting vector removes drawable and dependency node | Vector lifespan is tied to segment |
+| Vector | `segment` | Deleting vector removes drawable and dependency node | Vector lifespan is tied to segment; `_type_hierarchy` correctly lists `['Segment']` |
 | Triangle | `segment1`, `segment2`, `segment3` | Removed during segment/point cascades; dependency node removed on deletion paths | Treated as interactable polygon |
 | Rectangle | `segment1`, `segment2`, `segment3`, `segment4` | Removed during segment/point cascades; dependency node removed on deletion paths | Treated as interactable polygon |
+| Quadrilateral | `segment1`, `segment2`, `segment3`, `segment4` | Removed during segment/point cascades; dependency node removed on deletion paths | Treated as interactable polygon; uses named segment attrs |
+| Pentagon | `_segments` (5 entries) | Removed during segment/point cascades; dependency node removed on deletion paths | Treated as interactable polygon; uses `_segments` iterable |
+| Hexagon | `_segments` (6 entries) | Removed during segment/point cascades; dependency node removed on deletion paths | Treated as interactable polygon; uses `_segments` iterable |
+| Heptagon | `_segments` (7 entries) | Removed during segment/point cascades; dependency node removed on deletion paths | Treated as interactable polygon; uses `_segments` iterable |
+| Octagon | `_segments` (8 entries) | Removed during segment/point cascades; dependency node removed on deletion paths | Treated as interactable polygon; uses `_segments` iterable |
+| Nonagon | `_segments` (9 entries) | Removed during segment/point cascades; dependency node removed on deletion paths | Treated as interactable polygon; uses `_segments` iterable |
+| Decagon | `_segments` (10 entries) | Removed during segment/point cascades; dependency node removed on deletion paths | Treated as interactable polygon; uses `_segments` iterable |
+| GenericPolygon | `_segments` (N entries) | Removed during segment/point cascades; dependency node removed on deletion paths | Treated as interactable polygon; uses `_segments` iterable |
 | Circle | `center` | Deleting circle removes drawable and dependency node, plus dependent region areas | Lifecycle/recreate invariants are covered |
 | Ellipse | `center` | Deleting ellipse removes drawable and dependency node, plus dependent region areas | Lifecycle/recreate invariants are covered |
 | Angle | `segment1`, `segment2`, `vertex_point`, `arm1_point`, `arm2_point` | Deleting angle removes drawable and dependency node | Explicit dependency registration |

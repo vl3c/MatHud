@@ -173,6 +173,9 @@ class VectorManager:
         # Add to drawables
         self.drawables.add(new_vector)
 
+        # Register with dependency manager
+        self.dependency_manager.analyze_drawable_for_dependencies(new_vector)
+
         # Handle extra graphics if requested
         if extra_graphics:
             self.drawable_manager.create_drawables_from_new_connections()
@@ -221,6 +224,9 @@ class VectorManager:
             new_vector = Vector(origin, tip)
 
         self.drawables.add(new_vector)
+
+        # Register with dependency manager
+        self.dependency_manager.analyze_drawable_for_dependencies(new_vector)
 
         if self.canvas.draw_enabled:
             self.canvas.draw()

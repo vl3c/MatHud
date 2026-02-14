@@ -328,6 +328,14 @@ class TestDrawableDependencyManager(unittest.TestCase):
             ('Vector', self._create_mock_drawable("TestVector", "Vector")),
             ('Triangle', self._create_mock_drawable("TestTriangle", "Triangle")),
             ('Rectangle', self._create_mock_drawable("TestRectangle", "Rectangle")),
+            ('Quadrilateral', self._create_mock_drawable("TestQuadrilateral", "Quadrilateral")),
+            ('Pentagon', self._create_mock_drawable("TestPentagon", "Pentagon")),
+            ('Hexagon', self._create_mock_drawable("TestHexagon", "Hexagon")),
+            ('Heptagon', self._create_mock_drawable("TestHeptagon", "Heptagon")),
+            ('Octagon', self._create_mock_drawable("TestOctagon", "Octagon")),
+            ('Nonagon', self._create_mock_drawable("TestNonagon", "Nonagon")),
+            ('Decagon', self._create_mock_drawable("TestDecagon", "Decagon")),
+            ('GenericPolygon', self._create_mock_drawable("TestGenericPolygon", "GenericPolygon")),
             ('Circle', self._create_mock_drawable("TestCircle", "Circle")),
             ('CircleArc', self._create_mock_drawable("TestCircleArc", "CircleArc")),
             ('Ellipse', self._create_mock_drawable("TestEllipse", "Ellipse")),
@@ -786,3 +794,69 @@ class TestDrawableDependencyManager(unittest.TestCase):
         bad_segment = self._create_mock_segment("BadSegment", bad_point1, bad_point2)
         children = self.manager._find_segment_children(bad_segment)
         self.assertEqual(len(children), 0, "Should handle segment without child segments on it")
+
+    def test_analyze_quadrilateral_dependencies(self) -> None:
+        """Quadrilateral dependency analysis uses segment1..segment4 attributes."""
+        s4 = self._create_mock_segment("S4", self.point1, self.point3)
+        quad = self._create_mock_drawable("Q1", "Quadrilateral")
+        quad.segment1 = self.segment1
+        quad.segment2 = self.segment2
+        quad.segment3 = self.segment3
+        quad.segment4 = s4
+        deps = self.manager.analyze_drawable_for_dependencies(quad)
+        self.assertEqual(len(deps), 4, "Quadrilateral should have 4 segment dependencies")
+        self.assertIn(self.segment1, deps)
+        self.assertIn(self.segment2, deps)
+        self.assertIn(self.segment3, deps)
+        self.assertIn(s4, deps)
+
+    def test_analyze_pentagon_dependencies(self) -> None:
+        """Pentagon dependency analysis uses _segments iterable."""
+        s4 = self._create_mock_segment("S4", self.point1, self.point3)
+        s5 = self._create_mock_segment("S5", self.point2, self.point3)
+        pentagon = self._create_mock_drawable("P1", "Pentagon")
+        pentagon._segments = [self.segment1, self.segment2, self.segment3, s4, s5]
+        deps = self.manager.analyze_drawable_for_dependencies(pentagon)
+        self.assertEqual(len(deps), 5, "Pentagon should have 5 segment dependencies")
+        for seg in pentagon._segments:
+            self.assertIn(seg, deps)
+
+    def test_analyze_generic_polygon_dependencies(self) -> None:
+        """GenericPolygon dependency analysis uses _segments iterable."""
+        segments = [
+            self._create_mock_segment(f"GS{i}", self._create_mock_point(f"GP{i}"), self._create_mock_point(f"GP{i+1}"))
+            for i in range(7)
+        ]
+        generic = self._create_mock_drawable("GP1", "GenericPolygon")
+        generic._segments = segments
+        deps = self.manager.analyze_drawable_for_dependencies(generic)
+        self.assertEqual(len(deps), 7, "GenericPolygon should have 7 segment dependencies")
+        for seg in segments:
+            self.assertIn(seg, deps)
+
+    def test_analyze_vector_registers_segment_dependency(self) -> None:
+        """Vector dependency analysis registers segment, not points."""
+        vector_segment = self._create_mock_segment("VS", self.point1, self.point2)
+        vector = self._create_mock_drawable("V1", "Vector")
+        vector.segment = vector_segment
+        deps = self.manager.analyze_drawable_for_dependencies(vector)
+        self.assertEqual(len(deps), 1, "Vector should have 1 dependency (segment)")
+        self.assertIn(vector_segment, deps)
+        # Verify the segment is registered as parent
+        parents = self.manager.get_parents(vector)
+        self.assertIn(vector_segment, parents)
+
+    def test_type_hierarchy_includes_all_polygon_types(self) -> None:
+        """All polygon class names must appear in _type_hierarchy."""
+        required = {
+            "Triangle", "Rectangle", "Quadrilateral", "Pentagon", "Hexagon",
+            "Heptagon", "Octagon", "Nonagon", "Decagon", "GenericPolygon",
+        }
+        hierarchy_keys = set(self.manager._type_hierarchy.keys())
+        missing = required - hierarchy_keys
+        self.assertEqual(len(missing), 0, f"Missing polygon types in _type_hierarchy: {missing}")
+
+    def test_type_hierarchy_vector_depends_on_segment(self) -> None:
+        """Vector type hierarchy should list Segment, not Point."""
+        self.assertIn("Segment", self.manager._type_hierarchy["Vector"])
+        self.assertNotIn("Point", self.manager._type_hierarchy["Vector"])
