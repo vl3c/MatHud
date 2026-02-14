@@ -13,6 +13,7 @@ import logging
 import os
 import time
 from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -213,6 +214,24 @@ class OpenAIAPIBase:
             True if tools have been injected via inject_tools(), False otherwise.
         """
         return self._injected_tools
+
+    @contextmanager
+    def api_key_override(self, api_key: str) -> Iterator[None]:
+        """Temporarily override the API key for the duration of a request.
+
+        Saves and restores the original key to prevent cross-request leakage.
+        Safe for single-threaded Flask dev server. For multi-worker production,
+        per-user provider instances would be needed (future work).
+
+        Args:
+            api_key: The per-user API key to use temporarily.
+        """
+        original_key = self.client.api_key
+        self.client.api_key = api_key
+        try:
+            yield
+        finally:
+            self.client.api_key = original_key
 
     def get_model(self) -> AIModel:
         """Get the current AI model instance."""

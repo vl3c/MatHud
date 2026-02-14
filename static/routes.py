@@ -18,6 +18,7 @@ import hmac
 import json
 import math
 import os
+import secrets
 import time
 from collections.abc import Callable, Iterator, Set as AbstractSet
 from typing import Any, Dict, List, Optional, TypeVar, Union, cast
@@ -29,6 +30,7 @@ from static.ai_model import AIModel, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVID
 from static.app_manager import AppManager, MatHudFlask
 from static.canvas_state_summarizer import compare_canvas_states
 from static.openai_api_base import OpenAIAPIBase
+from static.openai_oauth import OAuthError, OpenAIOAuth
 from static.providers import ProviderRegistry, create_provider_instance
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
 from static.tts_manager import get_tts_manager
@@ -350,6 +352,49 @@ def _extract_injectable_tools(tool_call_results: str) -> Optional[List[Dict[str,
     return None
 
 
+_OAUTH_SESSION_KEYS = (
+    "openai_api_key",
+    "openai_refresh_token",
+    "openai_id_token",
+    "openai_token_expiry",
+    "openai_user_email",
+    "openai_auth_method",
+)
+
+
+def _get_user_openai_key() -> Optional[str]:
+    """Get per-user OpenAI API key from session, refreshing if needed.
+
+    Returns:
+        The per-user API key, or None if unavailable.
+    """
+    user_key = session.get("openai_api_key")
+    if not user_key:
+        return None
+
+    # Check if OAuth token needs refresh (5 min buffer)
+    expiry = session.get("openai_token_expiry")
+    if expiry and isinstance(expiry, (int, float)) and time.time() > (expiry - 300):
+        refresh_token = session.get("openai_refresh_token")
+        if refresh_token:
+            try:
+                new_tokens = OpenAIOAuth.refresh_tokens(refresh_token)
+                new_id_token = str(new_tokens["id_token"])
+                new_api_key: str = OpenAIOAuth.exchange_token_for_api_key(new_id_token)
+                session["openai_api_key"] = new_api_key
+                session["openai_refresh_token"] = new_tokens.get("refresh_token", refresh_token)
+                session["openai_id_token"] = new_id_token
+                session["openai_token_expiry"] = time.time() + new_tokens.get("expires_in", 3600)
+                return new_api_key
+            except OAuthError:
+                # Refresh failed; clear OAuth session, fall back to server key
+                for key in _OAUTH_SESSION_KEYS:
+                    session.pop(key, None)
+                return None
+
+    return str(user_key)
+
+
 def require_auth(f: F) -> F:
     """Decorator to require authentication for routes when deployed.
 
@@ -439,11 +484,120 @@ def register_routes(app: MatHudFlask) -> None:
                 return render_template('login.html')
 
         # For GET request
-        return render_template('login.html')
+        auth_pin_configured = bool(AppManager.get_auth_pin())
+        return render_template('login.html', auth_pin_configured=auth_pin_configured)
+
+    @app.route('/auth/openai')
+    def auth_openai() -> ResponseReturnValue:
+        """Initiate the OpenAI OAuth PKCE flow."""
+        code_verifier, code_challenge = OpenAIOAuth.generate_pkce()
+        state = secrets.token_urlsafe(32)
+
+        session["oauth_code_verifier"] = code_verifier
+        session["oauth_state"] = state
+
+        redirect_uri = url_for("auth_openai_callback", _external=True)
+        auth_url = OpenAIOAuth.build_authorization_url(redirect_uri, state, code_challenge)
+        return redirect(auth_url)
+
+    @app.route('/auth/openai/callback')
+    def auth_openai_callback() -> ResponseReturnValue:
+        """Handle the OpenAI OAuth callback after user authorization."""
+        # Error path: user denied or OpenAI returned an error
+        error = request.args.get("error")
+        if error:
+            error_desc = request.args.get("error_description", "Authorization was denied.")
+            session.pop("oauth_code_verifier", None)
+            session.pop("oauth_state", None)
+            flash(f"OpenAI login failed: {error_desc}")
+            return redirect(url_for("login"))
+
+        # Validate state (CSRF check)
+        returned_state = request.args.get("state", "")
+        expected_state = session.pop("oauth_state", None)
+        if not expected_state or not hmac.compare_digest(returned_state, expected_state):
+            session.pop("oauth_code_verifier", None)
+            flash("Invalid OAuth state. Please try again.")
+            return redirect(url_for("login"))
+
+        # Validate code
+        code = request.args.get("code")
+        if not code:
+            session.pop("oauth_code_verifier", None)
+            flash("No authorization code received. Please try again.")
+            return redirect(url_for("login"))
+
+        code_verifier = session.pop("oauth_code_verifier", None)
+        if not code_verifier:
+            flash("Session expired. Please try again.")
+            return redirect(url_for("login"))
+
+        redirect_uri = url_for("auth_openai_callback", _external=True)
+
+        # Exchange code for tokens
+        try:
+            tokens = OpenAIOAuth.exchange_code_for_tokens(code, redirect_uri, code_verifier)
+        except OAuthError as exc:
+            flash(f"Token exchange failed: {exc.description or exc.error_code}")
+            return redirect(url_for("login"))
+
+        id_token = tokens.get("id_token", "")
+        if not id_token:
+            flash("No ID token received from OpenAI.")
+            return redirect(url_for("login"))
+
+        # Verify id_token claims
+        try:
+            claims = OpenAIOAuth.decode_and_verify_id_token(id_token)
+        except OAuthError as exc:
+            flash(f"Token verification failed: {exc.description or exc.error_code}")
+            return redirect(url_for("login"))
+
+        # Exchange id_token for API key
+        try:
+            api_key = OpenAIOAuth.exchange_token_for_api_key(id_token)
+        except OAuthError as exc:
+            flash(f"API key exchange failed: {exc.description or exc.error_code}")
+            return redirect(url_for("login"))
+
+        # Store tokens in session
+        expires_in = tokens.get("expires_in", 3600)
+        if not isinstance(expires_in, (int, float)):
+            expires_in = 3600
+
+        session["openai_api_key"] = api_key
+        session["openai_refresh_token"] = tokens.get("refresh_token", "")
+        session["openai_id_token"] = id_token
+        session["openai_token_expiry"] = time.time() + expires_in
+        session["authenticated"] = True
+        session["openai_auth_method"] = "oauth"
+
+        # Extract user info
+        user_info = OpenAIOAuth.extract_user_info(claims)
+        if user_info.get("email"):
+            session["openai_user_email"] = user_info["email"]
+
+        return redirect(url_for("get_index"))
+
+    @app.route('/auth/apikey', methods=['POST'])
+    def auth_apikey() -> ResponseReturnValue:
+        """Manual API key entry (fallback auth path)."""
+        api_key = request.form.get("api_key", "").strip()
+        if not api_key or not api_key.startswith("sk-"):
+            flash("Invalid API key. Keys should start with 'sk-'.")
+            return redirect(url_for("login"))
+
+        session["openai_api_key"] = api_key
+        session["authenticated"] = True
+        session["openai_auth_method"] = "api_key"
+        return redirect(url_for("get_index"))
 
     @app.route('/logout')
     def logout() -> ResponseReturnValue:
         """Handle user logout and session cleanup."""
+        # Clear all OAuth-related session keys
+        for key in _OAUTH_SESSION_KEYS:
+            session.pop(key, None)
         session.pop('authenticated', None)
         if AppManager.requires_auth():
             return redirect(url_for('login'))
@@ -452,9 +606,16 @@ def register_routes(app: MatHudFlask) -> None:
     @app.route('/auth_status')
     def auth_status() -> ResponseReturnValue:
         """Return authentication status information."""
+        auth_method = session.get("openai_auth_method")
+        if not auth_method and session.get("authenticated"):
+            # Authenticated via PIN (no per-user key)
+            auth_method = "server_key"
+
         return AppManager.make_response(data={
             'auth_required': AppManager.requires_auth(),
-            'authenticated': session.get('authenticated', False)
+            'authenticated': session.get('authenticated', False),
+            'openai_auth_method': auth_method,
+            'openai_user_email': session.get('openai_user_email'),
         })
 
     @app.route('/api/available_models', methods=['GET'])
@@ -865,6 +1026,9 @@ def register_routes(app: MatHudFlask) -> None:
         # Store attached images in app context for API access
         app.current_attached_images = attached_images
 
+        # Resolve per-user API key for OpenAI providers
+        user_api_key = _get_user_openai_key()
+
         @stream_with_context
         def generate() -> Iterator[str]:
             def _yield_pending_logs() -> Iterator[str]:
@@ -873,6 +1037,14 @@ def register_routes(app: MatHudFlask) -> None:
                     log_event: StreamEventDict = {"type": "log", **log_entry}
                     yield json.dumps(log_event) + "\n"
 
+            # Apply per-user API key override for OpenAI providers
+            model = provider.get_model()
+            _original_ai_key = app.ai_api.client.api_key
+            _original_resp_key = app.responses_api.client.api_key
+            if user_api_key and model.provider == PROVIDER_OPENAI:
+                app.ai_api.client.api_key = user_api_key
+                app.responses_api.client.api_key = user_api_key
+
             try:
                 # TEMPORARY TEST TRIGGER - REMOVE AFTER TESTING
                 if "TEST_ERROR_TRIGGER_12345" in message:
@@ -880,7 +1052,6 @@ def register_routes(app: MatHudFlask) -> None:
                 # END TEMPORARY TEST TRIGGER
 
                 # Route to appropriate API based on model and provider
-                model = provider.get_model()
                 if model.provider == PROVIDER_OPENAI and model.is_reasoning_model:
                     stream = app.responses_api.create_response_stream(message)
                 else:
@@ -960,6 +1131,10 @@ def register_routes(app: MatHudFlask) -> None:
                         "finish_reason": "error",
                     }
                     yield json.dumps(fallback_payload) + "\n"
+            finally:
+                # Restore original API keys
+                app.ai_api.client.api_key = _original_ai_key
+                app.responses_api.client.api_key = _original_resp_key
 
         response = Response(generate(), mimetype='application/x-ndjson')
         # Headers to reduce buffering in some proxies
@@ -1194,6 +1369,9 @@ def register_routes(app: MatHudFlask) -> None:
         # Store attached images in app context for API access
         app.current_attached_images = attached_images
 
+        # Resolve per-user API key for OpenAI providers
+        user_api_key = _get_user_openai_key()
+
         def _reset_tools_if_needed(finish_reason: Any) -> None:
             """Reset tools if AI finished (not requesting more tool calls)."""
             if finish_reason != 'tool_calls':
@@ -1205,9 +1383,16 @@ def register_routes(app: MatHudFlask) -> None:
                 if provider not in (app.ai_api, app.responses_api) and provider.has_injected_tools():
                     provider.reset_tools()
 
+        # Apply per-user API key override for OpenAI providers
+        model = provider.get_model()
+        _original_ai_key = app.ai_api.client.api_key
+        _original_resp_key = app.responses_api.client.api_key
+        if user_api_key and model.provider == PROVIDER_OPENAI:
+            app.ai_api.client.api_key = user_api_key
+            app.responses_api.client.api_key = user_api_key
+
         try:
             # Route to appropriate API based on model and provider
-            model = provider.get_model()
             if model.provider == PROVIDER_OPENAI and model.is_reasoning_model:
                 stream = app.responses_api.create_response_stream(message)
                 final_event: Optional[StreamEventDict] = None
@@ -1267,6 +1452,10 @@ def register_routes(app: MatHudFlask) -> None:
                 status='error',
                 code=500,
             )
+        finally:
+            # Restore original API keys
+            app.ai_api.client.api_key = _original_ai_key
+            app.responses_api.client.api_key = _original_resp_key
 
     @app.route('/search_tools', methods=['POST'])
     @require_auth

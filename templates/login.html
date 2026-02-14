@@ -2,27 +2,28 @@
 <!--
 MatHud Authentication Page
 
-Simple PIN-based authentication for deployed environments.
+Multi-tier authentication supporting OpenAI OAuth, API key entry, and PIN access.
 Provides secure access control to the mathematical canvas application.
 
 Features:
+    - OpenAI OAuth as primary auth path (use your ChatGPT subscription)
+    - API key entry as secondary fallback
+    - PIN-based authentication as tertiary option (when configured)
     - Clean, minimal design matching the main application
     - Mobile-responsive layout
-    - PIN-based authentication (no username required)
     - Flash message support for error handling
-    - Consistent styling with main application
 -->
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>MatHud - Access Required</title>
-    
+
     <!-- Google Fonts for modern typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <style>
         * {
             margin: 0;
@@ -47,7 +48,7 @@ Features:
             padding: 3rem 2.5rem;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             width: 100%;
-            max-width: 400px;
+            max-width: 420px;
             text-align: center;
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
@@ -67,14 +68,114 @@ Features:
             font-weight: 400;
         }
 
-        .login-form {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
+        /* Flash messages */
+        .flash-messages {
+            margin-bottom: 1.5rem;
         }
 
+        .flash-message {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border: 1px solid #fecaca;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        /* Primary: OpenAI OAuth button */
+        .oauth-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            width: 100%;
+            background: linear-gradient(135deg, #10a37f 0%, #0d8c6d 100%);
+            color: white;
+            border: none;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(16, 163, 127, 0.3);
+            text-decoration: none;
+        }
+
+        .oauth-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(16, 163, 127, 0.4);
+        }
+
+        .oauth-button:active {
+            transform: translateY(0);
+        }
+
+        .oauth-button svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .oauth-subtitle {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-top: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Divider */
+        .auth-divider {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin: 1.5rem 0;
+            color: #9ca3af;
+            font-size: 0.8rem;
+        }
+
+        .auth-divider::before,
+        .auth-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e5e7eb;
+        }
+
+        /* Collapsible sections */
+        .auth-toggle {
+            background: none;
+            border: none;
+            color: #6b7280;
+            font-size: 0.875rem;
+            font-family: inherit;
+            cursor: pointer;
+            padding: 0.5rem;
+            transition: color 0.2s;
+        }
+
+        .auth-toggle:hover {
+            color: #4c51bf;
+        }
+
+        .auth-section {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+            opacity: 0;
+        }
+
+        .auth-section.expanded {
+            max-height: 300px;
+            opacity: 1;
+        }
+
+        /* Form elements */
         .form-group {
             position: relative;
+            margin-bottom: 1rem;
         }
 
         .form-label {
@@ -95,8 +196,6 @@ Features:
             font-family: inherit;
             transition: all 0.2s ease;
             background: rgba(255, 255, 255, 0.8);
-            text-align: center;
-            letter-spacing: 0.25em;
         }
 
         .form-input:focus {
@@ -108,47 +207,36 @@ Features:
 
         .form-input::placeholder {
             color: #9ca3af;
-            letter-spacing: normal;
         }
 
-        .login-button {
+        .form-input.pin-input {
+            text-align: center;
+            letter-spacing: 0.25em;
+        }
+
+        .submit-button {
             background: linear-gradient(135deg, #4c51bf 0%, #7c3aed 100%);
             color: white;
             border: none;
-            padding: 0.875rem 2rem;
+            padding: 0.75rem 1.5rem;
             border-radius: 12px;
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 600;
             font-family: inherit;
             cursor: pointer;
             transition: all 0.2s ease;
             box-shadow: 0 4px 12px rgba(76, 81, 191, 0.3);
+            width: 100%;
         }
 
-        .login-button:hover {
+        .submit-button:hover {
             transform: translateY(-1px);
             box-shadow: 0 6px 16px rgba(76, 81, 191, 0.4);
         }
 
-        .login-button:active {
+        .submit-button:active {
             transform: translateY(0);
         }
-
-        .flash-messages {
-            margin-bottom: 1.5rem;
-        }
-
-        .flash-message {
-            background: #fef2f2;
-            color: #dc2626;
-            padding: 0.75rem 1rem;
-            border-radius: 8px;
-            border: 1px solid #fecaca;
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-
-
 
         /* Mobile optimizations */
         @media (max-width: 480px) {
@@ -166,7 +254,12 @@ Features:
                 font-size: 1.125rem;
             }
 
-            .login-button {
+            .oauth-button {
+                padding: 1rem 1.5rem;
+                font-size: 1.125rem;
+            }
+
+            .submit-button {
                 padding: 1rem 2rem;
                 font-size: 1.125rem;
             }
@@ -184,7 +277,7 @@ Features:
     <div class="login-container">
         <h1 class="app-title">MatHud</h1>
         <p class="app-subtitle">Mathematical Canvas</p>
-        
+
         <!-- Flash messages for errors -->
         {% with messages = get_flashed_messages() %}
             {% if messages %}
@@ -195,57 +288,103 @@ Features:
                 </div>
             {% endif %}
         {% endwith %}
-        
-        <form method="POST" class="login-form" autocomplete="off">
-            <div class="form-group">
-                <label for="pin" class="form-label">Access Code</label>
-                <input 
-                    type="password" 
-                    id="pin" 
-                    name="pin" 
-                    class="form-input" 
-                    placeholder="Enter your access code"
-                    required
-                    autocomplete="off"
-                >
-            </div>
-            
-            <button type="submit" class="login-button">
-                Access Application
-            </button>
-        </form>
-        
 
+        <!-- Primary: OpenAI OAuth -->
+        <a href="/auth/openai" class="oauth-button">
+            <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364l2.0201-1.1638a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.4091-.6813zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0974-2.3616l2.603-1.506 2.603 1.506v3.0117l-2.603 1.506-2.603-1.506z"/>
+            </svg>
+            Sign in with OpenAI
+        </a>
+        <p class="oauth-subtitle">Use your ChatGPT subscription</p>
+
+        <div class="auth-divider">or</div>
+
+        <!-- Secondary: API key entry -->
+        <button class="auth-toggle" id="apikey-toggle" type="button">
+            Enter an API key
+        </button>
+        <div class="auth-section" id="apikey-section">
+            <form method="POST" action="/auth/apikey" autocomplete="off" style="margin-top: 0.75rem;">
+                <div class="form-group">
+                    <label for="api_key" class="form-label">OpenAI API Key</label>
+                    <input
+                        type="password"
+                        id="api_key"
+                        name="api_key"
+                        class="form-input"
+                        placeholder="sk-..."
+                        autocomplete="off"
+                    >
+                </div>
+                <button type="submit" class="submit-button">
+                    Use API Key
+                </button>
+            </form>
+        </div>
+
+        <!-- Tertiary: PIN auth (only shown if configured) -->
+        {% if auth_pin_configured %}
+        <button class="auth-toggle" id="pin-toggle" type="button" style="margin-top: 0.5rem;">
+            Use access code
+        </button>
+        <div class="auth-section" id="pin-section">
+            <form method="POST" action="/login" class="login-form" autocomplete="off" style="margin-top: 0.75rem;">
+                <div class="form-group">
+                    <label for="pin" class="form-label">Access Code</label>
+                    <input
+                        type="password"
+                        id="pin"
+                        name="pin"
+                        class="form-input pin-input"
+                        placeholder="Enter your access code"
+                        autocomplete="off"
+                    >
+                </div>
+                <button type="submit" class="submit-button" id="pin-submit-button">
+                    Access Application
+                </button>
+            </form>
+        </div>
+        {% endif %}
     </div>
-    
-    <script>
-        // Handle form submission with loading state
-        document.querySelector('.login-form').addEventListener('submit', function() {
-            const button = document.querySelector('.login-button');
-            
-            // Disable button on any submission attempt.
-            // The server will be the single source of truth for rate limiting.
-            button.disabled = true;
-            button.textContent = 'Verifying...';
 
-            // Re-enable button after 5 seconds in case of any unexpected error
-            // that prevents a page reload.
-            setTimeout(function() {
-                if(button.disabled) {
-                    button.disabled = false;
-                    button.textContent = 'Access Application';
+    <script>
+        // Toggle collapsible sections
+        function setupToggle(toggleId, sectionId) {
+            var toggle = document.getElementById(toggleId);
+            var section = document.getElementById(sectionId);
+            if (!toggle || !section) return;
+
+            toggle.addEventListener('click', function() {
+                var isExpanded = section.classList.contains('expanded');
+                // Collapse all sections first
+                document.querySelectorAll('.auth-section').forEach(function(s) {
+                    s.classList.remove('expanded');
+                });
+                // Expand the clicked one if it was collapsed
+                if (!isExpanded) {
+                    section.classList.add('expanded');
+                    // Focus the input
+                    var input = section.querySelector('input');
+                    if (input) {
+                        setTimeout(function() { input.focus(); }, 100);
+                    }
                 }
-            }, 5000);
-        });
-        
-        // Cooldown timer function for UX
+            });
+        }
+
+        setupToggle('apikey-toggle', 'apikey-section');
+        setupToggle('pin-toggle', 'pin-section');
+
+        // Cooldown timer function for PIN form UX
         function startCooldownTimer(button, seconds) {
             button.disabled = true;
-            let remaining = seconds;
-            
-            const updateButton = function() {
+            var remaining = seconds;
+
+            var updateButton = function() {
                 if (remaining > 0) {
-                    button.textContent = `Wait ${remaining}s`;
+                    button.textContent = 'Wait ' + remaining + 's';
                     remaining--;
                     setTimeout(updateButton, 1000);
                 } else {
@@ -253,26 +392,29 @@ Features:
                     button.textContent = 'Access Application';
                 }
             };
-            
+
             updateButton();
         }
-        
-        // On page load, auto-focus the input and start the cooldown timer if necessary.
-        document.addEventListener('DOMContentLoaded', function() {
-            const pinInput = document.getElementById('pin');
-            pinInput.focus();
-            pinInput.value = '';
 
-            const flashMessage = document.querySelector('.flash-message');
+        // On page load, check for cooldown in flash messages
+        document.addEventListener('DOMContentLoaded', function() {
+            var flashMessage = document.querySelector('.flash-message');
             if (flashMessage && flashMessage.textContent.includes('Too many attempts')) {
-                const waitMatch = flashMessage.textContent.match(/(\d+) seconds/);
+                // Auto-expand PIN section if there's a rate limit message
+                var pinSection = document.getElementById('pin-section');
+                if (pinSection) {
+                    pinSection.classList.add('expanded');
+                }
+                var waitMatch = flashMessage.textContent.match(/(\d+) seconds/);
                 if (waitMatch) {
-                    const waitTime = parseInt(waitMatch[1]);
-                    const button = document.querySelector('.login-button');
-                    startCooldownTimer(button, waitTime);
+                    var waitTime = parseInt(waitMatch[1]);
+                    var button = document.getElementById('pin-submit-button');
+                    if (button) {
+                        startCooldownTimer(button, waitTime);
+                    }
                 }
             }
         });
     </script>
 </body>
-</html> 
+</html>

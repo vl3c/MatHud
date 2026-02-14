@@ -85,10 +85,13 @@ Dependencies:
     <div class="container">
         <!-- Mathematical Canvas Area -->
         <div class="math-container" id="math-container">
-            <!-- Logout button overlay -->
-            <button id="logout-button-overlay" class="logout-overlay-button" style="display: none;" title="Logout">
-                ×
-            </button>
+            <!-- Auth info overlay -->
+            <div id="auth-overlay" style="display: none; position: absolute; top: 8px; left: 8px; z-index: 100; display: none; align-items: center; gap: 8px;">
+                <span id="auth-user-info" style="font-size: 11px; color: #666; background: rgba(255,255,255,0.85); padding: 2px 8px; border-radius: 4px; display: none;"></span>
+                <button id="logout-button-overlay" class="logout-overlay-button" style="display: none;" title="Logout">
+                    ×
+                </button>
+            </div>
             <!-- SVG canvas for interactive mathematical visualizations -->
             <svg id="math-svg" style="width:100%; height:100%"></svg>
         </div>
@@ -488,35 +491,48 @@ Dependencies:
         aiModelSelector.addEventListener("change", handleModelChange);
         
         // ===== LOGOUT FUNCTIONALITY =====
-        // Show logout button when authentication is enabled
+        // Show logout button and auth info when authentication is enabled
         function checkAuthRequirement() {
-            // Check if we need to show logout button by making a request to auth status endpoint
             fetch('/auth_status')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Auth status response:', data); // Debug log
-                    
-                    // Check if authentication is required
-                    const authRequired = data && data.data && data.data.auth_required;
-                    
+                    var authData = data && data.data;
+                    var authRequired = authData && authData.auth_required;
+                    var authOverlay = document.getElementById('auth-overlay');
+                    var logoutButton = document.getElementById('logout-button-overlay');
+                    var userInfo = document.getElementById('auth-user-info');
+
                     if (authRequired) {
-                        console.log('Authentication required - showing logout button'); // Debug log
-                        document.getElementById('logout-button-overlay').style.display = 'flex';
+                        authOverlay.style.display = 'flex';
+                        logoutButton.style.display = 'flex';
+
+                        // Show user info based on auth method
+                        var authMethod = authData.openai_auth_method;
+                        var email = authData.openai_user_email;
+
+                        if (authMethod === 'oauth' && email) {
+                            userInfo.textContent = email;
+                            userInfo.style.display = 'inline';
+                        } else if (authMethod === 'api_key') {
+                            userInfo.textContent = 'API key';
+                            userInfo.style.display = 'inline';
+                        } else {
+                            userInfo.style.display = 'none';
+                        }
                     } else {
-                        console.log('Authentication not required - hiding logout button'); // Debug log
-                        document.getElementById('logout-button-overlay').style.display = 'none';
+                        authOverlay.style.display = 'none';
+                        logoutButton.style.display = 'none';
                     }
                 })
-                .catch((error) => {
-                    console.error('Error checking auth status:', error); // Debug log
-                    // If there's an error, hide the logout button (safer default)
+                .catch(function() {
+                    document.getElementById('auth-overlay').style.display = 'none';
                     document.getElementById('logout-button-overlay').style.display = 'none';
                 });
         }
-        
+
         // Check auth requirement on page load
         checkAuthRequirement();
-        
+
         // Handle logout button click
         document.getElementById('logout-button-overlay').addEventListener('click', function() {
             if (confirm('Are you sure you want to logout?')) {
