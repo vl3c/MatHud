@@ -85,6 +85,9 @@ class ProviderRegistry:
 
         # API-based providers use API key check
         load_dotenv()
+        parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
+        if os.path.exists(parent_env):
+            load_dotenv(parent_env)
         key_name = cls._api_key_names.get(provider_name)
         if not key_name:
             return False
@@ -101,6 +104,9 @@ class ProviderRegistry:
             List of available provider names
         """
         load_dotenv()
+        parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
+        if os.path.exists(parent_env):
+            load_dotenv(parent_env)
         available = []
 
         # Check API-based providers
