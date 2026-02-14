@@ -24,6 +24,9 @@ from static.providers import PROVIDER_OPENROUTER, ProviderRegistry
 def _get_openrouter_api_key() -> str:
     """Get the OpenRouter API key from environment."""
     load_dotenv()
+    parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
+    if os.path.exists(parent_env):
+        load_dotenv(parent_env)
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY not found in environment or .env file")

@@ -13,6 +13,7 @@ import logging
 import os
 import time
 from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -85,10 +86,12 @@ class OpenAIAPIBase:
         if api_key:
             return api_key
 
-        dotenv_path = ".env"
-        if os.path.exists(dotenv_path):
-            load_dotenv(dotenv_path)
-            api_key = os.getenv("OPENAI_API_KEY")
+        # Load from project .env, then parent .env (API keys may live outside repo)
+        load_dotenv()
+        parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
+        if os.path.exists(parent_env):
+            load_dotenv(parent_env)
+        api_key = os.getenv("OPENAI_API_KEY")
 
         if not api_key:
             logging.getLogger("mathud").warning(
@@ -213,6 +216,24 @@ class OpenAIAPIBase:
             True if tools have been injected via inject_tools(), False otherwise.
         """
         return self._injected_tools
+
+    @contextmanager
+    def api_key_override(self, api_key: str) -> Iterator[None]:
+        """Temporarily override the API key for the duration of a request.
+
+        Saves and restores the original key to prevent cross-request leakage.
+        Safe for single-threaded Flask dev server. For multi-worker production,
+        per-user provider instances would be needed (future work).
+
+        Args:
+            api_key: The per-user API key to use temporarily.
+        """
+        original_key = self.client.api_key
+        self.client.api_key = api_key
+        try:
+            yield
+        finally:
+            self.client.api_key = original_key
 
     def get_model(self) -> AIModel:
         """Get the current AI model instance."""
