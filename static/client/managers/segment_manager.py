@@ -40,7 +40,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, cast
 from drawables.label import Label
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
-from managers.dependency_removal import remove_drawable_with_dependencies
+from managers.dependency_removal import get_polygon_segments, remove_drawable_with_dependencies
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
 
 if TYPE_CHECKING:
@@ -530,20 +530,20 @@ class SegmentManager:
         self.drawable_manager.delete_vector(x1, y1, x2, y2)
         self.drawable_manager.delete_vector(x2, y2, x1, y1)
 
-        # Delete the rectangles that contain the segment
-        rectangles = self.drawables.Rectangles
-        for rectangle in rectangles.copy():
-            if any(MathUtils.segment_matches_coordinates(s, x1, y1, x2, y2) for s in [rectangle.segment1, rectangle.segment2, rectangle.segment3, rectangle.segment4]):
+        # Delete all polygons that contain the segment
+        for polygon in list(self.drawables.iter_polygons()):
+            polygon_segments = get_polygon_segments(polygon)
+            if any(MathUtils.segment_matches_coordinates(s, x1, y1, x2, y2) for s in polygon_segments if s is not None):
+                polygon_name = getattr(polygon, "name", "")
+                if polygon_name and hasattr(self.drawable_manager, "delete_region_expression_colored_areas_referencing_name"):
+                    try:
+                        self.drawable_manager.delete_region_expression_colored_areas_referencing_name(
+                            polygon_name, archive=False,
+                        )
+                    except Exception:
+                        pass
                 remove_drawable_with_dependencies(
-                    self.drawables, self.dependency_manager, rectangle
-                )
-
-        # Delete the triangles that contain the segment
-        triangles = self.drawables.Triangles
-        for triangle in triangles.copy():
-            if any(MathUtils.segment_matches_coordinates(s, x1, y1, x2, y2) for s in [triangle.segment1, triangle.segment2, triangle.segment3]):
-                remove_drawable_with_dependencies(
-                    self.drawables, self.dependency_manager, triangle
+                    self.drawables, self.dependency_manager, polygon
                 )
 
     def _split_segments_with_point(self, x: float, y: float) -> None:

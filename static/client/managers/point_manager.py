@@ -40,7 +40,7 @@ from drawables.point import Point
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
 from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
-from managers.dependency_removal import remove_drawable_with_dependencies
+from managers.dependency_removal import get_polygon_segments, remove_drawable_with_dependencies
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
@@ -265,20 +265,20 @@ class PointManager:
                     if hasattr(self.drawable_manager, 'arc_manager') and self.drawable_manager.arc_manager:
                         self.drawable_manager.arc_manager.delete_circle_arc(child.name)
 
-        # Delete the segments that contain the point
-        rectangles = self.drawables.Rectangles
-        for rectangle in rectangles.copy():
-            if any(MathUtils.segment_has_end_point(segment, x, y) for segment in [rectangle.segment1, rectangle.segment2, rectangle.segment3, rectangle.segment4]):
+        # Delete all polygons that contain the point
+        for polygon in list(self.drawables.iter_polygons()):
+            polygon_segments = get_polygon_segments(polygon)
+            if any(MathUtils.segment_has_end_point(seg, x, y) for seg in polygon_segments if seg is not None):
+                polygon_name = getattr(polygon, "name", "")
+                if polygon_name and hasattr(self.drawable_manager, "delete_region_expression_colored_areas_referencing_name"):
+                    try:
+                        self.drawable_manager.delete_region_expression_colored_areas_referencing_name(
+                            polygon_name, archive=False,
+                        )
+                    except Exception:
+                        pass
                 remove_drawable_with_dependencies(
-                    self.drawables, self.dependency_manager, rectangle
-                )
-
-        # Delete the triangles that contain the point
-        triangles = self.drawables.Triangles
-        for triangle in triangles.copy():
-            if any(MathUtils.segment_has_end_point(segment, x, y) for segment in [triangle.segment1, triangle.segment2, triangle.segment3]):
-                remove_drawable_with_dependencies(
-                    self.drawables, self.dependency_manager, triangle
+                    self.drawables, self.dependency_manager, polygon
                 )
 
         # Collect all segments that contain the point
