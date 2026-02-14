@@ -81,9 +81,17 @@ class DrawableDependencyManager:
         self._type_hierarchy: Dict[str, List[str]] = {
             'Point': [],
             'Segment': ['Point'],
-            'Vector': ['Point'],
+            'Vector': ['Segment'],
             'Triangle': ['Segment', 'Point'],
             'Rectangle': ['Segment', 'Point'],
+            'Quadrilateral': ['Segment', 'Point'],
+            'Pentagon': ['Segment', 'Point'],
+            'Hexagon': ['Segment', 'Point'],
+            'Heptagon': ['Segment', 'Point'],
+            'Octagon': ['Segment', 'Point'],
+            'Nonagon': ['Segment', 'Point'],
+            'Decagon': ['Segment', 'Point'],
+            'GenericPolygon': ['Segment', 'Point'],
             'Circle': ['Point'],
             'Ellipse': ['Point'],
             'Angle': ['Segment', 'Point'],
@@ -466,6 +474,15 @@ class DrawableDependencyManager:
 
         elif class_name == 'Rectangle':
             self._append_segment_attrs(drawable, dependencies, count=4)
+
+        elif class_name == 'Quadrilateral':
+            self._append_segment_attrs(drawable, dependencies, count=4)
+
+        elif class_name in ('Pentagon', 'Hexagon', 'Heptagon', 'Octagon',
+                            'Nonagon', 'Decagon', 'GenericPolygon'):
+            self._append_iterable_attr_dependencies(
+                drawable, '_segments', dependencies, require_truthy=True
+            )
 
         elif class_name == 'Circle':
             self._append_attr_dependency_if_present(drawable, 'center', dependencies)

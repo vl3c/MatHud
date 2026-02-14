@@ -327,7 +327,10 @@ class DrawablesContainer:
 
     def iter_polygons(self, allowed_classes: Optional[Iterable[str]] = None) -> Iterable["Drawable"]:
         """Iterate over stored polygon drawables, optionally filtered by class name."""
-        polygon_classes = ("Triangle", "Quadrilateral", "Rectangle", "Pentagon", "Hexagon")
+        polygon_classes = (
+            "Triangle", "Quadrilateral", "Rectangle", "Pentagon", "Hexagon",
+            "Heptagon", "Octagon", "Nonagon", "Decagon", "GenericPolygon",
+        )
         target_classes = tuple(allowed_classes) if allowed_classes else polygon_classes
         for class_name in target_classes:
             for drawable in self.get_by_class_name(class_name):
