@@ -379,14 +379,18 @@ def _get_user_openai_key() -> Optional[str]:
         if refresh_token:
             try:
                 new_tokens = OpenAIOAuth.refresh_tokens(refresh_token)
-                new_id_token = str(new_tokens["id_token"])
-                new_api_key: str = OpenAIOAuth.exchange_token_for_api_key(new_id_token)
+                raw_id_token = new_tokens.get("id_token")
+                if not isinstance(raw_id_token, str) or not raw_id_token:
+                    raise OAuthError("missing_id_token", "Refresh response missing id_token")
+                new_api_key: str = OpenAIOAuth.exchange_token_for_api_key(raw_id_token)
+                raw_expires = new_tokens.get("expires_in", 3600)
+                expires_in = int(raw_expires) if isinstance(raw_expires, (int, float)) else 3600
                 session["openai_api_key"] = new_api_key
                 session["openai_refresh_token"] = new_tokens.get("refresh_token", refresh_token)
-                session["openai_id_token"] = new_id_token
-                session["openai_token_expiry"] = time.time() + new_tokens.get("expires_in", 3600)
+                session["openai_id_token"] = raw_id_token
+                session["openai_token_expiry"] = time.time() + expires_in
                 return new_api_key
-            except OAuthError:
+            except (OAuthError, KeyError, TypeError, ValueError):
                 # Refresh failed; clear OAuth session, fall back to server key
                 for key in _OAUTH_SESSION_KEYS:
                     session.pop(key, None)
