@@ -28,10 +28,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
+from browser import window
+
 from constants import successful_call_message
 
 if TYPE_CHECKING:
     from canvas import Canvas
+
+    TracedCall = Dict[str, Any]
+    """Per-call trace record: seq, function_name, arguments, result, is_error, duration_ms."""
 
 
 class ResultProcessor:
@@ -78,6 +83,85 @@ class ResultProcessor:
                 ResultProcessor._handle_exception(e, function_name, results)
 
         return results
+
+    @staticmethod
+    def get_results_traced(
+        calls: List[Dict[str, Any]],
+        available_functions: Dict[str, Any],
+        undoable_functions: Tuple[str, ...],
+        canvas: "Canvas",
+    ) -> Tuple[Dict[str, Any], List["TracedCall"]]:
+        """Execute tool calls and return (results_dict, traced_calls_list).
+
+        Same execution semantics as get_results() but additionally records
+        per-call timing and result metadata for action tracing.
+
+        Args:
+            calls: List of function call dictionaries
+            available_functions: Dictionary mapping function names to implementations
+            undoable_functions: Tuple of function names that are undoable
+            canvas: Canvas instance for archiving state and adding computations
+
+        Returns:
+            Tuple of (results dict, list of traced call records)
+        """
+        ResultProcessor._validate_inputs(calls, available_functions, undoable_functions)
+
+        results: Dict[str, Any] = {}
+        traced_calls: List[TracedCall] = []
+        non_computation_functions: Tuple[str, ...]
+        unformattable_functions: Tuple[str, ...]
+        non_computation_functions, unformattable_functions = ResultProcessor._prepare_helper_variables(undoable_functions)
+
+        # Archive once at the start (same as get_results)
+        contains_undoable_function: bool = any(call.get('function_name', '') in undoable_functions for call in calls)
+        if contains_undoable_function:
+            canvas.archive()
+
+        for seq, call in enumerate(calls):
+            function_name = call.get('function_name', '')
+            args = call.get('arguments', {})
+            # Sanitize arguments for trace: exclude canvas ref, guard against non-dict
+            if isinstance(args, dict):
+                sanitized_args = {k: v for k, v in args.items() if k != 'canvas'}
+            else:
+                sanitized_args = {"_raw": args}
+
+            t0 = window.performance.now()
+            is_error = False
+            result_value: Any = None
+            try:
+                snapshot_before = dict(results)
+                ResultProcessor._process_function_call(
+                    call, available_functions,
+                    non_computation_functions, unformattable_functions, canvas, results,
+                )
+                # Extract result: find the key that was added or changed
+                for rk, rv in results.items():
+                    if rk not in snapshot_before or snapshot_before[rk] is not rv:
+                        result_value = rv
+                        break
+                else:
+                    # No change detected; grab by function name as last resort
+                    result_value = results.get(function_name)
+                if isinstance(result_value, str) and result_value.startswith("Error"):
+                    is_error = True
+            except Exception as e:
+                ResultProcessor._handle_exception(e, function_name, results)
+                result_value = results.get(function_name, str(e))
+                is_error = True
+
+            duration_ms = window.performance.now() - t0
+            traced_calls.append({
+                "seq": seq,
+                "function_name": function_name,
+                "arguments": sanitized_args,
+                "result": result_value,
+                "is_error": is_error,
+                "duration_ms": round(duration_ms, 2),
+            })
+
+        return results, traced_calls
 
     @staticmethod
     def _validate_inputs(calls: List[Dict[str, Any]], available_functions: Dict[str, Any], undoable_functions: Tuple[str, ...]) -> None:
