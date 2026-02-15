@@ -156,6 +156,13 @@ class FunctionRegistry:
             "draw_tangent_line": canvas.create_tangent_line,
             "draw_normal_line": canvas.create_normal_line,
 
+            # ===== GEOMETRIC CONSTRUCTIONS =====
+            "construct_midpoint": canvas.create_midpoint,
+            "construct_perpendicular_bisector": canvas.create_perpendicular_bisector,
+            "construct_perpendicular_from_point": canvas.create_perpendicular_from_point,
+            "construct_angle_bisector": canvas.create_angle_bisector,
+            "construct_parallel_line": canvas.create_parallel_line,
+
             # ===== OBJECT TRANSFORMATIONS =====
             "translate_object": canvas.translate_object,
             "rotate_object": canvas.rotate_object,
@@ -371,6 +378,13 @@ class FunctionRegistry:
             # Tangent and normal line operations
             "draw_tangent_line",
             "draw_normal_line",
+
+            # Geometric construction operations
+            "construct_midpoint",
+            "construct_perpendicular_bisector",
+            "construct_perpendicular_from_point",
+            "construct_angle_bisector",
+            "construct_parallel_line",
 
             # Object transformations
             "translate_object",
