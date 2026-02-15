@@ -24,6 +24,7 @@ Dependencies:
 
 from __future__ import annotations
 
+import math
 from copy import deepcopy
 from typing import Any, Dict, Optional, Tuple, cast
 
@@ -101,6 +102,65 @@ class Ellipse(Drawable):
     def translate(self, x_offset: float, y_offset: float) -> None:
         self.center.x += x_offset
         self.center.y += y_offset
+        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
+        self.regenerate_name()
+
+    def reflect(self, axis: str, a: float = 0, b: float = 0, c: float = 0) -> None:
+        """Reflect the ellipse across the specified axis.
+
+        Center is reflected; rotation_angle is adjusted to preserve shape orientation.
+        """
+        self.center.reflect(axis, a, b, c)
+        if axis == "x_axis":
+            self.rotation_angle = (-self.rotation_angle) % 360
+        elif axis == "y_axis":
+            self.rotation_angle = (180 - self.rotation_angle) % 360
+        elif axis == "line":
+            denom = a * a + b * b
+            if denom >= 1e-18:
+                line_angle_deg = math.degrees(math.atan2(-a, b))
+                self.rotation_angle = (2 * line_angle_deg - self.rotation_angle) % 360
+        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
+        self.regenerate_name()
+
+    def scale(self, sx: float, sy: float, cx: float, cy: float) -> None:
+        """Scale the ellipse from center (cx, cy).
+
+        Supports uniform scaling and axis-aligned non-uniform scaling.
+
+        Raises:
+            ValueError: If non-uniform scaling on a rotated ellipse, or zero factor.
+        """
+        if abs(sx) < 1e-18 or abs(sy) < 1e-18:
+            raise ValueError("Scale factor must not be zero")
+        uniform = abs(sx - sy) < 1e-9
+        rotated = (self.rotation_angle % 180) > 1e-9
+        if not uniform and rotated:
+            raise ValueError(
+                "Non-uniform scaling of a rotated ellipse is not supported"
+            )
+        self.center.scale(sx, sy, cx, cy)
+        if uniform:
+            self.radius_x = abs(self.radius_x * sx)
+            self.radius_y = abs(self.radius_y * sx)
+        else:
+            self.radius_x = abs(self.radius_x * sx)
+            self.radius_y = abs(self.radius_y * sy)
+        self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
+        self.regenerate_name()
+
+    def shear(self, axis: str, factor: float, cx: float, cy: float) -> None:
+        """Shearing an ellipse is not supported.
+
+        Raises:
+            ValueError: Always raised.
+        """
+        raise ValueError("Shearing an ellipse is not supported")
+
+    def rotate_around(self, angle_deg: float, cx: float, cy: float) -> None:
+        """Rotate the ellipse around an arbitrary point (cx, cy)."""
+        self.center.rotate_around(angle_deg, cx, cy)
+        self.rotation_angle = (self.rotation_angle + angle_deg) % 360
         self.ellipse_formula = self._calculate_ellipse_algebraic_formula()
         self.regenerate_name()
 

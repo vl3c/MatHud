@@ -200,6 +200,34 @@ class Segment(Drawable):
         point.x = center_x + (dx * math.cos(angle_rad) - dy * math.sin(angle_rad))
         point.y = center_y + (dx * math.sin(angle_rad) + dy * math.cos(angle_rad))
 
+    def reflect(self, axis: str, a: float = 0, b: float = 0, c: float = 0) -> None:
+        """Reflect the segment across the specified axis."""
+        self.point1.reflect(axis, a, b, c)
+        self.point2.reflect(axis, a, b, c)
+        self.line_formula = self._calculate_line_algebraic_formula()
+        self._sync_label_position()
+
+    def scale(self, sx: float, sy: float, cx: float, cy: float) -> None:
+        """Scale the segment relative to center (cx, cy)."""
+        self.point1.scale(sx, sy, cx, cy)
+        self.point2.scale(sx, sy, cx, cy)
+        self.line_formula = self._calculate_line_algebraic_formula()
+        self._sync_label_position()
+
+    def shear(self, axis: str, factor: float, cx: float, cy: float) -> None:
+        """Shear the segment relative to center (cx, cy)."""
+        self.point1.shear(axis, factor, cx, cy)
+        self.point2.shear(axis, factor, cx, cy)
+        self.line_formula = self._calculate_line_algebraic_formula()
+        self._sync_label_position()
+
+    def rotate_around(self, angle_deg: float, cx: float, cy: float) -> None:
+        """Rotate the segment around an arbitrary center (cx, cy)."""
+        self.point1.rotate_around(angle_deg, cx, cy)
+        self.point2.rotate_around(angle_deg, cx, cy)
+        self.line_formula = self._calculate_line_algebraic_formula()
+        self._sync_label_position()
+
     def rotate(self, angle: float) -> Tuple[bool, Optional[str]]:
         """Rotate the segment around its midpoint by the given angle in degrees"""
         # Get midpoint

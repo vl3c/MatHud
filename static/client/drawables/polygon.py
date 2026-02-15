@@ -63,6 +63,26 @@ class Polygon(Drawable):
         for point in points:
             point.translate(x_offset, y_offset)
 
+    def reflect(self, axis: str, a: float = 0, b: float = 0, c: float = 0) -> None:
+        """Reflect all polygon vertices across the specified axis."""
+        for point in self.get_vertices():
+            point.reflect(axis, a, b, c)
+
+    def scale(self, sx: float, sy: float, cx: float, cy: float) -> None:
+        """Scale all polygon vertices relative to center (cx, cy)."""
+        for point in self.get_vertices():
+            point.scale(sx, sy, cx, cy)
+
+    def shear(self, axis: str, factor: float, cx: float, cy: float) -> None:
+        """Shear all polygon vertices relative to center (cx, cy)."""
+        for point in self.get_vertices():
+            point.shear(axis, factor, cx, cy)
+
+    def rotate_around(self, angle_deg: float, cx: float, cy: float) -> None:
+        """Rotate all polygon vertices around an arbitrary center (cx, cy)."""
+        for point in self.get_vertices():
+            point.rotate_around(angle_deg, cx, cy)
+
     # ------------------------------------------------------------------
     # Type metadata caching
     # ------------------------------------------------------------------
