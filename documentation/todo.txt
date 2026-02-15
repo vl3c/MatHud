@@ -21,7 +21,7 @@
 - tabular workflow: create/query/update data tables from chat with HUD-linked previews
 - CSV workflow: import/export datasets through chat commands with validation and schema feedback
 - plotting suite: scatter/histogram/box plots, polar plots, implicit plots from natural language intents
-- [done] geometric construction toolkit: midpoint/perpendicular/parallel/bisectors through declarative commands (PR #41; circle-through-3-points deferred)
+- [done] geometric construction toolkit: midpoint/perpendicular/parallel/bisectors/circumcircle/incircle through declarative commands (PR #41 + circumcircle/incircle follow-up)
 - relation inspector: explain and verify geometric relations (parallel/perpendicular/collinear/concyclic/equal-length) on demand
 - transform workflows: reflection/dilation/shear/rotation/translation using object references and constraint-aware execution
 - interaction tools: tracing, root/extrema/intersection discovery, parameter sweeps, and dynamic slider orchestration from chat
