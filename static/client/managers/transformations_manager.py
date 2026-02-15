@@ -103,6 +103,30 @@ class TransformationsManager:
                 pass
         return []
 
+    def _validate_shear_support(self, drawable: Any) -> None:
+        """Raise before archiving if the drawable cannot be sheared."""
+        cn = self._get_class_name(drawable)
+        if cn == "Circle":
+            raise ValueError("Shearing a circle is not supported; convert to an ellipse first")
+        if cn == "Ellipse":
+            raise ValueError("Shearing an ellipse is not supported")
+
+    def _validate_scale_support(self, drawable: Any, sx: float, sy: float) -> None:
+        """Raise before archiving if the drawable cannot be scaled with these factors."""
+        cn = self._get_class_name(drawable)
+        uniform = abs(sx - sy) < 1e-9
+        if cn == "Circle" and not uniform:
+            raise ValueError(
+                "Non-uniform scaling of a circle is not supported; "
+                "convert to an ellipse first or use equal sx and sy"
+            )
+        if cn == "Ellipse" and not uniform:
+            rot = getattr(drawable, "rotation_angle", 0)
+            if (rot % 180) > 1e-9:
+                raise ValueError(
+                    "Non-uniform scaling of a rotated ellipse is not supported"
+                )
+
     def _refresh_dependencies_after_transform(
         self,
         drawable: Any,
@@ -111,7 +135,10 @@ class TransformationsManager:
         """Refresh formulas, names, and caches after a transform."""
         class_name = self._get_class_name(drawable)
 
-        if moved_points and class_name in {"Triangle", "Rectangle", "Polygon"}:
+        # moved_points is non-empty only for drawables with get_vertices()
+        # (all Polygon subclasses: Triangle, Rectangle, Quadrilateral,
+        # Pentagon, Hexagon, etc.) — no hard-coded class name set needed.
+        if moved_points:
             self._refresh_polygon_dependencies(drawable, moved_points)
         elif class_name == "Circle":
             self._refresh_circle_dependencies(drawable)
@@ -171,15 +198,7 @@ class TransformationsManager:
             # Raise an error to be handled by the AI interface
             raise ValueError(f"Error translating drawable: {str(e)}")
 
-        class_name_getter = getattr(drawable, "get_class_name", None)
-        class_name = class_name_getter() if callable(class_name_getter) else drawable.__class__.__name__
-
-        if moved_points and class_name in {"Triangle", "Rectangle", "Polygon"}:
-            self._refresh_polygon_dependencies(drawable, moved_points)
-        elif class_name == "Circle":
-            self._refresh_circle_dependencies(drawable)
-        elif class_name == "Ellipse":
-            self._refresh_ellipse_dependencies(drawable)
+        self._refresh_dependencies_after_transform(drawable, moved_points)
 
         # If we got here, the translation was successful
         # Redraw the canvas
@@ -317,6 +336,7 @@ class TransformationsManager:
             raise ValueError("Scale factors must not be zero")
 
         drawable = self._find_drawable_by_name(name, exclude_types=_EXCLUDE_TRANSFORM)
+        self._validate_scale_support(drawable, sx, sy)
         self.canvas.undo_redo_manager.archive()
         moved_points = self._gather_moved_points(drawable)
 
@@ -352,6 +372,7 @@ class TransformationsManager:
             raise ValueError(f"Invalid shear axis '{axis}'; use 'horizontal' or 'vertical'")
 
         drawable = self._find_drawable_by_name(name, exclude_types=_EXCLUDE_TRANSFORM)
+        self._validate_shear_support(drawable)
         self.canvas.undo_redo_manager.archive()
         moved_points = self._gather_moved_points(drawable)
 

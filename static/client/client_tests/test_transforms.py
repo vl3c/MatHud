@@ -488,3 +488,46 @@ class TestTransforms(unittest.TestCase):
         mgr.shear_object("P", "horizontal", 1, 0, 0)
 
         self.assertTrue(canvas.undo_redo_manager.archive.calls)
+
+    # ---------------------------------------------------------------
+    # Manager-level: no archive on unsupported transforms
+    # ---------------------------------------------------------------
+    def test_manager_no_archive_on_circle_shear(self) -> None:
+        """Shearing a circle should fail before archiving undo state."""
+        c = Circle(Point(0, 0, name="C"), 5)
+        canvas, _, _ = _build_canvas(c, [])
+        mgr = TransformationsManager(canvas)
+
+        with self.assertRaises(ValueError):
+            mgr.shear_object(c.name, "horizontal", 1, 0, 0)
+        self.assertFalse(canvas.undo_redo_manager.archive.calls)
+
+    def test_manager_no_archive_on_ellipse_shear(self) -> None:
+        """Shearing an ellipse should fail before archiving undo state."""
+        e = Ellipse(Point(0, 0, name="E"), 4, 2)
+        canvas, _, _ = _build_canvas(e, [])
+        mgr = TransformationsManager(canvas)
+
+        with self.assertRaises(ValueError):
+            mgr.shear_object(e.name, "horizontal", 1, 0, 0)
+        self.assertFalse(canvas.undo_redo_manager.archive.calls)
+
+    def test_manager_no_archive_on_circle_nonuniform_scale(self) -> None:
+        """Non-uniform scaling a circle should fail before archiving undo state."""
+        c = Circle(Point(0, 0, name="C"), 5)
+        canvas, _, _ = _build_canvas(c, [])
+        mgr = TransformationsManager(canvas)
+
+        with self.assertRaises(ValueError):
+            mgr.scale_object(c.name, 2, 3, 0, 0)
+        self.assertFalse(canvas.undo_redo_manager.archive.calls)
+
+    def test_manager_no_archive_on_rotated_ellipse_nonuniform_scale(self) -> None:
+        """Non-uniform scaling a rotated ellipse should fail before archiving."""
+        e = Ellipse(Point(0, 0, name="E"), 4, 2, rotation_angle=45)
+        canvas, _, _ = _build_canvas(e, [])
+        mgr = TransformationsManager(canvas)
+
+        with self.assertRaises(ValueError):
+            mgr.scale_object(e.name, 2, 3, 0, 0)
+        self.assertFalse(canvas.undo_redo_manager.archive.calls)
