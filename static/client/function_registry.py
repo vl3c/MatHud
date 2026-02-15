@@ -168,6 +168,9 @@ class FunctionRegistry:
             # ===== OBJECT TRANSFORMATIONS =====
             "translate_object": canvas.translate_object,
             "rotate_object": canvas.rotate_object,
+            "reflect_object": canvas.reflect_object,
+            "scale_object": canvas.scale_object,
+            "shear_object": canvas.shear_object,
 
             # ===== MATHEMATICAL OPERATIONS =====
             "evaluate_expression": ProcessFunctionCalls.evaluate_expression,
@@ -396,6 +399,9 @@ class FunctionRegistry:
             # Object transformations
             "translate_object",
             "rotate_object",
+            "reflect_object",
+            "scale_object",
+            "shear_object",
 
             # Colored area operations
             "create_colored_area",
