@@ -46,6 +46,7 @@ from coordinate_mapper import CoordinateMapper
 from utils.math_utils import MathUtils
 from utils.style_utils import StyleUtils
 from utils.graph_analyzer import GraphAnalyzer
+from utils.relation_inspector import RelationInspector
 from utils.computation_utils import ComputationUtils
 from geometry.graph_state import GraphState
 from managers.undo_redo_manager import UndoRedoManager
@@ -1162,6 +1163,58 @@ class Canvas:
         if state is None:
             return {"error": "Graph not found or spec missing"}
         return cast(Dict[str, Any], GraphAnalyzer.analyze(state, operation, params))
+
+    # ------------------- Relation Inspection -------------------
+
+    def inspect_relation(
+        self,
+        *,
+        operation: str,
+        objects: List[str],
+        object_types: List[str],
+    ) -> Dict[str, Any]:
+        """Check a geometric relation among named canvas objects.
+
+        Args:
+            operation: Relation to check (e.g. ``"parallel"``, ``"auto"``).
+            objects: Names of drawables to inspect.
+            object_types: Parallel list of type tags for each name.
+
+        Returns:
+            Result dict from :class:`RelationInspector`.
+        """
+        if len(objects) != len(object_types):
+            return {"error": "Error: objects and object_types must have the same length"}
+
+        resolved: List[Any] = []
+        for name, otype in zip(objects, object_types):
+            obj = self._resolve_drawable_by_type(name, otype)
+            if obj is None:
+                return {"error": f"Error: {otype} '{name}' not found on canvas"}
+            resolved.append(obj)
+
+        return cast(
+            Dict[str, Any],
+            RelationInspector.inspect(operation, resolved, object_types),
+        )
+
+    def _resolve_drawable_by_type(self, name: str, obj_type: str) -> Optional[Any]:
+        """Look up a drawable by *name* and *obj_type* string."""
+        if obj_type == "point":
+            return self.get_point_by_name(name)
+        if obj_type == "segment":
+            return self.get_segment_by_name(name)
+        if obj_type == "vector":
+            return self.drawable_manager.vector_manager.get_vector_by_name(name)
+        if obj_type == "circle":
+            return self.get_circle_by_name(name)
+        if obj_type == "ellipse":
+            return self.get_ellipse_by_name(name)
+        if obj_type == "triangle":
+            return self.drawable_manager.drawables.get_triangle_by_name(name)
+        if obj_type == "rectangle":
+            return self.drawable_manager.drawables.get_rectangle_by_name(name)
+        return None
 
     # ------------------- Circle Methods -------------------
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional["Drawable"]:
