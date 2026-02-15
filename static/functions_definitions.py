@@ -2378,6 +2378,43 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 }
             },
             # END GRAPH FUNCTIONS
+            # START RELATION INSPECTION
+            {
+                "type": "function",
+                "function": {
+                    "name": "inspect_relation",
+                    "description": "Check and explain geometric relations between objects on the canvas. Supported: parallel, perpendicular, collinear, concyclic, equal_length, similar, congruent, tangent, concurrent, point_on_line, point_on_circle. Use 'auto' to check all applicable relations.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "operation": {
+                                "type": "string",
+                                "enum": ["parallel", "perpendicular", "collinear", "concyclic",
+                                         "equal_length", "similar", "congruent", "tangent",
+                                         "concurrent", "point_on_line", "point_on_circle", "auto"]
+                            },
+                            "objects": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Names of objects to check, e.g. ['s1', 's2']"
+                            },
+                            "object_types": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": ["point", "segment", "vector", "circle",
+                                             "ellipse", "triangle", "rectangle"]
+                                },
+                                "description": "Type of each object in same order as objects"
+                            }
+                        },
+                        "required": ["operation", "objects", "object_types"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            # END RELATION INSPECTION
             # START PLOT FUNCTIONS
             {
                 "type": "function",
