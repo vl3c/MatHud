@@ -89,6 +89,16 @@ from .test_tangent_manager import (
     TestMathUtilsTangentFunctions,
     TestUndoRedo as TestTangentUndoRedo,
 )
+from .test_construction_manager import (
+    TestConstructMidpoint,
+    TestConstructPerpendicularBisector,
+    TestConstructPerpendicularFromPoint,
+    TestConstructAngleBisector,
+    TestConstructParallelLine,
+    TestConstructCircumcircle,
+    TestConstructIncircle,
+    TestMathUtilsConstructionFunctions,
+)
 from .test_polygon_canonicalizer import TestPolygonCanonicalizer
 from .test_triangle import TestTriangle
 from .test_quadrilateral import TestQuadrilateral
@@ -408,6 +418,14 @@ class Tests:
             TestTangentToParametricFunction,
             TestMathUtilsTangentFunctions,
             TestTangentUndoRedo,
+            TestConstructMidpoint,
+            TestConstructPerpendicularBisector,
+            TestConstructPerpendicularFromPoint,
+            TestConstructAngleBisector,
+            TestConstructParallelLine,
+            TestConstructCircumcircle,
+            TestConstructIncircle,
+            TestMathUtilsConstructionFunctions,
             TestVector,
             TestTriangle,
             TestQuadrilateral,

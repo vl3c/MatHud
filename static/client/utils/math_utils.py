@@ -2831,3 +2831,196 @@ class MathUtils:
             slope = world_dy / world_dx
 
         return (world_x, world_y), slope
+
+    # ------------------- Construction Geometry Utilities -------------------
+
+    @staticmethod
+    def perpendicular_foot(
+        px: float, py: float,
+        x1: float, y1: float,
+        x2: float, y2: float,
+    ) -> Tuple[float, float]:
+        """Project a point onto a line defined by two points.
+
+        Uses the vector dot-product projection formula to find the closest
+        point on the line through (x1, y1)-(x2, y2) to the point (px, py).
+
+        Args:
+            px: X-coordinate of the point to project
+            py: Y-coordinate of the point to project
+            x1: X-coordinate of the first line point
+            y1: Y-coordinate of the first line point
+            x2: X-coordinate of the second line point
+            y2: Y-coordinate of the second line point
+
+        Returns:
+            (foot_x, foot_y) coordinates of the perpendicular foot
+
+        Raises:
+            ValueError: If the two line points coincide (degenerate segment)
+        """
+        dx = x2 - x1
+        dy = y2 - y1
+        len_sq = dx * dx + dy * dy
+        if len_sq < MathUtils.EPSILON * MathUtils.EPSILON:
+            raise ValueError("Degenerate segment: endpoints coincide")
+
+        t = ((px - x1) * dx + (py - y1) * dy) / len_sq
+        foot_x = x1 + t * dx
+        foot_y = y1 + t * dy
+
+        if not (math.isfinite(foot_x) and math.isfinite(foot_y)):
+            raise ValueError("Perpendicular foot computation produced non-finite result")
+
+        return foot_x, foot_y
+
+    @staticmethod
+    def angle_bisector_direction(
+        vx: float, vy: float,
+        p1x: float, p1y: float,
+        p2x: float, p2y: float,
+    ) -> Tuple[float, float]:
+        """Compute the unit vector along the angle bisector.
+
+        Given a vertex (vx, vy) and two arm endpoints (p1x, p1y) and
+        (p2x, p2y), returns the unit direction vector from the vertex
+        along the bisector of the angle formed by the two arms.
+
+        The bisector direction is found by normalizing each arm vector
+        and summing them.
+
+        Args:
+            vx: X-coordinate of the angle vertex
+            vy: Y-coordinate of the angle vertex
+            p1x: X-coordinate of the first arm endpoint
+            p1y: Y-coordinate of the first arm endpoint
+            p2x: X-coordinate of the second arm endpoint
+            p2y: Y-coordinate of the second arm endpoint
+
+        Returns:
+            (dx, dy) unit vector along the bisector
+
+        Raises:
+            ValueError: If an arm has zero length or the arms are collinear
+                        (180-degree angle, bisector undefined)
+        """
+        # Arm vectors from vertex
+        a1x = p1x - vx
+        a1y = p1y - vy
+        a2x = p2x - vx
+        a2y = p2y - vy
+
+        len1 = math.sqrt(a1x * a1x + a1y * a1y)
+        len2 = math.sqrt(a2x * a2x + a2y * a2y)
+
+        if len1 < MathUtils.EPSILON:
+            raise ValueError("First arm has zero length")
+        if len2 < MathUtils.EPSILON:
+            raise ValueError("Second arm has zero length")
+
+        # Normalize
+        u1x, u1y = a1x / len1, a1y / len1
+        u2x, u2y = a2x / len2, a2y / len2
+
+        # Sum of unit vectors gives bisector direction
+        bx = u1x + u2x
+        by = u1y + u2y
+
+        blen = math.sqrt(bx * bx + by * by)
+        if blen < MathUtils.EPSILON:
+            raise ValueError("Arms are collinear (180° angle): bisector is undefined")
+
+        if not (math.isfinite(bx / blen) and math.isfinite(by / blen)):
+            raise ValueError("Bisector computation produced non-finite result")
+
+        return bx / blen, by / blen
+
+    @staticmethod
+    def circumcenter(
+        x1: float, y1: float,
+        x2: float, y2: float,
+        x3: float, y3: float,
+    ) -> Tuple[float, float, float]:
+        """Compute the circumcenter and circumradius of a triangle.
+
+        The circumcircle passes through all three vertices. The center is
+        found using the determinant-based formula (intersection of
+        perpendicular bisectors).
+
+        Args:
+            x1, y1: First vertex
+            x2, y2: Second vertex
+            x3, y3: Third vertex
+
+        Returns:
+            (cx, cy, radius) of the circumscribed circle
+
+        Raises:
+            ValueError: If the three points are collinear or coincident
+        """
+        d = 2.0 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+        if abs(d) < MathUtils.EPSILON:
+            raise ValueError("Points are collinear: circumcircle is undefined")
+
+        sq1 = x1 * x1 + y1 * y1
+        sq2 = x2 * x2 + y2 * y2
+        sq3 = x3 * x3 + y3 * y3
+
+        cx = (sq1 * (y2 - y3) + sq2 * (y3 - y1) + sq3 * (y1 - y2)) / d
+        cy = (sq1 * (x3 - x2) + sq2 * (x1 - x3) + sq3 * (x2 - x1)) / d
+
+        radius = math.sqrt((x1 - cx) ** 2 + (y1 - cy) ** 2)
+
+        if not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)):
+            raise ValueError("Circumcenter computation produced non-finite result")
+
+        return cx, cy, radius
+
+    @staticmethod
+    def incenter_and_inradius(
+        x1: float, y1: float,
+        x2: float, y2: float,
+        x3: float, y3: float,
+    ) -> Tuple[float, float, float]:
+        """Compute the incenter and inradius of a triangle.
+
+        The incircle is tangent to all three sides. The incenter is the
+        weighted average of the vertices, weighted by the length of the
+        opposite side. The inradius is ``2 * area / perimeter``.
+
+        Args:
+            x1, y1: First vertex
+            x2, y2: Second vertex
+            x3, y3: Third vertex
+
+        Returns:
+            (cx, cy, radius) of the inscribed circle
+
+        Raises:
+            ValueError: If the triangle is degenerate (zero area)
+        """
+        # Side lengths (opposite to each vertex)
+        a = math.sqrt((x2 - x3) ** 2 + (y2 - y3) ** 2)  # opposite vertex 1
+        b = math.sqrt((x1 - x3) ** 2 + (y1 - y3) ** 2)  # opposite vertex 2
+        c = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)  # opposite vertex 3
+
+        perimeter = a + b + c
+        if perimeter < MathUtils.EPSILON:
+            raise ValueError("Degenerate triangle: zero perimeter")
+
+        # Area via cross product: 2A = |(x2-x1)(y3-y1) - (x3-x1)(y2-y1)|
+        area = abs((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)) / 2.0
+        if area < MathUtils.EPSILON:
+            raise ValueError("Degenerate triangle: zero area")
+
+        # Incenter: weighted average by opposite side lengths
+        cx = (a * x1 + b * x2 + c * x3) / perimeter
+        cy = (a * y1 + b * y2 + c * y3) / perimeter
+
+        # Inradius = 2 * area / perimeter
+        radius = 2.0 * area / perimeter
+
+        if not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)):
+            raise ValueError("Incenter computation produced non-finite result")
+
+        return cx, cy, radius

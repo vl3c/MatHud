@@ -1436,6 +1436,108 @@ class Canvas:
             curve_name, parameter, name=name, length=length, color=color
         )
 
+    # ------------------- Construction Methods -------------------
+
+    def create_midpoint(
+        self,
+        p1_name: Optional[str] = None,
+        p2_name: Optional[str] = None,
+        *,
+        segment_name: Optional[str] = None,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
+        """Create a point at the midpoint of two points or a segment."""
+        return self.drawable_manager.create_midpoint(
+            p1_name, p2_name, segment_name=segment_name, name=name, color=color
+        )
+
+    def create_perpendicular_bisector(
+        self,
+        segment_name: str,
+        *,
+        length: Optional[float] = None,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
+        """Create the perpendicular bisector of a segment."""
+        return self.drawable_manager.create_perpendicular_bisector(
+            segment_name, length=length, name=name, color=color
+        )
+
+    def create_perpendicular_from_point(
+        self,
+        point_name: str,
+        segment_name: str,
+        *,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Drop a perpendicular from a point to a segment."""
+        return self.drawable_manager.create_perpendicular_from_point(
+            point_name, segment_name, name=name, color=color
+        )
+
+    def create_angle_bisector(
+        self,
+        vertex_name: Optional[str] = None,
+        p1_name: Optional[str] = None,
+        p2_name: Optional[str] = None,
+        *,
+        angle_name: Optional[str] = None,
+        length: Optional[float] = None,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
+        """Create a segment along the bisector of an angle."""
+        return self.drawable_manager.create_angle_bisector(
+            vertex_name, p1_name, p2_name,
+            angle_name=angle_name, length=length, name=name, color=color
+        )
+
+    def create_parallel_line(
+        self,
+        segment_name: str,
+        point_name: str,
+        *,
+        length: Optional[float] = None,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
+        """Create a segment through a point, parallel to a given segment."""
+        return self.drawable_manager.create_parallel_line(
+            segment_name, point_name, length=length, name=name, color=color
+        )
+
+    def create_circumcircle(
+        self,
+        *,
+        triangle_name: Optional[str] = None,
+        p1_name: Optional[str] = None,
+        p2_name: Optional[str] = None,
+        p3_name: Optional[str] = None,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
+        """Create the circumscribed circle of a triangle or three points."""
+        return self.drawable_manager.create_circumcircle(
+            triangle_name=triangle_name,
+            p1_name=p1_name, p2_name=p2_name, p3_name=p3_name,
+            name=name, color=color,
+        )
+
+    def create_incircle(
+        self,
+        triangle_name: str,
+        *,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Drawable":
+        """Create the inscribed circle of a triangle."""
+        return self.drawable_manager.create_incircle(
+            triangle_name, name=name, color=color,
+        )
+
     def translate_object(self, name: str, x_offset: float, y_offset: float) -> bool:
         """Translates a drawable object by the specified offset"""
         return bool(self.transformations_manager.translate_object(name, x_offset, y_offset))

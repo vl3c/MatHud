@@ -42,6 +42,18 @@ Plot the parametric curve x(t) = cos(t), y(t) = sin(t), then draw the tangent at
 Create an ellipse e1 with radii 4 and 2, draw the normal line at angle pi/2.
 Draw a tangent line to the function f1 at x = 1 with length 6 in blue.
 
+# Geometric Constructions
+Create points A(0,0) and B(6,0), draw segment AB, then find the midpoint of AB.
+Find the midpoint between points P and Q.
+Draw the perpendicular bisector of segment AB.
+Drop a perpendicular from point C to segment AB.
+Create points A(0,0), B(4,0), C(0,3) and bisect the angle at A defined by B and C.
+Draw a line through point P parallel to segment AB.
+Construct the perpendicular bisector of segment s1 with length 10 in blue.
+Create a triangle with vertices A(0,0), B(4,0), C(0,3) and construct its circumcircle.
+Construct the incircle of triangle ABC.
+Create points P(0,0), Q(6,0), R(3,5) and draw the circle passing through all three.
+
 # Regression Analysis
 Fit a linear regression to x_data=[1,2,3,4,5] and y_data=[2.1,3.9,6.2,7.8,10.1]. Show the data points and fitted curve.
 Fit a quadratic polynomial (degree 2) to x_data=[0,1,2,3,4] and y_data=[0,1,4,9,16]. Report the R-squared value.

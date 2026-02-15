@@ -1365,6 +1365,247 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "construct_midpoint",
+                    "description": "Constructs a point at the midpoint of a segment or between two named points. Provide either 'segment_name' or both 'p1_name' and 'p2_name'.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "p1_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the first point (use with p2_name)"
+                            },
+                            "p2_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the second point (use with p1_name)"
+                            },
+                            "segment_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the segment whose midpoint to find (alternative to p1_name/p2_name)"
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the created midpoint"
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the midpoint"
+                            }
+                        },
+                        "required": ["p1_name", "p2_name", "segment_name", "name", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "construct_perpendicular_bisector",
+                    "description": "Constructs the perpendicular bisector of a segment. Creates a new segment that passes through the midpoint and is perpendicular to the original.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "segment_name": {
+                                "type": "string",
+                                "description": "Name of the segment to bisect perpendicularly"
+                            },
+                            "length": {
+                                "type": ["number", "null"],
+                                "description": "Total length of the bisector segment in math units (default: 6.0)"
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the created bisector segment"
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the bisector segment"
+                            }
+                        },
+                        "required": ["segment_name", "length", "name", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "construct_perpendicular_from_point",
+                    "description": "Drops a perpendicular from a point to a segment. Creates the foot point on the line and a segment from the original point to the foot.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "point_name": {
+                                "type": "string",
+                                "description": "Name of the point to project onto the segment"
+                            },
+                            "segment_name": {
+                                "type": "string",
+                                "description": "Name of the target segment"
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the perpendicular segment"
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for created drawables"
+                            }
+                        },
+                        "required": ["point_name", "segment_name", "name", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "construct_angle_bisector",
+                    "description": "Constructs a segment along the bisector of an angle. Provide either 'angle_name' for an existing angle, or 'vertex_name', 'p1_name', 'p2_name' to define the angle by three points.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "vertex_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the angle vertex point (use with p1_name and p2_name)"
+                            },
+                            "p1_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the first arm endpoint (use with vertex_name and p2_name)"
+                            },
+                            "p2_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the second arm endpoint (use with vertex_name and p1_name)"
+                            },
+                            "angle_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of an existing angle to bisect (alternative to vertex/p1/p2)"
+                            },
+                            "length": {
+                                "type": ["number", "null"],
+                                "description": "Length of the bisector segment in math units (default: 6.0)"
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the created bisector segment"
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the bisector segment"
+                            }
+                        },
+                        "required": ["vertex_name", "p1_name", "p2_name", "angle_name", "length", "name", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "construct_parallel_line",
+                    "description": "Constructs a segment through a point that is parallel to a given segment. The new segment is centered on the specified point.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "segment_name": {
+                                "type": "string",
+                                "description": "Name of the reference segment to be parallel to"
+                            },
+                            "point_name": {
+                                "type": "string",
+                                "description": "Name of the point the parallel line passes through"
+                            },
+                            "length": {
+                                "type": ["number", "null"],
+                                "description": "Total length of the parallel segment in math units (default: 6.0)"
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the created parallel segment"
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the parallel segment"
+                            }
+                        },
+                        "required": ["segment_name", "point_name", "length", "name", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "construct_circumcircle",
+                    "description": "Constructs the circumscribed circle (circumcircle) of a triangle or three points. The circumcircle passes through all three vertices. Provide either triangle_name or all three point names.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "triangle_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of an existing triangle (alternative to specifying three points)"
+                            },
+                            "p1_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the first point (used with p2_name and p3_name instead of triangle_name)"
+                            },
+                            "p2_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the second point"
+                            },
+                            "p3_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the third point"
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the created circumcircle"
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the circumcircle"
+                            }
+                        },
+                        "required": ["triangle_name", "p1_name", "p2_name", "p3_name", "name", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "construct_incircle",
+                    "description": "Constructs the inscribed circle (incircle) of a triangle. The incircle is tangent to all three sides of the triangle.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "triangle_name": {
+                                "type": "string",
+                                "description": "Name of an existing triangle"
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the created incircle"
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the incircle"
+                            }
+                        },
+                        "required": ["triangle_name", "name", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "evaluate_expression",
                     "description": "Calculate or evaluate a mathematical expression and return the numerical result. Use for arithmetic (+, -, *, /, ^), algebra, and math functions. Supports variables (x, y), constants (e, pi), and functions: sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime, prev_prime, totient, divisors, mean, median, mode, stdev, variance, random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2).",
                     "parameters": {

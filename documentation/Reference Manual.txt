@@ -306,6 +306,13 @@ Attributes:
 - `update_parametric_function(name, new_color=None, new_t_min=None, new_t_max=None)`: Update editable properties of an existing parametric function
 - `draw_tangent_line(curve_name, parameter, name=None, length=4.0, color=None)`: Draw a tangent line segment to a curve at a specified point. For functions y=f(x), parameter is the x-coordinate. For parametric curves, it's the t value. For circles/ellipses, it's the angle in radians from the positive x-axis.
 - `draw_normal_line(curve_name, parameter, name=None, length=4.0, color=None)`: Draw a normal line segment (perpendicular to tangent) to a curve at a specified point. Same parameter conventions as draw_tangent_line.
+- `construct_midpoint(p1_name=None, p2_name=None, segment_name=None, name=None, color=None)`: Construct a point at the midpoint of a segment or between two named points. Provide either `segment_name` or both `p1_name` and `p2_name`.
+- `construct_perpendicular_bisector(segment_name, length=6.0, name=None, color=None)`: Construct the perpendicular bisector of a segment. Creates a new segment passing through the midpoint, perpendicular to the original.
+- `construct_perpendicular_from_point(point_name, segment_name, name=None, color=None)`: Drop a perpendicular from a point to a segment. Creates the foot point on the line and a segment from the original point to the foot (single undo step).
+- `construct_angle_bisector(vertex_name=None, p1_name=None, p2_name=None, angle_name=None, length=6.0, name=None, color=None)`: Construct a segment along the angle bisector. Provide either `angle_name` or all three point names (`vertex_name`, `p1_name`, `p2_name`).
+- `construct_parallel_line(segment_name, point_name, length=6.0, name=None, color=None)`: Construct a segment through a point, parallel to a given segment. The new segment is centered on the specified point.
+- `construct_circumcircle(triangle_name=None, p1_name=None, p2_name=None, p3_name=None, name=None, color=None)`: Construct the circumscribed circle (circumcircle) of a triangle or three points. The circumcircle passes through all three vertices. Provide either `triangle_name` or all three point names.
+- `construct_incircle(triangle_name, name=None, color=None)`: Construct the inscribed circle (incircle) of a triangle. The incircle is tangent to all three sides.
 - `plot_distribution(name=None, representation="continuous", distribution_type="normal", distribution_params=None, plot_bounds=None, shade_bounds=None, curve_color=None, fill_color=None, fill_opacity=None, bar_count=None)`: Plot a probability distribution. For representation="continuous", `plot_bounds` controls the curve domain, while `shade_bounds` controls the shaded interval under the curve (clamped into `plot_bounds`). For representation="discrete", `plot_bounds` controls the bar span and `shade_bounds` is ignored. Discrete distribution plots create a `DiscretePlot` composite plus derived `Bar` drawables for rendering; derived bars are regenerated on workspace load and may be omitted from serialized canvas state to keep prompts compact.
 - `plot_bars(name=None, values=None, labels_below=None, labels_above=None, bar_spacing=None, bar_width=None, stroke_color=None, fill_color=None, fill_opacity=None, x_start=None, y_base=None)`: Plot a bar chart (`BarsPlot` composite plus derived `Bar` drawables). Derived bars are regenerated on workspace load and may be omitted from serialized canvas state to keep prompts compact.
 - `fit_regression(name=None, x_data=None, y_data=None, model_type="linear", degree=None, plot_bounds=None, curve_color=None, show_points=True, point_color=None)`: Fit a regression model to data and plot the resulting curve. Supported model types: "linear" (y=mx+b), "polynomial" (y=a0+a1*x+...+an*x^n, requires `degree`), "exponential" (y=a*e^(bx), requires positive y), "logarithmic" (y=a+b*ln(x), requires positive x), "power" (y=a*x^b, requires positive x and y), "logistic" (y=L/(1+e^(-k(x-x0)))), and "sinusoidal" (y=a*sin(bx+c)+d, requires at least 4 points). Returns function_name, expression, coefficients, r_squared, model_type, bounds, and optionally point_names. Use `delete_function` to remove the curve; delete points individually.
@@ -4495,6 +4502,17 @@ Key Features:
 - `power`: Power regression (y = a*x^b)
 - `logistic`: Logistic growth (y = L/(1+e^(-k(x-x0))))
 - `sinusoidal`: Sinusoidal regression (y = a*sin(bx+c)+d)
+
+#### Construction Manager (`managers/construction_manager.py`)
+
+Manages geometric constructions (midpoints, perpendicular bisectors, angle bisectors, perpendicular/parallel lines) by computing coordinates and creating standard Point and Segment drawables via existing managers. Constructions produce static snapshots — no reactive re-computation when source objects move.
+
+**Key Methods:**
+- `create_midpoint(p1_name, p2_name, segment_name, name, color)`: Create a point at the midpoint of two points or a segment
+- `create_perpendicular_bisector(segment_name, length, name, color)`: Create the perpendicular bisector of a segment
+- `create_perpendicular_from_point(point_name, segment_name, name, color)`: Drop a perpendicular from a point to a segment (creates foot point + segment as single undo step)
+- `create_angle_bisector(vertex_name, p1_name, p2_name, angle_name, length, name, color)`: Create a segment along the angle bisector
+- `create_parallel_line(segment_name, point_name, length, name, color)`: Create a segment through a point parallel to a given segment
 
 #### Polygon Type (`managers/polygon_type.py`)
 
