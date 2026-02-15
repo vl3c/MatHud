@@ -9,7 +9,7 @@
 - ~~refactor oversized classes/functions into smaller composable units while preserving 1:1 behavior (no logic changes); improve observability, readability, and structural clarity~~
 - ~~make `search_tools` the default tool-discovery path to reduce initial context payload; deprecate legacy preloaded full-tool-list model prompting~~
 - ~~audit canvas state structure end-to-end and redesign AI-facing state summaries for high-object-count scenes to improve readability and reasoning quality~~
-- implement OpenAI OAuth for first-party subscription-token usage (third-party app flow) and make OAuth the default authentication path over raw API-key entry
+- ~~implement OpenAI OAuth for first-party subscription-token usage (third-party app flow) and make OAuth the default authentication path over raw API-key entry~~ — blocked: ChatGPT Plus subscription and API access are separate billing systems; the token-exchange endpoint returns "missing organization_id" and even Codex CLI silently ignores this failure; the only subscription-backed API path (chatgpt.com/backend-api/codex) is first-party only, restricted to Codex-specific models and the Responses API; revisit if OpenAI opens subscription credits to third-party apps
 - ~~perform a deep review of drawable dependency architecture and relationship rules; verify interaction coverage across drawable types and close logic gaps~~
 - build a reproducible Android-target packaging/deployment pipeline for a mobile-runnable app variant
 - defer full WebGL parity checks until WebGL reaches feature completeness (text/labels and full drawable coverage)
