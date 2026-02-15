@@ -89,14 +89,21 @@ class AppManager:
         return os.environ.get('PORT') is not None
 
     @staticmethod
+    def _load_env() -> None:
+        """Load environment from project .env and parent .env (API keys)."""
+        load_dotenv()
+        parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
+        if os.path.exists(parent_env):
+            load_dotenv(parent_env)
+
+    @staticmethod
     def requires_auth() -> bool:
         """Check if authentication is required.
 
         Returns:
             bool: True if authentication should be required
         """
-        # Load .env file if it exists
-        load_dotenv()
+        AppManager._load_env()
         # Require auth if deployed OR if explicitly enabled via REQUIRE_AUTH
         return AppManager.is_deployed() or os.getenv('REQUIRE_AUTH', '').lower() in ('true', '1', 'yes')
 
@@ -107,8 +114,7 @@ class AppManager:
         Returns:
             str: The authentication PIN, or None if not set
         """
-        # Load .env file if it exists
-        load_dotenv()
+        AppManager._load_env()
         return os.getenv("AUTH_PIN")
 
     @staticmethod
@@ -150,8 +156,8 @@ class AppManager:
         """
         app = MatHudFlask(__name__, template_folder='../templates', static_folder='../static')
 
-        # Load environment variables
-        load_dotenv()
+        # Load environment variables from project .env and parent .env (API keys)
+        AppManager._load_env()
 
         # Configure session management for authentication using modern CacheLib backend
         app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
