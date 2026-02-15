@@ -99,6 +99,21 @@ from .test_construction_manager import (
     TestConstructIncircle,
     TestMathUtilsConstructionFunctions,
 )
+from .test_relation_inspector import (
+    TestParallel,
+    TestPerpendicular,
+    TestCollinear,
+    TestConcyclic,
+    TestEqualLength,
+    TestSimilarTriangles,
+    TestCongruentTriangles,
+    TestTangent,
+    TestConcurrent,
+    TestPointOnLine,
+    TestPointOnCircle,
+    TestAutoInspect,
+    TestInspectErrors,
+)
 from .test_polygon_canonicalizer import TestPolygonCanonicalizer
 from .test_triangle import TestTriangle
 from .test_quadrilateral import TestQuadrilateral
@@ -426,6 +441,19 @@ class Tests:
             TestConstructCircumcircle,
             TestConstructIncircle,
             TestMathUtilsConstructionFunctions,
+            TestParallel,
+            TestPerpendicular,
+            TestCollinear,
+            TestConcyclic,
+            TestEqualLength,
+            TestSimilarTriangles,
+            TestCongruentTriangles,
+            TestTangent,
+            TestConcurrent,
+            TestPointOnLine,
+            TestPointOnCircle,
+            TestAutoInspect,
+            TestInspectErrors,
             TestVector,
             TestTriangle,
             TestQuadrilateral,
