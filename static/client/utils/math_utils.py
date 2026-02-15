@@ -2831,3 +2831,106 @@ class MathUtils:
             slope = world_dy / world_dx
 
         return (world_x, world_y), slope
+
+    # ------------------- Construction Geometry Utilities -------------------
+
+    @staticmethod
+    def perpendicular_foot(
+        px: float, py: float,
+        x1: float, y1: float,
+        x2: float, y2: float,
+    ) -> Tuple[float, float]:
+        """Project a point onto a line defined by two points.
+
+        Uses the vector dot-product projection formula to find the closest
+        point on the line through (x1, y1)-(x2, y2) to the point (px, py).
+
+        Args:
+            px: X-coordinate of the point to project
+            py: Y-coordinate of the point to project
+            x1: X-coordinate of the first line point
+            y1: Y-coordinate of the first line point
+            x2: X-coordinate of the second line point
+            y2: Y-coordinate of the second line point
+
+        Returns:
+            (foot_x, foot_y) coordinates of the perpendicular foot
+
+        Raises:
+            ValueError: If the two line points coincide (degenerate segment)
+        """
+        dx = x2 - x1
+        dy = y2 - y1
+        len_sq = dx * dx + dy * dy
+        if len_sq < MathUtils.EPSILON * MathUtils.EPSILON:
+            raise ValueError("Degenerate segment: endpoints coincide")
+
+        t = ((px - x1) * dx + (py - y1) * dy) / len_sq
+        foot_x = x1 + t * dx
+        foot_y = y1 + t * dy
+
+        if not (math.isfinite(foot_x) and math.isfinite(foot_y)):
+            raise ValueError("Perpendicular foot computation produced non-finite result")
+
+        return foot_x, foot_y
+
+    @staticmethod
+    def angle_bisector_direction(
+        vx: float, vy: float,
+        p1x: float, p1y: float,
+        p2x: float, p2y: float,
+    ) -> Tuple[float, float]:
+        """Compute the unit vector along the angle bisector.
+
+        Given a vertex (vx, vy) and two arm endpoints (p1x, p1y) and
+        (p2x, p2y), returns the unit direction vector from the vertex
+        along the bisector of the angle formed by the two arms.
+
+        The bisector direction is found by normalizing each arm vector
+        and summing them.
+
+        Args:
+            vx: X-coordinate of the angle vertex
+            vy: Y-coordinate of the angle vertex
+            p1x: X-coordinate of the first arm endpoint
+            p1y: Y-coordinate of the first arm endpoint
+            p2x: X-coordinate of the second arm endpoint
+            p2y: Y-coordinate of the second arm endpoint
+
+        Returns:
+            (dx, dy) unit vector along the bisector
+
+        Raises:
+            ValueError: If an arm has zero length or the arms are collinear
+                        (180-degree angle, bisector undefined)
+        """
+        # Arm vectors from vertex
+        a1x = p1x - vx
+        a1y = p1y - vy
+        a2x = p2x - vx
+        a2y = p2y - vy
+
+        len1 = math.sqrt(a1x * a1x + a1y * a1y)
+        len2 = math.sqrt(a2x * a2x + a2y * a2y)
+
+        if len1 < MathUtils.EPSILON:
+            raise ValueError("First arm has zero length")
+        if len2 < MathUtils.EPSILON:
+            raise ValueError("Second arm has zero length")
+
+        # Normalize
+        u1x, u1y = a1x / len1, a1y / len1
+        u2x, u2y = a2x / len2, a2y / len2
+
+        # Sum of unit vectors gives bisector direction
+        bx = u1x + u2x
+        by = u1y + u2y
+
+        blen = math.sqrt(bx * bx + by * by)
+        if blen < MathUtils.EPSILON:
+            raise ValueError("Arms are collinear (180° angle): bisector is undefined")
+
+        if not (math.isfinite(bx / blen) and math.isfinite(by / blen)):
+            raise ValueError("Bisector computation produced non-finite result")
+
+        return bx / blen, by / blen
