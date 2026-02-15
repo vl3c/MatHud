@@ -12,7 +12,7 @@ computed positions, with no reactive re-computation if source objects move.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 from constants import default_color
 from utils.math_utils import MathUtils
@@ -29,6 +29,8 @@ if TYPE_CHECKING:
     from drawables.point import Point
     from drawables.segment import Segment
     from drawables.angle import Angle
+    from drawables.circle import Circle
+    from drawables.triangle import Triangle
 
 # Default construction line length in math units
 DEFAULT_CONSTRUCTION_LENGTH = 6.0
@@ -103,6 +105,13 @@ class ConstructionManager:
         if angle is None:
             raise ValueError(f"Angle '{name}' not found")
         return angle
+
+    def _get_triangle(self, name: str) -> "Triangle":
+        """Retrieve a triangle by name, raising ValueError if not found."""
+        tri = self.drawables.get_triangle_by_name(name)
+        if tri is None:
+            raise ValueError(f"Triangle '{name}' not found")
+        return tri  # type: ignore[return-value]
 
     def _segment_slope(self, seg: "Segment") -> Optional[float]:
         """Return the slope of a segment, or None for vertical.
@@ -320,7 +329,7 @@ class ConstructionManager:
             # Extract vertex and arm endpoints from the angle's segments
             seg1 = angle.segment1
             seg2 = angle.segment2
-            vertex = angle.vertex
+            vertex = angle.vertex_point
             vx, vy = vertex.x, vertex.y
 
             # Determine which endpoint of each segment is NOT the vertex
@@ -422,3 +431,145 @@ class ConstructionManager:
             extra_graphics=True,
         )
         return segment
+
+    # ------------------- Circle Construction Methods -------------------
+
+    def _triangle_vertices(
+        self,
+        triangle_name: Optional[str],
+        p1_name: Optional[str],
+        p2_name: Optional[str],
+        p3_name: Optional[str],
+    ) -> Tuple[float, float, float, float, float, float]:
+        """Resolve three vertex coordinates from a triangle name or three point names."""
+        if triangle_name:
+            tri = self._get_triangle(triangle_name)
+            verts = list(tri.get_vertices())
+            if len(verts) != 3:
+                raise ValueError(f"Triangle '{triangle_name}' does not have exactly 3 vertices")
+            return (verts[0].x, verts[0].y, verts[1].x, verts[1].y, verts[2].x, verts[2].y)
+        elif p1_name and p2_name and p3_name:
+            p1 = self._get_point(p1_name)
+            p2 = self._get_point(p2_name)
+            p3 = self._get_point(p3_name)
+            return (p1.x, p1.y, p2.x, p2.y, p3.x, p3.y)
+        else:
+            raise ValueError(
+                "Provide either 'triangle_name' or all of 'p1_name', 'p2_name', 'p3_name'"
+            )
+
+    def create_circumcircle(
+        self,
+        *,
+        triangle_name: Optional[str] = None,
+        p1_name: Optional[str] = None,
+        p2_name: Optional[str] = None,
+        p3_name: Optional[str] = None,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Circle":
+        """Create the circumscribed circle of a triangle or three points.
+
+        The circumcircle passes through all three vertices.
+
+        Args:
+            triangle_name: Name of an existing triangle
+            p1_name: Name of the first point (alternative to triangle_name)
+            p2_name: Name of the second point
+            p3_name: Name of the third point
+            name: Optional name for the created circle
+            color: Optional color for the circle
+
+        Returns:
+            The created Circle drawable
+
+        Raises:
+            ValueError: If inputs not found or points are collinear
+        """
+        x1, y1, x2, y2, x3, y3 = self._triangle_vertices(
+            triangle_name, p1_name, p2_name, p3_name
+        )
+        if color is None:
+            color = default_color
+
+        cx, cy, radius = MathUtils.circumcenter(x1, y1, x2, y2, x3, y3)
+
+        # Use suspend_archiving since create_circle internally archives
+        undo_manager = self.canvas.undo_redo_manager
+        baseline_state = undo_manager.capture_state()
+        undo_manager.suspend_archiving()
+
+        try:
+            circle = self.proxy.create_circle(
+                cx, cy, radius,
+                name=name or "",
+                color=color,
+                extra_graphics=True,
+            )
+            undo_manager.push_undo_state(baseline_state)
+            if self.canvas.draw_enabled:
+                self.canvas.draw()
+            return circle  # type: ignore[return-value]
+        except Exception:
+            undo_manager.restore_state(baseline_state, redraw=self.canvas.draw_enabled)
+            raise
+        finally:
+            undo_manager.resume_archiving()
+
+    def create_incircle(
+        self,
+        triangle_name: str,
+        *,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Circle":
+        """Create the inscribed circle of a triangle.
+
+        The incircle is tangent to all three sides.
+
+        Args:
+            triangle_name: Name of an existing triangle
+            name: Optional name for the created circle
+            color: Optional color for the circle
+
+        Returns:
+            The created Circle drawable
+
+        Raises:
+            ValueError: If triangle not found or is degenerate
+        """
+        tri = self._get_triangle(triangle_name)
+        verts = list(tri.get_vertices())
+        if len(verts) != 3:
+            raise ValueError(f"Triangle '{triangle_name}' does not have exactly 3 vertices")
+
+        if color is None:
+            color = default_color
+
+        cx, cy, radius = MathUtils.incenter_and_inradius(
+            verts[0].x, verts[0].y,
+            verts[1].x, verts[1].y,
+            verts[2].x, verts[2].y,
+        )
+
+        # Use suspend_archiving since create_circle internally archives
+        undo_manager = self.canvas.undo_redo_manager
+        baseline_state = undo_manager.capture_state()
+        undo_manager.suspend_archiving()
+
+        try:
+            circle = self.proxy.create_circle(
+                cx, cy, radius,
+                name=name or "",
+                color=color,
+                extra_graphics=True,
+            )
+            undo_manager.push_undo_state(baseline_state)
+            if self.canvas.draw_enabled:
+                self.canvas.draw()
+            return circle  # type: ignore[return-value]
+        except Exception:
+            undo_manager.restore_state(baseline_state, redraw=self.canvas.draw_enabled)
+            raise
+        finally:
+            undo_manager.resume_archiving()

@@ -2934,3 +2934,93 @@ class MathUtils:
             raise ValueError("Bisector computation produced non-finite result")
 
         return bx / blen, by / blen
+
+    @staticmethod
+    def circumcenter(
+        x1: float, y1: float,
+        x2: float, y2: float,
+        x3: float, y3: float,
+    ) -> Tuple[float, float, float]:
+        """Compute the circumcenter and circumradius of a triangle.
+
+        The circumcircle passes through all three vertices. The center is
+        found using the determinant-based formula (intersection of
+        perpendicular bisectors).
+
+        Args:
+            x1, y1: First vertex
+            x2, y2: Second vertex
+            x3, y3: Third vertex
+
+        Returns:
+            (cx, cy, radius) of the circumscribed circle
+
+        Raises:
+            ValueError: If the three points are collinear or coincident
+        """
+        d = 2.0 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+        if abs(d) < MathUtils.EPSILON:
+            raise ValueError("Points are collinear: circumcircle is undefined")
+
+        sq1 = x1 * x1 + y1 * y1
+        sq2 = x2 * x2 + y2 * y2
+        sq3 = x3 * x3 + y3 * y3
+
+        cx = (sq1 * (y2 - y3) + sq2 * (y3 - y1) + sq3 * (y1 - y2)) / d
+        cy = (sq1 * (x3 - x2) + sq2 * (x1 - x3) + sq3 * (x2 - x1)) / d
+
+        radius = math.sqrt((x1 - cx) ** 2 + (y1 - cy) ** 2)
+
+        if not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)):
+            raise ValueError("Circumcenter computation produced non-finite result")
+
+        return cx, cy, radius
+
+    @staticmethod
+    def incenter_and_inradius(
+        x1: float, y1: float,
+        x2: float, y2: float,
+        x3: float, y3: float,
+    ) -> Tuple[float, float, float]:
+        """Compute the incenter and inradius of a triangle.
+
+        The incircle is tangent to all three sides. The incenter is the
+        weighted average of the vertices, weighted by the length of the
+        opposite side. The inradius is ``2 * area / perimeter``.
+
+        Args:
+            x1, y1: First vertex
+            x2, y2: Second vertex
+            x3, y3: Third vertex
+
+        Returns:
+            (cx, cy, radius) of the inscribed circle
+
+        Raises:
+            ValueError: If the triangle is degenerate (zero area)
+        """
+        # Side lengths (opposite to each vertex)
+        a = math.sqrt((x2 - x3) ** 2 + (y2 - y3) ** 2)  # opposite vertex 1
+        b = math.sqrt((x1 - x3) ** 2 + (y1 - y3) ** 2)  # opposite vertex 2
+        c = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)  # opposite vertex 3
+
+        perimeter = a + b + c
+        if perimeter < MathUtils.EPSILON:
+            raise ValueError("Degenerate triangle: zero perimeter")
+
+        # Area via cross product: 2A = |(x2-x1)(y3-y1) - (x3-x1)(y2-y1)|
+        area = abs((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)) / 2.0
+        if area < MathUtils.EPSILON:
+            raise ValueError("Degenerate triangle: zero area")
+
+        # Incenter: weighted average by opposite side lengths
+        cx = (a * x1 + b * x2 + c * x3) / perimeter
+        cy = (a * y1 + b * y2 + c * y3) / perimeter
+
+        # Inradius = 2 * area / perimeter
+        radius = 2.0 * area / perimeter
+
+        if not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)):
+            raise ValueError("Incenter computation produced non-finite result")
+
+        return cx, cy, radius
