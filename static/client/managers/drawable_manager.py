@@ -70,6 +70,7 @@ from managers.graph_manager import GraphManager
 from managers.statistics_manager import StatisticsManager
 from managers.bar_manager import BarManager
 from managers.tangent_manager import TangentManager
+from managers.construction_manager import ConstructionManager
 from drawables.closed_shape_colored_area import ClosedShapeColoredArea
 
 if TYPE_CHECKING:
@@ -216,6 +217,17 @@ class DrawableManager:
             canvas,
             self.drawables,
             self.segment_manager,
+            self.name_generator,
+            self.dependency_manager,
+            self.proxy,
+        )
+
+        self.construction_manager: ConstructionManager = ConstructionManager(
+            canvas,
+            self.drawables,
+            self.point_manager,
+            self.segment_manager,
+            self.angle_manager,
             self.name_generator,
             self.dependency_manager,
             self.proxy,
@@ -1158,4 +1170,77 @@ class DrawableManager:
         """
         return self.tangent_manager.create_normal_line(
             curve_name, parameter, name=name, length=length, color=color
+        )
+
+    # ------------------- Construction Methods -------------------
+
+    def create_midpoint(
+        self,
+        p1_name: Optional[str] = None,
+        p2_name: Optional[str] = None,
+        *,
+        segment_name: Optional[str] = None,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Point":
+        """Create a point at the midpoint of two points or a segment."""
+        return self.construction_manager.create_midpoint(
+            p1_name, p2_name, segment_name=segment_name, name=name, color=color
+        )
+
+    def create_perpendicular_bisector(
+        self,
+        segment_name: str,
+        *,
+        length: Optional[float] = None,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Segment":
+        """Create the perpendicular bisector of a segment."""
+        return self.construction_manager.create_perpendicular_bisector(
+            segment_name, length=length, name=name, color=color
+        )
+
+    def create_perpendicular_from_point(
+        self,
+        point_name: str,
+        segment_name: str,
+        *,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Drop a perpendicular from a point to a segment."""
+        return self.construction_manager.create_perpendicular_from_point(
+            point_name, segment_name, name=name, color=color
+        )
+
+    def create_angle_bisector(
+        self,
+        vertex_name: Optional[str] = None,
+        p1_name: Optional[str] = None,
+        p2_name: Optional[str] = None,
+        *,
+        angle_name: Optional[str] = None,
+        length: Optional[float] = None,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Segment":
+        """Create a segment along the bisector of an angle."""
+        return self.construction_manager.create_angle_bisector(
+            vertex_name, p1_name, p2_name,
+            angle_name=angle_name, length=length, name=name, color=color
+        )
+
+    def create_parallel_line(
+        self,
+        segment_name: str,
+        point_name: str,
+        *,
+        length: Optional[float] = None,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Segment":
+        """Create a segment through a point, parallel to a given segment."""
+        return self.construction_manager.create_parallel_line(
+            segment_name, point_name, length=length, name=name, color=color
         )
