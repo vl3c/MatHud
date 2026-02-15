@@ -320,7 +320,10 @@ Attributes:
 - `zoom_to_bounds(left_bound, right_bound, top_bound, bottom_bound)`: Fit the viewport so the specified math-space rectangle is entirely visible while preserving aspect ratio
 - `create_colored_area(drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3)`: Create a colored area between two objects
 - `translate_object(name, x_offset, y_offset)`: Translates a drawable object by the specified offset
-- `rotate_object(name, angle)`: Rotates a drawable object by the specified angle
+- `rotate_object(name, angle, center_x=None, center_y=None)`: Rotates a drawable object by the specified angle, optionally around an arbitrary center
+- `reflect_object(name, axis, line_a=None, line_b=None, line_c=None, segment_name=None)`: Reflects a drawable across x_axis, y_axis, a line (ax+by+c=0), or a named segment
+- `scale_object(name, sx, sy, cx, cy)`: Scales a drawable from center (cx, cy)
+- `shear_object(name, axis, factor, cx, cy)`: Shears a drawable along horizontal or vertical axis from center (cx, cy)
 - `create_angle(vx, vy, p1x, p1y, p2x, p2y, color=None, angle_name=None, is_reflex=False)`: Create an angle from three points
 
 Example prompt for partial shading:
@@ -1077,6 +1080,10 @@ Attributes:
 - `pan()`: Update point screen coordinates for pan operations
 - `translate(x_offset, y_offset)`: Move point by translating original position
 - `rotate(angle)`: Rotate point (placeholder implementation)
+- `reflect(axis, a=0, b=0, c=0)`: Reflect point across x_axis, y_axis, or line ax+by+c=0
+- `scale(sx, sy, cx, cy)`: Scale point relative to center (cx, cy)
+- `shear(axis, factor, cx, cy)`: Shear point relative to center (cx, cy)
+- `rotate_around(angle_deg, cx, cy)`: Rotate point around arbitrary center (cx, cy)
 - `get_state()`: Serialize point state for persistence
 - `is_visible()`: Check if the point is within the canvas visible area
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
@@ -1132,6 +1139,10 @@ Attributes:
 - `pan()`: Update segment for pan operations (handled by endpoints)
 - `translate(x_offset, y_offset)`: Move segment by translating both endpoints
 - `rotate(angle)`: Rotate the segment around its midpoint by the given angle in degrees
+- `reflect(axis, a=0, b=0, c=0)`: Reflect both endpoints and recalculate line formula
+- `scale(sx, sy, cx, cy)`: Scale both endpoints and recalculate line formula
+- `shear(axis, factor, cx, cy)`: Shear both endpoints and recalculate line formula
+- `rotate_around(angle_deg, cx, cy)`: Rotate both endpoints around arbitrary center
 - `get_state()`: Serialize segment state for persistence
 - `is_visible()`: Check if any part of the segment is visible in the canvas area
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
@@ -1185,6 +1196,10 @@ Attributes:
 - `draw()`: Render the vector (line + arrow tip)
 - `translate(x_offset, y_offset)`: Translate origin and tip
 - `rotate(angle)`: Rotate vector around origin
+- `reflect(axis, a=0, b=0, c=0)`: Reflect vector (delegates to segment)
+- `scale(sx, sy, cx, cy)`: Scale vector (delegates to segment)
+- `shear(axis, factor, cx, cy)`: Shear vector (delegates to segment)
+- `rotate_around(angle_deg, cx, cy)`: Rotate vector around arbitrary center
 - `get_state()`: Serialize vector state
 - `__deepcopy__(memo)`: Deep copy
 
@@ -1343,6 +1358,10 @@ Attributes:
 - `pan()`: Update circle for pan operations (handled by center point)
 - `translate(x_offset, y_offset)`: Move circle by translating center point
 - `rotate(angle)`: Rotate circle (placeholder implementation)
+- `reflect(axis, a=0, b=0, c=0)`: Reflect center, radius unchanged
+- `scale(sx, sy, cx, cy)`: Uniform scale only (raises ValueError for non-uniform)
+- `shear(axis, factor, cx, cy)`: Not supported (raises ValueError)
+- `rotate_around(angle_deg, cx, cy)`: Rotate center around arbitrary point
 - `get_state()`: Serialize circle state for persistence
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
 
@@ -1399,6 +1418,10 @@ Attributes:
 - `pan()`: Update ellipse for pan operations (handled by center point)
 - `translate(x_offset, y_offset)`: Move ellipse by translating center point
 - `rotate(angle)`: Rotate ellipse around its center by the given angle in degrees
+- `reflect(axis, a=0, b=0, c=0)`: Reflect center and adjust rotation_angle
+- `scale(sx, sy, cx, cy)`: Uniform or axis-aligned non-uniform (rotated + non-uniform raises ValueError)
+- `shear(axis, factor, cx, cy)`: Not supported (raises ValueError)
+- `rotate_around(angle_deg, cx, cy)`: Rotate center around arbitrary point and add to rotation_angle
 - `get_state()`: Serialize ellipse state for persistence including rotation
 - `__deepcopy__(memo)`: Create deep copy for undo/redo functionality
 
@@ -1782,6 +1805,10 @@ Subclasses must implement:
 - `_rotate_point_around_center(point, center_x, center_y, angle_rad)`: Rotate a single point around a center by given angle in radians
 - `get_vertices()`: Abstract method to be implemented by subclasses to return their vertices
 - `rotate(angle)`: Rotate the polygon around its center by the given angle in degrees
+- `reflect(axis, a=0, b=0, c=0)`: Reflect all vertices across the specified axis
+- `scale(sx, sy, cx, cy)`: Scale all vertices relative to center (cx, cy)
+- `shear(axis, factor, cx, cy)`: Shear all vertices relative to center (cx, cy)
+- `rotate_around(angle_deg, cx, cy)`: Rotate all vertices around an arbitrary center
 
 ### Management Classes
 
@@ -2163,12 +2190,16 @@ This class is responsible for:
 ```
 MatHud Geometric Transformations Management System
 
-Handles geometric transformations of drawable objects including translation and rotation.
+Handles geometric transformations of drawable objects including translation,
+rotation, reflection, scaling, and shearing.
 Provides coordinated transformation operations with proper state management and canvas integration.
 
 Transformation Types:
     - Translation: Moving objects by specified x and y offsets
-    - Rotation: Rotating objects around specified points or their centers
+    - Rotation: Rotating objects around their centers or an arbitrary point
+    - Reflection: Mirroring objects across x-axis, y-axis, or an arbitrary line
+    - Scaling (dilation): Uniform or non-uniform scaling from a center point
+    - Shearing: Horizontal or vertical shear from a center point
 
 Operation Coordination:
     - State Archiving: Automatic undo/redo state capture before transformations
@@ -2193,14 +2224,17 @@ Integration Points:
 ```
 Manages geometric transformations of drawable objects on a Canvas.
 
-Coordinates translation and rotation operations with proper state management,
-object validation, and canvas integration.
+Coordinates translation, rotation, reflection, scaling, and shearing
+operations with proper state management, object validation, and canvas integration.
 ```
 
 **Key Methods:**
 - `__init__(canvas)`: Initialize the TransformationsManager
 - `translate_object(name, x_offset, y_offset)`: Translates a drawable object by the specified offset
-- `rotate_object(name, angle)`: Rotates a drawable object by the specified angle
+- `rotate_object(name, angle, center_x=None, center_y=None)`: Rotates a drawable object by the specified angle. When center_x and center_y are provided, rotates around that arbitrary point (all types including Point and Circle are eligible).
+- `reflect_object(name, axis, line_a=0, line_b=0, line_c=0, segment_name="")`: Reflects a drawable across an axis. axis is one of 'x_axis', 'y_axis', 'line' (ax+by+c=0), or 'segment' (resolve named segment).
+- `scale_object(name, sx, sy, cx, cy)`: Scales a drawable from center (cx, cy). Circles require uniform scaling (sx == sy). Rotated ellipses require uniform scaling.
+- `shear_object(name, axis, factor, cx, cy)`: Shears a drawable along 'horizontal' or 'vertical' axis from center (cx, cy). Not supported for circles or ellipses (raises ValueError).
 
 #### Coordinate System Manager (`managers/coordinate_system_manager.py`)
 
@@ -3340,7 +3374,7 @@ Function Categories:
     - Canvas operations: reset, clear, undo, redo
     - Geometric shapes: points, segments, vectors, triangles, rectangles, circles, ellipses
     - Mathematical functions: plotting, evaluation, symbolic computation
-    - Object transformations: translate, rotate
+    - Object transformations: translate, rotate, reflect, scale, shear
     - Workspace management: save, load, list, delete
     - Special features: colored areas, angle measurement, testing
 
@@ -3711,7 +3745,7 @@ Categories:
     - Geometric Shapes: points, segments, vectors, triangles, rectangles, circles, ellipses, angles
     - Mathematical Functions: plotting, colored areas, bounded regions
     - Calculations: expressions, trigonometry, algebra, calculus
-    - Transformations: translate, rotate, scale geometric objects
+    - Transformations: translate, rotate, reflect, scale, shear geometric objects
     - Workspace Management: save, load, list, delete workspaces
 
 Dependencies:
