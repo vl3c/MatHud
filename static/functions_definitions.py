@@ -1992,7 +1992,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                 "type": "function",
                 "function": {
                     "name": "rotate_object",
-                    "description": "Rotates a drawable object around its center by the specified angle",
+                    "description": "Rotates a drawable object by the specified angle. By default rotates around the object's own center. When center_x and center_y are provided, rotates around that arbitrary point (works for all types including points and circles).",
                     "strict": True,
                     "parameters": {
                         "type": "object",
@@ -2004,9 +2004,128 @@ FUNCTIONS: List[Dict[str, Any]] = [
                             "angle": {
                                 "type": "number",
                                 "description": "The angle in degrees to rotate the object (positive for counterclockwise)"
+                            },
+                            "center_x": {
+                                "type": ["number", "null"],
+                                "description": "X-coordinate of the rotation center. Must be provided together with center_y for rotation around an arbitrary point. Omit (null) to rotate around the object's own center."
+                            },
+                            "center_y": {
+                                "type": ["number", "null"],
+                                "description": "Y-coordinate of the rotation center. Must be provided together with center_x for rotation around an arbitrary point. Omit (null) to rotate around the object's own center."
                             }
                         },
-                        "required": ["name", "angle"],
+                        "required": ["name", "angle", "center_x", "center_y"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "reflect_object",
+                    "description": "Reflects (mirrors) a drawable object across an axis or line. Supports x-axis, y-axis, an arbitrary line (ax + by + c = 0), or a named segment as the reflection axis.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the object to reflect"
+                            },
+                            "axis": {
+                                "type": "string",
+                                "enum": ["x_axis", "y_axis", "line", "segment"],
+                                "description": "The reflection axis type"
+                            },
+                            "line_a": {
+                                "type": ["number", "null"],
+                                "description": "Coefficient a in ax + by + c = 0 (required when axis is 'line')"
+                            },
+                            "line_b": {
+                                "type": ["number", "null"],
+                                "description": "Coefficient b in ax + by + c = 0 (required when axis is 'line')"
+                            },
+                            "line_c": {
+                                "type": ["number", "null"],
+                                "description": "Coefficient c in ax + by + c = 0 (required when axis is 'line')"
+                            },
+                            "segment_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of a segment to use as the reflection axis (required when axis is 'segment')"
+                            }
+                        },
+                        "required": ["name", "axis", "line_a", "line_b", "line_c", "segment_name"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "scale_object",
+                    "description": "Scales (dilates) a drawable object by the specified factors from a center point. Use equal sx and sy for uniform scaling. Circles require uniform scaling (equal sx and sy); for non-uniform scaling, convert to an ellipse first.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the object to scale"
+                            },
+                            "sx": {
+                                "type": "number",
+                                "description": "Horizontal scale factor (e.g. 2 to double width, 0.5 to halve)"
+                            },
+                            "sy": {
+                                "type": "number",
+                                "description": "Vertical scale factor (e.g. 2 to double height, 0.5 to halve)"
+                            },
+                            "cx": {
+                                "type": "number",
+                                "description": "X-coordinate of the scaling center"
+                            },
+                            "cy": {
+                                "type": "number",
+                                "description": "Y-coordinate of the scaling center"
+                            }
+                        },
+                        "required": ["name", "sx", "sy", "cx", "cy"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "shear_object",
+                    "description": "Shears a drawable object along the specified axis from a center point. Not supported for circles and ellipses.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the object to shear"
+                            },
+                            "axis": {
+                                "type": "string",
+                                "enum": ["horizontal", "vertical"],
+                                "description": "The shear direction"
+                            },
+                            "factor": {
+                                "type": "number",
+                                "description": "The shear factor (e.g. 0.5 shifts x by 0.5*dy for horizontal shear)"
+                            },
+                            "cx": {
+                                "type": "number",
+                                "description": "X-coordinate of the shear center"
+                            },
+                            "cy": {
+                                "type": "number",
+                                "description": "Y-coordinate of the shear center"
+                            }
+                        },
+                        "required": ["name", "axis", "factor", "cx", "cy"],
                         "additionalProperties": False
                     }
                 }
