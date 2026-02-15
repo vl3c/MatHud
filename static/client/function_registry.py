@@ -162,6 +162,8 @@ class FunctionRegistry:
             "construct_perpendicular_from_point": canvas.create_perpendicular_from_point,
             "construct_angle_bisector": canvas.create_angle_bisector,
             "construct_parallel_line": canvas.create_parallel_line,
+            "construct_circumcircle": canvas.create_circumcircle,
+            "construct_incircle": canvas.create_incircle,
 
             # ===== OBJECT TRANSFORMATIONS =====
             "translate_object": canvas.translate_object,
@@ -385,6 +387,8 @@ class FunctionRegistry:
             "construct_perpendicular_from_point",
             "construct_angle_bisector",
             "construct_parallel_line",
+            "construct_circumcircle",
+            "construct_incircle",
 
             # Object transformations
             "translate_object",

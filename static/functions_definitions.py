@@ -1540,6 +1540,72 @@ FUNCTIONS: List[Dict[str, Any]] = [
             {
                 "type": "function",
                 "function": {
+                    "name": "construct_circumcircle",
+                    "description": "Constructs the circumscribed circle (circumcircle) of a triangle or three points. The circumcircle passes through all three vertices. Provide either triangle_name or all three point names.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "triangle_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of an existing triangle (alternative to specifying three points)"
+                            },
+                            "p1_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the first point (used with p2_name and p3_name instead of triangle_name)"
+                            },
+                            "p2_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the second point"
+                            },
+                            "p3_name": {
+                                "type": ["string", "null"],
+                                "description": "Name of the third point"
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the created circumcircle"
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the circumcircle"
+                            }
+                        },
+                        "required": ["triangle_name", "p1_name", "p2_name", "p3_name", "name", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "construct_incircle",
+                    "description": "Constructs the inscribed circle (incircle) of a triangle. The incircle is tangent to all three sides of the triangle.",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "triangle_name": {
+                                "type": "string",
+                                "description": "Name of an existing triangle"
+                            },
+                            "name": {
+                                "type": ["string", "null"],
+                                "description": "Optional name for the created incircle"
+                            },
+                            "color": {
+                                "type": ["string", "null"],
+                                "description": "Optional color for the incircle"
+                            }
+                        },
+                        "required": ["triangle_name", "name", "color"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
                     "name": "evaluate_expression",
                     "description": "Calculate or evaluate a mathematical expression and return the numerical result. Use for arithmetic (+, -, *, /, ^), algebra, and math functions. Supports variables (x, y), constants (e, pi), and functions: sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime, prev_prime, totient, divisors, mean, median, mode, stdev, variance, random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2).",
                     "parameters": {

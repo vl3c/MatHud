@@ -1231,6 +1231,35 @@ class DrawableManager:
             angle_name=angle_name, length=length, name=name, color=color
         )
 
+    def create_circumcircle(
+        self,
+        *,
+        triangle_name: Optional[str] = None,
+        p1_name: Optional[str] = None,
+        p2_name: Optional[str] = None,
+        p3_name: Optional[str] = None,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Circle":
+        """Create the circumscribed circle of a triangle or three points."""
+        return self.construction_manager.create_circumcircle(
+            triangle_name=triangle_name,
+            p1_name=p1_name, p2_name=p2_name, p3_name=p3_name,
+            name=name, color=color,
+        )
+
+    def create_incircle(
+        self,
+        triangle_name: str,
+        *,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+    ) -> "Circle":
+        """Create the inscribed circle of a triangle."""
+        return self.construction_manager.create_incircle(
+            triangle_name, name=name, color=color,
+        )
+
     def create_parallel_line(
         self,
         segment_name: str,

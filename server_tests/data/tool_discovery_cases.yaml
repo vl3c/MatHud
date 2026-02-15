@@ -2,8 +2,8 @@
   "metadata": {
     "schema_version": 1,
     "description": "Tool discovery benchmark cases for search_tools semantic routing.",
-    "expected_tool_count": 85,
-    "expected_tool_hash": "a7c2b8ae517a53b46f4a3f46fd2cd0aa25cfb47a5619be7e0620fb76c4f51a52",
+    "expected_tool_count": 87,
+    "expected_tool_hash": "932b5456edb8acedd97213b4f7fc186b483f1439c437f04fe63f7e3ad0395462",
     "confusion_clusters": {
       "convert_cluster": [
         "convert",
