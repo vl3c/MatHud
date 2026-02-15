@@ -95,6 +95,8 @@ from .test_construction_manager import (
     TestConstructPerpendicularFromPoint,
     TestConstructAngleBisector,
     TestConstructParallelLine,
+    TestConstructCircumcircle,
+    TestConstructIncircle,
     TestMathUtilsConstructionFunctions,
 )
 from .test_polygon_canonicalizer import TestPolygonCanonicalizer
@@ -421,6 +423,8 @@ class Tests:
             TestConstructPerpendicularFromPoint,
             TestConstructAngleBisector,
             TestConstructParallelLine,
+            TestConstructCircumcircle,
+            TestConstructIncircle,
             TestMathUtilsConstructionFunctions,
             TestVector,
             TestTriangle,

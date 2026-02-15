@@ -454,3 +454,142 @@ class TestMathUtilsConstructionFunctions(TestConstructionManager):
         """Zero-length arm should raise ValueError."""
         with self.assertRaises(ValueError):
             MathUtils.angle_bisector_direction(0, 0, 0, 0, 1, 0)
+
+    def test_circumcenter_right_triangle(self) -> None:
+        """Circumcenter of right triangle at origin should be midpoint of hypotenuse."""
+        cx, cy, r = MathUtils.circumcenter(0, 0, 4, 0, 0, 3)
+        self.assertAlmostEqual(cx, 2.0, places=5)
+        self.assertAlmostEqual(cy, 1.5, places=5)
+        self.assertAlmostEqual(r, 2.5, places=5)
+
+    def test_circumcenter_equilateral(self) -> None:
+        """Circumcenter of equilateral triangle should be at centroid."""
+        s = 2.0
+        x1, y1 = 0.0, 0.0
+        x2, y2 = s, 0.0
+        x3, y3 = s / 2, s * math.sqrt(3) / 2
+        cx, cy, r = MathUtils.circumcenter(x1, y1, x2, y2, x3, y3)
+        # Centroid
+        self.assertAlmostEqual(cx, s / 2, places=5)
+        self.assertAlmostEqual(cy, s * math.sqrt(3) / 6, places=4)
+        # Circumradius = s / sqrt(3)
+        self.assertAlmostEqual(r, s / math.sqrt(3), places=4)
+
+    def test_circumcenter_collinear_raises(self) -> None:
+        """Collinear points should raise ValueError."""
+        with self.assertRaises(ValueError):
+            MathUtils.circumcenter(0, 0, 1, 0, 2, 0)
+
+    def test_incenter_equilateral(self) -> None:
+        """Incircle of equilateral triangle: inradius = s*sqrt(3)/6."""
+        s = 6.0
+        x1, y1 = 0.0, 0.0
+        x2, y2 = s, 0.0
+        x3, y3 = s / 2, s * math.sqrt(3) / 2
+        cx, cy, r = MathUtils.incenter_and_inradius(x1, y1, x2, y2, x3, y3)
+        expected_r = s * math.sqrt(3) / 6
+        self.assertAlmostEqual(r, expected_r, places=4)
+        # Incenter at centroid for equilateral
+        self.assertAlmostEqual(cx, s / 2, places=4)
+        self.assertAlmostEqual(cy, s * math.sqrt(3) / 6, places=4)
+
+    def test_incenter_degenerate_raises(self) -> None:
+        """Degenerate triangle (collinear) should raise ValueError."""
+        with self.assertRaises(ValueError):
+            MathUtils.incenter_and_inradius(0, 0, 1, 0, 2, 0)
+
+
+class TestConstructCircumcircle(TestConstructionManager):
+    """Tests for circumcircle construction."""
+
+    def _create_triangle(self, name_suffix: str = "") -> None:
+        """Create a right triangle at origin: (0,0), (4,0), (0,3)."""
+        self.canvas.create_point(0, 0, name=f"A{name_suffix}")
+        self.canvas.create_point(4, 0, name=f"B{name_suffix}")
+        self.canvas.create_point(0, 3, name=f"C{name_suffix}")
+        self.canvas.create_segment(0, 0, 4, 0)
+        self.canvas.create_segment(4, 0, 0, 3)
+        self.canvas.create_segment(0, 3, 0, 0)
+
+    def _circle_count(self) -> int:
+        return len(self.canvas.get_drawables_by_class_name("Circle"))
+
+    def test_circumcircle_by_triangle_name(self) -> None:
+        """Circumcircle of right triangle has center at midpoint of hypotenuse."""
+        self._create_triangle()
+        triangles = self.canvas.get_drawables_by_class_name("Triangle")
+        self.assertTrue(len(triangles) > 0)
+        tri_name = triangles[0].name
+        circle = self.canvas.create_circumcircle(triangle_name=tri_name)
+        self.assertAlmostEqual(circle.radius, 2.5, places=3)
+
+    def test_circumcircle_by_three_points(self) -> None:
+        """Circumcircle by 3 point names should produce correct radius."""
+        self.canvas.create_point(0, 0, name="P")
+        self.canvas.create_point(4, 0, name="Q")
+        self.canvas.create_point(0, 3, name="R")
+        circle = self.canvas.create_circumcircle(p1_name="P", p2_name="Q", p3_name="R")
+        self.assertAlmostEqual(circle.radius, 2.5, places=3)
+
+    def test_circumcircle_collinear_raises(self) -> None:
+        """Collinear points should raise ValueError."""
+        self.canvas.create_point(0, 0, name="P")
+        self.canvas.create_point(1, 0, name="Q")
+        self.canvas.create_point(2, 0, name="R")
+        with self.assertRaises(ValueError):
+            self.canvas.create_circumcircle(p1_name="P", p2_name="Q", p3_name="R")
+
+    def test_circumcircle_no_args_raises(self) -> None:
+        """No arguments should raise ValueError."""
+        with self.assertRaises(ValueError):
+            self.canvas.create_circumcircle()
+
+    def test_circumcircle_undo(self) -> None:
+        """Undo should remove the circumcircle."""
+        self.canvas.create_point(0, 0, name="P")
+        self.canvas.create_point(4, 0, name="Q")
+        self.canvas.create_point(0, 3, name="R")
+        count_before = self._circle_count()
+        self.canvas.create_circumcircle(p1_name="P", p2_name="Q", p3_name="R")
+        self.assertEqual(self._circle_count(), count_before + 1)
+        self.canvas.undo()
+        self.assertEqual(self._circle_count(), count_before)
+
+
+class TestConstructIncircle(TestConstructionManager):
+    """Tests for incircle construction."""
+
+    def _create_triangle(self) -> str:
+        """Create a right triangle and return its name."""
+        self.canvas.create_point(0, 0, name="A")
+        self.canvas.create_point(4, 0, name="B")
+        self.canvas.create_point(0, 3, name="C")
+        self.canvas.create_segment(0, 0, 4, 0)
+        self.canvas.create_segment(4, 0, 0, 3)
+        self.canvas.create_segment(0, 3, 0, 0)
+        triangles = self.canvas.get_drawables_by_class_name("Triangle")
+        self.assertTrue(len(triangles) > 0)
+        return triangles[0].name
+
+    def _circle_count(self) -> int:
+        return len(self.canvas.get_drawables_by_class_name("Circle"))
+
+    def test_incircle_right_triangle(self) -> None:
+        """Incircle of 3-4-5 right triangle: inradius = (3+4-5)/2 = 1."""
+        tri_name = self._create_triangle()
+        circle = self.canvas.create_incircle(tri_name)
+        self.assertAlmostEqual(circle.radius, 1.0, places=3)
+
+    def test_incircle_nonexistent_raises(self) -> None:
+        """Nonexistent triangle name should raise ValueError."""
+        with self.assertRaises(ValueError):
+            self.canvas.create_incircle("nonexistent")
+
+    def test_incircle_undo(self) -> None:
+        """Undo should remove the incircle."""
+        tri_name = self._create_triangle()
+        count_before = self._circle_count()
+        self.canvas.create_incircle(tri_name)
+        self.assertEqual(self._circle_count(), count_before + 1)
+        self.canvas.undo()
+        self.assertEqual(self._circle_count(), count_before)
