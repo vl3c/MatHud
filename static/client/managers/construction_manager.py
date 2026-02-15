@@ -352,6 +352,11 @@ class ConstructionManager:
 
         dx, dy = MathUtils.angle_bisector_direction(vx, vy, p1x, p1y, p2x, p2y)
 
+        # For reflex angles, negate the direction so the bisector points
+        # into the reflex arc instead of the minor arc.
+        if angle_name and getattr(angle, "is_reflex", False):
+            dx, dy = -dx, -dy
+
         # Create segment from vertex along bisector direction
         half = length / 2
         x1 = vx

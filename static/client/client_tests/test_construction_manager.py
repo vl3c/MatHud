@@ -325,6 +325,25 @@ class TestConstructAngleBisector(TestConstructionManager):
         self.canvas.undo()
         self.assertEqual(self._segment_count(), count_before)
 
+    def test_bisector_reflex_angle_by_name(self) -> None:
+        """Bisector of a reflex angle should point into the reflex arc."""
+        # Create a 90-degree angle at origin: arms along +x and +y
+        self.canvas.create_point(0, 0, name="V")
+        self.canvas.create_point(4, 0, name="A")
+        self.canvas.create_point(0, 4, name="B")
+        self.canvas.create_segment(0, 0, 4, 0)
+        self.canvas.create_segment(0, 0, 0, 4)
+        # Create the reflex (270-degree) angle
+        reflex = self.canvas.create_angle(0, 0, 4, 0, 0, 4, is_reflex=True)
+        bisector = self.canvas.create_angle_bisector(angle_name=reflex.name)
+        # The reflex bisector should point into the third quadrant (negative x, negative y)
+        dx = bisector.point2.x - bisector.point1.x
+        dy = bisector.point2.y - bisector.point1.y
+        # For a 90-degree angle along +x and +y, the internal bisector is at +45 degrees.
+        # The reflex bisector should be at +45+180 = 225 degrees (third quadrant).
+        self.assertLess(dx, 0, "Reflex bisector dx should be negative")
+        self.assertLess(dy, 0, "Reflex bisector dy should be negative")
+
 
 class TestConstructParallelLine(TestConstructionManager):
     """Tests for parallel line construction."""
