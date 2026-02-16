@@ -23,6 +23,7 @@ Dependencies:
 
 from __future__ import annotations
 
+import math
 from copy import deepcopy
 from typing import Any, Dict, cast
 
@@ -86,6 +87,44 @@ class Circle(Drawable):
     def translate(self, x_offset: float, y_offset: float) -> None:
         self.center.x += x_offset
         self.center.y += y_offset
+        self.circle_formula = self._calculate_circle_algebraic_formula()
+        self.regenerate_name()
+
+    def reflect(self, axis: str, a: float = 0, b: float = 0, c: float = 0) -> None:
+        """Reflect the circle across the specified axis (center moves, radius unchanged)."""
+        self.center.reflect(axis, a, b, c)
+        self.circle_formula = self._calculate_circle_algebraic_formula()
+        self.regenerate_name()
+
+    def scale(self, sx: float, sy: float, cx: float, cy: float) -> None:
+        """Scale the circle uniformly from center (cx, cy).
+
+        Raises:
+            ValueError: If scaling is non-uniform or zero.
+        """
+        if abs(sx) < 1e-18 or abs(sy) < 1e-18:
+            raise ValueError("Scale factor must not be zero")
+        if abs(sx - sy) > 1e-9:
+            raise ValueError(
+                "Non-uniform scaling of a circle is not supported; "
+                "convert to an ellipse first or use equal sx and sy"
+            )
+        self.center.scale(sx, sy, cx, cy)
+        self.radius = abs(self.radius * sx)
+        self.circle_formula = self._calculate_circle_algebraic_formula()
+        self.regenerate_name()
+
+    def shear(self, axis: str, factor: float, cx: float, cy: float) -> None:
+        """Shearing a circle is not supported.
+
+        Raises:
+            ValueError: Always raised.
+        """
+        raise ValueError("Shearing a circle is not supported; convert to an ellipse first")
+
+    def rotate_around(self, angle_deg: float, cx: float, cy: float) -> None:
+        """Rotate the circle center around an arbitrary point (cx, cy)."""
+        self.center.rotate_around(angle_deg, cx, cy)
         self.circle_formula = self._calculate_circle_algebraic_formula()
         self.regenerate_name()
 

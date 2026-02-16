@@ -97,6 +97,22 @@ class Vector(Drawable):
     def translate(self, x_offset: float, y_offset: float) -> None:
         self.segment.translate(x_offset, y_offset)
 
+    def reflect(self, axis: str, a: float = 0, b: float = 0, c: float = 0) -> None:
+        """Reflect the vector across the specified axis."""
+        self.segment.reflect(axis, a, b, c)
+
+    def scale(self, sx: float, sy: float, cx: float, cy: float) -> None:
+        """Scale the vector relative to center (cx, cy)."""
+        self.segment.scale(sx, sy, cx, cy)
+
+    def shear(self, axis: str, factor: float, cx: float, cy: float) -> None:
+        """Shear the vector relative to center (cx, cy)."""
+        self.segment.shear(axis, factor, cx, cy)
+
+    def rotate_around(self, angle_deg: float, cx: float, cy: float) -> None:
+        """Rotate the vector around an arbitrary center (cx, cy)."""
+        self.segment.rotate_around(angle_deg, cx, cy)
+
     def rotate(self, angle: float) -> Tuple[bool, Optional[str]]:
         """Rotate the vector around its origin by the given angle in degrees"""
         # Use segment's rotation method to rotate the line portion

@@ -1595,9 +1595,59 @@ class Canvas:
         """Translates a drawable object by the specified offset"""
         return bool(self.transformations_manager.translate_object(name, x_offset, y_offset))
 
-    def rotate_object(self, name: str, angle: float) -> bool:
-        """Rotates a drawable object by the specified angle"""
-        return bool(self.transformations_manager.rotate_object(name, angle))
+    def rotate_object(
+        self,
+        name: str,
+        angle: float,
+        center_x: Optional[float] = None,
+        center_y: Optional[float] = None,
+    ) -> bool:
+        """Rotates a drawable object by the specified angle.
+
+        When *center_x* and *center_y* are both provided the object is rotated
+        around that arbitrary point instead of its own center.
+        """
+        return bool(self.transformations_manager.rotate_object(name, angle, center_x, center_y))
+
+    def reflect_object(
+        self,
+        name: str,
+        axis: str,
+        line_a: Optional[float] = None,
+        line_b: Optional[float] = None,
+        line_c: Optional[float] = None,
+        segment_name: Optional[str] = None,
+    ) -> bool:
+        """Reflect a drawable across an axis, line, or segment."""
+        return bool(self.transformations_manager.reflect_object(
+            name, axis,
+            line_a=float(line_a) if line_a is not None else 0,
+            line_b=float(line_b) if line_b is not None else 0,
+            line_c=float(line_c) if line_c is not None else 0,
+            segment_name=str(segment_name) if segment_name else "",
+        ))
+
+    def scale_object(
+        self,
+        name: str,
+        sx: float,
+        sy: float,
+        cx: float,
+        cy: float,
+    ) -> bool:
+        """Scale (dilate) a drawable from center (cx, cy)."""
+        return bool(self.transformations_manager.scale_object(name, sx, sy, cx, cy))
+
+    def shear_object(
+        self,
+        name: str,
+        axis: str,
+        factor: float,
+        cx: float,
+        cy: float,
+    ) -> bool:
+        """Shear a drawable along an axis from center (cx, cy)."""
+        return bool(self.transformations_manager.shear_object(name, axis, factor, cx, cy))
 
     def has_computation(self, expression: str) -> bool:
         """Check if a computation with the given expression already exists."""

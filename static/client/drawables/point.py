@@ -22,6 +22,7 @@ Dependencies:
 
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, cast
 
 from constants import default_color
@@ -107,6 +108,66 @@ class Point(Drawable):
         """Rename the point using the Drawable base property."""
         self.name = name
         self._sync_label_text()
+
+    def reflect(self, axis: str, a: float = 0, b: float = 0, c: float = 0) -> None:
+        """Reflect the point across the specified axis.
+
+        Args:
+            axis: 'x_axis', 'y_axis', or 'line' (ax + by + c = 0)
+            a, b, c: Coefficients for line reflection
+        """
+        if axis == "x_axis":
+            self._y = -self._y
+        elif axis == "y_axis":
+            self._x = -self._x
+        elif axis == "line":
+            denom = a * a + b * b
+            if denom < 1e-18:
+                return
+            dot = a * self._x + b * self._y + c
+            self._x = self._x - 2 * a * dot / denom
+            self._y = self._y - 2 * b * dot / denom
+        self._sync_label_position()
+
+    def scale(self, sx: float, sy: float, cx: float, cy: float) -> None:
+        """Scale the point relative to center (cx, cy)."""
+        self._x = cx + sx * (self._x - cx)
+        self._y = cy + sy * (self._y - cy)
+        self._sync_label_position()
+
+    def shear(self, axis: str, factor: float, cx: float, cy: float) -> None:
+        """Shear the point relative to center (cx, cy).
+
+        Args:
+            axis: 'horizontal' or 'vertical'
+            factor: Shear factor
+            cx, cy: Center of shear
+        """
+        dx = self._x - cx
+        dy = self._y - cy
+        if axis == "horizontal":
+            self._x = cx + dx + factor * dy
+            self._y = cy + dy
+        elif axis == "vertical":
+            self._x = cx + dx
+            self._y = cy + dy + factor * dx
+        self._sync_label_position()
+
+    def rotate_around(self, angle_deg: float, cx: float, cy: float) -> None:
+        """Rotate the point around an arbitrary center (cx, cy).
+
+        Args:
+            angle_deg: Rotation angle in degrees (positive = counterclockwise)
+            cx, cy: Center of rotation
+        """
+        angle_rad = math.radians(angle_deg)
+        dx = self._x - cx
+        dy = self._y - cy
+        cos_a = math.cos(angle_rad)
+        sin_a = math.sin(angle_rad)
+        self._x = cx + dx * cos_a - dy * sin_a
+        self._y = cy + dx * sin_a + dy * cos_a
+        self._sync_label_position()
 
     def rotate(self, angle: float) -> None:
         pass

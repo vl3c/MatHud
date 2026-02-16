@@ -190,6 +190,7 @@ from .test_colored_area_helpers import (
     TestRenderColoredAreaHelper,
 )
 from .test_transformations_manager import TestTransformationsManager
+from .test_transforms import TestTransforms
 from .test_area_expression_evaluator import (
     TestAreaCalculation,
     TestRegionGeneration,
@@ -421,6 +422,7 @@ class Tests:
             TestEllipseManager,
             TestColoredAreaManager,
             TestTransformationsManager,
+            TestTransforms,
             TestFunctionManager,
             TestParametricFunction,
             TestParametricFunctionRenderable,
