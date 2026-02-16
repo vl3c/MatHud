@@ -171,9 +171,15 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # Clamp max_results to valid range
         max_results = max(1, min(20, max_results))
 
-        # Use provided model, instance default, or fallback to gpt-4.1-mini
+        # Use provided model, instance default, or fallback to gpt-4.1-mini.
+        # Tool search is a lightweight classification task — reasoning models
+        # are overkill and their max_completion_tokens budget includes internal
+        # reasoning tokens, so 500 tokens may not leave enough room for output.
+        # For OpenAI reasoning models, downgrade to gpt-4.1-mini automatically.
         if model is None:
             model = self.default_model or AIModel.from_identifier("gpt-4.1-mini")
+        if getattr(model, "is_reasoning_model", False) and getattr(model, "provider", "") == "openai":
+            model = AIModel.from_identifier("gpt-4.1-mini")
 
         # Build the prompt
         tool_descriptions = self.build_tool_descriptions()
