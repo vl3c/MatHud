@@ -4256,6 +4256,40 @@ Examples (as user prompts):
    - "Create an undirected weighted graph named G2 with vertices A, B, C, D, E and edges A-B (3), A-C (1), B-C (7), B-D (5), C-D (2), D-E (7), C-E (8)."
    - "On graph G2, compute the minimum spanning tree and highlight the MST edges."
 
+### Relation Inspection
+
+- `inspect_relation(operation, objects, object_types)`: Check and explain geometric relations between objects on the canvas.
+
+#### Supported operations (`inspect_relation`)
+1. Direction: `parallel`, `perpendicular`
+2. Point alignment: `collinear`, `concyclic`
+3. Measurement: `equal_length`
+4. Triangle comparison: `similar`, `congruent`
+5. Tangency: `tangent` (segment+circle or circle+circle)
+6. Line concurrence: `concurrent` (3+ segments meet at one point)
+7. Incidence: `point_on_line`, `point_on_circle`
+8. Automatic: `auto` (runs all applicable checks for the given type combination)
+
+Parameters:
+1. `operation`: one of the enum values above.
+2. `objects`: array of drawable names (e.g. `["s1", "s2"]`).
+3. `object_types`: parallel array of type tags (`"point"`, `"segment"`, `"vector"`, `"circle"`, `"ellipse"`, `"triangle"`, `"rectangle"`).
+
+Return data:
+1. Successful checks return `operation`, `result` (boolean), `explanation`, `tolerance_used`, and `details`.
+2. Errors return `{"error": "..."}`.
+3. `auto` returns a summary with all applicable checks and their individual results.
+
+Examples (as user prompts):
+1. Check parallelism:
+   - "Create segments s1 from (0,0) to (4,0) and s2 from (0,2) to (4,2). Are s1 and s2 parallel?"
+2. Check concyclic points:
+   - "Create points A(5,0), B(0,5), C(-5,0), D(0,-5). Are A, B, C, D concyclic?"
+3. Check triangle similarity:
+   - "Create triangle T1 with vertices (0,0),(3,0),(0,4) and T2 with vertices (0,0),(6,0),(0,8). Are T1 and T2 similar?"
+4. Auto-inspect:
+   - "Create two segments and use auto inspection to check all applicable relations."
+
 ### Plot and Statistical Drawable Classes
 
 The following drawable classes support statistical plots, bar charts, and distribution visualizations.

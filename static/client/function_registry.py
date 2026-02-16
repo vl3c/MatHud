@@ -205,6 +205,9 @@ class FunctionRegistry:
             "delete_graph": canvas.delete_graph,
             "analyze_graph": canvas.analyze_graph,
 
+            # ===== RELATION INSPECTION =====
+            "inspect_relation": canvas.inspect_relation,
+
             # ===== PLOT OPERATIONS =====
             "plot_distribution": canvas.plot_distribution,
             "plot_bars": canvas.plot_bars,
