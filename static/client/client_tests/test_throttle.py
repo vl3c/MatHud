@@ -32,9 +32,9 @@ class TestThrottle(unittest.TestCase):
         self.original_clearTimeout = browser_window.clearTimeout
 
         # Replace the browser window objects
-        browser_window.performance = self.mock_performance
-        browser_window.setTimeout = self.mock_window.setTimeout
-        browser_window.clearTimeout = self.mock_window.clearTimeout
+        browser_window.performance = self.mock_performance  # type: ignore[assignment]
+        browser_window.setTimeout = self.mock_window.setTimeout  # type: ignore[method-assign]
+        browser_window.clearTimeout = self.mock_window.clearTimeout  # type: ignore[method-assign]
 
     def set_time(self, new_time: int) -> None:
         """Helper to update the mock time."""
@@ -43,8 +43,8 @@ class TestThrottle(unittest.TestCase):
     def tearDown(self) -> None:
         # Restore original window objects
         browser_window.performance = self.original_performance
-        browser_window.setTimeout = self.original_setTimeout
-        browser_window.clearTimeout = self.original_clearTimeout
+        browser_window.setTimeout = self.original_setTimeout  # type: ignore[method-assign]
+        browser_window.clearTimeout = self.original_clearTimeout  # type: ignore[method-assign]
 
     def test_throttle_first_call_executes_immediately(self) -> None:
         """Test that the first call to a throttled function executes immediately."""

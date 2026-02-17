@@ -100,7 +100,8 @@ class TransformationsManager:
 
     def _get_class_name(self, drawable: Any) -> str:
         getter = getattr(drawable, "get_class_name", None)
-        return getter() if callable(getter) else drawable.__class__.__name__
+        name: str = getter() if callable(getter) else drawable.__class__.__name__
+        return name
 
     def _gather_moved_points(self, drawable: Any) -> List[Any]:
         get_vertices = getattr(drawable, "get_vertices", None)
