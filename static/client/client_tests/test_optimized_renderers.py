@@ -68,7 +68,13 @@ class RecordingPrimitives(SimpleMock, RendererPrimitives):
         self.operations.append((op, args, kwargs))
 
     def stroke_line(self, start, end, stroke, *, include_width=True):
-        self._record("stroke_line", _normalize_point(start), _normalize_point(end), _serialize_stroke(stroke), include_width=include_width)
+        self._record(
+            "stroke_line",
+            _normalize_point(start),
+            _normalize_point(end),
+            _serialize_stroke(stroke),
+            include_width=include_width,
+        )
 
     def stroke_polyline(self, points, stroke):
         normalized = tuple(_normalize_point(pt) for pt in points)
@@ -115,7 +121,9 @@ class RecordingPrimitives(SimpleMock, RendererPrimitives):
         reverse_norm = tuple(_normalize_point(pt) for pt in reverse)
         self._record("fill_joined_area", forward_norm, reverse_norm, _serialize_fill(fill))
 
-    def stroke_arc(self, center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class=None, **kwargs):
+    def stroke_arc(
+        self, center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class=None, **kwargs
+    ):
         self._record(
             "stroke_arc",
             _normalize_point(center),
@@ -285,4 +293,3 @@ class TestOptimizedRendererParity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

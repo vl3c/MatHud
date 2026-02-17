@@ -61,7 +61,7 @@ def run_tests() -> int:
 
         # Handle -k for keyword filtering
         elif arg == "-k" and i + 1 < len(sys.argv):
-            extra_args.extend(["-k", sys.argv[i+1]])
+            extra_args.extend(["-k", sys.argv[i + 1]])
             i += 2
             continue
 
@@ -87,7 +87,7 @@ def run_tests() -> int:
 
     # Set test environment - disable authentication by default for testing
     if not with_auth:
-        os.environ['REQUIRE_AUTH'] = 'false'
+        os.environ["REQUIRE_AUTH"] = "false"
         print("Test mode: authentication disabled for testing")
     else:
         print("Test mode: authentication enabled (--with-auth)")
@@ -123,6 +123,7 @@ def run_tests() -> int:
     # Return the exit code
     return result.returncode
 
+
 def show_help() -> None:
     """Show help information about this script and pytest options.
 
@@ -141,6 +142,7 @@ def show_help() -> None:
     print("  --no-summary        Disable summary")
     print("  -q, --quiet         Decrease verbosity")
     print("\nFor more options: python run_server_tests.py -- --help")
+
 
 if __name__ == "__main__":
     sys.exit(run_tests())

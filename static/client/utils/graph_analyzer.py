@@ -62,7 +62,9 @@ class GraphAnalyzer:
         return None
 
     @staticmethod
-    def _resolve_root(state: GraphState, adjacency: Dict[str, set[str]], params: Optional[Dict[str, Any]]) -> Optional[str]:
+    def _resolve_root(
+        state: GraphState, adjacency: Dict[str, set[str]], params: Optional[Dict[str, Any]]
+    ) -> Optional[str]:
         """Resolve root from params or state, handling old internal ID format."""
         params = params or {}
         root = params.get("root") or getattr(state, "root", None)
@@ -194,7 +196,9 @@ class GraphAnalyzer:
             rooted = GraphUtils.root_tree(adjacency, root)
             if rooted is None:
                 adj_keys = list(adjacency.keys())[:5]
-                return {"error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"}
+                return {
+                    "error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"
+                }
             parent, children = rooted
             depths = GraphUtils.node_depths(root, adjacency) or {}
             lca_node = GraphUtils.lowest_common_ancestor(parent, depths, a, b)
@@ -207,7 +211,9 @@ class GraphAnalyzer:
             rooted = GraphUtils.root_tree(adjacency, root)
             if rooted is None:
                 adj_keys = list(adjacency.keys())[:5]
-                return {"error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"}
+                return {
+                    "error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"
+                }
             _, children = rooted
             balanced = GraphUtils.balance_children(root, children)
             return {"children": balanced}
@@ -219,7 +225,9 @@ class GraphAnalyzer:
             rooted = GraphUtils.root_tree(adjacency, root)
             if rooted is None:
                 adj_keys = list(adjacency.keys())[:5]
-                return {"error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"}
+                return {
+                    "error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"
+                }
             _, children = rooted
             inverted = GraphUtils.invert_children(children)
             return {"children": inverted}
@@ -232,7 +240,9 @@ class GraphAnalyzer:
             rooted = GraphUtils.root_tree(adjacency, root)
             if rooted is None:
                 adj_keys = list(adjacency.keys())[:5]
-                return {"error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"}
+                return {
+                    "error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"
+                }
             parent, children = rooted
             rerooted = GraphUtils.reroot_tree(parent, children, new_root)
             if rerooted is None:
@@ -263,11 +273,7 @@ class GraphAnalyzer:
             y = params.get("y")
             if x is None or y is None:
                 return {"error": "x and y coordinates are required for point_in_hull"}
-            positions = [
-                (float(v.x), float(v.y))
-                for v in state.vertices
-                if v.x is not None and v.y is not None
-            ]
+            positions = [(float(v.x), float(v.y)) for v in state.vertices if v.x is not None and v.y is not None]
             hull = GeometryUtils.convex_hull(positions)
             inside = GeometryUtils.point_in_convex_hull((float(x), float(y)), hull)
             # Convert tuples to lists for JSON serialization
@@ -301,6 +307,3 @@ class GraphAnalyzer:
             if name:
                 names.append(name)
         return names
-
-
-

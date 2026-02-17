@@ -99,8 +99,9 @@ def _compute_angle_label_params(vx, vy, p1y, clamped_radius, arc_radius, display
     return tx, ty, font, base_font_size, should_draw_label
 
 
-def _build_angle_metadata(angle_obj, arc_radius, clamped_radius, min_arm_length, min_arm_length_math,
-                          display_degrees, params, style):
+def _build_angle_metadata(
+    angle_obj, arc_radius, clamped_radius, min_arm_length, min_arm_length_math, display_degrees, params, style
+):
     """Build metadata dictionary for angle rendering debugging.
 
     Args:
@@ -202,9 +203,7 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
     except Exception:
         return
 
-    params = angle_obj._calculate_arc_parameters(
-        vx, vy, p1x, p1y, p2x, p2y, arc_radius=style.get("angle_arc_radius")
-    )
+    params = angle_obj._calculate_arc_parameters(vx, vy, p1x, p1y, p2x, p2y, arc_radius=style.get("angle_arc_radius"))
     if not params:
         return
 
@@ -244,12 +243,12 @@ def render_angle_helper(primitives, angle_obj, coordinate_mapper, style):
 
     css_class = "angle-arc" if hasattr(primitives, "_surface") else None
     angle_metadata = _build_angle_metadata(
-        angle_obj, arc_radius, clamped_radius, min_arm_length, min_arm_length_math,
-        display_degrees, params, style
+        angle_obj, arc_radius, clamped_radius, min_arm_length, min_arm_length_math, display_degrees, params, style
     )
 
-    _draw_angle_arc(primitives, vx, vy, clamped_radius, start_angle, end_angle, sweep_cw, stroke, css_class, angle_metadata)
+    _draw_angle_arc(
+        primitives, vx, vy, clamped_radius, start_angle, end_angle, sweep_cw, stroke, css_class, angle_metadata
+    )
 
     if should_draw_label:
         _draw_angle_label(primitives, tx, ty, display_degrees, font, color, angle_metadata)
-

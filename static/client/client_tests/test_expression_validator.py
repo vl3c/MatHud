@@ -43,7 +43,7 @@ class TestExpressionValidator(unittest.TestCase):
             "stdev([1, 2, 3, x])",
             "variance([1, 2, 3, x])",
             "random()",
-            "randint(1, 10)"
+            "randint(1, 10)",
         ]
         for expr in valid_expressions:
             with self.subTest(expr=expr):
@@ -54,7 +54,10 @@ class TestExpressionValidator(unittest.TestCase):
 
     def test_validate_expression_tree_invalid(self) -> None:
         invalid_expressions = [
-            "", " ", "\t", "\n",  # Empty or whitespace-only strings
+            "",
+            " ",
+            "\t",
+            "\n",  # Empty or whitespace-only strings
             "import os",  # Import statements
             "from os import system",  # From...import statements
             "__import__('os')",  # Disallowed function call
@@ -75,7 +78,7 @@ class TestExpressionValidator(unittest.TestCase):
             "sinhh(x)",
             "cossh(x)",
             "tanhh(x)",
-            "expp(1)"
+            "expp(1)",
         ]
         for expr in invalid_expressions:
             with self.subTest(expr=expr):
@@ -87,7 +90,7 @@ class TestExpressionValidator(unittest.TestCase):
         expressions = {
             "sin(pi/2)": math.sin(math.pi / 2),
             "sqrt(16)": 4,
-            "sqrt(-4)": '2i',
+            "sqrt(-4)": "2i",
             "log(e)": 1.0,
             "cos(pi)": math.cos(math.pi),
             "tan(pi/4)": math.tan(math.pi / 4),
@@ -106,18 +109,18 @@ class TestExpressionValidator(unittest.TestCase):
             "exp(1)": math.e,
             "abs(-5)": 5.0,
             "pow(2, 3)": 8,
-            "bin(10)": '0b1010',
+            "bin(10)": "0b1010",
             "det([[1, 2], [3, 4]])": -2.0,
             "arrangements(6, 3)": math.perm(6, 3),
             "permutations(5, 2)": math.perm(5, 2),
             "permutations(5)": math.factorial(5),
             "combinations(6, 3)": math.comb(6, 3),
-            "x": x
+            "x": x,
         }
         for expr, expected in expressions.items():
             with self.subTest(expr=expr):
                 evaluation_expr = expr
-                if '!' in expr:
+                if "!" in expr:
                     evaluation_expr = ExpressionValidator.fix_math_expression(expr, python_compatible=True)
                 result = ExpressionValidator.evaluate_expression(evaluation_expr, x=x)
                 if isinstance(expected, float):
@@ -136,8 +139,10 @@ class TestExpressionValidator(unittest.TestCase):
         for expr, expected in expressions_and_expected.items():
             with self.subTest(expr=expr):
                 fixed_expr = ExpressionValidator.fix_math_expression(expr, python_compatible=False)
-                self.assertAlmostEqual(eval(fixed_expr, {"sin": math.sin, "cos": math.cos, "tan": math.tan, "pi": math.pi}), \
-                                       eval(expected, {"sin": math.sin, "cos": math.cos, "tan": math.tan, "pi": math.pi}))
+                self.assertAlmostEqual(
+                    eval(fixed_expr, {"sin": math.sin, "cos": math.cos, "tan": math.tan, "pi": math.pi}),
+                    eval(expected, {"sin": math.sin, "cos": math.cos, "tan": math.tan, "pi": math.pi}),
+                )
 
     def test_fix_math_expression_python_compatibility(self) -> None:
         expressions_and_fixes = {
@@ -189,7 +194,7 @@ class TestExpressionValidator(unittest.TestCase):
             "exp(1)",
             "abs(-pi)",
             "pow(2, 3)",
-            "det([[1, 2], [3, 4]])"
+            "det([[1, 2], [3, 4]])",
         ]
         for element in function_elements:
             with self.subTest(element=element):
@@ -197,7 +202,9 @@ class TestExpressionValidator(unittest.TestCase):
                 # Test with a range of values
                 for x in range(-10, 11):
                     result = f(x)
-                    self.assertIsInstance(result, (int, float), f"Result of expression '{element}' for x={x} is not a number: {result}")
+                    self.assertIsInstance(
+                        result, (int, float), f"Result of expression '{element}' for x={x} is not a number: {result}"
+                    )
 
     def test_parse_function_string(self) -> None:
         expressions: Dict[str, Callable[[float], float]] = {
@@ -208,7 +215,9 @@ class TestExpressionValidator(unittest.TestCase):
             "sqrt(x)": math.sqrt,
             "exp(x)": math.exp,
             "tan(x)": math.tan,
-            "sin(pi/4) + cos(π/3) - tan(sqrt(16)) * log(e) / log10(100) + log2(8) * factorial(3) + asin(0.5) - acos(0.5) + atan(1) + sinh(1) - cosh(1) + tanh(0) + exp(1) - abs(-pi) + pow(2, 3)^2": lambda x: 82.09880526150872
+            "sin(pi/4) + cos(π/3) - tan(sqrt(16)) * log(e) / log10(100) + log2(8) * factorial(3) + asin(0.5) - acos(0.5) + atan(1) + sinh(1) - cosh(1) + tanh(0) + exp(1) - abs(-pi) + pow(2, 3)^2": lambda x: (
+                82.09880526150872
+            ),
         }
         for use_mathjs in [False, True]:
             for expr, expected_func in expressions.items():
@@ -227,12 +236,13 @@ class TestExpressionValidator(unittest.TestCase):
             ("(3!)!", "factorial((factorial(3)))"),
             ("((2+3)!)!", "factorial((factorial((2+3))))"),
             ("sin(x!) + (cos(y)!)", "sin(factorial(x))+(factorial(cos(y)))"),
-            ("((1+2)*(3+4))!", "factorial(((1+2)*(3+4)))")
+            ("((1+2)*(3+4))!", "factorial(((1+2)*(3+4)))"),
         ]
 
         for expression, expected in cases:
             for python_compatible in (True, False):
-                fixed_expression = ExpressionValidator.fix_math_expression(expression, python_compatible=python_compatible)
-                self.assertNotIn('!', fixed_expression)
-                self.assertEqual(fixed_expression.replace(' ', ''), expected)
-
+                fixed_expression = ExpressionValidator.fix_math_expression(
+                    expression, python_compatible=python_compatible
+                )
+                self.assertNotIn("!", fixed_expression)
+                self.assertEqual(fixed_expression.replace(" ", ""), expected)

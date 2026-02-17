@@ -37,6 +37,7 @@ class ComputationUtils:
     Provides static methods for managing computation history, detecting duplicates,
     and maintaining a record of mathematical calculations performed in the canvas.
     """
+
     @staticmethod
     def has_computation(computations: List[Dict[str, Any]], expression: str) -> bool:
         """
@@ -65,8 +66,5 @@ class ComputationUtils:
             list: Updated list of computations
         """
         if not ComputationUtils.has_computation(computations, expression):
-            computations.append({
-                "expression": expression,
-                "result": result
-            })
+            computations.append({"expression": expression, "result": result})
         return computations

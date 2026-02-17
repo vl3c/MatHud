@@ -269,9 +269,7 @@ def run_renderer_performance(
                 count_int = summary["count"]
                 avg_ms = summary.get("avg_ms")
                 if avg_ms is None:
-                    console.log(
-                        f"[RendererPerf] {phase_name}: total={total_ms:.2f} ms over {count_int} events"
-                    )
+                    console.log(f"[RendererPerf] {phase_name}: total={total_ms:.2f} ms over {count_int} events")
                 else:
                     console.log(
                         f"[RendererPerf] {phase_name}: avg={avg_ms:.2f} ms "
@@ -333,4 +331,3 @@ class TestRendererPerformance(unittest.TestCase):
 
         self.assertGreater(plan_apply_count, 0, "Optimized renderer did not apply any plans")
         self.assertEqual(plan_miss_count, 0, "Plan misses detected in optimized renderer")
-

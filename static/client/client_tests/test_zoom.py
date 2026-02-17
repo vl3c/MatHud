@@ -193,10 +193,9 @@ class TestZoomEdgeCases(unittest.TestCase):
         canvas.draw.assert_called_once()
         draw_args, draw_kwargs = canvas.draw.calls[0]
         self.assertEqual(draw_args, ())
-        self.assertEqual(draw_kwargs, {'apply_zoom': True})
+        self.assertEqual(draw_kwargs, {"apply_zoom": True})
 
     def test_zoom_returns_true(self) -> None:
         canvas = ZoomTestFixture.create_canvas(640, 480)
         result = canvas.zoom(center_x=0, center_y=0, range_val=5, range_axis="x")
         self.assertTrue(result)
-

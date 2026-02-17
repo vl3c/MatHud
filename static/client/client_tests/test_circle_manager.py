@@ -86,9 +86,7 @@ class TestCircleManager(unittest.TestCase):
     def test_update_circle_rejects_non_solitary_center(self) -> None:
         other_parent = object()
         circle = self._add_circle()
-        self.dependency_manager.get_parents = (
-            lambda obj: {circle, other_parent} if obj is circle.center else set()
-        )
+        self.dependency_manager.get_parents = lambda obj: {circle, other_parent} if obj is circle.center else set()
         self.dependency_manager.get_children = lambda obj: set()
 
         with self.assertRaises(ValueError):
@@ -97,12 +95,8 @@ class TestCircleManager(unittest.TestCase):
     def test_update_circle_rejects_center_with_other_child(self) -> None:
         other_child = object()
         circle = self._add_circle()
-        self.dependency_manager.get_parents = (
-            lambda obj: {circle} if obj is circle.center else set()
-        )
-        self.dependency_manager.get_children = (
-            lambda obj: {circle, other_child} if obj is circle.center else set()
-        )
+        self.dependency_manager.get_parents = lambda obj: {circle} if obj is circle.center else set()
+        self.dependency_manager.get_children = lambda obj: {circle, other_child} if obj is circle.center else set()
 
         with self.assertRaises(ValueError):
             self.circle_manager.update_circle("CircleA", new_center_x=5.0, new_center_y=6.0)

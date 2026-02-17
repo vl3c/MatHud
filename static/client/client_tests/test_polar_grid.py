@@ -20,7 +20,7 @@ class TestPolarGrid(unittest.TestCase):
             zoom_direction=0,
             offset=Position(0, 0),
             zoom_point=Position(0, 0),
-            zoom_step=0.1
+            zoom_step=0.1,
         )
 
         self.coordinate_mapper.sync_from_canvas(self.canvas)
@@ -100,7 +100,7 @@ class TestPolarGrid(unittest.TestCase):
         if len(circles) >= 2:
             spacing = circles[1] - circles[0]
             for i in range(2, len(circles)):
-                self.assertAlmostEqual(circles[i] - circles[i-1], spacing, places=6)
+                self.assertAlmostEqual(circles[i] - circles[i - 1], spacing, places=6)
 
     def test_get_state(self) -> None:
         self.polar_grid.angular_divisions = 8

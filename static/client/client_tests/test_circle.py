@@ -22,7 +22,7 @@ class TestCircle(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+            offset=Position(0, 0),  # Set to (0,0) for simpler tests
         )
 
         # Sync canvas state with coordinate mapper
@@ -38,7 +38,7 @@ class TestCircle(unittest.TestCase):
         self.assertEqual(self.circle.color, "blue")
 
     def test_get_class_name(self) -> None:
-        self.assertEqual(self.circle.get_class_name(), 'Circle')
+        self.assertEqual(self.circle.get_class_name(), "Circle")
 
     def test_calculate_circle_algebraic_formula(self) -> None:
         formula = self.circle._calculate_circle_algebraic_formula()
@@ -46,7 +46,10 @@ class TestCircle(unittest.TestCase):
 
     def test_get_state(self) -> None:
         state = self.circle.get_state()
-        expected_state = {"name": self.circle.name, "args": {"center": self.center.name, "radius": self.radius, "circle_formula": self.circle.circle_formula}}
+        expected_state = {
+            "name": self.circle.name,
+            "args": {"center": self.center.name, "radius": self.radius, "circle_formula": self.circle.circle_formula},
+        }
         self.assertEqual(state, expected_state)
 
     def test_deepcopy(self) -> None:

@@ -26,6 +26,7 @@ SimpleMock = SimpleNamespace
 
 class Position:
     """Simple Position class for testing."""
+
     def __init__(self, x: float = 0, y: float = 0):
         self.x = x
         self.y = y
@@ -76,13 +77,10 @@ class MockPolarGrid:
         if self.width is None or self.height is None:
             return 0
         ox, oy = self.origin_screen
-        corners = [
-            (0, 0), (self.width, 0),
-            (0, self.height), (self.width, self.height)
-        ]
+        corners = [(0, 0), (self.width, 0), (0, self.height), (self.width, self.height)]
         max_dist = 0
         for cx, cy in corners:
-            dist = math.sqrt((cx - ox)**2 + (cy - oy)**2)
+            dist = math.sqrt((cx - ox) ** 2 + (cy - oy) ** 2)
             max_dist = max(max_dist, dist)
         return max_dist * 1.1
 
@@ -240,7 +238,7 @@ class TestPolarGridDimensions(unittest.TestCase):
 
         max_radius = grid.max_radius_screen
         # Should be at least the diagonal from center to corner
-        expected_min = math.sqrt((400)**2 + (300)**2)
+        expected_min = math.sqrt((400) ** 2 + (300) ** 2)
         self.assertGreaterEqual(max_radius, expected_min)
 
     def test_max_radius_math_calculation(self) -> None:
@@ -350,7 +348,7 @@ class TestPolarGridRadialCalculations(unittest.TestCase):
         if len(circles) >= 2:
             spacing = circles[1] - circles[0]
             for i in range(2, len(circles)):
-                self.assertAlmostEqual(circles[i] - circles[i-1], spacing, places=6)
+                self.assertAlmostEqual(circles[i] - circles[i - 1], spacing, places=6)
 
 
 class TestPolarGridOrigin(unittest.TestCase):
@@ -371,10 +369,7 @@ class TestPolarGridOrigin(unittest.TestCase):
 
     def test_origin_screen_with_offset(self) -> None:
         """Test origin screen position with pan offset."""
-        mapper = create_mock_coordinate_mapper(
-            canvas_width=800, canvas_height=600,
-            offset_x=50, offset_y=-30
-        )
+        mapper = create_mock_coordinate_mapper(canvas_width=800, canvas_height=600, offset_x=50, offset_y=-30)
         grid = PolarGrid(mapper)
         grid.width = 800
         grid.height = 600
@@ -392,8 +387,9 @@ class TestPolarGridState(unittest.TestCase):
     def test_get_state(self) -> None:
         """Test state serialization."""
         mapper = create_mock_coordinate_mapper()
-        grid = PolarGrid(mapper, angular_divisions=8, radial_spacing=2.0,
-                        show_angle_labels=False, show_radius_labels=True)
+        grid = PolarGrid(
+            mapper, angular_divisions=8, radial_spacing=2.0, show_angle_labels=False, show_radius_labels=True
+        )
 
         state = grid.get_state()
 
@@ -528,8 +524,8 @@ class TestPolarGridEdgeCases(unittest.TestCase):
 
         max_radius = grid.max_radius_screen
         self.assertGreater(max_radius, 0)
-        self.assertLess(max_radius, float('inf'))
+        self.assertLess(max_radius, float("inf"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

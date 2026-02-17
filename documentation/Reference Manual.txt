@@ -316,6 +316,7 @@ Attributes:
 - `plot_distribution(name=None, representation="continuous", distribution_type="normal", distribution_params=None, plot_bounds=None, shade_bounds=None, curve_color=None, fill_color=None, fill_opacity=None, bar_count=None)`: Plot a probability distribution. For representation="continuous", `plot_bounds` controls the curve domain, while `shade_bounds` controls the shaded interval under the curve (clamped into `plot_bounds`). For representation="discrete", `plot_bounds` controls the bar span and `shade_bounds` is ignored. Discrete distribution plots create a `DiscretePlot` composite plus derived `Bar` drawables for rendering; derived bars are regenerated on workspace load and may be omitted from serialized canvas state to keep prompts compact.
 - `plot_bars(name=None, values=None, labels_below=None, labels_above=None, bar_spacing=None, bar_width=None, stroke_color=None, fill_color=None, fill_opacity=None, x_start=None, y_base=None)`: Plot a bar chart (`BarsPlot` composite plus derived `Bar` drawables). Derived bars are regenerated on workspace load and may be omitted from serialized canvas state to keep prompts compact.
 - `fit_regression(name=None, x_data=None, y_data=None, model_type="linear", degree=None, plot_bounds=None, curve_color=None, show_points=True, point_color=None)`: Fit a regression model to data and plot the resulting curve. Supported model types: "linear" (y=mx+b), "polynomial" (y=a0+a1*x+...+an*x^n, requires `degree`), "exponential" (y=a*e^(bx), requires positive y), "logarithmic" (y=a+b*ln(x), requires positive x), "power" (y=a*x^b, requires positive x and y), "logistic" (y=L/(1+e^(-k(x-x0)))), and "sinusoidal" (y=a*sin(bx+c)+d, requires at least 4 points). Returns function_name, expression, coefficients, r_squared, model_type, bounds, and optionally point_names. Use `delete_function` to remove the curve; delete points individually.
+- `compute_descriptive_statistics(data)`: Compute descriptive statistics for a list of numbers. Returns a dictionary with: count, mean, median, mode (list of values; empty if no meaningful mode), standard_deviation (population), variance (population), min, max, q1 (first quartile), q3 (third quartile), iqr (interquartile range), and range. Quartiles use the median-of-halves (exclusive) method. All values must be finite (no Infinity or NaN).
 - `delete_plot(name)`: Delete a plot composite created by plot_distribution/plot_bars, including its derived components.
 - `zoom_to_bounds(left_bound, right_bound, top_bound, bottom_bound)`: Fit the viewport so the specified math-space rectangle is entirely visible while preserving aspect ratio
 - `create_colored_area(drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3)`: Create a colored area between two objects
@@ -4507,6 +4508,27 @@ Key Features:
 
 ### Statistics Utilities
 
+#### Descriptive Statistics (`utils/statistics/descriptive.py`)
+
+```
+Descriptive statistics computation module.
+
+Key Features:
+    - Mean, median, mode computation
+    - Population standard deviation and variance
+    - Min, max, range
+    - Quartiles (Q1, Q3) via median-of-halves (exclusive) method
+    - Interquartile range (IQR)
+    - Input validation (non-empty, finite, numeric)
+    - No browser imports — fully testable with pytest
+```
+
+**Key Functions:**
+- `compute_descriptive_statistics(data)`: Compute all descriptive statistics for a list of numbers. Returns a `DescriptiveStatisticsResult` TypedDict with count, mean, median, mode, standard_deviation, variance, min, max, q1, q3, iqr, and range.
+
+**Key Types:**
+- `DescriptiveStatisticsResult(TypedDict)`: Result dict with fields: `count` (int), `mean` (float), `median` (float), `mode` (List[float]), `standard_deviation` (float), `variance` (float), `min` (float), `max` (float), `q1` (float), `q3` (float), `iqr` (float), `range` (float).
+
 #### Distribution Expressions (`utils/statistics/distributions.py`)
 
 ```
@@ -4545,13 +4567,14 @@ Key Features:
 #### Statistics Manager (`managers/statistics_manager.py`)
 
 ```
-Statistics manager for probability distributions and regression plots.
+Statistics manager for probability distributions, regression plots, and descriptive statistics.
 
 Key Features:
     - Continuous distribution plots with PDF curves and shaded areas
     - Discrete distribution plots using bar elements
     - Custom bar chart creation with values and labels
     - Regression fitting (linear, polynomial, exponential, etc.)
+    - Descriptive statistics computation (mean, median, mode, std dev, quartiles, etc.)
     - Plot deletion with proper cleanup of constituent drawables
     - Workspace restore via plot materialization methods
 ```
@@ -4560,6 +4583,7 @@ Key Features:
 - `plot_distribution(name, representation, distribution_type, ...)`: Create continuous or discrete distribution plots
 - `plot_bars(name, values, labels_below, labels_above, ...)`: Create custom bar charts
 - `fit_regression(name, x_data, y_data, model_type, ...)`: Fit regression models to data
+- `compute_descriptive_statistics(data)`: Compute summary statistics (count, mean, median, mode, std dev, variance, min, max, Q1, Q3, IQR, range)
 - `delete_plot(name)`: Delete a plot and all its constituent drawables
 
 **Supported Regression Model Types:**

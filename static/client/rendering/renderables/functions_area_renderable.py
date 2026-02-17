@@ -15,7 +15,7 @@ class FunctionsBoundedAreaRenderable:
         self.mapper: Any = coordinate_mapper
 
     def _is_function_like(self, f: Any) -> bool:
-        return hasattr(f, 'function')
+        return hasattr(f, "function")
 
     def _eval_y_math(self, f: Any, x_math: float) -> Optional[float]:
         if f is None:
@@ -29,7 +29,7 @@ class FunctionsBoundedAreaRenderable:
                     return None
                 if not isinstance(y, (int, float)):
                     return None
-                if isinstance(y, float) and (y != y or abs(y) == float('inf')):
+                if isinstance(y, float) and (y != y or abs(y) == float("inf")):
                     return None
                 return y
             except Exception:
@@ -44,12 +44,17 @@ class FunctionsBoundedAreaRenderable:
         except Exception:
             left, right = -10, 10
         for f in (self.area.func1, self.area.func2):
-            if hasattr(f, 'left_bound') and hasattr(f, 'right_bound') and f.left_bound is not None and f.right_bound is not None:
+            if (
+                hasattr(f, "left_bound")
+                and hasattr(f, "right_bound")
+                and f.left_bound is not None
+                and f.right_bound is not None
+            ):
                 left = max(left, f.left_bound)
                 right = min(right, f.right_bound)
-        if getattr(self.area, 'left_bound', None) is not None:
+        if getattr(self.area, "left_bound", None) is not None:
             left = max(left, self.area.left_bound)
-        if getattr(self.area, 'right_bound', None) is not None:
+        if getattr(self.area, "right_bound", None) is not None:
             right = min(right, self.area.right_bound)
         try:
             vis_left: float = self.mapper.get_visible_left_bound()
@@ -63,7 +68,9 @@ class FunctionsBoundedAreaRenderable:
             left, right = c - 0.1, c + 0.1
         return left, right
 
-    def _generate_pair_paths_screen(self, f1: Any, f2: Any, left: float, right: float, num_points: int) -> Tuple[List[Tuple[float, float]], List[Tuple[float, float]]]:
+    def _generate_pair_paths_screen(
+        self, f1: Any, f2: Any, left: float, right: float, num_points: int
+    ) -> Tuple[List[Tuple[float, float]], List[Tuple[float, float]]]:
         if num_points < 2:
             num_points = 2
         dx: float = (right - left) / (num_points - 1) if num_points > 1 else 1.0
@@ -110,7 +117,7 @@ class FunctionsBoundedAreaRenderable:
         left: float
         right: float
         left, right = self._get_bounds()
-        n: int = num_points if num_points is not None else getattr(self.area, 'num_sample_points', 100)
+        n: int = num_points if num_points is not None else getattr(self.area, "num_sample_points", 100)
         fwd: List[Tuple[float, float]]
         rev: List[Tuple[float, float]]
         fwd, rev = self._generate_pair_paths_screen(self.area.func1, self.area.func2, left, right, n)
@@ -123,4 +130,3 @@ class FunctionsBoundedAreaRenderable:
             color=getattr(self.area, "color", None),
             opacity=getattr(self.area, "opacity", None),
         )
-

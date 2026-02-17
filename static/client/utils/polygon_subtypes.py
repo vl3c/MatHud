@@ -60,4 +60,3 @@ class QuadrilateralSubtype(_BaseSubtype):
 
 
 __all__ = ["TriangleSubtype", "QuadrilateralSubtype"]
-

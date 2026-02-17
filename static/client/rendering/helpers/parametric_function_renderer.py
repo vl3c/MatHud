@@ -108,10 +108,7 @@ def _render_parametric_label(primitives, func, screen_paths, stroke, style):
     first_point = screen_paths[0][0]
     label_offset_x = (1 + len(func.name)) * font_size / 2.0
     position = (first_point[0] - label_offset_x, max(first_point[1], font_size))
-    font_family = style.get(
-        "function_label_font_family",
-        style.get("font_family", default_font_family)
-    )
+    font_family = style.get("function_label_font_family", style.get("font_family", default_font_family))
     font = FontStyle(family=font_family, size=font_size)
     primitives.draw_text(
         func.name,

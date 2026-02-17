@@ -230,7 +230,9 @@ class RecordingCanvasContext:
     def arc(self, x: float, y: float, radius: float, start: float, end: float, anticlockwise: bool = False) -> None:
         self.log.append(("arc", x, y, radius, start, end, anticlockwise))
 
-    def ellipse(self, x: float, y: float, radius_x: float, radius_y: float, rotation: float, start: float, end: float) -> None:
+    def ellipse(
+        self, x: float, y: float, radius_x: float, radius_y: float, rotation: float, start: float, end: float
+    ) -> None:
         self.log.append(("ellipse", x, y, radius_x, radius_y, rotation, start, end))
 
     def closePath(self) -> None:
@@ -399,7 +401,9 @@ class RecordingPrimitives(RendererPrimitives):
     def fill_circle(self, center: Point2D, radius: float, fill: Any, stroke: Optional[Any] = None) -> None:
         raise AssertionError("Unexpected fill_circle call")
 
-    def stroke_ellipse(self, center: Point2D, radius_x: float, radius_y: float, rotation_rad: float, stroke: Any) -> None:
+    def stroke_ellipse(
+        self, center: Point2D, radius_x: float, radius_y: float, rotation_rad: float, stroke: Any
+    ) -> None:
         raise AssertionError("Unexpected stroke_ellipse call")
 
     def fill_polygon(self, points: List[Point2D], fill: Any, stroke: Optional[Any] = None) -> None:
@@ -503,10 +507,12 @@ class TestRendererPrimitives(unittest.TestCase):
 
         renderer = SvgRenderer()
 
-        with unittest.mock.patch("rendering.svg_renderer.svg", mock_svg), \
-                unittest.mock.patch("rendering.svg_renderer.document", mock_document), \
-                unittest.mock.patch("rendering.svg_primitive_adapter.svg", mock_svg), \
-                unittest.mock.patch("rendering.svg_primitive_adapter.document", mock_document):
+        with (
+            unittest.mock.patch("rendering.svg_renderer.svg", mock_svg),
+            unittest.mock.patch("rendering.svg_renderer.document", mock_document),
+            unittest.mock.patch("rendering.svg_primitive_adapter.svg", mock_svg),
+            unittest.mock.patch("rendering.svg_primitive_adapter.document", mock_document),
+        ):
             renderer._shared_primitives = SvgPrimitiveAdapter("math-svg")
             renderer._render_point(self.point_a, self.mapper)
             renderer._render_segment(self.segment_ab, self.mapper)
@@ -585,10 +591,12 @@ class TestRendererPrimitives(unittest.TestCase):
         mock_svg, mock_document = reset_svg_environment(svg_log)
         svg_renderer = SvgRenderer()
 
-        with unittest.mock.patch("rendering.svg_renderer.svg", mock_svg), \
-                unittest.mock.patch("rendering.svg_renderer.document", mock_document), \
-                unittest.mock.patch("rendering.svg_primitive_adapter.svg", mock_svg), \
-                unittest.mock.patch("rendering.svg_primitive_adapter.document", mock_document):
+        with (
+            unittest.mock.patch("rendering.svg_renderer.svg", mock_svg),
+            unittest.mock.patch("rendering.svg_renderer.document", mock_document),
+            unittest.mock.patch("rendering.svg_primitive_adapter.svg", mock_svg),
+            unittest.mock.patch("rendering.svg_primitive_adapter.document", mock_document),
+        ):
             svg_renderer._shared_primitives = SvgPrimitiveAdapter("math-svg")
             svg_renderer._render_point(self.point_a, self.mapper)
             svg_renderer._render_segment(self.segment_ab, self.mapper)
@@ -601,8 +609,9 @@ class TestRendererPrimitives(unittest.TestCase):
         svg_has_point_label = any(text and text.startswith("A(") for text in svg_text_entries)
         svg_has_function_label = "f" in svg_text_entries
         svg_tree = serialize_svg_tree(mock_document.surface)
-        svg_has_angle_arc = svg_tree_contains(svg_tree, "path", "class", "angle-arc") or \
-            svg_tree_contains(svg_tree, "path", "stroke", self.angle_abc.color)
+        svg_has_angle_arc = svg_tree_contains(svg_tree, "path", "class", "angle-arc") or svg_tree_contains(
+            svg_tree, "path", "stroke", self.angle_abc.color
+        )
 
         canvas_renderer = Canvas2DRenderer()
         mock_canvas = MockCanvasElement()
@@ -615,7 +624,9 @@ class TestRendererPrimitives(unittest.TestCase):
         canvas_renderer._render_function(self.function, self.mapper)
 
         text_operations = [entry for entry in ctx.log if entry[0] == "fillText"]
-        canvas_has_point_label = any(isinstance(entry[1], str) and entry[1].startswith("A(") for entry in text_operations)
+        canvas_has_point_label = any(
+            isinstance(entry[1], str) and entry[1].startswith("A(") for entry in text_operations
+        )
         canvas_has_function_label = any(entry[1] == "f" for entry in text_operations)
         # Isolate the angle signal on a fresh canvas log so point/circle arcs
         # cannot mask angle rendering regressions.
@@ -708,4 +719,3 @@ class TestRendererPrimitives(unittest.TestCase):
         self.assertTrue(line_ops, "vector helper should draw the segment body")
         tip_calls = [entry for entry in mock_renderer.log if entry[0] == "line_strip"]
         self.assertTrue(tip_calls, "vector helper should approximate arrowhead with line strip fallback")
-

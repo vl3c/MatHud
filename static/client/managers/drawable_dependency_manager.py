@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from managers.drawable_manager_proxy import DrawableManagerProxy
     from canvas import Canvas
 
+
 class DrawableDependencyManager:
     """
     Manages dependencies between drawable objects to maintain hierarchical structure.
@@ -71,7 +72,7 @@ class DrawableDependencyManager:
         debug_logging: bool = False,
     ) -> None:
         """Initialize the dependency manager"""
-        self.drawable_manager: Optional["DrawableManagerProxy"] = drawable_manager_proxy # Store the proxy
+        self.drawable_manager: Optional["DrawableManagerProxy"] = drawable_manager_proxy  # Store the proxy
         self._debug_logging: bool = bool(debug_logging)
         # Re-add internal state maps needed by other methods
         self._parents: Dict[int, Set[int]] = {}
@@ -79,33 +80,33 @@ class DrawableDependencyManager:
         self._object_lookup: Dict[int, "Drawable"] = {}
         # Type hierarchy - which types depend on which other types
         self._type_hierarchy: Dict[str, List[str]] = {
-            'Point': [],
-            'Segment': ['Point'],
-            'Vector': ['Segment'],
-            'Triangle': ['Segment', 'Point'],
-            'Rectangle': ['Segment', 'Point'],
-            'Quadrilateral': ['Segment', 'Point'],
-            'Pentagon': ['Segment', 'Point'],
-            'Hexagon': ['Segment', 'Point'],
-            'Heptagon': ['Segment', 'Point'],
-            'Octagon': ['Segment', 'Point'],
-            'Nonagon': ['Segment', 'Point'],
-            'Decagon': ['Segment', 'Point'],
-            'GenericPolygon': ['Segment', 'Point'],
-            'Circle': ['Point'],
-            'Ellipse': ['Point'],
-            'Angle': ['Segment', 'Point'],
-            'CircleArc': ['Point', 'Circle'],
-            'Function': [],
-            'ColoredArea': ['Function', 'Segment'],
-            'SegmentsBoundedColoredArea': ['Segment'],
-            'FunctionSegmentBoundedColoredArea': ['Function', 'Segment'],
-            'FunctionsBoundedColoredArea': ['Function'],
-            'ClosedShapeColoredArea': ['Segment', 'Circle', 'Ellipse'],
-            'Graph': ['Segment', 'Vector', 'Point'],
-            'DirectedGraph': ['Vector', 'Point'],
-            'UndirectedGraph': ['Segment', 'Point'],
-            'Tree': ['Segment', 'Point'],
+            "Point": [],
+            "Segment": ["Point"],
+            "Vector": ["Segment"],
+            "Triangle": ["Segment", "Point"],
+            "Rectangle": ["Segment", "Point"],
+            "Quadrilateral": ["Segment", "Point"],
+            "Pentagon": ["Segment", "Point"],
+            "Hexagon": ["Segment", "Point"],
+            "Heptagon": ["Segment", "Point"],
+            "Octagon": ["Segment", "Point"],
+            "Nonagon": ["Segment", "Point"],
+            "Decagon": ["Segment", "Point"],
+            "GenericPolygon": ["Segment", "Point"],
+            "Circle": ["Point"],
+            "Ellipse": ["Point"],
+            "Angle": ["Segment", "Point"],
+            "CircleArc": ["Point", "Circle"],
+            "Function": [],
+            "ColoredArea": ["Function", "Segment"],
+            "SegmentsBoundedColoredArea": ["Segment"],
+            "FunctionSegmentBoundedColoredArea": ["Function", "Segment"],
+            "FunctionsBoundedColoredArea": ["Function"],
+            "ClosedShapeColoredArea": ["Segment", "Circle", "Ellipse"],
+            "Graph": ["Segment", "Vector", "Point"],
+            "DirectedGraph": ["Vector", "Point"],
+            "UndirectedGraph": ["Segment", "Point"],
+            "Tree": ["Segment", "Point"],
         }
 
     def _describe_drawable(self, drawable: Optional["Drawable"]) -> str:
@@ -139,14 +140,14 @@ class DrawableDependencyManager:
     def _should_skip_point_point_dependency(self, child: "Drawable", parent: "Drawable") -> bool:
         """Check if a dependency registration should be skipped (e.g., Point as child of Point)."""
         is_child_point = (
-            hasattr(child, 'get_class_name')
-            and callable(getattr(child, 'get_class_name', None))
-            and child.get_class_name() == 'Point'
+            hasattr(child, "get_class_name")
+            and callable(getattr(child, "get_class_name", None))
+            and child.get_class_name() == "Point"
         )
         is_parent_point = (
-            hasattr(parent, 'get_class_name')
-            and callable(getattr(parent, 'get_class_name', None))
-            and parent.get_class_name() == 'Point'
+            hasattr(parent, "get_class_name")
+            and callable(getattr(parent, "get_class_name", None))
+            and parent.get_class_name() == "Point"
         )
         return is_child_point and is_parent_point
 
@@ -161,8 +162,8 @@ class DrawableDependencyManager:
         if child is None or parent is None:
             return
 
-        child_getter = getattr(child, 'get_class_name', None)
-        parent_getter = getattr(parent, 'get_class_name', None)
+        child_getter = getattr(child, "get_class_name", None)
+        parent_getter = getattr(parent, "get_class_name", None)
         if not callable(child_getter) or not callable(parent_getter):
             return
 
@@ -234,7 +235,7 @@ class DrawableDependencyManager:
             obj: The object to verify
             obj_type_name: A string indicating the type of object (e.g., "Child", "Parent")
         """
-        if not hasattr(obj, 'get_class_name'):
+        if not hasattr(obj, "get_class_name"):
             print(f"WARNING: {obj_type_name} {obj} is missing get_class_name method")
             # If missing, let's make sure we can still identify the object
             print(f"{obj_type_name} object type: {type(obj)}")
@@ -264,7 +265,7 @@ class DrawableDependencyManager:
         dependency = getattr(drawable, attr_name)
         if require_truthy and not dependency:
             return
-        if require_get_class_name and not hasattr(dependency, 'get_class_name'):
+        if require_get_class_name and not hasattr(dependency, "get_class_name"):
             return
         self._append_and_register_dependency(drawable, dependency, dependencies)
 
@@ -292,7 +293,7 @@ class DrawableDependencyManager:
     ) -> None:
         """Append/register segment1..segmentN dependencies when present."""
         for i in range(1, count + 1):
-            self._append_attr_dependency_if_present(drawable, f'segment{i}', dependencies)
+            self._append_attr_dependency_if_present(drawable, f"segment{i}", dependencies)
 
     def get_parents(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
@@ -309,7 +310,11 @@ class DrawableDependencyManager:
             return set()
 
         drawable_id = id(drawable)
-        return {self._object_lookup[parent_id] for parent_id in self._parents.get(drawable_id, set()) if parent_id in self._object_lookup}
+        return {
+            self._object_lookup[parent_id]
+            for parent_id in self._parents.get(drawable_id, set())
+            if parent_id in self._object_lookup
+        }
 
     def get_children(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
@@ -326,7 +331,11 @@ class DrawableDependencyManager:
             return set()
 
         drawable_id = id(drawable)
-        return {self._object_lookup[child_id] for child_id in self._children.get(drawable_id, set()) if child_id in self._object_lookup}
+        return {
+            self._object_lookup[child_id]
+            for child_id in self._children.get(drawable_id, set())
+            if child_id in self._object_lookup
+        }
 
     def get_all_parents(self, drawable: Optional["Drawable"]) -> Set["Drawable"]:
         """
@@ -395,7 +404,7 @@ class DrawableDependencyManager:
             drawable: The drawable to remove
         """
         drawable_id = id(drawable)
-        drawable_class = drawable.get_class_name() if hasattr(drawable, 'get_class_name') else ""
+        drawable_class = drawable.get_class_name() if hasattr(drawable, "get_class_name") else ""
 
         # Notify children (e.g., graphs) to remove references to this drawable
         for child_id in self._children.get(drawable_id, set()).copy():
@@ -423,17 +432,16 @@ class DrawableDependencyManager:
 
     def _notify_child_of_parent_removal(self, child: "Drawable", parent: "Drawable", parent_class: str) -> None:
         """Notify a child drawable that one of its parents has been removed."""
-        child_class = child.get_class_name() if hasattr(child, 'get_class_name') else ""
+        child_class = child.get_class_name() if hasattr(child, "get_class_name") else ""
 
         # Handle graph types - remove the reference from internal lists
-        if child_class in ('Graph', 'DirectedGraph', 'UndirectedGraph', 'Tree'):
-            if parent_class == 'Segment' and hasattr(child, 'remove_segment'):
+        if child_class in ("Graph", "DirectedGraph", "UndirectedGraph", "Tree"):
+            if parent_class == "Segment" and hasattr(child, "remove_segment"):
                 child.remove_segment(parent)
-            elif parent_class == 'Vector' and hasattr(child, 'remove_vector'):
+            elif parent_class == "Vector" and hasattr(child, "remove_vector"):
                 child.remove_vector(parent)
-            elif parent_class == 'Point' and hasattr(child, 'remove_point'):
+            elif parent_class == "Point" and hasattr(child, "remove_point"):
                 child.remove_point(parent)
-
 
     def analyze_drawable_for_dependencies(self, drawable: "Drawable") -> List["Drawable"]:
         """
@@ -451,120 +459,117 @@ class DrawableDependencyManager:
         self._verify_get_class_name_method(drawable, "Drawable")
 
         # Get class name safely
-        if not hasattr(drawable, 'get_class_name'):
+        if not hasattr(drawable, "get_class_name"):
             print(f"Cannot analyze dependencies for {drawable} without get_class_name method")
             return dependencies
 
         class_name = drawable.get_class_name()
 
         # Handle different drawable types
-        if class_name == 'Point':
+        if class_name == "Point":
             # Points don't have dependencies
             pass
 
-        elif class_name == 'Segment':
-            self._append_attr_dependency_if_present(drawable, 'point1', dependencies)
-            self._append_attr_dependency_if_present(drawable, 'point2', dependencies)
+        elif class_name == "Segment":
+            self._append_attr_dependency_if_present(drawable, "point1", dependencies)
+            self._append_attr_dependency_if_present(drawable, "point2", dependencies)
 
-        elif class_name == 'Vector':
-            self._append_attr_dependency_if_present(drawable, 'segment', dependencies)
+        elif class_name == "Vector":
+            self._append_attr_dependency_if_present(drawable, "segment", dependencies)
 
-        elif class_name == 'Triangle':
+        elif class_name == "Triangle":
             self._append_segment_attrs(drawable, dependencies, count=3)
 
-        elif class_name == 'Rectangle':
+        elif class_name == "Rectangle":
             self._append_segment_attrs(drawable, dependencies, count=4)
 
-        elif class_name == 'Quadrilateral':
+        elif class_name == "Quadrilateral":
             self._append_segment_attrs(drawable, dependencies, count=4)
 
-        elif class_name in ('Pentagon', 'Hexagon', 'Heptagon', 'Octagon',
-                            'Nonagon', 'Decagon', 'GenericPolygon'):
-            self._append_iterable_attr_dependencies(
-                drawable, '_segments', dependencies, require_truthy=True
-            )
+        elif class_name in ("Pentagon", "Hexagon", "Heptagon", "Octagon", "Nonagon", "Decagon", "GenericPolygon"):
+            self._append_iterable_attr_dependencies(drawable, "_segments", dependencies, require_truthy=True)
 
-        elif class_name == 'Circle':
-            self._append_attr_dependency_if_present(drawable, 'center', dependencies)
+        elif class_name == "Circle":
+            self._append_attr_dependency_if_present(drawable, "center", dependencies)
 
-        elif class_name == 'Ellipse':
-            self._append_attr_dependency_if_present(drawable, 'center', dependencies)
+        elif class_name == "Ellipse":
+            self._append_attr_dependency_if_present(drawable, "center", dependencies)
 
-        elif class_name == 'Function':
+        elif class_name == "Function":
             # Functions typically don't have drawable dependencies
             pass
 
-        elif class_name == 'SegmentsBoundedColoredArea':
-            self._append_attr_dependency_if_present(drawable, 'segment1', dependencies, require_truthy=True)
-            self._append_attr_dependency_if_present(drawable, 'segment2', dependencies, require_truthy=True)
+        elif class_name == "SegmentsBoundedColoredArea":
+            self._append_attr_dependency_if_present(drawable, "segment1", dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, "segment2", dependencies, require_truthy=True)
 
-        elif class_name == 'FunctionSegmentBoundedColoredArea':
+        elif class_name == "FunctionSegmentBoundedColoredArea":
             self._append_attr_dependency_if_present(
                 drawable,
-                'func',
+                "func",
                 dependencies,
                 require_truthy=True,
                 require_get_class_name=True,
             )
-            self._append_attr_dependency_if_present(drawable, 'segment', dependencies)
+            self._append_attr_dependency_if_present(drawable, "segment", dependencies)
 
-        elif class_name == 'FunctionsBoundedColoredArea':
+        elif class_name == "FunctionsBoundedColoredArea":
             self._append_attr_dependency_if_present(
                 drawable,
-                'func1',
+                "func1",
                 dependencies,
                 require_truthy=True,
                 require_get_class_name=True,
             )
             self._append_attr_dependency_if_present(
                 drawable,
-                'func2',
+                "func2",
                 dependencies,
                 require_truthy=True,
                 require_get_class_name=True,
             )
 
-        elif class_name == 'Angle':
+        elif class_name == "Angle":
             # Angles depend on their constituent segments and points
-            self._append_attr_dependency_if_present(drawable, 'segment1', dependencies, require_truthy=True)
-            self._append_attr_dependency_if_present(drawable, 'segment2', dependencies, require_truthy=True)
-            self._append_attr_dependency_if_present(drawable, 'vertex_point', dependencies, require_truthy=True)
-            self._append_attr_dependency_if_present(drawable, 'arm1_point', dependencies, require_truthy=True)
-            self._append_attr_dependency_if_present(drawable, 'arm2_point', dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, "segment1", dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, "segment2", dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, "vertex_point", dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, "arm1_point", dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, "arm2_point", dependencies, require_truthy=True)
 
-        elif class_name == 'CircleArc':
-            self._append_attr_dependency_if_present(drawable, 'point1', dependencies, require_truthy=True)
-            self._append_attr_dependency_if_present(drawable, 'point2', dependencies, require_truthy=True)
-            self._append_attr_dependency_if_present(drawable, 'circle', dependencies, require_truthy=True)
+        elif class_name == "CircleArc":
+            self._append_attr_dependency_if_present(drawable, "point1", dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, "point2", dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, "circle", dependencies, require_truthy=True)
 
-        elif class_name == 'ClosedShapeColoredArea':
-            self._append_iterable_attr_dependencies(drawable, 'segments', dependencies, require_truthy=True)
-            self._append_attr_dependency_if_present(drawable, 'circle', dependencies, require_truthy=True)
-            self._append_attr_dependency_if_present(drawable, 'ellipse', dependencies, require_truthy=True)
-            self._append_attr_dependency_if_present(drawable, 'chord_segment', dependencies, require_truthy=True)
+        elif class_name == "ClosedShapeColoredArea":
+            self._append_iterable_attr_dependencies(drawable, "segments", dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, "circle", dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, "ellipse", dependencies, require_truthy=True)
+            self._append_attr_dependency_if_present(drawable, "chord_segment", dependencies, require_truthy=True)
 
-        elif class_name == 'ColoredArea':
+        elif class_name == "ColoredArea":
             # Base ColoredArea type
-            self._append_attr_dependency_if_present(drawable, 'function', dependencies)
-            self._append_iterable_attr_dependencies(drawable, 'segments', dependencies)
+            self._append_attr_dependency_if_present(drawable, "function", dependencies)
+            self._append_iterable_attr_dependencies(drawable, "segments", dependencies)
 
-        elif class_name.endswith('ColoredArea'):
+        elif class_name.endswith("ColoredArea"):
             # Generic case for other ColoredArea types
-            self._append_attr_dependency_if_present(drawable, 'function', dependencies)
-            self._append_iterable_attr_dependencies(drawable, 'segments', dependencies)
+            self._append_attr_dependency_if_present(drawable, "function", dependencies)
+            self._append_iterable_attr_dependencies(drawable, "segments", dependencies)
 
-        elif class_name in ('Graph', 'DirectedGraph', 'UndirectedGraph', 'Tree'):
+        elif class_name in ("Graph", "DirectedGraph", "UndirectedGraph", "Tree"):
             # Graphs depend on their segments, vectors, and isolated points
-            self._append_iterable_attr_dependencies(drawable, '_segments', dependencies, require_truthy=True)
-            self._append_iterable_attr_dependencies(drawable, '_vectors', dependencies, require_truthy=True)
-            self._append_iterable_attr_dependencies(drawable, '_isolated_points', dependencies, require_truthy=True)
+            self._append_iterable_attr_dependencies(drawable, "_segments", dependencies, require_truthy=True)
+            self._append_iterable_attr_dependencies(drawable, "_vectors", dependencies, require_truthy=True)
+            self._append_iterable_attr_dependencies(drawable, "_isolated_points", dependencies, require_truthy=True)
 
         return dependencies
 
     def _find_segment_children(self, segment: Optional["Drawable"]) -> List["Drawable"]:
         """Finds children geometrically by iterating through all segments."""
         # Safety check for segment and its points
-        if not segment or not hasattr(segment, 'point1') or not hasattr(segment, 'point2'):
+        if not segment or not hasattr(segment, "point1") or not hasattr(segment, "point2"):
             return []
 
         # Safety check for points
@@ -581,7 +586,7 @@ class DrawableDependencyManager:
             for s in all_segments:
                 if s == segment:
                     continue
-                if not hasattr(s, 'point1') or not hasattr(s, 'point2'): # Safety check
+                if not hasattr(s, "point1") or not hasattr(s, "point2"):  # Safety check
                     continue
                 if not s.point1 or not s.point2:
                     continue
@@ -589,8 +594,9 @@ class DrawableDependencyManager:
                 p1x, p1y = s.point1.x, s.point1.y
                 p2x, p2y = s.point2.x, s.point2.y
                 # Check if s is geometrically within segment
-                if MathUtils.is_point_on_segment(p1x, p1y, sp1x, sp1y, sp2x, sp2y) and \
-                   MathUtils.is_point_on_segment(p2x, p2y, sp1x, sp1y, sp2x, sp2y):
+                if MathUtils.is_point_on_segment(p1x, p1y, sp1x, sp1y, sp2x, sp2y) and MathUtils.is_point_on_segment(
+                    p2x, p2y, sp1x, sp1y, sp2x, sp2y
+                ):
                     children.append(s)
         return children
 

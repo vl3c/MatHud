@@ -697,10 +697,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
             is_joined_area,
         )
         batch = getattr(self, "_polygon_batch", None)
-        if (
-            batch is None
-            or batch["signature"] != signature
-        ):
+        if batch is None or batch["signature"] != signature:
             self._flush_polygon_batch()
             self._polygon_batch = {
                 "fill": fill,
@@ -765,4 +762,3 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
                 self._record_event("stroke_calls")
         self._polygon_batch = None
         self._reset_alpha_if_needed()
-

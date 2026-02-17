@@ -196,6 +196,7 @@ class TestPiecewiseFunction(unittest.TestCase):
         pf = PiecewiseFunction(pieces, name="f")
 
         import copy
+
         pf_copy = copy.deepcopy(pf)
 
         self.assertEqual(pf_copy.name, "f")
@@ -374,7 +375,14 @@ class TestPiecewiseFunctionUndefinedAt(unittest.TestCase):
 
     def test_piecewise_function_with_undefined_at(self) -> None:
         pieces = [
-            {"expression": "2", "left": None, "right": None, "left_inclusive": True, "right_inclusive": True, "undefined_at": [0]},
+            {
+                "expression": "2",
+                "left": None,
+                "right": None,
+                "left_inclusive": True,
+                "right_inclusive": True,
+                "undefined_at": [0],
+            },
         ]
         pf = PiecewiseFunction(pieces, name="f_with_hole")
 
@@ -443,7 +451,13 @@ class TestPiecewiseFunctionEdgeCases(unittest.TestCase):
 
     def test_invalid_expression_raises_error(self) -> None:
         pieces = [
-            {"expression": "invalid_function(x)", "left": None, "right": None, "left_inclusive": True, "right_inclusive": True},
+            {
+                "expression": "invalid_function(x)",
+                "left": None,
+                "right": None,
+                "left_inclusive": True,
+                "right_inclusive": True,
+            },
         ]
         with self.assertRaises(ValueError):
             PiecewiseFunction(pieces, name="f")
@@ -475,4 +489,3 @@ __all__ = [
     "TestPiecewiseFunctionUndefinedAt",
     "TestPiecewiseFunctionEdgeCases",
 ]
-

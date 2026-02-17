@@ -91,17 +91,20 @@ class MockCanvas:
 
     def get_drawables(self) -> List[Dict[str, Any]]:
         """Get all drawable objects on the canvas."""
-        return cast(List[Dict[str, Any]], (
-            self.points +
-            self.segments +
-            self.circles +
-            self.rectangles +
-            self.triangles +
-            self.ellipses +
-            self.functions +
-            self.vectors +
-            self.polygons
-        ))
+        return cast(
+            List[Dict[str, Any]],
+            (
+                self.points
+                + self.segments
+                + self.circles
+                + self.rectangles
+                + self.triangles
+                + self.ellipses
+                + self.functions
+                + self.vectors
+                + self.polygons
+            ),
+        )
 
     def get_drawables_by_class_name(self, class_name: str) -> List[Dict[str, Any]]:
         """Get drawables of a specific class."""
@@ -113,7 +116,7 @@ class MockCanvas:
             "Triangle": self.triangles,
             "Ellipse": self.ellipses,
             "Function": self.functions,
-            "Vector": self.vectors
+            "Vector": self.vectors,
         }
         return cast(List[Dict[str, Any]], class_map.get(class_name, []))
 
@@ -129,7 +132,7 @@ class MockCanvas:
             "Ellipses": self.ellipses,
             "Functions": self.functions,
             "Vectors": self.vectors,
-            "computations": self.computations
+            "computations": self.computations,
         }
 
     def clear(self) -> None:
@@ -153,21 +156,15 @@ class MockCanvas:
 
     def create_segment(self, x1: float, y1: float, x2: float, y2: float, name: str = "") -> SegmentDict:
         """Create a segment on the canvas."""
-        segment: SegmentDict = cast(SegmentDict, {
-            "point1": {"x": x1, "y": y1},
-            "point2": {"x": x2, "y": y2},
-            "name": name
-        })
+        segment: SegmentDict = cast(
+            SegmentDict, {"point1": {"x": x1, "y": y1}, "point2": {"x": x2, "y": y2}, "name": name}
+        )
         self.segments.append(segment)
         return segment
 
     def create_circle(self, x: float, y: float, radius: float, name: str = "") -> CircleDict:
         """Create a circle on the canvas."""
-        circle: CircleDict = cast(CircleDict, {
-            "center": {"x": x, "y": y},
-            "radius": radius,
-            "name": name
-        })
+        circle: CircleDict = cast(CircleDict, {"center": {"x": x, "y": y}, "radius": radius, "name": name})
         self.circles.append(circle)
         return circle
 
@@ -198,24 +195,27 @@ class MockCanvas:
         self.polygons.append(polygon)
 
         if polygon_type == "rectangle" and len(vertex_pairs) >= 3:
-            rectangle: RectangleDict = cast(RectangleDict, {
-                "point1": {"x": vertex_pairs[0][0], "y": vertex_pairs[0][1]},
-                "point3": {"x": vertex_pairs[2][0], "y": vertex_pairs[2][1]},
-                "name": name
-            })
+            rectangle: RectangleDict = cast(
+                RectangleDict,
+                {
+                    "point1": {"x": vertex_pairs[0][0], "y": vertex_pairs[0][1]},
+                    "point3": {"x": vertex_pairs[2][0], "y": vertex_pairs[2][1]},
+                    "name": name,
+                },
+            )
             self.rectangles.append(rectangle)
             return cast(Dict[str, Any], rectangle)
 
         return polygon
 
-    def create_triangle(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float, name: str = "") -> TriangleDict:
+    def create_triangle(
+        self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float, name: str = ""
+    ) -> TriangleDict:
         """Create a triangle on the canvas."""
-        triangle: TriangleDict = cast(TriangleDict, {
-            "point1": {"x": x1, "y": y1},
-            "point2": {"x": x2, "y": y2},
-            "point3": {"x": x3, "y": y3},
-            "name": name
-        })
+        triangle: TriangleDict = cast(
+            TriangleDict,
+            {"point1": {"x": x1, "y": y1}, "point2": {"x": x2, "y": y2}, "point3": {"x": x3, "y": y3}, "name": name},
+        )
         self.triangles.append(triangle)
         self.create_polygon(
             [(x1, y1), (x2, y2), (x3, y3)],
@@ -224,44 +224,46 @@ class MockCanvas:
         )
         return triangle
 
-    def create_ellipse(self, x: float, y: float, radius_x: float, radius_y: float, rotation_angle: float = 0, name: str = "") -> EllipseDict:
+    def create_ellipse(
+        self, x: float, y: float, radius_x: float, radius_y: float, rotation_angle: float = 0, name: str = ""
+    ) -> EllipseDict:
         """Create an ellipse on the canvas."""
-        ellipse: EllipseDict = cast(EllipseDict, {
-            "center": {"x": x, "y": y},
-            "radius_x": radius_x,
-            "radius_y": radius_y,
-            "rotation_angle": rotation_angle,
-            "name": name
-        })
+        ellipse: EllipseDict = cast(
+            EllipseDict,
+            {
+                "center": {"x": x, "y": y},
+                "radius_x": radius_x,
+                "radius_y": radius_y,
+                "rotation_angle": rotation_angle,
+                "name": name,
+            },
+        )
         self.ellipses.append(ellipse)
         return ellipse
 
-    def draw_function(self, function_string: str, name: str = "", left_bound: Optional[float] = None, right_bound: Optional[float] = None) -> FunctionDict:
+    def draw_function(
+        self,
+        function_string: str,
+        name: str = "",
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
+    ) -> FunctionDict:
         """Add a function to the canvas."""
-        function: FunctionDict = cast(FunctionDict, {
-            "function_string": function_string,
-            "name": name,
-            "left_bound": left_bound,
-            "right_bound": right_bound
-        })
+        function: FunctionDict = cast(
+            FunctionDict,
+            {"function_string": function_string, "name": name, "left_bound": left_bound, "right_bound": right_bound},
+        )
         self.functions.append(function)
         return function
 
     def create_vector(self, x1: float, y1: float, x2: float, y2: float, name: str = "") -> VectorDict:
         """Create a vector on the canvas."""
-        vector: VectorDict = cast(VectorDict, {
-            "origin": {"x": x1, "y": y1},
-            "tip": {"x": x2, "y": y2},
-            "name": name
-        })
+        vector: VectorDict = cast(VectorDict, {"origin": {"x": x1, "y": y1}, "tip": {"x": x2, "y": y2}, "name": name})
         self.vectors.append(vector)
         return vector
 
     def add_computation(self, expression: str, result: Any) -> ComputationDict:
         """Add a computation to the canvas."""
-        computation: ComputationDict = cast(ComputationDict, {
-            "expression": expression,
-            "result": result
-        })
+        computation: ComputationDict = cast(ComputationDict, {"expression": expression, "result": result})
         self.computations.append(computation)
         return computation

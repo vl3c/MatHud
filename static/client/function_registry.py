@@ -69,7 +69,9 @@ class FunctionRegistry:
             return {"error": f"Invalid conversion: {from_system} to {to_system}"}
 
     @staticmethod
-    def get_available_functions(canvas: "Canvas", workspace_manager: "WorkspaceManager", ai_interface: Optional["AIInterface"] = None) -> Dict[str, Any]:
+    def get_available_functions(
+        canvas: "Canvas", workspace_manager: "WorkspaceManager", ai_interface: Optional["AIInterface"] = None
+    ) -> Dict[str, Any]:
         """Get the complete dictionary of all available functions with their implementations.
 
         Creates the mapping between AI function names and their bound Python methods,
@@ -96,66 +98,53 @@ class FunctionRegistry:
                     include_computations=include_computations,
                 ),
             },
-
             # ===== POINT OPERATIONS =====
             "create_point": canvas.create_point,
             "delete_point": canvas.delete_point,
             "update_point": canvas.update_point,
-
             # ===== SEGMENT OPERATIONS =====
             "create_segment": canvas.create_segment,
             "delete_segment": canvas.delete_segment,
             "update_segment": canvas.update_segment,
-
             # ===== VECTOR OPERATIONS =====
             "create_vector": canvas.create_vector,
             "delete_vector": canvas.delete_vector,
             "update_vector": canvas.update_vector,
-
             # ===== POLYGON OPERATIONS =====
             "create_polygon": canvas.create_polygon,
             "delete_polygon": canvas.delete_polygon,
             "update_polygon": canvas.update_polygon,
-
             # ===== CIRCLE OPERATIONS =====
             "create_circle": canvas.create_circle,
             "delete_circle": canvas.delete_circle,
             "update_circle": canvas.update_circle,
-
             # ===== CIRCLE ARC OPERATIONS =====
             "create_circle_arc": canvas.create_circle_arc,
             "delete_circle_arc": canvas.delete_circle_arc,
             "update_circle_arc": canvas.update_circle_arc,
-
             # ===== ELLIPSE OPERATIONS =====
             "create_ellipse": canvas.create_ellipse,
             "delete_ellipse": canvas.delete_ellipse,
             "update_ellipse": canvas.update_ellipse,
-
             # ===== LABEL OPERATIONS =====
             "create_label": canvas.create_label,
             "delete_label": canvas.delete_label,
             "update_label": canvas.update_label,
-
             # ===== FUNCTION PLOTTING =====
             "draw_function": canvas.draw_function,
             "delete_function": canvas.delete_function,
             "update_function": canvas.update_function,
-
             # ===== PIECEWISE FUNCTION PLOTTING =====
             "draw_piecewise_function": canvas.draw_piecewise_function,
             "delete_piecewise_function": canvas.delete_piecewise_function,
             "update_piecewise_function": canvas.update_piecewise_function,
-
             # ===== PARAMETRIC FUNCTION PLOTTING =====
             "draw_parametric_function": canvas.draw_parametric_function,
             "delete_parametric_function": canvas.delete_parametric_function,
             "update_parametric_function": canvas.update_parametric_function,
-
             # ===== TANGENT AND NORMAL LINES =====
             "draw_tangent_line": canvas.create_tangent_line,
             "draw_normal_line": canvas.create_normal_line,
-
             # ===== GEOMETRIC CONSTRUCTIONS =====
             "construct_midpoint": canvas.create_midpoint,
             "construct_perpendicular_bisector": canvas.create_perpendicular_bisector,
@@ -164,14 +153,12 @@ class FunctionRegistry:
             "construct_parallel_line": canvas.create_parallel_line,
             "construct_circumcircle": canvas.create_circumcircle,
             "construct_incircle": canvas.create_incircle,
-
             # ===== OBJECT TRANSFORMATIONS =====
             "translate_object": canvas.translate_object,
             "rotate_object": canvas.rotate_object,
             "reflect_object": canvas.reflect_object,
             "scale_object": canvas.scale_object,
             "shear_object": canvas.shear_object,
-
             # ===== MATHEMATICAL OPERATIONS =====
             "evaluate_expression": ProcessFunctionCalls.evaluate_expression,
             "evaluate_linear_algebra_expression": ProcessFunctionCalls.evaluate_linear_algebra_expression,
@@ -186,45 +173,37 @@ class FunctionRegistry:
             "solve": MathUtils.solve,
             "solve_system_of_equations": MathUtils.solve_system_of_equations,
             "solve_numeric": MathUtils.solve_numeric,
-
             # ===== CANVAS HISTORY =====
             "undo": canvas.undo,
             "redo": canvas.redo,
-
             # ===== WORKSPACE OPERATIONS =====
             "save_workspace": workspace_manager.save_workspace,
             "load_workspace": workspace_manager.load_workspace,
             "list_workspaces": workspace_manager.list_workspaces,
             "delete_workspace": workspace_manager.delete_workspace,
-
             # ===== COLORED AREA OPERATIONS =====
             "create_colored_area": canvas.create_colored_area,
             "create_region_colored_area": canvas.create_region_colored_area,
             "delete_colored_area": canvas.delete_colored_area,
             "update_colored_area": canvas.update_colored_area,
-
             # ===== GRAPH OPERATIONS =====
             "generate_graph": canvas.generate_graph,
             "delete_graph": canvas.delete_graph,
             "analyze_graph": canvas.analyze_graph,
-
             # ===== RELATION INSPECTION =====
             "inspect_relation": canvas.inspect_relation,
-
             # ===== PLOT OPERATIONS =====
             "plot_distribution": canvas.plot_distribution,
             "plot_bars": canvas.plot_bars,
             "delete_plot": canvas.delete_plot,
             "fit_regression": canvas.fit_regression,
-
+            "compute_descriptive_statistics": canvas.compute_descriptive_statistics,
             # ===== ANGLE OPERATIONS =====
             "create_angle": canvas.create_angle,
             "delete_angle": canvas.delete_angle,
             "update_angle": canvas.update_angle,
-
             # ===== AREA CALCULATION =====
             "calculate_area": lambda expression: ProcessFunctionCalls.calculate_area(expression, canvas),
-
             # ===== COORDINATE SYSTEM OPERATIONS =====
             "set_coordinate_system": canvas.set_coordinate_system,
             "convert_coordinates": FunctionRegistry._convert_coordinates,
@@ -246,6 +225,7 @@ class FunctionRegistry:
 
         Returns a function that makes a request to the backend /search_tools endpoint.
         """
+
         def search_tools(query: str, max_results: int | None = None) -> dict:
             """Search for tools matching a query description.
 
@@ -327,66 +307,53 @@ class FunctionRegistry:
             "clear_canvas",
             "reset_canvas",
             "zoom",
-
             # Point operations
             "create_point",
             "delete_point",
             "update_point",
-
             # Segment operations
             "create_segment",
             "delete_segment",
             "update_segment",
-
             # Vector operations
             "create_vector",
             "delete_vector",
             "update_vector",
-
             # Polygon operations
             "create_polygon",
             "delete_polygon",
             "update_polygon",
-
             # Circle operations
             "create_circle",
             "delete_circle",
             "update_circle",
-
             # Circle arc operations
             "create_circle_arc",
             "delete_circle_arc",
             "update_circle_arc",
-
             # Ellipse operations
             "create_ellipse",
             "delete_ellipse",
             "update_ellipse",
-
             # Label operations
             "create_label",
             "delete_label",
             "update_label",
-
             # Function operations
             "draw_function",
             "delete_function",
             "update_function",
-
             # Piecewise function operations
             "draw_piecewise_function",
             "delete_piecewise_function",
             "update_piecewise_function",
-
             # Parametric function operations
             "draw_parametric_function",
             "delete_parametric_function",
             "update_parametric_function",
-
             # Tangent and normal line operations
             "draw_tangent_line",
             "draw_normal_line",
-
             # Geometric construction operations
             "construct_midpoint",
             "construct_perpendicular_bisector",
@@ -395,32 +362,27 @@ class FunctionRegistry:
             "construct_parallel_line",
             "construct_circumcircle",
             "construct_incircle",
-
             # Object transformations
             "translate_object",
             "rotate_object",
             "reflect_object",
             "scale_object",
             "shear_object",
-
             # Colored area operations
             "create_colored_area",
             "create_region_colored_area",
             "delete_colored_area",
             "update_colored_area",
-
             # Graph operations
             "generate_graph",
             "delete_graph",
-
             # Plot operations
             "plot_distribution",
             "plot_bars",
             "delete_plot",
             # Note: fit_regression is NOT undoable - it returns stats to the AI
-
             # Angle operations
             "create_angle",
             "delete_angle",
-            "update_angle"
+            "update_angle",
         )

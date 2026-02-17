@@ -22,32 +22,29 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
 
     def setUp(self) -> None:
         """Set up test fixtures."""
-        self.original_api_key = os.environ.get('OPENAI_API_KEY')
-        os.environ['OPENAI_API_KEY'] = 'test-api-key'
+        self.original_api_key = os.environ.get("OPENAI_API_KEY")
+        os.environ["OPENAI_API_KEY"] = "test-api-key"
 
     def tearDown(self) -> None:
         """Clean up after tests."""
         if self.original_api_key:
-            os.environ['OPENAI_API_KEY'] = self.original_api_key
+            os.environ["OPENAI_API_KEY"] = self.original_api_key
         else:
-            os.environ.pop('OPENAI_API_KEY', None)
+            os.environ.pop("OPENAI_API_KEY", None)
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_initialization(self, mock_openai: Mock) -> None:
         """Test API initializes correctly."""
         api = OpenAIChatCompletionsAPI()
         self.assertIsNotNone(api.client)
         self.assertIsNotNone(api.model)
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_create_assistant_message_simple(self, mock_openai: Mock) -> None:
         """Test _create_assistant_message with simple response."""
         api = OpenAIChatCompletionsAPI()
 
-        response_message = SimpleNamespace(
-            content="Hello, world!",
-            tool_calls=None
-        )
+        response_message = SimpleNamespace(content="Hello, world!", tool_calls=None)
 
         result = api._create_assistant_message(response_message)
 
@@ -55,22 +52,15 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
         self.assertEqual(result["content"], "Hello, world!")
         self.assertNotIn("tool_calls", result)
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_create_assistant_message_with_tool_calls(self, mock_openai: Mock) -> None:
         """Test _create_assistant_message with tool calls."""
         api = OpenAIChatCompletionsAPI()
 
         tool_call = SimpleNamespace(
-            id="call_123",
-            function=SimpleNamespace(
-                name="create_point",
-                arguments='{"x": 1, "y": 2}'
-            )
+            id="call_123", function=SimpleNamespace(name="create_point", arguments='{"x": 1, "y": 2}')
         )
-        response_message = SimpleNamespace(
-            content="Creating a point...",
-            tool_calls=[tool_call]
-        )
+        response_message = SimpleNamespace(content="Creating a point...", tool_calls=[tool_call])
 
         result = api._create_assistant_message(response_message)
 
@@ -80,7 +70,7 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
         self.assertEqual(result["tool_calls"][0]["type"], "function")
         self.assertEqual(result["tool_calls"][0]["function"]["name"], "create_point")
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_accumulate_tool_calls(self, mock_openai: Mock) -> None:
         """Test _accumulate_tool_calls accumulates streaming deltas."""
         api = OpenAIChatCompletionsAPI()
@@ -88,25 +78,19 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
 
         # First delta with id and function name
         delta1 = SimpleNamespace(
-            index=0,
-            id="call_123",
-            function=SimpleNamespace(name="create_point", arguments='{"x":')
+            index=0, id="call_123", function=SimpleNamespace(name="create_point", arguments='{"x":')
         )
         api._accumulate_tool_calls([delta1], accumulator)
 
         # Second delta with more arguments
-        delta2 = SimpleNamespace(
-            index=0,
-            id=None,
-            function=SimpleNamespace(name=None, arguments=' 1}')
-        )
+        delta2 = SimpleNamespace(index=0, id=None, function=SimpleNamespace(name=None, arguments=" 1}"))
         api._accumulate_tool_calls([delta2], accumulator)
 
         self.assertEqual(accumulator[0]["id"], "call_123")
         self.assertEqual(accumulator[0]["function"]["name"], "create_point")
         self.assertEqual(accumulator[0]["function"]["arguments"], '{"x": 1}')
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_accumulate_tool_calls_supports_dict_shape_and_invalid_entries(self, mock_openai: Mock) -> None:
         """Tool call accumulation supports dict deltas and ignores malformed entries."""
         api = OpenAIChatCompletionsAPI()
@@ -131,13 +115,13 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
         self.assertEqual(accumulator[1]["function"]["name"], "draw_line")
         self.assertEqual(accumulator[1]["function"]["arguments"], '{"x1": 0}')
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_normalize_tool_calls(self, mock_openai: Mock) -> None:
         """Test _normalize_tool_calls converts accumulator to list."""
         api = OpenAIChatCompletionsAPI()
         accumulator = {
             0: {"id": "call_1", "function": {"name": "func1", "arguments": "{}"}},
-            1: {"id": "call_2", "function": {"name": "func2", "arguments": "{}"}}
+            1: {"id": "call_2", "function": {"name": "func2", "arguments": "{}"}},
         }
 
         result = api._normalize_tool_calls(accumulator)
@@ -146,13 +130,11 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
         self.assertEqual(result[0]["id"], "call_1")
         self.assertEqual(result[1]["id"], "call_2")
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_prepare_tool_calls_for_response(self, mock_openai: Mock) -> None:
         """Test _prepare_tool_calls_for_response formats for JSON response."""
         api = OpenAIChatCompletionsAPI()
-        tool_calls = [
-            {"id": "call_1", "function": {"name": "create_point", "arguments": '{"x": 1, "y": 2}'}}
-        ]
+        tool_calls = [{"id": "call_1", "function": {"name": "create_point", "arguments": '{"x": 1, "y": 2}'}}]
 
         result = api._prepare_tool_calls_for_response(tool_calls)
 
@@ -160,35 +142,31 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
         self.assertEqual(result[0]["function_name"], "create_point")
         self.assertEqual(result[0]["arguments"], {"x": 1, "y": 2})
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_prepare_tool_calls_invalid_json(self, mock_openai: Mock) -> None:
         """Test _prepare_tool_calls_for_response handles invalid JSON arguments."""
         api = OpenAIChatCompletionsAPI()
-        tool_calls = [
-            {"id": "call_1", "function": {"name": "test", "arguments": "invalid json"}}
-        ]
+        tool_calls = [{"id": "call_1", "function": {"name": "test", "arguments": "invalid json"}}]
 
         result = api._prepare_tool_calls_for_response(tool_calls)
 
         self.assertEqual(result[0]["function_name"], "test")
         self.assertEqual(result[0]["arguments"], {})
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_prepare_messages_for_request_with_tool_results(self, mock_openai: Mock) -> None:
         """When tool_call_results are present, they should be applied instead of adding a user message."""
         api = OpenAIChatCompletionsAPI()
         api._update_tool_messages_with_results = MagicMock()
         initial_count = len(api.messages)
 
-        prompt = json.dumps(
-            {"user_message": "ignored", "tool_call_results": '{"create_point":{"x":1}}'}
-        )
+        prompt = json.dumps({"user_message": "ignored", "tool_call_results": '{"create_point":{"x":1}}'})
         api._prepare_messages_for_request(prompt)
 
         api._update_tool_messages_with_results.assert_called_once()
         self.assertEqual(len(api.messages), initial_count)
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_prepare_messages_for_request_adds_user_message_without_tool_results(self, mock_openai: Mock) -> None:
         """Without tool_call_results, request prep should append user message content."""
         api = OpenAIChatCompletionsAPI()
@@ -201,21 +179,15 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
         self.assertEqual(api.messages[-1]["role"], "user")
         self.assertIn("Hello", str(api.messages[-1]["content"]))
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_create_chat_completion_success(self, mock_openai: Mock) -> None:
         """Test create_chat_completion with successful response."""
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
 
         # Create mock response
-        mock_message = SimpleNamespace(
-            content="Test response",
-            tool_calls=None
-        )
-        mock_choice = SimpleNamespace(
-            message=mock_message,
-            finish_reason="stop"
-        )
+        mock_message = SimpleNamespace(content="Test response", tool_calls=None)
+        mock_choice = SimpleNamespace(message=mock_message, finish_reason="stop")
         mock_response = SimpleNamespace(choices=[mock_choice])
         mock_client.chat.completions.create.return_value = mock_response
 
@@ -226,7 +198,7 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
         self.assertEqual(result.message.content, "Test response")
         self.assertEqual(result.finish_reason, "stop")
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_create_chat_completion_error(self, mock_openai: Mock) -> None:
         """Test create_chat_completion handles API errors."""
         mock_client = MagicMock()
@@ -240,7 +212,7 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
         self.assertIn("error", result.message.content.lower())
         self.assertEqual(result.finish_reason, "error")
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_create_chat_completion_stream_tokens(self, mock_openai: Mock) -> None:
         """Test create_chat_completion_stream yields token events."""
         mock_client = MagicMock()
@@ -248,18 +220,15 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
 
         # Create mock stream chunks
         chunks = [
-            SimpleNamespace(choices=[SimpleNamespace(
-                delta=SimpleNamespace(content="Hello", tool_calls=None),
-                finish_reason=None
-            )]),
-            SimpleNamespace(choices=[SimpleNamespace(
-                delta=SimpleNamespace(content=" world", tool_calls=None),
-                finish_reason=None
-            )]),
-            SimpleNamespace(choices=[SimpleNamespace(
-                delta=SimpleNamespace(content="!", tool_calls=None),
-                finish_reason="stop"
-            )]),
+            SimpleNamespace(
+                choices=[SimpleNamespace(delta=SimpleNamespace(content="Hello", tool_calls=None), finish_reason=None)]
+            ),
+            SimpleNamespace(
+                choices=[SimpleNamespace(delta=SimpleNamespace(content=" world", tool_calls=None), finish_reason=None)]
+            ),
+            SimpleNamespace(
+                choices=[SimpleNamespace(delta=SimpleNamespace(content="!", tool_calls=None), finish_reason="stop")]
+            ),
         ]
         mock_client.chat.completions.create.return_value = iter(chunks)
 
@@ -281,7 +250,7 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
         self.assertEqual(final_events[0]["ai_message"], "Hello world!")
         self.assertEqual(final_events[0]["finish_reason"], "stop")
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_create_chat_completion_stream_error(self, mock_openai: Mock) -> None:
         """Test create_chat_completion_stream handles errors."""
         mock_client = MagicMock()
@@ -297,14 +266,14 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
         self.assertEqual(len(final_events), 1)
         self.assertEqual(final_events[0]["finish_reason"], "error")
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_extract_choice_from_chunk_handles_missing_choices(self, mock_openai: Mock) -> None:
         """_extract_choice_from_chunk should return None for malformed chunks."""
         api = OpenAIChatCompletionsAPI()
         self.assertIsNone(api._extract_choice_from_chunk(SimpleNamespace()))
         self.assertIsNone(api._extract_choice_from_chunk(SimpleNamespace(choices=[])))
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_extract_content_piece_returns_empty_for_non_string(self, mock_openai: Mock) -> None:
         """_extract_content_piece should only return string content."""
         api = OpenAIChatCompletionsAPI()
@@ -313,7 +282,7 @@ class TestOpenAIChatCompletionsAPI(unittest.TestCase):
         self.assertEqual(api._extract_content_piece(SimpleNamespace(content=123)), "")
         self.assertEqual(api._extract_content_piece(SimpleNamespace(content="ok")), "ok")
 
-    @patch('static.openai_api_base.OpenAI')
+    @patch("static.openai_api_base.OpenAI")
     def test_extract_tool_call_delta_index_defaults_to_zero(self, mock_openai: Mock) -> None:
         """_extract_tool_call_delta_index should normalize missing/invalid indexes."""
         api = OpenAIChatCompletionsAPI()
@@ -333,8 +302,8 @@ class TestOpenAIChatCompletionsAPIIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         """Check if API key is available for integration tests."""
-        cls.api_key = os.environ.get('OPENAI_API_KEY')
-        if not cls.api_key or cls.api_key == 'test-api-key':
+        cls.api_key = os.environ.get("OPENAI_API_KEY")
+        if not cls.api_key or cls.api_key == "test-api-key":
             cls.skip_integration = True
         else:
             cls.skip_integration = False
@@ -351,10 +320,7 @@ class TestOpenAIChatCompletionsAPIIntegration(unittest.TestCase):
         api.set_model("gpt-4o-mini")
         api.max_tokens = 10
 
-        prompt = json.dumps({
-            "user_message": "Say: OK",
-            "use_vision": False
-        })
+        prompt = json.dumps({"user_message": "Say: OK", "use_vision": False})
 
         result = api.create_chat_completion(prompt)
 
@@ -367,10 +333,7 @@ class TestOpenAIChatCompletionsAPIIntegration(unittest.TestCase):
         api.set_model("gpt-4o-mini")
         api.max_tokens = 10
 
-        prompt = json.dumps({
-            "user_message": "Say: HI",
-            "use_vision": False
-        })
+        prompt = json.dumps({"user_message": "Say: HI", "use_vision": False})
 
         events = list(api.create_chat_completion_stream(prompt))
 
@@ -387,10 +350,7 @@ class TestOpenAIChatCompletionsAPIIntegration(unittest.TestCase):
         api.set_model("gpt-4o-mini")
         api.max_tokens = 5
 
-        prompt = json.dumps({
-            "user_message": "1",
-            "use_vision": False
-        })
+        prompt = json.dumps({"user_message": "1", "use_vision": False})
 
         events = list(api.create_chat_completion_stream(prompt))
         final_event = [e for e in events if e.get("type") == "final"][0]
@@ -405,5 +365,5 @@ class TestOpenAIChatCompletionsAPIIntegration(unittest.TestCase):
         self.assertIsInstance(final_event["ai_tool_calls"], list)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

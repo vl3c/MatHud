@@ -274,5 +274,5 @@ class TestEdgeCases(unittest.TestCase):
         self.assertAlmostEqual(y, y_back, places=10)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

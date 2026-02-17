@@ -18,7 +18,9 @@ class MockWebGLRenderer:
     def _draw_line_strip(self, points: List[Tuple[float, float]], color: Tuple[float, float, float, float]) -> None:
         self.draw_calls.append(("draw_line_strip", points, color))
 
-    def _draw_points(self, points: List[Tuple[float, float]], color: Tuple[float, float, float, float], size: float) -> None:
+    def _draw_points(
+        self, points: List[Tuple[float, float]], color: Tuple[float, float, float, float], size: float
+    ) -> None:
         self.draw_calls.append(("draw_points", points, color, size))
 
     def _parse_color(self, color: str) -> Tuple[float, float, float, float]:
@@ -35,6 +37,7 @@ class TestWebGLPrimitiveAdapter(unittest.TestCase):
     def setUp(self) -> None:
         self.renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
+
         self.adapter = WebGLPrimitiveAdapter(self.renderer)
 
     def test_stroke_line_draws_lines(self) -> None:
@@ -120,6 +123,7 @@ class TestWebGLPrimitiveAdapter(unittest.TestCase):
 
     def test_color_parsing_hex_format(self) -> None:
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
+
         renderer = MockWebGLRenderer()
         adapter = WebGLPrimitiveAdapter(renderer)
 
@@ -138,6 +142,7 @@ class TestWebGLPrimitiveAdapterSampling(unittest.TestCase):
     def test_circle_sampling_produces_closed_path(self) -> None:
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
+
         adapter = WebGLPrimitiveAdapter(renderer)
 
         samples = adapter._sample_circle((50.0, 60.0), 20.0)
@@ -152,6 +157,7 @@ class TestWebGLPrimitiveAdapterSampling(unittest.TestCase):
     def test_ellipse_sampling_produces_closed_path(self) -> None:
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
+
         adapter = WebGLPrimitiveAdapter(renderer)
 
         samples = adapter._sample_ellipse((70.0, 80.0), 30.0, 20.0, 0.0)
@@ -166,9 +172,11 @@ class TestWebGLPrimitiveAdapterSampling(unittest.TestCase):
     def test_arc_sampling_respects_angle_range(self) -> None:
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
+
         adapter = WebGLPrimitiveAdapter(renderer)
 
         import math
+
         samples = adapter._sample_arc((100.0, 110.0), 50.0, 0.0, math.pi / 2, True)
 
         self.assertGreater(len(samples), 2)
@@ -178,6 +186,7 @@ class TestWebGLPrimitiveAdapterEdgeCases(unittest.TestCase):
     def test_empty_polyline_does_not_crash(self) -> None:
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
+
         adapter = WebGLPrimitiveAdapter(renderer)
 
         stroke = StrokeStyle(color="#000000", width=1.0)
@@ -190,6 +199,7 @@ class TestWebGLPrimitiveAdapterEdgeCases(unittest.TestCase):
     def test_single_point_polyline_does_not_crash(self) -> None:
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
+
         adapter = WebGLPrimitiveAdapter(renderer)
 
         stroke = StrokeStyle(color="#000000", width=1.0)
@@ -202,6 +212,7 @@ class TestWebGLPrimitiveAdapterEdgeCases(unittest.TestCase):
     def test_zero_radius_circle_handles_gracefully(self) -> None:
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
+
         adapter = WebGLPrimitiveAdapter(renderer)
 
         fill = FillStyle(color="#FF0000")
@@ -214,6 +225,7 @@ class TestWebGLPrimitiveAdapterEdgeCases(unittest.TestCase):
     def test_negative_radius_circle_handles_gracefully(self) -> None:
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
+
         adapter = WebGLPrimitiveAdapter(renderer)
 
         fill = FillStyle(color="#FF0000")
@@ -226,6 +238,7 @@ class TestWebGLPrimitiveAdapterEdgeCases(unittest.TestCase):
     def test_fill_polygon_with_single_point_handles_gracefully(self) -> None:
         renderer = MockWebGLRenderer()
         from rendering.webgl_primitive_adapter import WebGLPrimitiveAdapter
+
         adapter = WebGLPrimitiveAdapter(renderer)
 
         fill = FillStyle(color="#00FF00")
@@ -241,4 +254,3 @@ __all__ = [
     "TestWebGLPrimitiveAdapterSampling",
     "TestWebGLPrimitiveAdapterEdgeCases",
 ]
-

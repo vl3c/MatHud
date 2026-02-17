@@ -14,6 +14,7 @@ class TestCoordinateSystemManager(unittest.TestCase):
         self.cartesian_grid = Cartesian2Axis(coordinate_mapper=self.coordinate_mapper)
 
         draw_called = [False]
+
         def mock_draw():
             draw_called[0] = True
 
@@ -29,7 +30,7 @@ class TestCoordinateSystemManager(unittest.TestCase):
             zoom_point=Position(0, 0),
             zoom_step=0.1,
             draw=mock_draw,
-            _draw_called=draw_called
+            _draw_called=draw_called,
         )
 
         self.coordinate_mapper.sync_from_canvas(self.canvas)
@@ -168,6 +169,7 @@ class TestCoordinateSystemManagerCanvasIntegration(unittest.TestCase):
         self.cartesian_grid = Cartesian2Axis(coordinate_mapper=self.coordinate_mapper)
 
         draw_called = [False]
+
         def mock_draw():
             draw_called[0] = True
 
@@ -183,7 +185,7 @@ class TestCoordinateSystemManagerCanvasIntegration(unittest.TestCase):
             zoom_point=Position(0, 0),
             zoom_step=0.1,
             draw=mock_draw,
-            _draw_called=draw_called
+            _draw_called=draw_called,
         )
 
         self.coordinate_mapper.sync_from_canvas(self.canvas)

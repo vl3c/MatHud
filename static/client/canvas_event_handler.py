@@ -32,12 +32,7 @@ from typing import TYPE_CHECKING, Any, Callable, List, Optional, cast
 import time
 
 from browser import document, window
-from constants import (
-    double_click_threshold_s,
-    zoom_in_scale_factor,
-    zoom_out_scale_factor,
-    mousemove_throttle_ms
-)
+from constants import double_click_threshold_s, zoom_in_scale_factor, zoom_out_scale_factor, mousemove_throttle_ms
 from drawables_aggregator import Position
 
 if TYPE_CHECKING:
@@ -57,6 +52,7 @@ def throttle(wait_ms: float) -> Callable[[Callable[..., Any]], Callable[..., Any
     Returns:
         A decorator function that will throttle the decorated function
     """
+
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         last_call: Optional[float] = None
         queued: Optional[Any] = None
@@ -83,10 +79,7 @@ def throttle(wait_ms: float) -> Callable[[Callable[..., Any]], Callable[..., Any
                     else:
                         # Schedule to run at next interval
                         remaining_time: float = wait_ms - elapsed
-                        queued = window.setTimeout(
-                            lambda: throttled(*args, **kwargs),
-                            remaining_time
-                        )
+                        queued = window.setTimeout(lambda: throttled(*args, **kwargs), remaining_time)
             except Exception as e:
                 print(f"Error in throttle: {str(e)}")
 
@@ -111,6 +104,7 @@ class CanvasEventHandler:
         initial_pinch_distance (float): Initial distance between two fingers for pinch-to-zoom
         last_pinch_distance (float): Last recorded distance for pinch gesture
     """
+
     def __init__(self, canvas: "Canvas", ai_interface: "AIInterface") -> None:
         """Initialize event handler with canvas and AI interface integration.
 
@@ -225,7 +219,7 @@ class CanvasEventHandler:
     def _update_zoom_point(self, event: Any) -> None:
         """Update the zoom point based on mouse position."""
         try:
-            svg_canvas: Any = document['math-svg']
+            svg_canvas: Any = document["math-svg"]
             rect: Any = svg_canvas.getBoundingClientRect()
             # Save the current zoom point and update it to the mouse position
             self.canvas.zoom_point = Position(event.clientX - rect.left, event.clientY - rect.top)
@@ -264,6 +258,7 @@ class CanvasEventHandler:
         if zp is None:
             # Fallback: zoom about canvas center
             from drawables_aggregator import Position
+
             zp = Position(self.canvas.width / 2, self.canvas.height / 2)
             self.canvas.zoom_point = zp
 
@@ -311,7 +306,7 @@ class CanvasEventHandler:
         """Calculate decimal places for fractional values."""
         try:
             decimal_part: str = format(value, ".10f").split(".")[1]
-            leading_zeros: int = len(decimal_part) - len(decimal_part.lstrip('0'))
+            leading_zeros: int = len(decimal_part) - len(decimal_part.lstrip("0"))
             return leading_zeros + 2
         except Exception as e:
             print(f"Error calculating decimal places for fraction: {str(e)}")
@@ -347,7 +342,10 @@ class CanvasEventHandler:
     def _is_double_click(self, current_timestamp: float) -> bool:
         """Determine if this is a double click based on timing."""
         try:
-            return self.last_click_timestamp is not None and (current_timestamp - self.last_click_timestamp) < double_click_threshold_s
+            return (
+                self.last_click_timestamp is not None
+                and (current_timestamp - self.last_click_timestamp) < double_click_threshold_s
+            )
         except Exception as e:
             print(f"Error detecting double click: {str(e)}")
             return False
@@ -369,8 +367,8 @@ class CanvasEventHandler:
             scale_factor: float = self.canvas.scale_factor
             origin: Position = self.canvas.cartesian2axis.origin
 
-            x: float = (canvas_x - origin.x) * 1/scale_factor
-            y: float = (origin.y - canvas_y) * 1/scale_factor
+            x: float = (canvas_x - origin.x) * 1 / scale_factor
+            y: float = (origin.y - canvas_y) * 1 / scale_factor
 
             decimal_places_x: int = self.get_decimal_places(x)
             decimal_places_y: int = self.get_decimal_places(y)
@@ -546,10 +544,7 @@ class CanvasEventHandler:
         """Handle single finger panning."""
         try:
             # Create a mock event object similar to mouse event
-            mock_event: Any = type('obj', (object,), {
-                'clientX': touch.clientX,
-                'clientY': touch.clientY
-            })
+            mock_event: Any = type("obj", (object,), {"clientX": touch.clientX, "clientY": touch.clientY})
 
             self._update_mouse_position(mock_event)
             self._update_canvas_position(mock_event)
@@ -609,10 +604,7 @@ class CanvasEventHandler:
         """Handle double tap action - capture coordinates."""
         try:
             # Create a mock event object similar to mouse event
-            mock_event: Any = type('obj', (object,), {
-                'clientX': touch.clientX,
-                'clientY': touch.clientY
-            })
+            mock_event: Any = type("obj", (object,), {"clientX": touch.clientX, "clientY": touch.clientY})
 
             coordinates: str = self._calculate_click_coordinates(mock_event)
             self._add_coordinates_to_chat(coordinates)

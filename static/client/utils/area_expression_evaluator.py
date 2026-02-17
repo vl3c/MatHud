@@ -40,9 +40,7 @@ if TYPE_CHECKING:
 class _RegionWithSource:
     """Wrapper to track the source drawable for special handling."""
 
-    def __init__(
-        self, region: Region, source_type: str, source_drawable: Optional["Drawable"] = None
-    ) -> None:
+    def __init__(self, region: Region, source_type: str, source_drawable: Optional["Drawable"] = None) -> None:
         self.region = region
         self.source_type = source_type  # "arc", "segment", "polygon", "circle", "ellipse"
         self.source_drawable = source_drawable
@@ -71,6 +69,7 @@ class AreaExpressionResult:
 
 class _ASTNode:
     """Base class for AST nodes."""
+
     pass
 
 
@@ -337,9 +336,7 @@ class AreaExpressionEvaluator:
         if isinstance(node, _BinaryOpNode):
             left_result = AreaExpressionEvaluator._evaluate_ast(node.left, canvas)
             right_result = AreaExpressionEvaluator._evaluate_ast(node.right, canvas)
-            return AreaExpressionEvaluator._apply_operation(
-                left_result, right_result, node.op
-            )
+            return AreaExpressionEvaluator._apply_operation(left_result, right_result, node.op)
 
         raise ValueError(f"Unknown AST node type: {type(node)}")
 
@@ -493,9 +490,7 @@ class AreaExpressionEvaluator:
         raise ValueError("Not enough points to form a region")
 
     @staticmethod
-    def _normalize_to_single(
-        result: Union[_RegionWithSource, Region, List[Region], None]
-    ) -> Optional[Region]:
+    def _normalize_to_single(result: Union[_RegionWithSource, Region, List[Region], None]) -> Optional[Region]:
         """Convert a result to a single Region or None."""
         if result is None:
             return None
@@ -536,9 +531,7 @@ class AreaExpressionEvaluator:
 
         # Handle segment intersection with shape specially
         if op == "&":
-            result = AreaExpressionEvaluator._handle_segment_intersection(
-                left_source, right_source
-            )
+            result = AreaExpressionEvaluator._handle_segment_intersection(left_source, right_source)
             if result is not None:
                 return result
 
@@ -618,8 +611,7 @@ class AreaExpressionEvaluator:
 
     @staticmethod
     def _line_circle_intersections(
-        x1: float, y1: float, x2: float, y2: float,
-        cx: float, cy: float, radius: float
+        x1: float, y1: float, x2: float, y2: float, cx: float, cy: float, radius: float
     ) -> List[Dict[str, float]]:
         """Find intersections between a line (infinite) and a circle.
 
@@ -657,9 +649,7 @@ class AreaExpressionEvaluator:
         return intersections
 
     @staticmethod
-    def _arc_segment_enclosed_region(
-        arc: "Drawable", segment: "Drawable"
-    ) -> Optional[Region]:
+    def _arc_segment_enclosed_region(arc: "Drawable", segment: "Drawable") -> Optional[Region]:
         """Create the enclosed region bounded by an arc curve and a segment.
 
         Finds intersection points between the segment line and the arc,
@@ -692,9 +682,7 @@ class AreaExpressionEvaluator:
 
         # Find intersections between the segment LINE (extended) and the circle
         intersections = AreaExpressionEvaluator._line_circle_intersections(
-            segment.point1.x, segment.point1.y,
-            segment.point2.x, segment.point2.y,
-            center[0], center[1], radius
+            segment.point1.x, segment.point1.y, segment.point2.x, segment.point2.y, center[0], center[1], radius
         )
 
         if len(intersections) < 2:
@@ -769,9 +757,7 @@ class AreaExpressionEvaluator:
         return Region.from_points(points)
 
     @staticmethod
-    def _circle_segment_enclosed_region(
-        circle: "Drawable", segment: "Drawable"
-    ) -> Optional[Region]:
+    def _circle_segment_enclosed_region(circle: "Drawable", segment: "Drawable") -> Optional[Region]:
         """Create the enclosed region (circular segment) cut by a segment from a circle.
 
         Creates the smaller circular segment (minor segment) on the side
@@ -781,9 +767,7 @@ class AreaExpressionEvaluator:
         radius = circle.radius
 
         intersections = AreaExpressionEvaluator._line_circle_intersections(
-            segment.point1.x, segment.point1.y,
-            segment.point2.x, segment.point2.y,
-            center[0], center[1], radius
+            segment.point1.x, segment.point1.y, segment.point2.x, segment.point2.y, center[0], center[1], radius
         )
 
         if len(intersections) < 2:
@@ -836,5 +820,3 @@ class AreaExpressionEvaluator:
             return None
 
         return Region.from_points(points)
-
-

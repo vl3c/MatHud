@@ -16,7 +16,7 @@ class TestWindowMocks(unittest.TestCase):
         self.mock_window = SimpleMock(
             setTimeout=SimpleMock(return_value=123),  # Return a mock timer ID
             clearTimeout=SimpleMock(),
-            performance=self.mock_performance
+            performance=self.mock_performance,
         )
 
         # Save original window references
@@ -50,8 +50,10 @@ class TestWindowMocks(unittest.TestCase):
 
     def test_set_timeout(self) -> None:
         """Test that setTimeout stores the callback and returns the expected timer ID."""
+
         def callback() -> None:
             return None
+
         wait_time = 100
 
         # Call setTimeout and verify return value
@@ -78,6 +80,7 @@ class TestWindowMocks(unittest.TestCase):
 
     def test_mock_chain(self) -> None:
         """Test that the entire mock chain works together."""
+
         def callback() -> None:
             return None
 

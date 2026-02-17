@@ -84,5 +84,3 @@ class AttachedLabel(Label):
             self.is_renderable = False
         except Exception:
             pass
-
-

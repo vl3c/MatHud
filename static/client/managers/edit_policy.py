@@ -382,5 +382,3 @@ def get_drawable_edit_policy(drawable_type: str) -> Optional[DrawableEditPolicy]
     """Lookup the policy for a drawable type."""
 
     return DRAWABLE_EDIT_POLICIES.get(drawable_type)
-
-

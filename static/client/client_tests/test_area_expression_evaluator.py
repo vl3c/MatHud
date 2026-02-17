@@ -23,6 +23,7 @@ from .simple_mock import SimpleMock
 # Mock Classes
 # =============================================================================
 
+
 class MockPoint:
     """Mock Point for testing."""
 
@@ -151,6 +152,7 @@ class MockQuadrilateral:
 
 def _make_polygon_mock(class_name: str):
     """Factory to create mock polygon classes with get_segments."""
+
     class MockPolygon:
         def __init__(self, vertices: List[tuple], name: str = "") -> None:
             self._vertices = vertices
@@ -203,6 +205,7 @@ class MockCanvas:
 # =============================================================================
 # Area Calculation Tests
 # =============================================================================
+
 
 class TestAreaCalculation(unittest.TestCase):
     """Test area calculation with various shapes and operations."""
@@ -1454,6 +1457,7 @@ class TestAreaCalculation(unittest.TestCase):
 # =============================================================================
 # Region Generation Tests
 # =============================================================================
+
 
 class TestRegionGeneration(unittest.TestCase):
     """Test that all drawable types can be converted to regions."""

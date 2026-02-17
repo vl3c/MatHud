@@ -108,7 +108,9 @@ def compute_world_label_font(label: Any, style: dict, coordinate_mapper: Any):
     return font, base_font_size, effective_font_size
 
 
-def build_world_label_metadata(index: int, position: Any, offset_y: float, rotation_degrees: float, label: Any, base_font_size: float):
+def build_world_label_metadata(
+    index: int, position: Any, offset_y: float, rotation_degrees: float, label: Any, base_font_size: float
+):
     """Build metadata for world-space label reprojection.
 
     Args:
@@ -189,5 +191,3 @@ def render_world_label_at_screen_point(
             alignment,
             metadata=metadata,
         )
-
-

@@ -44,11 +44,7 @@ def _load_dataset() -> Dict[str, Any]:
 
 
 def _tool_name_set() -> set[str]:
-    return {
-        f.get("function", {}).get("name", "")
-        for f in FUNCTIONS
-        if f.get("function", {}).get("name")
-    }
+    return {f.get("function", {}).get("name", "") for f in FUNCTIONS if f.get("function", {}).get("name")}
 
 
 def _tool_hash(tool_names: set[str]) -> str:
@@ -224,12 +220,10 @@ def test_live_tool_discovery_benchmark() -> None:
     actual_hash = _tool_hash(all_tools)
 
     assert len(all_tools) == expected_count, (
-        "Tool count mismatch; refresh dataset. "
-        f"expected={expected_count}, actual={len(all_tools)}"
+        f"Tool count mismatch; refresh dataset. expected={expected_count}, actual={len(all_tools)}"
     )
     assert actual_hash == expected_hash, (
-        "Tool hash mismatch; refresh dataset. "
-        f"expected={expected_hash}, actual={actual_hash}"
+        f"Tool hash mismatch; refresh dataset. expected={expected_hash}, actual={actual_hash}"
     )
 
     model = _resolve_model()
@@ -294,11 +288,7 @@ def test_live_tool_discovery_benchmark() -> None:
     if csv_path is not None and resume:
         completed_case_ids = _load_existing_case_ids(csv_path)
         if completed_case_ids:
-            selected_cases = [
-                c
-                for c in selected_cases
-                if str(c.get("id", "")) not in completed_case_ids
-            ]
+            selected_cases = [c for c in selected_cases if str(c.get("id", "")) not in completed_case_ids]
     if tool_limit > 0:
         selected_cases = selected_cases[:tool_limit]
 
@@ -420,8 +410,7 @@ def test_live_tool_discovery_benchmark() -> None:
         _write_csv(Path("/tmp/tool_discovery_results.csv"), rows)
 
     assert positive_evaluated > 0, (
-        "No positive cases were evaluated (all may have been blocked). "
-        "Inspect TOOL_DISCOVERY_CSV output for details."
+        "No positive cases were evaluated (all may have been blocked). Inspect TOOL_DISCOVERY_CSV output for details."
     )
     assert blocked_rate <= blocked_max, (
         f"Blocked rate too high: {blocked_rate:.3f} > {blocked_max:.3f}. "
@@ -440,6 +429,5 @@ def test_live_tool_discovery_benchmark() -> None:
         f"Sample failing cases: {failed_case_ids[:12]}"
     )
     assert confusion_hard_miss_rate <= confusion_hard_miss_max, (
-        "Confusion hard-miss rate too high: "
-        f"{confusion_hard_miss_rate:.3f} > {confusion_hard_miss_max:.3f}"
+        f"Confusion hard-miss rate too high: {confusion_hard_miss_rate:.3f} > {confusion_hard_miss_max:.3f}"
     )

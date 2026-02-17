@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from managers.drawable_manager import DrawableManager
 
+
 class DrawableManagerProxy:
     """A proxy for the DrawableManager that forwards all attribute access to the real manager.
 

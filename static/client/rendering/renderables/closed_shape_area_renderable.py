@@ -182,4 +182,3 @@ class ClosedShapeAreaRenderable:
         forward = [(float(x), float(y)) for x, y in points]
         reverse = list(reversed(forward))
         return forward, reverse
-

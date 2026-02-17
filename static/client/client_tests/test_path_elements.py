@@ -13,7 +13,6 @@ from .simple_mock import SimpleMock
 
 
 class TestPathElements(unittest.TestCase):
-
     def test_line_segment_creation(self) -> None:
         seg = LineSegment((0.0, 0.0), (3.0, 4.0))
         self.assertEqual(seg.start_point(), (0.0, 0.0))

@@ -103,5 +103,3 @@ class DiscretePlot(Plot):
         )
         memo[id(self)] = copied
         return copied
-
-

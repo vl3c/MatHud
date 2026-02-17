@@ -43,16 +43,19 @@ def has_openrouter_key() -> bool:
 def is_error_response(content: str) -> bool:
     """Check if the response indicates an error."""
     lower = content.lower()
-    return any(phrase in lower for phrase in [
-        "encountered an error",
-        "credit balance",
-        "billing",
-        "insufficient",
-        "purchase credits",
-        "quota exceeded",
-        "rate limit",
-        "try again",
-    ])
+    return any(
+        phrase in lower
+        for phrase in [
+            "encountered an error",
+            "credit balance",
+            "billing",
+            "insufficient",
+            "purchase credits",
+            "quota exceeded",
+            "rate limit",
+            "try again",
+        ]
+    )
 
 
 class TestOpenAIConnection(unittest.TestCase):

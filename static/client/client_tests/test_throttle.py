@@ -23,7 +23,7 @@ class TestThrottle(unittest.TestCase):
         self.mock_window = SimpleMock(
             setTimeout=SimpleMock(return_value=123),  # Return a mock timer ID
             clearTimeout=SimpleMock(),
-            performance=self.mock_performance
+            performance=self.mock_performance,
         )
 
         # Save original window references
@@ -125,6 +125,7 @@ class TestThrottle(unittest.TestCase):
 
     def test_throttle_handles_errors(self) -> None:
         """Test that throttle function handles errors gracefully."""
+
         def failing_func() -> None:
             raise Exception("Test error")
 

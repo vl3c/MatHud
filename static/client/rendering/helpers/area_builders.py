@@ -88,4 +88,3 @@ def build_closed_shape_colored_area(area_model, coordinate_mapper):
         return renderable.build_screen_area()
     except Exception:
         return None
-

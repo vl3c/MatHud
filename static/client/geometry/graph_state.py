@@ -156,6 +156,3 @@ class TreeState(GraphState):
         data = super().to_dict()
         data["root"] = self.root
         return data
-
-
-

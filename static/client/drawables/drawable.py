@@ -37,6 +37,7 @@ class Drawable:
         name (str): Identifier for the object
         color (str): Color metadata (used by renderers)
     """
+
     def __init__(self, name: str = "", color: str = default_color, *, is_renderable: bool = True) -> None:
         """Initialize a drawable object with basic properties.
 

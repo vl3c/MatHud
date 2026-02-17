@@ -257,7 +257,7 @@ The famous equation is \\(E = mc^2\\).
         math_block_count = result.count('class="math-block"')
 
         self.assertEqual(math_inline_count, 2)  # Two inline expressions
-        self.assertEqual(math_block_count, 1)   # One block expression
+        self.assertEqual(math_block_count, 1)  # One block expression
 
     def test_table_with_inline_formatting(self) -> None:
         """Test tables with inline formatting in cells."""
@@ -468,7 +468,7 @@ $$
             "Vector notation: |v| represents the magnitude of vector v.",
             "Set builder notation: {x ∈ ℝ | x² > 4}.",
             "Conditional probability: P(A | B) = P(A ∩ B) / P(B).",
-            "Matrix determinant: |A| for matrix A."
+            "Matrix determinant: |A| for matrix A.",
         ]
 
         for example in math_examples:
@@ -509,9 +509,9 @@ $$
 
         result = self.parser.parse(aligned_table)
         self.assertIn("<table>", result)
-        self.assertIn('text-align: left;', result)
-        self.assertIn('text-align: center;', result)
-        self.assertIn('text-align: right;', result)
+        self.assertIn("text-align: left;", result)
+        self.assertIn("text-align: center;", result)
+        self.assertIn("text-align: right;", result)
 
     def test_table_without_separator_not_table(self) -> None:
         """Test that lines with pipes but no separator row are NOT tables."""
@@ -523,7 +523,7 @@ $$
             "Just text | with pipes | scattered around",
             "| Start pipe only",
             "End pipe only |",
-            "Middle | pipe | here"
+            "Middle | pipe | here",
         ]
 
         for example in not_tables:
@@ -537,15 +537,12 @@ $$
             """| Header |
 | Not a separator |
 | Data |""",  # Second line is not a valid separator
-
             """| Header |
 |====|
 | Data |""",  # Equals instead of hyphens
-
             """| Header |
 | abc |
 | Data |""",  # Letters instead of hyphens
-
             """| Header |
 |  |
 | Data |""",  # Empty separator
@@ -562,19 +559,15 @@ $$
             """| Header |
 |--------|
 | Data |""",  # Basic separator
-
             """| Left | Right |
 |:-----|------:|
 | A    | B     |""",  # With alignment
-
             """| A | B | C |
 |---|:-:|--:|
 | 1 | 2 | 3 |""",  # Mixed alignment
-
             """| Header |
 | --- |
 | Data |""",  # Minimal separator
-
             """|Header|
 |---|
 |Data|""",  # No spaces around pipes
@@ -652,16 +645,13 @@ Final math: |a + b| ≤ |a| + |b|."""
             "Math expression |x| in sentence",
             "Set notation {x | x > 0} explained",
             "Conditional probability P(A | B) formula",
-
             # Even with what looks like separator lines after
             """Text with | pipes | in middle
 |-----|-----|
 More text | here | too""",
-
             """Math |x| and |y| values
 |---|---|
 Not a table | still | not""",
-
             # Mixed content
             """Regular text with | pipes | scattered
 | Header | Column |
@@ -677,51 +667,52 @@ More text | with | pipes""",
                 table_count = result.count("<table>")
 
                 # For single line examples, should be 0
-                if '\n' not in example:
-                    self.assertEqual(table_count, 0,
-                                   f"Single line not starting with pipe was parsed as table: '{example}'")
+                if "\n" not in example:
+                    self.assertEqual(
+                        table_count, 0, f"Single line not starting with pipe was parsed as table: '{example}'"
+                    )
                 # For multi-line examples, check that lines not starting with pipes don't create tables
                 else:
-                    lines = example.split('\n')
-                    [line for line in lines if line.strip().startswith('|')]
-                    non_table_lines = [line for line in lines if not line.strip().startswith('|')]
+                    lines = example.split("\n")
+                    [line for line in lines if line.strip().startswith("|")]
+                    non_table_lines = [line for line in lines if not line.strip().startswith("|")]
 
                     # Non-table lines should not be in table HTML
                     for non_table_line in non_table_lines:
-                        if '|' in non_table_line:
+                        if "|" in non_table_line:
                             # Make sure this text appears outside of table tags
-                            pipe_content = non_table_line.split('|')[0].strip()
+                            pipe_content = non_table_line.split("|")[0].strip()
                             if pipe_content:
                                 # This content should appear in the result but not inside table tags
-                                self.assertIn(pipe_content, result,
-                                            f"Content '{pipe_content}' should appear in result")
+                                self.assertIn(pipe_content, result, f"Content '{pipe_content}' should appear in result")
 
     def test_edge_cases_pipes_and_tables(self) -> None:
         """Test edge cases with pipes and potential table confusion."""
         edge_cases = [
             # Single pipe in text
             ("Just a | pipe", False),
-
             # Pipes at start/end
             ("|Starting pipe", False),
             ("Ending pipe|", False),
-
             # Multiple pipes but no valid table structure
             ("| A | B | C |", False),  # No separator
-
             # Valid minimal table
-            ("""| A |
+            (
+                """| A |
 |---|
-| 1 |""", True),
-
+| 1 |""",
+                True,
+            ),
             # Mathematical expressions
             ("Function f(x) = |x - 1| + |x + 1|", False),
             ("Probability P(A|B) = 0.5", False),
-
             # Empty table cells
-            ("""| A | B |
+            (
+                """| A | B |
 |---|---|
-|   |   |""", True),
+|   |   |""",
+                True,
+            ),
         ]
 
         for content, should_be_table in edge_cases:
@@ -735,5 +726,5 @@ More text | with | pipes""",
                     self.assertNotIn("<table>", result, f"Should NOT be table: {content}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

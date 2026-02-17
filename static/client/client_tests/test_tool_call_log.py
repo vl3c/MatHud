@@ -412,5 +412,6 @@ class TestToolCallLog(unittest.TestCase):
         # because tool call log entries exist
         ai._remove_empty_response_container()
 
-        self.assertIs(ai._stream_message_container, container,
-                      "Container should NOT be removed when tool call log has entries")
+        self.assertIs(
+            ai._stream_message_container, container, "Container should NOT be removed when tool call log has entries"
+        )

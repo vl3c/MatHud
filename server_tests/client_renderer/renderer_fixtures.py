@@ -89,7 +89,9 @@ class PrimitiveRecorder:
     def __init__(self) -> None:
         self.calls: List[Tuple[str, Tuple[Any, ...], Dict[str, Any]]] = []
 
-    def fill_circle(self, center: Tuple[float, float], radius: float, fill: Any, stroke: Any = None, *, screen_space: bool = False) -> None:
+    def fill_circle(
+        self, center: Tuple[float, float], radius: float, fill: Any, stroke: Any = None, *, screen_space: bool = False
+    ) -> None:
         self.calls.append(("fill_circle", (center, radius, fill, stroke, screen_space), {}))
 
     def draw_text(
@@ -119,7 +121,13 @@ class Offset:
 
 
 class CoordinateMapperStub:
-    def __init__(self, *, scale_factor: float = 1.0, origin: Tuple[float, float] = (0.0, 0.0), offset: Tuple[float, float] = (0.0, 0.0)) -> None:
+    def __init__(
+        self,
+        *,
+        scale_factor: float = 1.0,
+        origin: Tuple[float, float] = (0.0, 0.0),
+        offset: Tuple[float, float] = (0.0, 0.0),
+    ) -> None:
         self.scale_factor = scale_factor
         self.origin = SimpleNamespace(x=origin[0], y=origin[1])
         self.offset = SimpleNamespace(x=offset[0], y=offset[1])

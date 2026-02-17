@@ -125,13 +125,10 @@ class PolarGrid(Drawable):
         if self.width is None or self.height is None:
             return 0
         ox, oy = self.origin_screen
-        corners = [
-            (0, 0), (self.width, 0),
-            (0, self.height), (self.width, self.height)
-        ]
+        corners = [(0, 0), (self.width, 0), (0, self.height), (self.width, self.height)]
         max_dist = 0.0
         for cx, cy in corners:
-            dist = math.sqrt((cx - ox)**2 + (cy - oy)**2)
+            dist = math.sqrt((cx - ox) ** 2 + (cy - oy) ** 2)
             if dist > max_dist:
                 max_dist = dist
         return max_dist * 1.1  # Add 10% margin

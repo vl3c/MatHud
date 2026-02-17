@@ -26,7 +26,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+            offset=Position(0, 0),  # Set to (0,0) for simpler tests
         )
 
         # Sync canvas state with coordinate mapper
@@ -37,19 +37,11 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
             name="f1",
             function=lambda x: x**2,  # Quadratic function y = x^2
             left_bound=-5,
-            right_bound=5
+            right_bound=5,
         )
 
         # Create mock segment (math coordinates on x/y)
-        self.segment = SimpleMock(
-            name="AB",
-            point1=SimpleMock(
-                x=-150, y=50
-            ),
-            point2=SimpleMock(
-                x=150, y=-50
-            )
-        )
+        self.segment = SimpleMock(name="AB", point1=SimpleMock(x=-150, y=50), point2=SimpleMock(x=150, y=-50))
 
     def test_init(self) -> None:
         """Test initialization of FunctionSegmentBoundedColoredArea."""
@@ -62,7 +54,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
     def test_get_class_name(self) -> None:
         """Test class name retrieval."""
         area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
-        self.assertEqual(area.get_class_name(), 'FunctionSegmentBoundedColoredArea')
+        self.assertEqual(area.get_class_name(), "FunctionSegmentBoundedColoredArea")
 
     def test_generate_name(self) -> None:
         """Test name generation."""
@@ -109,7 +101,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         # Create a function that throws an exception
         bad_func = SimpleMock(
             name="bad_func",
-            function=lambda x: 1/0  # This will cause ZeroDivisionError
+            function=lambda x: 1 / 0,  # This will cause ZeroDivisionError
         )
 
         area = FunctionSegmentBoundedColoredArea(bad_func, self.segment)
@@ -145,16 +137,10 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
 
         # Create matching segment
-        matching_segment = SimpleMock(
-            point1=SimpleMock(x=-150, y=50),
-            point2=SimpleMock(x=150, y=-50)
-        )
+        matching_segment = SimpleMock(point1=SimpleMock(x=-150, y=50), point2=SimpleMock(x=150, y=-50))
 
         # Create non-matching segment
-        different_segment = SimpleMock(
-            point1=SimpleMock(x=150, y=250),
-            point2=SimpleMock(x=450, y=350)
-        )
+        different_segment = SimpleMock(point1=SimpleMock(x=150, y=250), point2=SimpleMock(x=450, y=350))
 
         self.assertTrue(area.uses_segment(matching_segment))
         self.assertFalse(area.uses_segment(different_segment))
@@ -164,10 +150,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         area = FunctionSegmentBoundedColoredArea(self.func, self.segment)
         state = area.get_state()
 
-        expected_args = {
-            "func": "f1",
-            "segment": "AB"
-        }
+        expected_args = {"func": "f1", "segment": "AB"}
         # Check that the args contain the expected function and segment names
         self.assertEqual(state["args"]["func"], expected_args["func"])
         self.assertEqual(state["args"]["segment"], expected_args["segment"])
@@ -212,8 +195,8 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         restricted_func = SimpleMock(
             name="restricted",
             function=lambda x: x**2,
-            left_bound=-2,   # Restricted domain
-            right_bound=2
+            left_bound=-2,  # Restricted domain
+            right_bound=2,
         )
 
         area = FunctionSegmentBoundedColoredArea(restricted_func, self.segment)
@@ -230,7 +213,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         # Create function that throws ZeroDivisionError
         error_func = SimpleMock(
             name="error_func",
-            function=lambda x: 1/0 if x == 0 else 1/x  # Division by zero exception
+            function=lambda x: 1 / 0 if x == 0 else 1 / x,  # Division by zero exception
         )
 
         area = FunctionSegmentBoundedColoredArea(error_func, self.segment)
@@ -248,12 +231,8 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
         # Create segment with points swapped (larger x first)
         swapped_segment = SimpleMock(
             name="BA",  # Reverse order
-            point1=SimpleMock(
-                x=150, y=-50
-            ),
-            point2=SimpleMock(
-                x=-150, y=50
-            )
+            point1=SimpleMock(x=150, y=-50),
+            point2=SimpleMock(x=-150, y=50),
         )
 
         area = FunctionSegmentBoundedColoredArea(self.func, swapped_segment)
@@ -331,15 +310,7 @@ class TestFunctionSegmentBoundedColoredArea(unittest.TestCase):
     def test_edge_case_single_point_segment(self) -> None:
         """Test edge case where segment endpoints are the same."""
         # Create segment where both points are identical
-        single_point_segment = SimpleMock(
-            name="AA",
-            point1=SimpleMock(
-                x=0, y=0
-            ),
-            point2=SimpleMock(
-                x=0, y=0
-            )
-        )
+        single_point_segment = SimpleMock(name="AA", point1=SimpleMock(x=0, y=0), point2=SimpleMock(x=0, y=0))
 
         area = FunctionSegmentBoundedColoredArea(self.func, single_point_segment)
 

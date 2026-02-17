@@ -62,7 +62,9 @@ class PiecewiseFunctionManager:
         self.name_generator: "DrawableNameGenerator" = name_generator
         self.dependency_manager: "DrawableDependencyManager" = dependency_manager
         self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
-        self.piecewise_function_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("PiecewiseFunction")
+        self.piecewise_function_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy(
+            "PiecewiseFunction"
+        )
 
     def get_piecewise_function(self, name: str) -> Optional[PiecewiseFunction]:
         """
@@ -144,9 +146,7 @@ class PiecewiseFunctionManager:
 
             if left is not None and right is not None:
                 if left >= right:
-                    raise ValueError(
-                        f"Piece {i + 1}: left bound ({left}) must be less than right bound ({right})"
-                    )
+                    raise ValueError(f"Piece {i + 1}: left bound ({left}) must be less than right bound ({right})")
 
     def delete_piecewise_function(self, name: str) -> bool:
         """
@@ -167,9 +167,7 @@ class PiecewiseFunctionManager:
 
         self.canvas.undo_redo_manager.archive()
 
-        removed = remove_drawable_with_dependencies(
-            self.drawables, self.dependency_manager, pf
-        )
+        removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, pf)
 
         if self.canvas.draw_enabled:
             self.canvas.draw()

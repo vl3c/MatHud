@@ -215,4 +215,3 @@ class WebGLPrimitiveAdapter(RendererPrimitives):
             theta = start_angle_rad + step * i
             samples.append((center[0] + radius * math.cos(theta), center[1] + radius * math.sin(theta)))
         return samples
-

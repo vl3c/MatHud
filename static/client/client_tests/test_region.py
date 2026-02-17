@@ -12,7 +12,6 @@ from utils.geometry_utils import GeometryUtils
 
 
 class TestRegion(unittest.TestCase):
-
     def test_region_from_square_points(self) -> None:
         points = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
         region = Region.from_points(points)
@@ -188,7 +187,6 @@ class TestRegion(unittest.TestCase):
 
 
 class TestAreaUtilities(unittest.TestCase):
-
     def test_polygon_area_square(self) -> None:
         points = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
         area = GeometryUtils.polygon_area(points)
@@ -228,4 +226,3 @@ class TestAreaUtilities(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -71,14 +71,16 @@ class TestBuildTrace(unittest.TestCase):
     def test_structure(self) -> None:
         before: Dict[str, Any] = {"Point": {}}
         after: Dict[str, Any] = {"Point": {"A": {"x": 1, "y": 2}}}
-        calls: List[Dict[str, Any]] = [{
-            "seq": 0,
-            "function_name": "create_point",
-            "arguments": {"x": 1, "y": 2},
-            "result": "Success",
-            "is_error": False,
-            "duration_ms": 1.5,
-        }]
+        calls: List[Dict[str, Any]] = [
+            {
+                "seq": 0,
+                "function_name": "create_point",
+                "arguments": {"x": 1, "y": 2},
+                "result": "Success",
+                "is_error": False,
+                "duration_ms": 1.5,
+            }
+        ]
         trace = self.collector.build_trace(before, after, calls, 2.0)
 
         self.assertIn("trace_id", trace)
@@ -161,14 +163,16 @@ class TestExportTracesJson(unittest.TestCase):
         trace: Dict[str, Any] = {
             "trace_id": "t1",
             "timestamp": "2024-01-01T00:00:00Z",
-            "tool_calls": [{
-                "seq": 0,
-                "function_name": "eval",
-                "arguments": {},
-                "result": long_result,
-                "is_error": False,
-                "duration_ms": 1.0,
-            }],
+            "tool_calls": [
+                {
+                    "seq": 0,
+                    "function_name": "eval",
+                    "arguments": {},
+                    "result": long_result,
+                    "is_error": False,
+                    "duration_ms": 1.0,
+                }
+            ],
             "state_delta": {"added": [], "removed": [], "modified": []},
             "total_duration_ms": 1.0,
             "canvas_state_before": {},
@@ -185,14 +189,16 @@ class TestExportTracesJson(unittest.TestCase):
         trace: Dict[str, Any] = {
             "trace_id": "t1",
             "timestamp": "2024-01-01T00:00:00Z",
-            "tool_calls": [{
-                "seq": 0,
-                "function_name": "create_point",
-                "arguments": {"x": 1},
-                "result": "OK",
-                "is_error": False,
-                "duration_ms": 0.5,
-            }],
+            "tool_calls": [
+                {
+                    "seq": 0,
+                    "function_name": "create_point",
+                    "arguments": {"x": 1},
+                    "result": "OK",
+                    "is_error": False,
+                    "duration_ms": 0.5,
+                }
+            ],
             "state_delta": {"added": ["A"], "removed": [], "modified": []},
             "total_duration_ms": 0.5,
             "canvas_state_before": {},
@@ -214,10 +220,22 @@ class TestCompactSummary(unittest.TestCase):
             "trace_id": "t1",
             "timestamp": "2024-01-01T00:00:00Z",
             "tool_calls": [
-                {"seq": 0, "function_name": "f1", "arguments": {}, "result": "ok",
-                 "is_error": False, "duration_ms": 1.0},
-                {"seq": 1, "function_name": "f2", "arguments": {}, "result": "Error: bad",
-                 "is_error": True, "duration_ms": 0.5},
+                {
+                    "seq": 0,
+                    "function_name": "f1",
+                    "arguments": {},
+                    "result": "ok",
+                    "is_error": False,
+                    "duration_ms": 1.0,
+                },
+                {
+                    "seq": 1,
+                    "function_name": "f2",
+                    "arguments": {},
+                    "result": "Error: bad",
+                    "is_error": True,
+                    "duration_ms": 0.5,
+                },
             ],
             "state_delta": {"added": ["A"], "removed": [], "modified": []},
             "total_duration_ms": 1.5,

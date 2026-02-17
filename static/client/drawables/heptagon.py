@@ -85,4 +85,3 @@ class Heptagon(Polygon):
         new_heptagon = Heptagon(new_segments, color=self.color)
         memo[id(self)] = new_heptagon
         return new_heptagon
-

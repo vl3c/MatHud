@@ -39,6 +39,7 @@ def _load_renderer(module_path: str, attr: str) -> Optional[RendererType]:
     except Exception:
         return None
 
+
 from rendering.interfaces import RendererProtocol
 
 SvgRenderer = _load_renderer("rendering.svg_renderer", "SvgRenderer")
@@ -65,9 +66,7 @@ def _build_preference_chain(preferred: Optional[str]) -> list[str]:
     return chain
 
 
-def _safe_instantiate(
-    factory: Callable[[], Optional[RendererProtocol]], *, error_message: str
-) -> RendererProtocol:
+def _safe_instantiate(factory: Callable[[], Optional[RendererProtocol]], *, error_message: str) -> RendererProtocol:
     """Instantiate a renderer and raise if it returns None."""
     renderer = factory()
     if renderer is None:

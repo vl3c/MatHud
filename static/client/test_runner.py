@@ -49,7 +49,10 @@ class TestRunner:
         internal_errors (list): Collection of test errors for analysis
         internal_tests_run (int): Counter of executed test cases
     """
-    def __init__(self, canvas: "Canvas", available_functions: Dict[str, Any], undoable_functions: Tuple[str, ...]) -> None:
+
+    def __init__(
+        self, canvas: "Canvas", available_functions: Dict[str, Any], undoable_functions: Tuple[str, ...]
+    ) -> None:
         """Initialize test runner with canvas and function registry access.
 
         Sets up testing environment with access to canvas operations and function validation.
@@ -113,9 +116,19 @@ class TestRunner:
 
         # Extract the most identifying argument for the key
         key_parts: List[str] = []
-        for arg_name in ("name", "triangle_name", "rectangle_name", "circle_name",
-                         "ellipse_name", "arc_name", "angle_name", "expression",
-                         "polygon_segment_names", "drawable1_name", "function_string"):
+        for arg_name in (
+            "name",
+            "triangle_name",
+            "rectangle_name",
+            "circle_name",
+            "ellipse_name",
+            "arc_name",
+            "angle_name",
+            "expression",
+            "polygon_segment_names",
+            "drawable1_name",
+            "function_string",
+        ):
             if arg_name in args:
                 value = args[arg_name]
                 key_parts.append(f"{arg_name}:{value}")
@@ -141,25 +154,18 @@ class TestRunner:
                     "label_visible": True,
                 },
             },
-            {
-                "function_name": "create_point",
-                "arguments": {"x": -290.0, "y": 240.0, "name": "P"}
-            },
+            {"function_name": "create_point", "arguments": {"x": -290.0, "y": 240.0, "name": "P"}},
             {
                 "function_name": "create_vector",
-                "arguments": {"origin_x": -143.0, "origin_y": 376.0, "tip_x": -82.0, "tip_y": 272.0, "name": "v1"}
+                "arguments": {"origin_x": -143.0, "origin_y": 376.0, "tip_x": -82.0, "tip_y": 272.0, "name": "v1"},
             },
             {
                 "function_name": "create_polygon",
                 "arguments": {
-                    "vertices": [
-                        {"x": -60, "y": 380},
-                        {"x": 60, "y": 380},
-                        {"x": 0, "y": 260}
-                    ],
+                    "vertices": [{"x": -60, "y": 380}, {"x": 60, "y": 380}, {"x": 0, "y": 260}],
                     "polygon_type": "triangle",
-                    "name": "A'BD"
-                }
+                    "name": "A'BD",
+                },
             },
             {
                 "function_name": "create_polygon",
@@ -168,20 +174,20 @@ class TestRunner:
                         {"x": 170.0, "y": 380.0},
                         {"x": 238.0, "y": 380.0},
                         {"x": 238.0, "y": 260.0},
-                        {"x": 170.0, "y": 260.0}
+                        {"x": 170.0, "y": 260.0},
                     ],
                     "polygon_type": "rectangle",
                     "color": None,
-                    "name": "REFT"
-                }
+                    "name": "REFT",
+                },
             },
             {
                 "function_name": "create_circle",
-                "arguments": {"center_x": -360, "center_y": 320, "radius": 60, "name": "G(60)"}
+                "arguments": {"center_x": -360, "center_y": 320, "radius": 60, "name": "G(60)"},
             },
             {
                 "function_name": "create_ellipse",
-                "arguments": {"center_x": 360, "center_y": 320, "radius_x": 80, "radius_y": 50, "name": "I(80, 50)"}
+                "arguments": {"center_x": 360, "center_y": 320, "radius_x": 80, "radius_y": 50, "name": "I(80, 50)"},
             },
             # 12-sided polygon below the x-axis
             {
@@ -199,33 +205,60 @@ class TestRunner:
                         {"x": 40.0, "y": -360.0},
                         {"x": -20.0, "y": -350.0},
                         {"x": -70.0, "y": -320.0},
-                        {"x": -110.0, "y": -280.0}
+                        {"x": -110.0, "y": -280.0},
                     ],
                     "polygon_type": "generic",
                     "name": "JOKLMNQSUWXY",
                     "color": None,
-                    "subtype": None
-                }
+                    "subtype": None,
+                },
             },
             {
                 "function_name": "draw_function",
-                "arguments": {"function_string": "50 * sin(x / 50)", "name": "f1", "left_bound": -300, "right_bound": 300}
+                "arguments": {
+                    "function_string": "50 * sin(x / 50)",
+                    "name": "f1",
+                    "left_bound": -300,
+                    "right_bound": 300,
+                },
             },
             {
                 "function_name": "draw_function",
-                "arguments": {"function_string": "100 * sin(x / 30)", "name": "f2", "left_bound": -300, "right_bound": 300}
+                "arguments": {
+                    "function_string": "100 * sin(x / 30)",
+                    "name": "f2",
+                    "left_bound": -300,
+                    "right_bound": 300,
+                },
             },
             {
                 "function_name": "draw_function",
-                "arguments": {"function_string": "100 * sin(x / 50) + 50 * tan(x / 100)", "name": "f3", "left_bound": -300, "right_bound": 300}
+                "arguments": {
+                    "function_string": "100 * sin(x / 50) + 50 * tan(x / 100)",
+                    "name": "f3",
+                    "left_bound": -300,
+                    "right_bound": 300,
+                },
             },
             {
                 "function_name": "draw_function",
-                "arguments": {"function_string": "-1/x", "name": "f4", "left_bound": -10, "right_bound": 10, "color": "red"}
+                "arguments": {
+                    "function_string": "-1/x",
+                    "name": "f4",
+                    "left_bound": -10,
+                    "right_bound": 10,
+                    "color": "red",
+                },
             },
             {
                 "function_name": "draw_function",
-                "arguments": {"function_string": "tan(x)", "name": "f5", "left_bound": -5, "right_bound": 5, "color": "orange"}
+                "arguments": {
+                    "function_string": "tan(x)",
+                    "name": "f5",
+                    "left_bound": -5,
+                    "right_bound": 5,
+                    "color": "orange",
+                },
             },
             # Parametric function: red spiral
             {
@@ -235,8 +268,8 @@ class TestRunner:
                     "y_expression": "t*sin(t)",
                     "t_min": 0,
                     "t_max": 50,
-                    "color": "red"
-                }
+                    "color": "red",
+                },
             },
             {
                 "function_name": "create_circle_arc",
@@ -250,8 +283,8 @@ class TestRunner:
                     "radius": 60.06,
                     "arc_name": "arc_ZB'",
                     "color": "orange",
-                    "use_major_arc": False
-                }
+                    "use_major_arc": False,
+                },
             },
             {
                 "function_name": "create_circle_arc",
@@ -265,8 +298,8 @@ class TestRunner:
                     "radius": 109.0,
                     "arc_name": "arc_C'D'",
                     "color": "purple",
-                    "use_major_arc": True
-                }
+                    "use_major_arc": True,
+                },
             },
             {
                 "function_name": "create_segment",
@@ -284,76 +317,47 @@ class TestRunner:
             {
                 "function_name": "create_region_colored_area",
                 "arguments": {
-                    "polygon_segment_names": [
-                        "JO",
-                        "OK",
-                        "KL",
-                        "LM",
-                        "MN",
-                        "NQ",
-                        "QS",
-                        "SU",
-                        "UW",
-                        "WX",
-                        "XY",
-                        "YJ"
-                    ],
+                    "polygon_segment_names": ["JO", "OK", "KL", "LM", "MN", "NQ", "QS", "SU", "UW", "WX", "XY", "YJ"],
                     "color": "plum",
-                    "opacity": 0.3
-                }
+                    "opacity": 0.3,
+                },
             },
             {
                 "function_name": "create_colored_area",
-                "arguments": {"drawable1_name": "f1", "drawable2_name": "f2", "color": "orange", "opacity": 0.3}
-            },
-            {
-                "function_name": "create_colored_area",
-                "arguments": {"drawable1_name": "f2", "drawable2_name": "x_axis", "color": "lightgreen", "opacity": 0.3}
-            },
-            {
-                "function_name": "create_colored_area",
-                "arguments": {"drawable1_name": "f1", "drawable2_name": "f3", "color": "lightblue", "opacity": 0.3}
+                "arguments": {"drawable1_name": "f1", "drawable2_name": "f2", "color": "orange", "opacity": 0.3},
             },
             {
                 "function_name": "create_colored_area",
                 "arguments": {
-                    "drawable1_name": "f3",
-                    "drawable2_name": "CH",
-                    "color": "lightgray",
-                    "opacity": 0.25
-                }
+                    "drawable1_name": "f2",
+                    "drawable2_name": "x_axis",
+                    "color": "lightgreen",
+                    "opacity": 0.3,
+                },
+            },
+            {
+                "function_name": "create_colored_area",
+                "arguments": {"drawable1_name": "f1", "drawable2_name": "f3", "color": "lightblue", "opacity": 0.3},
+            },
+            {
+                "function_name": "create_colored_area",
+                "arguments": {"drawable1_name": "f3", "drawable2_name": "CH", "color": "lightgray", "opacity": 0.25},
             },
             {
                 "function_name": "create_region_colored_area",
-                "arguments": {
-                    "triangle_name": "A'BD",
-                    "color": "orange",
-                    "opacity": 0.4
-                }
+                "arguments": {"triangle_name": "A'BD", "color": "orange", "opacity": 0.4},
             },
             {
                 "function_name": "create_region_colored_area",
-                "arguments": {
-                    "circle_name": "G(60)",
-                    "color": "red",
-                    "opacity": 0.35
-                }
+                "arguments": {"circle_name": "G(60)", "color": "red", "opacity": 0.35},
             },
             {
                 "function_name": "create_region_colored_area",
-                "arguments": {
-                    "rectangle_name": "REFT",
-                    "color": "green",
-                    "opacity": 0.35
-                }
+                "arguments": {"rectangle_name": "REFT", "color": "green", "opacity": 0.35},
             },
             {
                 "function_name": "create_region_colored_area",
-                "arguments": {
-                    "ellipse_name": "I(80, 50)",
-                    "color": "blue",
-                    "opacity": 0.35
-                }
+                "arguments": {"ellipse_name": "I(80, 50)", "color": "blue", "opacity": 0.35},
             },
             {
                 "function_name": "create_angle",
@@ -366,8 +370,8 @@ class TestRunner:
                     "p2y": 230.0,
                     "color": "red",
                     "angle_name": "Angle1",
-                    "is_reflex": True
-                }
+                    "is_reflex": True,
+                },
             },
             {
                 "function_name": "create_angle",
@@ -380,8 +384,8 @@ class TestRunner:
                     "p2y": 219.3,
                     "color": "blue",
                     "angle_name": "Angle2",
-                    "is_reflex": False
-                }
+                    "is_reflex": False,
+                },
             },
             {
                 "function_name": "create_angle",
@@ -394,8 +398,8 @@ class TestRunner:
                     "p2y": 150.3,
                     "color": "green",
                     "angle_name": "Angle3",
-                    "is_reflex": False
-                }
+                    "is_reflex": False,
+                },
             },
             {
                 "function_name": "create_label",
@@ -423,11 +427,7 @@ class TestRunner:
             },
             {
                 "function_name": "create_region_colored_area",
-                "arguments": {
-                    "expression": "ArcMaj_C'D' & A''E'",
-                    "color": "#D2B48C",
-                    "opacity": 0.5
-                }
+                "arguments": {"expression": "ArcMaj_C'D' & A''E'", "color": "#D2B48C", "opacity": 0.5},
             },
             {
                 "function_name": "update_segment",
@@ -447,12 +447,7 @@ class TestRunner:
                     "directed": True,
                     "root": "R",
                     "layout": "tree",
-                    "placement_box": {
-                        "x": -500,
-                        "y": -350,
-                        "width": 300,
-                        "height": 325
-                    },
+                    "placement_box": {"x": -500, "y": -350, "width": 300, "height": 325},
                     "vertices": [
                         {"name": "R", "x": None, "y": None, "color": None, "label": None},
                         {"name": "L1", "x": None, "y": None, "color": None, "label": None},
@@ -460,7 +455,7 @@ class TestRunner:
                         {"name": "L1A", "x": None, "y": None, "color": None, "label": None},
                         {"name": "L1B", "x": None, "y": None, "color": None, "label": None},
                         {"name": "L2A", "x": None, "y": None, "color": None, "label": None},
-                        {"name": "L2B", "x": None, "y": None, "color": None, "label": None}
+                        {"name": "L2B", "x": None, "y": None, "color": None, "label": None},
                     ],
                     "edges": [
                         {"source": 0, "target": 1, "weight": None, "name": "R_L1", "color": None, "directed": True},
@@ -468,27 +463,15 @@ class TestRunner:
                         {"source": 1, "target": 3, "weight": None, "name": "L1_L1A", "color": None, "directed": True},
                         {"source": 1, "target": 4, "weight": None, "name": "L1_L1B", "color": None, "directed": True},
                         {"source": 2, "target": 5, "weight": None, "name": "L2_L2A", "color": None, "directed": True},
-                        {"source": 2, "target": 6, "weight": None, "name": "L2_L2B", "color": None, "directed": True}
+                        {"source": 2, "target": 6, "weight": None, "name": "L2_L2B", "color": None, "directed": True},
                     ],
-                    "adjacency_matrix": None
-                }
+                    "adjacency_matrix": None,
+                },
             },
-            {
-                "function_name": "clear_canvas",
-                "arguments": {}
-            },
-            {
-                "function_name": "undo",
-                "arguments": {}
-            },
-            {
-                "function_name": "redo",
-                "arguments": {}
-            },
-            {
-                "function_name": "undo",
-                "arguments": {}
-            }
+            {"function_name": "clear_canvas", "arguments": {}},
+            {"function_name": "undo", "arguments": {}},
+            {"function_name": "redo", "arguments": {}},
+            {"function_name": "undo", "arguments": {}},
         ]
 
     def _test_undoable_functions(self) -> bool:
@@ -496,13 +479,13 @@ class TestRunner:
         self.internal_tests_run += 1
         try:
             self._validate_undoable_functions()
-            print("All undoable functions are available.")   # DEBUG
+            print("All undoable functions are available.")  # DEBUG
             return True
         except Exception as e:
             error_message: str = f"Error in undoable functions test: {str(e)}"
             print(error_message)
-            if not any(failure['test'] == 'Undoable Functions Test' for failure in self.internal_failures):
-                self._add_internal_failure('Undoable Functions Test', error_message)
+            if not any(failure["test"] == "Undoable Functions Test" for failure in self.internal_failures):
+                self._add_internal_failure("Undoable Functions Test", error_message)
             return False
 
     def _validate_undoable_functions(self) -> None:
@@ -510,22 +493,16 @@ class TestRunner:
         for function_name in self.undoable_functions:
             if function_name not in self.available_functions:
                 error_message: str = f"Function '{function_name}' is not available."
-                self._add_internal_failure('Undoable Functions Test', error_message)
+                self._add_internal_failure("Undoable Functions Test", error_message)
                 raise Exception(error_message)
 
     def _add_internal_failure(self, test_name: str, error_message: str) -> None:
         """Add a failure to the internal failures list."""
-        self.internal_failures.append({
-            'test': test_name,
-            'error': error_message
-        })
+        self.internal_failures.append({"test": test_name, "error": error_message})
 
     def _add_internal_error(self, test_name: str, error_message: str) -> None:
         """Add an error to the internal errors list."""
-        self.internal_errors.append({
-            'test': test_name,
-            'error': error_message
-        })
+        self.internal_errors.append({"test": test_name, "error": error_message})
 
     def run_tests(self) -> Dict[str, Any]:
         """Run unit tests for the graphics and function capabilities."""
@@ -612,6 +589,7 @@ class TestRunner:
         """Run the client-side tests and return the results."""
         try:
             from client_tests.tests import run_tests
+
             return cast(Dict[str, Any], run_tests())
         except ImportError as e:
             print(f"client_tests import failed: {e}")
@@ -625,6 +603,7 @@ class TestRunner:
         """Run the client-side tests asynchronously and return the results."""
         try:
             from client_tests.tests import run_tests_async
+
             return cast(Dict[str, Any], await run_tests_async(should_stop=should_stop))
         except ImportError as e:
             print(f"client_tests import failed: {e}")
@@ -639,43 +618,43 @@ class TestRunner:
         merged_results: Dict[str, Any] = client_results.copy()
 
         # Add internal failures and errors to client test results
-        merged_results['failures'].extend(self.internal_failures)
-        merged_results['errors'].extend(self.internal_errors)
+        merged_results["failures"].extend(self.internal_failures)
+        merged_results["errors"].extend(self.internal_errors)
 
         # Update summary
-        merged_results['summary']['tests'] += self.internal_tests_run
-        merged_results['summary']['failures'] += len(self.internal_failures)
-        merged_results['summary']['errors'] += len(self.internal_errors)
+        merged_results["summary"]["tests"] += self.internal_tests_run
+        merged_results["summary"]["failures"] += len(self.internal_failures)
+        merged_results["summary"]["errors"] += len(self.internal_errors)
 
         return merged_results
 
     def _create_results_from_internal_only(self) -> Dict[str, Any]:
         """Create test results containing only internal test results."""
         return {
-            'failures': self.internal_failures,
-            'errors': self.internal_errors,
-            'summary': {
-                'tests': self.internal_tests_run,
-                'failures': len(self.internal_failures),
-                'errors': len(self.internal_errors)
-            }
+            "failures": self.internal_failures,
+            "errors": self.internal_errors,
+            "summary": {
+                "tests": self.internal_tests_run,
+                "failures": len(self.internal_failures),
+                "errors": len(self.internal_errors),
+            },
         }
 
     def _create_results_with_client_error(self, error_message: str) -> Dict[str, Any]:
         """Create test results with internal results plus a client test runner error."""
         client_error: Dict[str, str] = {
-            'test': 'Client Tests Runner',
-            'error': f"Error running client tests: {error_message}"
+            "test": "Client Tests Runner",
+            "error": f"Error running client tests: {error_message}",
         }
 
         return {
-            'failures': self.internal_failures,
-            'errors': self.internal_errors + [client_error],
-            'summary': {
-                'tests': self.internal_tests_run,
-                'failures': len(self.internal_failures),
-                'errors': len(self.internal_errors) + 1
-            }
+            "failures": self.internal_failures,
+            "errors": self.internal_errors + [client_error],
+            "summary": {
+                "tests": self.internal_tests_run,
+                "failures": len(self.internal_failures),
+                "errors": len(self.internal_errors) + 1,
+            },
         }
 
     def get_test_results(self) -> Optional[Dict[str, Any]]:
@@ -702,30 +681,24 @@ class TestRunner:
     def _create_formatted_results_summary(self, results: Dict[str, Any]) -> Dict[str, Any]:
         """Create a basic summary of test results for AI consumption."""
         return {
-            "tests_run": results['summary']['tests'],
-            "failures": results['summary']['failures'],
-            "errors": results['summary']['errors'],
+            "tests_run": results["summary"]["tests"],
+            "failures": results["summary"]["failures"],
+            "errors": results["summary"]["errors"],
             "failing_tests": [],
-            "error_tests": []
+            "error_tests": [],
         }
 
     def _add_formatted_failure_details(self, formatted_results: Dict[str, Any], results: Dict[str, Any]) -> None:
         """Add failure details to the formatted results."""
-        if results['failures']:
-            for failure in results['failures']:
-                formatted_results["failing_tests"].append({
-                    "test": failure['test'],
-                    "error": failure['error']
-                })
+        if results["failures"]:
+            for failure in results["failures"]:
+                formatted_results["failing_tests"].append({"test": failure["test"], "error": failure["error"]})
 
     def _add_formatted_error_details(self, formatted_results: Dict[str, Any], results: Dict[str, Any]) -> None:
         """Add error details to the formatted results."""
-        if results['errors']:
-            for error in results['errors']:
-                formatted_results["error_tests"].append({
-                    "test": error['test'],
-                    "error": error['error']
-                })
+        if results["errors"]:
+            for error in results["errors"]:
+                formatted_results["error_tests"].append({"test": error["test"], "error": error["error"]})
 
     def _log_test_results_to_console(self, formatted_results: Dict[str, Any]) -> None:
         """Log detailed test results to the console for debugging."""
@@ -734,14 +707,14 @@ class TestRunner:
         print(f"Failures: {formatted_results['failures']}")
         print(f"Errors: {formatted_results['errors']}")
 
-        if formatted_results['failing_tests']:
+        if formatted_results["failing_tests"]:
             print("\nFAILURES:")
-            for i, failure in enumerate(formatted_results['failing_tests'], 1):
+            for i, failure in enumerate(formatted_results["failing_tests"], 1):
                 print(f"{i}. {failure['test']}: {failure['error']}")
 
-        if formatted_results['error_tests']:
+        if formatted_results["error_tests"]:
             print("\nERRORS:")
-            for i, error in enumerate(formatted_results['error_tests'], 1):
+            for i, error in enumerate(formatted_results["error_tests"], 1):
                 print(f"{i}. {error['test']}: {error['error']}")
 
         print("===============================================================")

@@ -8,8 +8,8 @@ import sys
 import unittest
 from typing import List, Tuple, Optional, Callable
 
-sys.path.insert(0, 'static/client')
-sys.path.insert(0, 'static/client/rendering/renderables')
+sys.path.insert(0, "static/client")
+sys.path.insert(0, "static/client/rendering/renderables")
 
 
 class MockFunction:
@@ -134,7 +134,7 @@ class TestOneOverX(unittest.TestCase):
 
         def one_over_x(x):
             if x == 0:
-                return float('inf')
+                return float("inf")
             return 1.0 / x
 
         self.func = MockFunction(
@@ -208,6 +208,5 @@ def clamp_screen_y(sy: float, height: float) -> float:
     return sy
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

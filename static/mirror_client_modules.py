@@ -46,4 +46,3 @@ def ensure_client_constants_available() -> None:
 def ensure_polygon_subtypes_available() -> None:
     """Mirror the polygon subtype enums into the server package if needed."""
     _mirror_if_stale(_POLYGON_SUBTYPES_CLIENT_PATH, _POLYGON_SUBTYPES_SERVER_PATH)
-

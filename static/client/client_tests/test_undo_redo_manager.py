@@ -71,4 +71,3 @@ class TestUndoRedoManager(unittest.TestCase):
         self.canvas.computations[0]["result"] = 99
 
         self.assertEqual(snapshot["computations"][0]["result"], 1)
-

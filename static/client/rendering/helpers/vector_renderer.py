@@ -65,4 +65,3 @@ def render_vector_helper(primitives, vector, coordinate_mapper, style):
     color = str(getattr(vector, "color", getattr(seg, "color", style.get("vector_color", "#000"))))
     stroke = StrokeStyle(color=color, width=float(style.get("segment_stroke_width", 1) or 1))
     _render_vector(primitives, start, end, seg, color, stroke, style)
-

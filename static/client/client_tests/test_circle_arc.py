@@ -96,4 +96,3 @@ class TestCircleArc(unittest.TestCase):
         self.assertTrue(arc.use_major_arc)
         arc.set_use_major_arc(False)
         self.assertFalse(arc.use_major_arc)
-

@@ -77,26 +77,28 @@ def start_tests() -> str:
                 f"- **Errors:** {results.get('errors', 0)}\n"
             )
 
-            if results.get('failing_tests'):
+            if results.get("failing_tests"):
                 summary += "\n#### Failures:\n"
-                for fail in results['failing_tests']:
+                for fail in results["failing_tests"]:
                     summary += f"- **{fail['test']}**: {fail['error']}\n"
 
-            if results.get('error_tests'):
+            if results.get("error_tests"):
                 summary += "\n#### Errors:\n"
-                for err in results['error_tests']:
+                for err in results["error_tests"]:
                     summary += f"- **{err['test']}**: {err['error']}\n"
 
             ai_interface._print_ai_message_in_chat(summary)
 
         except Exception as e:
-            _test_results = window.JSON.stringify({
-                "tests_run": 0,
-                "failures": 0,
-                "errors": 1,
-                "failing_tests": [],
-                "error_tests": [{"test": "Test Runner", "error": str(e)}]
-            })
+            _test_results = window.JSON.stringify(
+                {
+                    "tests_run": 0,
+                    "failures": 0,
+                    "errors": 1,
+                    "failing_tests": [],
+                    "error_tests": [{"test": "Test Runner", "error": str(e)}],
+                }
+            )
             if ai_interface is not None:
                 ai_interface._print_ai_message_in_chat(f"Error running tests: {str(e)}")
         finally:
@@ -147,7 +149,7 @@ def redraw_canvas() -> None:
         return
 
     # Update canvas dimensions from current viewport
-    viewport = document['math-svg'].getBoundingClientRect()
+    viewport = document["math-svg"].getBoundingClientRect()
     new_width = viewport.width
     new_height = viewport.height
 
@@ -167,8 +169,8 @@ def redraw_canvas() -> None:
 
     # Update renderer surface size if available
     if _canvas.renderer is not None:
-        primitives = getattr(_canvas.renderer, '_shared_primitives', None)
-        if primitives is not None and hasattr(primitives, 'resize_surface'):
+        primitives = getattr(_canvas.renderer, "_shared_primitives", None)
+        if primitives is not None and hasattr(primitives, "resize_surface"):
             primitives.resize_surface(new_width, new_height)
 
     # Redraw the canvas
@@ -184,7 +186,7 @@ def main() -> None:
     global _ai_interface, _canvas
 
     # Instantiate the canvas with current SVG viewport dimensions
-    viewport = document['math-svg'].getBoundingClientRect()
+    viewport = document["math-svg"].getBoundingClientRect()
     canvas = Canvas(viewport.width, viewport.height)
     _canvas = canvas
 

@@ -84,4 +84,3 @@ def _compute_zoom_adjusted_font_size(base_size: float, label: Any, coordinate_ma
     if scaled <= label_vanish_threshold_px:
         return 0.0
     return max(scaled, label_min_screen_font_px)
-

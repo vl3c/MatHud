@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 
 class RegressionResult(TypedDict):
     """Result of a regression fit."""
+
     expression: str
     coefficients: Dict[str, float]
     r_squared: float
@@ -31,6 +32,7 @@ class RegressionResult(TypedDict):
 # ---------------------------------------------------------------------------
 # Validation helpers
 # ---------------------------------------------------------------------------
+
 
 def _validate_data(x_data: List[float], y_data: List[float], min_points: int = 2) -> None:
     """Validate input data arrays."""
@@ -57,6 +59,7 @@ def _validate_positive(values: List[float], name: str) -> None:
 # ---------------------------------------------------------------------------
 # Pure Python matrix operations (no numpy dependency)
 # ---------------------------------------------------------------------------
+
 
 def _matrix_multiply(A: List[List[float]], B: List[List[float]]) -> List[List[float]]:
     """Multiply two matrices."""
@@ -147,6 +150,7 @@ def _solve_least_squares(X: List[List[float]], y: List[float]) -> List[float]:
 # R-squared calculation
 # ---------------------------------------------------------------------------
 
+
 def calculate_r_squared(y_actual: List[float], y_predicted: List[float]) -> float:
     """
     Calculate coefficient of determination (R²).
@@ -177,6 +181,7 @@ def calculate_r_squared(y_actual: List[float], y_predicted: List[float]) -> floa
 # Expression building
 # ---------------------------------------------------------------------------
 
+
 def _format_coefficient(value: float, precision: int = 6) -> str:
     """Format a coefficient for expression string.
 
@@ -186,9 +191,9 @@ def _format_coefficient(value: float, precision: int = 6) -> str:
         return "0"
     # Use fixed-point notation to avoid scientific notation (e.g., 1e-05)
     # which MatHud would interpret as 1 * euler_number - 05
-    formatted = f"{value:.{precision}f}".rstrip('0').rstrip('.')
+    formatted = f"{value:.{precision}f}".rstrip("0").rstrip(".")
     # Ensure we don't return empty string or just a minus sign
-    if not formatted or formatted == '-':
+    if not formatted or formatted == "-":
         return "0"
     return formatted
 
@@ -282,6 +287,7 @@ def build_expression(model_type: str, coefficients: Dict[str, float]) -> str:
 # Model fitting functions
 # ---------------------------------------------------------------------------
 
+
 def fit_linear(x_data: List[float], y_data: List[float]) -> RegressionResult:
     """
     Fit linear model: y = mx + b
@@ -335,7 +341,7 @@ def fit_polynomial(x_data: List[float], y_data: List[float], degree: int) -> Reg
     # Build Vandermonde matrix
     X: List[List[float]] = []
     for x in x_data:
-        row = [x ** j for j in range(degree + 1)]
+        row = [x**j for j in range(degree + 1)]
         X.append(row)
 
     # Solve least squares
@@ -344,7 +350,7 @@ def fit_polynomial(x_data: List[float], y_data: List[float], degree: int) -> Reg
     # Calculate R-squared
     y_predicted = []
     for x in x_data:
-        y_pred = sum(coeffs[j] * (x ** j) for j in range(degree + 1))
+        y_pred = sum(coeffs[j] * (x**j) for j in range(degree + 1))
         y_predicted.append(y_pred)
     r_squared = calculate_r_squared(y_data, y_predicted)
 
@@ -453,7 +459,7 @@ def fit_power(x_data: List[float], y_data: List[float]) -> RegressionResult:
     a = math.exp(ln_a)
 
     # Calculate R-squared on original scale
-    y_predicted = [a * (x ** b) for x in x_data]
+    y_predicted = [a * (x**b) for x in x_data]
     r_squared = calculate_r_squared(y_data, y_predicted)
 
     coefficients = {"a": a, "b": b}
@@ -650,7 +656,7 @@ def fit_sinusoidal(
 
     if len(crossings) >= 2:
         # Estimate period as twice average distance between crossings
-        crossing_diffs = [crossings[i+1] - crossings[i] for i in range(len(crossings) - 1)]
+        crossing_diffs = [crossings[i + 1] - crossings[i] for i in range(len(crossings) - 1)]
         half_period = sum(crossing_diffs) / len(crossing_diffs)
         period = 2 * half_period
         b_init = 2 * math.pi / period if period > 1e-10 else 1.0
@@ -676,7 +682,7 @@ def fit_sinusoidal(
 
     # Try different periods
     b_values = [b_init * f for f in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]]
-    c_values = [0, math.pi/4, math.pi/2, 3*math.pi/4, math.pi]
+    c_values = [0, math.pi / 4, math.pi / 2, 3 * math.pi / 4, math.pi]
 
     for b_test in b_values:
         for c_test in c_values:
@@ -772,10 +778,7 @@ def fit_regression(
     model = model_type.strip().lower() if isinstance(model_type, str) else ""
 
     if model not in SUPPORTED_MODEL_TYPES:
-        raise ValueError(
-            f"Unsupported model_type '{model_type}'. "
-            f"Supported: {', '.join(SUPPORTED_MODEL_TYPES)}"
-        )
+        raise ValueError(f"Unsupported model_type '{model_type}'. Supported: {', '.join(SUPPORTED_MODEL_TYPES)}")
 
     if model == "linear":
         return fit_linear(x_data, y_data)

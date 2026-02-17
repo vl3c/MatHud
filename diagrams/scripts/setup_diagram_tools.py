@@ -21,11 +21,11 @@ class DiagramToolsSetup:
     def __init__(self) -> None:
         self.system: str = platform.system().lower()
         self.python_packages: List[str] = [
-            'pylint',
-            'graphviz',
-            'diagrams',
-            'pydeps',
-            'pycallgraph2',
+            "pylint",
+            "graphviz",
+            "diagrams",
+            "pydeps",
+            "pycallgraph2",
         ]
 
     def run_command(self, cmd: str, description: str) -> bool:
@@ -41,24 +41,26 @@ class DiagramToolsSetup:
 
     def install_graphviz_system(self) -> bool:
         """Install system-level Graphviz based on the operating system."""
-        if self.system == 'windows':
+        if self.system == "windows":
             print("For Windows, please manually install Graphviz:")
             print("1. Download from: https://graphviz.org/download/")
             print("2. Install and add to PATH")
             print("3. Or use: winget install graphviz")
             return True
-        elif self.system == 'darwin':  # macOS
-            return self.run_command('brew install graphviz', 'Installing Graphviz via Homebrew')
-        elif self.system == 'linux':
+        elif self.system == "darwin":  # macOS
+            return self.run_command("brew install graphviz", "Installing Graphviz via Homebrew")
+        elif self.system == "linux":
             # Try different package managers
-            if subprocess.run(['which', 'apt'], capture_output=True).returncode == 0:
-                return self.run_command('sudo apt update && sudo apt install -y graphviz', 'Installing Graphviz via apt')
-            elif subprocess.run(['which', 'yum'], capture_output=True).returncode == 0:
-                return self.run_command('sudo yum install -y graphviz', 'Installing Graphviz via yum')
-            elif subprocess.run(['which', 'dnf'], capture_output=True).returncode == 0:
-                return self.run_command('sudo dnf install -y graphviz', 'Installing Graphviz via dnf')
-            elif subprocess.run(['which', 'pacman'], capture_output=True).returncode == 0:
-                return self.run_command('sudo pacman -S graphviz', 'Installing Graphviz via pacman')
+            if subprocess.run(["which", "apt"], capture_output=True).returncode == 0:
+                return self.run_command(
+                    "sudo apt update && sudo apt install -y graphviz", "Installing Graphviz via apt"
+                )
+            elif subprocess.run(["which", "yum"], capture_output=True).returncode == 0:
+                return self.run_command("sudo yum install -y graphviz", "Installing Graphviz via yum")
+            elif subprocess.run(["which", "dnf"], capture_output=True).returncode == 0:
+                return self.run_command("sudo dnf install -y graphviz", "Installing Graphviz via dnf")
+            elif subprocess.run(["which", "pacman"], capture_output=True).returncode == 0:
+                return self.run_command("sudo pacman -S graphviz", "Installing Graphviz via pacman")
             else:
                 print("Please manually install Graphviz for your Linux distribution")
                 return False
@@ -69,14 +71,11 @@ class DiagramToolsSetup:
         print("Installing Python packages...")
 
         # Upgrade pip first
-        self.run_command(f'{sys.executable} -m pip install --upgrade pip', 'Upgrading pip')
+        self.run_command(f"{sys.executable} -m pip install --upgrade pip", "Upgrading pip")
 
         # Install packages
         for package in self.python_packages:
-            success = self.run_command(
-                f'{sys.executable} -m pip install {package}',
-                f'Installing {package}'
-            )
+            success = self.run_command(f"{sys.executable} -m pip install {package}", f"Installing {package}")
             if not success:
                 print(f"Failed to install {package} - you may need to install it manually")
 
@@ -85,9 +84,9 @@ class DiagramToolsSetup:
         print("\nVerifying installation...")
 
         tools_to_check = [
-            ('pyreverse', 'pyreverse --help'),
-            ('dot', 'dot -V'),
-            ('python', f'{sys.executable} --version'),
+            ("pyreverse", "pyreverse --help"),
+            ("dot", "dot -V"),
+            ("python", f"{sys.executable} --version"),
         ]
 
         success_count = 0
@@ -103,8 +102,7 @@ class DiagramToolsSetup:
         python_success = 0
         for package in self.python_packages:
             try:
-                subprocess.run([sys.executable, '-c', f'import {package}'],
-                             check=True, capture_output=True)
+                subprocess.run([sys.executable, "-c", f"import {package}"], check=True, capture_output=True)
                 print(f"    Python package {package} is available")
                 python_success += 1
             except subprocess.CalledProcessError:
@@ -164,5 +162,5 @@ def main() -> None:
     setup.setup()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

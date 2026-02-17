@@ -19,7 +19,7 @@ class FunctionSegmentAreaRenderable:
         seg_right: float
         seg_left, seg_right = self.area._get_segment_bounds()
         func: Any = self.area.func
-        if hasattr(func, 'left_bound') and hasattr(func, 'right_bound'):
+        if hasattr(func, "left_bound") and hasattr(func, "right_bound"):
             return max(seg_left, func.left_bound), min(seg_right, func.right_bound)
         return seg_left, seg_right
 
@@ -29,7 +29,7 @@ class FunctionSegmentAreaRenderable:
             return 0.0
         if isinstance(func, (int, float)):
             return float(func)
-        if hasattr(func, 'function'):
+        if hasattr(func, "function"):
             try:
                 result: Any = func.function(x_math)
                 return cast(Optional[float], result)
@@ -37,7 +37,9 @@ class FunctionSegmentAreaRenderable:
                 return None
         return None
 
-    def _generate_function_points_math(self, left_bound: float, right_bound: float, num_points: int) -> List[Tuple[float, float]]:
+    def _generate_function_points_math(
+        self, left_bound: float, right_bound: float, num_points: int
+    ) -> List[Tuple[float, float]]:
         if num_points < 2:
             num_points = 2
         dx: float = (right_bound - left_bound) / (num_points - 1) if num_points > 1 else 1.0
@@ -55,9 +57,9 @@ class FunctionSegmentAreaRenderable:
         p2: Any = self.area.segment.point2
         if p1 is None or p2 is None:
             return None
-        if not hasattr(p1, 'x') or not hasattr(p1, 'y'):
+        if not hasattr(p1, "x") or not hasattr(p1, "y"):
             return None
-        if not hasattr(p2, 'x') or not hasattr(p2, 'y'):
+        if not hasattr(p2, "x") or not hasattr(p2, "y"):
             return None
         return [(p2.x, p2.y), (p1.x, p1.y)]
 
@@ -76,4 +78,3 @@ class FunctionSegmentAreaRenderable:
             color=getattr(self.area, "color", None),
             opacity=getattr(self.area, "opacity", None),
         )
-

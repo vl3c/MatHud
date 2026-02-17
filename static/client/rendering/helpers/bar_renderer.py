@@ -143,5 +143,3 @@ def render_bar_helper(primitives, bar, coordinate_mapper, style):
                 screen_space=True,
                 metadata=below_meta,
             )
-
-

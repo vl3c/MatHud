@@ -436,10 +436,7 @@ class TestAnalyzeGraphTreeOperations(unittest.TestCase):
 
     def _make_tree_state(self, name: str, vertex_names: List[str], edge_pairs: List[tuple], root: str) -> TreeState:
         vertices = [GraphVertexDescriptor(v) for v in vertex_names]
-        edges = [
-            GraphEdgeDescriptor(f"e{i}", src, tgt, name=f"{src}{tgt}")
-            for i, (src, tgt) in enumerate(edge_pairs)
-        ]
+        edges = [GraphEdgeDescriptor(f"e{i}", src, tgt, name=f"{src}{tgt}") for i, (src, tgt) in enumerate(edge_pairs)]
         return TreeState(name, vertices, edges, root=root)
 
     def test_levels_simple_tree(self) -> None:
@@ -534,10 +531,7 @@ class TestAnalyzeGraphTreeTransforms(unittest.TestCase):
 
     def _make_tree_state(self, name: str, vertex_names: List[str], edge_pairs: List[tuple], root: str) -> TreeState:
         vertices = [GraphVertexDescriptor(v) for v in vertex_names]
-        edges = [
-            GraphEdgeDescriptor(f"e{i}", src, tgt)
-            for i, (src, tgt) in enumerate(edge_pairs)
-        ]
+        edges = [GraphEdgeDescriptor(f"e{i}", src, tgt) for i, (src, tgt) in enumerate(edge_pairs)]
         return TreeState(name, vertices, edges, root=root)
 
     def test_reroot_simple(self) -> None:
@@ -681,10 +675,16 @@ class TestAnalyzeGraphCompleteGraph(unittest.TestCase):
         vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C", "D"]]
         edges = [
             GraphEdgeDescriptor(f"e{i}", src, tgt)
-            for i, (src, tgt) in enumerate([
-                ("A", "B"), ("A", "C"), ("A", "D"),
-                ("B", "C"), ("B", "D"), ("C", "D"),
-            ])
+            for i, (src, tgt) in enumerate(
+                [
+                    ("A", "B"),
+                    ("A", "C"),
+                    ("A", "D"),
+                    ("B", "C"),
+                    ("B", "D"),
+                    ("C", "D"),
+                ]
+            )
         ]
         state = GraphState("K4", vertices, edges, directed=False)
         result = GraphAnalyzer.analyze(state, "bridges", {})
@@ -696,10 +696,16 @@ class TestAnalyzeGraphCompleteGraph(unittest.TestCase):
         vertices = [GraphVertexDescriptor(v) for v in ["A", "B", "C", "D"]]
         edges = [
             GraphEdgeDescriptor(f"e{i}", src, tgt)
-            for i, (src, tgt) in enumerate([
-                ("A", "B"), ("A", "C"), ("A", "D"),
-                ("B", "C"), ("B", "D"), ("C", "D"),
-            ])
+            for i, (src, tgt) in enumerate(
+                [
+                    ("A", "B"),
+                    ("A", "C"),
+                    ("A", "D"),
+                    ("B", "C"),
+                    ("B", "D"),
+                    ("C", "D"),
+                ]
+            )
         ]
         state = GraphState("K4", vertices, edges, directed=False)
         result = GraphAnalyzer.analyze(state, "bipartite", {})
@@ -873,4 +879,3 @@ class TestAnalyzeGraphPointInHull(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

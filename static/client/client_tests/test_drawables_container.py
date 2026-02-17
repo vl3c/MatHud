@@ -10,12 +10,18 @@ class TestDrawablesContainer(unittest.TestCase):
         """Set up test fixtures before each test."""
         self.container = DrawablesContainer()
         # Create mock drawables of different types
-        self.point = SimpleMock(get_class_name=SimpleMock(return_value="Point"),
-                               get_state=SimpleMock(return_value={"name": "A", "coords": [1, 2]}))
-        self.segment = SimpleMock(get_class_name=SimpleMock(return_value="Segment"),
-                                 get_state=SimpleMock(return_value={"name": "AB", "points": ["A", "B"]}))
-        self.circle = SimpleMock(get_class_name=SimpleMock(return_value="Circle"),
-                                get_state=SimpleMock(return_value={"name": "c1", "center": "A", "radius": 5}))
+        self.point = SimpleMock(
+            get_class_name=SimpleMock(return_value="Point"),
+            get_state=SimpleMock(return_value={"name": "A", "coords": [1, 2]}),
+        )
+        self.segment = SimpleMock(
+            get_class_name=SimpleMock(return_value="Segment"),
+            get_state=SimpleMock(return_value={"name": "AB", "points": ["A", "B"]}),
+        )
+        self.circle = SimpleMock(
+            get_class_name=SimpleMock(return_value="Circle"),
+            get_state=SimpleMock(return_value={"name": "c1", "center": "A", "radius": 5}),
+        )
 
     def test_init(self) -> None:
         """Test initialization of the container."""
@@ -31,8 +37,10 @@ class TestDrawablesContainer(unittest.TestCase):
         self.assertEqual(len(self.container.get_all()), 2, "Container should have 2 drawables")
 
         # Test adding multiple drawables of the same type
-        point2 = SimpleMock(get_class_name=SimpleMock(return_value="Point"),
-                           get_state=SimpleMock(return_value={"name": "B", "coords": [3, 4]}))
+        point2 = SimpleMock(
+            get_class_name=SimpleMock(return_value="Point"),
+            get_state=SimpleMock(return_value={"name": "B", "coords": [3, 4]}),
+        )
         self.container.add(point2)
         self.assertEqual(len(self.container.get_all()), 3, "Container should have 3 drawables")
         self.assertEqual(len(self.container.get_by_class_name("Point")), 2, "Container should have 2 Points")

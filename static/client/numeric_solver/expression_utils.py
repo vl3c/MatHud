@@ -13,14 +13,41 @@ from browser import window
 
 
 # Math function names to exclude from variable detection
-MATH_FUNCTIONS = frozenset({
-    'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2',
-    'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
-    'log', 'ln', 'log10', 'log2', 'exp',
-    'sqrt', 'cbrt', 'abs', 'sign', 'floor', 'ceil', 'round',
-    'min', 'max', 'mod', 'pow',
-    'pi', 'e',
-})
+MATH_FUNCTIONS = frozenset(
+    {
+        "sin",
+        "cos",
+        "tan",
+        "asin",
+        "acos",
+        "atan",
+        "atan2",
+        "sinh",
+        "cosh",
+        "tanh",
+        "asinh",
+        "acosh",
+        "atanh",
+        "log",
+        "ln",
+        "log10",
+        "log2",
+        "exp",
+        "sqrt",
+        "cbrt",
+        "abs",
+        "sign",
+        "floor",
+        "ceil",
+        "round",
+        "min",
+        "max",
+        "mod",
+        "pow",
+        "pi",
+        "e",
+    }
+)
 
 
 def detect_variables(equations: Sequence[str]) -> List[str]:
@@ -38,7 +65,7 @@ def detect_variables(equations: Sequence[str]) -> List[str]:
 
     # Pattern matches single letters that are not part of longer words
     # Uses negative lookbehind and lookahead to ensure it's a standalone letter
-    pattern = r'(?<![a-zA-Z])([a-zA-Z])(?![a-zA-Z])'
+    pattern = r"(?<![a-zA-Z])([a-zA-Z])(?![a-zA-Z])"
 
     for eq in equations:
         # Find all single letters
@@ -62,8 +89,8 @@ def equation_to_residual(equation: str) -> str:
     Returns:
         Residual expression string.
     """
-    if '=' in equation:
-        parts = equation.split('=', 1)
+    if "=" in equation:
+        parts = equation.split("=", 1)
         lhs = parts[0].strip()
         rhs = parts[1].strip()
         return f"({lhs}) - ({rhs})"
@@ -109,4 +136,5 @@ def evaluate_residuals(
 def _is_finite(value: float) -> bool:
     """Check if a value is finite (not NaN or infinity)."""
     import math
+
     return math.isfinite(value)

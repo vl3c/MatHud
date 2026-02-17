@@ -94,8 +94,7 @@ def solve_numeric(
 
     if not unique_solutions:
         result["message"] = (
-            "No solutions found in search range [-10, 10]. "
-            "Try providing initial_guesses closer to expected solutions."
+            "No solutions found in search range [-10, 10]. Try providing initial_guesses closer to expected solutions."
         )
 
     return json.dumps(result)
@@ -103,9 +102,11 @@ def solve_numeric(
 
 def _error_result(variables: List[str], message: str) -> str:
     """Create an error result JSON string."""
-    return json.dumps({
-        "solutions": [],
-        "variables": variables,
-        "method": "newton_raphson",
-        "error": message,
-    })
+    return json.dumps(
+        {
+            "solutions": [],
+            "variables": variables,
+            "method": "newton_raphson",
+            "error": message,
+        }
+    )

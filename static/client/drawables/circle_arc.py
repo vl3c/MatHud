@@ -67,11 +67,7 @@ class CircleArc(Drawable):
 
         chosen_color = str(color) if color is not None else DEFAULT_CIRCLE_ARC_COLOR
         computed_name = (
-            name
-            if name
-            else self._build_default_name(
-                getattr(point1, "name", "P1"), getattr(point2, "name", "P2")
-            )
+            name if name else self._build_default_name(getattr(point1, "name", "P1"), getattr(point2, "name", "P2"))
         )
 
         super().__init__(name=computed_name, color=chosen_color)
@@ -197,4 +193,3 @@ class CircleArc(Drawable):
         """Refresh cached angles when undo/redo restores previous state."""
         self.sync_with_circle()
         self._refresh_angles()
-

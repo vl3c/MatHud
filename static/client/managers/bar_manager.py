@@ -243,5 +243,3 @@ class BarManager:
             bar.label_text = bar.label_above_text
         except Exception:
             pass
-
-

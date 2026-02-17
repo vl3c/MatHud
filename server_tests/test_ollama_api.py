@@ -145,6 +145,7 @@ class TestOllamaAPIConfiguration:
         with patch.dict("os.environ", {}, clear=True):
             # Remove the env var if it exists
             import os
+
             os.environ.pop("OLLAMA_BASE_URL", None)
 
             instance = object.__new__(OllamaAPI)

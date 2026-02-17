@@ -23,7 +23,7 @@ class TestSegment(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+            offset=Position(0, 0),  # Set to (0,0) for simpler tests
         )
 
         # Sync canvas state with coordinate mapper
@@ -51,7 +51,7 @@ class TestSegment(unittest.TestCase):
         self.assertEqual(self.segment.color, "blue")
 
     def test_get_class_name(self) -> None:
-        self.assertEqual(self.segment.get_class_name(), 'Segment')
+        self.assertEqual(self.segment.get_class_name(), "Segment")
 
     def test_calculate_line_algebraic_formula(self) -> None:
         line_formula = self.segment._calculate_line_algebraic_formula()
@@ -60,13 +60,16 @@ class TestSegment(unittest.TestCase):
 
     def test_visibility_via_canvas(self) -> None:
         from canvas import Canvas  # not used directly; we mimic Canvas._is_drawable_visible logic
+
         # Compute visibility using canvas-level predicate
         # Endpoint-in-viewport or intersects viewport
         x1, y1 = self.coordinate_mapper.math_to_screen(self.segment.point1.x, self.segment.point1.y)
         x2, y2 = self.coordinate_mapper.math_to_screen(self.segment.point2.x, self.segment.point2.y)
-        in_view = self.canvas.is_point_within_canvas_visible_area(x1, y1) or \
-                  self.canvas.is_point_within_canvas_visible_area(x2, y2) or \
-                  self.canvas.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
+        in_view = (
+            self.canvas.is_point_within_canvas_visible_area(x1, y1)
+            or self.canvas.is_point_within_canvas_visible_area(x2, y2)
+            or self.canvas.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
+        )
         self.assertTrue(in_view)
 
     def test_get_state(self) -> None:
@@ -179,4 +182,3 @@ class TestSegment(unittest.TestCase):
         # But coordinates differ, so render cache should invalidate
         self.assertNotEqual(state1["_p1_coords"], state2["_p1_coords"])
         self.assertNotEqual(state1["_p2_coords"], state2["_p2_coords"])
-

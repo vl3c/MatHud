@@ -52,4 +52,3 @@ class SVG:
     def __call__(self, tag: str, **kwargs: Any) -> DOMNode: ...
 
 svg: SVG
-

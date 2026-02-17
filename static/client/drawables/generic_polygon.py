@@ -87,4 +87,3 @@ class GenericPolygon(Polygon):
         new_polygon = GenericPolygon(new_segments, color=self.color)
         memo[id(self)] = new_polygon
         return new_polygon
-
