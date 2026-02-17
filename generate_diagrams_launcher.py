@@ -58,5 +58,5 @@ def main() -> None:
         os.chdir(original_cwd)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

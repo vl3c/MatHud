@@ -24,7 +24,6 @@ SimpleMock = SimpleNamespace
 
 
 class TestCoordinateMapper(unittest.TestCase):
-
     def setUp(self) -> None:
         """Set up test fixtures with standard canvas size."""
         self.canvas_width = 800
@@ -79,13 +78,7 @@ class TestCoordinateMapper(unittest.TestCase):
 
     def test_coordinate_conversion_roundtrip(self) -> None:
         """Test that math to screen to math conversion preserves values."""
-        test_cases = [
-            (0, 0),
-            (100, 50),
-            (-100, -50),
-            (3.14159, -2.71828),
-            (1000, -500)
-        ]
+        test_cases = [(0, 0), (100, 50), (-100, -50), (3.14159, -2.71828), (1000, -500)]
 
         for orig_x, orig_y in test_cases:
             with self.subTest(x=orig_x, y=orig_y):
@@ -220,10 +213,10 @@ class TestCoordinateMapper(unittest.TestCase):
         # With default settings, bounds should cover canvas converted to math coords
         # Canvas corners: (0,0) and (800,600)
         # Math corners: (-400,300) and (400,-300)
-        self.assertAlmostEqual(bounds['left'], -400, places=1)
-        self.assertAlmostEqual(bounds['right'], 400, places=1)
-        self.assertAlmostEqual(bounds['top'], 300, places=1)
-        self.assertAlmostEqual(bounds['bottom'], -300, places=1)
+        self.assertAlmostEqual(bounds["left"], -400, places=1)
+        self.assertAlmostEqual(bounds["right"], 400, places=1)
+        self.assertAlmostEqual(bounds["top"], 300, places=1)
+        self.assertAlmostEqual(bounds["bottom"], -300, places=1)
 
     def test_get_visible_bounds_with_zoom(self) -> None:
         """Test visible bounds calculation with zoom."""
@@ -232,10 +225,10 @@ class TestCoordinateMapper(unittest.TestCase):
         bounds = self.mapper.get_visible_bounds()
 
         # Bounds should be halved
-        self.assertAlmostEqual(bounds['left'], -200, places=1)
-        self.assertAlmostEqual(bounds['right'], 200, places=1)
-        self.assertAlmostEqual(bounds['top'], 150, places=1)
-        self.assertAlmostEqual(bounds['bottom'], -150, places=1)
+        self.assertAlmostEqual(bounds["left"], -200, places=1)
+        self.assertAlmostEqual(bounds["right"], 200, places=1)
+        self.assertAlmostEqual(bounds["top"], 150, places=1)
+        self.assertAlmostEqual(bounds["bottom"], -150, places=1)
 
     def test_get_visible_width_height(self) -> None:
         """Test visible width and height calculation."""
@@ -284,12 +277,12 @@ class TestCoordinateMapper(unittest.TestCase):
         """Test screen point visibility checking."""
         # Points within canvas should be visible
         self.assertTrue(self.mapper.is_point_visible(400, 300))  # center
-        self.assertTrue(self.mapper.is_point_visible(0, 0))      # top-left
+        self.assertTrue(self.mapper.is_point_visible(0, 0))  # top-left
         self.assertTrue(self.mapper.is_point_visible(799, 599))  # bottom-right
 
         # Points outside canvas should not be visible
-        self.assertFalse(self.mapper.is_point_visible(-1, 300))   # left edge
-        self.assertFalse(self.mapper.is_point_visible(400, -1))   # top edge
+        self.assertFalse(self.mapper.is_point_visible(-1, 300))  # left edge
+        self.assertFalse(self.mapper.is_point_visible(400, -1))  # top edge
         self.assertFalse(self.mapper.is_point_visible(801, 300))  # right edge
         self.assertFalse(self.mapper.is_point_visible(400, 601))  # bottom edge
 
@@ -353,7 +346,7 @@ class TestCoordinateMapper(unittest.TestCase):
 
         # When zooming in, objects should move AWAY from zoom point to maintain relative position
         # Target (400,300) is left/below zoom point (500,200), so displacement should be left/up
-        self.assertLess(displacement.x, 0)     # Move left (away from zoom point)
+        self.assertLess(displacement.x, 0)  # Move left (away from zoom point)
         self.assertGreater(displacement.y, 0)  # Move up (away from zoom point)
 
     def test_state_management(self) -> None:
@@ -367,8 +360,16 @@ class TestCoordinateMapper(unittest.TestCase):
         state = self.mapper.get_state()
 
         # Verify state contains expected keys
-        expected_keys = ['canvas_width', 'canvas_height', 'scale_factor', 'offset',
-                        'origin', 'zoom_point', 'zoom_direction', 'zoom_step']
+        expected_keys = [
+            "canvas_width",
+            "canvas_height",
+            "scale_factor",
+            "offset",
+            "origin",
+            "zoom_point",
+            "zoom_direction",
+            "zoom_step",
+        ]
         for key in expected_keys:
             self.assertIn(key, state)
 
@@ -393,10 +394,10 @@ class TestCoordinateMapper(unittest.TestCase):
 
         # Should match get_visible_bounds() results
         bounds = self.mapper.get_visible_bounds()
-        self.assertAlmostEqual(left, bounds['left'], places=6)
-        self.assertAlmostEqual(right, bounds['right'], places=6)
-        self.assertAlmostEqual(top, bounds['top'], places=6)
-        self.assertAlmostEqual(bottom, bounds['bottom'], places=6)
+        self.assertAlmostEqual(left, bounds["left"], places=6)
+        self.assertAlmostEqual(right, bounds["right"], places=6)
+        self.assertAlmostEqual(top, bounds["top"], places=6)
+        self.assertAlmostEqual(bottom, bounds["bottom"], places=6)
 
         # Test with transformations
         self.mapper.apply_zoom(2.0)
@@ -448,12 +449,7 @@ class TestCoordinateMapper(unittest.TestCase):
 
     def test_legacy_methods_consistency(self) -> None:
         """Test that legacy methods are consistent with core methods."""
-        test_cases = [
-            (0, 0),
-            (100, -50),
-            (-75, 125),
-            (3.14159, -2.71828)
-        ]
+        test_cases = [(0, 0), (100, -50), (-75, 125), (3.14159, -2.71828)]
 
         for math_x, math_y in test_cases:
             with self.subTest(x=math_x, y=math_y):
@@ -473,6 +469,7 @@ class TestCoordinateMapper(unittest.TestCase):
 
     def test_sync_from_canvas_mock(self) -> None:
         """Test synchronization with a mock Canvas object."""
+
         # Create a mock canvas object with coordinate properties
         class MockCanvas:
             def __init__(self) -> None:
@@ -512,6 +509,7 @@ class TestCoordinateMapper(unittest.TestCase):
 
     def test_sync_from_canvas_minimal(self) -> None:
         """Test sync with minimal Canvas object (missing some properties)."""
+
         class MinimalCanvas:
             def __init__(self) -> None:
                 self.width = 600
@@ -537,6 +535,7 @@ class TestCoordinateMapper(unittest.TestCase):
 
     def test_from_canvas_factory_method(self) -> None:
         """Test factory method to create CoordinateMapper from Canvas."""
+
         # Create mock canvas
         class MockCanvas:
             def __init__(self) -> None:
@@ -577,13 +576,13 @@ class TestCoordinateMapper(unittest.TestCase):
 
         # Screen center should map to different math coordinates
         math_x, math_y = self.mapper.screen_to_math(400, 300)
-        self.assertAlmostEqual(math_x, -50, places=6)   # Shifted by offset
-        self.assertAlmostEqual(math_y, -30, places=6)    # Shifted by offset (negative)
+        self.assertAlmostEqual(math_x, -50, places=6)  # Shifted by offset
+        self.assertAlmostEqual(math_y, -30, places=6)  # Shifted by offset (negative)
 
         # Test individual conversion methods with offset
         canvas_x = 400  # Canvas center x
         math_x = self.mapper.convert_canvas_x_to_math(canvas_x)
-        self.assertAlmostEqual(math_x, -50, places=6)   # (400 - 50 - 400) / 1.0
+        self.assertAlmostEqual(math_x, -50, places=6)  # (400 - 50 - 400) / 1.0
 
         math_y = 0
         canvas_y = self.mapper.convert_math_y_to_canvas(math_y)
@@ -601,7 +600,7 @@ class TestCoordinateMapper(unittest.TestCase):
             cartesian2axis=cartesian_mock,
             zoom_point=Position(700, 350),
             zoom_direction=-1,
-            zoom_step=0.15
+            zoom_step=0.15,
         )
 
         # Create CoordinateMapper using from_canvas factory method
@@ -613,7 +612,7 @@ class TestCoordinateMapper(unittest.TestCase):
         self.assertEqual(mapper.scale_factor, 2.0)
         self.assertEqual(mapper.offset.x, 100)
         self.assertEqual(mapper.offset.y, -50)
-        self.assertEqual(mapper.origin.x, 600)   # Falls back to width/2 without center
+        self.assertEqual(mapper.origin.x, 600)  # Falls back to width/2 without center
         self.assertEqual(mapper.origin.y, 400)
         self.assertEqual(mapper.zoom_point.x, 700)
         self.assertEqual(mapper.zoom_point.y, 350)
@@ -623,11 +622,7 @@ class TestCoordinateMapper(unittest.TestCase):
     def test_from_canvas_with_simple_mock_minimal(self) -> None:
         """Test from_canvas with minimal SimpleMock canvas (missing optional properties)."""
         # Create minimal mock canvas with only required properties
-        canvas_mock = SimpleMock(
-            width=800,
-            height=600,
-            scale_factor=1.5
-        )
+        canvas_mock = SimpleMock(width=800, height=600, scale_factor=1.5)
 
         # Should handle missing properties gracefully
         mapper = CoordinateMapper.from_canvas(canvas_mock)
@@ -640,8 +635,8 @@ class TestCoordinateMapper(unittest.TestCase):
         # Should use defaults for missing properties
         self.assertEqual(mapper.offset.x, 0)
         self.assertEqual(mapper.offset.y, 0)
-        self.assertEqual(mapper.origin.x, 400)   # width / 2
-        self.assertEqual(mapper.origin.y, 300)   # height / 2
+        self.assertEqual(mapper.origin.x, 400)  # width / 2
+        self.assertEqual(mapper.origin.y, 300)  # height / 2
         self.assertEqual(mapper.zoom_direction, 0)
         self.assertEqual(mapper.zoom_step, 0.1)
 
@@ -654,7 +649,7 @@ class TestCoordinateMapper(unittest.TestCase):
             scale_factor=1.2,
             offset=Position(30, 20),
             center=Position(520, 380),  # Using center instead of cartesian2axis
-            zoom_point=Position(500, 400)
+            zoom_point=Position(500, 400),
         )
 
         mapper = CoordinateMapper.from_canvas(canvas_mock)
@@ -682,7 +677,7 @@ class TestCoordinateMapper(unittest.TestCase):
             offset=Position(-75, 40),
             cartesian2axis=cartesian_mock,
             zoom_direction=1,
-            zoom_step=0.2
+            zoom_step=0.2,
         )
 
         # Sync with canvas
@@ -741,7 +736,7 @@ class TestCoordinateMapper(unittest.TestCase):
         canvas_mock = SimpleMock(
             width=900,
             height=700,
-            scale_factor=2.5
+            scale_factor=2.5,
             # Missing: offset, cartesian2axis, center, zoom properties
         )
 
@@ -767,11 +762,7 @@ class TestCoordinateMapper(unittest.TestCase):
         # cartesian2axis.origin should be ignored when center is absent.
         cartesian_mock = SimpleMock(origin=Position(600, 400))
         canvas_mock = SimpleMock(
-            width=1000,
-            height=600,
-            scale_factor=2.0,
-            offset=Position(100, -50),
-            cartesian2axis=cartesian_mock
+            width=1000, height=600, scale_factor=2.0, offset=Position(100, -50), cartesian2axis=cartesian_mock
         )
 
         mapper = CoordinateMapper(800, 600)  # Different initial dimensions
@@ -798,7 +789,7 @@ class TestCoordinateMapper(unittest.TestCase):
             height=600,
             scale_factor=1.5,
             offset=Position(50, 25),
-            center=Position(400, 300)  # Using center instead of cartesian2axis
+            center=Position(400, 300),  # Using center instead of cartesian2axis
         )
 
         mapper = CoordinateMapper(1000, 800)  # Different initial size
@@ -812,23 +803,23 @@ class TestCoordinateMapper(unittest.TestCase):
         bottom = mapper.get_visible_bottom_bound()
 
         # Individual methods should match bounds dictionary
-        self.assertAlmostEqual(left, bounds['left'], places=6)
-        self.assertAlmostEqual(right, bounds['right'], places=6)
-        self.assertAlmostEqual(top, bounds['top'], places=6)
-        self.assertAlmostEqual(bottom, bounds['bottom'], places=6)
+        self.assertAlmostEqual(left, bounds["left"], places=6)
+        self.assertAlmostEqual(right, bounds["right"], places=6)
+        self.assertAlmostEqual(top, bounds["top"], places=6)
+        self.assertAlmostEqual(bottom, bounds["bottom"], places=6)
 
         # Width and height should be consistent
         width = mapper.get_visible_width()
         height = mapper.get_visible_height()
-        self.assertAlmostEqual(width, bounds['right'] - bounds['left'], places=6)
-        self.assertAlmostEqual(height, bounds['top'] - bounds['bottom'], places=6)
+        self.assertAlmostEqual(width, bounds["right"] - bounds["left"], places=6)
+        self.assertAlmostEqual(height, bounds["top"] - bounds["bottom"], places=6)
 
     def test_canvas_mock_attribute_error_handling(self) -> None:
         """Test handling of missing attributes in canvas mock gracefully."""
         # Mock with minimal attributes
         canvas_mock = SimpleMock(
             width=640,
-            height=480
+            height=480,
             # Missing scale_factor and other properties
         )
 
@@ -856,7 +847,7 @@ class TestCoordinateMapper(unittest.TestCase):
             cartesian2axis=cartesian_mock,
             zoom_point=Position(600, 400),
             zoom_direction=-1,
-            zoom_step=0.12
+            zoom_step=0.12,
         )
 
         # Method 1: Use factory method
@@ -888,5 +879,5 @@ class TestCoordinateMapper(unittest.TestCase):
         self.assertAlmostEqual(screen1_y, screen2_y, places=6)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

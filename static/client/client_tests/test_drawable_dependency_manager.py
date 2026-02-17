@@ -20,9 +20,9 @@ class TestDrawableDependencyManager(unittest.TestCase):
             x=x,
             y=y,
             canvas=None,
-            get_class_name=SimpleMock(return_value='Point'),
+            get_class_name=SimpleMock(return_value="Point"),
             __str__=SimpleMock(return_value=f"Point({name})"),
-            __repr__=SimpleMock(return_value=f"Point({name})")
+            __repr__=SimpleMock(return_value=f"Point({name})"),
         )
 
     def _create_mock_segment(self, name: str, point1: SimpleMock, point2: SimpleMock) -> SimpleMock:
@@ -32,9 +32,9 @@ class TestDrawableDependencyManager(unittest.TestCase):
             point1=point1,
             point2=point2,
             canvas=None,
-            get_class_name=SimpleMock(return_value='Segment'),
+            get_class_name=SimpleMock(return_value="Segment"),
             __str__=SimpleMock(return_value=f"Segment({name})"),
-            __repr__=SimpleMock(return_value=f"Segment({name})")
+            __repr__=SimpleMock(return_value=f"Segment({name})"),
         )
 
     def _create_mock_drawable(self, name: str, class_name: str = "MockDrawable") -> SimpleMock:
@@ -45,17 +45,13 @@ class TestDrawableDependencyManager(unittest.TestCase):
             canvas=None,
             get_class_name=SimpleMock(return_value=class_name),
             __str__=SimpleMock(return_value=f"{class_name}({name})"),
-            __repr__=SimpleMock(return_value=f"{class_name}({name})")
+            __repr__=SimpleMock(return_value=f"{class_name}({name})"),
         )
 
     def setUp(self) -> None:
         """Set up test environment before each test"""
         # Create a mock drawable manager
-        self.mock_drawable_manager = SimpleMock(
-            drawables=SimpleMock(
-                Segments=[]
-            )
-        )
+        self.mock_drawable_manager = SimpleMock(drawables=SimpleMock(Segments=[]))
         self.manager = DrawableDependencyManager(drawable_manager_proxy=self.mock_drawable_manager)
 
         # Create mock drawables using private factory methods
@@ -81,9 +77,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
                 self.assertIn(parent_id, self.manager._parents.get(child_id, set()))
 
         for drawable_id in self.manager._object_lookup:
-            self.assertTrue(
-                drawable_id in self.manager._parents or drawable_id in self.manager._children
-            )
+            self.assertTrue(drawable_id in self.manager._parents or drawable_id in self.manager._children)
 
     def test_register_dependency(self) -> None:
         """Test registering dependencies between drawables"""
@@ -182,8 +176,9 @@ class TestDrawableDependencyManager(unittest.TestCase):
             for segment in [self.segment1, self.segment2, self.segment3]:
                 if point in self.manager.get_parents(segment):
                     segment_index = ordered.index(segment)
-                    self.assertLess(point_index, segment_index,
-                                   f"Point {point.name} should come before its segment {segment.name}")
+                    self.assertLess(
+                        point_index, segment_index, f"Point {point.name} should come before its segment {segment.name}"
+                    )
 
     def test_circular_dependencies(self) -> None:
         """Test handling of circular dependencies"""
@@ -292,7 +287,9 @@ class TestDrawableDependencyManager(unittest.TestCase):
         func_seg_area.func = function
         func_seg_area.segment = self.segment1
         func_seg_area_dependencies = self.manager.analyze_drawable_for_dependencies(func_seg_area)
-        self.assertEqual(len(func_seg_area_dependencies), 2, "FunctionSegmentBoundedColoredArea should have 2 dependencies")
+        self.assertEqual(
+            len(func_seg_area_dependencies), 2, "FunctionSegmentBoundedColoredArea should have 2 dependencies"
+        )
         self.assertIn(function, func_seg_area_dependencies, "function should be a dependency of area")
         self.assertIn(self.segment1, func_seg_area_dependencies, "segment should be a dependency of area")
 
@@ -311,7 +308,6 @@ class TestDrawableDependencyManager(unittest.TestCase):
         dependencies = self.manager.analyze_drawable_for_dependencies(obj_without_method)
         self.assertEqual(len(dependencies), 0, "Object without get_class_name should return empty dependencies list")
 
-
     def test_drawable_types_completeness(self) -> None:
         """Test that analyze_drawable_for_dependencies has cases for all drawable types"""
         # Use _type_hierarchy as the source of truth for drawable types
@@ -323,32 +319,35 @@ class TestDrawableDependencyManager(unittest.TestCase):
         # Use direct functional testing since inspect.getsource() in Brython
         # only returns method signatures, not the full method body
         test_cases = [
-            ('Point', self._create_mock_drawable("TestPoint", "Point")),
-            ('Segment', self._create_mock_drawable("TestSegment", "Segment")),
-            ('Vector', self._create_mock_drawable("TestVector", "Vector")),
-            ('Triangle', self._create_mock_drawable("TestTriangle", "Triangle")),
-            ('Rectangle', self._create_mock_drawable("TestRectangle", "Rectangle")),
-            ('Quadrilateral', self._create_mock_drawable("TestQuadrilateral", "Quadrilateral")),
-            ('Pentagon', self._create_mock_drawable("TestPentagon", "Pentagon")),
-            ('Hexagon', self._create_mock_drawable("TestHexagon", "Hexagon")),
-            ('Heptagon', self._create_mock_drawable("TestHeptagon", "Heptagon")),
-            ('Octagon', self._create_mock_drawable("TestOctagon", "Octagon")),
-            ('Nonagon', self._create_mock_drawable("TestNonagon", "Nonagon")),
-            ('Decagon', self._create_mock_drawable("TestDecagon", "Decagon")),
-            ('GenericPolygon', self._create_mock_drawable("TestGenericPolygon", "GenericPolygon")),
-            ('Circle', self._create_mock_drawable("TestCircle", "Circle")),
-            ('CircleArc', self._create_mock_drawable("TestCircleArc", "CircleArc")),
-            ('Ellipse', self._create_mock_drawable("TestEllipse", "Ellipse")),
-            ('Function', self._create_mock_drawable("TestFunction", "Function")),
-            ('Angle', self._create_mock_drawable("TestAngle", "Angle")),
-            ('ColoredArea', self._create_mock_drawable("TestColoredArea", "ColoredArea")),
-            ('SegmentsBoundedColoredArea', self._create_mock_drawable("TestSBCA", "SegmentsBoundedColoredArea")),
-            ('FunctionSegmentBoundedColoredArea', self._create_mock_drawable("TestFSBCA", "FunctionSegmentBoundedColoredArea")),
-            ('FunctionsBoundedColoredArea', self._create_mock_drawable("TestFBCA", "FunctionsBoundedColoredArea")),
-            ('Graph', self._create_mock_drawable("TestGraph", "Graph")),
-            ('DirectedGraph', self._create_mock_drawable("TestDirectedGraph", "DirectedGraph")),
-            ('UndirectedGraph', self._create_mock_drawable("TestUndirectedGraph", "UndirectedGraph")),
-            ('Tree', self._create_mock_drawable("TestTree", "Tree")),
+            ("Point", self._create_mock_drawable("TestPoint", "Point")),
+            ("Segment", self._create_mock_drawable("TestSegment", "Segment")),
+            ("Vector", self._create_mock_drawable("TestVector", "Vector")),
+            ("Triangle", self._create_mock_drawable("TestTriangle", "Triangle")),
+            ("Rectangle", self._create_mock_drawable("TestRectangle", "Rectangle")),
+            ("Quadrilateral", self._create_mock_drawable("TestQuadrilateral", "Quadrilateral")),
+            ("Pentagon", self._create_mock_drawable("TestPentagon", "Pentagon")),
+            ("Hexagon", self._create_mock_drawable("TestHexagon", "Hexagon")),
+            ("Heptagon", self._create_mock_drawable("TestHeptagon", "Heptagon")),
+            ("Octagon", self._create_mock_drawable("TestOctagon", "Octagon")),
+            ("Nonagon", self._create_mock_drawable("TestNonagon", "Nonagon")),
+            ("Decagon", self._create_mock_drawable("TestDecagon", "Decagon")),
+            ("GenericPolygon", self._create_mock_drawable("TestGenericPolygon", "GenericPolygon")),
+            ("Circle", self._create_mock_drawable("TestCircle", "Circle")),
+            ("CircleArc", self._create_mock_drawable("TestCircleArc", "CircleArc")),
+            ("Ellipse", self._create_mock_drawable("TestEllipse", "Ellipse")),
+            ("Function", self._create_mock_drawable("TestFunction", "Function")),
+            ("Angle", self._create_mock_drawable("TestAngle", "Angle")),
+            ("ColoredArea", self._create_mock_drawable("TestColoredArea", "ColoredArea")),
+            ("SegmentsBoundedColoredArea", self._create_mock_drawable("TestSBCA", "SegmentsBoundedColoredArea")),
+            (
+                "FunctionSegmentBoundedColoredArea",
+                self._create_mock_drawable("TestFSBCA", "FunctionSegmentBoundedColoredArea"),
+            ),
+            ("FunctionsBoundedColoredArea", self._create_mock_drawable("TestFBCA", "FunctionsBoundedColoredArea")),
+            ("Graph", self._create_mock_drawable("TestGraph", "Graph")),
+            ("DirectedGraph", self._create_mock_drawable("TestDirectedGraph", "DirectedGraph")),
+            ("UndirectedGraph", self._create_mock_drawable("TestUndirectedGraph", "UndirectedGraph")),
+            ("Tree", self._create_mock_drawable("TestTree", "Tree")),
         ]
 
         # Test each drawable type by calling the method and checking it doesn't raise an exception
@@ -364,7 +363,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
 
         # Also check for any ColoredArea types that might be handled by the endswith logic
         for class_name in drawable_types:
-            if class_name.endswith('ColoredArea') and class_name not in handled_classes:
+            if class_name.endswith("ColoredArea") and class_name not in handled_classes:
                 # Test this ColoredArea type
                 try:
                     test_obj = self._create_mock_drawable(f"Test{class_name}", class_name)
@@ -373,8 +372,6 @@ class TestDrawableDependencyManager(unittest.TestCase):
                     print(f"DEBUG: {class_name} (ColoredArea type) handled successfully")
                 except Exception as test_e:
                     print(f"DEBUG: {class_name} (ColoredArea type) failed: {test_e}")
-
-
 
         # Check for missing implementations
         missing_implementations = drawable_types - handled_classes
@@ -385,8 +382,11 @@ class TestDrawableDependencyManager(unittest.TestCase):
         print(f"Missing implementations: {sorted(missing_implementations)}")
 
         # Assert that all types are handled
-        self.assertEqual(len(missing_implementations), 0,
-                         f"Missing analyze_drawable_for_dependencies cases for: {', '.join(missing_implementations)}")
+        self.assertEqual(
+            len(missing_implementations),
+            0,
+            f"Missing analyze_drawable_for_dependencies cases for: {', '.join(missing_implementations)}",
+        )
 
     def test_error_handling_none_values(self) -> None:
         """Test handling of None values in various methods"""
@@ -401,7 +401,9 @@ class TestDrawableDependencyManager(unittest.TestCase):
 
         # Test get_all_parents and get_all_children with None
         self.assertEqual(len(self.manager.get_all_parents(None)), 0, "get_all_parents should return empty set for None")
-        self.assertEqual(len(self.manager.get_all_children(None)), 0, "get_all_children should return empty set for None")
+        self.assertEqual(
+            len(self.manager.get_all_children(None)), 0, "get_all_children should return empty set for None"
+        )
 
         # Test remove_drawable with None
         try:
@@ -432,10 +434,16 @@ class TestDrawableDependencyManager(unittest.TestCase):
             self.fail(f"remove_drawable failed with non-existent drawable: {e}")
 
         # Test get_parents and get_children for non-existent drawable
-        self.assertEqual(len(self.manager.get_parents(non_existent)), 0,
-                         "get_parents should return empty set for non-existent drawable")
-        self.assertEqual(len(self.manager.get_children(non_existent)), 0,
-                         "get_children should return empty set for non-existent drawable")
+        self.assertEqual(
+            len(self.manager.get_parents(non_existent)),
+            0,
+            "get_parents should return empty set for non-existent drawable",
+        )
+        self.assertEqual(
+            len(self.manager.get_children(non_existent)),
+            0,
+            "get_children should return empty set for non-existent drawable",
+        )
 
     def test_verify_get_class_name_method(self) -> None:
         """Test verification of get_class_name method"""
@@ -448,6 +456,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         class NoMethodDrawable:
             def __init__(self) -> None:
                 self.name = "NoMethod"
+
         no_method = NoMethodDrawable()
         self.manager._verify_get_class_name_method(no_method, "Test")
         # Should log warning but not raise error
@@ -461,6 +470,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
             def __init__(self) -> None:
                 self.name = "BadMethod"
                 self.get_class_name = "not a method"
+
         bad_method = BadMethodDrawable()
         self.manager._verify_get_class_name_method(bad_method, "Test")
         # Should log warning but not raise error
@@ -569,10 +579,8 @@ class TestDrawableDependencyManager(unittest.TestCase):
     def test_get_parents_and_children(self) -> None:
         """Test getting direct parents and children"""
         # Test empty sets
-        self.assertEqual(len(self.manager.get_parents(self.segment1)), 0,
-                        "New segment should have no parents")
-        self.assertEqual(len(self.manager.get_children(self.point1)), 0,
-                        "New point should have no children")
+        self.assertEqual(len(self.manager.get_parents(self.segment1)), 0, "New segment should have no parents")
+        self.assertEqual(len(self.manager.get_children(self.point1)), 0, "New point should have no children")
 
         # Set up multiple dependencies
         self.manager.register_dependency(child=self.segment1, parent=self.point1)
@@ -592,10 +600,8 @@ class TestDrawableDependencyManager(unittest.TestCase):
         self.assertIn(self.segment2, children, "Segment2 should be a child of Point1")
 
         # Test with None values
-        self.assertEqual(len(self.manager.get_parents(None)), 0,
-                        "None should return empty parents set")
-        self.assertEqual(len(self.manager.get_children(None)), 0,
-                        "None should return empty children set")
+        self.assertEqual(len(self.manager.get_parents(None)), 0, "None should return empty parents set")
+        self.assertEqual(len(self.manager.get_children(None)), 0, "None should return empty children set")
 
     def test_should_skip_point_point_dependency(self) -> None:
         """Test the point-point dependency skip logic"""
@@ -730,6 +736,7 @@ class TestDrawableDependencyManager(unittest.TestCase):
         class BadDrawable:
             def __init__(self) -> None:
                 self.name = "Bad"
+
         bad = BadDrawable()
         dependencies = self.manager.analyze_drawable_for_dependencies(bad)
         self.assertEqual(len(dependencies), 0, "Drawable without get_class_name should have no dependencies")
@@ -824,7 +831,9 @@ class TestDrawableDependencyManager(unittest.TestCase):
     def test_analyze_generic_polygon_dependencies(self) -> None:
         """GenericPolygon dependency analysis uses _segments iterable."""
         segments = [
-            self._create_mock_segment(f"GS{i}", self._create_mock_point(f"GP{i}"), self._create_mock_point(f"GP{i+1}"))
+            self._create_mock_segment(
+                f"GS{i}", self._create_mock_point(f"GP{i}"), self._create_mock_point(f"GP{i + 1}")
+            )
             for i in range(7)
         ]
         generic = self._create_mock_drawable("GP1", "GenericPolygon")
@@ -849,8 +858,16 @@ class TestDrawableDependencyManager(unittest.TestCase):
     def test_type_hierarchy_includes_all_polygon_types(self) -> None:
         """All polygon class names must appear in _type_hierarchy."""
         required = {
-            "Triangle", "Rectangle", "Quadrilateral", "Pentagon", "Hexagon",
-            "Heptagon", "Octagon", "Nonagon", "Decagon", "GenericPolygon",
+            "Triangle",
+            "Rectangle",
+            "Quadrilateral",
+            "Pentagon",
+            "Hexagon",
+            "Heptagon",
+            "Octagon",
+            "Nonagon",
+            "Decagon",
+            "GenericPolygon",
         }
         hierarchy_keys = set(self.manager._type_hierarchy.keys())
         missing = required - hierarchy_keys

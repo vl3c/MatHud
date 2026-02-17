@@ -36,7 +36,7 @@ class MarkdownParser:
         except Exception as e:
             print(f"Error in custom markdown parsing: {e}")
             # Ultimate fallback
-            return text.replace('\n', '<br>')
+            return text.replace("\n", "<br>")
 
     def _simple_markdown_parse(self, text: str) -> str:
         """Simple markdown parser for basic formatting using string operations."""
@@ -45,23 +45,23 @@ class MarkdownParser:
             text = self._process_tables(text)
 
             # Split text into lines for processing
-            lines = text.split('\n')
+            lines = text.split("\n")
             html_lines: list[str] = []
             in_code_block = False
             code_block_content: list[str] = []
 
             for line in lines:
                 # Skip table processing if already processed
-                if '<table>' in line or '</table>' in line or '<tr>' in line or '<td>' in line or '<th>' in line:
+                if "<table>" in line or "</table>" in line or "<tr>" in line or "<td>" in line or "<th>" in line:
                     html_lines.append(line)
                     continue
 
                 # Handle code blocks
-                if line.strip().startswith('```'):
+                if line.strip().startswith("```"):
                     if in_code_block:
                         # End code block
-                        code_content = '\n'.join(code_block_content)
-                        html_lines.append(f'<pre><code>{code_content}</code></pre>')
+                        code_content = "\n".join(code_block_content)
+                        html_lines.append(f"<pre><code>{code_content}</code></pre>")
                         code_block_content = []
                         in_code_block = False
                     else:
@@ -79,16 +79,16 @@ class MarkdownParser:
                 heading_match = self._parse_heading(processed_line)
                 if heading_match:
                     level, heading_content = heading_match
-                    processed_line = f'<h{level}>{heading_content}</h{level}>'
+                    processed_line = f"<h{level}>{heading_content}</h{level}>"
                 # Lists - handle ordered and unordered with indentation
                 elif self._is_list_item(processed_line):
                     processed_line = self._process_list_item(processed_line)
                 # Blockquotes
-                elif processed_line.startswith('> '):
-                    processed_line = f'<blockquote>{processed_line[2:]}</blockquote>'
+                elif processed_line.startswith("> "):
+                    processed_line = f"<blockquote>{processed_line[2:]}</blockquote>"
                 # Horizontal rules
-                elif processed_line.strip() == '---':
-                    processed_line = '<hr>'
+                elif processed_line.strip() == "---":
+                    processed_line = "<hr>"
 
                 # Handle inline formatting
                 processed_line = self._process_inline_markdown(processed_line)
@@ -107,7 +107,7 @@ class MarkdownParser:
         except Exception as e:
             print(f"Error in simple markdown parsing: {e}")
             # Ultimate fallback
-            return text.replace('\n', '<br>')
+            return text.replace("\n", "<br>")
 
     def _parse_heading(self, line: str) -> Optional[Tuple[int, str]]:
         """Parse markdown heading and return (level, content) if matched."""
@@ -129,7 +129,7 @@ class MarkdownParser:
 
     def _process_tables(self, text: str) -> str:
         """Process markdown tables using proper GFM table parsing algorithm."""
-        lines = text.split('\n')
+        lines = text.split("\n")
         result_lines = []
         i = 0
 
@@ -137,7 +137,7 @@ class MarkdownParser:
             line = lines[i]
 
             # Check if this could be start of a table - must start with pipe
-            if line.strip().startswith('|') and line.strip():
+            if line.strip().startswith("|") and line.strip():
                 # Look ahead to see if next line is a delimiter
                 if i + 1 < len(lines):
                     next_line = lines[i + 1]
@@ -148,7 +148,7 @@ class MarkdownParser:
 
                         # Collect data rows - must also start with pipe
                         while j < len(lines):
-                            if lines[j].strip().startswith('|') and lines[j].strip():
+                            if lines[j].strip().startswith("|") and lines[j].strip():
                                 table_lines.append(lines[j])
                                 j += 1
                             else:
@@ -164,12 +164,12 @@ class MarkdownParser:
             result_lines.append(line)
             i += 1
 
-        return '\n'.join(result_lines)
+        return "\n".join(result_lines)
 
     def _build_table_html(self, table_lines: list[str]) -> str:
         """Build HTML table from table lines."""
         if len(table_lines) < 2:
-            return '\n'.join(table_lines)
+            return "\n".join(table_lines)
 
         header_line = table_lines[0]
         delimiter_line = table_lines[1]
@@ -178,51 +178,51 @@ class MarkdownParser:
         # Parse header
         header_cells = self._parse_table_row(header_line)
         if not header_cells:
-            return '\n'.join(table_lines)
+            return "\n".join(table_lines)
 
         # Parse alignments
         alignments = self._parse_alignments(delimiter_line)
 
         # Build HTML - no internal newlines to avoid extra spacing
-        html = '<table><thead><tr>'
+        html = "<table><thead><tr>"
         for i, cell in enumerate(header_cells):
-            align = alignments[i] if i < len(alignments) else ''
-            align_attr = f' style="text-align: {align};"' if align else ''
-            html += f'<th{align_attr}>{cell}</th>'
-        html += '</tr></thead>'
+            align = alignments[i] if i < len(alignments) else ""
+            align_attr = f' style="text-align: {align};"' if align else ""
+            html += f"<th{align_attr}>{cell}</th>"
+        html += "</tr></thead>"
 
         # Process data rows
         if data_lines:
-            html += '<tbody>'
+            html += "<tbody>"
             for data_line in data_lines:
                 data_cells = self._parse_table_row(data_line)
                 if data_cells:
-                    html += '<tr>'
+                    html += "<tr>"
                     for i, cell in enumerate(data_cells):
-                        align = alignments[i] if i < len(alignments) else ''
-                        align_attr = f' style="text-align: {align};"' if align else ''
-                        html += f'<td{align_attr}>{cell}</td>'
-                    html += '</tr>'
-            html += '</tbody>'
+                        align = alignments[i] if i < len(alignments) else ""
+                        align_attr = f' style="text-align: {align};"' if align else ""
+                        html += f"<td{align_attr}>{cell}</td>"
+                    html += "</tr>"
+            html += "</tbody>"
 
-        html += '</table>'
+        html += "</table>"
         return html
 
     def _is_delimiter_row(self, line: str) -> bool:
         """Check if a line is a valid table delimiter row."""
         # Delimiter row must start with | (after whitespace)
         line = line.strip()
-        if not line.startswith('|'):
+        if not line.startswith("|"):
             return False
 
         # Remove leading/trailing pipes
-        if line.startswith('|'):
+        if line.startswith("|"):
             line = line[1:]
-        if line.endswith('|'):
+        if line.endswith("|"):
             line = line[:-1]
 
         # Split by pipes and check each cell
-        cells = [cell.strip() for cell in line.split('|')]
+        cells = [cell.strip() for cell in line.split("|")]
 
         # Must have at least one valid delimiter cell
         valid_cell_count = 0
@@ -231,7 +231,7 @@ class MarkdownParser:
                 # Empty cells are allowed but don't count toward validity
                 continue
             # Must be hyphens with optional colons for alignment
-            if re.match(r'^:?-+:?$', cell):
+            if re.match(r"^:?-+:?$", cell):
                 valid_cell_count += 1
             else:
                 return False  # Invalid delimiter character
@@ -245,13 +245,13 @@ class MarkdownParser:
         line = line.strip()
 
         # Remove leading/trailing pipes if present
-        if line.startswith('|'):
+        if line.startswith("|"):
             line = line[1:]
-        if line.endswith('|'):
+        if line.endswith("|"):
             line = line[:-1]
 
         # Split by pipes and process each cell
-        cells = [cell.strip() for cell in line.split('|')]
+        cells = [cell.strip() for cell in line.split("|")]
 
         # Process inline markdown in each cell
         processed_cells = []
@@ -261,7 +261,7 @@ class MarkdownParser:
                 processed_cell = self._process_inline_markdown(cell)
                 processed_cells.append(processed_cell)
             else:
-                processed_cells.append('')
+                processed_cells.append("")
 
         return processed_cells
 
@@ -269,31 +269,31 @@ class MarkdownParser:
         """Parse column alignments from delimiter row."""
         # Remove leading/trailing whitespace and optional pipes
         line = delimiter_line.strip()
-        if line.startswith('|'):
+        if line.startswith("|"):
             line = line[1:]
-        if line.endswith('|'):
+        if line.endswith("|"):
             line = line[:-1]
 
         # Split by pipes and determine alignment for each column
-        cells = [cell.strip() for cell in line.split('|')]
+        cells = [cell.strip() for cell in line.split("|")]
         alignments = []
 
         for cell in cells:
             if not cell:
-                alignments.append('')
+                alignments.append("")
                 continue
 
-            starts_with_colon = cell.startswith(':')
-            ends_with_colon = cell.endswith(':')
+            starts_with_colon = cell.startswith(":")
+            ends_with_colon = cell.endswith(":")
 
             if starts_with_colon and ends_with_colon:
-                alignments.append('center')
+                alignments.append("center")
             elif starts_with_colon:
-                alignments.append('left')
+                alignments.append("left")
             elif ends_with_colon:
-                alignments.append('right')
+                alignments.append("right")
             else:
-                alignments.append('')
+                alignments.append("")
 
         return alignments
 
@@ -302,15 +302,15 @@ class MarkdownParser:
         stripped = line.strip()
 
         # Checkbox items
-        if stripped.startswith('- [x]') or stripped.startswith('- [ ]'):
+        if stripped.startswith("- [x]") or stripped.startswith("- [ ]"):
             return True
 
         # Unordered list
-        if stripped.startswith('- ') or stripped.startswith('* '):
+        if stripped.startswith("- ") or stripped.startswith("* "):
             return True
 
         # Ordered list (number followed by period and space)
-        if len(stripped) > 2 and stripped[1:3] == '. ':
+        if len(stripped) > 2 and stripped[1:3] == ". ":
             try:
                 int(stripped[0])  # Check if first char is number
                 return True
@@ -318,7 +318,7 @@ class MarkdownParser:
                 pass
 
         # Handle multi-digit numbers
-        parts = stripped.split('. ', 1)
+        parts = stripped.split(". ", 1)
         if len(parts) == 2:
             try:
                 int(parts[0])
@@ -336,35 +336,39 @@ class MarkdownParser:
         stripped = line.strip()
 
         # Handle checkboxes
-        if stripped.startswith('- [x]'):
+        if stripped.startswith("- [x]"):
             content = stripped[6:]  # Remove '- [x] '
             checkbox = '<span class="checkbox checked">&#10003;</span>'
-            return f'<li class="checkbox-item" data-list-type="ul" data-indent="{indent_level}">{checkbox}{content}</li>'
-        elif stripped.startswith('- [ ]'):
+            return (
+                f'<li class="checkbox-item" data-list-type="ul" data-indent="{indent_level}">{checkbox}{content}</li>'
+            )
+        elif stripped.startswith("- [ ]"):
             content = stripped[6:]  # Remove '- [ ] '
             checkbox = '<span class="checkbox unchecked"></span>'
-            return f'<li class="checkbox-item" data-list-type="ul" data-indent="{indent_level}">{checkbox}{content}</li>'
+            return (
+                f'<li class="checkbox-item" data-list-type="ul" data-indent="{indent_level}">{checkbox}{content}</li>'
+            )
 
         # Determine list type and content
-        if stripped.startswith('- ') or stripped.startswith('* '):
+        if stripped.startswith("- ") or stripped.startswith("* "):
             # Unordered list
             content = stripped[2:]
-            list_type = 'ul'
+            list_type = "ul"
         else:
             # Ordered list (number followed by period)
-            parts = stripped.split('. ', 1)
+            parts = stripped.split(". ", 1)
             if len(parts) == 2:
                 try:
                     int(parts[0])
                     content = parts[1]
-                    list_type = 'ol'
+                    list_type = "ol"
                 except:
                     # Fallback
                     content = stripped
-                    list_type = 'ul'
+                    list_type = "ul"
             else:
                 content = stripped
-                list_type = 'ul'
+                list_type = "ul"
 
         # Add data attributes to track list type and indent level
         return f'<li data-list-type="{list_type}" data-indent="{indent_level}">{content}</li>'
@@ -380,37 +384,37 @@ class MarkdownParser:
                 else:
                     # Empty line - only add break if not between list items or table elements
                     if i > 0 and i < len(lines) - 1:
-                        prev_line = lines[i-1].strip()
-                        next_line = lines[i+1].strip()
+                        prev_line = lines[i - 1].strip()
+                        next_line = lines[i + 1].strip()
 
                         # Don't add breaks between list items
-                        prev_is_list = '<li' in prev_line
-                        next_is_list = '<li' in next_line
+                        prev_is_list = "<li" in prev_line
+                        next_is_list = "<li" in next_line
 
                         # Don't add breaks around tables
-                        prev_is_table = any(tag in prev_line for tag in ['<table>', '</table>', '<tr>', '<td>', '<th>'])
-                        next_is_table = any(tag in next_line for tag in ['<table>', '</table>', '<tr>', '<td>', '<th>'])
+                        prev_is_table = any(tag in prev_line for tag in ["<table>", "</table>", "<tr>", "<td>", "<th>"])
+                        next_is_table = any(tag in next_line for tag in ["<table>", "</table>", "<tr>", "<td>", "<th>"])
 
                         if not (prev_is_list and next_is_list) and not (prev_is_table or next_is_table):
-                            result_lines.append('<br>')
+                            result_lines.append("<br>")
 
-            return '<br>'.join(result_lines)
+            return "<br>".join(result_lines)
 
         except Exception as e:
             print(f"Error joining lines: {e}")
-            return '<br>'.join(lines)
+            return "<br>".join(lines)
 
     def _wrap_list_items_improved(self, html: str) -> str:
         """Wrap list items with proper <ul>/<ol> tags and handle REAL nesting."""
         try:
-            lines = html.split('<br>')
+            lines = html.split("<br>")
             result = []
             i = 0
 
             while i < len(lines):
                 line = lines[i].strip()
 
-                if '<li data-list-type=' in line and '</li>' in line:
+                if "<li data-list-type=" in line and "</li>" in line:
                     # Start processing a list
                     list_items = []
                     current_index = i
@@ -418,17 +422,17 @@ class MarkdownParser:
                     # Collect all consecutive list items
                     while current_index < len(lines):
                         current_line = lines[current_index].strip()
-                        if '<li data-list-type=' in current_line and '</li>' in current_line:
-                            list_type = self._extract_data_attr(current_line, 'data-list-type')
-                            indent_level = int(self._extract_data_attr(current_line, 'data-indent') or '0')
+                        if "<li data-list-type=" in current_line and "</li>" in current_line:
+                            list_type = self._extract_data_attr(current_line, "data-list-type")
+                            indent_level = int(self._extract_data_attr(current_line, "data-indent") or "0")
 
                             # Ensure list_type is not None
                             if list_type is None:
-                                list_type = 'ul'  # Default to unordered list
+                                list_type = "ul"  # Default to unordered list
 
                             # Clean the line (remove data attributes)
-                            clean_line = current_line.replace(f' data-list-type="{list_type}"', '')
-                            clean_line = clean_line.replace(f' data-indent="{indent_level}"', '')
+                            clean_line = current_line.replace(f' data-list-type="{list_type}"', "")
+                            clean_line = clean_line.replace(f' data-indent="{indent_level}"', "")
 
                             list_items.append((clean_line, list_type, indent_level))
                             current_index += 1
@@ -446,7 +450,7 @@ class MarkdownParser:
                     i += 1
 
             # Join with line breaks
-            return '<br>'.join(result)
+            return "<br>".join(result)
 
         except Exception as e:
             print(f"Error in improved list wrapping: {e}")
@@ -465,7 +469,7 @@ class MarkdownParser:
         """Build properly nested HTML from list items."""
         try:
             if not list_items:
-                return ''
+                return ""
 
             result: list[str] = []
             stack: list[Tuple[str, int]] = []  # Stack of (list_type, indent_level)
@@ -478,13 +482,13 @@ class MarkdownParser:
                         break
                     # Close the deeper list
                     closed_type = stack.pop()[0]
-                    tag = 'ol' if closed_type == 'ol' else 'ul'
-                    result.append(f'</{tag}>')
+                    tag = "ol" if closed_type == "ol" else "ul"
+                    result.append(f"</{tag}>")
 
                 # Open new list if needed
                 if not stack or stack[-1][1] < indent_level or stack[-1][0] != list_type:
-                    tag = 'ol' if list_type == 'ol' else 'ul'
-                    result.append(f'<{tag}>')
+                    tag = "ol" if list_type == "ol" else "ul"
+                    result.append(f"<{tag}>")
                     stack.append((list_type, indent_level))
 
                 # Add the list item
@@ -493,61 +497,57 @@ class MarkdownParser:
             # Close all remaining open lists
             while stack:
                 closed_type = stack.pop()[0]
-                tag = 'ol' if closed_type == 'ol' else 'ul'
-                result.append(f'</{tag}>')
+                tag = "ol" if closed_type == "ol" else "ul"
+                result.append(f"</{tag}>")
 
-            return ''.join(result)
+            return "".join(result)
 
         except Exception as e:
             print(f"Error building nested list HTML: {e}")
-            return ''
+            return ""
 
     def _process_inline_markdown(self, text: str) -> str:
         """Process inline markdown elements like bold, italic, code."""
         try:
             # Bold text (**text** and __text__)
-            while '**' in text:
-                start = text.find('**')
+            while "**" in text:
+                start = text.find("**")
                 if start == -1:
                     break
-                end = text.find('**', start + 2)
+                end = text.find("**", start + 2)
                 if end == -1:
                     break
                 before = text[:start]
-                content = text[start + 2:end]
-                after = text[end + 2:]
-                text = before + f'<strong>{content}</strong>' + after
+                content = text[start + 2 : end]
+                after = text[end + 2 :]
+                text = before + f"<strong>{content}</strong>" + after
 
             # Process double underscores for bold - restart search after each replacement
-            while '__' in text:
+            while "__" in text:
                 found_match = False
                 pos = 0
                 while pos < len(text):
-                    start = text.find('__', pos)
+                    start = text.find("__", pos)
                     if start == -1:
                         break
-                    end = text.find('__', start + 2)
+                    end = text.find("__", start + 2)
                     if end == -1:
                         break
 
                     # Check if double underscore is surrounded by proper word boundaries
-                    char_before = text[start - 1] if start > 0 else ' '
-                    char_after = text[end + 2] if end + 2 < len(text) else ' '
+                    char_before = text[start - 1] if start > 0 else " "
+                    char_after = text[end + 2] if end + 2 < len(text) else " "
 
                     # Only apply bold formatting if both double underscores are at proper word boundaries
                     # Must be preceded and followed by space, punctuation, or start/end of text
-                    before_is_boundary = (char_before == ' ' or
-                                         char_before in '.,!?:;()[]{}"\'-' or
-                                         start == 0)
-                    after_is_boundary = (char_after == ' ' or
-                                        char_after in '.,!?:;()[]{}"\'-' or
-                                        end + 2 >= len(text))
+                    before_is_boundary = char_before == " " or char_before in ".,!?:;()[]{}\"'-" or start == 0
+                    after_is_boundary = char_after == " " or char_after in ".,!?:;()[]{}\"'-" or end + 2 >= len(text)
 
                     if before_is_boundary and after_is_boundary:
                         before = text[:start]
-                        content = text[start + 2:end]
-                        after = text[end + 2:]
-                        text = before + f'<strong>{content}</strong>' + after
+                        content = text[start + 2 : end]
+                        after = text[end + 2 :]
+                        text = before + f"<strong>{content}</strong>" + after
                         found_match = True
                         break  # Break inner loop to restart search from beginning
                     else:
@@ -559,48 +559,44 @@ class MarkdownParser:
                     break
 
             # Italic text (*text* and _text_)
-            while '*' in text:  # Process asterisks regardless of bold tags
-                start = text.find('*')
+            while "*" in text:  # Process asterisks regardless of bold tags
+                start = text.find("*")
                 if start == -1:
                     break
-                end = text.find('*', start + 1)
+                end = text.find("*", start + 1)
                 if end == -1:
                     break
                 before = text[:start]
-                content = text[start + 1:end]
-                after = text[end + 1:]
-                text = before + f'<em>{content}</em>' + after
+                content = text[start + 1 : end]
+                after = text[end + 1 :]
+                text = before + f"<em>{content}</em>" + after
 
             # Enhanced underscore italic processing - only format when surrounded by spaces or at word boundaries
-            while '_' in text:  # Process single underscores regardless of bold tags
+            while "_" in text:  # Process single underscores regardless of bold tags
                 found_match = False
                 pos = 0
                 while pos < len(text):
-                    start = text.find('_', pos)
+                    start = text.find("_", pos)
                     if start == -1:
                         break
-                    end = text.find('_', start + 1)
+                    end = text.find("_", start + 1)
                     if end == -1:
                         break
 
                     # Check if underscore is surrounded by proper word boundaries
-                    char_before = text[start - 1] if start > 0 else ' '
-                    char_after = text[end + 1] if end + 1 < len(text) else ' '
+                    char_before = text[start - 1] if start > 0 else " "
+                    char_after = text[end + 1] if end + 1 < len(text) else " "
 
                     # Only apply italic formatting if both underscores are at proper word boundaries
                     # Must be preceded and followed by space, punctuation, or start/end of text
-                    before_is_boundary = (char_before == ' ' or
-                                         char_before in '.,!?:;()[]{}"\'-' or
-                                         start == 0)
-                    after_is_boundary = (char_after == ' ' or
-                                        char_after in '.,!?:;()[]{}"\'-' or
-                                        end + 1 >= len(text))
+                    before_is_boundary = char_before == " " or char_before in ".,!?:;()[]{}\"'-" or start == 0
+                    after_is_boundary = char_after == " " or char_after in ".,!?:;()[]{}\"'-" or end + 1 >= len(text)
 
                     if before_is_boundary and after_is_boundary:
                         before = text[:start]
-                        content = text[start + 1:end]
-                        after = text[end + 1:]
-                        text = before + f'<em>{content}</em>' + after
+                        content = text[start + 1 : end]
+                        after = text[end + 1 :]
+                        text = before + f"<em>{content}</em>" + after
                         found_match = True
                         break  # Break inner loop to restart search from beginning
                     else:
@@ -612,46 +608,46 @@ class MarkdownParser:
                     break
 
             # Strikethrough (~~text~~)
-            while '~~' in text:
-                start = text.find('~~')
+            while "~~" in text:
+                start = text.find("~~")
                 if start == -1:
                     break
-                end = text.find('~~', start + 2)
+                end = text.find("~~", start + 2)
                 if end == -1:
                     break
                 before = text[:start]
-                content = text[start + 2:end]
-                after = text[end + 2:]
-                text = before + f'<del>{content}</del>' + after
+                content = text[start + 2 : end]
+                after = text[end + 2 :]
+                text = before + f"<del>{content}</del>" + after
 
             # Inline code (`text`)
-            while '`' in text:
-                start = text.find('`')
+            while "`" in text:
+                start = text.find("`")
                 if start == -1:
                     break
-                end = text.find('`', start + 1)
+                end = text.find("`", start + 1)
                 if end == -1:
                     break
                 before = text[:start]
-                content = text[start + 1:end]
-                after = text[end + 1:]
-                text = before + f'<code>{content}</code>' + after
+                content = text[start + 1 : end]
+                after = text[end + 1 :]
+                text = before + f"<code>{content}</code>" + after
 
             # Links [text](url)
-            while '[' in text and '](' in text and ')' in text:
-                start = text.find('[')
+            while "[" in text and "](" in text and ")" in text:
+                start = text.find("[")
                 if start == -1:
                     break
-                middle = text.find('](', start)
+                middle = text.find("](", start)
                 if middle == -1:
                     break
-                end = text.find(')', middle)
+                end = text.find(")", middle)
                 if end == -1:
                     break
                 before = text[:start]
-                link_text = text[start + 1:middle]
-                link_url = text[middle + 2:end]
-                after = text[end + 1:]
+                link_text = text[start + 1 : middle]
+                link_url = text[middle + 2 : end]
+                after = text[end + 1 :]
                 text = before + f'<a href="{link_url}">{link_text}</a>' + after
 
             return text
@@ -668,13 +664,13 @@ class MarkdownParser:
             block_matches = []
             pos = 0
             while True:
-                start = text.find('$$', pos)
+                start = text.find("$$", pos)
                 if start == -1:
                     break
-                end = text.find('$$', start + 2)
+                end = text.find("$$", start + 2)
                 if end == -1:
                     break
-                block_matches.append((start, end + 2, text[start + 2:end]))
+                block_matches.append((start, end + 2, text[start + 2 : end]))
                 pos = end + 2
 
             # Replace from end to beginning
@@ -686,17 +682,17 @@ class MarkdownParser:
             bracket_matches = []
             pos = 0
             while True:
-                start = text.find('\\[', pos)
+                start = text.find("\\[", pos)
                 if start == -1:
                     break
-                end = text.find('\\]', start + 2)
+                end = text.find("\\]", start + 2)
                 if end == -1:
                     break
-                bracket_matches.append((start, end + 2, text[start + 2:end]))
+                bracket_matches.append((start, end + 2, text[start + 2 : end]))
                 pos = end + 2
 
             for start, end, content in reversed(bracket_matches):
-                cleaned = content.replace('<br>', '\n').strip()
+                cleaned = content.replace("<br>", "\n").strip()
                 replacement = f'<div class="math-block">$${cleaned}$$</div>'
                 text = text[:start] + replacement + text[end:]
 
@@ -704,13 +700,13 @@ class MarkdownParser:
             inline_matches = []
             pos = 0
             while True:
-                start = text.find('\\(', pos)
+                start = text.find("\\(", pos)
                 if start == -1:
                     break
-                end = text.find('\\)', start + 2)
+                end = text.find("\\)", start + 2)
                 if end == -1:
                     break
-                inline_matches.append((start, end + 2, text[start + 2:end]))
+                inline_matches.append((start, end + 2, text[start + 2 : end]))
                 pos = end + 2
 
             # Replace from end to beginning

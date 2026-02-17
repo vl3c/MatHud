@@ -149,9 +149,7 @@ class TestSearchToolsWithMock:
         """Create a ToolSearchService with mocked client."""
         return ToolSearchService(client=mock_client)
 
-    def _setup_mock_response(
-        self, mock_client: MagicMock, content: str
-    ) -> None:
+    def _setup_mock_response(self, mock_client: MagicMock, content: str) -> None:
         """Configure mock client to return specific content."""
         mock_message = MagicMock()
         mock_message.content = content
@@ -161,13 +159,9 @@ class TestSearchToolsWithMock:
         mock_response.choices = [mock_choice]
         mock_client.chat.completions.create.return_value = mock_response
 
-    def test_search_returns_tools(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_search_returns_tools(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should return matching tool definitions."""
-        self._setup_mock_response(
-            mock_client, '["create_circle", "create_point"]'
-        )
+        self._setup_mock_response(mock_client, '["create_circle", "create_point"]')
 
         result = service.search_tools("draw a circle")
 
@@ -176,9 +170,7 @@ class TestSearchToolsWithMock:
         assert "create_circle" in names
         assert "create_point" in names
 
-    def test_search_respects_max_results(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_search_respects_max_results(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should limit results to max_results."""
         self._setup_mock_response(
             mock_client,
@@ -189,26 +181,20 @@ class TestSearchToolsWithMock:
 
         assert len(result) == 2
 
-    def test_search_empty_query_returns_empty(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_search_empty_query_returns_empty(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should return empty list for empty query."""
         result = service.search_tools("")
         assert result == []
         # Should not call the API
         mock_client.chat.completions.create.assert_not_called()
 
-    def test_search_whitespace_query_returns_empty(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_search_whitespace_query_returns_empty(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should return empty list for whitespace-only query."""
         result = service.search_tools("   ")
         assert result == []
         mock_client.chat.completions.create.assert_not_called()
 
-    def test_search_clamps_max_results_low(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_search_clamps_max_results_low(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should clamp max_results to minimum of 1."""
         self._setup_mock_response(mock_client, '["create_circle"]')
 
@@ -217,13 +203,9 @@ class TestSearchToolsWithMock:
         # Should still work with at least 1 result
         assert len(result) <= 1
 
-    def test_search_clamps_max_results_high(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_search_clamps_max_results_high(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should clamp max_results to maximum of 20."""
-        self._setup_mock_response(
-            mock_client, '["create_circle", "create_point"]'
-        )
+        self._setup_mock_response(mock_client, '["create_circle", "create_point"]')
 
         # Passing 100 should be clamped to 20
         service.search_tools("draw", max_results=100)
@@ -234,9 +216,7 @@ class TestSearchToolsWithMock:
         prompt = messages[0]["content"] if messages else ""
         assert "up to 20 tool names" in prompt
 
-    def test_search_filters_unknown_tools(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_search_filters_unknown_tools(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should filter out unknown tool names from response."""
         self._setup_mock_response(
             mock_client,
@@ -250,9 +230,7 @@ class TestSearchToolsWithMock:
         names = [t["function"]["name"] for t in result]
         assert "nonexistent_tool" not in names
 
-    def test_search_handles_api_error(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_search_handles_api_error(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should use fallback ranking on API error."""
         mock_client.chat.completions.create.side_effect = Exception("API Error")
 
@@ -262,9 +240,7 @@ class TestSearchToolsWithMock:
         names = [t["function"]["name"] for t in result]
         assert "create_circle" in names
 
-    def test_search_handles_empty_response(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_search_handles_empty_response(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should handle empty API response."""
         self._setup_mock_response(mock_client, "")
 
@@ -272,9 +248,7 @@ class TestSearchToolsWithMock:
 
         assert result == []
 
-    def test_search_uses_correct_model(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_search_uses_correct_model(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should use the specified model."""
         self._setup_mock_response(mock_client, '["create_circle"]')
         model = AIModel.from_identifier("gpt-4.1")
@@ -284,9 +258,7 @@ class TestSearchToolsWithMock:
         call_args = mock_client.chat.completions.create.call_args
         assert call_args.kwargs.get("model") == "gpt-4.1"
 
-    def test_search_uses_default_model_when_none(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_search_uses_default_model_when_none(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should use gpt-4.1-mini when no model specified."""
         self._setup_mock_response(mock_client, '["create_circle"]')
 
@@ -310,9 +282,7 @@ class TestSearchToolsFormatted:
         """Create a ToolSearchService with mocked client."""
         return ToolSearchService(client=mock_client)
 
-    def _setup_mock_response(
-        self, mock_client: MagicMock, content: str
-    ) -> None:
+    def _setup_mock_response(self, mock_client: MagicMock, content: str) -> None:
         """Configure mock client to return specific content."""
         mock_message = MagicMock()
         mock_message.content = content
@@ -322,9 +292,7 @@ class TestSearchToolsFormatted:
         mock_response.choices = [mock_choice]
         mock_client.chat.completions.create.return_value = mock_response
 
-    def test_formatted_returns_dict(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_formatted_returns_dict(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools_formatted should return a dict."""
         self._setup_mock_response(mock_client, '["create_circle"]')
 
@@ -332,9 +300,7 @@ class TestSearchToolsFormatted:
 
         assert isinstance(result, dict)
 
-    def test_formatted_contains_required_keys(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_formatted_contains_required_keys(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools_formatted result should have tools, count, and query."""
         self._setup_mock_response(mock_client, '["create_circle"]')
 
@@ -344,22 +310,16 @@ class TestSearchToolsFormatted:
         assert "count" in result
         assert "query" in result
 
-    def test_formatted_count_matches_tools(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_formatted_count_matches_tools(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """count should match the number of tools returned."""
-        self._setup_mock_response(
-            mock_client, '["create_circle", "create_point"]'
-        )
+        self._setup_mock_response(mock_client, '["create_circle", "create_point"]')
 
         result = service.search_tools_formatted("draw shapes")
 
         assert result["count"] == len(result["tools"])
         assert result["count"] == 2
 
-    def test_formatted_preserves_query(
-        self, service: ToolSearchService, mock_client: MagicMock
-    ) -> None:
+    def test_formatted_preserves_query(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """query field should contain the original query."""
         self._setup_mock_response(mock_client, '["create_circle"]')
         query = "draw a beautiful circle"

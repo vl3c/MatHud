@@ -109,11 +109,13 @@ class OllamaAPI(LocalLLMBase):
 
             models = []
             for model in data.get("models", []):
-                models.append({
-                    "name": model.get("name", ""),
-                    "size": model.get("size", 0),
-                    "modified_at": model.get("modified_at", ""),
-                })
+                models.append(
+                    {
+                        "name": model.get("name", ""),
+                        "size": model.get("size", 0),
+                        "modified_at": model.get("modified_at", ""),
+                    }
+                )
 
             return models
         except Exception as e:
@@ -156,11 +158,13 @@ class OllamaAPI(LocalLLMBase):
             for model in data.get("models", []):
                 name = model.get("name", "")
                 if supports_tools(name):
-                    tool_capable.append({
-                        "name": name,
-                        "size": model.get("size", 0),
-                        "modified_at": model.get("modified_at", ""),
-                    })
+                    tool_capable.append(
+                        {
+                            "name": name,
+                            "size": model.get("size", 0),
+                            "modified_at": model.get("modified_at", ""),
+                        }
+                    )
 
             return tool_capable
         except Exception as e:

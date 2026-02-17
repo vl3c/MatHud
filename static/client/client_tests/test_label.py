@@ -76,7 +76,9 @@ class TestLabel(unittest.TestCase):
 
         container = DrawablesContainer()
         name_generator = SimpleMock(
-            generate_label_name=lambda preferred: (preferred.strip() if isinstance(preferred, str) and preferred.strip() else "demo_label")
+            generate_label_name=lambda preferred: (
+                preferred.strip() if isinstance(preferred, str) and preferred.strip() else "demo_label"
+            )
         )
         dependency_manager = SimpleMock()
         proxy = SimpleMock()
@@ -96,9 +98,7 @@ class TestLabel(unittest.TestCase):
         self.assertEqual(len(undo_calls), 2)
 
     def test_label_name_generator_produces_letter_sequence(self) -> None:
-        manager, _, _ = self._make_label_manager(
-            name_generator_factory=lambda canvas: DrawableNameGenerator(canvas)
-        )
+        manager, _, _ = self._make_label_manager(name_generator_factory=lambda canvas: DrawableNameGenerator(canvas))
         label_one = manager.create_label(0.0, 0.0, "auto")
         label_two = manager.create_label(1.0, 1.0, "auto2")
         label_three = manager.create_label(2.0, 2.0, "auto3")
@@ -108,9 +108,7 @@ class TestLabel(unittest.TestCase):
         self.assertEqual(label_three.name, "label_C")
 
     def test_label_name_generator_handles_duplicate_preferred_names(self) -> None:
-        manager, _, _ = self._make_label_manager(
-            name_generator_factory=lambda canvas: DrawableNameGenerator(canvas)
-        )
+        manager, _, _ = self._make_label_manager(name_generator_factory=lambda canvas: DrawableNameGenerator(canvas))
 
         custom_one = manager.create_label(0.0, 0.0, "auto", name="CustomLabel")
         custom_two = manager.create_label(1.0, 1.0, "auto", name="CustomLabel")
@@ -355,4 +353,3 @@ class TestLabel(unittest.TestCase):
         render_mode = args.get("render_mode")
         self.assertIsInstance(render_mode, dict)
         self.assertEqual(render_mode.get("kind"), "world")
-

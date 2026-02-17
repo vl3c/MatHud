@@ -20,13 +20,7 @@ from geometry import (
 
 
 class TestIntersections(unittest.TestCase):
-
-    def _assert_point_near(
-        self,
-        actual: tuple[float, float],
-        expected: tuple[float, float],
-        places: int = 5
-    ) -> None:
+    def _assert_point_near(self, actual: tuple[float, float], expected: tuple[float, float], places: int = 5) -> None:
         self.assertAlmostEqual(actual[0], expected[0], places=places)
         self.assertAlmostEqual(actual[1], expected[1], places=places)
 
@@ -148,7 +142,7 @@ class TestIntersections(unittest.TestCase):
         result = circle_ellipse_intersection(circle, ellipse)
         self.assertGreaterEqual(len(result), 2)
         for point in result:
-            dist_to_circle = math.sqrt(point[0]**2 + point[1]**2)
+            dist_to_circle = math.sqrt(point[0] ** 2 + point[1] ** 2)
             self.assertAlmostEqual(dist_to_circle, 1.5, places=1)
 
     def test_ellipse_ellipse_intersection(self) -> None:
@@ -172,26 +166,17 @@ class TestIntersections(unittest.TestCase):
         self.assertEqual(len(result), 2)
 
     def test_path_path_intersections(self) -> None:
-        square = CompositePath.from_points([
-            (0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0), (0.0, 0.0)
-        ])
-        diagonal = CompositePath([
-            LineSegment((-1.0, 1.0), (3.0, 1.0))
-        ])
+        square = CompositePath.from_points([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0), (0.0, 0.0)])
+        diagonal = CompositePath([LineSegment((-1.0, 1.0), (3.0, 1.0))])
         result = path_path_intersections(square, diagonal)
         self.assertEqual(len(result), 2)
 
     def test_path_path_no_intersections(self) -> None:
-        square1 = CompositePath.from_points([
-            (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.0, 0.0)
-        ])
-        square2 = CompositePath.from_points([
-            (5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0), (5.0, 5.0)
-        ])
+        square1 = CompositePath.from_points([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.0, 0.0)])
+        square2 = CompositePath.from_points([(5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0), (5.0, 5.0)])
         result = path_path_intersections(square1, square2)
         self.assertEqual(len(result), 0)
 
 
 if __name__ == "__main__":
     unittest.main()
-

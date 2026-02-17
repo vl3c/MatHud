@@ -45,9 +45,7 @@ class ArcManager:
         self.dependency_manager = dependency_manager
         self.point_manager = point_manager
         self.drawable_manager = drawable_manager_proxy
-        self.arc_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy(
-            "CircleArc"
-        )
+        self.arc_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("CircleArc")
 
     # ------------------------------------------------------------------
     # Creation helpers
@@ -65,9 +63,7 @@ class ArcManager:
             if existing:
                 return existing, False
             if x is None or y is None:
-                raise ValueError(
-                    f"{label} name '{point_name}' was not found and coordinates were not provided."
-                )
+                raise ValueError(f"{label} name '{point_name}' was not found and coordinates were not provided.")
             created_point = self.point_manager.create_point(
                 x,
                 y,
@@ -171,14 +167,10 @@ class ArcManager:
         suggested_p1, suggested_p2 = self.name_generator.extract_point_names_from_arc_name(arc_name)
 
         # Resolve point 1
-        point1, point1_is_new = self._resolve_arc_point(
-            "Point 1", point1_name, point1_x, point1_y, suggested_p1
-        )
+        point1, point1_is_new = self._resolve_arc_point("Point 1", point1_name, point1_x, point1_y, suggested_p1)
 
         # Resolve point 2
-        point2, point2_is_new = self._resolve_arc_point(
-            "Point 2", point2_name, point2_x, point2_y, suggested_p2
-        )
+        point2, point2_is_new = self._resolve_arc_point("Point 2", point2_name, point2_x, point2_y, suggested_p2)
 
         # Resolve optional point 3
         point3: Optional["Point"] = None
@@ -213,7 +205,8 @@ class ArcManager:
         # Use create_point directly with suggested name (like segments do)
         # create_point handles: coordinate lookup, name validation via generate_point_name
         point = self.point_manager.create_point(
-            x, y,
+            x,
+            y,
             name=suggested_name or "",
             extra_graphics=False,
         )
@@ -282,7 +275,16 @@ class ArcManager:
             center_y,
             radius,
         )
-        return circle, resolved_center_x, resolved_center_y, resolved_radius, point1, point1_is_new, point2, point2_is_new
+        return (
+            circle,
+            resolved_center_x,
+            resolved_center_y,
+            resolved_radius,
+            point1,
+            point1_is_new,
+            point2,
+            point2_is_new,
+        )
 
     def _resolve_geometry_from_three_points(
         self,
@@ -307,9 +309,7 @@ class ArcManager:
 
         center_point, _ = points_info[center_choice]
         endpoint_labels = [
-            label
-            for label in ("point1", "point2", "point3")
-            if label != center_choice and label in points_info
+            label for label in ("point1", "point2", "point3") if label != center_choice and label in points_info
         ]
         if len(endpoint_labels) != 2:
             raise ValueError("Creating a circle arc from three points requires exactly three defined points.")
@@ -575,16 +575,8 @@ class ArcManager:
             point1_name = args.get("point1_name")
             point2_name = args.get("point2_name")
             circle_name = args.get("circle_name")
-            point1 = (
-                self.point_manager.get_point_by_name(point1_name)
-                if point1_name
-                else None
-            )
-            point2 = (
-                self.point_manager.get_point_by_name(point2_name)
-                if point2_name
-                else None
-            )
+            point1 = self.point_manager.get_point_by_name(point1_name) if point1_name else None
+            point2 = self.point_manager.get_point_by_name(point2_name) if point2_name else None
             if not point1 or not point2:
                 continue
 
@@ -619,4 +611,3 @@ class ArcManager:
 
         for arc_name in arcs_to_remove:
             self.delete_circle_arc(arc_name)
-

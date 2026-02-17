@@ -42,8 +42,16 @@ if TYPE_CHECKING:
 
 # Types that do not support geometric transforms via AI tools.
 _EXCLUDE_TRANSFORM: Tuple[str, ...] = (
-    "Function", "ParametricFunction", "PiecewiseFunction",
-    "Graph", "Angle", "CircleArc", "ColoredArea", "Label", "Bar", "Plot",
+    "Function",
+    "ParametricFunction",
+    "PiecewiseFunction",
+    "Graph",
+    "Angle",
+    "CircleArc",
+    "ColoredArea",
+    "Label",
+    "Bar",
+    "Plot",
 )
 
 
@@ -117,15 +125,12 @@ class TransformationsManager:
         uniform = abs(sx - sy) < 1e-9
         if cn == "Circle" and not uniform:
             raise ValueError(
-                "Non-uniform scaling of a circle is not supported; "
-                "convert to an ellipse first or use equal sx and sy"
+                "Non-uniform scaling of a circle is not supported; convert to an ellipse first or use equal sx and sy"
             )
         if cn == "Ellipse" and not uniform:
             rot = getattr(drawable, "rotation_angle", 0)
             if (rot % 180) > 1e-9:
-                raise ValueError(
-                    "Non-uniform scaling of a rotated ellipse is not supported"
-                )
+                raise ValueError("Non-uniform scaling of a rotated ellipse is not supported")
 
     def _refresh_dependencies_after_transform(
         self,

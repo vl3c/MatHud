@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import unittest
 
-from rendering.helpers.screen_offset_label_layout import LabelBlock, make_label_text_call, solve_dy, solve_dy_with_hide_for_text_calls
+from rendering.helpers.screen_offset_label_layout import (
+    LabelBlock,
+    make_label_text_call,
+    solve_dy,
+    solve_dy_with_hide_for_text_calls,
+)
 
 
 class TestScreenOffsetLabelLayout(unittest.TestCase):
@@ -224,5 +229,3 @@ class TestScreenOffsetLabelLayout(unittest.TestCase):
         dy, hidden = solve_dy_with_hide_for_text_calls([call_a, call_b], max_abs_dy_factor=3.0)
         # They may still overlap in rect-space, but proximity rule should not hide.
         self.assertNotIn("B", hidden)
-
-

@@ -86,4 +86,3 @@ class Pentagon(Polygon):
         new_pentagon = Pentagon(new_segments, color=self.color)
         memo[id(self)] = new_pentagon
         return new_pentagon
-

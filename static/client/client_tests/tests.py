@@ -258,6 +258,7 @@ from .test_action_trace_collector import (
 )
 from .test_result_processor_traced import TestGetResultsTraced
 
+
 class Tests:
     """Encapsulates execution and formatting of client-side tests."""
 
@@ -328,7 +329,7 @@ class Tests:
                 print("[ClientTests] Async test execution finished.")
 
             results = test_runner._format_results_for_ai(combined_result)
-            results['stopped'] = stopped
+            results["stopped"] = stopped
             return results
         except Exception as exc:  # pragma: no cover - defensive path
             print(f"[ClientTests] Exception during run_tests_async: {repr(exc)}")

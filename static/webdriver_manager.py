@@ -90,7 +90,8 @@ class WebDriverManager:
         print("Loading SVG state...")
         if self.driver is None:
             raise RuntimeError("WebDriver not initialized")
-        self.driver.execute_script("""
+        self.driver.execute_script(
+            """
             const svg = document.getElementById('math-svg');
             const container = document.querySelector('.math-container');
 
@@ -111,7 +112,9 @@ class WebDriverManager:
             }
 
             return true;  // Confirm execution
-        """, svg_state)
+        """,
+            svg_state,
+        )
         time.sleep(1)  # Give time for the SVG to be redrawn
 
     def _setup_driver(self) -> None:
@@ -122,7 +125,7 @@ class WebDriverManager:
         """
         print("Initializing WebDriver...")
         firefox_options = Options()
-        firefox_options.add_argument('--headless')
+        firefox_options.add_argument("--headless")
 
         max_retries = 3
         for attempt in range(max_retries):
@@ -209,15 +212,8 @@ class WebDriverManager:
         """
         if self.driver is None:
             raise RuntimeError("WebDriver not initialized")
-        WebDriverWait(self.driver, 10).until(
-            EC.presence_of_element_located((By.ID, "math-svg"))
-        )
-        WebDriverWait(self.driver, 10).until(
-            EC.presence_of_all_elements_located((
-                By.CSS_SELECTOR,
-                "#math-svg > *"
-            ))
-        )
+        WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.ID, "math-svg")))
+        WebDriverWait(self.driver, 10).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "#math-svg > *")))
 
     def _verify_svg_content(self) -> None:
         """Verify that the SVG content is not empty.
@@ -259,7 +255,8 @@ class WebDriverManager:
         """
         if self.driver is None:
             raise RuntimeError("WebDriver not initialized")
-        self.driver.execute_script("""
+        self.driver.execute_script(
+            """
             var container = document.querySelector('.math-container');
             var svg = document.getElementById('math-svg');
 
@@ -284,7 +281,10 @@ class WebDriverManager:
                 elements[i].style.visibility = 'visible';
                 elements[i].style.opacity = '1';
             }
-        """, dimensions['width'], dimensions['height'])
+        """,
+            dimensions["width"],
+            dimensions["height"],
+        )
 
     def cleanup(self) -> None:
         """Clean up WebDriver resources.

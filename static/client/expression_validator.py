@@ -82,6 +82,7 @@ class ExpressionValidator(ast.NodeVisitor):
         ALLOWED_NODES (set): Whitelist of permitted AST node types
         ALLOWED_FUNCTIONS (set): Whitelist of permitted mathematical functions
     """
+
     ALLOWED_NODES: Set[Type[ast.AST]] = {
         ast.Add,
         ast.Sub,
@@ -99,69 +100,69 @@ class ExpressionValidator(ast.NodeVisitor):
         ast.List,  # List literals (e.g., [1, 2, 3])
     }
     ALLOWED_FUNCTIONS: Set[str] = {
-        'sin',
-        'cos',
-        'tan',
-        'sqrt',
-        'log',
-        'log10',
-        'log2',
-        'factorial',
-        'asin',
-        'acos',
-        'atan',
-        'sinh',
-        'cosh',
-        'tanh',
-        'exp',
-        'abs',
-        'pi',
-        'e',
-        'pow',
-        'det',
-        'bin',
-        'arrangements',
-        'permutations',
-        'combinations',
-        'round',
-        'ceil',
-        'floor',
-        'trunc',
-        'max',
-        'min',
-        'sum',
-        'limit',
-        'derive',
-        'integrate',
-        'simplify',
-        'expand',
-        'factor',
-        'solve',
-        'gcd',
-        'lcm',
-        'is_prime',
-        'prime_factors',
-        'mod_pow',
-        'mod_inverse',
-        'next_prime',
-        'prev_prime',
-        'totient',
-        'divisors',
-        'mean',
-        'median',
-        'mode',
-        'stdev',
-        'variance',
-        'random',
-        'randint',
-        'summation',
-        'product',
-        'arithmetic_sum',
-        'geometric_sum',
-        'geometric_sum_infinite',
-        'ratio_test',
-        'root_test',
-        'p_series_test'
+        "sin",
+        "cos",
+        "tan",
+        "sqrt",
+        "log",
+        "log10",
+        "log2",
+        "factorial",
+        "asin",
+        "acos",
+        "atan",
+        "sinh",
+        "cosh",
+        "tanh",
+        "exp",
+        "abs",
+        "pi",
+        "e",
+        "pow",
+        "det",
+        "bin",
+        "arrangements",
+        "permutations",
+        "combinations",
+        "round",
+        "ceil",
+        "floor",
+        "trunc",
+        "max",
+        "min",
+        "sum",
+        "limit",
+        "derive",
+        "integrate",
+        "simplify",
+        "expand",
+        "factor",
+        "solve",
+        "gcd",
+        "lcm",
+        "is_prime",
+        "prime_factors",
+        "mod_pow",
+        "mod_inverse",
+        "next_prime",
+        "prev_prime",
+        "totient",
+        "divisors",
+        "mean",
+        "median",
+        "mode",
+        "stdev",
+        "variance",
+        "random",
+        "randint",
+        "summation",
+        "product",
+        "arithmetic_sum",
+        "geometric_sum",
+        "geometric_sum_infinite",
+        "ratio_test",
+        "root_test",
+        "p_series_test",
     }
 
     def _is_allowed_node_type(self, node: ast.AST) -> bool:
@@ -283,7 +284,7 @@ class ExpressionValidator(ast.NodeVisitor):
         """
         try:
             # Parse the expression into an abstract syntax tree
-            tree = ast.parse(expression, mode='eval')
+            tree = ast.parse(expression, mode="eval")
             validator = ExpressionValidator()
             validator.visit(tree)
 
@@ -318,80 +319,81 @@ class ExpressionValidator(ast.NodeVisitor):
         """
         variables_and_functions = ExpressionValidator._get_variables_and_functions(x)
         # Parse the expression into an abstract syntax tree
-        tree = ast.parse(expression, mode='eval')
+        tree = ast.parse(expression, mode="eval")
         # Evaluate the expression using the abstract syntax tree and the variables dictionary
-        result = eval(compile(tree, '<string>', mode='eval'), variables_and_functions)
+        result = eval(compile(tree, "<string>", mode="eval"), variables_and_functions)
         return cast(float, result)
 
     @staticmethod
     def _get_variables_and_functions(x: float) -> Dict[str, Any]:
         """Create a dictionary with variables and functions for expression evaluation"""
         from utils.math_utils import MathUtils
+
         return {
-            'x': x,
-            'sin': math.sin,
-            'cos': math.cos,
-            'tan': math.tan,
-            'sqrt': MathUtils.sqrt, # Square root function
-            'log': math.log,   # Natural logarithm (base e)
-            'log10': math.log10,  # Logarithm base 10
-            'log2': math.log2,  # Logarithm base 2
-            'factorial': math.factorial,  # Factorial function
-            'asin': math.asin,  # Arcsine function
-            'acos': math.acos,  # Arccosine function
-            'atan': math.atan,  # Arctangent function
-            'sinh': math.sinh, # Hyperbolic sine function
-            'cosh': math.cosh, # Hyperbolic cosine function
-            'tanh': math.tanh, # Hyperbolic tangent function
-            'exp': math.exp, # Exponential function
-            'abs': abs, # Absolute value function
-            'pi': math.pi, # The constant pi
-            'e': math.e, # The constant e
-            'pow': MathUtils.pow, # Power function
-            'bin': bin, # Binary representation of an integer
-            'det': MathUtils.det, # Determinant of a matrix
-            'arrangements': MathUtils.arrangements, # Arrangements aka permutations nPk
-            'permutations': MathUtils.permutations, # Permutations
-            'combinations': MathUtils.combinations, # Combinations
-            'limit': MathUtils.limit, # Limit of a function
-            'derive': MathUtils.derivative, # Derivative of a function
-            'integrate': MathUtils.integral, # Indefinite integral of a function
-            'simplify': MathUtils.simplify, # Simplify an expression
-            'expand': MathUtils.expand, # Expand an expression
-            'factor': MathUtils.factor, # Factor an expression
-            'solve': MathUtils.solve, # Solve an equation
-            'random': MathUtils.random, # Generate a random number
-            'round': MathUtils.round, # Round a number
-            'gcd': MathUtils.gcd, # Greatest common divisor
-            'lcm': MathUtils.lcm, # Least common multiple
-            'is_prime': MathUtils.is_prime, # Check if number is prime
-            'prime_factors': MathUtils.prime_factors, # Prime factorization with multiplicity
-            'mod_pow': MathUtils.mod_pow, # Modular exponentiation
-            'mod_inverse': MathUtils.mod_inverse, # Modular multiplicative inverse
-            'next_prime': MathUtils.next_prime, # Find smallest prime >= n
-            'prev_prime': MathUtils.prev_prime, # Find largest prime <= n
-            'totient': MathUtils.totient, # Euler's totient function
-            'divisors': MathUtils.divisors, # All positive divisors
-            'mean': MathUtils.mean, # Mean of a list of numbers
-            'median': MathUtils.median, # Median of a list of numbers
-            'mode': MathUtils.mode, # Mode of a list of numbers
-            'stdev': MathUtils.stdev, # Standard deviation of a list of numbers
-            'variance': MathUtils.variance, # Variance of a list of numbers
-            'ceil': math.ceil, # Round up to the nearest integer
-            'floor': math.floor, # Round down to the nearest integer
-            'trunc': math.trunc, # Truncate to an integer
-            'max': max, # Maximum of a list of numbers
-            'min': min, # Minimum of a list of numbers
-            'sum': sum, # Sum of a list of numbers
-            'randint': lambda a, b: random.randint(a, b), # Random integer between a and b
-            'summation': MathUtils.summation,
-            'product': MathUtils.product,
-            'arithmetic_sum': MathUtils.arithmetic_sum,
-            'geometric_sum': MathUtils.geometric_sum,
-            'geometric_sum_infinite': MathUtils.geometric_sum_infinite,
-            'ratio_test': MathUtils.ratio_test,
-            'root_test': MathUtils.root_test,
-            'p_series_test': MathUtils.p_series_test
+            "x": x,
+            "sin": math.sin,
+            "cos": math.cos,
+            "tan": math.tan,
+            "sqrt": MathUtils.sqrt,  # Square root function
+            "log": math.log,  # Natural logarithm (base e)
+            "log10": math.log10,  # Logarithm base 10
+            "log2": math.log2,  # Logarithm base 2
+            "factorial": math.factorial,  # Factorial function
+            "asin": math.asin,  # Arcsine function
+            "acos": math.acos,  # Arccosine function
+            "atan": math.atan,  # Arctangent function
+            "sinh": math.sinh,  # Hyperbolic sine function
+            "cosh": math.cosh,  # Hyperbolic cosine function
+            "tanh": math.tanh,  # Hyperbolic tangent function
+            "exp": math.exp,  # Exponential function
+            "abs": abs,  # Absolute value function
+            "pi": math.pi,  # The constant pi
+            "e": math.e,  # The constant e
+            "pow": MathUtils.pow,  # Power function
+            "bin": bin,  # Binary representation of an integer
+            "det": MathUtils.det,  # Determinant of a matrix
+            "arrangements": MathUtils.arrangements,  # Arrangements aka permutations nPk
+            "permutations": MathUtils.permutations,  # Permutations
+            "combinations": MathUtils.combinations,  # Combinations
+            "limit": MathUtils.limit,  # Limit of a function
+            "derive": MathUtils.derivative,  # Derivative of a function
+            "integrate": MathUtils.integral,  # Indefinite integral of a function
+            "simplify": MathUtils.simplify,  # Simplify an expression
+            "expand": MathUtils.expand,  # Expand an expression
+            "factor": MathUtils.factor,  # Factor an expression
+            "solve": MathUtils.solve,  # Solve an equation
+            "random": MathUtils.random,  # Generate a random number
+            "round": MathUtils.round,  # Round a number
+            "gcd": MathUtils.gcd,  # Greatest common divisor
+            "lcm": MathUtils.lcm,  # Least common multiple
+            "is_prime": MathUtils.is_prime,  # Check if number is prime
+            "prime_factors": MathUtils.prime_factors,  # Prime factorization with multiplicity
+            "mod_pow": MathUtils.mod_pow,  # Modular exponentiation
+            "mod_inverse": MathUtils.mod_inverse,  # Modular multiplicative inverse
+            "next_prime": MathUtils.next_prime,  # Find smallest prime >= n
+            "prev_prime": MathUtils.prev_prime,  # Find largest prime <= n
+            "totient": MathUtils.totient,  # Euler's totient function
+            "divisors": MathUtils.divisors,  # All positive divisors
+            "mean": MathUtils.mean,  # Mean of a list of numbers
+            "median": MathUtils.median,  # Median of a list of numbers
+            "mode": MathUtils.mode,  # Mode of a list of numbers
+            "stdev": MathUtils.stdev,  # Standard deviation of a list of numbers
+            "variance": MathUtils.variance,  # Variance of a list of numbers
+            "ceil": math.ceil,  # Round up to the nearest integer
+            "floor": math.floor,  # Round down to the nearest integer
+            "trunc": math.trunc,  # Truncate to an integer
+            "max": max,  # Maximum of a list of numbers
+            "min": min,  # Minimum of a list of numbers
+            "sum": sum,  # Sum of a list of numbers
+            "randint": lambda a, b: random.randint(a, b),  # Random integer between a and b
+            "summation": MathUtils.summation,
+            "product": MathUtils.product,
+            "arithmetic_sum": MathUtils.arithmetic_sum,
+            "geometric_sum": MathUtils.geometric_sum,
+            "geometric_sum_infinite": MathUtils.geometric_sum_infinite,
+            "ratio_test": MathUtils.ratio_test,
+            "root_test": MathUtils.root_test,
+            "p_series_test": MathUtils.p_series_test,
         }
 
     @staticmethod
@@ -419,22 +421,22 @@ class ExpressionValidator(ast.NodeVisitor):
     @staticmethod
     def _convert_degrees(expression: str) -> str:
         """Convert degree symbols and text to radians"""
-        expression = expression.replace('°', ' deg')
-        expression = expression.replace('degrees', ' deg')
-        expression = expression.replace('degree', ' deg')
-        expression = re.sub(r'(\d+)\s*deg', lambda match: str(float(match.group(1)) * math.pi / 180), expression)
+        expression = expression.replace("°", " deg")
+        expression = expression.replace("degrees", " deg")
+        expression = expression.replace("degree", " deg")
+        expression = re.sub(r"(\d+)\s*deg", lambda match: str(float(match.group(1)) * math.pi / 180), expression)
         return expression
 
     @staticmethod
     def _handle_special_symbols(expression: str, python_compatible: bool) -> str:
         """Handle square roots, absolute values, and factorials"""
         # Handle square roots
-        expression = re.sub(r'√\((.*?)\)', r'sqrt(\1)', expression)
-        expression = re.sub(r'√([0-9a-zA-Z_]+)', r'sqrt(\1)', expression)
+        expression = re.sub(r"√\((.*?)\)", r"sqrt(\1)", expression)
+        expression = re.sub(r"√([0-9a-zA-Z_]+)", r"sqrt(\1)", expression)
 
         # Replace | | with the Python equivalent if needed
         if python_compatible:
-            expression = re.sub(r'\|(.*?)\|', r'abs(\1)', expression)
+            expression = re.sub(r"\|(.*?)\|", r"abs(\1)", expression)
 
         # Handle factorials with balanced operand extraction
         expression = ExpressionValidator._replace_factorials(expression)
@@ -443,15 +445,15 @@ class ExpressionValidator(ast.NodeVisitor):
     @staticmethod
     def _replace_factorials(expression: str) -> str:
         """Replace factorial shorthand (n!) with factorial() calls using balanced parsing."""
-        if '!' not in expression:
+        if "!" not in expression:
             return expression
 
         def is_token_char(char: str) -> bool:
-            return char.isalnum() or char in ['_', '.']
+            return char.isalnum() or char in ["_", "."]
 
-        matching_pairs = {')': '(', ']': '[', '}': '{'}
+        matching_pairs = {")": "(", "]": "[", "}": "{"}
 
-        index = expression.find('!')
+        index = expression.find("!")
         while index != -1:
             left = index - 1
             while left >= 0 and expression[left].isspace():
@@ -495,8 +497,8 @@ class ExpressionValidator(ast.NodeVisitor):
                 break
 
             replacement = f"factorial({operand})"
-            expression = expression[:start] + replacement + expression[index + 1:]
-            index = expression.find('!', start + len(replacement))
+            expression = expression[:start] + replacement + expression[index + 1 :]
+            index = expression.find("!", start + len(replacement))
 
         return expression
 
@@ -512,8 +514,8 @@ class ExpressionValidator(ast.NodeVisitor):
     def _get_function_replacements() -> Dict[str, str]:
         """Get a dictionary of function name replacements"""
         return {
-            'π': 'pi',  # Using the variable from the dictionary
-            'ln': 'log',  # Python's math.log is ln by default
+            "π": "pi",  # Using the variable from the dictionary
+            "ln": "log",  # Python's math.log is ln by default
             "absolute(": "abs(",
             "power(": "pow(",
             "binary(": "bin(",
@@ -547,34 +549,34 @@ class ExpressionValidator(ast.NodeVisitor):
         """Handle power operators and imaginary numbers based on compatibility mode"""
         # Replace the power symbol with '**' if specified
         if python_compatible:
-            expression = expression.replace('^', '**')
+            expression = expression.replace("^", "**")
         else:
-            expression = expression.replace('**', '^')
+            expression = expression.replace("**", "^")
 
         # Replace 'i' with 'j' only in contexts likely to represent the imaginary unit
-        imaginary_unit = 'j' if python_compatible else 'i'
-        opposite_unit = 'i' if python_compatible else 'j'
+        imaginary_unit = "j" if python_compatible else "i"
+        opposite_unit = "i" if python_compatible else "j"
 
         # Assuming it's used in the form of numbers like '2i' or standalone 'i'
-        expression = re.sub(rf'(?<=\d){opposite_unit}\b', f'{imaginary_unit}', expression)  # For numbers like '2i'
-        expression = re.sub(rf'\b{opposite_unit}\b', f'{imaginary_unit}', expression)  # For standalone 'i'
+        expression = re.sub(rf"(?<=\d){opposite_unit}\b", f"{imaginary_unit}", expression)  # For numbers like '2i'
+        expression = re.sub(rf"\b{opposite_unit}\b", f"{imaginary_unit}", expression)  # For standalone 'i'
 
         return expression
 
     @staticmethod
     def _insert_multiplication_operators(expression: str, python_compatible: bool) -> str:
         """Insert multiplication operators where implicit multiplication is used"""
-        imaginary_unit = 'j' if python_compatible else 'i'
+        imaginary_unit = "j" if python_compatible else "i"
 
         # Step 1: Protect "log" followed by any number from being altered
-        expression = re.sub(r'log(\d+)', r'log[\1]', expression)
+        expression = re.sub(r"log(\d+)", r"log[\1]", expression)
 
         # Step 2: Insert '*' between a number and a variable, function name, or parenthesis,
         # excluding 'i' or 'j' immediately after a number
-        expression = re.sub(rf'(\d)(?!{imaginary_unit})([a-zA-Z_\(])', r'\1*\2', expression)
+        expression = re.sub(rf"(\d)(?!{imaginary_unit})([a-zA-Z_\(])", r"\1*\2", expression)
 
         # Step 3: Revert "log" followed by any number back to its original form
-        expression = re.sub(r'log\[(\d+)\]', r'log\1', expression)
+        expression = re.sub(r"log\[(\d+)\]", r"log\1", expression)
 
         return expression
 
@@ -582,7 +584,8 @@ class ExpressionValidator(ast.NodeVisitor):
     def _parse_with_mathjs(function_string: str) -> Callable[[float], Any]:
         """Parse a function string using mathjs (slower but more powerful)"""
         from utils.math_utils import MathUtils
-        return lambda x: MathUtils.evaluate(function_string, {'x': x})
+
+        return lambda x: MathUtils.evaluate(function_string, {"x": x})
 
     @staticmethod
     def _parse_with_python(function_string: str) -> Callable[[float], float]:
@@ -590,8 +593,8 @@ class ExpressionValidator(ast.NodeVisitor):
         function_string = ExpressionValidator.fix_math_expression(function_string, python_compatible=True)
         ExpressionValidator.validate_expression_tree(function_string)
 
-        tree = ast.parse(function_string, mode='eval')
-        compiled_code = compile(tree, '<string>', mode='eval')
+        tree = ast.parse(function_string, mode="eval")
+        compiled_code = compile(tree, "<string>", mode="eval")
 
         def evaluator(x: float) -> float:
             variables = ExpressionValidator._get_variables_and_functions(x)
@@ -624,33 +627,34 @@ class ExpressionValidator(ast.NodeVisitor):
         instead of 'x', for parametric curves like x(t), y(t).
         """
         from utils.math_utils import MathUtils
+
         return {
-            't': t,
-            'sin': math.sin,
-            'cos': math.cos,
-            'tan': math.tan,
-            'sqrt': MathUtils.sqrt,
-            'log': math.log,
-            'log10': math.log10,
-            'log2': math.log2,
-            'factorial': math.factorial,
-            'asin': math.asin,
-            'acos': math.acos,
-            'atan': math.atan,
-            'sinh': math.sinh,
-            'cosh': math.cosh,
-            'tanh': math.tanh,
-            'exp': math.exp,
-            'abs': abs,
-            'pi': math.pi,
-            'e': math.e,
-            'pow': MathUtils.pow,
-            'ceil': math.ceil,
-            'floor': math.floor,
-            'trunc': math.trunc,
-            'max': max,
-            'min': min,
-            'round': MathUtils.round,
+            "t": t,
+            "sin": math.sin,
+            "cos": math.cos,
+            "tan": math.tan,
+            "sqrt": MathUtils.sqrt,
+            "log": math.log,
+            "log10": math.log10,
+            "log2": math.log2,
+            "factorial": math.factorial,
+            "asin": math.asin,
+            "acos": math.acos,
+            "atan": math.atan,
+            "sinh": math.sinh,
+            "cosh": math.cosh,
+            "tanh": math.tanh,
+            "exp": math.exp,
+            "abs": abs,
+            "pi": math.pi,
+            "e": math.e,
+            "pow": MathUtils.pow,
+            "ceil": math.ceil,
+            "floor": math.floor,
+            "trunc": math.trunc,
+            "max": max,
+            "min": min,
+            "round": MathUtils.round,
         }
 
     @staticmethod
@@ -662,8 +666,8 @@ class ExpressionValidator(ast.NodeVisitor):
         expression_string = ExpressionValidator.fix_math_expression(expression_string, python_compatible=True)
         ExpressionValidator.validate_expression_tree(expression_string)
 
-        tree = ast.parse(expression_string, mode='eval')
-        compiled_code = compile(tree, '<string>', mode='eval')
+        tree = ast.parse(expression_string, mode="eval")
+        compiled_code = compile(tree, "<string>", mode="eval")
 
         def evaluator(t: float) -> float:
             variables = ExpressionValidator._get_variables_and_functions_parametric(t)

@@ -76,6 +76,3 @@ class ContinuousPlot(Plot):
         )
         memo[id(self)] = copied
         return copied
-
-
-

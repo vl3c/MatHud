@@ -16,6 +16,7 @@ from client_tests.simple_mock import SimpleMock
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+
 class _IdentityDependencyManager:
     """Minimal dependency manager for manager-level tests."""
 

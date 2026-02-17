@@ -105,21 +105,24 @@ class PiecewiseFunction(Drawable):
             fixed_expr = ExpressionValidator.fix_math_expression(expression)
             evaluator = ExpressionValidator.parse_function_string(expression)
 
-            self.intervals.append(PiecewiseFunctionInterval(
-                expression=fixed_expr,
-                evaluator=evaluator,
-                left=piece_def.get("left"),
-                right=piece_def.get("right"),
-                left_inclusive=piece_def.get("left_inclusive", True),
-                right_inclusive=piece_def.get("right_inclusive", False),
-                undefined_at=piece_def.get("undefined_at"),
-            ))
+            self.intervals.append(
+                PiecewiseFunctionInterval(
+                    expression=fixed_expr,
+                    evaluator=evaluator,
+                    left=piece_def.get("left"),
+                    right=piece_def.get("right"),
+                    left_inclusive=piece_def.get("left_inclusive", True),
+                    right_inclusive=piece_def.get("right_inclusive", False),
+                    undefined_at=piece_def.get("undefined_at"),
+                )
+            )
 
     def _sort_intervals(self) -> None:
         """Sort intervals by their left bound for consistent evaluation."""
+
         def sort_key(interval: PiecewiseFunctionInterval) -> float:
             if interval.left is None:
-                return float('-inf')
+                return float("-inf")
             return interval.left
 
         self.intervals.sort(key=sort_key)
@@ -241,10 +244,10 @@ class PiecewiseFunction(Drawable):
         for interval in self.intervals:
             if interval.contains(x):
                 return interval.evaluate(x)
-        return float('nan')
+        return float("nan")
 
     def get_class_name(self) -> str:
-        return 'PiecewiseFunction'
+        return "PiecewiseFunction"
 
     def get_state(self) -> Dict[str, Any]:
         """Serialize function state for persistence."""
@@ -254,7 +257,7 @@ class PiecewiseFunction(Drawable):
             "name": self.name,
             "args": {
                 "pieces": pieces_data,
-            }
+            },
         }
 
         if self.vertical_asymptotes:
@@ -296,15 +299,13 @@ class PiecewiseFunction(Drawable):
             new_expr = interval.expression
 
             if x_offset != 0:
-                protected_funcs: list[str] = sorted(
-                    ExpressionValidator.ALLOWED_FUNCTIONS, key=len, reverse=True
-                )
-                func_pattern: str = '|'.join(map(re.escape, protected_funcs))
-                pattern: str = rf'\b(x)\b|({func_pattern})'
+                protected_funcs: list[str] = sorted(ExpressionValidator.ALLOWED_FUNCTIONS, key=len, reverse=True)
+                func_pattern: str = "|".join(map(re.escape, protected_funcs))
+                pattern: str = rf"\b(x)\b|({func_pattern})"
 
                 def replace_match(match: Any) -> str:
                     if match.group(1):
-                        return f'(x - {x_offset})'
+                        return f"(x - {x_offset})"
                     elif match.group(2):
                         return cast(str, match.group(2))
                     return cast(str, match.group(0))
@@ -318,14 +319,16 @@ class PiecewiseFunction(Drawable):
             new_right = interval.right + x_offset if interval.right is not None else None
             new_undefined_at = [h + x_offset for h in interval.undefined_at] if interval.undefined_at else None
 
-            new_pieces.append({
-                "expression": new_expr,
-                "left": new_left,
-                "right": new_right,
-                "left_inclusive": interval.left_inclusive,
-                "right_inclusive": interval.right_inclusive,
-                "undefined_at": new_undefined_at,
-            })
+            new_pieces.append(
+                {
+                    "expression": new_expr,
+                    "left": new_left,
+                    "right": new_right,
+                    "left_inclusive": interval.left_inclusive,
+                    "right_inclusive": interval.right_inclusive,
+                    "undefined_at": new_undefined_at,
+                }
+            )
 
         self.intervals = []
         self._parse_intervals(new_pieces)

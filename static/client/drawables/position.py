@@ -28,6 +28,7 @@ class Position:
         x (float): X-coordinate in the mathematical coordinate system
         y (float): Y-coordinate in the mathematical coordinate system
     """
+
     def __init__(self, x: float, y: float) -> None:
         """Initialize a position with x and y coordinates.
 
@@ -39,7 +40,7 @@ class Position:
         self.y: float = y
 
     def __str__(self) -> str:
-        return f'Position: {self.x}, {self.y}'
+        return f"Position: {self.x}, {self.y}"
 
     def get_state(self) -> Dict[str, Dict[str, float]]:
         state: Dict[str, Dict[str, float]] = {"Position": {"x": self.x, "y": self.y}}

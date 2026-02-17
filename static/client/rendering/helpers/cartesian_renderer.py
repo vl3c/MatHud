@@ -70,18 +70,18 @@ def _format_tick_value(value: float, precision: int) -> str:
         # Use 2 significant figures for scientific notation
         formatted = f"{value:.1e}"
         # Clean up the exponent format (remove leading zeros)
-        if 'e' in formatted:
-            base, exp = formatted.split('e')
-            exp_sign = exp[0] if exp[0] in '+-' else '+'
-            exp_num = exp.lstrip('+-').lstrip('0') or '0'
+        if "e" in formatted:
+            base, exp = formatted.split("e")
+            exp_sign = exp[0] if exp[0] in "+-" else "+"
+            exp_num = exp.lstrip("+-").lstrip("0") or "0"
             formatted = f"{base}e{exp_sign}{exp_num}"
         return formatted
     if precision <= 0:
         return str(int(round(value)))
     formatted = f"{value:.{precision}f}"
     # Strip trailing zeros but keep at least one decimal place if precision > 0
-    if '.' in formatted:
-        formatted = formatted.rstrip('0').rstrip('.')
+    if "." in formatted:
+        formatted = formatted.rstrip("0").rstrip(".")
     return formatted
 
 
@@ -100,8 +100,20 @@ def _draw_cartesian_axes(primitives, ox, oy, width_px, height_px, axis_stroke):
     primitives.stroke_line((ox, 0.0), (ox, height_px), axis_stroke)
 
 
-def _draw_cartesian_tick_x(primitives, x_pos, ox, oy, scale, tick_size, tick_font_float, font,
-                           label_color, label_alignment, tick_stroke, precision=6):
+def _draw_cartesian_tick_x(
+    primitives,
+    x_pos,
+    ox,
+    oy,
+    scale,
+    tick_size,
+    tick_font_float,
+    font,
+    label_color,
+    label_alignment,
+    tick_stroke,
+    precision=6,
+):
     """Draw a single X-axis tick mark with label.
 
     Args:
@@ -139,8 +151,9 @@ def _draw_cartesian_tick_x(primitives, x_pos, ox, oy, scale, tick_size, tick_fon
         )
 
 
-def _draw_cartesian_tick_y(primitives, y_pos, ox, oy, scale, tick_size, font,
-                           label_color, label_alignment, tick_stroke, precision=6):
+def _draw_cartesian_tick_y(
+    primitives, y_pos, ox, oy, scale, tick_size, font, label_color, label_alignment, tick_stroke, precision=6
+):
     """Draw a single Y-axis tick mark with label.
 
     Args:
@@ -199,8 +212,7 @@ def _draw_cartesian_mid_tick_y(primitives, y_pos, ox, mid_tick_size, tick_stroke
     primitives.stroke_line((ox - mid_tick_size, y_pos), (ox + mid_tick_size, y_pos), tick_stroke)
 
 
-def _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_tick, grid_stroke,
-                                 minor_grid_stroke):
+def _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_tick, grid_stroke, minor_grid_stroke):
     """Draw vertical grid lines at regular X intervals.
 
     Args:
@@ -215,6 +227,7 @@ def _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_ti
     if display_tick <= 0:
         return
     import math
+
     start_n = int(math.ceil(-ox / display_tick))
     end_n = int(math.floor((width_px - ox) / display_tick))
     for n in range(start_n, end_n + 1):
@@ -227,8 +240,7 @@ def _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_ti
                 primitives.stroke_line((mid_x, 0.0), (mid_x, height_px), minor_grid_stroke)
 
 
-def _draw_cartesian_grid_lines_y(primitives, oy, width_px, height_px, display_tick, grid_stroke,
-                                 minor_grid_stroke):
+def _draw_cartesian_grid_lines_y(primitives, oy, width_px, height_px, display_tick, grid_stroke, minor_grid_stroke):
     """Draw horizontal grid lines at regular Y intervals.
 
     Args:
@@ -243,6 +255,7 @@ def _draw_cartesian_grid_lines_y(primitives, oy, width_px, height_px, display_ti
     if display_tick <= 0:
         return
     import math
+
     start_n = int(math.ceil(-oy / display_tick))
     end_n = int(math.floor((height_px - oy) / display_tick))
     for n in range(start_n, end_n + 1):
@@ -255,9 +268,21 @@ def _draw_cartesian_grid_lines_y(primitives, oy, width_px, height_px, display_ti
                 primitives.stroke_line((0.0, mid_y), (width_px, mid_y), minor_grid_stroke)
 
 
-def _draw_cartesian_ticks_x(primitives, ox, oy, width_px, scale, display_tick, tick_size,
-                            mid_tick_size, tick_font_float, font, label_color, label_alignment,
-                            tick_stroke):
+def _draw_cartesian_ticks_x(
+    primitives,
+    ox,
+    oy,
+    width_px,
+    scale,
+    display_tick,
+    tick_size,
+    mid_tick_size,
+    tick_font_float,
+    font,
+    label_color,
+    label_alignment,
+    tick_stroke,
+):
     """Draw all tick marks and labels along the X axis.
 
     Args:
@@ -278,6 +303,7 @@ def _draw_cartesian_ticks_x(primitives, ox, oy, width_px, scale, display_tick, t
     if display_tick <= 0:
         return
     import math
+
     # Calculate math spacing and precision needed for labels
     math_spacing = display_tick / scale if scale > 0 else display_tick
     precision = _calculate_tick_precision(math_spacing)
@@ -286,15 +312,39 @@ def _draw_cartesian_ticks_x(primitives, ox, oy, width_px, scale, display_tick, t
     for n in range(start_n, end_n + 1):
         x = ox + n * display_tick
         if 0 <= x <= width_px:
-            _draw_cartesian_tick_x(primitives, x, ox, oy, scale, tick_size, tick_font_float, font,
-                                   label_color, label_alignment, tick_stroke, precision)
+            _draw_cartesian_tick_x(
+                primitives,
+                x,
+                ox,
+                oy,
+                scale,
+                tick_size,
+                tick_font_float,
+                font,
+                label_color,
+                label_alignment,
+                tick_stroke,
+                precision,
+            )
         mid_x = x + display_tick * 0.5
         if 0 <= mid_x <= width_px:
             _draw_cartesian_mid_tick_x(primitives, mid_x, oy, mid_tick_size, tick_stroke)
 
 
-def _draw_cartesian_ticks_y(primitives, ox, oy, height_px, scale, display_tick, tick_size,
-                            mid_tick_size, font, label_color, label_alignment, tick_stroke):
+def _draw_cartesian_ticks_y(
+    primitives,
+    ox,
+    oy,
+    height_px,
+    scale,
+    display_tick,
+    tick_size,
+    mid_tick_size,
+    font,
+    label_color,
+    label_alignment,
+    tick_stroke,
+):
     """Draw all tick marks and labels along the Y axis.
 
     Args:
@@ -314,6 +364,7 @@ def _draw_cartesian_ticks_y(primitives, ox, oy, height_px, scale, display_tick, 
     if display_tick <= 0:
         return
     import math
+
     # Calculate math spacing and precision needed for labels
     math_spacing = display_tick / scale if scale > 0 else display_tick
     precision = _calculate_tick_precision(math_spacing)
@@ -322,8 +373,9 @@ def _draw_cartesian_ticks_y(primitives, ox, oy, height_px, scale, display_tick, 
     for n in range(start_n, end_n + 1):
         y = oy + n * display_tick
         if 0 <= y <= height_px:
-            _draw_cartesian_tick_y(primitives, y, ox, oy, scale, tick_size, font, label_color,
-                                   label_alignment, tick_stroke, precision)
+            _draw_cartesian_tick_y(
+                primitives, y, ox, oy, scale, tick_size, font, label_color, label_alignment, tick_stroke, precision
+            )
         mid_y = y + display_tick * 0.5
         if 0 <= mid_y <= height_px:
             _draw_cartesian_mid_tick_y(primitives, mid_y, ox, mid_tick_size, tick_stroke)
@@ -331,9 +383,23 @@ def _draw_cartesian_ticks_y(primitives, ox, oy, height_px, scale, display_tick, 
 
 @_manages_shape
 def _render_cartesian_grid(
-    primitives, ox, oy, width_px, height_px, scale, display_tick, tick_size, mid_tick_size,
-    tick_font_float, font, label_color, label_alignment, axis_stroke, grid_stroke,
-    minor_grid_stroke, tick_stroke
+    primitives,
+    ox,
+    oy,
+    width_px,
+    height_px,
+    scale,
+    display_tick,
+    tick_size,
+    mid_tick_size,
+    tick_font_float,
+    font,
+    label_color,
+    label_alignment,
+    axis_stroke,
+    grid_stroke,
+    minor_grid_stroke,
+    tick_stroke,
 ):
     """Render the complete Cartesian grid with all components.
 
@@ -357,15 +423,37 @@ def _render_cartesian_grid(
         tick_stroke: StrokeStyle for tick marks.
     """
     _draw_cartesian_axes(primitives, ox, oy, width_px, height_px, axis_stroke)
-    _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_tick, grid_stroke,
-                                 minor_grid_stroke)
-    _draw_cartesian_grid_lines_y(primitives, oy, width_px, height_px, display_tick, grid_stroke,
-                                 minor_grid_stroke)
-    _draw_cartesian_ticks_x(primitives, ox, oy, width_px, scale, display_tick, tick_size,
-                            mid_tick_size, tick_font_float, font, label_color, label_alignment,
-                            tick_stroke)
-    _draw_cartesian_ticks_y(primitives, ox, oy, height_px, scale, display_tick, tick_size,
-                            mid_tick_size, font, label_color, label_alignment, tick_stroke)
+    _draw_cartesian_grid_lines_x(primitives, ox, width_px, height_px, display_tick, grid_stroke, minor_grid_stroke)
+    _draw_cartesian_grid_lines_y(primitives, oy, width_px, height_px, display_tick, grid_stroke, minor_grid_stroke)
+    _draw_cartesian_ticks_x(
+        primitives,
+        ox,
+        oy,
+        width_px,
+        scale,
+        display_tick,
+        tick_size,
+        mid_tick_size,
+        tick_font_float,
+        font,
+        label_color,
+        label_alignment,
+        tick_stroke,
+    )
+    _draw_cartesian_ticks_y(
+        primitives,
+        ox,
+        oy,
+        height_px,
+        scale,
+        display_tick,
+        tick_size,
+        mid_tick_size,
+        font,
+        label_color,
+        label_alignment,
+        tick_stroke,
+    )
 
 
 def _get_cartesian_styles(style):
@@ -418,9 +506,7 @@ def _get_cartesian_styles(style):
     if not math.isfinite(minor_grid_width):
         minor_grid_width = 0.5
     minor_grid_width = max(minor_grid_width, 0.0)
-    minor_grid_stroke = (
-        StrokeStyle(color=minor_grid_color, width=minor_grid_width) if minor_grid_width > 0.0 else None
-    )
+    minor_grid_stroke = StrokeStyle(color=minor_grid_color, width=minor_grid_width) if minor_grid_width > 0.0 else None
 
     return {
         "label_color": label_color,
@@ -541,4 +627,3 @@ def render_cartesian_helper(primitives, cartesian, coordinate_mapper, style):
         styles["minor_grid_stroke"],
         styles["tick_stroke"],
     )
-

@@ -35,7 +35,9 @@ class TestRendererFactoryPlan(unittest.TestCase):
         result = factory.create_renderer()
 
         self.assertIs(result, sentinel)
-        self.assertEqual(attempts, ["canvas2d", "svg"], "Factory should skip failing constructors and stop at first success")
+        self.assertEqual(
+            attempts, ["canvas2d", "svg"], "Factory should skip failing constructors and stop at first success"
+        )
 
     def test_preferred_renderer_short_circuits_fallback(self) -> None:
         calls: dict[str, int] = {"canvas2d": 0, "svg": 0, "webgl": 0}

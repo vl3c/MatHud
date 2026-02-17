@@ -22,7 +22,7 @@ class TestEllipse(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+            offset=Position(0, 0),  # Set to (0,0) for simpler tests
         )
 
         # Sync canvas state with coordinate mapper
@@ -32,7 +32,9 @@ class TestEllipse(unittest.TestCase):
         self.radius_x = 5
         self.radius_y = 3
         self.rotation_angle = 45
-        self.ellipse = Ellipse(self.center, self.radius_x, self.radius_y, color="red", rotation_angle=self.rotation_angle)
+        self.ellipse = Ellipse(
+            self.center, self.radius_x, self.radius_y, color="red", rotation_angle=self.rotation_angle
+        )
 
     def test_init(self) -> None:
         self.assertEqual(self.ellipse.center, self.center)
@@ -42,7 +44,7 @@ class TestEllipse(unittest.TestCase):
         self.assertEqual(self.ellipse.color, "red")
 
     def test_get_class_name(self) -> None:
-        self.assertEqual(self.ellipse.get_class_name(), 'Ellipse')
+        self.assertEqual(self.ellipse.get_class_name(), "Ellipse")
 
     def test_calculate_ellipse_algebraic_formula(self) -> None:
         formula = self.ellipse._calculate_ellipse_algebraic_formula()
@@ -57,8 +59,8 @@ class TestEllipse(unittest.TestCase):
                 "radius_x": self.radius_x,
                 "radius_y": self.radius_y,
                 "rotation_angle": self.rotation_angle,
-                "ellipse_formula": self.ellipse.ellipse_formula
-            }
+                "ellipse_formula": self.ellipse.ellipse_formula,
+            },
         }
         self.assertEqual(state, expected_state)
 
@@ -97,4 +99,3 @@ class TestEllipse(unittest.TestCase):
         x, y = self.coordinate_mapper.math_to_screen(self.ellipse.center.x, self.ellipse.center.y)
         self.assertEqual((x, y), (255, 247))
         self.assertNotEqual(original_formula, self.ellipse.ellipse_formula)
-

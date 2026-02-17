@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from managers.drawable_manager_proxy import DrawableManagerProxy
     from name_generator.drawable import DrawableNameGenerator
 
+
 class PointManager:
     """
     Manages point drawables for a Canvas.
@@ -202,9 +203,7 @@ class PointManager:
         self._delete_point_dependencies(x, y)
 
         # Now remove the point itself
-        removed = remove_drawable_with_dependencies(
-            self.drawables, self.dependency_manager, point
-        )
+        removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, point)
 
         # Redraw the canvas
         if self.canvas.draw_enabled:
@@ -251,18 +250,22 @@ class PointManager:
             # Get all children (including angles and circle arcs) that depend on this point
             dependent_children = self.dependency_manager.get_children(point_to_delete)
             for child in cast(List["Drawable"], list(dependent_children)):
-                if hasattr(child, 'get_class_name'):
+                if hasattr(child, "get_class_name"):
                     class_name = child.get_class_name()
                 else:
                     class_name = child.__class__.__name__
 
-                if class_name == 'Angle':
-                    print(f"PointManager: Point at ({x}, {y}) is being deleted. Removing dependent angle '{child.name}'.")
-                    if hasattr(self.drawable_manager, 'angle_manager') and self.drawable_manager.angle_manager:
+                if class_name == "Angle":
+                    print(
+                        f"PointManager: Point at ({x}, {y}) is being deleted. Removing dependent angle '{child.name}'."
+                    )
+                    if hasattr(self.drawable_manager, "angle_manager") and self.drawable_manager.angle_manager:
                         self.drawable_manager.angle_manager.delete_angle(child.name)
-                if class_name == 'CircleArc':
-                    print(f"PointManager: Point at ({x}, {y}) is being deleted. Removing dependent circle arc '{child.name}'.")
-                    if hasattr(self.drawable_manager, 'arc_manager') and self.drawable_manager.arc_manager:
+                if class_name == "CircleArc":
+                    print(
+                        f"PointManager: Point at ({x}, {y}) is being deleted. Removing dependent circle arc '{child.name}'."
+                    )
+                    if hasattr(self.drawable_manager, "arc_manager") and self.drawable_manager.arc_manager:
                         self.drawable_manager.arc_manager.delete_circle_arc(child.name)
 
         # Delete all polygons that contain the point
@@ -270,16 +273,17 @@ class PointManager:
             polygon_segments = get_polygon_segments(polygon)
             if any(MathUtils.segment_has_end_point(seg, x, y) for seg in polygon_segments if seg is not None):
                 polygon_name = getattr(polygon, "name", "")
-                if polygon_name and hasattr(self.drawable_manager, "delete_region_expression_colored_areas_referencing_name"):
+                if polygon_name and hasattr(
+                    self.drawable_manager, "delete_region_expression_colored_areas_referencing_name"
+                ):
                     try:
                         self.drawable_manager.delete_region_expression_colored_areas_referencing_name(
-                            polygon_name, archive=False,
+                            polygon_name,
+                            archive=False,
                         )
                     except Exception:
                         pass
-                remove_drawable_with_dependencies(
-                    self.drawables, self.dependency_manager, polygon
-                )
+                remove_drawable_with_dependencies(self.drawables, self.dependency_manager, polygon)
 
         # Collect all segments that contain the point
         segments_to_delete: List[Segment] = []
@@ -305,8 +309,7 @@ class PointManager:
                 p2x = segment.point2.x
                 p2y = segment.point2.y
                 # Use the proxy to call delete_segment
-                self.drawable_manager.delete_segment(p1x, p1y, p2x, p2y,
-                                   delete_children=True, delete_parents=False)
+                self.drawable_manager.delete_segment(p1x, p1y, p2x, p2y, delete_children=True, delete_parents=False)
 
         # Delete the vectors that contain the point
         vectors = self.drawables.Vectors
@@ -361,9 +364,7 @@ class PointManager:
 
     def _is_point_only_circle_center(self, point: Point) -> bool:
         circles = [
-            circle
-            for circle in getattr(self.drawables, "Circles", [])
-            if getattr(circle, "center", None) is point
+            circle for circle in getattr(self.drawables, "Circles", []) if getattr(circle, "center", None) is point
         ]
         if not circles:
             return False
@@ -472,17 +473,13 @@ class PointManager:
                 return True
         return False
 
-    def _compute_updated_name(
-        self, original_point: Point, pending_fields: Dict[str, str]
-    ) -> Optional[str]:
+    def _compute_updated_name(self, original_point: Point, pending_fields: Dict[str, str]) -> Optional[str]:
         if "name" not in pending_fields:
             return None
 
         candidate = pending_fields["name"]
         filtered_candidate: str = str(
-            self.name_generator.filter_string(candidate)
-            if hasattr(self.name_generator, "filter_string")
-            else candidate
+            self.name_generator.filter_string(candidate) if hasattr(self.name_generator, "filter_string") else candidate
         )
         filtered_candidate = filtered_candidate.strip()
         if not filtered_candidate:
@@ -512,8 +509,6 @@ class PointManager:
 
         return (x_val, y_val)
 
-    def _validate_color_request(
-        self, pending_fields: Dict[str, str], new_color: Optional[str]
-    ) -> None:
+    def _validate_color_request(self, pending_fields: Dict[str, str], new_color: Optional[str]) -> None:
         if "color" in pending_fields and (new_color is None or not str(new_color).strip()):
             raise ValueError("Point color cannot be empty.")

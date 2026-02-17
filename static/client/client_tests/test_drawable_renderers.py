@@ -51,8 +51,12 @@ class RecordingPrimitives(SimpleMock, shared.RendererPrimitives):
     def fill_joined_area(self, forward, reverse, fill):
         self._record("fill_joined_area", forward, reverse, fill)
 
-    def stroke_arc(self, center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class=None, **kwargs):
-        self._record("stroke_arc", center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class, **kwargs)
+    def stroke_arc(
+        self, center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class=None, **kwargs
+    ):
+        self._record(
+            "stroke_arc", center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class, **kwargs
+        )
 
     def draw_text(self, text, position, font, color, alignment, style_overrides=None, **kwargs):
         self._record("draw_text", text, position, font, color, alignment, style_overrides, **kwargs)
@@ -222,6 +226,8 @@ class TestCircleArcRenderer(unittest.TestCase):
         self.assertTrue(sweep_clockwise)
         delta = abs(end_angle - start_angle)
         self.assertTrue(math.isclose(delta, 3 * math.pi / 2, rel_tol=1e-6))
+
+
 class TestEllipseRenderer(unittest.TestCase):
     def setUp(self) -> None:
         self.mapper = CoordinateMapper(640, 480)
@@ -308,6 +314,7 @@ class TestLabelRenderer(unittest.TestCase):
 
     def test_label_zoom_adjusted_font_size(self) -> None:
         from drawables.position import Position
+
         self.mapper.apply_zoom(0.5, Position(320, 240))
 
         label = Label(2, 3, "Zoom Test", font_size=16, reference_scale_factor=1.0)
@@ -458,6 +465,7 @@ class TestRendererEdgeCases(unittest.TestCase):
 
     def test_zero_radius_circle_does_not_crash(self) -> None:
         from drawables.circle import Circle
+
         center = Point(0, 0, name="O")
         circle = Circle(center, radius=0)
 
@@ -493,4 +501,3 @@ __all__ = [
     "TestSegmentLabelRenderer",
     "TestRendererEdgeCases",
 ]
-

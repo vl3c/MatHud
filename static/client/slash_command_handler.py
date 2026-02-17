@@ -44,6 +44,7 @@ class CommandResult:
         message: Human-readable result message
         data: Optional additional data from the command
     """
+
     success: bool
     message: str
     data: Optional[Any] = None
@@ -59,6 +60,7 @@ class CommandInfo:
         handler: Callable that executes the command
         usage: Optional usage string (e.g., "/save [name]")
     """
+
     name: str
     description: str
     handler: Callable[[List[str]], CommandResult]
@@ -653,6 +655,7 @@ class SlashCommandHandler:
     def _selected_model_has_vision(self) -> bool:
         """Check if the currently selected AI model supports vision."""
         from browser import window
+
         try:
             model_selector = document["ai-model-selector"]
             vision_models = list(window.VISION_MODELS)

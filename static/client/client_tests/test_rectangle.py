@@ -23,7 +23,7 @@ class TestRectangle(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+            offset=Position(0, 0),  # Set to (0,0) for simpler tests
         )
 
         # Sync canvas state with coordinate mapper
@@ -68,7 +68,7 @@ class TestRectangle(unittest.TestCase):
         self.assertFalse(self.rectangle.is_renderable)
 
     def test_get_class_name(self) -> None:
-        self.assertEqual(self.rectangle.get_class_name(), 'Rectangle')
+        self.assertEqual(self.rectangle.get_class_name(), "Rectangle")
 
     def test_get_state(self) -> None:
         state = self.rectangle.get_state()

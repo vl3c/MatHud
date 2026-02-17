@@ -23,7 +23,7 @@ class TestTriangle(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+            offset=Position(0, 0),  # Set to (0,0) for simpler tests
         )
 
         # Sync canvas state with coordinate mapper
@@ -83,7 +83,7 @@ class TestTriangle(unittest.TestCase):
         self.assertFalse(self.triangle._segments_form_triangle(self.segment1, segment4, segment5))
 
     def test_get_class_name(self) -> None:
-        self.assertEqual(self.triangle.get_class_name(), 'Triangle')
+        self.assertEqual(self.triangle.get_class_name(), "Triangle")
 
     def test_get_state(self) -> None:
         state = self.triangle.get_state()
@@ -130,4 +130,3 @@ class TestTriangle(unittest.TestCase):
         self.assertEqual((s1p1x, s1p1y), (251, 248))
         self.assertEqual((s1p2x, s1p2y), (255, 248))
         self.assertEqual((s2p2x, s2p2y), (251, 245))
-

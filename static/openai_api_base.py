@@ -35,12 +35,14 @@ StreamEvent = Dict[str, Any]
 ToolMode = Literal["full", "search"]
 
 # Essential tool names that should always be available after injection
-ESSENTIAL_TOOLS = frozenset({
-    "search_tools",
-    "undo",
-    "redo",
-    "get_current_canvas_state",
-})
+ESSENTIAL_TOOLS = frozenset(
+    {
+        "search_tools",
+        "undo",
+        "redo",
+        "get_current_canvas_state",
+    }
+)
 
 
 def _build_search_mode_tools() -> List[FunctionDefinition]:
@@ -93,9 +95,7 @@ class OpenAIAPIBase:
         api_key = os.getenv("OPENAI_API_KEY")
 
         if not api_key:
-            logging.getLogger("mathud").warning(
-                "OPENAI_API_KEY not found. OpenAI models will be unavailable."
-            )
+            logging.getLogger("mathud").warning("OPENAI_API_KEY not found. OpenAI models will be unavailable.")
             return "not-configured"
 
         return api_key
@@ -125,9 +125,7 @@ class OpenAIAPIBase:
         self._custom_tools: Optional[Sequence[FunctionDefinition]] = tools
         self._injected_tools: bool = False  # Track if tools were dynamically injected
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
-        self.messages: List[MessageDict] = [
-            {"role": "developer", "content": OpenAIAPIBase.DEV_MSG}
-        ]
+        self.messages: List[MessageDict] = [{"role": "developer", "content": OpenAIAPIBase.DEV_MSG}]
 
     def _resolve_tools(self) -> Sequence[FunctionDefinition]:
         """Resolve the active tool set based on mode and custom tools.
@@ -322,11 +320,8 @@ class OpenAIAPIBase:
         if include_canvas_snapshot:
             try:
                 with open("canvas_snapshots/canvas.png", "rb") as image_file:
-                    image_data = base64.b64encode(image_file.read()).decode('utf-8')
-                    content.append({
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{image_data}"}
-                    })
+                    image_data = base64.b64encode(image_file.read()).decode("utf-8")
+                    content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_data}"}})
                     has_images = True
             except Exception as e:
                 error_msg = f"Failed to load canvas image: {e}"
@@ -337,10 +332,7 @@ class OpenAIAPIBase:
         if attached_images:
             for img_url in attached_images:
                 if isinstance(img_url, str) and img_url.startswith("data:image"):
-                    content.append({
-                        "type": "image_url",
-                        "image_url": {"url": img_url}
-                    })
+                    content.append({"type": "image_url", "image_url": {"url": img_url}})
                     has_images = True
 
         return content if has_images else None
@@ -534,10 +526,7 @@ class OpenAIAPIBase:
         error_message: str = "I encountered an error processing your request. Please try again.",
     ) -> SimpleNamespace:
         """Create an error response that matches OpenAI's response structure."""
-        return SimpleNamespace(
-            message=SimpleNamespace(content=error_message, tool_calls=[]),
-            finish_reason="error"
-        )
+        return SimpleNamespace(message=SimpleNamespace(content=error_message, tool_calls=[]), finish_reason="error")
 
     def _create_tool_message(self, tool_call_id: Optional[str], content: str) -> MessageDict:
         """Create a tool message in response to a tool call."""
@@ -547,10 +536,7 @@ class OpenAIAPIBase:
         """Create and append placeholder tool messages for each tool call."""
         if tool_calls:
             for tool_call in tool_calls:
-                tool_message = self._create_tool_message(
-                    getattr(tool_call, "id", None),
-                    "Awaiting result..."
-                )
+                tool_message = self._create_tool_message(getattr(tool_call, "id", None), "Awaiting result...")
                 self.messages.append(tool_message)
 
     def _update_tool_messages_with_results(self, tool_call_results: str) -> None:

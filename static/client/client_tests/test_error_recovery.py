@@ -3,6 +3,7 @@
 When an AI request fails (e.g., TEST_ERROR_TRIGGER_12345), the user's message
 should be restored to the input field so they can edit and retry.
 """
+
 from __future__ import annotations
 
 import unittest
@@ -17,6 +18,7 @@ class TestErrorRecovery(unittest.TestCase):
     def _create_ai_interface(self) -> Any:
         """Create an AIInterface instance without running __init__."""
         from ai_interface import AIInterface
+
         ai = AIInterface.__new__(AIInterface)
         # Initialize minimal state needed for error recovery
         ai._last_user_message = ""
@@ -172,5 +174,3 @@ class TestErrorRecovery(unittest.TestCase):
         self.assertTrue(restore_called[0])
         # Verify buffer was NOT cleared (restore should happen before any clearing)
         self.assertEqual(ai._last_user_message, original_message)
-
-

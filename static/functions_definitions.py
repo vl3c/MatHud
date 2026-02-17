@@ -55,2970 +55,2656 @@ FunctionDefinition = Dict[str, Any]
 
 
 FUNCTIONS: List[Dict[str, Any]] = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "reset_canvas",
-                    "description": "Resets the canvas zoom and offset",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                        "additionalProperties": False
-                    }
-                }
+    {
+        "type": "function",
+        "function": {
+            "name": "reset_canvas",
+            "description": "Resets the canvas zoom and offset",
+            "strict": True,
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "clear_canvas",
+            "description": "Clears the canvas by deleting all drawable objects",
+            "strict": True,
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "zoom",
+            "description": "Centers viewport on (center_x, center_y). The range_val specifies half-width (if range_axis='x') or half-height (if range_axis='y'); the other axis scales with canvas aspect ratio. Example: 'zoom x in range +-2, y around 10' uses center_x=0, center_y=10, range_val=2, range_axis='x'.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "center_x": {"type": "number", "description": "X coordinate to center on"},
+                    "center_y": {"type": "number", "description": "Y coordinate to center on"},
+                    "range_val": {
+                        "type": "number",
+                        "description": "Half-size for the specified axis (shows center +/- this value)",
+                    },
+                    "range_axis": {
+                        "type": "string",
+                        "enum": ["x", "y"],
+                        "description": "Which axis range applies to; other axis scales with aspect ratio",
+                    },
+                },
+                "required": ["center_x", "center_y", "range_val", "range_axis"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "clear_canvas",
-                    "description": "Clears the canvas by deleting all drawable objects",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "undo",
+            "description": "Undoes the last action on the canvas",
+            "strict": True,
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "redo",
+            "description": "Redoes the last action on the canvas",
+            "strict": True,
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_canvas_state",
+            "description": "Returns the current serialized canvas state (drawables, cartesian state, computations) without modifying the canvas. Optional filters can narrow by drawable collections or object names.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "drawable_types": {
+                        "type": ["array", "null"],
+                        "description": "Optional drawable collection filters (e.g. ['Points','Segments','Circles']). Case-insensitive; singular or plural accepted.",
+                        "items": {"type": "string"},
+                    },
+                    "object_names": {
+                        "type": ["array", "null"],
+                        "description": "Optional object-name filters across drawable collections (e.g. ['A','B','f']).",
+                        "items": {"type": "string"},
+                    },
+                    "include_computations": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether to include the computations list in the returned state. Defaults to true.",
+                    },
+                },
+                "required": ["drawable_types", "object_names", "include_computations"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "zoom",
-                    "description": "Centers viewport on (center_x, center_y). The range_val specifies half-width (if range_axis='x') or half-height (if range_axis='y'); the other axis scales with canvas aspect ratio. Example: 'zoom x in range +-2, y around 10' uses center_x=0, center_y=10, range_val=2, range_axis='x'.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "center_x": {
-                                "type": "number",
-                                "description": "X coordinate to center on"
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_tests",
+            "description": "Runs the test suite for the canvas",
+            "strict": True,
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_point",
+            "description": "Creates and draws a point at the given coordinates. If a name is provided, it will try to use the first available letter from that name as the point's name.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "number", "description": "The X coordinate of the point"},
+                    "y": {"type": "number", "description": "The Y coordinate of the point"},
+                    "color": {"type": ["string", "null"], "description": "Optional color for the point"},
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the point. If provided, the first available letter from this name will be used.",
+                    },
+                },
+                "required": ["x", "y", "color", "name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_point",
+            "description": "Deletes the point with the given coordinates",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "number", "description": "The X coordinate of the point"},
+                    "y": {"type": "number", "description": "The Y coordinate of the point"},
+                },
+                "required": ["x", "y"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_point",
+            "description": "Updates the name, color, or position of a solitary point without recreating it. Provide at least one property to change.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "point_name": {"type": "string", "description": "Existing name of the point to edit"},
+                    "new_name": {"type": ["string", "null"], "description": "Optional new name for the point"},
+                    "new_x": {"type": ["number", "null"], "description": "Optional new x-coordinate (requires new_y)"},
+                    "new_y": {"type": ["number", "null"], "description": "Optional new y-coordinate (requires new_x)"},
+                    "new_color": {
+                        "type": ["string", "null"],
+                        "description": "Optional new display color for the point",
+                    },
+                },
+                "required": ["point_name", "new_name", "new_x", "new_y", "new_color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_segment",
+            "description": "Creates and draws a segment at the given coordinates for two points. If a name is provided, the first two available letters from that name will be used to name the endpoints.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x1": {"type": "number", "description": "The X coordinate of the first point"},
+                    "y1": {"type": "number", "description": "The Y coordinate of the first point"},
+                    "x2": {"type": "number", "description": "The X coordinate of the second point"},
+                    "y2": {"type": "number", "description": "The Y coordinate of the second point"},
+                    "color": {"type": ["string", "null"], "description": "Optional color for the segment"},
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the segment. If provided, the first two available letters will be used to name the endpoints.",
+                    },
+                    "label_text": {
+                        "type": ["string", "null"],
+                        "description": "Optional text for the segment-owned label (default empty)",
+                    },
+                    "label_visible": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether to display the segment-owned label (default false)",
+                    },
+                },
+                "required": ["x1", "y1", "x2", "y2", "color", "name", "label_text", "label_visible"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_segment",
+            "description": "Deletes the segment found at the given coordinates for two points. If only a name is given, search for appropriate point coordinates in the canvas state.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x1": {"type": "number", "description": "The X coordinate of the first point"},
+                    "y1": {"type": "number", "description": "The Y coordinate of the first point"},
+                    "x2": {"type": "number", "description": "The X coordinate of the second point"},
+                    "y2": {"type": "number", "description": "The Y coordinate of the second point"},
+                },
+                "required": ["x1", "y1", "x2", "y2"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_segment",
+            "description": "Updates editable properties of an existing segment (color, label text, or label visibility). Provide null for fields that should remain unchanged.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Existing name of the segment to edit"},
+                    "new_color": {"type": ["string", "null"], "description": "Optional new color for the segment"},
+                    "new_label_text": {
+                        "type": ["string", "null"],
+                        "description": "Optional new text for the segment-owned label",
+                    },
+                    "new_label_visible": {
+                        "type": ["boolean", "null"],
+                        "description": "Optional visibility flag for the segment-owned label",
+                    },
+                },
+                "required": ["name", "new_color", "new_label_text", "new_label_visible"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_vector",
+            "description": "Creates and draws a vector at the given coordinates for two points called origin and tip. If a name is provided, the first two available letters will be used to name the origin and tip points.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "origin_x": {"type": "number", "description": "The X coordinate of the origin point"},
+                    "origin_y": {"type": "number", "description": "The Y coordinate of the origin point"},
+                    "tip_x": {"type": "number", "description": "The X coordinate of the tip point"},
+                    "tip_y": {"type": "number", "description": "The Y coordinate of the tip point"},
+                    "color": {"type": ["string", "null"], "description": "Optional color for the vector"},
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the vector. If provided, the first two available letters will be used to name the origin and tip points.",
+                    },
+                },
+                "required": ["origin_x", "origin_y", "tip_x", "tip_y", "color", "name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_vector",
+            "description": "Deletes the vector found at the given coordinates for two points called origin and tip. If only a name is given, search for appropriate point coordinates in the canvas state.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "origin_x": {
+                        "type": "number",
+                        "description": "The X coordinate of the origin point",
+                    },
+                    "origin_y": {
+                        "type": "number",
+                        "description": "The Y coordinate of the origin point",
+                    },
+                    "tip_x": {
+                        "type": "number",
+                        "description": "The X coordinate of the tip point",
+                    },
+                    "tip_y": {
+                        "type": "number",
+                        "description": "The Y coordinate of the tip point",
+                    },
+                },
+                "required": ["origin_x", "origin_y", "tip_x", "tip_y"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_vector",
+            "description": "Updates editable properties of an existing vector (currently just color). Provide null for fields that should remain unchanged.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Existing name of the vector to edit"},
+                    "new_color": {"type": ["string", "null"], "description": "Optional new color for the vector"},
+                },
+                "required": ["name", "new_color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_polygon",
+            "description": "Creates a polygon from ordered vertex coordinates. For rectangle and square types, coordinates are normalized through the canonicalizer so near-rectangles snap into valid rectangles. Triangle inputs can optionally request canonicalization toward special subtypes such as equilateral or right triangles.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "vertices": {
+                        "type": "array",
+                        "minItems": 3,
+                        "description": "Ordered list of polygon vertex coordinates.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "x": {"type": "number", "description": "X coordinate of the vertex."},
+                                "y": {"type": "number", "description": "Y coordinate of the vertex."},
                             },
-                            "center_y": {
-                                "type": "number",
-                                "description": "Y coordinate to center on"
-                            },
-                            "range_val": {
-                                "type": "number",
-                                "description": "Half-size for the specified axis (shows center +/- this value)"
-                            },
-                            "range_axis": {
-                                "type": "string",
-                                "enum": ["x", "y"],
-                                "description": "Which axis range applies to; other axis scales with aspect ratio"
-                            }
+                            "required": ["x", "y"],
+                            "additionalProperties": False,
                         },
-                        "required": ["center_x", "center_y", "range_val", "range_axis"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "undo",
-                    "description": "Undoes the last action on the canvas",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "redo",
-                    "description": "Redoes the last action on the canvas",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_current_canvas_state",
-                    "description": "Returns the current serialized canvas state (drawables, cartesian state, computations) without modifying the canvas. Optional filters can narrow by drawable collections or object names.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "drawable_types": {
-                                "type": ["array", "null"],
-                                "description": "Optional drawable collection filters (e.g. ['Points','Segments','Circles']). Case-insensitive; singular or plural accepted.",
-                                "items": {
-                                    "type": "string"
-                                }
-                            },
-                            "object_names": {
-                                "type": ["array", "null"],
-                                "description": "Optional object-name filters across drawable collections (e.g. ['A','B','f']).",
-                                "items": {
-                                    "type": "string"
-                                }
-                            },
-                            "include_computations": {
-                                "type": ["boolean", "null"],
-                                "description": "Whether to include the computations list in the returned state. Defaults to true."
-                            }
-                        },
-                        "required": ["drawable_types", "object_names", "include_computations"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "run_tests",
-                    "description": "Runs the test suite for the canvas",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_point",
-                    "description": "Creates and draws a point at the given coordinates. If a name is provided, it will try to use the first available letter from that name as the point's name.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "x": {
-                                "type": "number",
-                                "description": "The X coordinate of the point"
-                            },
-                            "y": {
-                                "type": "number",
-                                "description": "The Y coordinate of the point"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the point"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the point. If provided, the first available letter from this name will be used."
-                            }
-                        },
-                        "required": ["x", "y", "color", "name"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_point",
-                    "description": "Deletes the point with the given coordinates",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "x": {
-                                "type": "number",
-                                "description": "The X coordinate of the point"
-                            },
-                            "y": {
-                                "type": "number",
-                                "description": "The Y coordinate of the point"
-                            }
-                        },
-                        "required": ["x", "y"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_point",
-                    "description": "Updates the name, color, or position of a solitary point without recreating it. Provide at least one property to change.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "point_name": {
-                                "type": "string",
-                                "description": "Existing name of the point to edit"
-                            },
-                            "new_name": {
-                                "type": ["string", "null"],
-                                "description": "Optional new name for the point"
-                            },
-                            "new_x": {
-                                "type": ["number", "null"],
-                                "description": "Optional new x-coordinate (requires new_y)"
-                            },
-                            "new_y": {
-                                "type": ["number", "null"],
-                                "description": "Optional new y-coordinate (requires new_x)"
-                            },
-                            "new_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional new display color for the point"
-                            }
-                        },
-                        "required": ["point_name", "new_name", "new_x", "new_y", "new_color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_segment",
-                    "description": "Creates and draws a segment at the given coordinates for two points. If a name is provided, the first two available letters from that name will be used to name the endpoints.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "x1": {
-                                "type": "number",
-                                "description": "The X coordinate of the first point"
-                            },
-                            "y1": {
-                                "type": "number",
-                                "description": "The Y coordinate of the first point"
-                            },
-                            "x2": {
-                                "type": "number",
-                                "description": "The X coordinate of the second point"
-                            },
-                            "y2": {
-                                "type": "number",
-                                "description": "The Y coordinate of the second point"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the segment"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the segment. If provided, the first two available letters will be used to name the endpoints."
-                            },
-                            "label_text": {
-                                "type": ["string", "null"],
-                                "description": "Optional text for the segment-owned label (default empty)"
-                            },
-                            "label_visible": {
-                                "type": ["boolean", "null"],
-                                "description": "Whether to display the segment-owned label (default false)"
-                            }
-                        },
-                        "required": ["x1", "y1", "x2", "y2", "color", "name", "label_text", "label_visible"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_segment",
-                    "description": "Deletes the segment found at the given coordinates for two points. If only a name is given, search for appropriate point coordinates in the canvas state.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "x1": {
-                                "type": "number",
-                                "description": "The X coordinate of the first point"
-                            },
-                            "y1": {
-                                "type": "number",
-                                "description": "The Y coordinate of the first point"
-                            },
-                            "x2": {
-                                "type": "number",
-                                "description": "The X coordinate of the second point"
-                            },
-                            "y2": {
-                                "type": "number",
-                                "description": "The Y coordinate of the second point"
-                            }
-                        },
-                        "required": ["x1", "y1", "x2", "y2"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_segment",
-                    "description": "Updates editable properties of an existing segment (color, label text, or label visibility). Provide null for fields that should remain unchanged.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Existing name of the segment to edit"
-                            },
-                            "new_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional new color for the segment"
-                            },
-                            "new_label_text": {
-                                "type": ["string", "null"],
-                                "description": "Optional new text for the segment-owned label"
-                            },
-                            "new_label_visible": {
-                                "type": ["boolean", "null"],
-                                "description": "Optional visibility flag for the segment-owned label"
-                            }
-                        },
-                        "required": ["name", "new_color", "new_label_text", "new_label_visible"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_vector",
-                    "description": "Creates and draws a vector at the given coordinates for two points called origin and tip. If a name is provided, the first two available letters will be used to name the origin and tip points.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "origin_x": {
-                                "type": "number",
-                                "description": "The X coordinate of the origin point"
-                            },
-                            "origin_y": {
-                                "type": "number",
-                                "description": "The Y coordinate of the origin point"
-                            },
-                            "tip_x": {
-                                "type": "number",
-                                "description": "The X coordinate of the tip point"
-                            },
-                            "tip_y": {
-                                "type": "number",
-                                "description": "The Y coordinate of the tip point"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the vector"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the vector. If provided, the first two available letters will be used to name the origin and tip points."
-                            }
-                        },
-                        "required": ["origin_x", "origin_y", "tip_x", "tip_y", "color", "name"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_vector",
-                    "description": "Deletes the vector found at the given coordinates for two points called origin and tip. If only a name is given, search for appropriate point coordinates in the canvas state.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "origin_x": {
-                                "type": "number",
-                                "description": "The X coordinate of the origin point",
-                            },
-                            "origin_y": {
-                                "type": "number",
-                                "description": "The Y coordinate of the origin point",
-                            },
-                            "tip_x": {
-                                "type": "number",
-                                "description": "The X coordinate of the tip point",
-                            },
-                            "tip_y": {
-                                "type": "number",
-                                "description": "The Y coordinate of the tip point",
-                            }
-                        },
-                        "required": ["origin_x", "origin_y", "tip_x", "tip_y"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_vector",
-                    "description": "Updates editable properties of an existing vector (currently just color). Provide null for fields that should remain unchanged.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Existing name of the vector to edit"
-                            },
-                            "new_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional new color for the vector"
-                            }
-                        },
-                        "required": ["name", "new_color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_polygon",
-                    "description": "Creates a polygon from ordered vertex coordinates. For rectangle and square types, coordinates are normalized through the canonicalizer so near-rectangles snap into valid rectangles. Triangle inputs can optionally request canonicalization toward special subtypes such as equilateral or right triangles.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "vertices": {
-                                "type": "array",
-                                "minItems": 3,
-                                "description": "Ordered list of polygon vertex coordinates.",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "x": {
-                                            "type": "number",
-                                            "description": "X coordinate of the vertex."
-                                        },
-                                        "y": {
-                                            "type": "number",
-                                            "description": "Y coordinate of the vertex."
-                                        }
-                                    },
-                                    "required": ["x", "y"],
-                                    "additionalProperties": False
-                                }
-                            },
-                            "polygon_type": {
-                                "type": ["string", "null"],
-                                "description": "Optional polygon classification (triangle, quadrilateral, pentagon, hexagon, heptagon, octagon, nonagon, decagon, or generic).",
-                                "enum": ["triangle", "quadrilateral", "pentagon", "hexagon", "heptagon", "octagon", "nonagon", "decagon", "generic", None],
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional stroke color for the polygon edges."
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the polygon. Letters are reused to label vertices."
-                            },
-                            "subtype": {
-                                "type": ["string", "null"],
-                                "description": "Optional polygon subtype hint. Triangles support equilateral, isosceles, right, right_isosceles. Quadrilaterals support rectangle, square, parallelogram, rhombus, kite, trapezoid, isosceles_trapezoid, right_trapezoid.",
-                                "enum": POLYGON_SUBTYPE_VALUES + [None],
-                            }
-                        },
-                        "required": ["vertices", "polygon_type", "color", "name", "subtype"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_polygon",
-                    "description": "Deletes a polygon by name or by matching a set of vertex coordinates. Specify polygon_type to limit the search.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "polygon_type": {
-                                "type": ["string", "null"],
-                                "description": "Optional polygon classification (triangle, quadrilateral, rectangle, square, pentagon, hexagon, heptagon, octagon, nonagon, decagon, or generic)."
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Existing name of the polygon to delete."
-                            },
-                            "vertices": {
-                                "type": "array",
-                                "minItems": 3,
-                                "description": "Ordered list of polygon vertex coordinates used for lookup.",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "x": {
-                                            "type": "number",
-                                            "description": "X coordinate of the vertex."
-                                        },
-                                        "y": {
-                                            "type": "number",
-                                            "description": "Y coordinate of the vertex."
-                                        }
-                                    },
-                                    "required": ["x", "y"],
-                                    "additionalProperties": False
-                                }
-                            }
-                        },
-                        "required": ["polygon_type", "name", "vertices"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_polygon",
-                    "description": "Updates editable properties of an existing polygon (currently just color). Provide null for fields that should remain unchanged.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "polygon_name": {
-                                "type": "string",
-                                "description": "Existing name of the polygon to edit."
-                            },
-                            "polygon_type": {
-                                "type": ["string", "null"],
-                                "description": "Optional polygon classification to disambiguate the lookup."
-                            },
-                            "new_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional new color for the polygon edges."
-                            }
-                        },
-                        "required": ["polygon_name", "polygon_type", "new_color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_circle",
-                    "description": "Creates and draws a circle with the specified center coordinates and radius. If a name is provided, it will be used to reference the circle.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "center_x": {
-                                "type": "number",
-                                "description": "The X coordinate of the circle's center"
-                            },
-                            "center_y": {
-                                "type": "number",
-                                "description": "The Y coordinate of the circle's center"
-                            },
-                            "radius": {
-                                "type": "number",
-                                "description": "The radius of the circle"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color to assign to the circle"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the circle"
-                            }
-                        },
-                        "required": ["center_x", "center_y", "radius", "color", "name"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_circle",
-                    "description": "Deletes the circle with the given name",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The name of the circle"
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_circle",
-                    "description": "Updates editable properties of an existing circle (color or center position). Provide null for fields to keep them unchanged.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Existing name of the circle to edit."
-                            },
-                            "new_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional new color for the circle."
-                            },
-                            "new_center_x": {
-                                "type": ["number", "null"],
-                                "description": "Optional new x-coordinate for the circle center (requires y value when provided)."
-                            },
-                            "new_center_y": {
-                                "type": ["number", "null"],
-                                "description": "Optional new y-coordinate for the circle center (requires x value when provided)."
-                            }
-                        },
-                        "required": ["name", "new_color", "new_center_x", "new_center_y"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_circle_arc",
-                    "description": "Creates an arc on a circle. Use this for requests like 'draw an arc with center (x,y), radius r' or 'arc on circle C between two points'. Supports standalone center/radius arcs, arcs on an existing circle, or deriving from three points with center_point_choice.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "point1_x": {"type": "number", "description": "Reference X coordinate for the first arc point (snapped to the circle when center/radius are provided)"},
-                            "point1_y": {"type": "number", "description": "Reference Y coordinate for the first arc point (snapped to the circle when center/radius are provided)"},
-                            "point2_x": {"type": "number", "description": "Reference X coordinate for the second arc point (snapped to the circle when center/radius are provided)"},
-                            "point2_y": {"type": "number", "description": "Reference Y coordinate for the second arc point (snapped to the circle when center/radius are provided)"},
-                            "point1_name": {"type": ["string", "null"], "description": "Optional name for the first arc point"},
-                            "point2_name": {"type": ["string", "null"], "description": "Optional name for the second arc point"},
-                            "point3_x": {"type": ["number", "null"], "description": "Optional reference X coordinate for a third point when deriving the circle from three points"},
-                            "point3_y": {"type": ["number", "null"], "description": "Optional reference Y coordinate for a third point when deriving the circle from three points"},
-                            "point3_name": {"type": ["string", "null"], "description": "Optional name for the third point (used when deriving the circle from three points)"},
-                            "center_point_choice": {"type": ["string", "null"], "description": "Optional selector ('point1', 'point2', or 'point3') indicating which provided point should be treated as the circle center"},
-                            "circle_name": {"type": ["string", "null"], "description": "Existing circle to attach the arc to"},
-                            "center_x": {"type": ["number", "null"], "description": "Circle center x-coordinate when defining a standalone arc"},
-                            "center_y": {"type": ["number", "null"], "description": "Circle center y-coordinate when defining a standalone arc"},
-                            "radius": {"type": ["number", "null"], "description": "Circle radius when defining a standalone arc"},
-                            "use_major_arc": {"type": "boolean", "description": "True to draw the major arc, False for the minor arc"},
-                            "arc_name": {"type": ["string", "null"], "description": "Optional custom arc name"},
-                            "color": {"type": ["string", "null"], "description": f"Optional CSS color for the arc (defaults to {DEFAULT_CIRCLE_ARC_COLOR})"}
-                        },
-                        "required": [
-                            "point1_x",
-                            "point1_y",
-                            "point2_x",
-                            "point2_y",
-                            "point1_name",
-                            "point2_name",
-                            "point3_x",
-                            "point3_y",
-                            "point3_name",
-                            "center_point_choice",
-                            "circle_name",
-                            "center_x",
-                            "center_y",
-                            "radius",
-                            "use_major_arc",
-                            "arc_name",
-                            "color",
+                    },
+                    "polygon_type": {
+                        "type": ["string", "null"],
+                        "description": "Optional polygon classification (triangle, quadrilateral, pentagon, hexagon, heptagon, octagon, nonagon, decagon, or generic).",
+                        "enum": [
+                            "triangle",
+                            "quadrilateral",
+                            "pentagon",
+                            "hexagon",
+                            "heptagon",
+                            "octagon",
+                            "nonagon",
+                            "decagon",
+                            "generic",
+                            None,
                         ],
-                        "additionalProperties": False
-                    }
-                }
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional stroke color for the polygon edges.",
+                    },
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the polygon. Letters are reused to label vertices.",
+                    },
+                    "subtype": {
+                        "type": ["string", "null"],
+                        "description": "Optional polygon subtype hint. Triangles support equilateral, isosceles, right, right_isosceles. Quadrilaterals support rectangle, square, parallelogram, rhombus, kite, trapezoid, isosceles_trapezoid, right_trapezoid.",
+                        "enum": POLYGON_SUBTYPE_VALUES + [None],
+                    },
+                },
+                "required": ["vertices", "polygon_type", "color", "name", "subtype"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_circle_arc",
-                    "description": "Deletes a circle arc by name.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string", "description": "Name of the circle arc to delete"}
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_polygon",
+            "description": "Deletes a polygon by name or by matching a set of vertex coordinates. Specify polygon_type to limit the search.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "polygon_type": {
+                        "type": ["string", "null"],
+                        "description": "Optional polygon classification (triangle, quadrilateral, rectangle, square, pentagon, hexagon, heptagon, octagon, nonagon, decagon, or generic).",
+                    },
+                    "name": {"type": ["string", "null"], "description": "Existing name of the polygon to delete."},
+                    "vertices": {
+                        "type": "array",
+                        "minItems": 3,
+                        "description": "Ordered list of polygon vertex coordinates used for lookup.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "x": {"type": "number", "description": "X coordinate of the vertex."},
+                                "y": {"type": "number", "description": "Y coordinate of the vertex."},
+                            },
+                            "required": ["x", "y"],
+                            "additionalProperties": False,
                         },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
+                    },
+                },
+                "required": ["polygon_type", "name", "vertices"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_circle_arc",
-                    "description": "Updates editable properties of an existing circle arc (color or major/minor toggle). Provide null for fields to keep them unchanged.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string", "description": "Existing name of the arc to edit"},
-                            "new_color": {"type": ["string", "null"], "description": "Optional new color for the arc"},
-                            "use_major_arc": {"type": ["boolean", "null"], "description": "Set to true for the major arc, false for the minor arc"}
-                        },
-                        "required": [
-                            "name",
-                            "new_color",
-                            "use_major_arc"
-                        ],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_polygon",
+            "description": "Updates editable properties of an existing polygon (currently just color). Provide null for fields that should remain unchanged.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "polygon_name": {"type": "string", "description": "Existing name of the polygon to edit."},
+                    "polygon_type": {
+                        "type": ["string", "null"],
+                        "description": "Optional polygon classification to disambiguate the lookup.",
+                    },
+                    "new_color": {
+                        "type": ["string", "null"],
+                        "description": "Optional new color for the polygon edges.",
+                    },
+                },
+                "required": ["polygon_name", "polygon_type", "new_color"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_ellipse",
-                    "description": "Creates an ellipse with the specified center point, x-radius, y-radius, and optional rotation angle",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "center_x": {
-                                "type": "number",
-                                "description": "The x-coordinate of the ellipse's center"
-                            },
-                            "center_y": {
-                                "type": "number",
-                                "description": "The y-coordinate of the ellipse's center"
-                            },
-                            "radius_x": {
-                                "type": "number",
-                                "description": "The radius of the ellipse in the x-direction (half the width)"
-                            },
-                            "radius_y": {
-                                "type": "number",
-                                "description": "The radius of the ellipse in the y-direction (half the height)"
-                            },
-                            "rotation_angle": {
-                                "type": ["number", "null"],
-                                "description": "Optional angle in degrees to rotate the ellipse around its center (default: 0)"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the ellipse"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the ellipse"
-                            }
-                        },
-                        "required": ["center_x", "center_y", "radius_x", "radius_y", "rotation_angle", "color", "name"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_circle",
+            "description": "Creates and draws a circle with the specified center coordinates and radius. If a name is provided, it will be used to reference the circle.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "center_x": {"type": "number", "description": "The X coordinate of the circle's center"},
+                    "center_y": {"type": "number", "description": "The Y coordinate of the circle's center"},
+                    "radius": {"type": "number", "description": "The radius of the circle"},
+                    "color": {"type": ["string", "null"], "description": "Optional color to assign to the circle"},
+                    "name": {"type": ["string", "null"], "description": "Optional name for the circle"},
+                },
+                "required": ["center_x", "center_y", "radius", "color", "name"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_ellipse",
-                    "description": "Deletes the ellipse with the given name",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The name of the ellipse"
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_circle",
+            "description": "Deletes the circle with the given name",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string", "description": "The name of the circle"}},
+                "required": ["name"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_ellipse",
-                    "description": "Updates editable properties of an existing ellipse (color, radii, rotation, or center). Provide null for fields that should remain unchanged.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Existing name of the ellipse to edit."
-                            },
-                            "new_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional new color for the ellipse."
-                            },
-                            "new_radius_x": {
-                                "type": ["number", "null"],
-                                "description": "Optional new horizontal radius (requires ellipse to be solitary)."
-                            },
-                            "new_radius_y": {
-                                "type": ["number", "null"],
-                                "description": "Optional new vertical radius (requires ellipse to be solitary)."
-                            },
-                            "new_rotation_angle": {
-                                "type": ["number", "null"],
-                                "description": "Optional new rotation angle in degrees."
-                            },
-                            "new_center_x": {
-                                "type": ["number", "null"],
-                                "description": "Optional new x-coordinate for the center (requires y value when provided)."
-                            },
-                            "new_center_y": {
-                                "type": ["number", "null"],
-                                "description": "Optional new y-coordinate for the center (requires x value when provided)."
-                            }
-                        },
-                        "required": ["name", "new_color", "new_radius_x", "new_radius_y", "new_rotation_angle", "new_center_x", "new_center_y"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_circle",
+            "description": "Updates editable properties of an existing circle (color or center position). Provide null for fields to keep them unchanged.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Existing name of the circle to edit."},
+                    "new_color": {"type": ["string", "null"], "description": "Optional new color for the circle."},
+                    "new_center_x": {
+                        "type": ["number", "null"],
+                        "description": "Optional new x-coordinate for the circle center (requires y value when provided).",
+                    },
+                    "new_center_y": {
+                        "type": ["number", "null"],
+                        "description": "Optional new y-coordinate for the circle center (requires x value when provided).",
+                    },
+                },
+                "required": ["name", "new_color", "new_center_x", "new_center_y"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_label",
-                        "description": (
-                            "Creates a text label anchored at a math-space coordinate "
-                            f"(max {LABEL_TEXT_MAX_LENGTH} chars, wraps every {LABEL_LINE_WRAP_THRESHOLD} chars)"
-                        ),
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "x": {
-                                "type": "number",
-                                "description": "Math-space X coordinate for the label anchor"
-                            },
-                            "y": {
-                                "type": "number",
-                                "description": "Math-space Y coordinate for the label anchor"
-                            },
-                            "text": {
-                                "type": "string",
-                                "description": "Label text content; lines wrap after 40 characters",
-                                "maxLength": 160
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional label name used for later updates"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional CSS color for the label text"
-                            },
-                            "font_size": {
-                                "type": ["number", "null"],
-                                "description": "Optional font size in pixels"
-                            },
-                            "rotation_degrees": {
-                                "type": ["number", "null"],
-                                "description": "Optional angle in degrees to rotate the label text"
-                            }
-                        },
-                        "required": [
-                            "x",
-                            "y",
-                            "text",
-                            "name",
-                            "color",
-                            "font_size",
-                            "rotation_degrees",
-                        ],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_circle_arc",
+            "description": "Creates an arc on a circle. Use this for requests like 'draw an arc with center (x,y), radius r' or 'arc on circle C between two points'. Supports standalone center/radius arcs, arcs on an existing circle, or deriving from three points with center_point_choice.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "point1_x": {
+                        "type": "number",
+                        "description": "Reference X coordinate for the first arc point (snapped to the circle when center/radius are provided)",
+                    },
+                    "point1_y": {
+                        "type": "number",
+                        "description": "Reference Y coordinate for the first arc point (snapped to the circle when center/radius are provided)",
+                    },
+                    "point2_x": {
+                        "type": "number",
+                        "description": "Reference X coordinate for the second arc point (snapped to the circle when center/radius are provided)",
+                    },
+                    "point2_y": {
+                        "type": "number",
+                        "description": "Reference Y coordinate for the second arc point (snapped to the circle when center/radius are provided)",
+                    },
+                    "point1_name": {"type": ["string", "null"], "description": "Optional name for the first arc point"},
+                    "point2_name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the second arc point",
+                    },
+                    "point3_x": {
+                        "type": ["number", "null"],
+                        "description": "Optional reference X coordinate for a third point when deriving the circle from three points",
+                    },
+                    "point3_y": {
+                        "type": ["number", "null"],
+                        "description": "Optional reference Y coordinate for a third point when deriving the circle from three points",
+                    },
+                    "point3_name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the third point (used when deriving the circle from three points)",
+                    },
+                    "center_point_choice": {
+                        "type": ["string", "null"],
+                        "description": "Optional selector ('point1', 'point2', or 'point3') indicating which provided point should be treated as the circle center",
+                    },
+                    "circle_name": {"type": ["string", "null"], "description": "Existing circle to attach the arc to"},
+                    "center_x": {
+                        "type": ["number", "null"],
+                        "description": "Circle center x-coordinate when defining a standalone arc",
+                    },
+                    "center_y": {
+                        "type": ["number", "null"],
+                        "description": "Circle center y-coordinate when defining a standalone arc",
+                    },
+                    "radius": {
+                        "type": ["number", "null"],
+                        "description": "Circle radius when defining a standalone arc",
+                    },
+                    "use_major_arc": {
+                        "type": "boolean",
+                        "description": "True to draw the major arc, False for the minor arc",
+                    },
+                    "arc_name": {"type": ["string", "null"], "description": "Optional custom arc name"},
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": f"Optional CSS color for the arc (defaults to {DEFAULT_CIRCLE_ARC_COLOR})",
+                    },
+                },
+                "required": [
+                    "point1_x",
+                    "point1_y",
+                    "point2_x",
+                    "point2_y",
+                    "point1_name",
+                    "point2_name",
+                    "point3_x",
+                    "point3_y",
+                    "point3_name",
+                    "center_point_choice",
+                    "circle_name",
+                    "center_x",
+                    "center_y",
+                    "radius",
+                    "use_major_arc",
+                    "arc_name",
+                    "color",
+                ],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_label",
-                    "description": "Deletes an existing label by name",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Name of the label to delete"
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_circle_arc",
+            "description": "Deletes a circle arc by name.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string", "description": "Name of the circle arc to delete"}},
+                "required": ["name"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_label",
-                    "description": "Updates editable properties of an existing label (text, color, position, font size, rotation). Provide null for fields that should remain unchanged.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Existing name of the label to edit"
-                            },
-                            "new_text": {
-                                "type": ["string", "null"],
-                                "description": "Optional replacement text for the label"
-                            },
-                            "new_x": {
-                                "type": ["number", "null"],
-                                "description": "Optional new x-coordinate (requires new_y)"
-                            },
-                            "new_y": {
-                                "type": ["number", "null"],
-                                "description": "Optional new y-coordinate (requires new_x)"
-                            },
-                            "new_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional new text color"
-                            },
-                            "new_font_size": {
-                                "type": ["number", "null"],
-                                "description": "Optional new font size in math-space units"
-                            },
-                            "new_rotation_degrees": {
-                                "type": ["number", "null"],
-                                "description": "Optional rotation angle in degrees"
-                            }
-                        },
-                        "required": [
-                            "name",
-                            "new_text",
-                            "new_x",
-                            "new_y",
-                            "new_color",
-                            "new_font_size",
-                            "new_rotation_degrees"
-                        ],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_circle_arc",
+            "description": "Updates editable properties of an existing circle arc (color or major/minor toggle). Provide null for fields to keep them unchanged.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Existing name of the arc to edit"},
+                    "new_color": {"type": ["string", "null"], "description": "Optional new color for the arc"},
+                    "use_major_arc": {
+                        "type": ["boolean", "null"],
+                        "description": "Set to true for the major arc, false for the minor arc",
+                    },
+                },
+                "required": ["name", "new_color", "use_major_arc"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "draw_function",
-                    "description": "Plots the given mathematical function on the canvas between the specified left and right bounds.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "function_string": {
-                                "type": "string",
-                                "description": "The mathematical expression represented as a string, e.g., '2*x + 3'."
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "The name or label for the plotted function. Useful for referencing later."
-                            },
-                            "left_bound": {
-                                "type": ["number", "null"],
-                                "description": "The left bound of the interval on which to plot the function."
-                            },
-                            "right_bound": {
-                                "type": ["number", "null"],
-                                "description": "The right bound of the interval on which to plot the function."
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the plotted function."
-                            },
-                            "undefined_at": {
-                                "type": ["array", "null"],
-                                "description": "Optional list of x-values where the function is explicitly undefined (holes). E.g., [0, 2] means the function has holes at x=0 and x=2.",
-                                "items": {
-                                    "type": "number"
-                                }
-                            }
-                        },
-                        "required": ["function_string", "name", "left_bound", "right_bound", "color", "undefined_at"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_ellipse",
+            "description": "Creates an ellipse with the specified center point, x-radius, y-radius, and optional rotation angle",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "center_x": {"type": "number", "description": "The x-coordinate of the ellipse's center"},
+                    "center_y": {"type": "number", "description": "The y-coordinate of the ellipse's center"},
+                    "radius_x": {
+                        "type": "number",
+                        "description": "The radius of the ellipse in the x-direction (half the width)",
+                    },
+                    "radius_y": {
+                        "type": "number",
+                        "description": "The radius of the ellipse in the y-direction (half the height)",
+                    },
+                    "rotation_angle": {
+                        "type": ["number", "null"],
+                        "description": "Optional angle in degrees to rotate the ellipse around its center (default: 0)",
+                    },
+                    "color": {"type": ["string", "null"], "description": "Optional color for the ellipse"},
+                    "name": {"type": ["string", "null"], "description": "Optional name for the ellipse"},
+                },
+                "required": ["center_x", "center_y", "radius_x", "radius_y", "rotation_angle", "color", "name"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_function",
-                    "description": "Removes the plotted mathematical function with the given name from the canvas.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The name or label of the function to be deleted."
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_ellipse",
+            "description": "Deletes the ellipse with the given name",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string", "description": "The name of the ellipse"}},
+                "required": ["name"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_function",
-                    "description": "Updates editable properties of an existing plotted function (color and/or bounds). Provide null for fields to leave them unchanged.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Existing name of the function to edit."
-                            },
-                            "new_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional new color for the function plot."
-                            },
-                            "new_left_bound": {
-                                "type": ["number", "null"],
-                                "description": "Optional new left plotting bound."
-                            },
-                            "new_right_bound": {
-                                "type": ["number", "null"],
-                                "description": "Optional new right plotting bound."
-                            }
-                        },
-                        "required": ["name", "new_color", "new_left_bound", "new_right_bound"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_ellipse",
+            "description": "Updates editable properties of an existing ellipse (color, radii, rotation, or center). Provide null for fields that should remain unchanged.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Existing name of the ellipse to edit."},
+                    "new_color": {"type": ["string", "null"], "description": "Optional new color for the ellipse."},
+                    "new_radius_x": {
+                        "type": ["number", "null"],
+                        "description": "Optional new horizontal radius (requires ellipse to be solitary).",
+                    },
+                    "new_radius_y": {
+                        "type": ["number", "null"],
+                        "description": "Optional new vertical radius (requires ellipse to be solitary).",
+                    },
+                    "new_rotation_angle": {
+                        "type": ["number", "null"],
+                        "description": "Optional new rotation angle in degrees.",
+                    },
+                    "new_center_x": {
+                        "type": ["number", "null"],
+                        "description": "Optional new x-coordinate for the center (requires y value when provided).",
+                    },
+                    "new_center_y": {
+                        "type": ["number", "null"],
+                        "description": "Optional new y-coordinate for the center (requires x value when provided).",
+                    },
+                },
+                "required": [
+                    "name",
+                    "new_color",
+                    "new_radius_x",
+                    "new_radius_y",
+                    "new_rotation_angle",
+                    "new_center_x",
+                    "new_center_y",
+                ],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "draw_piecewise_function",
-                    "description": "Plots a piecewise-defined function with different expressions for different intervals. Each piece specifies an expression and its valid interval bounds. Use null for unbounded intervals (extending to infinity). Use undefined_at for explicit holes (points where the function is undefined).",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "pieces": {
-                                "type": "array",
-                                "minItems": 1,
-                                "description": "List of function pieces, each defining an expression and its interval.",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "expression": {
-                                            "type": "string",
-                                            "description": "Mathematical expression for this piece (e.g., 'x^2', 'sin(x)')."
-                                        },
-                                        "left": {
-                                            "type": ["number", "null"],
-                                            "description": "Left interval bound (null for negative infinity)."
-                                        },
-                                        "right": {
-                                            "type": ["number", "null"],
-                                            "description": "Right interval bound (null for positive infinity)."
-                                        },
-                                        "left_inclusive": {
-                                            "type": "boolean",
-                                            "description": "Whether the left bound is included in the interval."
-                                        },
-                                        "right_inclusive": {
-                                            "type": "boolean",
-                                            "description": "Whether the right bound is included in the interval."
-                                        },
-                                        "undefined_at": {
-                                            "type": ["array", "null"],
-                                            "description": "Optional list of x-values where this piece is explicitly undefined (holes).",
-                                            "items": {
-                                                "type": "number"
-                                            }
-                                        }
-                                    },
-                                    "required": ["expression", "left", "right", "left_inclusive", "right_inclusive", "undefined_at"],
-                                    "additionalProperties": False
-                                }
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the piecewise function."
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the plotted function."
-                            }
-                        },
-                        "required": ["pieces", "name", "color"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_label",
+            "description": (
+                "Creates a text label anchored at a math-space coordinate "
+                f"(max {LABEL_TEXT_MAX_LENGTH} chars, wraps every {LABEL_LINE_WRAP_THRESHOLD} chars)"
+            ),
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "number", "description": "Math-space X coordinate for the label anchor"},
+                    "y": {"type": "number", "description": "Math-space Y coordinate for the label anchor"},
+                    "text": {
+                        "type": "string",
+                        "description": "Label text content; lines wrap after 40 characters",
+                        "maxLength": 160,
+                    },
+                    "name": {"type": ["string", "null"], "description": "Optional label name used for later updates"},
+                    "color": {"type": ["string", "null"], "description": "Optional CSS color for the label text"},
+                    "font_size": {"type": ["number", "null"], "description": "Optional font size in pixels"},
+                    "rotation_degrees": {
+                        "type": ["number", "null"],
+                        "description": "Optional angle in degrees to rotate the label text",
+                    },
+                },
+                "required": [
+                    "x",
+                    "y",
+                    "text",
+                    "name",
+                    "color",
+                    "font_size",
+                    "rotation_degrees",
+                ],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_piecewise_function",
-                    "description": "Removes the plotted piecewise function with the given name from the canvas.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The name of the piecewise function to delete."
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_label",
+            "description": "Deletes an existing label by name",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string", "description": "Name of the label to delete"}},
+                "required": ["name"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_piecewise_function",
-                    "description": "Updates editable properties of an existing piecewise function (currently just color). Provide null for fields to leave them unchanged.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Existing name of the piecewise function to edit."
-                            },
-                            "new_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional new color for the function plot."
-                            }
-                        },
-                        "required": ["name", "new_color"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_label",
+            "description": "Updates editable properties of an existing label (text, color, position, font size, rotation). Provide null for fields that should remain unchanged.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Existing name of the label to edit"},
+                    "new_text": {"type": ["string", "null"], "description": "Optional replacement text for the label"},
+                    "new_x": {"type": ["number", "null"], "description": "Optional new x-coordinate (requires new_y)"},
+                    "new_y": {"type": ["number", "null"], "description": "Optional new y-coordinate (requires new_x)"},
+                    "new_color": {"type": ["string", "null"], "description": "Optional new text color"},
+                    "new_font_size": {
+                        "type": ["number", "null"],
+                        "description": "Optional new font size in math-space units",
+                    },
+                    "new_rotation_degrees": {
+                        "type": ["number", "null"],
+                        "description": "Optional rotation angle in degrees",
+                    },
+                },
+                "required": [
+                    "name",
+                    "new_text",
+                    "new_x",
+                    "new_y",
+                    "new_color",
+                    "new_font_size",
+                    "new_rotation_degrees",
+                ],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "draw_parametric_function",
-                    "description": "Plots a parametric curve defined by x(t) and y(t) expressions. Use this for curves that cannot be expressed as y=f(x), such as circles, spirals, Lissajous figures, and other complex shapes. The parameter t ranges from t_min to t_max (default 0 to 2*pi for periodic curves).",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "x_expression": {
-                                "type": "string",
-                                "description": "Mathematical expression for x as a function of t. Example: 'cos(t)' for a circle, 't*cos(t)' for a spiral."
-                            },
-                            "y_expression": {
-                                "type": "string",
-                                "description": "Mathematical expression for y as a function of t. Example: 'sin(t)' for a circle, 't*sin(t)' for a spiral."
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name or label for the parametric curve. Useful for referencing later."
-                            },
-                            "t_min": {
-                                "type": ["number", "null"],
-                                "description": "Minimum value of parameter t. Default is 0."
-                            },
-                            "t_max": {
-                                "type": ["number", "null"],
-                                "description": "Maximum value of parameter t. Default is 2*pi (~6.283) for periodic curves."
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the plotted curve."
-                            }
-                        },
-                        "required": ["x_expression", "y_expression", "name", "t_min", "t_max", "color"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "draw_function",
+            "description": "Plots the given mathematical function on the canvas between the specified left and right bounds.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "function_string": {
+                        "type": "string",
+                        "description": "The mathematical expression represented as a string, e.g., '2*x + 3'.",
+                    },
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "The name or label for the plotted function. Useful for referencing later.",
+                    },
+                    "left_bound": {
+                        "type": ["number", "null"],
+                        "description": "The left bound of the interval on which to plot the function.",
+                    },
+                    "right_bound": {
+                        "type": ["number", "null"],
+                        "description": "The right bound of the interval on which to plot the function.",
+                    },
+                    "color": {"type": ["string", "null"], "description": "Optional color for the plotted function."},
+                    "undefined_at": {
+                        "type": ["array", "null"],
+                        "description": "Optional list of x-values where the function is explicitly undefined (holes). E.g., [0, 2] means the function has holes at x=0 and x=2.",
+                        "items": {"type": "number"},
+                    },
+                },
+                "required": ["function_string", "name", "left_bound", "right_bound", "color", "undefined_at"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_parametric_function",
-                    "description": "Removes the plotted parametric function with the given name from the canvas.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The name of the parametric function to delete."
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_function",
+            "description": "Removes the plotted mathematical function with the given name from the canvas.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The name or label of the function to be deleted."}
+                },
+                "required": ["name"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_parametric_function",
-                    "description": "Updates editable properties of an existing parametric function (color, t_min, t_max). Provide null for fields to leave them unchanged.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Existing name of the parametric function to edit."
-                            },
-                            "new_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional new color for the curve."
-                            },
-                            "new_t_min": {
-                                "type": ["number", "null"],
-                                "description": "Optional new minimum value of parameter t."
-                            },
-                            "new_t_max": {
-                                "type": ["number", "null"],
-                                "description": "Optional new maximum value of parameter t."
-                            }
-                        },
-                        "required": ["name", "new_color", "new_t_min", "new_t_max"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_function",
+            "description": "Updates editable properties of an existing plotted function (color and/or bounds). Provide null for fields to leave them unchanged.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Existing name of the function to edit."},
+                    "new_color": {
+                        "type": ["string", "null"],
+                        "description": "Optional new color for the function plot.",
+                    },
+                    "new_left_bound": {"type": ["number", "null"], "description": "Optional new left plotting bound."},
+                    "new_right_bound": {
+                        "type": ["number", "null"],
+                        "description": "Optional new right plotting bound.",
+                    },
+                },
+                "required": ["name", "new_color", "new_left_bound", "new_right_bound"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "draw_tangent_line",
-                    "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles and ellipses, it's the angle in radians from the positive x-axis.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "curve_name": {
-                                "type": "string",
-                                "description": "Name of the curve to draw tangent to (function, parametric function, circle, or ellipse)"
-                            },
-                            "parameter": {
-                                "type": "number",
-                                "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, or angle (radians) for circles/ellipses"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the tangent line segment"
-                            },
-                            "length": {
-                                "type": ["number", "null"],
-                                "description": "Total length of the tangent segment in math units (default: 4.0)"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the tangent line (default: same as curve)"
-                            }
-                        },
-                        "required": ["curve_name", "parameter", "name", "length", "color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "draw_normal_line",
-                    "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles and ellipses, it's the angle in radians from the positive x-axis.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "curve_name": {
-                                "type": "string",
-                                "description": "Name of the curve to draw normal to (function, parametric function, circle, or ellipse)"
-                            },
-                            "parameter": {
-                                "type": "number",
-                                "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, or angle (radians) for circles/ellipses"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the normal line segment"
-                            },
-                            "length": {
-                                "type": ["number", "null"],
-                                "description": "Total length of the normal segment in math units (default: 4.0)"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the normal line (default: same as curve)"
-                            }
-                        },
-                        "required": ["curve_name", "parameter", "name", "length", "color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "construct_midpoint",
-                    "description": "Constructs a point at the midpoint of a segment or between two named points. Provide either 'segment_name' or both 'p1_name' and 'p2_name'.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "p1_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of the first point (use with p2_name)"
-                            },
-                            "p2_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of the second point (use with p1_name)"
-                            },
-                            "segment_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of the segment whose midpoint to find (alternative to p1_name/p2_name)"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the created midpoint"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the midpoint"
-                            }
-                        },
-                        "required": ["p1_name", "p2_name", "segment_name", "name", "color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "construct_perpendicular_bisector",
-                    "description": "Constructs the perpendicular bisector of a segment. Creates a new segment that passes through the midpoint and is perpendicular to the original.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "segment_name": {
-                                "type": "string",
-                                "description": "Name of the segment to bisect perpendicularly"
-                            },
-                            "length": {
-                                "type": ["number", "null"],
-                                "description": "Total length of the bisector segment in math units (default: 6.0)"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the created bisector segment"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the bisector segment"
-                            }
-                        },
-                        "required": ["segment_name", "length", "name", "color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "construct_perpendicular_from_point",
-                    "description": "Drops a perpendicular from a point to a segment. Creates the foot point on the line and a segment from the original point to the foot.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "point_name": {
-                                "type": "string",
-                                "description": "Name of the point to project onto the segment"
-                            },
-                            "segment_name": {
-                                "type": "string",
-                                "description": "Name of the target segment"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the perpendicular segment"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for created drawables"
-                            }
-                        },
-                        "required": ["point_name", "segment_name", "name", "color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "construct_angle_bisector",
-                    "description": "Constructs a segment along the bisector of an angle. Provide either 'angle_name' for an existing angle, or 'vertex_name', 'p1_name', 'p2_name' to define the angle by three points.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "vertex_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of the angle vertex point (use with p1_name and p2_name)"
-                            },
-                            "p1_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of the first arm endpoint (use with vertex_name and p2_name)"
-                            },
-                            "p2_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of the second arm endpoint (use with vertex_name and p1_name)"
-                            },
-                            "angle_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of an existing angle to bisect (alternative to vertex/p1/p2)"
-                            },
-                            "length": {
-                                "type": ["number", "null"],
-                                "description": "Length of the bisector segment in math units (default: 6.0)"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the created bisector segment"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the bisector segment"
-                            }
-                        },
-                        "required": ["vertex_name", "p1_name", "p2_name", "angle_name", "length", "name", "color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "construct_parallel_line",
-                    "description": "Constructs a segment through a point that is parallel to a given segment. The new segment is centered on the specified point.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "segment_name": {
-                                "type": "string",
-                                "description": "Name of the reference segment to be parallel to"
-                            },
-                            "point_name": {
-                                "type": "string",
-                                "description": "Name of the point the parallel line passes through"
-                            },
-                            "length": {
-                                "type": ["number", "null"],
-                                "description": "Total length of the parallel segment in math units (default: 6.0)"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the created parallel segment"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the parallel segment"
-                            }
-                        },
-                        "required": ["segment_name", "point_name", "length", "name", "color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "construct_circumcircle",
-                    "description": "Constructs the circumscribed circle (circumcircle) of a triangle or three points. The circumcircle passes through all three vertices. Provide either triangle_name or all three point names.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "triangle_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of an existing triangle (alternative to specifying three points)"
-                            },
-                            "p1_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of the first point (used with p2_name and p3_name instead of triangle_name)"
-                            },
-                            "p2_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of the second point"
-                            },
-                            "p3_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of the third point"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the created circumcircle"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the circumcircle"
-                            }
-                        },
-                        "required": ["triangle_name", "p1_name", "p2_name", "p3_name", "name", "color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "construct_incircle",
-                    "description": "Constructs the inscribed circle (incircle) of a triangle. The incircle is tangent to all three sides of the triangle.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "triangle_name": {
-                                "type": "string",
-                                "description": "Name of an existing triangle"
-                            },
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the created incircle"
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the incircle"
-                            }
-                        },
-                        "required": ["triangle_name", "name", "color"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "evaluate_expression",
-                    "description": "Calculate or evaluate a mathematical expression and return the numerical result. Use for arithmetic (+, -, *, /, ^), algebra, and math functions. Supports variables (x, y), constants (e, pi), and functions: sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime, prev_prime, totient, divisors, mean, median, mode, stdev, variance, random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2).",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "expression": {
-                                "type": "string",
-                                "description": "The mathematical expression to be evaluated. Example: '5*x - 1' or 'sin(x)'"
-                            },
-                            "variables": {
-                                "type": ["object", "null"],
-                                "description": "Dictionary containing key-value pairs of the variables and values to be substituted in the expression. Example: {'x': 2, 'y': 3}"
-                            }
-                        },
-                        "required": ["expression", "variables"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "evaluate_linear_algebra_expression",
-                    "description": "Evaluates matrix/vector/scalar expressions (linear algebra). Use for determinant, inverse, transpose, matrix multiplication, and eigen computations with named objects.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "objects": {
-                                "type": "array",
-                                "minItems": 1,
-                                "description": "List of named linear algebra objects available to the expression evaluator.",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "name": {
-                                            "type": "string",
-                                            "description": "Identifier used to reference the object inside the expression. Must start with a letter or underscore."
-                                        },
-                                        "value": {
-                                            "description": "Scalar, vector, or matrix definition for the object.",
-                                            "anyOf": [
-                                                {
-                                                    "type": "number"
-                                                },
-                                                {
-                                                    "type": "array",
-                                                    "minItems": 1,
-                                                    "items": {
-                                                        "type": "number"
-                                                    }
-                                                },
-                                                {
-                                                    "type": "array",
-                                                    "minItems": 1,
-                                                    "items": {
-                                                        "type": "array",
-                                                        "minItems": 1,
-                                                        "items": {
-                                                            "type": "number"
-                                                        }
-                                                    }
-                                                }
-                                            ]
-                                        }
-                                    },
-                                    "required": ["name", "value"],
-                                    "additionalProperties": False
-                                }
-                            },
-                            "expression": {
-                                "type": "string",
-                                "description": "Math.js compatible expression composed of the provided object names and supported linear algebra functions. Example: 'A + B' or 'inv(A) * b'."
-                            }
-                        },
-                        "required": ["objects", "expression"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "convert",
-                    "description": "Converts a numeric value between units (e.g., degrees to radians, km to m, F to C). For Cartesian/polar coordinate conversion, use convert_coordinates instead.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "value": {
-                                "type": "number",
-                                "description": "The value to be converted"
-                            },
-                            "from_unit": {
-                                "type": "string",
-                                "description": "The unit to convert from"
-                            },
-                            "to_unit": {
-                                "type": "string",
-                                "description": "The unit to convert to"
-                            }
-                        },
-                        "required": ["value", "from_unit", "to_unit"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "limit",
-                    "description": "Computes the limit of a function as it approaches a value",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "expression": {
-                                "type": "string",
-                                "description": "The mathematical expression represented as a string. Example: 'log(x)^2'."
-                            },
-                            "variable": {
-                                "type": "string",
-                                "description": "The variable with respect to which the limit is computed."
-                            },
-                            "value_to_approach": {
-                                "type": "string",
-                                "description": "The value the variable approaches."
-                            }
-                        },
-                        "required": ["expression", "variable", "value_to_approach"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "derive",
-                    "description": "Computes the derivative of a function with respect to a variable",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "expression": {
-                                "type": "string",
-                                "description": "The mathematical expression represented as a string. Example: '2*x + 3'."
-                            },
-                            "variable": {
-                                "type": "string",
-                                "description": "The variable with respect to which the derivative is computed."
-                            }
-                        },
-                        "required": ["expression", "variable"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "integrate",
-                    "description": "Computes the integral of a function with respect to a variable. Specify the lower and upper bounds only for definite integrals.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "expression": {
-                                "type": "string",
-                                "description": "The mathematical expression represented as a string. Example: '2*x + 3'"
-                            },
-                            "variable": {
-                                "type": "string",
-                                "description": "The variable with respect to which the integral is computed. Example: 'x'"
-                            },
-                            "lower_bound": {
-                                "type": ["number", "null"],
-                                "description": "The lower bound of the integral."
-                            },
-                            "upper_bound": {
-                                "type": ["number", "null"],
-                                "description": "The upper bound of the integral."
-                            }
-                        },
-                        "required": ["expression", "variable", "lower_bound", "upper_bound"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "numeric_integrate",
-                    "description": "Numerically approximate a definite integral over finite bounds using trapezoid, midpoint, or Simpson's rule.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "expression": {
-                                "type": "string",
-                                "description": "Integrand expression such as 'sin(x)' or 'x^2 + 1'."
-                            },
-                            "variable": {
-                                "type": "string",
-                                "description": "Integration variable, typically 'x'."
-                            },
-                            "lower_bound": {
-                                "type": "number",
-                                "description": "Lower finite bound of integration."
-                            },
-                            "upper_bound": {
-                                "type": "number",
-                                "description": "Upper finite bound of integration."
-                            },
-                            "method": {
-                                "type": "string",
-                                "enum": ["trapezoid", "midpoint", "simpson"],
-                                "description": "Numeric integration method. Optional; defaults to 'simpson' when omitted."
-                            },
-                            "steps": {
-                                "type": "integer",
-                                "description": "Number of subintervals. Must be a positive integer and <= 10000. Optional; defaults to 200 when omitted."
-                            }
-                        },
-                        "required": [
-                            "expression",
-                            "variable",
-                            "lower_bound",
-                            "upper_bound"
-                        ],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "simplify",
-                    "description": "Simplifies a mathematical expression.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "expression": {
-                                "type": "string",
-                                "description": "The mathematical expression represented as a string. Example: 'x^2 + 2*x + 1'"
-                            }
-                        },
-                        "required": ["expression"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "expand",
-                    "description": "Expands a mathematical expression.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "expression": {
-                                "type": "string",
-                                "description": "The mathematical expression represented as a string. Example: '(x+1)^2'"
-                            }
-                        },
-                        "required": ["expression"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "factor",
-                    "description": "Factors a mathematical expression.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "expression": {
-                                "type": "string",
-                                "description": "The mathematical expression represented as a string. Example: 'x^2 - 1'"
-                            }
-                        },
-                        "required": ["expression"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "solve",
-                    "description": "Solves a mathematical equation for a given variable.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "equation": {
-                                "type": "string",
-                                "description": "The mathematical equation represented as a string. Example: 'x^2 - 1'"
-                            },
-                            "variable": {
-                                "type": "string",
-                                "description": "The variable to solve for. Example: 'x'"
-                            }
-                        },
-                        "required": ["equation", "variable"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "solve_system_of_equations",
-                    "description": "Solves a system of mathematical equations.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "equations": {
-                                "type": "array",
-                                "description": "An array of mathematical equations represented as strings. Example: ['2*x/3 = y', 'x-2 = y']",
-                                "items": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "required": ["equations"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "solve_numeric",
-                    "description": "Numerically solves a system of equations using multi-start Newton-Raphson. Use for transcendental, mixed nonlinear, or systems that can't be solved symbolically (e.g., sin(x) + y = 1, x^2 + y^2 = 4). Supports any number of variables. Returns multiple solutions when they exist.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "equations": {
-                                "type": "array",
-                                "description": "Array of equation strings. Use '=' for equations (e.g., ['sin(x) + y = 1', 'x^2 + y^2 = 4']). If no '=' is present, the expression is assumed equal to 0. Variables are auto-detected.",
-                                "items": {"type": "string"}
-                            }
-                        },
-                        "required": ["equations"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "translate_object",
-                    "description": "Moves/shifts/translates an existing drawable object or function by x and y offsets (dx, dy).",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The exact name of the object to translate taken from the canvas state"
-                            },
-                            "x_offset": {
-                                "type": "number",
-                                "description": "The horizontal translation distance (positive moves right, negative moves left)"
-                            },
-                            "y_offset": {
-                                "type": "number",
-                                "description": "The vertical translation distance (positive moves up, negative moves down)"
-                            }
-                        },
-                        "required": ["name", "x_offset", "y_offset"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "rotate_object",
-                    "description": "Rotates a drawable object by the specified angle. By default rotates around the object's own center. When center_x and center_y are provided, rotates around that arbitrary point (works for all types including points and circles).",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The name of the object to rotate"
-                            },
-                            "angle": {
-                                "type": "number",
-                                "description": "The angle in degrees to rotate the object (positive for counterclockwise)"
-                            },
-                            "center_x": {
-                                "type": ["number", "null"],
-                                "description": "X-coordinate of the rotation center. Must be provided together with center_y for rotation around an arbitrary point. Omit (null) to rotate around the object's own center."
-                            },
-                            "center_y": {
-                                "type": ["number", "null"],
-                                "description": "Y-coordinate of the rotation center. Must be provided together with center_x for rotation around an arbitrary point. Omit (null) to rotate around the object's own center."
-                            }
-                        },
-                        "required": ["name", "angle", "center_x", "center_y"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "reflect_object",
-                    "description": "Reflects (mirrors) a drawable object across an axis or line. Supports x-axis, y-axis, an arbitrary line (ax + by + c = 0), or a named segment as the reflection axis.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The name of the object to reflect"
-                            },
-                            "axis": {
-                                "type": "string",
-                                "enum": ["x_axis", "y_axis", "line", "segment"],
-                                "description": "The reflection axis type"
-                            },
-                            "line_a": {
-                                "type": ["number", "null"],
-                                "description": "Coefficient a in ax + by + c = 0 (required when axis is 'line')"
-                            },
-                            "line_b": {
-                                "type": ["number", "null"],
-                                "description": "Coefficient b in ax + by + c = 0 (required when axis is 'line')"
-                            },
-                            "line_c": {
-                                "type": ["number", "null"],
-                                "description": "Coefficient c in ax + by + c = 0 (required when axis is 'line')"
-                            },
-                            "segment_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of a segment to use as the reflection axis (required when axis is 'segment')"
-                            }
-                        },
-                        "required": ["name", "axis", "line_a", "line_b", "line_c", "segment_name"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "scale_object",
-                    "description": "Scales (dilates) a drawable object by the specified factors from a center point. Use equal sx and sy for uniform scaling. Circles require uniform scaling (equal sx and sy); for non-uniform scaling, convert to an ellipse first.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The name of the object to scale"
-                            },
-                            "sx": {
-                                "type": "number",
-                                "description": "Horizontal scale factor (e.g. 2 to double width, 0.5 to halve)"
-                            },
-                            "sy": {
-                                "type": "number",
-                                "description": "Vertical scale factor (e.g. 2 to double height, 0.5 to halve)"
-                            },
-                            "cx": {
-                                "type": "number",
-                                "description": "X-coordinate of the scaling center"
-                            },
-                            "cy": {
-                                "type": "number",
-                                "description": "Y-coordinate of the scaling center"
-                            }
-                        },
-                        "required": ["name", "sx", "sy", "cx", "cy"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "shear_object",
-                    "description": "Shears a drawable object along the specified axis from a center point. Not supported for circles and ellipses.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The name of the object to shear"
-                            },
-                            "axis": {
-                                "type": "string",
-                                "enum": ["horizontal", "vertical"],
-                                "description": "The shear direction"
-                            },
-                            "factor": {
-                                "type": "number",
-                                "description": "The shear factor (e.g. 0.5 shifts x by 0.5*dy for horizontal shear)"
-                            },
-                            "cx": {
-                                "type": "number",
-                                "description": "X-coordinate of the shear center"
-                            },
-                            "cy": {
-                                "type": "number",
-                                "description": "Y-coordinate of the shear center"
-                            }
-                        },
-                        "required": ["name", "axis", "factor", "cx", "cy"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "save_workspace",
-                    "description": "Saves the current workspace state to a file. If no name is provided, saves to the current workspace file with timestamp. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name for the workspace. Must contain only alphanumeric characters, underscores, or hyphens (e.g., 'my_workspace', 'workspace-1', 'test123'). If not provided, saves to current workspace."
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "load_workspace",
-                    "description": "Loads a workspace from a file. If no name is provided, loads the (most recent) current workspace. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name of the workspace to load. Must contain only alphanumeric characters, underscores, or hyphens (e.g., 'my_workspace', 'workspace-1', 'test123'). If not provided, loads current workspace."
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "list_workspaces",
-                    "description": "Lists all saved workspaces. Only shows workspaces with valid names (containing only alphanumeric characters, underscores, or hyphens).",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_workspace",
-                    "description": "Delete a workspace by name. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Name of the workspace to delete. Must contain only alphanumeric characters, underscores, or hyphens (e.g., 'my_workspace', 'workspace-1', 'test123')."
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_colored_area",
-                    "description": "Creates a colored area between two drawables (functions, segments, or a function and a segment). If only one drawable is provided, the area will be between that drawable and the x-axis.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "drawable1_name": {
-                                "type": "string",
-                                "description": "Name of the first drawable (function or segment). Use 'x_axis' for the x-axis."
-                            },
-                            "drawable2_name": {
-                                "type": ["string", "null"],
-                                "description": "Optional name of the second drawable (function or segment). Use 'x_axis' for the x-axis. If not provided, area will be between drawable1 and x-axis."
-                            },
-                            "left_bound": {
-                                "type": ["number", "null"],
-                                "description": "Optional left bound for function areas. Only used when at least one drawable is a function."
-                            },
-                            "right_bound": {
-                                "type": ["number", "null"],
-                                "description": "Optional right bound for function areas. Only used when at least one drawable is a function."
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the area. Default is 'lightblue'."
-                            },
-                            "opacity": {
-                                "type": ["number", "null"],
-                                "description": "Optional opacity for the area between 0 and 1. Default is 0.3."
-                            }
-                        },
-                        "required": ["drawable1_name", "drawable2_name", "left_bound", "right_bound", "color", "opacity"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_region_colored_area",
-                    "description": "Fill a region defined by a boolean expression or a closed shape. Supports expressions with operators (& | - ^), arcs, circles, ellipses, polygons, and segments. Expression takes precedence if provided.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "expression": {
-                                "type": ["string", "null"],
-                                "description": "Boolean region expression using shape names and operators. Examples: 'ArcMaj_AB & CD' (arc intersected with segment), 'circle_A - triangle_ABC' (difference). Takes precedence over other parameters."
-                            },
-                            "triangle_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of an existing triangle to fill."
-                            },
-                            "rectangle_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of an existing rectangle to fill."
-                            },
-                            "polygon_segment_names": {
-                                "type": ["array", "null"],
-                                "items": {"type": "string"},
-                                "description": "List of segment names that form a closed polygon loop (at least three segments)."
-                            },
-                            "circle_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of the circle to fill or to use with a chord segment."
-                            },
-                            "ellipse_name": {
-                                "type": ["string", "null"],
-                                "description": "Name of the ellipse to fill or to use with a chord segment."
-                            },
-                            "chord_segment_name": {
-                                "type": ["string", "null"],
-                                "description": "Segment name that serves as the chord/clip when creating a circle or ellipse segment region."
-                            },
-                            "arc_clockwise": {
-                                "type": ["boolean", "null"],
-                                "description": "Set to true to trace the arc clockwise when using a round shape with a chord segment. Default is false (counter-clockwise)."
-                            },
-                            "resolution": {
-                                "type": ["number", "null"],
-                                "description": "Number of samples used to approximate curved boundaries. Defaults to 96."
-                            },
-                            "color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the filled area. Default is 'lightblue'."
-                            },
-                            "opacity": {
-                                "type": ["number", "null"],
-                                "description": "Optional opacity between 0 and 1. Default is 0.3."
-                            }
-                        },
-                        "required": [
-                            "expression",
-                            "triangle_name",
-                            "rectangle_name",
-                            "polygon_segment_names",
-                            "circle_name",
-                            "ellipse_name",
-                            "chord_segment_name",
-                            "arc_clockwise",
-                            "resolution",
-                            "color",
-                            "opacity"
-                        ],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_colored_area",
-                    "description": "Deletes a colored area by its name",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Name of the colored area to delete"
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_colored_area",
-                    "description": "Updates editable properties of an existing colored area (color, opacity, and for function-bounded areas, optional left/right bounds). Provide null for fields that should remain unchanged.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Existing name of the colored area to edit."
-                            },
-                            "new_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional new color for the area."
-                            },
-                            "new_opacity": {
-                                "type": ["number", "null"],
-                                "description": "Optional new opacity between 0 and 1."
-                            },
-                            "new_left_bound": {
-                                "type": ["number", "null"],
-                                "description": "Optional new left bound (functions-bounded areas only)."
-                            },
-                            "new_right_bound": {
-                                "type": ["number", "null"],
-                                "description": "Optional new right bound (functions-bounded areas only)."
-                            }
-                        },
-                        "required": ["name", "new_color", "new_opacity", "new_left_bound", "new_right_bound"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            # START GRAPH FUNCTIONS
-            {
-                "type": "function",
-                "function": {
-                    "name": "generate_graph",
-                    "description": "Generates a graph or tree on the canvas using provided vertices/edges or an adjacency matrix. Returns the created graph state and drawable names for follow-up highlighting.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": ["string", "null"]},
-                            "graph_type": {
-                                "type": "string",
-                                "enum": ["graph", "tree", "dag"],
-                                "description": "Type of graph to create."
-                            },
-                            "directed": {"type": ["boolean", "null"]},
-                            "root": {"type": ["string", "null"], "description": "Root id for trees."},
-                            "layout": {"type": ["string", "null"], "description": "Layout hint: 'tree' or 'hierarchical' for top-down tree display (default for trees), 'radial' for concentric rings from root, 'circular' for nodes on a circle, 'grid' for rectangular grid, 'force' for force-directed."},
-                            "placement_box": {
-                                "type": ["object", "null"],
-                                "description": "Bounding box for vertex placement. Defined from bottom-left corner in math coordinates (y increases upward). Box spans from (x, y) to (x + width, y + height).",
-                                "properties": {
-                                    "x": {"type": "number", "description": "Left edge X coordinate (bottom-left corner)"},
-                                    "y": {"type": "number", "description": "Bottom edge Y coordinate (bottom-left corner, in math coords where y increases upward)"},
-                                    "width": {"type": "number", "description": "Box width extending rightward (positive X direction)"},
-                                    "height": {"type": "number", "description": "Box height extending upward (positive Y direction)"}
-                                },
-                                "required": ["x", "y", "width", "height"],
-                                "additionalProperties": False
-                            },
-                            "vertices": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "name": {"type": ["string", "null"]},
-                                        "x": {"type": ["number", "null"]},
-                                        "y": {"type": ["number", "null"]},
-                                        "color": {"type": ["string", "null"]},
-                                        "label": {"type": ["string", "null"]}
-                                    },
-                                    "required": ["name", "x", "y", "color", "label"],
-                                    "additionalProperties": False
-                                },
-                                "description": "List of vertex descriptors. Vertex id is implied by array index starting at 0."
-                            },
-                            "edges": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "source": {"type": "number", "description": "Source vertex index (0-based, matches vertices array order)"},
-                                        "target": {"type": "number", "description": "Target vertex index (0-based, matches vertices array order)"},
-                                        "weight": {"type": ["number", "null"]},
-                                        "name": {"type": ["string", "null"]},
-                                        "color": {"type": ["string", "null"]},
-                                        "directed": {"type": ["boolean", "null"]}
-                                    },
-                                    "required": ["source", "target", "weight", "name", "color", "directed"],
-                                    "additionalProperties": False
-                                },
-                                "description": "List of edge descriptors."
-                            },
-                            "adjacency_matrix": {
-                                "type": ["array", "null"],
-                                "items": {
-                                    "type": "array",
-                                    "items": {"type": "number"}
-                                },
-                                "description": "Optional adjacency matrix (weights allowed). Rows/columns follow the order of the provided vertices array (0-based)."
-                            }
-                        },
-                        "required": ["name", "graph_type", "directed", "root", "layout", "placement_box", "vertices", "edges", "adjacency_matrix"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_graph",
-                    "description": "Deletes a graph or tree and its associated drawables by name.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"}
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "analyze_graph",
-                    "description": "Analyzes an existing graph/tree for connectivity and structural queries (connectedness, shortest path, BFS/DFS, bipartite, bridges, articulation points, diameter, etc.). Use generate_graph first if the graph does not exist yet.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "graph_name": {"type": "string", "description": "Existing graph name to analyze (must exist on canvas)."},
-                            "operation": {
-                                "type": "string",
-                                "enum": ["shortest_path", "mst", "topological_sort", "bridges", "articulation_points", "euler_status", "bipartite", "bfs", "dfs", "levels", "diameter", "lca", "balance_children", "invert_children", "reroot", "convex_hull", "point_in_hull"]
-                            },
-                            "params": {
-                                "type": ["object", "null"],
-                                "description": "Operation-specific parameters (start, goal, root, a, b, new_root, x, y for point_in_hull, etc.).",
-                                "properties": {
-                                    "start": {"type": ["string", "null"], "description": "Start vertex for shortest_path, bfs, dfs."},
-                                    "goal": {"type": ["string", "null"], "description": "Goal vertex for shortest_path."},
-                                    "root": {"type": ["string", "null"], "description": "Root vertex for tree operations."},
-                                    "a": {"type": ["string", "null"], "description": "First vertex for LCA."},
-                                    "b": {"type": ["string", "null"], "description": "Second vertex for LCA."},
-                                    "new_root": {"type": ["string", "null"], "description": "New root vertex for reroot operation."},
-                                    "x": {"type": ["number", "null"], "description": "X coordinate for point_in_hull."},
-                                    "y": {"type": ["number", "null"], "description": "Y coordinate for point_in_hull."}
-                                },
-                                "required": ["start", "goal", "root", "a", "b", "new_root", "x", "y"],
-                                "additionalProperties": False
-                            }
-                        },
-                        "required": ["graph_name", "operation", "params"],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            # END GRAPH FUNCTIONS
-            # START RELATION INSPECTION
-            {
-                "type": "function",
-                "function": {
-                    "name": "inspect_relation",
-                    "description": "Check and explain geometric relations between objects on the canvas. Supported: parallel, perpendicular, collinear, concyclic, equal_length, similar, congruent, tangent, concurrent, point_on_line, point_on_circle. Use 'auto' to check all applicable relations.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "operation": {
-                                "type": "string",
-                                "enum": ["parallel", "perpendicular", "collinear", "concyclic",
-                                         "equal_length", "similar", "congruent", "tangent",
-                                         "concurrent", "point_on_line", "point_on_circle", "auto"]
-                            },
-                            "objects": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Names of objects to check, e.g. ['s1', 's2']"
-                            },
-                            "object_types": {
-                                "type": "array",
-                                "items": {
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "draw_piecewise_function",
+            "description": "Plots a piecewise-defined function with different expressions for different intervals. Each piece specifies an expression and its valid interval bounds. Use null for unbounded intervals (extending to infinity). Use undefined_at for explicit holes (points where the function is undefined).",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pieces": {
+                        "type": "array",
+                        "minItems": 1,
+                        "description": "List of function pieces, each defining an expression and its interval.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "expression": {
                                     "type": "string",
-                                    "enum": ["point", "segment", "vector", "circle",
-                                             "ellipse", "triangle", "rectangle"]
+                                    "description": "Mathematical expression for this piece (e.g., 'x^2', 'sin(x)').",
                                 },
-                                "description": "Type of each object in same order as objects"
-                            }
+                                "left": {
+                                    "type": ["number", "null"],
+                                    "description": "Left interval bound (null for negative infinity).",
+                                },
+                                "right": {
+                                    "type": ["number", "null"],
+                                    "description": "Right interval bound (null for positive infinity).",
+                                },
+                                "left_inclusive": {
+                                    "type": "boolean",
+                                    "description": "Whether the left bound is included in the interval.",
+                                },
+                                "right_inclusive": {
+                                    "type": "boolean",
+                                    "description": "Whether the right bound is included in the interval.",
+                                },
+                                "undefined_at": {
+                                    "type": ["array", "null"],
+                                    "description": "Optional list of x-values where this piece is explicitly undefined (holes).",
+                                    "items": {"type": "number"},
+                                },
+                            },
+                            "required": [
+                                "expression",
+                                "left",
+                                "right",
+                                "left_inclusive",
+                                "right_inclusive",
+                                "undefined_at",
+                            ],
+                            "additionalProperties": False,
                         },
-                        "required": ["operation", "objects", "object_types"],
-                        "additionalProperties": False
-                    }
-                }
+                    },
+                    "name": {"type": ["string", "null"], "description": "Optional name for the piecewise function."},
+                    "color": {"type": ["string", "null"], "description": "Optional color for the plotted function."},
+                },
+                "required": ["pieces", "name", "color"],
+                "additionalProperties": False,
             },
-            # END RELATION INSPECTION
-            # START PLOT FUNCTIONS
-            {
-                "type": "function",
-                "function": {
-                    "name": "plot_distribution",
-                    "description": "Plots a probability distribution on the canvas. Choose representation 'continuous' for a function curve or 'discrete' for bar rectangles. For continuous plots, you can optionally draw the curve over plot_bounds while shading only over shade_bounds (clamped into plot_bounds). Creates a tracked plot composite for reliable deletion.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional plot name. If null, a name will be generated."
-                            },
-                            "representation": {
-                                "type": "string",
-                                "enum": ["continuous", "discrete"],
-                                "description": "Plot representation. 'continuous' draws a smooth curve. 'discrete' draws bars (rectangles)."
-                            },
-                            "distribution_type": {
-                                "type": "string",
-                                "enum": ["normal"],
-                                "description": "Distribution to plot. v1 supports only 'normal' (Gaussian)."
-                            },
-                            "distribution_params": {
-                                "type": ["object", "null"],
-                                "description": "Parameters for the selected distribution type. For 'normal', provide mean and sigma.",
-                                "properties": {
-                                    "mean": {
-                                        "type": ["number", "null"],
-                                        "description": "Mean (mu) for the normal distribution. Defaults to 0 if null."
-                                    },
-                                    "sigma": {
-                                        "type": ["number", "null"],
-                                        "description": "Standard deviation (sigma) for the normal distribution. Defaults to 1 if null. Must be > 0."
-                                    }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_piecewise_function",
+            "description": "Removes the plotted piecewise function with the given name from the canvas.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The name of the piecewise function to delete."}
+                },
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_piecewise_function",
+            "description": "Updates editable properties of an existing piecewise function (currently just color). Provide null for fields to leave them unchanged.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Existing name of the piecewise function to edit."},
+                    "new_color": {
+                        "type": ["string", "null"],
+                        "description": "Optional new color for the function plot.",
+                    },
+                },
+                "required": ["name", "new_color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "draw_parametric_function",
+            "description": "Plots a parametric curve defined by x(t) and y(t) expressions. Use this for curves that cannot be expressed as y=f(x), such as circles, spirals, Lissajous figures, and other complex shapes. The parameter t ranges from t_min to t_max (default 0 to 2*pi for periodic curves).",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x_expression": {
+                        "type": "string",
+                        "description": "Mathematical expression for x as a function of t. Example: 'cos(t)' for a circle, 't*cos(t)' for a spiral.",
+                    },
+                    "y_expression": {
+                        "type": "string",
+                        "description": "Mathematical expression for y as a function of t. Example: 'sin(t)' for a circle, 't*sin(t)' for a spiral.",
+                    },
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name or label for the parametric curve. Useful for referencing later.",
+                    },
+                    "t_min": {"type": ["number", "null"], "description": "Minimum value of parameter t. Default is 0."},
+                    "t_max": {
+                        "type": ["number", "null"],
+                        "description": "Maximum value of parameter t. Default is 2*pi (~6.283) for periodic curves.",
+                    },
+                    "color": {"type": ["string", "null"], "description": "Optional color for the plotted curve."},
+                },
+                "required": ["x_expression", "y_expression", "name", "t_min", "t_max", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_parametric_function",
+            "description": "Removes the plotted parametric function with the given name from the canvas.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The name of the parametric function to delete."}
+                },
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_parametric_function",
+            "description": "Updates editable properties of an existing parametric function (color, t_min, t_max). Provide null for fields to leave them unchanged.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Existing name of the parametric function to edit."},
+                    "new_color": {"type": ["string", "null"], "description": "Optional new color for the curve."},
+                    "new_t_min": {
+                        "type": ["number", "null"],
+                        "description": "Optional new minimum value of parameter t.",
+                    },
+                    "new_t_max": {
+                        "type": ["number", "null"],
+                        "description": "Optional new maximum value of parameter t.",
+                    },
+                },
+                "required": ["name", "new_color", "new_t_min", "new_t_max"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "draw_tangent_line",
+            "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles and ellipses, it's the angle in radians from the positive x-axis.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "curve_name": {
+                        "type": "string",
+                        "description": "Name of the curve to draw tangent to (function, parametric function, circle, or ellipse)",
+                    },
+                    "parameter": {
+                        "type": "number",
+                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, or angle (radians) for circles/ellipses",
+                    },
+                    "name": {"type": ["string", "null"], "description": "Optional name for the tangent line segment"},
+                    "length": {
+                        "type": ["number", "null"],
+                        "description": "Total length of the tangent segment in math units (default: 4.0)",
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional color for the tangent line (default: same as curve)",
+                    },
+                },
+                "required": ["curve_name", "parameter", "name", "length", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "draw_normal_line",
+            "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles and ellipses, it's the angle in radians from the positive x-axis.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "curve_name": {
+                        "type": "string",
+                        "description": "Name of the curve to draw normal to (function, parametric function, circle, or ellipse)",
+                    },
+                    "parameter": {
+                        "type": "number",
+                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, or angle (radians) for circles/ellipses",
+                    },
+                    "name": {"type": ["string", "null"], "description": "Optional name for the normal line segment"},
+                    "length": {
+                        "type": ["number", "null"],
+                        "description": "Total length of the normal segment in math units (default: 4.0)",
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional color for the normal line (default: same as curve)",
+                    },
+                },
+                "required": ["curve_name", "parameter", "name", "length", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "construct_midpoint",
+            "description": "Constructs a point at the midpoint of a segment or between two named points. Provide either 'segment_name' or both 'p1_name' and 'p2_name'.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "p1_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of the first point (use with p2_name)",
+                    },
+                    "p2_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of the second point (use with p1_name)",
+                    },
+                    "segment_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of the segment whose midpoint to find (alternative to p1_name/p2_name)",
+                    },
+                    "name": {"type": ["string", "null"], "description": "Optional name for the created midpoint"},
+                    "color": {"type": ["string", "null"], "description": "Optional color for the midpoint"},
+                },
+                "required": ["p1_name", "p2_name", "segment_name", "name", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "construct_perpendicular_bisector",
+            "description": "Constructs the perpendicular bisector of a segment. Creates a new segment that passes through the midpoint and is perpendicular to the original.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "segment_name": {"type": "string", "description": "Name of the segment to bisect perpendicularly"},
+                    "length": {
+                        "type": ["number", "null"],
+                        "description": "Total length of the bisector segment in math units (default: 6.0)",
+                    },
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the created bisector segment",
+                    },
+                    "color": {"type": ["string", "null"], "description": "Optional color for the bisector segment"},
+                },
+                "required": ["segment_name", "length", "name", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "construct_perpendicular_from_point",
+            "description": "Drops a perpendicular from a point to a segment. Creates the foot point on the line and a segment from the original point to the foot.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "point_name": {"type": "string", "description": "Name of the point to project onto the segment"},
+                    "segment_name": {"type": "string", "description": "Name of the target segment"},
+                    "name": {"type": ["string", "null"], "description": "Optional name for the perpendicular segment"},
+                    "color": {"type": ["string", "null"], "description": "Optional color for created drawables"},
+                },
+                "required": ["point_name", "segment_name", "name", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "construct_angle_bisector",
+            "description": "Constructs a segment along the bisector of an angle. Provide either 'angle_name' for an existing angle, or 'vertex_name', 'p1_name', 'p2_name' to define the angle by three points.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "vertex_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of the angle vertex point (use with p1_name and p2_name)",
+                    },
+                    "p1_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of the first arm endpoint (use with vertex_name and p2_name)",
+                    },
+                    "p2_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of the second arm endpoint (use with vertex_name and p1_name)",
+                    },
+                    "angle_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of an existing angle to bisect (alternative to vertex/p1/p2)",
+                    },
+                    "length": {
+                        "type": ["number", "null"],
+                        "description": "Length of the bisector segment in math units (default: 6.0)",
+                    },
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the created bisector segment",
+                    },
+                    "color": {"type": ["string", "null"], "description": "Optional color for the bisector segment"},
+                },
+                "required": ["vertex_name", "p1_name", "p2_name", "angle_name", "length", "name", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "construct_parallel_line",
+            "description": "Constructs a segment through a point that is parallel to a given segment. The new segment is centered on the specified point.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "segment_name": {
+                        "type": "string",
+                        "description": "Name of the reference segment to be parallel to",
+                    },
+                    "point_name": {
+                        "type": "string",
+                        "description": "Name of the point the parallel line passes through",
+                    },
+                    "length": {
+                        "type": ["number", "null"],
+                        "description": "Total length of the parallel segment in math units (default: 6.0)",
+                    },
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the created parallel segment",
+                    },
+                    "color": {"type": ["string", "null"], "description": "Optional color for the parallel segment"},
+                },
+                "required": ["segment_name", "point_name", "length", "name", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "construct_circumcircle",
+            "description": "Constructs the circumscribed circle (circumcircle) of a triangle or three points. The circumcircle passes through all three vertices. Provide either triangle_name or all three point names.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "triangle_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of an existing triangle (alternative to specifying three points)",
+                    },
+                    "p1_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of the first point (used with p2_name and p3_name instead of triangle_name)",
+                    },
+                    "p2_name": {"type": ["string", "null"], "description": "Name of the second point"},
+                    "p3_name": {"type": ["string", "null"], "description": "Name of the third point"},
+                    "name": {"type": ["string", "null"], "description": "Optional name for the created circumcircle"},
+                    "color": {"type": ["string", "null"], "description": "Optional color for the circumcircle"},
+                },
+                "required": ["triangle_name", "p1_name", "p2_name", "p3_name", "name", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "construct_incircle",
+            "description": "Constructs the inscribed circle (incircle) of a triangle. The incircle is tangent to all three sides of the triangle.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "triangle_name": {"type": "string", "description": "Name of an existing triangle"},
+                    "name": {"type": ["string", "null"], "description": "Optional name for the created incircle"},
+                    "color": {"type": ["string", "null"], "description": "Optional color for the incircle"},
+                },
+                "required": ["triangle_name", "name", "color"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "evaluate_expression",
+            "description": "Calculate or evaluate a mathematical expression and return the numerical result. Use for arithmetic (+, -, *, /, ^), algebra, and math functions. Supports variables (x, y), constants (e, pi), and functions: sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime, prev_prime, totient, divisors, mean, median, mode, stdev, variance, random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "The mathematical expression to be evaluated. Example: '5*x - 1' or 'sin(x)'",
+                    },
+                    "variables": {
+                        "type": ["object", "null"],
+                        "description": "Dictionary containing key-value pairs of the variables and values to be substituted in the expression. Example: {'x': 2, 'y': 3}",
+                    },
+                },
+                "required": ["expression", "variables"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "evaluate_linear_algebra_expression",
+            "description": "Evaluates matrix/vector/scalar expressions (linear algebra). Use for determinant, inverse, transpose, matrix multiplication, and eigen computations with named objects.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "objects": {
+                        "type": "array",
+                        "minItems": 1,
+                        "description": "List of named linear algebra objects available to the expression evaluator.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Identifier used to reference the object inside the expression. Must start with a letter or underscore.",
                                 },
-                                "required": ["mean", "sigma"],
-                                "additionalProperties": False
-                            },
-                            "plot_bounds": {
-                                "type": ["object", "null"],
-                                "description": "Optional bounds for plotting the curve. If null, or either side is null, defaults to mean +/- 4*sigma.",
-                                "properties": {
-                                    "left_bound": {
-                                        "type": ["number", "null"],
-                                        "description": "Optional left bound for plotting the curve. Defaults to mean - 4*sigma when null."
-                                    },
-                                    "right_bound": {
-                                        "type": ["number", "null"],
-                                        "description": "Optional right bound for plotting the curve. Defaults to mean + 4*sigma when null."
-                                    }
+                                "value": {
+                                    "description": "Scalar, vector, or matrix definition for the object.",
+                                    "anyOf": [
+                                        {"type": "number"},
+                                        {"type": "array", "minItems": 1, "items": {"type": "number"}},
+                                        {
+                                            "type": "array",
+                                            "minItems": 1,
+                                            "items": {"type": "array", "minItems": 1, "items": {"type": "number"}},
+                                        },
+                                    ],
                                 },
-                                "required": ["left_bound", "right_bound"],
-                                "additionalProperties": False
                             },
-                            "shade_bounds": {
-                                "type": ["object", "null"],
-                                "description": "Continuous only. Optional bounds for shading under the curve. If null, defaults to plot_bounds. Bounds are clamped into plot_bounds.",
-                                "properties": {
-                                    "left_bound": {
-                                        "type": ["number", "null"],
-                                        "description": "Optional left bound for shading under the curve. If null, defaults to plot_bounds.left_bound."
-                                    },
-                                    "right_bound": {
-                                        "type": ["number", "null"],
-                                        "description": "Optional right bound for shading under the curve. If null, defaults to plot_bounds.right_bound."
-                                    }
-                                },
-                                "required": ["left_bound", "right_bound"],
-                                "additionalProperties": False
-                            },
-                            "curve_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the plotted curve."
-                            },
-                            "fill_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional fill color for the area under the curve. Defaults to the standard area fill color."
-                            },
-                            "fill_opacity": {
-                                "type": ["number", "null"],
-                                "description": "Optional fill opacity (0 to 1). Defaults to the standard area opacity."
-                            },
-                            "bar_count": {
-                                "type": ["number", "null"],
-                                "description": "Discrete only. Number of bars to draw across the bounds. If null, a default is used."
-                            }
+                            "required": ["name", "value"],
+                            "additionalProperties": False,
                         },
-                        "required": [
-                            "name",
-                            "representation",
-                            "distribution_type",
-                            "distribution_params",
-                            "plot_bounds",
-                            "shade_bounds",
-                            "curve_color",
-                            "fill_color",
-                            "fill_opacity",
-                            "bar_count"
+                    },
+                    "expression": {
+                        "type": "string",
+                        "description": "Math.js compatible expression composed of the provided object names and supported linear algebra functions. Example: 'A + B' or 'inv(A) * b'.",
+                    },
+                },
+                "required": ["objects", "expression"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "convert",
+            "description": "Converts a numeric value between units (e.g., degrees to radians, km to m, F to C). For Cartesian/polar coordinate conversion, use convert_coordinates instead.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "value": {"type": "number", "description": "The value to be converted"},
+                    "from_unit": {"type": "string", "description": "The unit to convert from"},
+                    "to_unit": {"type": "string", "description": "The unit to convert to"},
+                },
+                "required": ["value", "from_unit", "to_unit"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "limit",
+            "description": "Computes the limit of a function as it approaches a value",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "The mathematical expression represented as a string. Example: 'log(x)^2'.",
+                    },
+                    "variable": {
+                        "type": "string",
+                        "description": "The variable with respect to which the limit is computed.",
+                    },
+                    "value_to_approach": {"type": "string", "description": "The value the variable approaches."},
+                },
+                "required": ["expression", "variable", "value_to_approach"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "derive",
+            "description": "Computes the derivative of a function with respect to a variable",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "The mathematical expression represented as a string. Example: '2*x + 3'.",
+                    },
+                    "variable": {
+                        "type": "string",
+                        "description": "The variable with respect to which the derivative is computed.",
+                    },
+                },
+                "required": ["expression", "variable"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "integrate",
+            "description": "Computes the integral of a function with respect to a variable. Specify the lower and upper bounds only for definite integrals.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "The mathematical expression represented as a string. Example: '2*x + 3'",
+                    },
+                    "variable": {
+                        "type": "string",
+                        "description": "The variable with respect to which the integral is computed. Example: 'x'",
+                    },
+                    "lower_bound": {"type": ["number", "null"], "description": "The lower bound of the integral."},
+                    "upper_bound": {"type": ["number", "null"], "description": "The upper bound of the integral."},
+                },
+                "required": ["expression", "variable", "lower_bound", "upper_bound"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "numeric_integrate",
+            "description": "Numerically approximate a definite integral over finite bounds using trapezoid, midpoint, or Simpson's rule.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "Integrand expression such as 'sin(x)' or 'x^2 + 1'.",
+                    },
+                    "variable": {"type": "string", "description": "Integration variable, typically 'x'."},
+                    "lower_bound": {"type": "number", "description": "Lower finite bound of integration."},
+                    "upper_bound": {"type": "number", "description": "Upper finite bound of integration."},
+                    "method": {
+                        "type": "string",
+                        "enum": ["trapezoid", "midpoint", "simpson"],
+                        "description": "Numeric integration method. Optional; defaults to 'simpson' when omitted.",
+                    },
+                    "steps": {
+                        "type": "integer",
+                        "description": "Number of subintervals. Must be a positive integer and <= 10000. Optional; defaults to 200 when omitted.",
+                    },
+                },
+                "required": ["expression", "variable", "lower_bound", "upper_bound"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "simplify",
+            "description": "Simplifies a mathematical expression.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "The mathematical expression represented as a string. Example: 'x^2 + 2*x + 1'",
+                    }
+                },
+                "required": ["expression"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "expand",
+            "description": "Expands a mathematical expression.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "The mathematical expression represented as a string. Example: '(x+1)^2'",
+                    }
+                },
+                "required": ["expression"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "factor",
+            "description": "Factors a mathematical expression.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "The mathematical expression represented as a string. Example: 'x^2 - 1'",
+                    }
+                },
+                "required": ["expression"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "solve",
+            "description": "Solves a mathematical equation for a given variable.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "equation": {
+                        "type": "string",
+                        "description": "The mathematical equation represented as a string. Example: 'x^2 - 1'",
+                    },
+                    "variable": {"type": "string", "description": "The variable to solve for. Example: 'x'"},
+                },
+                "required": ["equation", "variable"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "solve_system_of_equations",
+            "description": "Solves a system of mathematical equations.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "equations": {
+                        "type": "array",
+                        "description": "An array of mathematical equations represented as strings. Example: ['2*x/3 = y', 'x-2 = y']",
+                        "items": {"type": "string"},
+                    }
+                },
+                "required": ["equations"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "solve_numeric",
+            "description": "Numerically solves a system of equations using multi-start Newton-Raphson. Use for transcendental, mixed nonlinear, or systems that can't be solved symbolically (e.g., sin(x) + y = 1, x^2 + y^2 = 4). Supports any number of variables. Returns multiple solutions when they exist.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "equations": {
+                        "type": "array",
+                        "description": "Array of equation strings. Use '=' for equations (e.g., ['sin(x) + y = 1', 'x^2 + y^2 = 4']). If no '=' is present, the expression is assumed equal to 0. Variables are auto-detected.",
+                        "items": {"type": "string"},
+                    }
+                },
+                "required": ["equations"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "translate_object",
+            "description": "Moves/shifts/translates an existing drawable object or function by x and y offsets (dx, dy).",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The exact name of the object to translate taken from the canvas state",
+                    },
+                    "x_offset": {
+                        "type": "number",
+                        "description": "The horizontal translation distance (positive moves right, negative moves left)",
+                    },
+                    "y_offset": {
+                        "type": "number",
+                        "description": "The vertical translation distance (positive moves up, negative moves down)",
+                    },
+                },
+                "required": ["name", "x_offset", "y_offset"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "rotate_object",
+            "description": "Rotates a drawable object by the specified angle. By default rotates around the object's own center. When center_x and center_y are provided, rotates around that arbitrary point (works for all types including points and circles).",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The name of the object to rotate"},
+                    "angle": {
+                        "type": "number",
+                        "description": "The angle in degrees to rotate the object (positive for counterclockwise)",
+                    },
+                    "center_x": {
+                        "type": ["number", "null"],
+                        "description": "X-coordinate of the rotation center. Must be provided together with center_y for rotation around an arbitrary point. Omit (null) to rotate around the object's own center.",
+                    },
+                    "center_y": {
+                        "type": ["number", "null"],
+                        "description": "Y-coordinate of the rotation center. Must be provided together with center_x for rotation around an arbitrary point. Omit (null) to rotate around the object's own center.",
+                    },
+                },
+                "required": ["name", "angle", "center_x", "center_y"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "reflect_object",
+            "description": "Reflects (mirrors) a drawable object across an axis or line. Supports x-axis, y-axis, an arbitrary line (ax + by + c = 0), or a named segment as the reflection axis.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The name of the object to reflect"},
+                    "axis": {
+                        "type": "string",
+                        "enum": ["x_axis", "y_axis", "line", "segment"],
+                        "description": "The reflection axis type",
+                    },
+                    "line_a": {
+                        "type": ["number", "null"],
+                        "description": "Coefficient a in ax + by + c = 0 (required when axis is 'line')",
+                    },
+                    "line_b": {
+                        "type": ["number", "null"],
+                        "description": "Coefficient b in ax + by + c = 0 (required when axis is 'line')",
+                    },
+                    "line_c": {
+                        "type": ["number", "null"],
+                        "description": "Coefficient c in ax + by + c = 0 (required when axis is 'line')",
+                    },
+                    "segment_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of a segment to use as the reflection axis (required when axis is 'segment')",
+                    },
+                },
+                "required": ["name", "axis", "line_a", "line_b", "line_c", "segment_name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "scale_object",
+            "description": "Scales (dilates) a drawable object by the specified factors from a center point. Use equal sx and sy for uniform scaling. Circles require uniform scaling (equal sx and sy); for non-uniform scaling, convert to an ellipse first.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The name of the object to scale"},
+                    "sx": {
+                        "type": "number",
+                        "description": "Horizontal scale factor (e.g. 2 to double width, 0.5 to halve)",
+                    },
+                    "sy": {
+                        "type": "number",
+                        "description": "Vertical scale factor (e.g. 2 to double height, 0.5 to halve)",
+                    },
+                    "cx": {"type": "number", "description": "X-coordinate of the scaling center"},
+                    "cy": {"type": "number", "description": "Y-coordinate of the scaling center"},
+                },
+                "required": ["name", "sx", "sy", "cx", "cy"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "shear_object",
+            "description": "Shears a drawable object along the specified axis from a center point. Not supported for circles and ellipses.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The name of the object to shear"},
+                    "axis": {
+                        "type": "string",
+                        "enum": ["horizontal", "vertical"],
+                        "description": "The shear direction",
+                    },
+                    "factor": {
+                        "type": "number",
+                        "description": "The shear factor (e.g. 0.5 shifts x by 0.5*dy for horizontal shear)",
+                    },
+                    "cx": {"type": "number", "description": "X-coordinate of the shear center"},
+                    "cy": {"type": "number", "description": "Y-coordinate of the shear center"},
+                },
+                "required": ["name", "axis", "factor", "cx", "cy"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_workspace",
+            "description": "Saves the current workspace state to a file. If no name is provided, saves to the current workspace file with timestamp. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the workspace. Must contain only alphanumeric characters, underscores, or hyphens (e.g., 'my_workspace', 'workspace-1', 'test123'). If not provided, saves to current workspace.",
+                    }
+                },
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "load_workspace",
+            "description": "Loads a workspace from a file. If no name is provided, loads the (most recent) current workspace. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name of the workspace to load. Must contain only alphanumeric characters, underscores, or hyphens (e.g., 'my_workspace', 'workspace-1', 'test123'). If not provided, loads current workspace.",
+                    }
+                },
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_workspaces",
+            "description": "Lists all saved workspaces. Only shows workspaces with valid names (containing only alphanumeric characters, underscores, or hyphens).",
+            "strict": True,
+            "parameters": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_workspace",
+            "description": "Delete a workspace by name. The workspace name MUST only contain alphanumeric characters, underscores, or hyphens (no spaces, dots, slashes, or other special characters).",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the workspace to delete. Must contain only alphanumeric characters, underscores, or hyphens (e.g., 'my_workspace', 'workspace-1', 'test123').",
+                    }
+                },
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_colored_area",
+            "description": "Creates a colored area between two drawables (functions, segments, or a function and a segment). If only one drawable is provided, the area will be between that drawable and the x-axis.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "drawable1_name": {
+                        "type": "string",
+                        "description": "Name of the first drawable (function or segment). Use 'x_axis' for the x-axis.",
+                    },
+                    "drawable2_name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name of the second drawable (function or segment). Use 'x_axis' for the x-axis. If not provided, area will be between drawable1 and x-axis.",
+                    },
+                    "left_bound": {
+                        "type": ["number", "null"],
+                        "description": "Optional left bound for function areas. Only used when at least one drawable is a function.",
+                    },
+                    "right_bound": {
+                        "type": ["number", "null"],
+                        "description": "Optional right bound for function areas. Only used when at least one drawable is a function.",
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional color for the area. Default is 'lightblue'.",
+                    },
+                    "opacity": {
+                        "type": ["number", "null"],
+                        "description": "Optional opacity for the area between 0 and 1. Default is 0.3.",
+                    },
+                },
+                "required": ["drawable1_name", "drawable2_name", "left_bound", "right_bound", "color", "opacity"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_region_colored_area",
+            "description": "Fill a region defined by a boolean expression or a closed shape. Supports expressions with operators (& | - ^), arcs, circles, ellipses, polygons, and segments. Expression takes precedence if provided.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": ["string", "null"],
+                        "description": "Boolean region expression using shape names and operators. Examples: 'ArcMaj_AB & CD' (arc intersected with segment), 'circle_A - triangle_ABC' (difference). Takes precedence over other parameters.",
+                    },
+                    "triangle_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of an existing triangle to fill.",
+                    },
+                    "rectangle_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of an existing rectangle to fill.",
+                    },
+                    "polygon_segment_names": {
+                        "type": ["array", "null"],
+                        "items": {"type": "string"},
+                        "description": "List of segment names that form a closed polygon loop (at least three segments).",
+                    },
+                    "circle_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of the circle to fill or to use with a chord segment.",
+                    },
+                    "ellipse_name": {
+                        "type": ["string", "null"],
+                        "description": "Name of the ellipse to fill or to use with a chord segment.",
+                    },
+                    "chord_segment_name": {
+                        "type": ["string", "null"],
+                        "description": "Segment name that serves as the chord/clip when creating a circle or ellipse segment region.",
+                    },
+                    "arc_clockwise": {
+                        "type": ["boolean", "null"],
+                        "description": "Set to true to trace the arc clockwise when using a round shape with a chord segment. Default is false (counter-clockwise).",
+                    },
+                    "resolution": {
+                        "type": ["number", "null"],
+                        "description": "Number of samples used to approximate curved boundaries. Defaults to 96.",
+                    },
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional color for the filled area. Default is 'lightblue'.",
+                    },
+                    "opacity": {
+                        "type": ["number", "null"],
+                        "description": "Optional opacity between 0 and 1. Default is 0.3.",
+                    },
+                },
+                "required": [
+                    "expression",
+                    "triangle_name",
+                    "rectangle_name",
+                    "polygon_segment_names",
+                    "circle_name",
+                    "ellipse_name",
+                    "chord_segment_name",
+                    "arc_clockwise",
+                    "resolution",
+                    "color",
+                    "opacity",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_colored_area",
+            "description": "Deletes a colored area by its name",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string", "description": "Name of the colored area to delete"}},
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_colored_area",
+            "description": "Updates editable properties of an existing colored area (color, opacity, and for function-bounded areas, optional left/right bounds). Provide null for fields that should remain unchanged.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Existing name of the colored area to edit."},
+                    "new_color": {"type": ["string", "null"], "description": "Optional new color for the area."},
+                    "new_opacity": {"type": ["number", "null"], "description": "Optional new opacity between 0 and 1."},
+                    "new_left_bound": {
+                        "type": ["number", "null"],
+                        "description": "Optional new left bound (functions-bounded areas only).",
+                    },
+                    "new_right_bound": {
+                        "type": ["number", "null"],
+                        "description": "Optional new right bound (functions-bounded areas only).",
+                    },
+                },
+                "required": ["name", "new_color", "new_opacity", "new_left_bound", "new_right_bound"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    # START GRAPH FUNCTIONS
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_graph",
+            "description": "Generates a graph or tree on the canvas using provided vertices/edges or an adjacency matrix. Returns the created graph state and drawable names for follow-up highlighting.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": ["string", "null"]},
+                    "graph_type": {
+                        "type": "string",
+                        "enum": ["graph", "tree", "dag"],
+                        "description": "Type of graph to create.",
+                    },
+                    "directed": {"type": ["boolean", "null"]},
+                    "root": {"type": ["string", "null"], "description": "Root id for trees."},
+                    "layout": {
+                        "type": ["string", "null"],
+                        "description": "Layout hint: 'tree' or 'hierarchical' for top-down tree display (default for trees), 'radial' for concentric rings from root, 'circular' for nodes on a circle, 'grid' for rectangular grid, 'force' for force-directed.",
+                    },
+                    "placement_box": {
+                        "type": ["object", "null"],
+                        "description": "Bounding box for vertex placement. Defined from bottom-left corner in math coordinates (y increases upward). Box spans from (x, y) to (x + width, y + height).",
+                        "properties": {
+                            "x": {"type": "number", "description": "Left edge X coordinate (bottom-left corner)"},
+                            "y": {
+                                "type": "number",
+                                "description": "Bottom edge Y coordinate (bottom-left corner, in math coords where y increases upward)",
+                            },
+                            "width": {
+                                "type": "number",
+                                "description": "Box width extending rightward (positive X direction)",
+                            },
+                            "height": {
+                                "type": "number",
+                                "description": "Box height extending upward (positive Y direction)",
+                            },
+                        },
+                        "required": ["x", "y", "width", "height"],
+                        "additionalProperties": False,
+                    },
+                    "vertices": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": ["string", "null"]},
+                                "x": {"type": ["number", "null"]},
+                                "y": {"type": ["number", "null"]},
+                                "color": {"type": ["string", "null"]},
+                                "label": {"type": ["string", "null"]},
+                            },
+                            "required": ["name", "x", "y", "color", "label"],
+                            "additionalProperties": False,
+                        },
+                        "description": "List of vertex descriptors. Vertex id is implied by array index starting at 0.",
+                    },
+                    "edges": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "source": {
+                                    "type": "number",
+                                    "description": "Source vertex index (0-based, matches vertices array order)",
+                                },
+                                "target": {
+                                    "type": "number",
+                                    "description": "Target vertex index (0-based, matches vertices array order)",
+                                },
+                                "weight": {"type": ["number", "null"]},
+                                "name": {"type": ["string", "null"]},
+                                "color": {"type": ["string", "null"]},
+                                "directed": {"type": ["boolean", "null"]},
+                            },
+                            "required": ["source", "target", "weight", "name", "color", "directed"],
+                            "additionalProperties": False,
+                        },
+                        "description": "List of edge descriptors.",
+                    },
+                    "adjacency_matrix": {
+                        "type": ["array", "null"],
+                        "items": {"type": "array", "items": {"type": "number"}},
+                        "description": "Optional adjacency matrix (weights allowed). Rows/columns follow the order of the provided vertices array (0-based).",
+                    },
+                },
+                "required": [
+                    "name",
+                    "graph_type",
+                    "directed",
+                    "root",
+                    "layout",
+                    "placement_box",
+                    "vertices",
+                    "edges",
+                    "adjacency_matrix",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_graph",
+            "description": "Deletes a graph or tree and its associated drawables by name.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_graph",
+            "description": "Analyzes an existing graph/tree for connectivity and structural queries (connectedness, shortest path, BFS/DFS, bipartite, bridges, articulation points, diameter, etc.). Use generate_graph first if the graph does not exist yet.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "graph_name": {
+                        "type": "string",
+                        "description": "Existing graph name to analyze (must exist on canvas).",
+                    },
+                    "operation": {
+                        "type": "string",
+                        "enum": [
+                            "shortest_path",
+                            "mst",
+                            "topological_sort",
+                            "bridges",
+                            "articulation_points",
+                            "euler_status",
+                            "bipartite",
+                            "bfs",
+                            "dfs",
+                            "levels",
+                            "diameter",
+                            "lca",
+                            "balance_children",
+                            "invert_children",
+                            "reroot",
+                            "convex_hull",
+                            "point_in_hull",
                         ],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "plot_bars",
-                    "description": "Plots a bar chart from tabular data (values with labels). Creates a tracked plot composite for reliable deletion.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
+                    },
+                    "params": {
+                        "type": ["object", "null"],
+                        "description": "Operation-specific parameters (start, goal, root, a, b, new_root, x, y for point_in_hull, etc.).",
                         "properties": {
-                            "name": {
+                            "start": {
                                 "type": ["string", "null"],
-                                "description": "Optional plot name. If null, a name will be generated."
+                                "description": "Start vertex for shortest_path, bfs, dfs.",
                             },
-                            "values": {
-                                "type": "array",
-                                "items": {"type": "number"},
-                                "description": "Bar heights (math-space units). Must have at least one entry."
-                            },
-                            "labels_below": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Label under each bar. Must have one label per value."
-                            },
-                            "labels_above": {
-                                "type": ["array", "null"],
-                                "items": {"type": "string"},
-                                "description": "Optional label above each bar (for example, formatted values). If provided, must have one label per value."
-                            },
-                            "bar_spacing": {
-                                "type": ["number", "null"],
-                                "description": "Optional spacing between bars in math-space units. Defaults to 0.2."
-                            },
-                            "bar_width": {
-                                "type": ["number", "null"],
-                                "description": "Optional bar width in math-space units. Defaults to 1.0."
-                            },
-                            "stroke_color": {
+                            "goal": {"type": ["string", "null"], "description": "Goal vertex for shortest_path."},
+                            "root": {"type": ["string", "null"], "description": "Root vertex for tree operations."},
+                            "a": {"type": ["string", "null"], "description": "First vertex for LCA."},
+                            "b": {"type": ["string", "null"], "description": "Second vertex for LCA."},
+                            "new_root": {
                                 "type": ["string", "null"],
-                                "description": "Optional stroke color for each bar."
+                                "description": "New root vertex for reroot operation.",
                             },
-                            "fill_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional fill color for each bar."
-                            },
-                            "fill_opacity": {
-                                "type": ["number", "null"],
-                                "description": "Optional fill opacity (0 to 1)."
-                            },
-                            "x_start": {
-                                "type": ["number", "null"],
-                                "description": "Optional left x coordinate for the first bar. Defaults to 0."
-                            },
-                            "y_base": {
-                                "type": ["number", "null"],
-                                "description": "Optional baseline y coordinate for bars. Defaults to 0."
-                            }
+                            "x": {"type": ["number", "null"], "description": "X coordinate for point_in_hull."},
+                            "y": {"type": ["number", "null"], "description": "Y coordinate for point_in_hull."},
                         },
-                        "required": [
-                            "name",
-                            "values",
-                            "labels_below",
-                            "labels_above",
-                            "bar_spacing",
-                            "bar_width",
-                            "stroke_color",
-                            "fill_color",
-                            "fill_opacity",
-                            "x_start",
-                            "y_base"
+                        "required": ["start", "goal", "root", "a", "b", "new_root", "x", "y"],
+                        "additionalProperties": False,
+                    },
+                },
+                "required": ["graph_name", "operation", "params"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    # END GRAPH FUNCTIONS
+    # START RELATION INSPECTION
+    {
+        "type": "function",
+        "function": {
+            "name": "inspect_relation",
+            "description": "Check and explain geometric relations between objects on the canvas. Supported: parallel, perpendicular, collinear, concyclic, equal_length, similar, congruent, tangent, concurrent, point_on_line, point_on_circle. Use 'auto' to check all applicable relations.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "operation": {
+                        "type": "string",
+                        "enum": [
+                            "parallel",
+                            "perpendicular",
+                            "collinear",
+                            "concyclic",
+                            "equal_length",
+                            "similar",
+                            "congruent",
+                            "tangent",
+                            "concurrent",
+                            "point_on_line",
+                            "point_on_circle",
+                            "auto",
                         ],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_plot",
-                    "description": "Deletes a previously created plot composite by name, including any underlying components (curve and filled area, or derived bars).",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"}
+                    },
+                    "objects": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Names of objects to check, e.g. ['s1', 's2']",
+                    },
+                    "object_types": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["point", "segment", "vector", "circle", "ellipse", "triangle", "rectangle"],
                         },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
+                        "description": "Type of each object in same order as objects",
+                    },
+                },
+                "required": ["operation", "objects", "object_types"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "fit_regression",
-                    "description": "Fits a regression model to data points and plots the resulting curve. Supported model types: linear (y = mx + b), polynomial (y = a0 + a1*x + ... + an*x^n), exponential (y = a*e^(bx)), logarithmic (y = a + b*ln(x)), power (y = a*x^b), logistic (y = L/(1+e^(-k(x-x0)))), and sinusoidal (y = a*sin(bx+c)+d). Returns the function_name, fitted expression, coefficients, R-squared, and point_names. Use delete_function to remove the curve; delete points individually.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
+        },
+    },
+    # END RELATION INSPECTION
+    # START PLOT FUNCTIONS
+    {
+        "type": "function",
+        "function": {
+            "name": "plot_distribution",
+            "description": "Plots a probability distribution on the canvas. Choose representation 'continuous' for a function curve or 'discrete' for bar rectangles. For continuous plots, you can optionally draw the curve over plot_bounds while shading only over shade_bounds (clamped into plot_bounds). Creates a tracked plot composite for reliable deletion.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional plot name. If null, a name will be generated.",
+                    },
+                    "representation": {
+                        "type": "string",
+                        "enum": ["continuous", "discrete"],
+                        "description": "Plot representation. 'continuous' draws a smooth curve. 'discrete' draws bars (rectangles).",
+                    },
+                    "distribution_type": {
+                        "type": "string",
+                        "enum": ["normal"],
+                        "description": "Distribution to plot. v1 supports only 'normal' (Gaussian).",
+                    },
+                    "distribution_params": {
+                        "type": ["object", "null"],
+                        "description": "Parameters for the selected distribution type. For 'normal', provide mean and sigma.",
                         "properties": {
-                            "name": {
-                                "type": ["string", "null"],
-                                "description": "Optional base name for the function and data points. If null, a name will be generated based on model type."
+                            "mean": {
+                                "type": ["number", "null"],
+                                "description": "Mean (mu) for the normal distribution. Defaults to 0 if null.",
                             },
-                            "x_data": {
-                                "type": "array",
-                                "items": {"type": "number"},
-                                "description": "Array of x values (independent variable). Must have at least 2 points (more for polynomial)."
+                            "sigma": {
+                                "type": ["number", "null"],
+                                "description": "Standard deviation (sigma) for the normal distribution. Defaults to 1 if null. Must be > 0.",
                             },
-                            "y_data": {
-                                "type": "array",
-                                "items": {"type": "number"},
-                                "description": "Array of y values (dependent variable). Must have same length as x_data."
-                            },
-                            "model_type": {
-                                "type": "string",
-                                "enum": ["linear", "polynomial", "exponential", "logarithmic", "power", "logistic", "sinusoidal"],
-                                "description": "Type of regression model to fit. Note: exponential and power require positive y values; logarithmic and power require positive x values."
-                            },
-                            "degree": {
-                                "type": ["integer", "null"],
-                                "description": "Polynomial degree (required for polynomial model, ignored otherwise). Must be >= 1 and less than the number of data points."
-                            },
-                            "plot_bounds": {
-                                "type": ["object", "null"],
-                                "description": "Optional bounds for plotting the fitted curve. Defaults to data range with 10% padding.",
-                                "properties": {
-                                    "left_bound": {
-                                        "type": ["number", "null"],
-                                        "description": "Left bound for plotting. Defaults to min(x_data) - 10% range."
-                                    },
-                                    "right_bound": {
-                                        "type": ["number", "null"],
-                                        "description": "Right bound for plotting. Defaults to max(x_data) + 10% range."
-                                    }
-                                },
-                                "required": ["left_bound", "right_bound"],
-                                "additionalProperties": False
-                            },
-                            "curve_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for the fitted curve."
-                            },
-                            "show_points": {
-                                "type": ["boolean", "null"],
-                                "description": "Whether to plot the data points. Defaults to true."
-                            },
-                            "point_color": {
-                                "type": ["string", "null"],
-                                "description": "Optional color for data points (if show_points is true)."
-                            }
                         },
-                        "required": [
-                            "name",
-                            "x_data",
-                            "y_data",
-                            "model_type",
-                            "degree",
-                            "plot_bounds",
-                            "curve_color",
-                            "show_points",
-                            "point_color"
+                        "required": ["mean", "sigma"],
+                        "additionalProperties": False,
+                    },
+                    "plot_bounds": {
+                        "type": ["object", "null"],
+                        "description": "Optional bounds for plotting the curve. If null, or either side is null, defaults to mean +/- 4*sigma.",
+                        "properties": {
+                            "left_bound": {
+                                "type": ["number", "null"],
+                                "description": "Optional left bound for plotting the curve. Defaults to mean - 4*sigma when null.",
+                            },
+                            "right_bound": {
+                                "type": ["number", "null"],
+                                "description": "Optional right bound for plotting the curve. Defaults to mean + 4*sigma when null.",
+                            },
+                        },
+                        "required": ["left_bound", "right_bound"],
+                        "additionalProperties": False,
+                    },
+                    "shade_bounds": {
+                        "type": ["object", "null"],
+                        "description": "Continuous only. Optional bounds for shading under the curve. If null, defaults to plot_bounds. Bounds are clamped into plot_bounds.",
+                        "properties": {
+                            "left_bound": {
+                                "type": ["number", "null"],
+                                "description": "Optional left bound for shading under the curve. If null, defaults to plot_bounds.left_bound.",
+                            },
+                            "right_bound": {
+                                "type": ["number", "null"],
+                                "description": "Optional right bound for shading under the curve. If null, defaults to plot_bounds.right_bound.",
+                            },
+                        },
+                        "required": ["left_bound", "right_bound"],
+                        "additionalProperties": False,
+                    },
+                    "curve_color": {"type": ["string", "null"], "description": "Optional color for the plotted curve."},
+                    "fill_color": {
+                        "type": ["string", "null"],
+                        "description": "Optional fill color for the area under the curve. Defaults to the standard area fill color.",
+                    },
+                    "fill_opacity": {
+                        "type": ["number", "null"],
+                        "description": "Optional fill opacity (0 to 1). Defaults to the standard area opacity.",
+                    },
+                    "bar_count": {
+                        "type": ["number", "null"],
+                        "description": "Discrete only. Number of bars to draw across the bounds. If null, a default is used.",
+                    },
+                },
+                "required": [
+                    "name",
+                    "representation",
+                    "distribution_type",
+                    "distribution_params",
+                    "plot_bounds",
+                    "shade_bounds",
+                    "curve_color",
+                    "fill_color",
+                    "fill_opacity",
+                    "bar_count",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "plot_bars",
+            "description": "Plots a bar chart from tabular data (values with labels). Creates a tracked plot composite for reliable deletion.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional plot name. If null, a name will be generated.",
+                    },
+                    "values": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "Bar heights (math-space units). Must have at least one entry.",
+                    },
+                    "labels_below": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Label under each bar. Must have one label per value.",
+                    },
+                    "labels_above": {
+                        "type": ["array", "null"],
+                        "items": {"type": "string"},
+                        "description": "Optional label above each bar (for example, formatted values). If provided, must have one label per value.",
+                    },
+                    "bar_spacing": {
+                        "type": ["number", "null"],
+                        "description": "Optional spacing between bars in math-space units. Defaults to 0.2.",
+                    },
+                    "bar_width": {
+                        "type": ["number", "null"],
+                        "description": "Optional bar width in math-space units. Defaults to 1.0.",
+                    },
+                    "stroke_color": {"type": ["string", "null"], "description": "Optional stroke color for each bar."},
+                    "fill_color": {"type": ["string", "null"], "description": "Optional fill color for each bar."},
+                    "fill_opacity": {"type": ["number", "null"], "description": "Optional fill opacity (0 to 1)."},
+                    "x_start": {
+                        "type": ["number", "null"],
+                        "description": "Optional left x coordinate for the first bar. Defaults to 0.",
+                    },
+                    "y_base": {
+                        "type": ["number", "null"],
+                        "description": "Optional baseline y coordinate for bars. Defaults to 0.",
+                    },
+                },
+                "required": [
+                    "name",
+                    "values",
+                    "labels_below",
+                    "labels_above",
+                    "bar_spacing",
+                    "bar_width",
+                    "stroke_color",
+                    "fill_color",
+                    "fill_opacity",
+                    "x_start",
+                    "y_base",
+                ],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_plot",
+            "description": "Deletes a previously created plot composite by name, including any underlying components (curve and filled area, or derived bars).",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fit_regression",
+            "description": "Fits a regression model to data points and plots the resulting curve. Supported model types: linear (y = mx + b), polynomial (y = a0 + a1*x + ... + an*x^n), exponential (y = a*e^(bx)), logarithmic (y = a + b*ln(x)), power (y = a*x^b), logistic (y = L/(1+e^(-k(x-x0)))), and sinusoidal (y = a*sin(bx+c)+d). Returns the function_name, fitted expression, coefficients, R-squared, and point_names. Use delete_function to remove the curve; delete points individually.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Optional base name for the function and data points. If null, a name will be generated based on model type.",
+                    },
+                    "x_data": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "Array of x values (independent variable). Must have at least 2 points (more for polynomial).",
+                    },
+                    "y_data": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "description": "Array of y values (dependent variable). Must have same length as x_data.",
+                    },
+                    "model_type": {
+                        "type": "string",
+                        "enum": [
+                            "linear",
+                            "polynomial",
+                            "exponential",
+                            "logarithmic",
+                            "power",
+                            "logistic",
+                            "sinusoidal",
                         ],
-                        "additionalProperties": False
-                    }
-                }
-            },
-            # END PLOT FUNCTIONS
-            # START ANGLE FUNCTIONS
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_angle",
-                    "description": "Creates and draws an angle defined by three points. The first point (vx, vy) is the common vertex, and the other two points (p1x, p1y and p2x, p2y) define the angle's arms. For example, in an angle ABC, (vx, vy) would be the coordinates of point B. The angle's visual representation (arc and degree value) will be drawn. Segments forming the angle will be created if they don't exist.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
+                        "description": "Type of regression model to fit. Note: exponential and power require positive y values; logarithmic and power require positive x values.",
+                    },
+                    "degree": {
+                        "type": ["integer", "null"],
+                        "description": "Polynomial degree (required for polynomial model, ignored otherwise). Must be >= 1 and less than the number of data points.",
+                    },
+                    "plot_bounds": {
+                        "type": ["object", "null"],
+                        "description": "Optional bounds for plotting the fitted curve. Defaults to data range with 10% padding.",
                         "properties": {
-                            "vx": {
-                                "type": "number",
-                                "description": "The X coordinate of the common vertex point (e.g., point B in an angle ABC)."
+                            "left_bound": {
+                                "type": ["number", "null"],
+                                "description": "Left bound for plotting. Defaults to min(x_data) - 10% range.",
                             },
-                            "vy": {
-                                "type": "number",
-                                "description": "The Y coordinate of the common vertex point (e.g., point B in an angle ABC)."
+                            "right_bound": {
+                                "type": ["number", "null"],
+                                "description": "Right bound for plotting. Defaults to max(x_data) + 10% range.",
                             },
-                            "p1x": {
-                                "type": "number",
-                                "description": "The X coordinate of the first arm point."
-                            },
-                            "p1y": {
-                                "type": "number",
-                                "description": "The Y coordinate of the first arm point."
-                            },
-                            "p2x": {
-                                "type": "number",
-                                "description": "The X coordinate of the second arm point."
-                            },
-                            "p2y": {
-                                "type": "number",
-                                "description": "The Y coordinate of the second arm point."
-                            },
-                            "color": {
-                                "type": [ "string", "null" ],
-                                "description": "Optional color for the angle's arc and text. Defaults to the canvas default color."
-                            },
-                            "angle_name": {
-                                "type": [ "string", "null" ],
-                                "description": "Optional name for the angle. If not provided, a name might be generated (e.g., 'angle_ABC')."
-                            },
-                            "is_reflex": {
-                                "type": ["boolean", "null"],
-                                "description": "Optional. If true, the reflex angle will be created. Defaults to false (smallest angle)."
-                            }
                         },
-                        "required": ["vx", "vy", "p1x", "p1y", "p2x", "p2y", "color", "angle_name", "is_reflex"],
-                        "additionalProperties": False
-                    }
-                }
+                        "required": ["left_bound", "right_bound"],
+                        "additionalProperties": False,
+                    },
+                    "curve_color": {"type": ["string", "null"], "description": "Optional color for the fitted curve."},
+                    "show_points": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether to plot the data points. Defaults to true.",
+                    },
+                    "point_color": {
+                        "type": ["string", "null"],
+                        "description": "Optional color for data points (if show_points is true).",
+                    },
+                },
+                "required": [
+                    "name",
+                    "x_data",
+                    "y_data",
+                    "model_type",
+                    "degree",
+                    "plot_bounds",
+                    "curve_color",
+                    "show_points",
+                    "point_color",
+                ],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "delete_angle",
-                    "description": "Removes an angle by its name. This will also attempt to remove its constituent segments if they are no longer part of other drawables.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The name of the angle to remove (e.g., 'angle_ABC')."
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    # END PLOT FUNCTIONS
+    # START ANGLE FUNCTIONS
+    {
+        "type": "function",
+        "function": {
+            "name": "create_angle",
+            "description": "Creates and draws an angle defined by three points. The first point (vx, vy) is the common vertex, and the other two points (p1x, p1y and p2x, p2y) define the angle's arms. For example, in an angle ABC, (vx, vy) would be the coordinates of point B. The angle's visual representation (arc and degree value) will be drawn. Segments forming the angle will be created if they don't exist.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "vx": {
+                        "type": "number",
+                        "description": "The X coordinate of the common vertex point (e.g., point B in an angle ABC).",
+                    },
+                    "vy": {
+                        "type": "number",
+                        "description": "The Y coordinate of the common vertex point (e.g., point B in an angle ABC).",
+                    },
+                    "p1x": {"type": "number", "description": "The X coordinate of the first arm point."},
+                    "p1y": {"type": "number", "description": "The Y coordinate of the first arm point."},
+                    "p2x": {"type": "number", "description": "The X coordinate of the second arm point."},
+                    "p2y": {"type": "number", "description": "The Y coordinate of the second arm point."},
+                    "color": {
+                        "type": ["string", "null"],
+                        "description": "Optional color for the angle's arc and text. Defaults to the canvas default color.",
+                    },
+                    "angle_name": {
+                        "type": ["string", "null"],
+                        "description": "Optional name for the angle. If not provided, a name might be generated (e.g., 'angle_ABC').",
+                    },
+                    "is_reflex": {
+                        "type": ["boolean", "null"],
+                        "description": "Optional. If true, the reflex angle will be created. Defaults to false (smallest angle).",
+                    },
+                },
+                "required": ["vx", "vy", "p1x", "p1y", "p2x", "p2y", "color", "angle_name", "is_reflex"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "update_angle",
-                    "description": "Updates editable properties of an existing angle (currently just its color).",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The name of the angle to update."
-                            },
-                            "new_color": {
-                                "type": [ "string", "null" ],
-                                "description": "The new color for the angle. Provide null to leave unchanged."
-                            }
-                        },
-                        "required": ["name", "new_color"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_angle",
+            "description": "Removes an angle by its name. This will also attempt to remove its constituent segments if they are no longer part of other drawables.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The name of the angle to remove (e.g., 'angle_ABC')."}
+                },
+                "required": ["name"],
+                "additionalProperties": False,
             },
-            # END ANGLE FUNCTIONS
-            # START AREA CALCULATION FUNCTIONS
-            {
-                "type": "function",
-                "function": {
-                    "name": "calculate_area",
-                    "description": "Calculates geometric area (triangle, polygon, circle, arc segment, region unions/intersections) from canvas drawables or boolean region expressions. Use this for 'area of a triangle/circle/region'.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "expression": {
-                                "type": "string",
-                                "description": "Boolean expression with drawable names. Examples: 'circle_A' (single shape), 'circle_A & triangle_ABC' (intersection), 'C(5) & AB' (circle cut by segment AB), 'ArcMaj_CD & triangle_ABC' (arc segment intersected with triangle), 'circle_A - triangle_ABC' (difference), '(circle_A & quad_ABCD) & EF' (shapes intersected then cut by segment)."
-                            }
-                        },
-                        "required": ["expression"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_angle",
+            "description": "Updates editable properties of an existing angle (currently just its color).",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The name of the angle to update."},
+                    "new_color": {
+                        "type": ["string", "null"],
+                        "description": "The new color for the angle. Provide null to leave unchanged.",
+                    },
+                },
+                "required": ["name", "new_color"],
+                "additionalProperties": False,
             },
-            # END AREA CALCULATION FUNCTIONS
-            # START COORDINATE SYSTEM FUNCTIONS
-            {
-                "type": "function",
-                "function": {
-                    "name": "set_coordinate_system",
-                    "description": "Sets the coordinate system mode for the canvas grid. Choose 'cartesian' for the standard x-y grid or 'polar' for a polar coordinate grid with concentric circles and radial lines.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "mode": {
-                                "type": "string",
-                                "enum": ["cartesian", "polar"],
-                                "description": "The coordinate system mode: 'cartesian' for x-y grid, 'polar' for polar grid"
-                            }
-                        },
-                        "required": ["mode"],
-                        "additionalProperties": False
+        },
+    },
+    # END ANGLE FUNCTIONS
+    # START AREA CALCULATION FUNCTIONS
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate_area",
+            "description": "Calculates geometric area (triangle, polygon, circle, arc segment, region unions/intersections) from canvas drawables or boolean region expressions. Use this for 'area of a triangle/circle/region'.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "Boolean expression with drawable names. Examples: 'circle_A' (single shape), 'circle_A & triangle_ABC' (intersection), 'C(5) & AB' (circle cut by segment AB), 'ArcMaj_CD & triangle_ABC' (arc segment intersected with triangle), 'circle_A - triangle_ABC' (difference), '(circle_A & quad_ABCD) & EF' (shapes intersected then cut by segment).",
                     }
-                }
+                },
+                "required": ["expression"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "convert_coordinates",
-                    "description": "Converts coordinates between rectangular (Cartesian) and polar coordinate systems. For rectangular to polar: returns (r, theta) where r is radius and theta is angle in radians. For polar to rectangular: returns (x, y) coordinates.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "coord1": {
-                                "type": "number",
-                                "description": "First coordinate: x for rectangular-to-polar, r (radius) for polar-to-rectangular"
-                            },
-                            "coord2": {
-                                "type": "number",
-                                "description": "Second coordinate: y for rectangular-to-polar, theta (angle in radians) for polar-to-rectangular"
-                            },
-                            "from_system": {
-                                "type": "string",
-                                "enum": ["rectangular", "cartesian", "polar"],
-                                "description": "The source coordinate system ('rectangular' and 'cartesian' are equivalent)"
-                            },
-                            "to_system": {
-                                "type": "string",
-                                "enum": ["rectangular", "cartesian", "polar"],
-                                "description": "The target coordinate system ('rectangular' and 'cartesian' are equivalent)"
-                            }
-                        },
-                        "required": ["coord1", "coord2", "from_system", "to_system"],
-                        "additionalProperties": False
+        },
+    },
+    # END AREA CALCULATION FUNCTIONS
+    # START COORDINATE SYSTEM FUNCTIONS
+    {
+        "type": "function",
+        "function": {
+            "name": "set_coordinate_system",
+            "description": "Sets the coordinate system mode for the canvas grid. Choose 'cartesian' for the standard x-y grid or 'polar' for a polar coordinate grid with concentric circles and radial lines.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "mode": {
+                        "type": "string",
+                        "enum": ["cartesian", "polar"],
+                        "description": "The coordinate system mode: 'cartesian' for x-y grid, 'polar' for polar grid",
                     }
-                }
+                },
+                "required": ["mode"],
+                "additionalProperties": False,
             },
-            {
-                "type": "function",
-                "function": {
-                    "name": "set_grid_visible",
-                    "description": "Sets the visibility of the active coordinate grid (Cartesian or Polar). Use this to show or hide the grid lines without changing the coordinate system mode.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "visible": {
-                                "type": "boolean",
-                                "description": "Whether the grid should be visible (true to show, false to hide)"
-                            }
-                        },
-                        "required": ["visible"],
-                        "additionalProperties": False
-                    }
-                }
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "convert_coordinates",
+            "description": "Converts coordinates between rectangular (Cartesian) and polar coordinate systems. For rectangular to polar: returns (r, theta) where r is radius and theta is angle in radians. For polar to rectangular: returns (x, y) coordinates.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "coord1": {
+                        "type": "number",
+                        "description": "First coordinate: x for rectangular-to-polar, r (radius) for polar-to-rectangular",
+                    },
+                    "coord2": {
+                        "type": "number",
+                        "description": "Second coordinate: y for rectangular-to-polar, theta (angle in radians) for polar-to-rectangular",
+                    },
+                    "from_system": {
+                        "type": "string",
+                        "enum": ["rectangular", "cartesian", "polar"],
+                        "description": "The source coordinate system ('rectangular' and 'cartesian' are equivalent)",
+                    },
+                    "to_system": {
+                        "type": "string",
+                        "enum": ["rectangular", "cartesian", "polar"],
+                        "description": "The target coordinate system ('rectangular' and 'cartesian' are equivalent)",
+                    },
+                },
+                "required": ["coord1", "coord2", "from_system", "to_system"],
+                "additionalProperties": False,
             },
-            # END COORDINATE SYSTEM FUNCTIONS
-            # START TOOL SEARCH FUNCTIONS
-            {
-                "type": "function",
-                "function": {
-                    "name": "search_tools",
-                    "description": "Search for the best tools to accomplish a task. Use this when you're unsure which specific tool to use. Provide a description of what you want to do, and receive the most relevant tool definitions.",
-                    "strict": True,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "Description of what you want to accomplish (e.g., 'draw a triangle with vertices at specific coordinates', 'calculate the derivative of a function')"
-                            },
-                            "max_results": {
-                                "type": ["integer", "null"],
-                                "description": "Maximum number of tools to return (default: 10, max: 20)"
-                            }
-                        },
-                        "required": ["query", "max_results"],
-                        "additionalProperties": False
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_grid_visible",
+            "description": "Sets the visibility of the active coordinate grid (Cartesian or Polar). Use this to show or hide the grid lines without changing the coordinate system mode.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "visible": {
+                        "type": "boolean",
+                        "description": "Whether the grid should be visible (true to show, false to hide)",
                     }
-                }
-            }
-            # END TOOL SEARCH FUNCTIONS
-        ]
+                },
+                "required": ["visible"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    # END COORDINATE SYSTEM FUNCTIONS
+    # START TOOL SEARCH FUNCTIONS
+    {
+        "type": "function",
+        "function": {
+            "name": "search_tools",
+            "description": "Search for the best tools to accomplish a task. Use this when you're unsure which specific tool to use. Provide a description of what you want to do, and receive the most relevant tool definitions.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Description of what you want to accomplish (e.g., 'draw a triangle with vertices at specific coordinates', 'calculate the derivative of a function')",
+                    },
+                    "max_results": {
+                        "type": ["integer", "null"],
+                        "description": "Maximum number of tools to return (default: 10, max: 20)",
+                    },
+                },
+                "required": ["query", "max_results"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    # END TOOL SEARCH FUNCTIONS
+]

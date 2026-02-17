@@ -69,8 +69,7 @@ class CompositePath:
                 last_end = last.end_point()
                 elem_start = element.start_point()
                 raise ValueError(
-                    f"Element does not connect: previous end {last_end} "
-                    f"does not match new start {elem_start}"
+                    f"Element does not connect: previous end {last_end} does not match new start {elem_start}"
                 )
         self._elements.append(element)
 
@@ -89,8 +88,7 @@ class CompositePath:
                 elem_end = element.end_point()
                 first_start = first.start_point()
                 raise ValueError(
-                    f"Element does not connect: new end {elem_end} "
-                    f"does not match first start {first_start}"
+                    f"Element does not connect: new end {elem_end} does not match first start {first_start}"
                 )
         self._elements.insert(0, element)
 
@@ -238,4 +236,3 @@ class CompositePath:
     def __repr__(self) -> str:
         status = "closed" if self.is_closed() else "open"
         return f"CompositePath({len(self._elements)} elements, {status})"
-

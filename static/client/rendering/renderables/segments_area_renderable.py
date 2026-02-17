@@ -17,7 +17,7 @@ class SegmentsBoundedAreaRenderable:
         self.mapper: Any = coordinate_mapper
 
     def _screen_xy(self, point: Any) -> Tuple[Optional[float], Optional[float]]:
-        if point is None or not hasattr(point, 'x') or not hasattr(point, 'y'):
+        if point is None or not hasattr(point, "x") or not hasattr(point, "y"):
             return None, None
         result: Any = self.mapper.math_to_screen(point.x, point.y)
         return cast(Tuple[Optional[float], Optional[float]], result)
@@ -37,7 +37,7 @@ class SegmentsBoundedAreaRenderable:
         return y1 + t * (y2 - y1)
 
     def build_screen_area(self) -> Optional[ClosedArea]:
-        if not getattr(self.area, 'segment2', None):
+        if not getattr(self.area, "segment2", None):
             p1: Tuple[Optional[float], Optional[float]] = self._screen_xy(self.area.segment1.point1)
             p2: Tuple[Optional[float], Optional[float]] = self._screen_xy(self.area.segment1.point2)
             if None in p1 or None in p2:
@@ -89,4 +89,3 @@ class SegmentsBoundedAreaRenderable:
             color=getattr(self.area, "color", None),
             opacity=getattr(self.area, "opacity", None),
         )
-

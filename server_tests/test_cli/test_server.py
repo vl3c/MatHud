@@ -48,6 +48,7 @@ class TestServerManagerIsRunning:
     def test_server_not_running_returns_false(self) -> None:
         """is_server_running returns False when request fails."""
         import requests as req_module
+
         manager = ServerManager()
 
         with patch("cli.server.requests.get", side_effect=req_module.RequestException("Connection refused")):
@@ -119,6 +120,7 @@ class TestServerManagerGetPid:
         mock_pid_file.read_text.return_value = "12345"
 
         import psutil
+
         with patch("cli.server.PID_FILE", mock_pid_file):
             with patch("cli.server.psutil.pid_exists", return_value=True):
                 with patch("cli.server.psutil.Process", side_effect=psutil.AccessDenied(pid=12345)):
@@ -132,9 +134,7 @@ class TestServerManagerGetPid:
 
         mock_pid_file = MagicMock(spec=Path)
         mock_pid_file.exists.return_value = True
-        mock_pid_file.read_text.return_value = json.dumps(
-            {"pid": 12345, "create_time": 1000.0, "port": 5000}
-        )
+        mock_pid_file.read_text.return_value = json.dumps({"pid": 12345, "create_time": 1000.0, "port": 5000})
 
         mock_process = MagicMock()
         mock_process.create_time.return_value = 1000.2
@@ -164,9 +164,7 @@ class TestServerManagerGetPid:
 
         mock_pid_file = MagicMock(spec=Path)
         mock_pid_file.exists.return_value = True
-        mock_pid_file.read_text.return_value = json.dumps(
-            {"pid": 12345, "create_time": 1000.0, "port": 5000}
-        )
+        mock_pid_file.read_text.return_value = json.dumps({"pid": 12345, "create_time": 1000.0, "port": 5000})
 
         mock_process = MagicMock()
         mock_process.create_time.return_value = 2000.0
@@ -184,9 +182,7 @@ class TestServerManagerGetPid:
 
         mock_pid_file = MagicMock(spec=Path)
         mock_pid_file.exists.return_value = True
-        mock_pid_file.read_text.return_value = json.dumps(
-            {"pid": 12345, "create_time": 1000.0, "port": 5001}
-        )
+        mock_pid_file.read_text.return_value = json.dumps({"pid": 12345, "create_time": 1000.0, "port": 5001})
 
         with patch("cli.server.PID_FILE", mock_pid_file):
             assert manager.get_pid() is None

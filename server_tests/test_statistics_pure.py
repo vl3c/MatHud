@@ -235,5 +235,3 @@ class TestStatisticsDrawablesPure(unittest.TestCase):
         expr = normal_pdf_expression(mean, sigma)
         self.assertTrue(expr)
         self.assertAlmostEqual(expected, 0.19947114020071635)
-
-

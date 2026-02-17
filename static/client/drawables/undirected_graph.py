@@ -49,7 +49,9 @@ class UndirectedGraph(Graph):
             is_renderable=False,
         )
         self._segments: List["Segment"] = list(segments or [])
-        self._cached_descriptors: Optional[tuple[List[GraphVertexDescriptor], List[GraphEdgeDescriptor], List[List[float]]]] = None
+        self._cached_descriptors: Optional[
+            tuple[List[GraphVertexDescriptor], List[GraphEdgeDescriptor], List[List[float]]]
+        ] = None
 
     @property
     def segments(self) -> List["Segment"]:

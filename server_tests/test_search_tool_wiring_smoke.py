@@ -127,8 +127,8 @@ class TestSearchToolWiringSmoke(unittest.TestCase):
         class MockMessage:
             content = "I will draw that."
             tool_calls = [
-                MockToolCall("search_tools", '{\"query\": \"plot x^2\"}'),
-                MockToolCall("draw_function", '{\"expression\": \"x^2\"}'),
+                MockToolCall("search_tools", '{"query": "plot x^2"}'),
+                MockToolCall("draw_function", '{"expression": "x^2"}'),
             ]
 
         class MockChoice:

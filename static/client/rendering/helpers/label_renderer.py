@@ -486,4 +486,3 @@ def render_label_helper(primitives, label, coordinate_mapper, style):
         screen_x=screen_x,
         screen_y=screen_y,
     )
-

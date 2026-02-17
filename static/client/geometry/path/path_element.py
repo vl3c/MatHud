@@ -73,4 +73,3 @@ class PathElement(ABC):
         dx = end[0] - start[0]
         dy = end[1] - start[1]
         return (dx * dx + dy * dy) <= tolerance * tolerance
-

@@ -29,7 +29,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+            offset=Position(0, 0),  # Set to (0,0) for simpler tests
         )
 
         # Sync canvas state with coordinate mapper
@@ -39,13 +39,13 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         self.segment1 = SimpleMock(
             name="AB",
             point1=SimpleMock(x=100, y=200),  # Canvas coordinates
-            point2=SimpleMock(x=300, y=250)   # Canvas coordinates
+            point2=SimpleMock(x=300, y=250),  # Canvas coordinates
         )
 
         self.segment2 = SimpleMock(
             name="CD",
             point1=SimpleMock(x=150, y=180),  # Canvas coordinates
-            point2=SimpleMock(x=280, y=220)   # Canvas coordinates
+            point2=SimpleMock(x=280, y=220),  # Canvas coordinates
         )
 
     def test_init_with_two_segments(self) -> None:
@@ -65,7 +65,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
     def test_get_class_name(self) -> None:
         """Test class name retrieval."""
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
-        self.assertEqual(area.get_class_name(), 'SegmentsBoundedColoredArea')
+        self.assertEqual(area.get_class_name(), "SegmentsBoundedColoredArea")
 
     def test_generate_name_with_two_segments(self) -> None:
         """Test name generation with two segments."""
@@ -84,10 +84,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
 
         # Create matching segment
-        matching_segment = SimpleMock(
-            point1=SimpleMock(x=100, y=200),
-            point2=SimpleMock(x=300, y=250)
-        )
+        matching_segment = SimpleMock(point1=SimpleMock(x=100, y=200), point2=SimpleMock(x=300, y=250))
 
         self.assertTrue(area.uses_segment(matching_segment))
 
@@ -96,10 +93,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
 
         # Create matching segment
-        matching_segment = SimpleMock(
-            point1=SimpleMock(x=150, y=180),
-            point2=SimpleMock(x=280, y=220)
-        )
+        matching_segment = SimpleMock(point1=SimpleMock(x=150, y=180), point2=SimpleMock(x=280, y=220))
 
         self.assertTrue(area.uses_segment(matching_segment))
 
@@ -108,10 +102,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
 
         # Create non-matching segment
-        different_segment = SimpleMock(
-            point1=SimpleMock(x=400, y=400),
-            point2=SimpleMock(x=500, y=500)
-        )
+        different_segment = SimpleMock(point1=SimpleMock(x=400, y=400), point2=SimpleMock(x=500, y=500))
 
         self.assertFalse(area.uses_segment(different_segment))
 
@@ -120,16 +111,10 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         area = SegmentsBoundedColoredArea(self.segment1, None)
 
         # Create matching segment
-        matching_segment = SimpleMock(
-            point1=SimpleMock(x=100, y=200),
-            point2=SimpleMock(x=300, y=250)
-        )
+        matching_segment = SimpleMock(point1=SimpleMock(x=100, y=200), point2=SimpleMock(x=300, y=250))
 
         # Create non-matching segment
-        different_segment = SimpleMock(
-            point1=SimpleMock(x=400, y=400),
-            point2=SimpleMock(x=500, y=500)
-        )
+        different_segment = SimpleMock(point1=SimpleMock(x=400, y=400), point2=SimpleMock(x=500, y=500))
 
         self.assertTrue(area.uses_segment(matching_segment))
         self.assertFalse(area.uses_segment(different_segment))
@@ -148,10 +133,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         area = SegmentsBoundedColoredArea(self.segment1, self.segment2)
         state = area.get_state()
 
-        expected_args = {
-            "segment1": "AB",
-            "segment2": "CD"
-        }
+        expected_args = {"segment1": "AB", "segment2": "CD"}
         self.assertEqual(state["args"]["segment1"], expected_args["segment1"])
         self.assertEqual(state["args"]["segment2"], expected_args["segment2"])
 
@@ -160,10 +142,7 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         area = SegmentsBoundedColoredArea(self.segment1, None)
         state = area.get_state()
 
-        expected_args = {
-            "segment1": "AB",
-            "segment2": "x_axis"
-        }
+        expected_args = {"segment1": "AB", "segment2": "x_axis"}
         self.assertEqual(state["args"]["segment1"], expected_args["segment1"])
         self.assertEqual(state["args"]["segment2"], expected_args["segment2"])
 
@@ -199,13 +178,13 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         segment1 = SimpleMock(
             name="AB",
             point1=SimpleMock(x=100, y=200),  # x range: 100-150
-            point2=SimpleMock(x=150, y=250)
+            point2=SimpleMock(x=150, y=250),
         )
 
         segment2 = SimpleMock(
             name="CD",
             point1=SimpleMock(x=300, y=180),  # x range: 300-400 (no overlap with 100-150)
-            point2=SimpleMock(x=400, y=220)
+            point2=SimpleMock(x=400, y=220),
         )
 
         area = SegmentsBoundedColoredArea(segment1, segment2)
@@ -221,13 +200,13 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         segment1 = SimpleMock(
             name="AB",
             point1=SimpleMock(x=100, y=200),  # x range: 100-200
-            point2=SimpleMock(x=200, y=250)
+            point2=SimpleMock(x=200, y=250),
         )
 
         segment2 = SimpleMock(
             name="CD",
             point1=SimpleMock(x=200, y=180),  # x range: 200-300 (touches at x=200)
-            point2=SimpleMock(x=300, y=220)
+            point2=SimpleMock(x=300, y=220),
         )
 
         area = SegmentsBoundedColoredArea(segment1, segment2)
@@ -243,13 +222,13 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         normal_segment = SimpleMock(
             name="AB",
             point1=SimpleMock(x=100, y=200),  # x range: 100-300
-            point2=SimpleMock(x=300, y=250)
+            point2=SimpleMock(x=300, y=250),
         )
 
         vertical_segment = SimpleMock(
             name="CD",
             point1=SimpleMock(x=200, y=100),  # Vertical line at x=200
-            point2=SimpleMock(x=200, y=300)
+            point2=SimpleMock(x=200, y=300),
         )
 
         area = SegmentsBoundedColoredArea(normal_segment, vertical_segment)
@@ -275,13 +254,13 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         negative_segment1 = SimpleMock(
             name="AB",
             point1=SimpleMock(x=-200, y=-100),  # x range: -200 to -100
-            point2=SimpleMock(x=-100, y=-50)
+            point2=SimpleMock(x=-100, y=-50),
         )
 
         negative_segment2 = SimpleMock(
             name="CD",
             point1=SimpleMock(x=-150, y=-80),  # x range: -150 to -50 (overlap: -150 to -100)
-            point2=SimpleMock(x=-50, y=-20)
+            point2=SimpleMock(x=-50, y=-20),
         )
 
         area = SegmentsBoundedColoredArea(negative_segment1, negative_segment2)
@@ -297,13 +276,13 @@ class TestSegmentsBoundedColoredArea(unittest.TestCase):
         crossing_segment1 = SimpleMock(
             name="AB",
             point1=SimpleMock(x=-100, y=-50),  # Crosses zero
-            point2=SimpleMock(x=100, y=50)
+            point2=SimpleMock(x=100, y=50),
         )
 
         crossing_segment2 = SimpleMock(
             name="CD",
             point1=SimpleMock(x=-50, y=100),  # Also crosses zero
-            point2=SimpleMock(x=150, y=-100)
+            point2=SimpleMock(x=150, y=-100),
         )
 
         area = SegmentsBoundedColoredArea(crossing_segment1, crossing_segment2)

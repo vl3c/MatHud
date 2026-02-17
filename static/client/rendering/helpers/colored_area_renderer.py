@@ -204,4 +204,3 @@ def render_closed_shape_area_helper(primitives, area_model, coordinate_mapper, s
     if area is None:
         return
     render_colored_area_helper(primitives, area, coordinate_mapper, style)
-

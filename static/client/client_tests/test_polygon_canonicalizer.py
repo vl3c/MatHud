@@ -104,12 +104,16 @@ class TestPolygonCanonicalizer(unittest.TestCase):
         ]
         result = canonicalize_rectangle(vertices, tolerance=0.2)
         for corner in result:
-            if math.isclose(corner[0], vertices[0][0], abs_tol=0.1) and math.isclose(corner[1], vertices[0][1], abs_tol=0.1):
+            if math.isclose(corner[0], vertices[0][0], abs_tol=0.1) and math.isclose(
+                corner[1], vertices[0][1], abs_tol=0.1
+            ):
                 break
         else:
             self.fail("Canonical rectangle did not preserve proximity to first vertex along the diagonal.")
         for corner in result:
-            if math.isclose(corner[0], vertices[2][0], abs_tol=0.1) and math.isclose(corner[1], vertices[2][1], abs_tol=0.1):
+            if math.isclose(corner[0], vertices[2][0], abs_tol=0.1) and math.isclose(
+                corner[1], vertices[2][1], abs_tol=0.1
+            ):
                 break
         else:
             self.fail("Canonical rectangle did not preserve proximity to third vertex along the diagonal.")
@@ -514,4 +518,3 @@ class TestPolygonCanonicalizer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

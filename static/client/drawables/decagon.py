@@ -85,4 +85,3 @@ class Decagon(Polygon):
         new_decagon = Decagon(new_segments, color=self.color)
         memo[id(self)] = new_decagon
         return new_decagon
-

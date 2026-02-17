@@ -16,6 +16,7 @@ from rendering import shared_drawable_renderers as shared
 from rendering.cached_render_plan import build_plan_for_drawable, _capture_map_state
 from rendering.style_manager import get_renderer_style
 
+
 class TestAngle(unittest.TestCase):
     def setUp(self) -> None:
         # Create a real CoordinateMapper instance
@@ -24,7 +25,11 @@ class TestAngle(unittest.TestCase):
         # Setup for Canvas first, as DrawableNameGenerator needs it
         self.canvas = SimpleMock(
             # drawable_manager will be set after it's created
-            create_svg_element = lambda tag_name, attributes, text_content=None: {"tag": tag_name, "attrs": attributes, "text": text_content},
+            create_svg_element=lambda tag_name, attributes, text_content=None: {
+                "tag": tag_name,
+                "attrs": attributes,
+                "text": text_content,
+            },
             draw_enabled=True,
             draw=SimpleMock(return_value=None),
             # Add minimal coordinate_mapper properties needed by the system
@@ -37,7 +42,7 @@ class TestAngle(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)
+            offset=Position(0, 0),
         )
 
         # Sync canvas state with coordinate mapper
@@ -56,9 +61,9 @@ class TestAngle(unittest.TestCase):
             self.drawable_manager_segments[segment.name] = segment
 
         self.drawable_manager = SimpleMock(
-            get_segment_by_name = get_segment_by_name_mock,
-            add_segment = add_segment_mock,
-            name_generator = self.name_generator
+            get_segment_by_name=get_segment_by_name_mock,
+            add_segment=add_segment_mock,
+            name_generator=self.name_generator,
         )
 
         # Now that drawable_manager is created, assign it to canvas mock
@@ -76,8 +81,12 @@ class TestAngle(unittest.TestCase):
         self.s_AC = SimpleMock(name="AC", point1=self.A, point2=self.C, canvas=self.canvas)
         self.s_AD = SimpleMock(name="AD", point1=self.A, point2=self.D, canvas=self.canvas)
         self.s_AE = SimpleMock(name="AE", point1=self.A, point2=self.E, canvas=self.canvas)
-        self.s_BD = SimpleMock(name="BD", point1=self.B, point2=self.D, canvas=self.canvas) # Used for no common vertex test
-        self.s_CD = SimpleMock(name="CD", point1=self.C, point2=self.D, canvas=self.canvas) # Used for no common vertex test
+        self.s_BD = SimpleMock(
+            name="BD", point1=self.B, point2=self.D, canvas=self.canvas
+        )  # Used for no common vertex test
+        self.s_CD = SimpleMock(
+            name="CD", point1=self.C, point2=self.D, canvas=self.canvas
+        )  # Used for no common vertex test
 
         # Add segments to the mock drawable_manager
         self.drawable_manager.add_segment(self.s_AB)
@@ -88,14 +97,14 @@ class TestAngle(unittest.TestCase):
         self.drawable_manager.add_segment(self.s_CD)
 
     def test_initialization_valid_90_degrees(self) -> None:
-        angle = Angle(self.s_AB, self.s_AC) # is_reflex=False by default
+        angle = Angle(self.s_AB, self.s_AC)  # is_reflex=False by default
         self.assertIsNotNone(angle)
         self.assertFalse(angle.is_reflex)
         self.assertIs(angle.vertex_point, self.A)
         self.assertIs(angle.arm1_point, self.B)
         self.assertIs(angle.arm2_point, self.C)
         self.assertAlmostEqual(angle.raw_angle_degrees, 90.0, places=5)
-        self.assertAlmostEqual(angle.angle_degrees, 90.0, places=5) # Small angle
+        self.assertAlmostEqual(angle.angle_degrees, 90.0, places=5)  # Small angle
         self.assertEqual(angle.name, "angle_BAC")
 
     def test_arc_orientation_matches_renderer_flags(self) -> None:
@@ -108,29 +117,29 @@ class TestAngle(unittest.TestCase):
         params = angle._calculate_arc_parameters(vx, vy, p1x, p1y, p2x, p2y, arc_radius=15)
         # 90-degree small (counterclockwise math-space) should produce sweep_flag='0' in SVG (y-down), large_arc_flag='0'
         self.assertIsNotNone(params)
-        self.assertEqual(params['final_sweep_flag'], '0')
-        self.assertEqual(params['final_large_arc_flag'], '0')
+        self.assertEqual(params["final_sweep_flag"], "0")
+        self.assertEqual(params["final_large_arc_flag"], "0")
 
     def test_initialization_valid_45_degrees(self) -> None:
-        angle = Angle(self.s_AB, self.s_AD) # is_reflex=False by default
+        angle = Angle(self.s_AB, self.s_AD)  # is_reflex=False by default
         self.assertIsNotNone(angle)
         self.assertFalse(angle.is_reflex)
         self.assertIs(angle.vertex_point, self.A)
         self.assertIs(angle.arm1_point, self.B)
         self.assertIs(angle.arm2_point, self.D)
         self.assertAlmostEqual(angle.raw_angle_degrees, 45.0, places=5)
-        self.assertAlmostEqual(angle.angle_degrees, 45.0, places=5) # Small angle
+        self.assertAlmostEqual(angle.angle_degrees, 45.0, places=5)  # Small angle
         self.assertEqual(angle.name, "angle_BAD")
 
     def test_initialization_valid_180_degrees(self) -> None:
-        angle = Angle(self.s_AB, self.s_AE) # is_reflex=False by default
+        angle = Angle(self.s_AB, self.s_AE)  # is_reflex=False by default
         self.assertIsNotNone(angle)
         self.assertFalse(angle.is_reflex)
         self.assertIs(angle.vertex_point, self.A)
         self.assertIs(angle.arm1_point, self.B)
         self.assertIs(angle.arm2_point, self.E)
         self.assertAlmostEqual(angle.raw_angle_degrees, 180.0, places=5)
-        self.assertAlmostEqual(angle.angle_degrees, 180.0, places=5) # Small angle (180 is its own small/reflex)
+        self.assertAlmostEqual(angle.angle_degrees, 180.0, places=5)  # Small angle (180 is its own small/reflex)
         self.assertEqual(angle.name, "angle_BAE")
 
     def test_initialization_invalid_no_common_vertex(self) -> None:
@@ -144,7 +153,7 @@ class TestAngle(unittest.TestCase):
             Angle(self.s_AB, s_AB_copy)
 
     def test_initialization_invalid_one_segment_is_point_at_vertex(self) -> None:
-        p_at_vertex = SimpleMock(name="A_vtx_copy", x=self.A.x, y=self.A.y) # Point identical to A
+        p_at_vertex = SimpleMock(name="A_vtx_copy", x=self.A.x, y=self.A.y)  # Point identical to A
         s_degenerate = SimpleMock(name="S_Deg", point1=self.A, point2=p_at_vertex, canvas=self.canvas)
         with self.assertRaisesRegex(ValueError, "segments do not form a valid angle"):
             Angle(self.s_AB, s_degenerate)
@@ -152,39 +161,39 @@ class TestAngle(unittest.TestCase):
     def test_angle_calculation_270_degrees_or_minus_90(self) -> None:
         # Angle from s_AC (A-C) to s_AB (A-B) -> Vertex A, Arms C, B
         # Raw CCW angle from AC to AB is 270 degrees.
-        angle = Angle(self.s_AC, self.s_AB) # is_reflex=False by default
+        angle = Angle(self.s_AC, self.s_AB)  # is_reflex=False by default
         self.assertFalse(angle.is_reflex)
         self.assertAlmostEqual(angle.raw_angle_degrees, 270.0, places=5)
-        self.assertAlmostEqual(angle.angle_degrees, 90.0, places=5) # Small angle (360 - 270)
+        self.assertAlmostEqual(angle.angle_degrees, 90.0, places=5)  # Small angle (360 - 270)
         # Name is based on sorted arm points (B, C) around vertex A
         self.assertEqual(angle.name, "angle_BAC")
 
-    def test_initialization_reflex_AB_AC(self) -> None: # raw 90 deg
+    def test_initialization_reflex_AB_AC(self) -> None:  # raw 90 deg
         angle = Angle(self.s_AB, self.s_AC, is_reflex=True)
         self.assertTrue(angle.is_reflex)
         self.assertAlmostEqual(angle.raw_angle_degrees, 90.0, places=5)
-        self.assertAlmostEqual(angle.angle_degrees, 270.0, places=5) # Reflex of 90
+        self.assertAlmostEqual(angle.angle_degrees, 270.0, places=5)  # Reflex of 90
         self.assertEqual(angle.name, "angle_BAC_reflex")
 
-    def test_initialization_reflex_AC_AB(self) -> None: # raw 270 deg
+    def test_initialization_reflex_AC_AB(self) -> None:  # raw 270 deg
         angle = Angle(self.s_AC, self.s_AB, is_reflex=True)
         self.assertTrue(angle.is_reflex)
         self.assertAlmostEqual(angle.raw_angle_degrees, 270.0, places=5)
-        self.assertAlmostEqual(angle.angle_degrees, 270.0, places=5) # Reflex of 270 is 270
+        self.assertAlmostEqual(angle.angle_degrees, 270.0, places=5)  # Reflex of 270 is 270
         self.assertEqual(angle.name, "angle_BAC_reflex")
 
-    def test_initialization_reflex_AB_AD(self) -> None: # raw 45 deg
+    def test_initialization_reflex_AB_AD(self) -> None:  # raw 45 deg
         angle = Angle(self.s_AB, self.s_AD, is_reflex=True)
         self.assertTrue(angle.is_reflex)
         self.assertAlmostEqual(angle.raw_angle_degrees, 45.0, places=5)
-        self.assertAlmostEqual(angle.angle_degrees, 315.0, places=5) # Reflex of 45
+        self.assertAlmostEqual(angle.angle_degrees, 315.0, places=5)  # Reflex of 45
         self.assertEqual(angle.name, "angle_BAD_reflex")
 
-    def test_initialization_reflex_AB_AE(self) -> None: # raw 180 deg
+    def test_initialization_reflex_AB_AE(self) -> None:  # raw 180 deg
         angle = Angle(self.s_AB, self.s_AE, is_reflex=True)
         self.assertTrue(angle.is_reflex)
         self.assertAlmostEqual(angle.raw_angle_degrees, 180.0, places=5)
-        self.assertAlmostEqual(angle.angle_degrees, 180.0, places=5) # Reflex of 180 is 180
+        self.assertAlmostEqual(angle.angle_degrees, 180.0, places=5)  # Reflex of 180 is 180
         self.assertEqual(angle.name, "angle_BAE_reflex")
 
     def test_initialization_zero_angle_non_reflex(self) -> None:
@@ -194,7 +203,7 @@ class TestAngle(unittest.TestCase):
         self.assertFalse(angle.is_reflex)
         self.assertAlmostEqual(angle.raw_angle_degrees, 0.0, places=5)
         self.assertAlmostEqual(angle.angle_degrees, 0.0, places=5)
-        self.assertEqual(angle.name, "angle_BAF") # Name might vary based on B vs F sorting
+        self.assertEqual(angle.name, "angle_BAF")  # Name might vary based on B vs F sorting
 
     def test_initialization_zero_angle_reflex(self) -> None:
         s_AF = SimpleMock(name="AF", point1=self.A, point2=SimpleMock(name="F", x=5, y=0), canvas=self.canvas)
@@ -203,13 +212,13 @@ class TestAngle(unittest.TestCase):
         self.assertTrue(angle.is_reflex)
         self.assertAlmostEqual(angle.raw_angle_degrees, 0.0, places=5)
         self.assertAlmostEqual(angle.angle_degrees, 360.0, places=5)
-        self.assertEqual(angle.name, "angle_BAF_reflex") # Name might vary based on B vs F sorting
+        self.assertEqual(angle.name, "angle_BAF_reflex")  # Name might vary based on B vs F sorting
 
     def test_angle_calculation_zero_length_arm(self) -> None:
         A_copy = SimpleMock(name="A_copy", x=self.A.x, y=self.A.y)
         s_zero_arm = SimpleMock(name="S_Zero", point1=self.A, point2=A_copy, canvas=self.canvas)
         with self.assertRaisesRegex(ValueError, "segments do not form a valid angle"):
-             Angle(s_zero_arm, self.s_AC)
+            Angle(s_zero_arm, self.s_AC)
 
     def test_initialization_with_none_segment(self) -> None:
         with self.assertRaisesRegex(ValueError, "segments do not form a valid angle"):
@@ -221,7 +230,7 @@ class TestAngle(unittest.TestCase):
 
     def test_get_class_name(self) -> None:
         angle = Angle(self.s_AB, self.s_AC)
-        self.assertEqual(angle.get_class_name(), 'Angle')
+        self.assertEqual(angle.get_class_name(), "Angle")
 
     # test_canvas_property removed: Angle is canvas-free; segments manage their own canvas
 
@@ -235,12 +244,7 @@ class TestAngle(unittest.TestCase):
         expected_state_non_reflex = {
             "name": "angle_BAD",
             "type": "angle",
-            "args": {
-                "segment1_name": "AB",
-                "segment2_name": "AD",
-                "color": "blue",
-                "is_reflex": False
-            }
+            "args": {"segment1_name": "AB", "segment2_name": "AD", "color": "blue", "is_reflex": False},
         }
         self.assertEqual(state_non_reflex, expected_state_non_reflex)
 
@@ -259,7 +263,7 @@ class TestAngle(unittest.TestCase):
             dependency_manager=dep_mgr,
             point_manager=SimpleMock(),
             segment_manager=SimpleMock(),
-            drawable_manager_proxy=self.drawable_manager
+            drawable_manager_proxy=self.drawable_manager,
         )
         angle_manager.load_angles([state_non_reflex])
         self.assertTrue(len(angle_bucket) > 0)
@@ -281,16 +285,11 @@ class TestAngle(unittest.TestCase):
         expected_state_reflex = {
             "name": "angle_BAC_reflex",
             "type": "angle",
-            "args": {
-                "segment1_name": "AB",
-                "segment2_name": "AC",
-                "color": "blue",
-                "is_reflex": True
-            }
+            "args": {"segment1_name": "AB", "segment2_name": "AC", "color": "blue", "is_reflex": True},
         }
         self.assertEqual(state_reflex, expected_state_reflex)
 
-        self.drawable_manager.add_segment(self.s_AC) # Ensure AC is also added
+        self.drawable_manager.add_segment(self.s_AC)  # Ensure AC is also added
 
         angle_bucket2 = []
         drawables_container2 = SimpleMock(add=lambda a: angle_bucket2.append(a))
@@ -301,7 +300,7 @@ class TestAngle(unittest.TestCase):
             dependency_manager=dep_mgr,
             point_manager=SimpleMock(),
             segment_manager=SimpleMock(),
-            drawable_manager_proxy=self.drawable_manager
+            drawable_manager_proxy=self.drawable_manager,
         )
         angle_manager2.load_angles([state_reflex])
         self.assertTrue(len(angle_bucket2) > 0)
@@ -318,7 +317,7 @@ class TestAngle(unittest.TestCase):
         state = {
             "name": "ghost_angle",
             "type": "angle",
-            "args": {"segment1_name": "NonExistentS1", "segment2_name": "AD", "color": "blue"}
+            "args": {"segment1_name": "NonExistentS1", "segment2_name": "AD", "color": "blue"},
         }
         self.drawable_manager.add_segment(self.s_AD)
 
@@ -331,7 +330,7 @@ class TestAngle(unittest.TestCase):
             dependency_manager=SimpleMock(register_dependency=SimpleMock(return_value=None)),
             point_manager=SimpleMock(),
             segment_manager=SimpleMock(),
-            drawable_manager_proxy=self.drawable_manager
+            drawable_manager_proxy=self.drawable_manager,
         )
         angle_manager3.load_angles([state])
         # No angle should have been added
@@ -344,10 +343,10 @@ class TestAngle(unittest.TestCase):
 
         original_C_y = self.C.y
         original_C_x = self.C.x
-        self.C.x = 10 # C was (0,10), now (10,0) which is B's location
+        self.C.x = 10  # C was (0,10), now (10,0) which is B's location
         self.C.y = 0
 
-        if hasattr(angle, 'update_points_based_on_segments'):
+        if hasattr(angle, "update_points_based_on_segments"):
             result = angle.update_points_based_on_segments()
             self.assertFalse(result)
             self.assertIsNone(angle.angle_degrees)
@@ -363,10 +362,10 @@ class TestAngle(unittest.TestCase):
 
         original_B_x = self.B.x
         original_B_y = self.B.y
-        self.B.x = self.A.x # Move B to A's location
+        self.B.x = self.A.x  # Move B to A's location
         self.B.y = self.A.y
 
-        if hasattr(angle, 'update_points_based_on_segments'):
+        if hasattr(angle, "update_points_based_on_segments"):
             result = angle.update_points_based_on_segments()
             self.assertFalse(result)
             self.assertIsNone(angle.angle_degrees)
@@ -446,8 +445,12 @@ class TestAngle(unittest.TestCase):
         # Setup mock managers for dependency tracking
         dependency_manager_mock = SimpleMock()
         dependency_manager_mock.dependencies = {}  # Simple storage for dependencies
-        dependency_manager_mock.register_dependency = lambda child, parent: self._add_dependency(dependency_manager_mock.dependencies, child, parent)
-        dependency_manager_mock.get_children = lambda parent: self._get_dependencies(dependency_manager_mock.dependencies, parent, 'children')
+        dependency_manager_mock.register_dependency = lambda child, parent: self._add_dependency(
+            dependency_manager_mock.dependencies, child, parent
+        )
+        dependency_manager_mock.get_children = lambda parent: self._get_dependencies(
+            dependency_manager_mock.dependencies, parent, "children"
+        )
         dependency_manager_mock.remove_drawable = lambda drawable: None
 
         angle_manager_mock = SimpleMock()
@@ -461,9 +464,9 @@ class TestAngle(unittest.TestCase):
         # Register dependencies (simulating what AngleManager.create_angle would do)
         dependency_manager_mock.register_dependency(angle, self.s_AB)  # angle depends on segment AB
         dependency_manager_mock.register_dependency(angle, self.s_AC)  # angle depends on segment AC
-        dependency_manager_mock.register_dependency(angle, self.A)     # angle depends on vertex point A
-        dependency_manager_mock.register_dependency(angle, self.B)     # angle depends on arm point B
-        dependency_manager_mock.register_dependency(angle, self.C)     # angle depends on arm point C
+        dependency_manager_mock.register_dependency(angle, self.A)  # angle depends on vertex point A
+        dependency_manager_mock.register_dependency(angle, self.B)  # angle depends on arm point B
+        dependency_manager_mock.register_dependency(angle, self.C)  # angle depends on arm point C
 
         # Verify angle exists
         self.assertEqual(len(angles_list), 1)
@@ -478,7 +481,7 @@ class TestAngle(unittest.TestCase):
 
         # Simulate the deletion process that should happen when point A is deleted
         for child in point_a_children:
-            if hasattr(child, 'get_class_name') and child.get_class_name() == 'Angle':
+            if hasattr(child, "get_class_name") and child.get_class_name() == "Angle":
                 angles_list.remove(child)
 
         # Verify angle was deleted
@@ -490,8 +493,12 @@ class TestAngle(unittest.TestCase):
         # Setup mock managers for dependency tracking
         dependency_manager_mock = SimpleMock()
         dependency_manager_mock.dependencies = {}  # Simple storage for dependencies
-        dependency_manager_mock.register_dependency = lambda child, parent: self._add_dependency(dependency_manager_mock.dependencies, child, parent)
-        dependency_manager_mock.get_children = lambda parent: self._get_dependencies(dependency_manager_mock.dependencies, parent, 'children')
+        dependency_manager_mock.register_dependency = lambda child, parent: self._add_dependency(
+            dependency_manager_mock.dependencies, child, parent
+        )
+        dependency_manager_mock.get_children = lambda parent: self._get_dependencies(
+            dependency_manager_mock.dependencies, parent, "children"
+        )
         dependency_manager_mock.remove_drawable = lambda drawable: None
 
         angle_manager_mock = SimpleMock()
@@ -505,9 +512,9 @@ class TestAngle(unittest.TestCase):
         # Register dependencies (simulating what AngleManager.create_angle would do)
         dependency_manager_mock.register_dependency(angle, self.s_AB)  # angle depends on segment AB
         dependency_manager_mock.register_dependency(angle, self.s_AC)  # angle depends on segment AC
-        dependency_manager_mock.register_dependency(angle, self.A)     # angle depends on vertex point A
-        dependency_manager_mock.register_dependency(angle, self.B)     # angle depends on arm point B
-        dependency_manager_mock.register_dependency(angle, self.C)     # angle depends on arm point C
+        dependency_manager_mock.register_dependency(angle, self.A)  # angle depends on vertex point A
+        dependency_manager_mock.register_dependency(angle, self.B)  # angle depends on arm point B
+        dependency_manager_mock.register_dependency(angle, self.C)  # angle depends on arm point C
 
         # Verify angle exists
         self.assertEqual(len(angles_list), 1)
@@ -522,7 +529,7 @@ class TestAngle(unittest.TestCase):
 
         # Simulate the deletion process that should happen when segment AB is deleted
         for child in segment_ab_children:
-            if hasattr(child, 'get_class_name') and child.get_class_name() == 'Angle':
+            if hasattr(child, "get_class_name") and child.get_class_name() == "Angle":
                 angles_list.remove(child)
 
         # Verify angle was deleted
@@ -630,7 +637,6 @@ class TestAngle(unittest.TestCase):
 
     def _get_dependencies(self, dependencies_dict: Dict[Any, list[Any]], parent: Any, dep_type: str) -> list[Any]:
         """Helper method to get dependencies."""
-        if dep_type == 'children':
+        if dep_type == "children":
             return dependencies_dict.get(parent, [])
         return []
-

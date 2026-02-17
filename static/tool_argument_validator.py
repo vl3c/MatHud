@@ -82,7 +82,7 @@ def _truncate(value: Any) -> str:
     """Truncate a value's repr for safe inclusion in error messages."""
     s = repr(value)
     if len(s) > _ERROR_VALUE_MAX_LEN:
-        return s[: _ERROR_VALUE_MAX_LEN] + "..."
+        return s[:_ERROR_VALUE_MAX_LEN] + "..."
     return s
 
 
@@ -192,9 +192,7 @@ def _validate_value(
             test_value = copy.deepcopy(value)
             # Create a temporary container for canonical writes
             tmp: Dict[str, Any] = {"v": test_value}
-            _validate_value(
-                test_value, alt, path, tool_name, test_errors, None, "v", tmp
-            )
+            _validate_value(test_value, alt, path, tool_name, test_errors, None, "v", tmp)
             if not test_errors:
                 # This alternative matched; use its canonical form.
                 result = tmp["v"]
@@ -272,19 +270,13 @@ def _validate_value(
     # --- NaN / Infinity rejection for numeric values ---
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         if _check_nan_inf(value):
-            errors.append(
-                f"Tool '{tool_name}': argument '{path}' must be a finite number, "
-                f"got {_truncate(value)}."
-            )
+            errors.append(f"Tool '{tool_name}': argument '{path}' must be a finite number, got {_truncate(value)}.")
             return value
 
     # --- Enum validation ---
     enum_values = schema.get("enum")
     if enum_values is not None and value not in enum_values:
-        errors.append(
-            f"Tool '{tool_name}': argument '{path}' must be one of "
-            f"{enum_values}, got {_truncate(value)}."
-        )
+        errors.append(f"Tool '{tool_name}': argument '{path}' must be one of {enum_values}, got {_truncate(value)}.")
         return value
 
     # --- maxLength validation (strings) ---
@@ -292,8 +284,7 @@ def _validate_value(
     if max_length is not None and isinstance(value, str):
         if len(value) > max_length:
             errors.append(
-                f"Tool '{tool_name}': argument '{path}' must be at most "
-                f"{max_length} characters, got {len(value)}."
+                f"Tool '{tool_name}': argument '{path}' must be at most {max_length} characters, got {len(value)}."
             )
 
     # --- Array validation ---
@@ -302,8 +293,7 @@ def _validate_value(
         min_items = schema.get("minItems")
         if min_items is not None and len(value) < min_items:
             errors.append(
-                f"Tool '{tool_name}': argument '{path}' must have at least "
-                f"{min_items} items, got {len(value)}."
+                f"Tool '{tool_name}': argument '{path}' must have at least {min_items} items, got {len(value)}."
             )
 
         # Validate each element against items schema
@@ -344,11 +334,9 @@ def _validate_value(
                     if key not in allowed_keys:
                         allowed_list = sorted(allowed_keys)
                         errors.append(
-                            f"Tool '{tool_name}': unknown argument "
-                            f"'{path}.{key}' (allowed: {', '.join(allowed_list)})."
+                            f"Tool '{tool_name}': unknown argument '{path}.{key}' (allowed: {', '.join(allowed_list)})."
                             if path
-                            else f"Tool '{tool_name}': unknown argument "
-                            f"'{key}' (allowed: {', '.join(allowed_list)})."
+                            else f"Tool '{tool_name}': unknown argument '{key}' (allowed: {', '.join(allowed_list)})."
                         )
 
             # Recurse into each property
@@ -411,8 +399,7 @@ class ToolArgumentValidator:
         if schema is None:
             # Unknown function — log a warning but pass through.
             logger.warning(
-                "Tool '%s': no schema found in registry; "
-                "arguments pass through unvalidated.",
+                "Tool '%s': no schema found in registry; arguments pass through unvalidated.",
                 function_name,
             )
             return ValidationResult(
@@ -433,9 +420,7 @@ class ToolArgumentValidator:
         # Required fields
         for req_key in required:
             if req_key not in canonical_args:
-                errors.append(
-                    f"Tool '{function_name}': missing required argument '{req_key}'."
-                )
+                errors.append(f"Tool '{function_name}': missing required argument '{req_key}'.")
 
         # Unknown keys
         if additional is False and properties is not None:
@@ -444,8 +429,7 @@ class ToolArgumentValidator:
                 if key not in allowed_keys:
                     allowed_list = sorted(allowed_keys)
                     errors.append(
-                        f"Tool '{function_name}': unknown argument "
-                        f"'{key}' (allowed: {', '.join(allowed_list)})."
+                        f"Tool '{function_name}': unknown argument '{key}' (allowed: {', '.join(allowed_list)})."
                     )
 
         # Validate each property

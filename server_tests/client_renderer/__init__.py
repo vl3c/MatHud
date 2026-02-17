@@ -5,6 +5,7 @@ from server_tests import python_path_setup  # noqa: F401
 import sys
 from types import ModuleType, SimpleNamespace
 
+
 def _install_browser_stub() -> None:
     if "browser" in sys.modules:
         return
@@ -80,8 +81,8 @@ def _install_browser_stub() -> None:
             self.Math = SimpleNamespace()
             self.math = SimpleNamespace(
                 format=lambda value: value,
-                sqrt=lambda value: value ** 0.5,
-                pow=lambda base, exp: base ** exp,
+                sqrt=lambda value: value**0.5,
+                pow=lambda base, exp: base**exp,
                 det=lambda _matrix: 0.0,
                 evaluate=lambda _expr, _vars=None: 0.0,
             )
@@ -95,6 +96,7 @@ def _install_browser_stub() -> None:
     browser.console = _ConsoleStub()
 
     sys.modules["browser"] = browser
+
 
 _install_browser_stub()
 

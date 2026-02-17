@@ -173,5 +173,3 @@ class TestClosedShapeColoredArea(unittest.TestCase):
     def test_invalid_shape_type_raises(self) -> None:
         with self.assertRaises(ValueError):
             ClosedShapeColoredArea(shape_type="unsupported")
-
-

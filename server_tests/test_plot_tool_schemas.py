@@ -102,16 +102,24 @@ class TestPlotToolSchemas(unittest.TestCase):
         self.assertEqual(plot_bounds.get("additionalProperties"), False)
         self.assertEqual(plot_bounds.get("required"), ["left_bound", "right_bound"])
         pb_props = _require_dict(plot_bounds.get("properties"), "plot_bounds.properties")
-        self.assertEqual(_require_dict(pb_props.get("left_bound"), "plot_bounds.left_bound").get("type"), ["number", "null"])
-        self.assertEqual(_require_dict(pb_props.get("right_bound"), "plot_bounds.right_bound").get("type"), ["number", "null"])
+        self.assertEqual(
+            _require_dict(pb_props.get("left_bound"), "plot_bounds.left_bound").get("type"), ["number", "null"]
+        )
+        self.assertEqual(
+            _require_dict(pb_props.get("right_bound"), "plot_bounds.right_bound").get("type"), ["number", "null"]
+        )
 
         shade_bounds = _require_dict(props.get("shade_bounds"), "shade_bounds")
         self.assertEqual(shade_bounds.get("type"), ["object", "null"])
         self.assertEqual(shade_bounds.get("additionalProperties"), False)
         self.assertEqual(shade_bounds.get("required"), ["left_bound", "right_bound"])
         sb_props = _require_dict(shade_bounds.get("properties"), "shade_bounds.properties")
-        self.assertEqual(_require_dict(sb_props.get("left_bound"), "shade_bounds.left_bound").get("type"), ["number", "null"])
-        self.assertEqual(_require_dict(sb_props.get("right_bound"), "shade_bounds.right_bound").get("type"), ["number", "null"])
+        self.assertEqual(
+            _require_dict(sb_props.get("left_bound"), "shade_bounds.left_bound").get("type"), ["number", "null"]
+        )
+        self.assertEqual(
+            _require_dict(sb_props.get("right_bound"), "shade_bounds.right_bound").get("type"), ["number", "null"]
+        )
 
     def test_plot_bars_schema(self) -> None:
         tool = _find_tool("plot_bars")
@@ -177,5 +185,3 @@ class TestPlotToolSchemas(unittest.TestCase):
 
         name = _require_dict(props.get("name"), "delete_plot.name")
         self.assertEqual(name.get("type"), "string")
-
-

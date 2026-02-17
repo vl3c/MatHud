@@ -259,9 +259,7 @@ class Canvas2DRenderer(RendererProtocol):
         drawable_name = "Cartesian2Axis"
         map_state = self._capture_map_state(coordinate_mapper)
         signature = self._compute_drawable_signature(cartesian, coordinate_mapper)
-        plan = self._resolve_cartesian_plan(
-            cartesian, coordinate_mapper, map_state, signature, drawable_name
-        )
+        plan = self._resolve_cartesian_plan(cartesian, coordinate_mapper, map_state, signature, drawable_name)
         if plan is None:
             return
         apply_start = self._telemetry.mark_time()
@@ -287,9 +285,7 @@ class Canvas2DRenderer(RendererProtocol):
         drawable_name = "PolarGrid"
         map_state = self._capture_map_state(coordinate_mapper)
         signature = self._compute_drawable_signature(polar_grid, coordinate_mapper)
-        plan = self._resolve_polar_plan(
-            polar_grid, coordinate_mapper, map_state, signature, drawable_name
-        )
+        plan = self._resolve_polar_plan(polar_grid, coordinate_mapper, map_state, signature, drawable_name)
         if plan is None:
             return
         apply_start = self._telemetry.mark_time()
@@ -320,9 +316,7 @@ class Canvas2DRenderer(RendererProtocol):
         else:
             if plan_entry is not None:
                 self._drop_plan_group(plan_entry.get("plan"))
-            plan = self._build_polar_plan_with_metrics(
-                polar_grid, coordinate_mapper, map_state, drawable_name
-            )
+            plan = self._build_polar_plan_with_metrics(polar_grid, coordinate_mapper, map_state, drawable_name)
             if plan is None:
                 self._cartesian_cache = None
                 return None
@@ -374,81 +368,99 @@ class Canvas2DRenderer(RendererProtocol):
         """Register handlers for all standard drawable types."""
         try:
             from drawables.point import Point as PointDrawable
+
             self.register(PointDrawable, self._render_point)
         except Exception:
             pass
         try:
             from drawables.segment import Segment as SegmentDrawable
+
             self.register(SegmentDrawable, self._render_segment)
         except Exception:
             pass
         try:
             from drawables.circle import Circle as CircleDrawable
+
             self.register(CircleDrawable, self._render_circle)
         except Exception:
             pass
         try:
             from drawables.ellipse import Ellipse as EllipseDrawable
+
             self.register(EllipseDrawable, self._render_ellipse)
         except Exception:
             pass
         try:
             from drawables.circle_arc import CircleArc as CircleArcDrawable
+
             self.register(CircleArcDrawable, self._render_circle_arc)
         except Exception:
             pass
         try:
             from drawables.vector import Vector as VectorDrawable
+
             self.register(VectorDrawable, self._render_vector)
         except Exception:
             pass
         try:
             from drawables.angle import Angle as AngleDrawable
+
             self.register(AngleDrawable, self._render_angle)
         except Exception:
             pass
         try:
             from drawables.function import Function as FunctionDrawable
+
             self.register(FunctionDrawable, self._render_function)
         except Exception:
             pass
         try:
             from drawables.piecewise_function import PiecewiseFunction as PiecewiseFunctionDrawable
+
             self.register(PiecewiseFunctionDrawable, self._render_function)
         except Exception:
             pass
         try:
             from drawables.parametric_function import ParametricFunction as ParametricFunctionDrawable
+
             self.register(ParametricFunctionDrawable, self._render_function)
         except Exception:
             pass
         try:
             from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea as FunctionsAreaDrawable
+
             self.register(FunctionsAreaDrawable, self._render_functions_bounded_colored_area)
         except Exception:
             pass
         try:
-            from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea as FunctionSegmentAreaDrawable
+            from drawables.function_segment_bounded_colored_area import (
+                FunctionSegmentBoundedColoredArea as FunctionSegmentAreaDrawable,
+            )
+
             self.register(FunctionSegmentAreaDrawable, self._render_function_segment_bounded_colored_area)
         except Exception:
             pass
         try:
             from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea as SegmentsAreaDrawable
+
             self.register(SegmentsAreaDrawable, self._render_segments_bounded_colored_area)
         except Exception:
             pass
         try:
             from drawables.closed_shape_colored_area import ClosedShapeColoredArea as ClosedShapeAreaDrawable
+
             self.register(ClosedShapeAreaDrawable, self._render_closed_shape_colored_area)
         except Exception:
             pass
         try:
             from drawables.label import Label as LabelDrawable
+
             self.register(LabelDrawable, self._render_label)
         except Exception:
             pass
         try:
             from drawables.bar import Bar as BarDrawable
+
             self.register(BarDrawable, self._render_drawable)
         except Exception:
             pass
@@ -549,9 +561,7 @@ class Canvas2DRenderer(RendererProtocol):
         map_state = self._capture_map_state(coordinate_mapper)
         signature = self._compute_drawable_signature(drawable, coordinate_mapper)
         cache_key = self._plan_cache_key(drawable, drawable_name)
-        plan = self._resolve_drawable_plan(
-            drawable, coordinate_mapper, map_state, signature, drawable_name, cache_key
-        )
+        plan = self._resolve_drawable_plan(drawable, coordinate_mapper, map_state, signature, drawable_name, cache_key)
         if plan is None:
             return
         apply_start = self._telemetry.mark_time()
@@ -840,9 +850,7 @@ class Canvas2DRenderer(RendererProtocol):
         self._plan_cache.pop(cache_key, None)
         return None
 
-    def _is_cached_plan_valid(
-        self, cache_entry: Optional[Dict[str, Any]], signature: Optional[Any]
-    ) -> bool:
+    def _is_cached_plan_valid(self, cache_entry: Optional[Dict[str, Any]], signature: Optional[Any]) -> bool:
         return bool(
             cache_entry
             and cache_entry.get("signature") == signature
@@ -857,5 +865,3 @@ class Canvas2DRenderer(RendererProtocol):
         """Mark a screen-space plan as needing reapplication."""
         if getattr(plan, "uses_screen_space", lambda: False)():
             plan.mark_dirty()
-
-

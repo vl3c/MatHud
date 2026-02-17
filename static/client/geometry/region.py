@@ -24,6 +24,7 @@ def _get_geometry_utils():
     global _GEOMETRY_UTILS
     if _GEOMETRY_UTILS is None:
         from utils.geometry_utils import GeometryUtils as _GeometryUtils
+
         _GEOMETRY_UTILS = _GeometryUtils
     return _GEOMETRY_UTILS
 
@@ -39,11 +40,7 @@ class Region:
         _holes: List of inner closed paths (holes)
     """
 
-    def __init__(
-        self,
-        outer_boundary: CompositePath,
-        holes: Optional[List[CompositePath]] = None
-    ) -> None:
+    def __init__(self, outer_boundary: CompositePath, holes: Optional[List[CompositePath]] = None) -> None:
         """
         Create a Region from an outer boundary and optional holes.
 
@@ -96,17 +93,10 @@ class Region:
 
         for element in path:
             if isinstance(element, LineSegment):
-                total_area += GeometryUtils.line_segment_area_contribution(
-                    element.start_point(),
-                    element.end_point()
-                )
+                total_area += GeometryUtils.line_segment_area_contribution(element.start_point(), element.end_point())
             elif isinstance(element, CircularArc):
                 total_area += GeometryUtils.circular_segment_area(
-                    element.center,
-                    element.radius,
-                    element.start_angle,
-                    element.end_angle,
-                    element.clockwise
+                    element.center, element.radius, element.start_angle, element.end_angle, element.clockwise
                 )
             elif isinstance(element, EllipticalArc):
                 total_area += GeometryUtils.elliptical_segment_area(
@@ -116,7 +106,7 @@ class Region:
                     element.rotation,
                     element.start_angle,
                     element.end_angle,
-                    element.clockwise
+                    element.clockwise,
                 )
 
         return total_area
@@ -151,12 +141,7 @@ class Region:
 
         return outer_area - hole_area
 
-    def _point_in_polygon(
-        self,
-        x: float,
-        y: float,
-        points: List[Tuple[float, float]]
-    ) -> bool:
+    def _point_in_polygon(self, x: float, y: float, points: List[Tuple[float, float]]) -> bool:
         """Ray casting algorithm for point-in-polygon test."""
         n = len(points)
         if n < 3:
@@ -252,11 +237,7 @@ class Region:
 
     @classmethod
     def from_ellipse(
-        cls,
-        center: Tuple[float, float],
-        radius_x: float,
-        radius_y: float,
-        rotation: float = 0.0
+        cls, center: Tuple[float, float], radius_x: float, radius_y: float, rotation: float = 0.0
     ) -> Region:
         """Create a Region from an ellipse.
 
@@ -274,12 +255,7 @@ class Region:
         return cls(path)
 
     @classmethod
-    def from_half_plane(
-        cls,
-        point1: Tuple[float, float],
-        point2: Tuple[float, float],
-        size: float = 10000.0
-    ) -> Region:
+    def from_half_plane(cls, point1: Tuple[float, float], point2: Tuple[float, float], size: float = 10000.0) -> Region:
         """Create a Region representing a half-plane bounded by a line.
 
         The half-plane is the area to the LEFT of the directed line from point1 to point2.
@@ -331,10 +307,7 @@ class Region:
 
     @staticmethod
     def _line_intersection(
-        p1: Tuple[float, float],
-        p2: Tuple[float, float],
-        p3: Tuple[float, float],
-        p4: Tuple[float, float]
+        p1: Tuple[float, float], p2: Tuple[float, float], p3: Tuple[float, float], p4: Tuple[float, float]
     ) -> Optional[Tuple[float, float]]:
         """Find intersection of lines (p1-p2) and (p3-p4)."""
         x1, y1 = p1
@@ -354,18 +327,16 @@ class Region:
 
     @staticmethod
     def _is_inside_edge(
-        point: Tuple[float, float],
-        edge_start: Tuple[float, float],
-        edge_end: Tuple[float, float]
+        point: Tuple[float, float], edge_start: Tuple[float, float], edge_end: Tuple[float, float]
     ) -> bool:
         """Check if point is on the inside (left) of a directed edge."""
-        return ((edge_end[0] - edge_start[0]) * (point[1] - edge_start[1]) -
-                (edge_end[1] - edge_start[1]) * (point[0] - edge_start[0])) >= 0
+        return (
+            (edge_end[0] - edge_start[0]) * (point[1] - edge_start[1])
+            - (edge_end[1] - edge_start[1]) * (point[0] - edge_start[0])
+        ) >= 0
 
     def _sutherland_hodgman_clip(
-        self,
-        subject: List[Tuple[float, float]],
-        clip: List[Tuple[float, float]]
+        self, subject: List[Tuple[float, float]], clip: List[Tuple[float, float]]
     ) -> List[Tuple[float, float]]:
         """Clip subject polygon against clip polygon using Sutherland-Hodgman."""
         if len(subject) < 3 or len(clip) < 3:
@@ -392,16 +363,12 @@ class Region:
 
                 if current_inside:
                     if not previous_inside:
-                        intersection = self._line_intersection(
-                            previous, current, edge_start, edge_end
-                        )
+                        intersection = self._line_intersection(previous, current, edge_start, edge_end)
                         if intersection:
                             output.append(intersection)
                     output.append(current)
                 elif previous_inside:
-                    intersection = self._line_intersection(
-                        previous, current, edge_start, edge_end
-                    )
+                    intersection = self._line_intersection(previous, current, edge_start, edge_end)
                     if intersection:
                         output.append(intersection)
 

@@ -159,6 +159,7 @@ class CommandAutocomplete:
         # Use setTimeout to allow click events on popup items to fire first
         try:
             from browser import window
+
             window.setTimeout(self._delayed_hide, 150)
         except Exception:
             self.hide()
@@ -215,7 +216,8 @@ class CommandAutocomplete:
             # Filter by prefix (case-insensitive)
             prefix_lower = prefix.lower()
             self.filtered_commands = [
-                (cmd, desc) for cmd, desc in all_commands
+                (cmd, desc)
+                for cmd, desc in all_commands
                 if cmd[1:].lower().startswith(prefix_lower)  # Skip the "/" in comparison
             ]
 
@@ -266,20 +268,14 @@ class CommandAutocomplete:
 
             # Filter by prefix
             prefix_lower = model_prefix.lower()
-            filtered = [
-                m for m in models
-                if m.lower().startswith(prefix_lower)
-            ]
+            filtered = [m for m in models if m.lower().startswith(prefix_lower)]
 
             # If no matches, show all models
             if not filtered and model_prefix:
                 filtered = models
 
             # Build suggestions
-            suggestions = [
-                (f"/model {m}", f"Switch to model '{m}'")
-                for m in filtered
-            ]
+            suggestions = [(f"/model {m}", f"Switch to model '{m}'") for m in filtered]
 
             return suggestions if suggestions else [("/model", "No matching models")]
 
@@ -310,10 +306,7 @@ class CommandAutocomplete:
 
             # Filter by prefix
             prefix_lower = workspace_prefix.lower()
-            filtered = [
-                ws for ws in workspaces
-                if ws.lower().startswith(prefix_lower)
-            ]
+            filtered = [ws for ws in workspaces if ws.lower().startswith(prefix_lower)]
 
             # If no matches, show all workspaces
             if not filtered and workspace_prefix:
@@ -464,6 +457,7 @@ class CommandAutocomplete:
                         event.stopPropagation()
                         self.selected_index = idx
                         self.confirm_selection()
+
                     return handler
 
                 item.bind("mousedown", make_click_handler(index))
@@ -475,6 +469,7 @@ class CommandAutocomplete:
                     def handler(event: Any) -> None:
                         if self.selected_index != idx:
                             self._update_selection_visual(idx)
+
                     return handler
 
                 item.bind("mouseenter", make_hover_handler(index))

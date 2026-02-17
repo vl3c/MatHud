@@ -28,6 +28,3 @@ class TestStatisticsDistributions(unittest.TestCase):
         left2, right2 = default_normal_bounds(2.0, 0.5, k=2.0)
         self.assertAlmostEqual(left2, 1.0)
         self.assertAlmostEqual(right2, 3.0)
-
-
-

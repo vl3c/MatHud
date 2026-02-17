@@ -253,9 +253,7 @@ class PolygonManager:
             except Exception:
                 pass
 
-        removed = remove_drawable_with_dependencies(
-            self.drawables, self.dependency_manager, target
-        )
+        removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, target)
         if removed:
             for segment in self._iter_polygon_segments(target):
                 self.segment_manager.delete_segment(

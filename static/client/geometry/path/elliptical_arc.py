@@ -36,10 +36,7 @@ class EllipticalArc(PathElement):
         _clockwise: Direction of traversal
     """
 
-    __slots__ = (
-        "_center", "_radius_x", "_radius_y", "_rotation",
-        "_start_angle", "_end_angle", "_clockwise"
-    )
+    __slots__ = ("_center", "_radius_x", "_radius_y", "_rotation", "_start_angle", "_end_angle", "_clockwise")
 
     def __init__(
         self,
@@ -88,10 +85,7 @@ class EllipticalArc(PathElement):
         radius_x = float(ellipse.radius_x)
         radius_y = float(ellipse.radius_y)
         rotation = math.radians(float(getattr(ellipse, "rotation_angle", 0.0)))
-        return cls(
-            center, radius_x, radius_y, 0.0, 2 * math.pi,
-            rotation=rotation, clockwise=False
-        )
+        return cls(center, radius_x, radius_y, 0.0, 2 * math.pi, rotation=rotation, clockwise=False)
 
     @property
     def center(self) -> Tuple[float, float]:
@@ -230,10 +224,17 @@ class EllipticalArc(PathElement):
         )
 
     def __hash__(self) -> int:
-        return hash((
-            self._center, self._radius_x, self._radius_y,
-            self._rotation, self._start_angle, self._end_angle, self._clockwise
-        ))
+        return hash(
+            (
+                self._center,
+                self._radius_x,
+                self._radius_y,
+                self._rotation,
+                self._start_angle,
+                self._end_angle,
+                self._clockwise,
+            )
+        )
 
     def __repr__(self) -> str:
         direction = "CW" if self._clockwise else "CCW"
@@ -243,4 +244,3 @@ class EllipticalArc(PathElement):
             f"rot={math.degrees(self._rotation):.1f}deg, "
             f"{self._start_angle:.3f} to {self._end_angle:.3f} {direction})"
         )
-

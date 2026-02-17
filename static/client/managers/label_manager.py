@@ -247,4 +247,3 @@ class LabelManager:
         if not math.isfinite(numeric):
             raise ValueError("Label rotation must be a finite number.")
         return numeric
-

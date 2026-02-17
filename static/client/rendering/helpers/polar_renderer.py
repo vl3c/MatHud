@@ -70,18 +70,18 @@ def _format_tick_value(value: float, precision: int) -> str:
         # Use 2 significant figures for scientific notation
         formatted = f"{value:.1e}"
         # Clean up the exponent format (remove leading zeros)
-        if 'e' in formatted:
-            base, exp = formatted.split('e')
-            exp_sign = exp[0] if exp[0] in '+-' else '+'
-            exp_num = exp.lstrip('+-').lstrip('0') or '0'
+        if "e" in formatted:
+            base, exp = formatted.split("e")
+            exp_sign = exp[0] if exp[0] in "+-" else "+"
+            exp_num = exp.lstrip("+-").lstrip("0") or "0"
             formatted = f"{base}e{exp_sign}{exp_num}"
         return formatted
     if precision <= 0:
         return str(int(round(value)))
     formatted = f"{value:.{precision}f}"
     # Strip trailing zeros but keep at least one decimal place if precision > 0
-    if '.' in formatted:
-        formatted = formatted.rstrip('0').rstrip('.')
+    if "." in formatted:
+        formatted = formatted.rstrip("0").rstrip(".")
     return formatted
 
 
@@ -117,8 +117,18 @@ def _draw_radial_lines(primitives, ox, oy, max_radius_screen, angular_step_degre
         primitives.stroke_line((ox, oy), (end_x, end_y), radial_stroke)
 
 
-def _draw_angle_labels(primitives, ox, oy, label_radius_screen, angular_step_degrees,
-                       font, label_color, label_alignment, width_px, height_px):
+def _draw_angle_labels(
+    primitives,
+    ox,
+    oy,
+    label_radius_screen,
+    angular_step_degrees,
+    font,
+    label_color,
+    label_alignment,
+    width_px,
+    height_px,
+):
     """Draw angle labels at the external boundary of the visible canvas."""
     if angular_step_degrees <= 0:
         return
@@ -168,8 +178,9 @@ def _draw_angle_labels(primitives, ox, oy, label_radius_screen, angular_step_deg
         primitives.draw_text(label_text, (label_x, label_y), font, label_color, label_alignment)
 
 
-def _draw_radius_labels(primitives, ox, oy, scale, display_spacing, max_radius_screen,
-                        tick_font_float, font, label_color, label_alignment):
+def _draw_radius_labels(
+    primitives, ox, oy, scale, display_spacing, max_radius_screen, tick_font_float, font, label_color, label_alignment
+):
     """Draw radius labels along the positive x-axis.
 
     Uses spacing-aware formatting to show minimum digits needed to distinguish
@@ -200,9 +211,22 @@ def _draw_origin_marker(primitives, ox, oy, tick_font_float, font, label_color, 
 
 @_manages_shape
 def _render_polar_grid(
-    primitives, ox, oy, width_px, height_px, scale, display_spacing, max_radius_screen,
-    angular_step_degrees, tick_font_float, font, label_color, label_alignment,
-    axis_stroke, circle_stroke, radial_stroke
+    primitives,
+    ox,
+    oy,
+    width_px,
+    height_px,
+    scale,
+    display_spacing,
+    max_radius_screen,
+    angular_step_degrees,
+    tick_font_float,
+    font,
+    label_color,
+    label_alignment,
+    axis_stroke,
+    circle_stroke,
+    radial_stroke,
 ):
     """Render the complete polar grid with all components.
 
@@ -227,10 +251,30 @@ def _render_polar_grid(
     _draw_polar_axes(primitives, ox, oy, width_px, height_px, axis_stroke)
     _draw_concentric_circles(primitives, ox, oy, max_radius_screen, display_spacing, circle_stroke)
     _draw_radial_lines(primitives, ox, oy, max_radius_screen, angular_step_degrees, radial_stroke)
-    _draw_angle_labels(primitives, ox, oy, max_radius_screen, angular_step_degrees,
-                       font, label_color, label_alignment, width_px, height_px)
-    _draw_radius_labels(primitives, ox, oy, scale, display_spacing, max_radius_screen,
-                        tick_font_float, font, label_color, label_alignment)
+    _draw_angle_labels(
+        primitives,
+        ox,
+        oy,
+        max_radius_screen,
+        angular_step_degrees,
+        font,
+        label_color,
+        label_alignment,
+        width_px,
+        height_px,
+    )
+    _draw_radius_labels(
+        primitives,
+        ox,
+        oy,
+        scale,
+        display_spacing,
+        max_radius_screen,
+        tick_font_float,
+        font,
+        label_color,
+        label_alignment,
+    )
     _draw_origin_marker(primitives, ox, oy, tick_font_float, font, label_color, label_alignment)
 
 

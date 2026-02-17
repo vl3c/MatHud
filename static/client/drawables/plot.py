@@ -81,4 +81,3 @@ class Plot(Drawable):
         )
         memo[id(self)] = copied
         return copied
-

@@ -74,6 +74,7 @@ if TYPE_CHECKING:
     from name_generator.drawable import DrawableNameGenerator
     from drawables.rectangle import Rectangle
 
+
 class ColoredAreaManager:
     """
     Manages colored area drawables for a Canvas.
@@ -200,16 +201,18 @@ class ColoredAreaManager:
                     y = get_y_at_x(drawable1, x2_max)
                     self.drawable_manager.create_point(x2_max, y)
 
-            colored_area: Union[SegmentsBoundedColoredArea, FunctionSegmentBoundedColoredArea, FunctionsBoundedColoredArea]
+            colored_area: Union[
+                SegmentsBoundedColoredArea, FunctionSegmentBoundedColoredArea, FunctionsBoundedColoredArea
+            ]
             colored_area = SegmentsBoundedColoredArea(drawable1, drawable2, color=color, opacity=opacity)
         elif isinstance(drawable2, Segment):
             # Function-segment case (we know drawable1 is not a segment due to the swap above)
             colored_area = FunctionSegmentBoundedColoredArea(drawable1, drawable2, color=color, opacity=opacity)
         else:
             # Function-function case
-            colored_area = FunctionsBoundedColoredArea(drawable1, drawable2,
-                                                     left_bound=left_bound, right_bound=right_bound,
-                                                     color=color, opacity=opacity)
+            colored_area = FunctionsBoundedColoredArea(
+                drawable1, drawable2, left_bound=left_bound, right_bound=right_bound, color=color, opacity=opacity
+            )
 
         # Add to drawables
         self.drawables.add(colored_area)
@@ -684,9 +687,7 @@ class ColoredAreaManager:
 
     def _remove_colored_area_drawable(self, area: "Drawable") -> bool:
         """Remove a colored-area drawable and clean dependency graph entries."""
-        return bool(remove_drawable_with_dependencies(
-            self.drawables, self.dependency_manager, area
-        ))
+        return bool(remove_drawable_with_dependencies(self.drawables, self.dependency_manager, area))
 
     def get_colored_areas_for_drawable(self, drawable: Union[Function, Segment]) -> List["Drawable"]:
         """
@@ -775,7 +776,9 @@ class ColoredAreaManager:
 
         policy = self._get_policy_for_area(area)
         self._validate_policy(policy, list(pending_fields.keys()))
-        self._validate_colored_area_payload(area, pending_fields, new_color, new_opacity, new_left_bound, new_right_bound)
+        self._validate_colored_area_payload(
+            area, pending_fields, new_color, new_opacity, new_left_bound, new_right_bound
+        )
 
         self.canvas.undo_redo_manager.archive()
         self._apply_colored_area_updates(area, pending_fields, new_color, new_opacity, new_left_bound, new_right_bound)
@@ -868,11 +871,7 @@ class ColoredAreaManager:
             if "right_bound" in pending_fields and new_right_bound is not None:
                 updated_right = float(new_right_bound)
 
-            if (
-                updated_left is not None
-                and updated_right is not None
-                and updated_left >= updated_right
-            ):
+            if updated_left is not None and updated_right is not None and updated_left >= updated_right:
                 raise ValueError("left_bound must be less than right_bound.")
 
     def _apply_colored_area_updates(

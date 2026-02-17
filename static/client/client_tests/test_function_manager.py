@@ -19,9 +19,7 @@ class TestFunctionManager(unittest.TestCase):
                 archive=SimpleMock(),
             ),
         )
-        self.canvas.drawable_manager = SimpleMock(
-            delete_colored_areas_for_function=SimpleMock()
-        )
+        self.canvas.drawable_manager = SimpleMock(delete_colored_areas_for_function=SimpleMock())
         self.drawables = DrawablesContainer()
         self.name_generator = SimpleMock(name="NameGeneratorMock")
         self.dependency_manager = SimpleMock(name="DependencyManagerMock")

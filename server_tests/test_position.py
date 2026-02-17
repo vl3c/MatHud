@@ -15,7 +15,7 @@ class TestPosition(unittest.TestCase):
 
     def test_str(self) -> None:
         pos = Position(1, 2)
-        self.assertEqual(str(pos), 'Position: 1, 2')
+        self.assertEqual(str(pos), "Position: 1, 2")
 
     def test_get_state(self) -> None:
         pos = Position(1, 2)

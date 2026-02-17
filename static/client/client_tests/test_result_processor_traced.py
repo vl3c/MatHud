@@ -30,7 +30,10 @@ class TestGetResultsTraced(unittest.TestCase):
         }
         calls = [{"function_name": "evaluate_expression", "arguments": {"expression": "3 + 7", "canvas": self.canvas}}]
         results, traced = ProcessFunctionCalls.get_results_traced(
-            calls, available_functions, (), self.canvas,
+            calls,
+            available_functions,
+            (),
+            self.canvas,
         )
         # Results should contain the evaluation
         self.assertTrue(len(results) > 0)
@@ -46,7 +49,10 @@ class TestGetResultsTraced(unittest.TestCase):
         }
         calls = [{"function_name": "evaluate_expression", "arguments": {"expression": "2 * 3", "canvas": self.canvas}}]
         _, traced = ProcessFunctionCalls.get_results_traced(
-            calls, available_functions, (), self.canvas,
+            calls,
+            available_functions,
+            (),
+            self.canvas,
         )
         self.assertGreaterEqual(traced[0]["duration_ms"], 0)
 
@@ -57,7 +63,10 @@ class TestGetResultsTraced(unittest.TestCase):
         available_functions: Dict[str, Any] = {"fail_func": always_fail}
         calls = [{"function_name": "fail_func", "arguments": {}}]
         results, traced = ProcessFunctionCalls.get_results_traced(
-            calls, available_functions, (), self.canvas,
+            calls,
+            available_functions,
+            (),
+            self.canvas,
         )
         self.assertTrue(traced[0]["is_error"])
         self.assertIn("Error", str(results.get("fail_func", "")))
@@ -72,10 +81,16 @@ class TestGetResultsTraced(unittest.TestCase):
             {"function_name": "evaluate_expression", "arguments": {"expression": "10 * 2", "canvas": self.canvas}},
         ]
         results_normal = ProcessFunctionCalls.get_results(
-            calls, available_functions, (), self.canvas,
+            calls,
+            available_functions,
+            (),
+            self.canvas,
         )
         results_traced, _ = ProcessFunctionCalls.get_results_traced(
-            calls, available_functions, (), self.canvas,
+            calls,
+            available_functions,
+            (),
+            self.canvas,
         )
         self.assertEqual(results_normal, results_traced)
 
@@ -86,7 +101,10 @@ class TestGetResultsTraced(unittest.TestCase):
         }
         calls = [{"function_name": "evaluate_expression", "arguments": {"expression": "1+1", "canvas": self.canvas}}]
         _, traced = ProcessFunctionCalls.get_results_traced(
-            calls, available_functions, (), self.canvas,
+            calls,
+            available_functions,
+            (),
+            self.canvas,
         )
         self.assertNotIn("canvas", traced[0]["arguments"])
         self.assertIn("expression", traced[0]["arguments"])
@@ -96,7 +114,10 @@ class TestGetResultsTraced(unittest.TestCase):
         available_functions: Dict[str, Any] = {}
         calls = [{"function_name": "nonexistent", "arguments": {}}]
         results, traced = ProcessFunctionCalls.get_results_traced(
-            calls, available_functions, (), self.canvas,
+            calls,
+            available_functions,
+            (),
+            self.canvas,
         )
         self.assertTrue(traced[0]["is_error"])
         self.assertIn("nonexistent", results)
@@ -108,7 +129,10 @@ class TestGetResultsTraced(unittest.TestCase):
         }
         calls = [{"function_name": "evaluate_expression", "arguments": {"expression": "3 + 7", "canvas": self.canvas}}]
         _, traced = ProcessFunctionCalls.get_results_traced(
-            calls, available_functions, (), self.canvas,
+            calls,
+            available_functions,
+            (),
+            self.canvas,
         )
         self.assertEqual(traced[0]["result"], 10)
 
@@ -117,11 +141,21 @@ class TestGetResultsTraced(unittest.TestCase):
         available_functions: Dict[str, Any] = {
             "evaluate_expression": ProcessFunctionCalls.evaluate_expression,
         }
-        calls = [{"function_name": "evaluate_expression", "arguments": {
-            "expression": "x + y", "variables": {"x": 5, "y": 3}, "canvas": self.canvas,
-        }}]
+        calls = [
+            {
+                "function_name": "evaluate_expression",
+                "arguments": {
+                    "expression": "x + y",
+                    "variables": {"x": 5, "y": 3},
+                    "canvas": self.canvas,
+                },
+            }
+        ]
         _, traced = ProcessFunctionCalls.get_results_traced(
-            calls, available_functions, (), self.canvas,
+            calls,
+            available_functions,
+            (),
+            self.canvas,
         )
         self.assertEqual(traced[0]["result"], 8)
 
@@ -136,7 +170,10 @@ class TestGetResultsTraced(unittest.TestCase):
             {"function_name": "evaluate_expression", "arguments": {"expression": "3+3", "canvas": self.canvas}},
         ]
         _, traced = ProcessFunctionCalls.get_results_traced(
-            calls, available_functions, (), self.canvas,
+            calls,
+            available_functions,
+            (),
+            self.canvas,
         )
         self.assertEqual(len(traced), 3)
         self.assertEqual([t["seq"] for t in traced], [0, 1, 2])

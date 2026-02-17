@@ -6,6 +6,7 @@ from coordinate_mapper import CoordinateMapper
 from drawables_aggregator import Position
 from typing import Any
 
+
 class TestAngleManager(unittest.TestCase):
     def setUp(self) -> None:
         # Create a real CoordinateMapper instance
@@ -34,17 +35,17 @@ class TestAngleManager(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)
+            offset=Position(0, 0),
         )
 
         # Sync canvas state with coordinate mapper
         self.coordinate_mapper.sync_from_canvas(self.canvas_mock)
         self.drawables_container_mock: Any = SimpleMock(
             name="DrawablesContainerMock",
-            Angles=[], # Holds created Angle instances
-            add=MagicMock(side_effect=lambda x: self.drawables_container_mock.Angles.append(x))
+            Angles=[],  # Holds created Angle instances
+            add=MagicMock(side_effect=lambda x: self.drawables_container_mock.Angles.append(x)),
         )
-        self.name_generator_mock = SimpleMock(name="NameGeneratorMock") # Basic mock for now
+        self.name_generator_mock = SimpleMock(name="NameGeneratorMock")  # Basic mock for now
 
         self.dependency_manager_mock = SimpleMock(
             name="DependencyManagerMock",
@@ -53,12 +54,12 @@ class TestAngleManager(unittest.TestCase):
         )
 
         # Mock Point Class Behavior (used by point_manager)
-        self.MockPoint = SimpleMock # Use SimpleMock directly
+        self.MockPoint = SimpleMock  # Use SimpleMock directly
         # We will define the behavior in the create_point mock below
 
         self.point_manager_mock = SimpleMock(
             name="PointManagerMock",
-            create_point=lambda x, y, name=None, extra_graphics=True, label=None, color=None, size=None, display_type=None, is_visible=True, is_fixed=False:
+            create_point=lambda x, y, name=None, extra_graphics=True, label=None, color=None, size=None, display_type=None, is_visible=True, is_fixed=False: (
                 SimpleMock(
                     name=name or f"P({x},{y})",
                     x=x,
@@ -68,33 +69,35 @@ class TestAngleManager(unittest.TestCase):
                     size=size,
                     display_type=display_type,
                     is_visible=is_visible,
-                    is_fixed=is_fixed
+                    is_fixed=is_fixed,
                 )
+            ),
         )
 
         # Mock Segment Class Behavior (used by segment_manager)
-        self.MockSegment = SimpleMock # Use SimpleMock directly
+        self.MockSegment = SimpleMock  # Use SimpleMock directly
         # We will define the behavior in the create_segment mock below
 
         self.segment_manager_mock = SimpleMock(
             name="SegmentManagerMock",
-            create_segment=lambda x1, y1, x2, y2, name=None, extra_graphics=True, label=None, color=None, thickness=None, is_visible=True, has_direction=False:
+            create_segment=lambda x1, y1, x2, y2, name=None, extra_graphics=True, label=None, color=None, thickness=None, is_visible=True, has_direction=False: (
                 SimpleMock(
                     name=name or f"S_({x1},{y1})-({x2},{y2})",
-                    point1=self.point_manager_mock.create_point(x1,y1),
-                    point2=self.point_manager_mock.create_point(x2,y2),
+                    point1=self.point_manager_mock.create_point(x1, y1),
+                    point2=self.point_manager_mock.create_point(x2, y2),
                     # Ensure all attributes that might be accessed are present
                     label=label,
                     color=color,
                     thickness=thickness,
                     is_visible=is_visible,
-                    has_direction=has_direction
+                    has_direction=has_direction,
                 )
+            ),
         )
 
         self.drawable_manager_proxy_mock = SimpleMock(
             name="DrawableManagerProxyMock",
-            create_drawables_from_new_connections=MagicMock()
+            create_drawables_from_new_connections=MagicMock(),
             # Add get_segment_by_name if AngleManager needs it directly from proxy
         )
 
@@ -108,20 +111,19 @@ class TestAngleManager(unittest.TestCase):
             dependency_manager=self.dependency_manager_mock,
             point_manager=self.point_manager_mock,
             segment_manager=self.segment_manager_mock,
-            drawable_manager_proxy=self.drawable_manager_proxy_mock
+            drawable_manager_proxy=self.drawable_manager_proxy_mock,
         )
 
         # Helper points for tests
         self.A = self.point_manager_mock.create_point(0, 0, name="A")
         self.B = self.point_manager_mock.create_point(10, 0, name="B")
         self.C = self.point_manager_mock.create_point(0, 10, name="C")
-        self.D = self.point_manager_mock.create_point(-10, 0, name="D") # For a different angle
+        self.D = self.point_manager_mock.create_point(-10, 0, name="D")  # For a different angle
 
         # Helper segments for tests
         self.seg_AB = self.segment_manager_mock.create_segment(self.A.x, self.A.y, self.B.x, self.B.y, name="AB")
         self.seg_AC = self.segment_manager_mock.create_segment(self.A.x, self.A.y, self.C.x, self.C.y, name="AC")
         self.seg_AD = self.segment_manager_mock.create_segment(self.A.x, self.A.y, self.D.x, self.D.y, name="AD")
-
 
     def test_initialization(self) -> None:
         self.assertIsNotNone(self.angle_manager.canvas)
@@ -156,16 +158,16 @@ class TestAngleManager(unittest.TestCase):
     def test_get_angle_by_segments_not_found(self) -> None:
         # Segments that don't form a known angle in the container
         # Create a new point E for the other segment to avoid confusion
-        E = self.point_manager_mock.create_point(20,20, name="E")
+        E = self.point_manager_mock.create_point(20, 20, name="E")
         other_segment = self.segment_manager_mock.create_segment(self.B.x, self.B.y, E.x, E.y, name="BE")
         found_angle = self.angle_manager.get_angle_by_segments(self.seg_AB, other_segment)
         self.assertIsNone(found_angle)
 
     def test_get_angle_by_points_found(self) -> None:
         # Setup points that an Angle would have derived
-        A_obj = SimpleMock(name="A_obj", x=0,y=0)
-        B_obj = SimpleMock(name="B_obj", x=10,y=0)
-        C_obj = SimpleMock(name="C_obj", x=0,y=10)
+        A_obj = SimpleMock(name="A_obj", x=0, y=0)
+        B_obj = SimpleMock(name="B_obj", x=10, y=0)
+        C_obj = SimpleMock(name="C_obj", x=0, y=10)
 
         mock_angle = SimpleMock(
             name="AngleByPoints",
@@ -175,7 +177,7 @@ class TestAngleManager(unittest.TestCase):
             # segment1 and segment2 would be composed of these points
             segment1=SimpleMock(point1=A_obj, point2=B_obj),
             segment2=SimpleMock(point1=A_obj, point2=C_obj),
-            is_reflex=False
+            is_reflex=False,
         )
         self.drawables_container_mock.Angles.append(mock_angle)
 
@@ -188,10 +190,10 @@ class TestAngleManager(unittest.TestCase):
         self.assertIs(found_angle_reverse, mock_angle)
 
     def test_get_angle_by_points_not_found_wrong_vertex(self) -> None:
-        A_obj = SimpleMock(name="A_obj", x=0,y=0)
-        B_obj = SimpleMock(name="B_obj", x=10,y=0)
-        C_obj = SimpleMock(name="C_obj", x=0,y=10)
-        wrong_V_obj = SimpleMock(name="WrongV_obj", x=1,y=1) # Changed from wrong_v_obj
+        A_obj = SimpleMock(name="A_obj", x=0, y=0)
+        B_obj = SimpleMock(name="B_obj", x=10, y=0)
+        C_obj = SimpleMock(name="C_obj", x=0, y=10)
+        wrong_V_obj = SimpleMock(name="WrongV_obj", x=1, y=1)  # Changed from wrong_v_obj
 
         mock_angle = SimpleMock(name="AngleByPoints", vertex_point=A_obj, arm1_point=B_obj, arm2_point=C_obj)
         self.drawables_container_mock.Angles.append(mock_angle)
@@ -200,10 +202,10 @@ class TestAngleManager(unittest.TestCase):
         self.assertIsNone(found_angle)
 
     def test_get_angle_by_points_not_found_wrong_arm(self) -> None:
-        A_obj = SimpleMock(name="A_obj", x=0,y=0)
-        B_obj = SimpleMock(name="B_obj", x=10,y=0)
-        C_obj = SimpleMock(name="C_obj", x=0,y=10)
-        wrong_D_obj = SimpleMock(name="WrongD_obj", x=-1,y=-1) # Changed from wrong_a3_obj
+        A_obj = SimpleMock(name="A_obj", x=0, y=0)
+        B_obj = SimpleMock(name="B_obj", x=10, y=0)
+        C_obj = SimpleMock(name="C_obj", x=0, y=10)
+        wrong_D_obj = SimpleMock(name="WrongD_obj", x=-1, y=-1)  # Changed from wrong_a3_obj
 
         mock_angle = SimpleMock(name="AngleByPoints", vertex_point=A_obj, arm1_point=B_obj, arm2_point=C_obj)
         self.drawables_container_mock.Angles.append(mock_angle)
@@ -212,8 +214,8 @@ class TestAngleManager(unittest.TestCase):
         self.assertIsNone(found_angle)
 
     def test_get_angle_by_points_input_points_none(self) -> None:
-        A_obj = SimpleMock(name="A_obj", x=0,y=0) # Changed from v_obj
-        B_obj = SimpleMock(name="B_obj", x=10,y=0) # Changed from a1_obj
+        A_obj = SimpleMock(name="A_obj", x=0, y=0)  # Changed from v_obj
+        B_obj = SimpleMock(name="B_obj", x=10, y=0)  # Changed from a1_obj
         self.assertIsNone(self.angle_manager.get_angle_by_points(None, B_obj, B_obj))
         self.assertIsNone(self.angle_manager.get_angle_by_points(A_obj, None, B_obj))
         self.assertIsNone(self.angle_manager.get_angle_by_points(A_obj, B_obj, None))

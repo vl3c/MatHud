@@ -99,7 +99,7 @@ class Cartesian2Axis(Drawable):
 
     def get_class_name(self) -> str:
         """Return the class name 'Cartesian2Axis'."""
-        return 'Cartesian2Axis'
+        return "Cartesian2Axis"
 
     @property
     def origin(self) -> Position:
@@ -306,19 +306,15 @@ class Cartesian2Axis(Drawable):
         if "visible" in state:
             self.visible = bool(state["visible"])
         if "current_tick_spacing" in state:
-            self.current_tick_spacing = self._safe_float(
-                state["current_tick_spacing"], self.default_tick_spacing
-            )
+            self.current_tick_spacing = self._safe_float(state["current_tick_spacing"], self.default_tick_spacing)
         if "default_tick_spacing" in state:
-            self.default_tick_spacing = self._safe_float(
-                state["default_tick_spacing"], 100.0
-            )
+            self.default_tick_spacing = self._safe_float(state["default_tick_spacing"], 100.0)
 
     def _get_axis_origin(self, axis: str) -> float:
         """Get the origin position for the specified axis"""
         origin: Position = self.origin
-        return cast(float, origin.x if axis == 'x' else origin.y)
+        return cast(float, origin.x if axis == "x" else origin.y)
 
     def _get_axis_boundary(self, axis: str) -> float:
         """Get the boundary (width/height) for the specified axis"""
-        return self.width if axis == 'x' else self.height
+        return self.width if axis == "x" else self.height

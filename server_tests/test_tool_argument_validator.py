@@ -100,9 +100,7 @@ class TestSuccessfulValidation(unittest.TestCase):
 
     def test_create_point_valid(self) -> None:
         """create_point with correct types passes validation."""
-        result = ToolArgumentValidator.validate(
-            "create_point", {"x": 5, "y": 10, "color": None, "name": None}
-        )
+        result = ToolArgumentValidator.validate("create_point", {"x": 5, "y": 10, "color": None, "name": None})
         self.assertTrue(result["valid"])
         self.assertEqual(result["errors"], [])
         self.assertEqual(result["arguments"]["x"], 5)
@@ -110,9 +108,7 @@ class TestSuccessfulValidation(unittest.TestCase):
 
     def test_create_point_with_string_values(self) -> None:
         """create_point with non-null optional string fields."""
-        result = ToolArgumentValidator.validate(
-            "create_point", {"x": 3.5, "y": -2.0, "color": "red", "name": "A"}
-        )
+        result = ToolArgumentValidator.validate("create_point", {"x": 3.5, "y": -2.0, "color": "red", "name": "A"})
         self.assertTrue(result["valid"])
         self.assertEqual(result["arguments"]["color"], "red")
         self.assertEqual(result["arguments"]["name"], "A")
@@ -379,23 +375,17 @@ class TestSuccessfulValidation(unittest.TestCase):
 
     def test_set_coordinate_system_valid(self) -> None:
         """set_coordinate_system with valid enum."""
-        result = ToolArgumentValidator.validate(
-            "set_coordinate_system", {"mode": "polar"}
-        )
+        result = ToolArgumentValidator.validate("set_coordinate_system", {"mode": "polar"})
         self.assertTrue(result["valid"])
 
     def test_set_grid_visible_valid(self) -> None:
         """set_grid_visible with boolean value."""
-        result = ToolArgumentValidator.validate(
-            "set_grid_visible", {"visible": True}
-        )
+        result = ToolArgumentValidator.validate("set_grid_visible", {"visible": True})
         self.assertTrue(result["valid"])
 
     def test_int_accepted_for_number_field(self) -> None:
         """Python int should be accepted for JSON Schema 'number' type."""
-        result = ToolArgumentValidator.validate(
-            "create_point", {"x": 5, "y": 10, "color": None, "name": None}
-        )
+        result = ToolArgumentValidator.validate("create_point", {"x": 5, "y": 10, "color": None, "name": None})
         self.assertTrue(result["valid"])
         # int should pass through as-is (not converted to float)
         self.assertIs(type(result["arguments"]["x"]), int)
@@ -458,9 +448,7 @@ class TestTypeRejection(unittest.TestCase):
 
     def test_string_instead_of_boolean(self) -> None:
         """String for a boolean field should fail."""
-        result = ToolArgumentValidator.validate(
-            "set_grid_visible", {"visible": "yes"}
-        )
+        result = ToolArgumentValidator.validate("set_grid_visible", {"visible": "yes"})
         self.assertFalse(result["valid"])
         self.assertTrue(any("'visible'" in e for e in result["errors"]))
 
@@ -497,9 +485,7 @@ class TestTypeRejection(unittest.TestCase):
             },
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("'distribution_params'" in e for e in result["errors"])
-        )
+        self.assertTrue(any("'distribution_params'" in e for e in result["errors"]))
 
     def test_float_instead_of_integer(self) -> None:
         """Float for an integer field should fail."""
@@ -622,9 +608,7 @@ class TestUnknownKeys(unittest.TestCase):
             },
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("'z'" in e or "'vertices[0].z'" in e for e in result["errors"])
-        )
+        self.assertTrue(any("'z'" in e or "'vertices[0].z'" in e for e in result["errors"]))
 
     def test_allowed_keys_listed_in_error(self) -> None:
         """Error message for unknown key should list allowed keys."""
@@ -657,19 +641,13 @@ class TestEnumValidation(unittest.TestCase):
             },
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("'range_axis'" in e and "'z'" in e for e in result["errors"])
-        )
+        self.assertTrue(any("'range_axis'" in e and "'z'" in e for e in result["errors"]))
 
     def test_invalid_enum_coordinate_system(self) -> None:
         """Invalid enum value for set_coordinate_system should fail."""
-        result = ToolArgumentValidator.validate(
-            "set_coordinate_system", {"mode": "spherical"}
-        )
+        result = ToolArgumentValidator.validate("set_coordinate_system", {"mode": "spherical"})
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("'mode'" in e and "'spherical'" in e for e in result["errors"])
-        )
+        self.assertTrue(any("'mode'" in e and "'spherical'" in e for e in result["errors"]))
 
     def test_valid_enum_value(self) -> None:
         """Valid enum value should pass."""
@@ -701,9 +679,7 @@ class TestEnumValidation(unittest.TestCase):
             },
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("'polygon_type'" in e and "'circle'" in e for e in result["errors"])
-        )
+        self.assertTrue(any("'polygon_type'" in e and "'circle'" in e for e in result["errors"]))
 
     def test_null_in_nullable_enum(self) -> None:
         """None is a valid enum value for nullable enum fields."""
@@ -736,9 +712,7 @@ class TestEnumValidation(unittest.TestCase):
             },
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("'method'" in e and "'euler'" in e for e in result["errors"])
-        )
+        self.assertTrue(any("'method'" in e and "'euler'" in e for e in result["errors"]))
 
 
 # ===================================================================
@@ -943,9 +917,7 @@ class TestNestedStructures(unittest.TestCase):
             },
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("vertices[0]" in e for e in result["errors"])
-        )
+        self.assertTrue(any("vertices[0]" in e for e in result["errors"]))
 
     def test_plot_distribution_invalid_nested_type(self) -> None:
         """Invalid type in distribution_params.sigma should fail."""
@@ -965,9 +937,7 @@ class TestNestedStructures(unittest.TestCase):
             },
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("sigma" in e for e in result["errors"])
-        )
+        self.assertTrue(any("sigma" in e for e in result["errors"]))
 
     def test_draw_piecewise_deep_nesting(self) -> None:
         """Invalid type in piecewise function piece should fail."""
@@ -1056,9 +1026,7 @@ class TestNestedStructures(unittest.TestCase):
             },
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("did not match any" in e for e in result["errors"])
-        )
+        self.assertTrue(any("did not match any" in e for e in result["errors"]))
 
     def test_anyof_invalid_array_element(self) -> None:
         """anyOf value with array containing strings should fail."""
@@ -1088,9 +1056,7 @@ class TestNestedStructures(unittest.TestCase):
             },
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("height" in e for e in result["errors"])
-        )
+        self.assertTrue(any("height" in e for e in result["errors"]))
 
     def test_nested_object_unknown_key(self) -> None:
         """Extra key in nested placement_box should be reported."""
@@ -1139,9 +1105,7 @@ class TestConstraints(unittest.TestCase):
             },
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("at least 3" in e and "got 2" in e for e in result["errors"])
-        )
+        self.assertTrue(any("at least 3" in e and "got 2" in e for e in result["errors"]))
 
     def test_min_items_exactly_met(self) -> None:
         """create_polygon with exactly 3 vertices should pass."""
@@ -1168,9 +1132,7 @@ class TestConstraints(unittest.TestCase):
             {"pieces": [], "name": None, "color": None},
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("at least 1" in e for e in result["errors"])
-        )
+        self.assertTrue(any("at least 1" in e for e in result["errors"]))
 
     def test_min_items_linear_algebra_empty_objects(self) -> None:
         """evaluate_linear_algebra_expression with empty objects should fail."""
@@ -1179,9 +1141,7 @@ class TestConstraints(unittest.TestCase):
             {"objects": [], "expression": "A"},
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("at least 1" in e for e in result["errors"])
-        )
+        self.assertTrue(any("at least 1" in e for e in result["errors"]))
 
     def test_max_length_violation(self) -> None:
         """create_label with text exceeding maxLength should fail."""
@@ -1198,9 +1158,7 @@ class TestConstraints(unittest.TestCase):
             },
         )
         self.assertFalse(result["valid"])
-        self.assertTrue(
-            any("at most 160" in e and "got 200" in e for e in result["errors"])
-        )
+        self.assertTrue(any("at most 160" in e and "got 200" in e for e in result["errors"]))
 
     def test_max_length_at_limit(self) -> None:
         """create_label with text exactly at maxLength should pass."""
@@ -1251,9 +1209,7 @@ class TestEdgeCases(unittest.TestCase):
     def test_unknown_function_passes_through(self) -> None:
         """Unknown function name should pass with valid=True and log warning."""
         with self.assertLogs("static.tool_argument_validator", level="WARNING") as cm:
-            result = ToolArgumentValidator.validate(
-                "totally_unknown_function", {"foo": "bar"}
-            )
+            result = ToolArgumentValidator.validate("totally_unknown_function", {"foo": "bar"})
         self.assertTrue(result["valid"])
         self.assertEqual(result["errors"], [])
         self.assertTrue(any("no schema found" in msg for msg in cm.output))
@@ -1287,10 +1243,7 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_deeply_nested_valid_graph(self) -> None:
         """generate_graph with many vertices and edges should work."""
-        vertices = [
-            {"name": f"V{i}", "x": i * 10, "y": i * 5, "color": None, "label": None}
-            for i in range(20)
-        ]
+        vertices = [{"name": f"V{i}", "x": i * 10, "y": i * 5, "color": None, "label": None} for i in range(20)]
         edges = [
             {
                 "source": i,
@@ -1321,9 +1274,7 @@ class TestEdgeCases(unittest.TestCase):
     def test_error_value_truncation(self) -> None:
         """Long string values in errors should be truncated."""
         long_string = "x" * 200
-        result = ToolArgumentValidator.validate(
-            "set_coordinate_system", {"mode": long_string}
-        )
+        result = ToolArgumentValidator.validate("set_coordinate_system", {"mode": long_string})
         self.assertFalse(result["valid"])
         # Error message should contain truncated value, not the full 200 chars
         error_text = result["errors"][0]
@@ -1331,9 +1282,7 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_validation_result_structure(self) -> None:
         """ValidationResult should contain valid, arguments, and errors keys."""
-        result = ToolArgumentValidator.validate(
-            "create_point", {"x": 5, "y": 10, "color": None, "name": None}
-        )
+        result = ToolArgumentValidator.validate("create_point", {"x": 5, "y": 10, "color": None, "name": None})
         self.assertIn("valid", result)
         self.assertIn("arguments", result)
         self.assertIn("errors", result)
@@ -1351,9 +1300,7 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_valid_returns_canonical_args(self) -> None:
         """When validation passes, canonical arguments should be returned."""
-        result = ToolArgumentValidator.validate(
-            "create_point", {"x": "5", "y": 10, "color": None, "name": None}
-        )
+        result = ToolArgumentValidator.validate("create_point", {"x": "5", "y": 10, "color": None, "name": None})
         self.assertTrue(result["valid"])
         self.assertEqual(result["arguments"]["x"], 5.0)
 
@@ -1367,9 +1314,7 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_zero_valid(self) -> None:
         """Zero should be valid for number fields."""
-        result = ToolArgumentValidator.validate(
-            "create_point", {"x": 0, "y": 0, "color": None, "name": None}
-        )
+        result = ToolArgumentValidator.validate("create_point", {"x": 0, "y": 0, "color": None, "name": None})
         self.assertTrue(result["valid"])
 
 

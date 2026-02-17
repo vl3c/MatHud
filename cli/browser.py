@@ -88,9 +88,7 @@ class BrowserAutomation:
             options.add_argument("--remote-debugging-pipe")
             profiles_root = runtime_root / "profiles"
             profiles_root.mkdir(parents=True, exist_ok=True)
-            self._profile_dir = Path(
-                tempfile.mkdtemp(prefix="chrome-profile-", dir=str(profiles_root))
-            )
+            self._profile_dir = Path(tempfile.mkdtemp(prefix="chrome-profile-", dir=str(profiles_root)))
             options.add_argument(f"--user-data-dir={self._profile_dir}")
 
         if platform.machine() in ("aarch64", "arm64"):
@@ -266,9 +264,7 @@ class BrowserAutomation:
             raise RuntimeError("Browser not initialized. Call setup() first.")
 
         try:
-            WebDriverWait(self.driver, timeout).until(
-                EC.presence_of_element_located((by, selector))
-            )
+            WebDriverWait(self.driver, timeout).until(EC.presence_of_element_located((by, selector)))
             return True
         except Exception:
             return False
@@ -313,9 +309,7 @@ class BrowserAutomation:
         Returns:
             Canvas state dictionary.
         """
-        result = self.execute_js(
-            "return window._canvas ? JSON.stringify(window._canvas.get_state()) : null"
-        )
+        result = self.execute_js("return window._canvas ? JSON.stringify(window._canvas.get_state()) : null")
         if result:
             parsed: dict[str, Any] = json.loads(result)
             return parsed

@@ -124,6 +124,3 @@ _KIND_TO_MODE: Dict[Optional[str], Type[LabelRenderMode]] = {
     "world": _WorldLabelMode,
     "screen_offset": _ScreenOffsetLabelMode,
 }
-
-
-

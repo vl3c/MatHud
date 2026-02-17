@@ -43,6 +43,7 @@ WORKSPACES_DIR = PROJECT_ROOT / "workspaces"
 # CLI output directory (for screenshots, etc.)
 CLI_OUTPUT_DIR = Path(__file__).parent / "output"
 
+
 # Python interpreter path
 def get_python_path() -> Path:
     """Get the path to the Python interpreter in the virtual environment."""

@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from managers.point_manager import PointManager
     from name_generator.drawable import DrawableNameGenerator
 
+
 class CircleManager:
     """
     Manages circle drawables for a Canvas.
@@ -101,9 +102,7 @@ class CircleManager:
         """
         circles = self.drawables.Circles
         for circle in circles:
-            if (circle.center.x == center_x and
-                circle.center.y == center_y and
-                circle.radius == radius):
+            if circle.center.x == center_x and circle.center.y == center_y and circle.radius == radius:
                 return circle
         return None
 
@@ -217,9 +216,7 @@ class CircleManager:
                 pass
 
         # Remove from drawables
-        removed = remove_drawable_with_dependencies(
-            self.drawables, self.dependency_manager, circle
-        )
+        removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, circle)
 
         # Redraw
         if self.canvas.draw_enabled:

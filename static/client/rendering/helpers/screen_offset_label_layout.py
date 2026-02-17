@@ -109,6 +109,7 @@ class LabelTextCall:
         font_size: Font size in pixels.
         line_height: Line spacing in pixels.
     """
+
     __slots__ = (
         "group",
         "order",
@@ -172,6 +173,7 @@ class LabelBlock:
         base_rect: Bounding rectangle at dy=0.
         step: Vertical step size for displacement.
     """
+
     __slots__ = ("group", "order", "base_rect", "step")
 
     def __init__(self, *, group: Any, order: int, base_rect: Rect, step: float) -> None:
@@ -193,6 +195,7 @@ class SpatialHash2D:
         _rects: Dict mapping groups to their bounding rectangles.
         _group_cells: Dict mapping groups to their occupied cells.
     """
+
     __slots__ = ("_cell_size", "_cells", "_rects", "_group_cells")
 
     def __init__(self, *, cell_size: float = 32.0) -> None:
@@ -478,7 +481,7 @@ class _ScreenOffsetLabelLayoutSolver:
             return a
 
         best_dy = self._dy.get(mover, 0.0)
-        best_overlaps = 10 ** 9
+        best_overlaps = 10**9
 
         for k in range(0, max_steps + 1):
             if k == 0:
@@ -495,7 +498,7 @@ class _ScreenOffsetLabelLayoutSolver:
                     else:
                         best_zero = better_dy(best_zero, candidate_dy, overlaps_a=0, overlaps_b=0)
                     continue
-                if best_overlaps == 10 ** 9:
+                if best_overlaps == 10**9:
                     best_overlaps = overlaps
                     best_dy = candidate_dy
                     continue
@@ -886,7 +889,7 @@ def solve_dy_with_hide_for_text_calls(
             return a
 
         best_dy = dy.get(g, 0.0) or 0.0
-        best_overlaps = 10 ** 9
+        best_overlaps = 10**9
         for k in range(0, max_k + 1):
             if k == 0:
                 candidates = (0.0,)
@@ -896,7 +899,7 @@ def solve_dy_with_hide_for_text_calls(
             for cand in candidates:
                 cand_rect = shift_rect_y(rect0, cand)
                 overlaps, _ = _count_overlaps(grid, cand_rect, ignore=ignore)
-                if best_overlaps == 10 ** 9:
+                if best_overlaps == 10**9:
                     best_overlaps = overlaps
                     best_dy = cand
                     if overlaps == 0:
@@ -969,7 +972,7 @@ def solve_dy_with_hide_for_text_calls(
         # Lookahead mover selection under the hard dy bound.
         best_group: Any = None
         best_dy: float = 0.0
-        best_overlaps: int = 10 ** 9
+        best_overlaps: int = 10**9
         best_key: Optional[Tuple[int, float, float, int]] = None
         for cand in collision_set:
             if cand in hidden or grid.get_rect(cand) is None:
@@ -1055,5 +1058,3 @@ def solve_dy_with_hide_for_text_calls(
         dy.pop(h, None)
 
     return dict(dy), hidden
-
-

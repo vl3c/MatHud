@@ -17,7 +17,7 @@ def signal_handler(sig: int, frame: FrameType | None) -> None:
 
     Cleans up WebDriver and Ollama resources and exits the application properly.
     """
-    print('\nShutting down gracefully...')
+    print("\nShutting down gracefully...")
     # Clean up WebDriverManager
     if app.webdriver_manager is not None:
         try:
@@ -28,6 +28,7 @@ def signal_handler(sig: int, frame: FrameType | None) -> None:
     # Clean up Ollama server if we started it
     try:
         from static.providers.local.ollama_api import OllamaAPI
+
         OllamaAPI.stop_server()
     except Exception as e:
         print(f"Error stopping Ollama: {e}")
@@ -42,54 +43,55 @@ app: MatHudFlask = AppManager.create_app()
 # Register signal handler at module level for both run modes
 signal.signal(signal.SIGINT, signal_handler)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     """Main execution block.
 
     Starts Flask server in a daemon thread, initializes WebDriver for vision system,
     and maintains the main thread for graceful interrupt handling.
     """
     # Parse command-line arguments
-    parser = argparse.ArgumentParser(description='MatHud Flask Application')
+    parser = argparse.ArgumentParser(description="MatHud Flask Application")
     parser.add_argument(
-        '-p', '--port',
-        type=int,
-        default=None,
-        help='Port to run the server on (default: 5000, or PORT env var)'
+        "-p", "--port", type=int, default=None, help="Port to run the server on (default: 5000, or PORT env var)"
     )
     args = parser.parse_args()
 
     try:
         # Priority: CLI argument > environment variable > default (5000)
-        env_port = os.environ.get('PORT')
+        env_port = os.environ.get("PORT")
         port = args.port if args.port is not None else int(env_port or 5000)
 
         # Store port in app config for WebDriverManager to use
-        app.config['SERVER_PORT'] = port
+        app.config["SERVER_PORT"] = port
 
         # Check if we're running in a deployment environment
         is_deployed = args.port is None and env_port is not None
-        force_non_debug = os.environ.get('MATHUD_NON_DEBUG', '').lower() in ('1', 'true', 'yes')
+        force_non_debug = os.environ.get("MATHUD_NON_DEBUG", "").lower() in ("1", "true", "yes")
 
         # Enable debug mode for local development
         debug_mode = not (is_deployed or force_non_debug)
 
         if is_deployed:
             # For deployment: run Flask directly without threading
-            host = '0.0.0.0'  # Bind to all interfaces for deployment
+            host = "0.0.0.0"  # Bind to all interfaces for deployment
             print(f"Starting Flask app on {host}:{port} (deployment mode)")
             app.run(host=host, port=port, debug=False)
         else:
             # For local development: use threading approach with debug capability
-            host = '127.0.0.1'  # Localhost for development
+            host = "127.0.0.1"  # Localhost for development
             print(f"Starting Flask app on {host}:{port} (development mode, debug={debug_mode})")
 
             from threading import Thread
-            server = Thread(target=app.run, kwargs={
-                'host': host,
-                'port': port,
-                'debug': debug_mode,
-                'use_reloader': False  # Disable reloader in thread mode to avoid issues
-            })
+
+            server = Thread(
+                target=app.run,
+                kwargs={
+                    "host": host,
+                    "port": port,
+                    "debug": debug_mode,
+                    "use_reloader": False,  # Disable reloader in thread mode to avoid issues
+                },
+            )
             server.daemon = True  # Make the server thread a daemon so it exits when main thread exits
             server.start()
 
@@ -99,6 +101,7 @@ if __name__ == '__main__':
             # Start Ollama server if installed (only in local development)
             try:
                 from static.providers.local.ollama_api import OllamaAPI
+
                 if OllamaAPI.is_ollama_installed():
                     success, message = OllamaAPI.start_server(timeout=10)
                     print(f"Ollama: {message}")
@@ -110,8 +113,9 @@ if __name__ == '__main__':
             # Initialize WebDriver (only in local development)
             if app.webdriver_manager is None:
                 import requests
+
                 try:
-                    requests.get(f'http://{host}:{port}/init_webdriver')
+                    requests.get(f"http://{host}:{port}/init_webdriver")
                     print("WebDriver initialized successfully")
                 except Exception as e:
                     print(f"Failed to initialize WebDriver: {str(e)}")

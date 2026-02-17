@@ -33,6 +33,7 @@ from drawables.drawable import Drawable
 from drawables.point import Point
 from utils.math_utils import MathUtils
 
+
 class Ellipse(Drawable):
     """Represents an ellipse with center point, dual radii, and rotation angle.
 
@@ -47,7 +48,15 @@ class Ellipse(Drawable):
         rotation_angle (float): Rotation angle in degrees for ellipse orientation
         ellipse_formula (dict): Algebraic ellipse equation coefficients
     """
-    def __init__(self, center_point: Point, radius_x: float, radius_y: float, rotation_angle: float = 0, color: str = default_color) -> None:
+
+    def __init__(
+        self,
+        center_point: Point,
+        radius_x: float,
+        radius_y: float,
+        rotation_angle: float = 0,
+        color: str = default_color,
+    ) -> None:
         """Initialize an ellipse with center point, radii, and rotation.
 
         Args:
@@ -65,7 +74,7 @@ class Ellipse(Drawable):
         super().__init__(name=self._generate_default_name(), color=color)
 
     def get_class_name(self) -> str:
-        return 'Ellipse'
+        return "Ellipse"
 
     def _calculate_ellipse_algebraic_formula(self) -> Dict[str, float]:
         x: float = self.center.x
@@ -82,8 +91,8 @@ class Ellipse(Drawable):
                 "radius_x": self.radius_x,
                 "radius_y": self.radius_y,
                 "rotation_angle": self.rotation_angle,
-                "ellipse_formula": self.ellipse_formula
-            }
+                "ellipse_formula": self.ellipse_formula,
+            },
         }
         return state
 
@@ -93,9 +102,9 @@ class Ellipse(Drawable):
         # Deep copy the center point
         new_center: Point = deepcopy(self.center, memo)
         # Create a new Ellipse instance with the copied center point and other properties
-        new_ellipse: Ellipse = Ellipse(new_center, self.radius_x, self.radius_y,
-                             color=self.color,
-                             rotation_angle=self.rotation_angle)
+        new_ellipse: Ellipse = Ellipse(
+            new_center, self.radius_x, self.radius_y, color=self.color, rotation_angle=self.rotation_angle
+        )
         memo[id(self)] = new_ellipse
         return new_ellipse
 
@@ -136,9 +145,7 @@ class Ellipse(Drawable):
         uniform = abs(sx - sy) < 1e-9
         rotated = (self.rotation_angle % 180) > 1e-9
         if not uniform and rotated:
-            raise ValueError(
-                "Non-uniform scaling of a rotated ellipse is not supported"
-            )
+            raise ValueError("Non-uniform scaling of a rotated ellipse is not supported")
         self.center.scale(sx, sy, cx, cy)
         if uniform:
             self.radius_x = abs(self.radius_x * sx)

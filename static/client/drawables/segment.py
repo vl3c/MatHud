@@ -36,6 +36,7 @@ from drawables.point import Point
 from drawables.position import Position
 from utils.math_utils import MathUtils
 
+
 class Segment(Drawable):
     """Represents a line segment between two points with mathematical line properties.
 
@@ -47,6 +48,7 @@ class Segment(Drawable):
         point2 (Point): Second endpoint of the segment
         line_formula (dict): Algebraic line equation coefficients (a, b, c for ax + by + c = 0)
     """
+
     def __init__(
         self,
         p1: Point,
@@ -80,7 +82,7 @@ class Segment(Drawable):
         )
 
     def get_class_name(self) -> str:
-        return 'Segment'
+        return "Segment"
 
     def _calculate_line_algebraic_formula(self) -> Dict[str, float]:
         p1: Point = self.point1
@@ -123,6 +125,7 @@ class Segment(Drawable):
         # Check if the segment has already been deep copied
         if id(self) in memo:
             from typing import cast
+
             return cast(Segment, memo[id(self)])
 
         # Deepcopy points that define the segment
@@ -257,7 +260,7 @@ class Segment(Drawable):
         # Assumes self.point1 and self.point2 are not None
         # Requires Point class to have proper __eq__ and __hash__
         if self.point1 is None or self.point2 is None or other.point1 is None or other.point2 is None:
-            return False # Or handle appropriately if None points are possible during comparison
+            return False  # Or handle appropriately if None points are possible during comparison
         points_self: set[Point] = {self.point1, self.point2}
         points_other: set[Point] = {other.point1, other.point2}
         return points_self == points_other
@@ -266,8 +269,8 @@ class Segment(Drawable):
         """Computes hash based on a frozenset of the hashes of its endpoint Points."""
         # Hash is based on the IDs of the point objects, order-independent
         if self.point1 is None or self.point2 is None:
-             # Consistent with __eq__ if points can be None
-             return hash((None, None))
+            # Consistent with __eq__ if points can be None
+            return hash((None, None))
         # Use frozenset of point hashes to ensure hash is consistent regardless of point1/point2 order
         # and relies on Point.__hash__ which is value-based.
         return hash(frozenset([hash(self.point1), hash(self.point2)]))

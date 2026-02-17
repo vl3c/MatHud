@@ -75,14 +75,8 @@ class CircularArc(PathElement):
         center = (float(arc.center_x), float(arc.center_y))
         radius = float(arc.radius)
 
-        start_angle = math.atan2(
-            arc.point1.y - arc.center_y,
-            arc.point1.x - arc.center_x
-        )
-        end_angle = math.atan2(
-            arc.point2.y - arc.center_y,
-            arc.point2.x - arc.center_x
-        )
+        start_angle = math.atan2(arc.point1.y - arc.center_y, arc.point1.x - arc.center_x)
+        end_angle = math.atan2(arc.point2.y - arc.center_y, arc.point2.x - arc.center_x)
 
         ccw_span = end_angle - start_angle
         if ccw_span < 0:
@@ -216,4 +210,3 @@ class CircularArc(PathElement):
     def __repr__(self) -> str:
         direction = "CW" if self._clockwise else "CCW"
         return f"CircularArc(center={self._center}, r={self._radius}, {self._start_angle:.3f} to {self._end_angle:.3f} {direction})"
-

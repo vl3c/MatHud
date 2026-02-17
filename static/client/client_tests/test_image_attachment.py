@@ -101,11 +101,7 @@ class TestAttachedImagesState(unittest.TestCase):
 
     def test_append_multiple_images(self) -> None:
         """Test appending multiple images."""
-        images = [
-            "data:image/png;base64,img1",
-            "data:image/jpeg;base64,img2",
-            "data:image/png;base64,img3"
-        ]
+        images = ["data:image/png;base64,img1", "data:image/jpeg;base64,img2", "data:image/png;base64,img3"]
         for img in images:
             self.ai._attached_images.append(img)
         self.assertEqual(len(self.ai._attached_images), 3)
@@ -116,7 +112,7 @@ class TestAttachedImagesState(unittest.TestCase):
         self.ai._attached_images = [
             "data:image/png;base64,img1",
             "data:image/png;base64,img2",
-            "data:image/png;base64,img3"
+            "data:image/png;base64,img3",
         ]
         self.ai._attached_images.pop(1)
         self.assertEqual(len(self.ai._attached_images), 2)
@@ -125,10 +121,7 @@ class TestAttachedImagesState(unittest.TestCase):
 
     def test_clear_images(self) -> None:
         """Test clearing all images."""
-        self.ai._attached_images = [
-            "data:image/png;base64,img1",
-            "data:image/png;base64,img2"
-        ]
+        self.ai._attached_images = ["data:image/png;base64,img1", "data:image/png;base64,img2"]
         self.ai._attached_images = []
         self.assertEqual(len(self.ai._attached_images), 0)
 
@@ -180,17 +173,14 @@ class TestPayloadGeneration(unittest.TestCase):
 
     def test_payload_includes_attached_images(self) -> None:
         """Test that payload includes attached_images array."""
-        attached_images = [
-            "data:image/png;base64,img1",
-            "data:image/jpeg;base64,img2"
-        ]
+        attached_images = ["data:image/png;base64,img1", "data:image/jpeg;base64,img2"]
 
         # Simulate payload creation
         payload = {
             "canvas_state": {},
             "user_message": "What do you see?",
             "use_vision": False,
-            "attached_images": attached_images
+            "attached_images": attached_images,
         }
 
         self.assertIn("attached_images", payload)
@@ -230,7 +220,7 @@ class TestPayloadGeneration(unittest.TestCase):
             "canvas_state": {},
             "user_message": "Compare canvas and image",
             "use_vision": True,  # Vision enabled
-            "attached_images": attached_images  # Also has attached images
+            "attached_images": attached_images,  # Also has attached images
         }
 
         self.assertTrue(payload["use_vision"])
@@ -405,6 +395,7 @@ class TestModalLogic(unittest.TestCase):
 
     def test_backdrop_click_detection(self) -> None:
         """Test backdrop click is detected by element id."""
+
         class MockEvent:
             def __init__(self, target_id: str) -> None:
                 self.target = MagicMock()
@@ -426,41 +417,23 @@ class TestMessageElementWithImages(unittest.TestCase):
 
     def test_message_with_images_parameter(self) -> None:
         """Test message creation accepts images parameter."""
+
         # Simulate _create_message_element signature
         def create_message_element(
-            sender: str,
-            message: str,
-            message_type: str = "normal",
-            images: Optional[List[str]] = None
+            sender: str, message: str, message_type: str = "normal", images: Optional[List[str]] = None
         ) -> Dict[str, Any]:
-            return {
-                "sender": sender,
-                "message": message,
-                "type": message_type,
-                "images": images
-            }
+            return {"sender": sender, "message": message, "type": message_type, "images": images}
 
-        result = create_message_element(
-            "User",
-            "Hello",
-            images=["data:image/png;base64,img1"]
-        )
+        result = create_message_element("User", "Hello", images=["data:image/png;base64,img1"])
         self.assertEqual(result["images"], ["data:image/png;base64,img1"])
 
     def test_message_without_images(self) -> None:
         """Test message creation without images."""
+
         def create_message_element(
-            sender: str,
-            message: str,
-            message_type: str = "normal",
-            images: Optional[List[str]] = None
+            sender: str, message: str, message_type: str = "normal", images: Optional[List[str]] = None
         ) -> Dict[str, Any]:
-            return {
-                "sender": sender,
-                "message": message,
-                "type": message_type,
-                "images": images
-            }
+            return {"sender": sender, "message": message, "type": message_type, "images": images}
 
         result = create_message_element("User", "Hello")
         self.assertIsNone(result["images"])

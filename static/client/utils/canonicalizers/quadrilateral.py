@@ -406,20 +406,12 @@ class QuadrilateralCanonicalizer:
         for orientation in (1.0, -1.0):
             v_actual_unit = (v_actual_unit_base[0] * orientation, v_actual_unit_base[1] * orientation)
             b_corner = (
-                primary_anchor[0]
-                + u_actual_unit[0] * (proj_b_u * scale)
-                + v_actual_unit[0] * (proj_b_v * scale),
-                primary_anchor[1]
-                + u_actual_unit[1] * (proj_b_u * scale)
-                + v_actual_unit[1] * (proj_b_v * scale),
+                primary_anchor[0] + u_actual_unit[0] * (proj_b_u * scale) + v_actual_unit[0] * (proj_b_v * scale),
+                primary_anchor[1] + u_actual_unit[1] * (proj_b_u * scale) + v_actual_unit[1] * (proj_b_v * scale),
             )
             d_corner = (
-                primary_anchor[0]
-                + u_actual_unit[0] * (proj_d_u * scale)
-                + v_actual_unit[0] * (proj_d_v * scale),
-                primary_anchor[1]
-                + u_actual_unit[1] * (proj_d_u * scale)
-                + v_actual_unit[1] * (proj_d_v * scale),
+                primary_anchor[0] + u_actual_unit[0] * (proj_d_u * scale) + v_actual_unit[0] * (proj_d_v * scale),
+                primary_anchor[1] + u_actual_unit[1] * (proj_d_u * scale) + v_actual_unit[1] * (proj_d_v * scale),
             )
             candidate = [primary_anchor, b_corner, opposite_anchor, d_corner]
             error = QuadrilateralCanonicalizer._rectangle_fit_error(candidate, source_vertices)
@@ -726,9 +718,7 @@ class QuadrilateralCanonicalizer:
     def _ensure_non_degenerate(points: Sequence[PointTuple], tolerance: float) -> None:
         area = abs(QuadrilateralCanonicalizer._signed_area(points))
         if area <= tolerance:
-            raise PolygonCanonicalizationError(
-                "Provided vertices collapse to a line; cannot form a quadrilateral."
-            )
+            raise PolygonCanonicalizationError("Provided vertices collapse to a line; cannot form a quadrilateral.")
 
     @staticmethod
     def _average_side_length(points: Sequence[PointTuple]) -> float:
@@ -752,11 +742,7 @@ class QuadrilateralCanonicalizer:
         start_index = distances.index(min(distances))
         aligned = list(vertices[start_index:]) + list(vertices[:start_index])
 
-        if (
-            QuadrilateralCanonicalizer._signed_area(aligned)
-            * QuadrilateralCanonicalizer._signed_area(original)
-            < 0
-        ):
+        if QuadrilateralCanonicalizer._signed_area(aligned) * QuadrilateralCanonicalizer._signed_area(original) < 0:
             aligned = [aligned[0]] + list(reversed(aligned[1:]))
         return aligned
 

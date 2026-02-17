@@ -49,9 +49,34 @@ User query: "{query}"
 Return a JSON array of up to {max_results} tool names. Example: ["create_circle", "create_point"]"""
     _STOPWORDS = frozenset(
         {
-            "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
-            "how", "i", "if", "in", "is", "it", "me", "of", "on", "or",
-            "please", "show", "the", "to", "up", "use", "with", "you",
+            "a",
+            "an",
+            "and",
+            "are",
+            "as",
+            "at",
+            "be",
+            "by",
+            "for",
+            "from",
+            "how",
+            "i",
+            "if",
+            "in",
+            "is",
+            "it",
+            "me",
+            "of",
+            "on",
+            "or",
+            "please",
+            "show",
+            "the",
+            "to",
+            "up",
+            "use",
+            "with",
+            "you",
         }
     )
 
@@ -257,11 +282,18 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # Intent boosts for common confusion clusters.
         if any(t in query_tokens for t in ("move", "shift", "translate")) and tool_name == "translate_object":
             score += 4.0
-        if any(t in query_tokens for t in ("area", "shade", "region")) and tool_name in {"calculate_area", "create_colored_area", "create_region_colored_area"}:
+        if any(t in query_tokens for t in ("area", "shade", "region")) and tool_name in {
+            "calculate_area",
+            "create_colored_area",
+            "create_region_colored_area",
+        }:
             score += 2.0
         if any(t in query_tokens for t in ("distribution", "gaussian", "normal")) and tool_name == "plot_distribution":
             score += 4.0
-        if any(t in query_tokens for t in ("determinant", "eigenvalue", "matrix", "vector")) and tool_name == "evaluate_linear_algebra_expression":
+        if (
+            any(t in query_tokens for t in ("determinant", "eigenvalue", "matrix", "vector"))
+            and tool_name == "evaluate_linear_algebra_expression"
+        ):
             score += 4.0
         if any(t in query_tokens for t in ("undo", "redo", "history")) and tool_name in {"undo", "redo"}:
             score += 4.0

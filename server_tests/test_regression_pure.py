@@ -404,7 +404,7 @@ class TestFitSinusoidal(unittest.TestCase):
     def test_sinusoidal_with_phase_shift(self) -> None:
         # y = sin(x + pi/4)
         x = [i * 0.5 for i in range(20)]
-        y = [math.sin(xi + math.pi/4) for xi in x]
+        y = [math.sin(xi + math.pi / 4) for xi in x]
 
         result = fit_sinusoidal(x, y)
         self.assertGreater(result["r_squared"], 0.9)
@@ -421,8 +421,7 @@ class TestFitRegressionDispatcher(unittest.TestCase):
     """Tests for the main fit_regression dispatcher function."""
 
     def test_supported_model_types(self) -> None:
-        expected = ("linear", "polynomial", "exponential", "logarithmic",
-                    "power", "logistic", "sinusoidal")
+        expected = ("linear", "polynomial", "exponential", "logarithmic", "power", "logistic", "sinusoidal")
         self.assertEqual(SUPPORTED_MODEL_TYPES, expected)
 
     def test_dispatch_linear(self) -> None:

@@ -56,10 +56,7 @@ class ProcessFunctionCalls:
         return ExpressionEvaluator.evaluate_expression(expression, variables, canvas)
 
     @staticmethod
-    def evaluate_linear_algebra_expression(
-        objects: List[LinearAlgebraObject],
-        expression: str
-    ) -> LinearAlgebraResult:
+    def evaluate_linear_algebra_expression(objects: List[LinearAlgebraObject], expression: str) -> LinearAlgebraResult:
         """Evaluates a linear algebra expression using predefined objects.
 
         Delegates to LinearAlgebraUtils for matrix and vector validation and
@@ -121,9 +118,13 @@ class ProcessFunctionCalls:
         Returns:
             Tuple of (results dict, list of traced call records)
         """
-        return ResultProcessor.get_results_traced(
-            calls, available_functions, undoable_functions, canvas,
+        result: tuple[dict[str, Any], list[dict[str, Any]]] = ResultProcessor.get_results_traced(
+            calls,
+            available_functions,
+            undoable_functions,
+            canvas,
         )
+        return result
 
     @staticmethod
     def validate_results(results: Dict[str, Any]) -> bool:

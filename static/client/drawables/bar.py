@@ -53,7 +53,9 @@ class Bar(Drawable):
         label_text: Optional[str] = None,
         is_renderable: bool = True,
     ) -> None:
-        super().__init__(name=name, color=str(stroke_color) if stroke_color is not None else "", is_renderable=is_renderable)
+        super().__init__(
+            name=name, color=str(stroke_color) if stroke_color is not None else "", is_renderable=is_renderable
+        )
         self.x_left: float = float(x_left)
         self.x_right: float = float(x_right)
         self.y_bottom: float = float(y_bottom)
@@ -117,5 +119,3 @@ class Bar(Drawable):
         )
         memo[id(self)] = copied
         return copied
-
-

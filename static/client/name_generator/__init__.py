@@ -14,9 +14,9 @@ from .function import FunctionNameGenerator
 from .arc import ArcNameGenerator
 
 __all__ = [
-    'DrawableNameGenerator',
-    'NameGenerator',
-    'PointNameGenerator',
-    'FunctionNameGenerator',
-    'ArcNameGenerator',
+    "DrawableNameGenerator",
+    "NameGenerator",
+    "PointNameGenerator",
+    "FunctionNameGenerator",
+    "ArcNameGenerator",
 ]

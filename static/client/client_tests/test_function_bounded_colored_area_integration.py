@@ -21,15 +21,15 @@ class TestFunctionBoundedColoredAreaIntegration(unittest.TestCase):
         left: float,
         right: float,
     ) -> Tuple[FunctionsBoundedColoredArea, FunctionsBoundedAreaRenderable]:
-        f1 = Function(f1_str, name='f1', left_bound=left, right_bound=right)
-        f2 = Function(f2_str, name='f2', left_bound=left, right_bound=right)
+        f1 = Function(f1_str, name="f1", left_bound=left, right_bound=right)
+        f2 = Function(f2_str, name="f2", left_bound=left, right_bound=right)
         area = FunctionsBoundedColoredArea(f1, f2, left_bound=left, right_bound=right, num_sample_points=50)
         renderable = FunctionsBoundedAreaRenderable(area, self.mapper)
         return area, renderable
 
     def test_area_respects_function_bounds_simple(self) -> None:
         left, right = -300, 300
-        _, renderable = self._build_area('50 * sin(x / 50)', '100 * sin(x / 30)', left, right)
+        _, renderable = self._build_area("50 * sin(x / 50)", "100 * sin(x / 30)", left, right)
         closed = renderable.build_screen_area()
         self.assertIsNotNone(closed)
         self.assertGreater(len(closed.forward_points), 0)
@@ -44,6 +44,7 @@ class TestFunctionBoundedColoredAreaIntegration(unittest.TestCase):
         left_screen_x = fxs[0]
         left_math_x, _ = self.mapper.screen_to_math(left_screen_x, 0)
         import math
+
         y1_left = 50 * math.sin(left_math_x / 50.0)
         y2_left = 100 * math.sin(left_math_x / 30.0)
         _, y1s = self.mapper.math_to_screen(left_math_x, y1_left)
@@ -63,7 +64,7 @@ class TestFunctionBoundedColoredAreaIntegration(unittest.TestCase):
     def test_area_respects_function_bounds_with_asymptotes(self) -> None:
         # f3 with tan introduces vertical asymptotes; ensure pairing still aligns ends
         left, right = -300, 300
-        _, renderable = self._build_area('50 * sin(x / 50)', '100 * sin(x / 50) + 50 * tan(x / 100)', left, right)
+        _, renderable = self._build_area("50 * sin(x / 50)", "100 * sin(x / 50) + 50 * tan(x / 100)", left, right)
         closed = renderable.build_screen_area()
         self.assertIsNotNone(closed)
         self.assertGreater(len(closed.forward_points), 0)
@@ -76,6 +77,7 @@ class TestFunctionBoundedColoredAreaIntegration(unittest.TestCase):
         left_screen_x = fxs[0]
         left_math_x, _ = self.mapper.screen_to_math(left_screen_x, 0)
         import math
+
         y1_left = 50 * math.sin(left_math_x / 50.0)
         y2_left = 100 * math.sin(left_math_x / 50.0) + 50 * math.tan(left_math_x / 100.0)
         # If tangent is near asymptote, skip assertion for y2 at that end
@@ -84,5 +86,3 @@ class TestFunctionBoundedColoredAreaIntegration(unittest.TestCase):
             self.assertAlmostEqual(closed.reverse_points[-1][1], y2s, places=5)
         _, y1s = self.mapper.math_to_screen(left_math_x, y1_left)
         self.assertAlmostEqual(closed.forward_points[0][1], y1s, places=5)
-
-

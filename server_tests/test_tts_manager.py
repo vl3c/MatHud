@@ -62,7 +62,7 @@ class TestTTSManager(unittest.TestCase):
 
         manager = TTSManager()
         # Mock the pipeline to avoid actual TTS
-        with patch.object(manager, '_get_pipeline') as mock_pipeline:
+        with patch.object(manager, "_get_pipeline") as mock_pipeline:
             mock_pipeline.return_value = (False, "Test: Kokoro not installed")
             success, result = manager.generate_speech("test", voice="invalid_voice")
 
@@ -109,6 +109,7 @@ class TestTTSManagerWithKokoro(unittest.TestCase):
         """Check if Kokoro is available."""
         try:
             import kokoro  # noqa: F401
+
             cls.kokoro_available = True
         except ImportError:
             cls.kokoro_available = False
@@ -147,5 +148,5 @@ class TestTTSManagerWithKokoro(unittest.TestCase):
         self.assertEqual(result[:4], b"RIFF")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -48,6 +48,7 @@ from typing import TYPE_CHECKING, Any, Dict, List
 if TYPE_CHECKING:
     from canvas import Canvas
 
+
 class UndoRedoManager:
     """
     Manages undo and redo operations for a Canvas object.
@@ -84,8 +85,8 @@ class UndoRedoManager:
     def capture_state(self) -> Dict[str, Any]:
         """Capture the current canvas state snapshot."""
         return {
-            'drawables': copy.deepcopy(self.canvas.drawable_manager.drawables._drawables),
-            'computations': copy.deepcopy(self.canvas.computations),
+            "drawables": copy.deepcopy(self.canvas.drawable_manager.drawables._drawables),
+            "computations": copy.deepcopy(self.canvas.computations),
         }
 
     def push_undo_state(self, state: Dict[str, Any]) -> None:
@@ -95,9 +96,9 @@ class UndoRedoManager:
 
     def restore_state(self, state: Dict[str, Any], redraw: bool = True) -> None:
         """Restore a captured state snapshot."""
-        self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(state['drawables'])
+        self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(state["drawables"])
         self.canvas.drawable_manager.drawables.rebuild_renderables()
-        self.canvas.computations = copy.deepcopy(state.get('computations', []))
+        self.canvas.computations = copy.deepcopy(state.get("computations", []))
         self._rebuild_dependency_graph()
         if redraw:
             self.canvas.draw()
@@ -126,13 +127,13 @@ class UndoRedoManager:
 
         # Archive current state for redo
         current_state = {
-            'drawables': copy.deepcopy(self.canvas.drawable_manager.drawables._drawables),
-            'computations': copy.deepcopy(self.canvas.computations)
+            "drawables": copy.deepcopy(self.canvas.drawable_manager.drawables._drawables),
+            "computations": copy.deepcopy(self.canvas.computations),
         }
         self.redo_stack.append(current_state)
 
         # Restore only the drawables from the last state
-        self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(last_state['drawables'])
+        self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(last_state["drawables"])
         self.canvas.drawable_manager.drawables.rebuild_renderables()
 
         # Ensure all objects are properly initialized
@@ -159,13 +160,13 @@ class UndoRedoManager:
 
         # Archive current state for undo
         current_state = {
-            'drawables': copy.deepcopy(self.canvas.drawable_manager.drawables._drawables),
-            'computations': copy.deepcopy(self.canvas.computations)
+            "drawables": copy.deepcopy(self.canvas.drawable_manager.drawables._drawables),
+            "computations": copy.deepcopy(self.canvas.computations),
         }
         self.undo_stack.append(current_state)
 
         # Restore only the drawables from the next state
-        self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(next_state['drawables'])
+        self.canvas.drawable_manager.drawables._drawables = copy.deepcopy(next_state["drawables"])
         self.canvas.drawable_manager.drawables.rebuild_renderables()
 
         # Ensure all objects are properly initialized
@@ -211,7 +212,7 @@ class UndoRedoManager:
 
         # This assumes self.canvas has a 'dependency_manager' attribute
         # which is an instance of DrawableDependencyManager.
-        if hasattr(self.canvas, 'dependency_manager') and self.canvas.dependency_manager is not None:
+        if hasattr(self.canvas, "dependency_manager") and self.canvas.dependency_manager is not None:
             dependency_manager = self.canvas.dependency_manager
 
             # Clear existing dependency relationships from the manager
@@ -226,8 +227,10 @@ class UndoRedoManager:
         else:
             # Log a warning if the dependency manager isn't found on the canvas object.
             # This helps in debugging if the expected structure isn't met.
-            print("UndoRedoManager: Warning - Canvas instance does not have a 'dependency_manager' " + \
-                  "attribute or it is None. Skipping dependency graph rebuild for undo/redo operation.")
+            print(
+                "UndoRedoManager: Warning - Canvas instance does not have a 'dependency_manager' "
+                + "attribute or it is None. Skipping dependency graph rebuild for undo/redo operation."
+            )
 
     def clear(self) -> None:
         """

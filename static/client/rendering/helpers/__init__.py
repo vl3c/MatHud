@@ -83,4 +83,3 @@ __all__ = [
     "build_segments_colored_area",
     "build_closed_shape_colored_area",
 ]
-

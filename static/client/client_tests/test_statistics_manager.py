@@ -272,7 +272,9 @@ class TestStatisticsManager(unittest.TestCase):
             y_base=0.0,
         )
 
-        self.assertTrue(any("operation': 'plot_bars'" in msg and "stage': 'start'" in msg for msg in logger_spy.messages))
+        self.assertTrue(
+            any("operation': 'plot_bars'" in msg and "stage': 'start'" in msg for msg in logger_spy.messages)
+        )
         self.assertTrue(any("operation': 'plot_bars'" in msg and "stage': 'end'" in msg for msg in logger_spy.messages))
         self.assertTrue(any("elapsed_ms" in msg for msg in logger_spy.messages))
 
@@ -294,7 +296,9 @@ class TestStatisticsManager(unittest.TestCase):
                 bar_count=None,
             )
 
-        self.assertTrue(any("operation': 'plot_distribution'" in msg and "stage': 'failure'" in msg for msg in logger_spy.messages))
+        self.assertTrue(
+            any("operation': 'plot_distribution'" in msg and "stage': 'failure'" in msg for msg in logger_spy.messages)
+        )
 
     def test_log_operation_debug_no_logger_is_noop(self) -> None:
         stats = self.canvas.drawable_manager.statistics_manager

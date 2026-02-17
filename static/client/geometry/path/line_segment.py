@@ -94,4 +94,3 @@ class LineSegment(PathElement):
 
     def __repr__(self) -> str:
         return f"LineSegment({self._start}, {self._end})"
-
