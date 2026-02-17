@@ -9,6 +9,7 @@ commands:
   lint: "python -m ruff check ."
   format: "python -m ruff check --fix . && python -m ruff format ."
   typecheck: "python -m mypy ."
+  build: ""  # No build step — explicitly disable auto-detection
 
 phases:
   test_execution:
