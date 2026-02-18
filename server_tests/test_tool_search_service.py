@@ -258,6 +258,54 @@ class TestSearchToolsWithMock:
         call_args = mock_client.chat.completions.create.call_args
         assert call_args.kwargs.get("model") == "gpt-4.1"
 
+    def test_search_openai_reasoning_model_uses_max_completion_tokens(
+        self, service: ToolSearchService, mock_client: MagicMock
+    ) -> None:
+        """OpenAI reasoning models should use max_completion_tokens."""
+        self._setup_mock_response(mock_client, '["create_circle"]')
+        model = AIModel.from_identifier("o4-mini")
+
+        service.search_tools("draw", model=model)
+
+        call_args = mock_client.chat.completions.create.call_args
+        assert call_args.kwargs.get("model") == "o4-mini"
+        assert call_args.kwargs.get("max_completion_tokens") == 500
+        assert "max_tokens" not in call_args.kwargs
+
+    def test_search_non_openai_reasoning_model_uses_max_tokens(
+        self, service: ToolSearchService, mock_client: MagicMock
+    ) -> None:
+        """Non-OpenAI reasoning models should keep max_tokens."""
+        self._setup_mock_response(mock_client, '["create_circle"]')
+        model = AIModel(
+            identifier="reasoning-openrouter-test",
+            has_vision=False,
+            is_reasoning_model=True,
+            provider="openrouter",
+        )
+
+        service.search_tools("draw", model=model)
+
+        call_args = mock_client.chat.completions.create.call_args
+        assert call_args.kwargs.get("model") == "reasoning-openrouter-test"
+        assert call_args.kwargs.get("max_tokens") == 500
+        assert "max_completion_tokens" not in call_args.kwargs
+
+    def test_search_uses_reasoning_default_model_when_none(self, mock_client: MagicMock) -> None:
+        """Default OpenAI reasoning model should be used as configured."""
+        self._setup_mock_response(mock_client, '["create_circle"]')
+        service = ToolSearchService(
+            client=mock_client,
+            default_model=AIModel.from_identifier("o3"),
+        )
+
+        service.search_tools("draw")
+
+        call_args = mock_client.chat.completions.create.call_args
+        assert call_args.kwargs.get("model") == "o3"
+        assert call_args.kwargs.get("max_completion_tokens") == 500
+        assert "max_tokens" not in call_args.kwargs
+
     def test_search_uses_default_model_when_none(self, service: ToolSearchService, mock_client: MagicMock) -> None:
         """search_tools should use gpt-4.1-mini when no model specified."""
         self._setup_mock_response(mock_client, '["create_circle"]')

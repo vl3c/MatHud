@@ -1,6 +1,6 @@
 """Acceptance tests for Brython browser module type stubs.
 
-Validates that the .pyi stubs under static/client/typing/browser/
+Validates that the .pyi stubs under static/client/type_stubs/browser/
 are syntactically valid, export the expected names, and pass MyPy
 type-checking for common browser API usage patterns.
 """
@@ -21,8 +21,8 @@ from mypy import api
 # ---------------------------------------------------------------------------
 
 _ROOT: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_STUBS_DIR: str = os.path.join(_ROOT, "static", "client", "typing", "browser")
-_MYPY_PATH: str = os.path.join(_ROOT, "static", "client", "typing")
+_STUBS_DIR: str = os.path.join(_ROOT, "static", "client", "type_stubs", "browser")
+_MYPY_PATH: str = os.path.join(_ROOT, "static", "client", "type_stubs")
 
 _INIT_PYI: str = os.path.join(_STUBS_DIR, "__init__.pyi")
 _DOM_PYI: str = os.path.join(_STUBS_DIR, "_dom.pyi")
@@ -1391,9 +1391,9 @@ class TestMyPyConfiguration(unittest.TestCase):
             "mypy.ini must contain 'mypy_path' setting",
         )
         self.assertIn(
-            "static/client/typing",
+            "static/client/type_stubs",
             content,
-            "mypy_path must reference 'static/client/typing'",
+            "mypy_path must reference 'static/client/type_stubs'",
         )
 
     def test_mypy_ini_has_test_file(self) -> None:
