@@ -81,6 +81,7 @@ class ProviderRegistry:
         # Local providers use server availability check
         if provider_name in LOCAL_PROVIDERS:
             from static.providers.local import LocalProviderRegistry
+
             return LocalProviderRegistry.is_provider_available(provider_name)
 
         # API-based providers use API key check
@@ -141,8 +142,9 @@ def get_provider_for_model(model_id: str) -> Optional[str]:
         Provider name, or None if unknown
     """
     from static.ai_model import AIModel
+
     model = AIModel.from_identifier(model_id)
-    return getattr(model, 'provider', PROVIDER_OPENAI)
+    return getattr(model, "provider", PROVIDER_OPENAI)
 
 
 def is_local_provider(provider_name: str) -> bool:
@@ -173,6 +175,7 @@ def create_provider_instance(
     # For local providers, get class from LocalProviderRegistry
     if provider_name in LOCAL_PROVIDERS:
         from static.providers.local import LocalProviderRegistry
+
         provider_class = LocalProviderRegistry.get_provider_class(provider_name)
         if provider_class is None:
             _logger.warning(f"Local provider not registered: {provider_name}")
@@ -213,12 +216,14 @@ def discover_providers() -> None:
     # Import API-based provider modules - they self-register on import
     try:
         from static.providers import anthropic_api  # noqa: F401
+
         _logger.debug("Loaded anthropic_api provider module")
     except ImportError as e:
         _logger.debug(f"Could not load anthropic_api: {e}")
 
     try:
         from static.providers import openrouter_api  # noqa: F401
+
         _logger.debug("Loaded openrouter_api provider module")
     except ImportError as e:
         _logger.debug(f"Could not load openrouter_api: {e}")
@@ -226,6 +231,7 @@ def discover_providers() -> None:
     # Import local provider modules - they self-register on import
     try:
         from static.providers.local import ollama_api  # noqa: F401
+
         _logger.debug("Loaded ollama_api local provider module")
     except ImportError as e:
         _logger.debug(f"Could not load ollama_api: {e}")

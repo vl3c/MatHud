@@ -80,8 +80,10 @@ class RelationInspector:
         if otype in ("segment", "vector"):
             seg = RelationInspector._as_segment(obj, otype)
             return [
-                float(seg.point1.x), float(seg.point1.y),
-                float(seg.point2.x), float(seg.point2.y),
+                float(seg.point1.x),
+                float(seg.point1.y),
+                float(seg.point2.x),
+                float(seg.point2.y),
             ]
         if otype == "circle":
             return [float(obj.center.x), float(obj.center.y), float(obj.radius)]
@@ -92,8 +94,10 @@ class RelationInspector:
             return coords
         if otype == "ellipse":
             return [
-                float(obj.center.x), float(obj.center.y),
-                float(obj.radius_x), float(obj.radius_y),
+                float(obj.center.x),
+                float(obj.center.y),
+                float(obj.radius_x),
+                float(obj.radius_y),
             ]
         if otype == "rectangle":
             coords_r: List[float] = []
@@ -251,13 +255,19 @@ class RelationInspector:
                 continue
             if cross / denom > tol:
                 return RelationInspector._ok(
-                    "collinear", False,
+                    "collinear",
+                    False,
                     f"Points are not collinear (point at index {i} deviates)",
-                    tol, {"first_deviant_index": i},
+                    tol,
+                    {"first_deviant_index": i},
                 )
 
         return RelationInspector._ok(
-            "collinear", True, "All points are collinear", tol, {"point_count": len(objects)},
+            "collinear",
+            True,
+            "All points are collinear",
+            tol,
+            {"point_count": len(objects)},
         )
 
     @staticmethod
@@ -270,13 +280,17 @@ class RelationInspector:
         p0, p1, p2 = objects[0], objects[1], objects[2]
         try:
             cx, cy, r = MathUtils.circumcenter(
-                float(p0.x), float(p0.y),
-                float(p1.x), float(p1.y),
-                float(p2.x), float(p2.y),
+                float(p0.x),
+                float(p0.y),
+                float(p1.x),
+                float(p1.y),
+                float(p2.x),
+                float(p2.y),
             )
         except ValueError:
             return RelationInspector._ok(
-                "concyclic", False,
+                "concyclic",
+                False,
                 "First three points are collinear — no common circle exists",
                 RelationInspector.RELATION_TOLERANCE,
                 {"reason": "collinear_first_three"},
@@ -288,15 +302,19 @@ class RelationInspector:
             dist = math.hypot(float(pi.x) - cx, float(pi.y) - cy)
             if abs(dist - r) > tol:
                 return RelationInspector._ok(
-                    "concyclic", False,
+                    "concyclic",
+                    False,
                     f"Point at index {i} is not on the common circle (distance from center: {dist:.6f}, radius: {r:.6f})",
-                    tol, {"circumcenter": [cx, cy], "circumradius": r, "first_deviant_index": i},
+                    tol,
+                    {"circumcenter": [cx, cy], "circumradius": r, "first_deviant_index": i},
                 )
 
         return RelationInspector._ok(
-            "concyclic", True,
+            "concyclic",
+            True,
             f"All {len(objects)} points lie on a common circle (center: ({cx:.4f}, {cy:.4f}), radius: {r:.4f})",
-            tol, {"circumcenter": [cx, cy], "circumradius": r},
+            tol,
+            {"circumcenter": [cx, cy], "circumradius": r},
         )
 
     @staticmethod
@@ -319,7 +337,10 @@ class RelationInspector:
             else f"Segments have different lengths ({len1:.6f} vs {len2:.6f})"
         )
         return RelationInspector._ok(
-            "equal_length", equal, expl, tol,
+            "equal_length",
+            equal,
+            expl,
+            tol,
             {"length1": len1, "length2": len2, "difference": diff},
         )
 
@@ -360,7 +381,10 @@ class RelationInspector:
             else f"Triangles are not similar (side ratios: {ratios[0]:.4f}, {ratios[1]:.4f}, {ratios[2]:.4f})"
         )
         return RelationInspector._ok(
-            "similar", similar, expl, tol,
+            "similar",
+            similar,
+            expl,
+            tol,
             {"side_ratios": ratios, "scale_factor": ratios[0] if similar else None},
         )
 
@@ -386,7 +410,10 @@ class RelationInspector:
             else f"Triangles are not congruent (sides1: {s1}, sides2: {s2})"
         )
         return RelationInspector._ok(
-            "congruent", cong, expl, tol,
+            "congruent",
+            cong,
+            expl,
+            tol,
             {"sides1": s1, "sides2": s2},
         )
 
@@ -403,7 +430,9 @@ class RelationInspector:
             seg_idx = 0 if object_types[0] in ("segment", "vector") else 1
             cir_idx = 1 - seg_idx
             return RelationInspector._tangent_segment_circle(
-                objects[seg_idx], object_types[seg_idx], objects[cir_idx],
+                objects[seg_idx],
+                object_types[seg_idx],
+                objects[cir_idx],
             )
 
         # circle + circle
@@ -462,9 +491,17 @@ class RelationInspector:
             expl = f"Segment is not tangent to circle (distance from center to line: {dist:.6f}, radius: {r:.6f})"
 
         return RelationInspector._ok(
-            "tangent", is_tangent, expl, tol,
-            {"distance_to_line": dist, "radius": r, "tangent_point": [fx, fy],
-             "foot_on_segment": foot_on_segment, "t_parameter": t_param},
+            "tangent",
+            is_tangent,
+            expl,
+            tol,
+            {
+                "distance_to_line": dist,
+                "radius": r,
+                "tangent_point": [fx, fy],
+                "foot_on_segment": foot_on_segment,
+                "t_parameter": t_param,
+            },
         )
 
     @staticmethod
@@ -486,14 +523,18 @@ class RelationInspector:
         else:
             kind = "not tangent"
 
-        expl = (
-            f"Circles are {kind} (center distance: {d:.6f}, r1+r2: {r1 + r2:.6f}, |r1-r2|: {abs(r1 - r2):.6f})"
-        )
+        expl = f"Circles are {kind} (center distance: {d:.6f}, r1+r2: {r1 + r2:.6f}, |r1-r2|: {abs(r1 - r2):.6f})"
         return RelationInspector._ok(
-            "tangent", is_tangent, expl, tol,
+            "tangent",
+            is_tangent,
+            expl,
+            tol,
             {
-                "center_distance": d, "r1": r1, "r2": r2,
-                "externally_tangent": ext_tangent, "internally_tangent": int_tangent,
+                "center_distance": d,
+                "r1": r1,
+                "r2": r2,
+                "externally_tangent": ext_tangent,
+                "internally_tangent": int_tangent,
             },
         )
 
@@ -512,7 +553,8 @@ class RelationInspector:
         maybe_ix, maybe_iy = RelationInspector._line_line_intersection(segs[0], segs[1])
         if maybe_ix is None or maybe_iy is None:
             return RelationInspector._ok(
-                "concurrent", False,
+                "concurrent",
+                False,
                 "First two lines are parallel — no single point of concurrence",
                 RelationInspector.RELATION_TOLERANCE,
                 {"reason": "parallel_pair"},
@@ -528,20 +570,25 @@ class RelationInspector:
             ref = max(1.0, abs(ix), abs(iy), RelationInspector._seg_length(segs[i]))
             if dist / ref > tol:
                 return RelationInspector._ok(
-                    "concurrent", False,
+                    "concurrent",
+                    False,
                     f"Lines are not concurrent (line at index {i} misses intersection point)",
-                    tol, {"intersection_of_first_two": [ix, iy], "first_deviant_index": i},
+                    tol,
+                    {"intersection_of_first_two": [ix, iy], "first_deviant_index": i},
                 )
 
         return RelationInspector._ok(
-            "concurrent", True,
+            "concurrent",
+            True,
             f"All {len(objects)} lines are concurrent at ({ix:.4f}, {iy:.4f})",
-            tol, {"intersection": [ix, iy]},
+            tol,
+            {"intersection": [ix, iy]},
         )
 
     @staticmethod
     def _line_line_intersection(
-        s1: Any, s2: Any,
+        s1: Any,
+        s2: Any,
     ) -> Tuple[Optional[float], Optional[float]]:
         """Compute intersection of infinite lines through two segments.
 
@@ -637,7 +684,10 @@ class RelationInspector:
             else f"Point does not lie on the circle (distance from center: {dist:.6f}, radius: {r:.6f})"
         )
         return RelationInspector._ok(
-            "point_on_circle", on_circle, expl, tol,
+            "point_on_circle",
+            on_circle,
+            expl,
+            tol,
             {"distance_from_center": dist, "radius": r, "deviation": abs(dist - r)},
         )
 
@@ -649,7 +699,6 @@ class RelationInspector:
     def _auto_inspect(objects: List[Any], object_types: List[str]) -> Dict[str, Any]:
         """Run all applicable checks for the given type combination."""
         results: List[Dict[str, Any]] = []
-        type_tuple = tuple(sorted(object_types))
         n = len(objects)
 
         checks: List[str] = []

@@ -10,7 +10,7 @@ import time
 import unittest
 from typing import Tuple
 
-sys.path.insert(0, 'static/client/rendering/renderables')
+sys.path.insert(0, "static/client/rendering/renderables")
 
 from adaptive_sampler import (
     AdaptiveSampler,
@@ -67,13 +67,9 @@ class TestAdaptiveSamplerBasic(unittest.TestCase):
         ]
         for left, right in pan_positions:
             samples = get_samples(left, right, lambda x: x, scaled_transform)
+            self.assertAlmostEqual(samples[0], left, places=10, msg=f"First sample {samples[0]} != left bound {left}")
             self.assertAlmostEqual(
-                samples[0], left, places=10,
-                msg=f"First sample {samples[0]} != left bound {left}"
-            )
-            self.assertAlmostEqual(
-                samples[-1], right, places=10,
-                msg=f"Last sample {samples[-1]} != right bound {right}"
+                samples[-1], right, places=10, msg=f"Last sample {samples[-1]} != right bound {right}"
             )
 
     def test_linear_no_gaps_in_coverage(self) -> None:
@@ -159,7 +155,7 @@ class TestAdaptiveSamplerMaxDepth(unittest.TestCase):
 
     def test_respects_max_depth(self) -> None:
         """Should not exceed 2^MAX_DEPTH + 1 samples."""
-        max_possible = (2 ** MAX_DEPTH) + 1
+        max_possible = (2**MAX_DEPTH) + 1
         samples = get_samples(-10, 10, lambda x: math.sin(100 * x), scaled_transform)
         self.assertLessEqual(len(samples), max_possible)
 
@@ -169,9 +165,10 @@ class TestAdaptiveSamplerInvalidValues(unittest.TestCase):
 
     def test_handles_nan(self) -> None:
         """Should handle NaN values gracefully."""
+
         def func_with_nan(x: float) -> float:
             if x == 0:
-                return float('nan')
+                return float("nan")
             return x
 
         samples = get_samples(-10, 10, func_with_nan, identity_transform)
@@ -180,9 +177,10 @@ class TestAdaptiveSamplerInvalidValues(unittest.TestCase):
 
     def test_handles_inf(self) -> None:
         """Should handle infinity values gracefully."""
+
         def func_with_inf(x: float) -> float:
             if abs(x) < 0.01:
-                return float('inf')
+                return float("inf")
             return 1 / x
 
         samples = get_samples(-10, 10, func_with_inf, identity_transform)
@@ -191,6 +189,7 @@ class TestAdaptiveSamplerInvalidValues(unittest.TestCase):
 
     def test_handles_exception(self) -> None:
         """Should handle function exceptions gracefully."""
+
         def func_with_exception(x: float) -> float:
             if x == 0:
                 raise ValueError("Division by zero")
@@ -241,8 +240,11 @@ class TestAdaptiveSamplerPerformance(unittest.TestCase):
         linear_samples = get_samples(-10, 10, lambda x: x, scaled_transform)
         curved_samples = get_samples(-10, 10, lambda x: x * x, scaled_transform)
 
-        self.assertGreater(len(curved_samples), len(linear_samples),
-            f"Curved ({len(curved_samples)}) should use more samples than linear ({len(linear_samples)})")
+        self.assertGreater(
+            len(curved_samples),
+            len(linear_samples),
+            f"Curved ({len(curved_samples)}) should use more samples than linear ({len(linear_samples)})",
+        )
 
 
 class TestAdaptiveSamplerBenchmarks(unittest.TestCase):
@@ -256,15 +258,15 @@ class TestAdaptiveSamplerBenchmarks(unittest.TestCase):
         """Time adaptive sample generation."""
         start = time.perf_counter()
         for _ in range(self.ITERATIONS):
-            AdaptiveSampler.generate_samples(
-                self.LEFT, self.RIGHT, eval_func, scaled_transform
-            )
+            AdaptiveSampler.generate_samples(self.LEFT, self.RIGHT, eval_func, scaled_transform)
         return (time.perf_counter() - start) * 1000 / self.ITERATIONS
 
     def test_linear_benchmark(self) -> None:
         """Benchmark linear function y=x."""
+
         def eval_func(x):
             return x
+
         adaptive_ms = self._time_adaptive(eval_func)
         adaptive_count = len(get_samples(self.LEFT, self.RIGHT, eval_func, scaled_transform))
 
@@ -273,8 +275,10 @@ class TestAdaptiveSamplerBenchmarks(unittest.TestCase):
 
     def test_quadratic_benchmark(self) -> None:
         """Benchmark quadratic function y=x^2."""
+
         def eval_func(x):
             return x * x
+
         adaptive_ms = self._time_adaptive(eval_func)
         adaptive_count = len(get_samples(self.LEFT, self.RIGHT, eval_func, scaled_transform))
 
@@ -282,8 +286,10 @@ class TestAdaptiveSamplerBenchmarks(unittest.TestCase):
 
     def test_sin_benchmark(self) -> None:
         """Benchmark sin function."""
+
         def eval_func(x):
             return math.sin(x)
+
         adaptive_ms = self._time_adaptive(eval_func)
         adaptive_count = len(get_samples(self.LEFT, self.RIGHT, eval_func, scaled_transform))
 
@@ -291,8 +297,10 @@ class TestAdaptiveSamplerBenchmarks(unittest.TestCase):
 
     def test_high_amplitude_sin_benchmark(self) -> None:
         """Benchmark high amplitude sin function."""
+
         def eval_func(x):
             return math.sin(x) * 100
+
         adaptive_ms = self._time_adaptive(eval_func)
         adaptive_count = len(get_samples(self.LEFT, self.RIGHT, eval_func, scaled_transform))
 
@@ -300,16 +308,16 @@ class TestAdaptiveSamplerBenchmarks(unittest.TestCase):
 
     def test_high_frequency_sin_benchmark(self) -> None:
         """Benchmark high frequency sin(10x)."""
+
         def eval_func(x):
             return 10 * math.sin(10 * x)
+
         adaptive_ms = self._time_adaptive(eval_func)
         adaptive_count = len(get_samples(self.LEFT, self.RIGHT, eval_func, scaled_transform))
 
         print(f"\n### High Freq Sin (y=10*sin(10x)): {adaptive_ms:.3f}ms, {adaptive_count} samples")
-        self.assertGreater(adaptive_count, 20,
-            f"High frequency sin should produce >20 samples, got {adaptive_count}")
+        self.assertGreater(adaptive_count, 20, f"High frequency sin should produce >20 samples, got {adaptive_count}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

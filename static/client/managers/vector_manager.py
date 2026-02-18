@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     from managers.point_manager import PointManager
     from name_generator.drawable import DrawableNameGenerator
 
+
 class VectorManager:
     """
     Manages vector drawables for a Canvas.
@@ -107,8 +108,9 @@ class VectorManager:
         """
         vectors = self.drawables.Vectors
         for vector in vectors:
-            if (MathUtils.point_matches_coordinates(vector.origin, x1, y1) and
-                MathUtils.point_matches_coordinates(vector.tip, x2, y2)):
+            if MathUtils.point_matches_coordinates(vector.origin, x1, y1) and MathUtils.point_matches_coordinates(
+                vector.tip, x2, y2
+            ):
                 return vector
         return None
 
@@ -253,13 +255,14 @@ class VectorManager:
         # Find the vector that matches these coordinates
         vectors = self.drawables.Vectors
         for vector in vectors.copy():
-            if (MathUtils.point_matches_coordinates(vector.origin, origin_x, origin_y) and
-                MathUtils.point_matches_coordinates(vector.tip, tip_x, tip_y)):
+            if MathUtils.point_matches_coordinates(
+                vector.origin, origin_x, origin_y
+            ) and MathUtils.point_matches_coordinates(vector.tip, tip_x, tip_y):
                 # Archive before deletion
                 self.canvas.undo_redo_manager.archive()
 
                 # Remove the vector's segment if it's not used by other objects
-                if hasattr(vector, 'segment'):
+                if hasattr(vector, "segment"):
                     segment = vector.segment
                     p1x = segment.point1.x
                     p1y = segment.point1.y
@@ -268,9 +271,7 @@ class VectorManager:
                     self.canvas.drawable_manager.delete_segment(p1x, p1y, p2x, p2y)
 
                 # Remove the vector
-                removed = remove_drawable_with_dependencies(
-                    self.drawables, self.dependency_manager, vector
-                )
+                removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, vector)
 
                 # Redraw
                 if self.canvas.draw_enabled:

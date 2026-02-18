@@ -24,6 +24,7 @@ from typing import Any, Dict
 
 from drawables.drawable import Drawable
 
+
 class ColoredArea(Drawable):
     """Abstract base class for all colored area visualizations between geometric objects.
 
@@ -34,6 +35,7 @@ class ColoredArea(Drawable):
         opacity (float): Fill opacity value between 0.0 and 1.0
         color (str): CSS color value for area fill
     """
+
     def __init__(self, name: str, color: str = "lightblue", opacity: float = 0.3) -> None:
         """Initialize a colored area with basic properties.
 
@@ -46,17 +48,11 @@ class ColoredArea(Drawable):
         self.opacity: float = opacity
 
     def get_class_name(self) -> str:
-        return 'ColoredArea'
+        return "ColoredArea"
 
     def get_state(self) -> Dict[str, Any]:
         """Base state that all colored areas share"""
-        return {
-            "name": self.name,
-            "args": {
-                "color": self.color,
-                "opacity": self.opacity
-            }
-        }
+        return {"name": self.name, "args": {"color": self.color, "opacity": self.opacity}}
 
     def update_color(self, color: str) -> None:
         """Update the area fill color."""

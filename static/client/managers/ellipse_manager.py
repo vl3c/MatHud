@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from managers.point_manager import PointManager
     from name_generator.drawable import DrawableNameGenerator
 
+
 class EllipseManager:
     """
     Manages ellipse drawables for a Canvas.
@@ -103,10 +104,12 @@ class EllipseManager:
         """
         ellipses = self.drawables.Ellipses
         for ellipse in ellipses:
-            if (ellipse.center.x == center_x and
-                ellipse.center.y == center_y and
-                ellipse.radius_x == radius_x and
-                ellipse.radius_y == radius_y):
+            if (
+                ellipse.center.x == center_x
+                and ellipse.center.y == center_y
+                and ellipse.radius_x == radius_x
+                and ellipse.radius_y == radius_y
+            ):
                 return ellipse
         return None
 
@@ -227,9 +230,7 @@ class EllipseManager:
                 pass
 
         # Remove from drawables
-        removed = remove_drawable_with_dependencies(
-            self.drawables, self.dependency_manager, ellipse
-        )
+        removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, ellipse)
 
         # Redraw
         if self.canvas.draw_enabled:
@@ -334,7 +335,9 @@ class EllipseManager:
     ) -> None:
         if any(rule.requires_solitary for rule in rules.values()):
             if not self._is_ellipse_solitary(ellipse):
-                raise ValueError(f"Ellipse '{ellipse.name}' is referenced by other drawables and cannot be edited in place.")
+                raise ValueError(
+                    f"Ellipse '{ellipse.name}' is referenced by other drawables and cannot be edited in place."
+                )
 
         if "center" in pending_fields:
             if not self._is_center_point_exclusive(ellipse):

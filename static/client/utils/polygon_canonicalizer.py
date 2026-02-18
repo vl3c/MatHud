@@ -36,6 +36,3 @@ __all__ = [
     "canonicalize_rectangle",
     "canonicalize_triangle",
 ]
-
-
-

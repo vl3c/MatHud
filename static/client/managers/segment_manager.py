@@ -53,6 +53,7 @@ if TYPE_CHECKING:
     from managers.point_manager import PointManager
     from name_generator.drawable import DrawableNameGenerator
 
+
 class SegmentManager:
     """
     Manages segment drawables for a Canvas.
@@ -267,7 +268,9 @@ class SegmentManager:
         label_visibility = bool(label_visible) if label_visible is not None else False
 
         if color_value:
-            segment = Segment(p1, p2, color=color_value, label_text=sanitized_label_text, label_visible=label_visibility)
+            segment = Segment(
+                p1, p2, color=color_value, label_text=sanitized_label_text, label_visible=label_visibility
+            )
         else:
             segment = Segment(p1, p2, label_text=sanitized_label_text, label_visible=label_visibility)
 
@@ -279,7 +282,9 @@ class SegmentManager:
 
         return segment
 
-    def delete_segment(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> bool:
+    def delete_segment(
+        self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False
+    ) -> bool:
         """
         Delete a segment by its endpoint coordinates
 
@@ -312,22 +317,22 @@ class SegmentManager:
             # Get all children (including angles) that depend on this segment
             dependent_children = self.dependency_manager.get_children(segment)
             for child in cast(List["Drawable"], list(dependent_children)):
-                if hasattr(child, 'get_class_name') and child.get_class_name() == 'Angle':
-                    print(f"SegmentManager: Segment '{segment.name}' is being deleted. Removing dependent angle '{child.name}'.")
-                    if hasattr(self.drawable_manager, 'angle_manager') and self.drawable_manager.angle_manager:
+                if hasattr(child, "get_class_name") and child.get_class_name() == "Angle":
+                    print(
+                        f"SegmentManager: Segment '{segment.name}' is being deleted. Removing dependent angle '{child.name}'."
+                    )
+                    if hasattr(self.drawable_manager, "angle_manager") and self.drawable_manager.angle_manager:
                         self.drawable_manager.angle_manager.delete_angle(child.name)
 
         # Also notify AngleManager if a segment is about to be removed (for backward compatibility)
-        if hasattr(self.drawable_manager, 'angle_manager') and self.drawable_manager.angle_manager:
+        if hasattr(self.drawable_manager, "angle_manager") and self.drawable_manager.angle_manager:
             self.drawable_manager.angle_manager.handle_segment_removed(segment.name)
 
         # Handle dependencies by calling the internal method
         self._delete_segment_dependencies(x1, y1, x2, y2, delete_children, delete_parents)
 
         # Now remove the segment itself
-        remove_drawable_with_dependencies(
-            self.drawables, self.dependency_manager, segment
-        )
+        remove_drawable_with_dependencies(self.drawables, self.dependency_manager, segment)
 
         # Redraw
         if self.canvas.draw_enabled:
@@ -458,8 +463,9 @@ class SegmentManager:
             return None
         return bool(new_label_visible)
 
-
-    def _delete_segment_dependencies(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> None:
+    def _delete_segment_dependencies(
+        self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False
+    ) -> None:
         """
         Delete all geometric objects that depend on the specified segment.
 
@@ -481,24 +487,26 @@ class SegmentManager:
         if delete_children:
             children = self.dependency_manager.get_all_children(segment)
             # print(f"Handling deletion of {len(children)} children for segment {segment.name}") # Keep commented unless debugging
-            for child in cast(List["Drawable"], list(children)): # Iterate over a copy
-                if hasattr(child, 'point1') and hasattr(child, 'point2'): # Check if child is segment-like
+            for child in cast(List["Drawable"], list(children)):  # Iterate over a copy
+                if hasattr(child, "point1") and hasattr(child, "point2"):  # Check if child is segment-like
                     # Unlink child from the current segment being processed
                     self.dependency_manager.unregister_dependency(child=child, parent=segment)
 
                     # Check if the child still has any other SEGMENT parents remaining
                     parents_of_child = self.dependency_manager.get_parents(child)
                     has_segment_parent = any(
-                        hasattr(p, 'get_class_name') and p.get_class_name() == 'Segment'
-                        for p in parents_of_child
+                        hasattr(p, "get_class_name") and p.get_class_name() == "Segment" for p in parents_of_child
                     )
 
                     # If the child no longer has any segment parents, delete it recursively
                     if not has_segment_parent:
                         self.delete_segment(
-                            child.point1.x, child.point1.y,
-                            child.point2.x, child.point2.y,
-                            delete_children=True, delete_parents=False
+                            child.point1.x,
+                            child.point1.y,
+                            child.point2.x,
+                            child.point2.y,
+                            delete_children=True,
+                            delete_parents=False,
                         )
                 else:
                     # Handle non-segment children.
@@ -519,10 +527,15 @@ class SegmentManager:
             parents_to_delete = self.dependency_manager.get_all_parents(segment)
             print(f"Handling deletion of {len(parents_to_delete)} parents for segment {segment.name}")
             for parent in cast(List["Drawable"], list(parents_to_delete)):
-                if hasattr(parent, 'point1') and hasattr(parent, 'point2'):
-                        self.delete_segment(parent.point1.x, parent.point1.y,
-                                          parent.point2.x, parent.point2.y,
-                                          delete_children=True, delete_parents=False)
+                if hasattr(parent, "point1") and hasattr(parent, "point2"):
+                    self.delete_segment(
+                        parent.point1.x,
+                        parent.point1.y,
+                        parent.point2.x,
+                        parent.point2.y,
+                        delete_children=True,
+                        delete_parents=False,
+                    )
                 else:
                     print(f"Warning: Parent {parent} of {segment.name} is not a segment, cannot recursively delete.")
 
@@ -535,16 +548,17 @@ class SegmentManager:
             polygon_segments = get_polygon_segments(polygon)
             if any(MathUtils.segment_matches_coordinates(s, x1, y1, x2, y2) for s in polygon_segments if s is not None):
                 polygon_name = getattr(polygon, "name", "")
-                if polygon_name and hasattr(self.drawable_manager, "delete_region_expression_colored_areas_referencing_name"):
+                if polygon_name and hasattr(
+                    self.drawable_manager, "delete_region_expression_colored_areas_referencing_name"
+                ):
                     try:
                         self.drawable_manager.delete_region_expression_colored_areas_referencing_name(
-                            polygon_name, archive=False,
+                            polygon_name,
+                            archive=False,
                         )
                     except Exception:
                         pass
-                remove_drawable_with_dependencies(
-                    self.drawables, self.dependency_manager, polygon
-                )
+                remove_drawable_with_dependencies(self.drawables, self.dependency_manager, polygon)
 
     def _split_segments_with_point(self, x: float, y: float) -> None:
         """
@@ -577,12 +591,12 @@ class SegmentManager:
                     self.dependency_manager.register_dependency(child=segment1, parent=segment)
                     # Propagate dependency to SEGMENT ancestors of the original segment
                     for ancestor in self.dependency_manager.get_all_parents(segment):
-                        if hasattr(ancestor, 'get_class_name') and ancestor.get_class_name() == 'Segment':
+                        if hasattr(ancestor, "get_class_name") and ancestor.get_class_name() == "Segment":
                             self.dependency_manager.register_dependency(child=segment1, parent=ancestor)
                 if segment2:
                     # The original segment that was split is a direct parent of the new segment
                     self.dependency_manager.register_dependency(child=segment2, parent=segment)
                     # Propagate dependency to SEGMENT ancestors of the original segment
                     for ancestor in self.dependency_manager.get_all_parents(segment):
-                        if hasattr(ancestor, 'get_class_name') and ancestor.get_class_name() == 'Segment':
+                        if hasattr(ancestor, "get_class_name") and ancestor.get_class_name() == "Segment":
                             self.dependency_manager.register_dependency(child=segment2, parent=ancestor)

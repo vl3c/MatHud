@@ -25,6 +25,14 @@ from utils.graph_utils import Edge, GraphUtils
 
 class GraphAnalyzer:
     @staticmethod
+    def _string_or_none(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        return str(value)
+
+    @staticmethod
     def _build_edges(state: GraphState) -> List[Edge[str]]:
         return [Edge(edge.source, edge.target) for edge in state.edges]
 
@@ -55,33 +63,35 @@ class GraphAnalyzer:
         for edge in state.edges:
             if directed:
                 if edge.source == u and edge.target == v:
-                    return edge.name or edge.id
+                    return GraphAnalyzer._string_or_none(edge.name) or GraphAnalyzer._string_or_none(edge.id)
             else:
                 if (edge.source == u and edge.target == v) or (edge.source == v and edge.target == u):
-                    return edge.name or edge.id
+                    return GraphAnalyzer._string_or_none(edge.name) or GraphAnalyzer._string_or_none(edge.id)
         return None
 
     @staticmethod
-    def _resolve_root(state: GraphState, adjacency: Dict[str, set[str]], params: Optional[Dict[str, Any]]) -> Optional[str]:
+    def _resolve_root(
+        state: GraphState, adjacency: Dict[str, set[str]], params: Optional[Dict[str, Any]]
+    ) -> Optional[str]:
         """Resolve root from params or state, handling old internal ID format."""
         params = params or {}
         root = params.get("root") or getattr(state, "root", None)
         if root is None:
             # No root specified, use first vertex from state if available
             if state.vertices:
-                return state.vertices[0].id
+                return GraphAnalyzer._string_or_none(state.vertices[0].id)
             if adjacency:
                 return next(iter(adjacency.keys()))
             return None
         # If root is already in adjacency, use it directly
-        if root in adjacency:
+        if isinstance(root, str) and root in adjacency:
             return root
         # Handle old format: internal IDs like "v0", "v1"
         if isinstance(root, str) and root.startswith("v") and root[1:].isdigit():
             idx = int(root[1:])
             # First try state.vertices (more reliable ordering)
             if state.vertices and 0 <= idx < len(state.vertices):
-                candidate = state.vertices[idx].id
+                candidate = GraphAnalyzer._string_or_none(state.vertices[idx].id)
                 if candidate in adjacency:
                     return candidate
             # Fall back to sorted adjacency keys
@@ -90,8 +100,9 @@ class GraphAnalyzer:
                 return vertex_ids[idx]
         # Try matching root against vertex names in state
         for v in state.vertices:
-            if v.name == root and v.id in adjacency:
-                return v.id
+            vertex_id = GraphAnalyzer._string_or_none(v.id)
+            if v.name == root and vertex_id in adjacency:
+                return vertex_id
         # Fallback: return first vertex from adjacency
         if adjacency:
             return next(iter(adjacency.keys()))
@@ -194,7 +205,9 @@ class GraphAnalyzer:
             rooted = GraphUtils.root_tree(adjacency, root)
             if rooted is None:
                 adj_keys = list(adjacency.keys())[:5]
-                return {"error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"}
+                return {
+                    "error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"
+                }
             parent, children = rooted
             depths = GraphUtils.node_depths(root, adjacency) or {}
             lca_node = GraphUtils.lowest_common_ancestor(parent, depths, a, b)
@@ -207,7 +220,9 @@ class GraphAnalyzer:
             rooted = GraphUtils.root_tree(adjacency, root)
             if rooted is None:
                 adj_keys = list(adjacency.keys())[:5]
-                return {"error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"}
+                return {
+                    "error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"
+                }
             _, children = rooted
             balanced = GraphUtils.balance_children(root, children)
             return {"children": balanced}
@@ -219,7 +234,9 @@ class GraphAnalyzer:
             rooted = GraphUtils.root_tree(adjacency, root)
             if rooted is None:
                 adj_keys = list(adjacency.keys())[:5]
-                return {"error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"}
+                return {
+                    "error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"
+                }
             _, children = rooted
             inverted = GraphUtils.invert_children(children)
             return {"children": inverted}
@@ -232,7 +249,9 @@ class GraphAnalyzer:
             rooted = GraphUtils.root_tree(adjacency, root)
             if rooted is None:
                 adj_keys = list(adjacency.keys())[:5]
-                return {"error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"}
+                return {
+                    "error": f"invalid tree structure: root={root!r}, adjacency_sample={adj_keys}, edges={len(state.edges)}"
+                }
             parent, children = rooted
             rerooted = GraphUtils.reroot_tree(parent, children, new_root)
             if rerooted is None:
@@ -263,11 +282,7 @@ class GraphAnalyzer:
             y = params.get("y")
             if x is None or y is None:
                 return {"error": "x and y coordinates are required for point_in_hull"}
-            positions = [
-                (float(v.x), float(v.y))
-                for v in state.vertices
-                if v.x is not None and v.y is not None
-            ]
+            positions = [(float(v.x), float(v.y)) for v in state.vertices if v.x is not None and v.y is not None]
             hull = GeometryUtils.convex_hull(positions)
             inside = GeometryUtils.point_in_convex_hull((float(x), float(y)), hull)
             # Convert tuples to lists for JSON serialization
@@ -301,6 +316,3 @@ class GraphAnalyzer:
             if name:
                 names.append(name)
         return names
-
-
-

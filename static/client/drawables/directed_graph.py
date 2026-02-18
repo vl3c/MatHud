@@ -49,7 +49,9 @@ class DirectedGraph(Graph):
             is_renderable=False,
         )
         self._vectors: List["Vector"] = list(vectors or [])
-        self._cached_descriptors: Optional[tuple[List[GraphVertexDescriptor], List[GraphEdgeDescriptor], List[List[float]]]] = None
+        self._cached_descriptors: Optional[
+            tuple[List[GraphVertexDescriptor], List[GraphEdgeDescriptor], List[List[float]]]
+        ] = None
 
     @property
     def directed(self) -> bool:

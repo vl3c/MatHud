@@ -31,6 +31,7 @@ from drawables.drawable import Drawable
 from drawables.position import Position
 from utils.math_utils import MathUtils
 
+
 class Point(Drawable):
     """Represents a point in 2D mathematical space with coordinate tracking and labeling.
 
@@ -41,6 +42,7 @@ class Point(Drawable):
     Attributes:
         x, y (float): Mathematical coordinates (unaffected by zoom/pan)
     """
+
     def __init__(self, x: float, y: float, name: str = "", color: str = default_color) -> None:
         """Initialize a point with mathematical coordinates.
 
@@ -68,12 +70,13 @@ class Point(Drawable):
         )
 
     def get_class_name(self) -> str:
-        return 'Point'
+        return "Point"
 
     def __str__(self) -> str:
         def fmt(v: float) -> str:
             return str(int(v)) if isinstance(v, float) and v.is_integer() else str(v)
-        return f'{fmt(self.x)},{fmt(self.y)}'
+
+        return f"{fmt(self.x)},{fmt(self.y)}"
 
     def get_state(self) -> Dict[str, Any]:
         state: Dict[str, Any] = {"name": self.name, "args": {"position": {"x": self.x, "y": self.y}}}
@@ -185,7 +188,7 @@ class Point(Drawable):
         """Computes hash based on rounded coordinates."""
         # Hash based on coordinates rounded to a few decimal places
         # Adjust precision as needed, should be coarser than EPSILON allows differences
-        precision: int = 6 # e.g., 6 decimal places
+        precision: int = 6  # e.g., 6 decimal places
         rounded_x: float = round(self.x, precision)
         rounded_y: float = round(self.y, precision)
         return hash((rounded_x, rounded_y))

@@ -73,6 +73,3 @@ __all__ = [
     "contains_point",
     "nearest_point",
 ]
-
-
-

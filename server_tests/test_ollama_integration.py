@@ -15,10 +15,7 @@ from static.providers.local.ollama_api import OllamaAPI
 
 
 # Skip all tests in this module if Ollama is not running
-pytestmark = pytest.mark.skipif(
-    not OllamaAPI.is_server_running(),
-    reason="Ollama server is not running"
-)
+pytestmark = pytest.mark.skipif(not OllamaAPI.is_server_running(), reason="Ollama server is not running")
 
 
 class TestOllamaServerIntegration:
@@ -105,10 +102,12 @@ class TestOllamaToolCalling:
     def test_simple_chat_completion(self, ollama_api: OllamaAPI) -> None:
         """Can get a simple chat completion without tools."""
         # Create a simple prompt
-        prompt = json.dumps({
-            "user_message": "Say 'hello' and nothing else.",
-            "canvas_state": {},
-        })
+        prompt = json.dumps(
+            {
+                "user_message": "Say 'hello' and nothing else.",
+                "canvas_state": {},
+            }
+        )
 
         response = ollama_api.create_chat_completion(prompt)
 
@@ -121,6 +120,7 @@ class TestOllamaToolCalling:
         """Model can request tool calls."""
         # Limit tools to just create_point for simpler testing
         from static.functions_definitions import FUNCTIONS
+
         create_point_tool = None
         for tool in FUNCTIONS:
             if tool.get("function", {}).get("name") == "create_point":
@@ -131,10 +131,12 @@ class TestOllamaToolCalling:
             ollama_api.tools = [create_point_tool]
 
         # Create a prompt that should trigger a tool call
-        prompt = json.dumps({
-            "user_message": "Create a point at coordinates (50, 100) named 'TestPoint'",
-            "canvas_state": {"points": [], "segments": []},
-        })
+        prompt = json.dumps(
+            {
+                "user_message": "Create a point at coordinates (50, 100) named 'TestPoint'",
+                "canvas_state": {"points": [], "segments": []},
+            }
+        )
 
         response = ollama_api.create_chat_completion(prompt)
 
@@ -154,10 +156,12 @@ class TestOllamaToolCalling:
         The model's ability to utilize context varies by model quality.
         """
         # First message
-        prompt1 = json.dumps({
-            "user_message": "My favorite color is blue. Remember this.",
-            "canvas_state": {},
-        })
+        prompt1 = json.dumps(
+            {
+                "user_message": "My favorite color is blue. Remember this.",
+                "canvas_state": {},
+            }
+        )
         ollama_api.create_chat_completion(prompt1)
 
         # Check history structure: system + user + assistant
@@ -171,10 +175,12 @@ class TestOllamaToolCalling:
         assert "blue" in first_user_content.lower()
 
         # Second message referencing the first
-        prompt2 = json.dumps({
-            "user_message": "What is my favorite color?",
-            "canvas_state": {},
-        })
+        prompt2 = json.dumps(
+            {
+                "user_message": "What is my favorite color?",
+                "canvas_state": {},
+            }
+        )
         response = ollama_api.create_chat_completion(prompt2)
 
         # Verify history grew correctly: system + user + assistant + user + assistant
@@ -193,10 +199,12 @@ class TestOllamaToolCalling:
     def test_reset_conversation(self, ollama_api: OllamaAPI) -> None:
         """Can reset conversation history."""
         # Add some messages
-        prompt = json.dumps({
-            "user_message": "Hello",
-            "canvas_state": {},
-        })
+        prompt = json.dumps(
+            {
+                "user_message": "Hello",
+                "canvas_state": {},
+            }
+        )
         ollama_api.create_chat_completion(prompt)
 
         initial_count = len(ollama_api.messages)
@@ -232,10 +240,12 @@ class TestOllamaStreamingIntegration:
 
     def test_streaming_response(self, ollama_api: OllamaAPI) -> None:
         """Can stream responses."""
-        prompt = json.dumps({
-            "user_message": "Count from 1 to 5.",
-            "canvas_state": {},
-        })
+        prompt = json.dumps(
+            {
+                "user_message": "Count from 1 to 5.",
+                "canvas_state": {},
+            }
+        )
 
         tokens: List[str] = []
         final_event: Dict[str, Any] = {}
@@ -272,10 +282,12 @@ class TestOllamaErrorHandling:
         model = AIModel.from_identifier("nonexistent-model:latest")
         api = OllamaAPI(model=model)
 
-        prompt = json.dumps({
-            "user_message": "Hello",
-            "canvas_state": {},
-        })
+        prompt = json.dumps(
+            {
+                "user_message": "Hello",
+                "canvas_state": {},
+            }
+        )
 
         # Should handle error gracefully
         response = api.create_chat_completion(prompt)
@@ -321,10 +333,12 @@ class TestOllamaConversationDebug:
             ollama_api.tools = [simple_tool]
 
         # First request - might trigger tool call
-        prompt1 = json.dumps({
-            "user_message": "What's on the canvas? Use get_current_canvas_state to check.",
-            "canvas_state": {"points": [{"name": "A", "x": 0, "y": 0}]},
-        })
+        prompt1 = json.dumps(
+            {
+                "user_message": "What's on the canvas? Use get_current_canvas_state to check.",
+                "canvas_state": {"points": [{"name": "A", "x": 0, "y": 0}]},
+            }
+        )
 
         response1 = ollama_api.create_chat_completion(prompt1)
 
@@ -347,11 +361,13 @@ class TestOllamaConversationDebug:
             tool_id = tool_call.id
 
             # Send tool result
-            prompt2 = json.dumps({
-                "tool_call_results": json.dumps({
-                    tool_id: {"points": [{"name": "A", "x": 0, "y": 0}], "segments": []}
-                }),
-            })
+            prompt2 = json.dumps(
+                {
+                    "tool_call_results": json.dumps(
+                        {tool_id: {"points": [{"name": "A", "x": 0, "y": 0}], "segments": []}}
+                    ),
+                }
+            )
 
             response2 = ollama_api.create_chat_completion(prompt2)
 

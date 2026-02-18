@@ -106,9 +106,7 @@ class TestEllipseManager(unittest.TestCase):
         ellipse = self._add_ellipse()
 
         other_parent = object()
-        self.dependency_manager.get_parents = (
-            lambda obj: {ellipse, other_parent} if obj is ellipse.center else set()
-        )
+        self.dependency_manager.get_parents = lambda obj: {ellipse, other_parent} if obj is ellipse.center else set()
         self.dependency_manager.get_children = lambda obj: set()
 
         with self.assertRaises(ValueError):
@@ -118,9 +116,7 @@ class TestEllipseManager(unittest.TestCase):
         ellipse = self._add_ellipse()
 
         other_parent = object()
-        self.dependency_manager.get_parents = (
-            lambda obj: {other_parent} if obj is ellipse else set()
-        )
+        self.dependency_manager.get_parents = lambda obj: {other_parent} if obj is ellipse else set()
         self.dependency_manager.get_children = lambda obj: set()
 
         with self.assertRaises(ValueError):

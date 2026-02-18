@@ -23,7 +23,7 @@ class TestVector(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+            offset=Position(0, 0),  # Set to (0,0) for simpler tests
         )
 
         # Sync canvas state with coordinate mapper
@@ -48,7 +48,7 @@ class TestVector(unittest.TestCase):
         self.assertEqual(self.vector.color, "green")
 
     def test_get_class_name(self) -> None:
-        self.assertEqual(self.vector.get_class_name(), 'Vector')
+        self.assertEqual(self.vector.get_class_name(), "Vector")
 
     def test_get_state(self) -> None:
         state = self.vector.get_state()
@@ -129,4 +129,3 @@ class TestVector(unittest.TestCase):
         # But coordinates differ, so render cache should invalidate
         self.assertNotEqual(state1["_origin_coords"], state2["_origin_coords"])
         self.assertNotEqual(state1["_tip_coords"], state2["_tip_coords"])
-

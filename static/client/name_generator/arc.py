@@ -38,9 +38,16 @@ class ArcNameGenerator(NameGenerator):
 
     # Prefixes to strip before extracting point names (longer prefixes first)
     ARC_PREFIXES = (
-        "ArcMajor_", "ArcMinor_", "ArcMaj_", "ArcMin_",
-        "ArcMajor", "ArcMinor",
-        "arc_", "Arc_", "arc", "Arc",
+        "ArcMajor_",
+        "ArcMinor_",
+        "ArcMaj_",
+        "ArcMin_",
+        "ArcMajor",
+        "ArcMinor",
+        "arc_",
+        "Arc_",
+        "arc",
+        "Arc",
     )
 
     def __init__(self, canvas: Any, point_generator: "PointNameGenerator") -> None:
@@ -53,9 +60,7 @@ class ArcNameGenerator(NameGenerator):
         super().__init__(canvas)
         self.point_generator = point_generator
 
-    def extract_point_names_from_arc_name(
-        self, arc_name: Optional[str]
-    ) -> Tuple[Optional[str], Optional[str]]:
+    def extract_point_names_from_arc_name(self, arc_name: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
         """Extract suggested point names from an arc name suggestion.
 
         First strips known arc prefixes, then uses the point generator's
@@ -79,7 +84,7 @@ class ArcNameGenerator(NameGenerator):
         name = arc_name
         for prefix in self.ARC_PREFIXES:
             if name.startswith(prefix):
-                name = name[len(prefix):]
+                name = name[len(prefix) :]
                 break
 
         if not name:
@@ -141,4 +146,3 @@ class ArcNameGenerator(NameGenerator):
             candidate = f"{base_name}_{suffix}"
             suffix += 1
         return candidate
-

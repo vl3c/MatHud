@@ -126,9 +126,7 @@ class LinearAlgebraUtils:
 
         unknown_tokens.sort()
         if unknown_tokens:
-            raise ValueError(
-                "Unknown identifiers in expression: " + ", ".join(unknown_tokens)
-            )
+            raise ValueError("Unknown identifiers in expression: " + ", ".join(unknown_tokens))
 
     @staticmethod
     def _extract_object(entry: LinearAlgebraObject) -> Tuple[str, Any]:

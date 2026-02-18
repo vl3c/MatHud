@@ -68,4 +68,3 @@ def render_point_helper(primitives, point, coordinate_mapper, style):
         color=str(getattr(fill, "color", "#000")),
         style=style,
     )
-

@@ -176,11 +176,7 @@ class TestNumericSolverIntegration(unittest.TestCase):
         """Test solving a 3-variable linear system."""
         from numeric_solver import solve_numeric
 
-        result_json = solve_numeric([
-            "x + y + z = 6",
-            "x - y + z = 2",
-            "x + y - z = 0"
-        ])
+        result_json = solve_numeric(["x + y + z = 6", "x - y + z = 2", "x + y - z = 0"])
         result = json.loads(result_json)
 
         self.assertGreater(len(result["solutions"]), 0)
@@ -207,10 +203,7 @@ class TestNumericSolverIntegration(unittest.TestCase):
         from numeric_solver import solve_numeric
 
         # Provide a guess close to pi/6 for sin(x) = 0.5
-        result_json = solve_numeric(
-            ["sin(x) = 0.5"],
-            initial_guesses=[[0.5]]
-        )
+        result_json = solve_numeric(["sin(x) = 0.5"], initial_guesses=[[0.5]])
         result = json.loads(result_json)
 
         self.assertGreater(len(result["solutions"]), 0)

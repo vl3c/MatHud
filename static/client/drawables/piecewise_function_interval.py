@@ -70,7 +70,7 @@ class PiecewiseFunctionInterval:
     def evaluate(self, x: float) -> float:
         """Evaluate this interval's expression at x. Returns NaN for undefined points."""
         if self.is_undefined_at(x):
-            return float('nan')
+            return float("nan")
         return self.evaluator(x)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -85,4 +85,3 @@ class PiecewiseFunctionInterval:
         if self.undefined_at:
             result["undefined_at"] = self.undefined_at
         return result
-

@@ -35,10 +35,10 @@ def get_polygon_segments(polygon: Any) -> List[Any]:
     falling back to named ``segment1``..``segment4`` attributes (used by
     Triangle, Rectangle, and Quadrilateral).
     """
-    if hasattr(polygon, 'get_segments') and callable(getattr(polygon, 'get_segments')):
+    if hasattr(polygon, "get_segments") and callable(getattr(polygon, "get_segments")):
         return polygon.get_segments()
     segments: List[Any] = []
-    for attr in ('segment1', 'segment2', 'segment3', 'segment4'):
+    for attr in ("segment1", "segment2", "segment3", "segment4"):
         seg = getattr(polygon, attr, None)
         if seg is not None:
             segments.append(seg)

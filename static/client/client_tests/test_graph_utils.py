@@ -12,7 +12,6 @@ from utils.graph_utils import Edge, GraphUtils
 
 
 class TestGraph(unittest.TestCase):
-
     # ------------------------------------------------------------------
     # Edge
     # ------------------------------------------------------------------
@@ -339,8 +338,12 @@ class TestGraph(unittest.TestCase):
 
     def test_is_simple_cycle_rejects_disconnected(self) -> None:
         edges = [
-            Edge("A", "B"), Edge("B", "C"), Edge("C", "A"),
-            Edge("D", "E"), Edge("E", "F"), Edge("F", "D"),
+            Edge("A", "B"),
+            Edge("B", "C"),
+            Edge("C", "A"),
+            Edge("D", "E"),
+            Edge("E", "F"),
+            Edge("F", "D"),
         ]
         self.assertFalse(GraphUtils.is_simple_cycle(edges))
 
@@ -896,8 +899,12 @@ class TestGraph(unittest.TestCase):
     def test_count_edge_crossings_k4_complete(self) -> None:
         """K4 with vertices at corners has 1 crossing (diagonals)."""
         edges = [
-            Edge("A", "B"), Edge("A", "C"), Edge("A", "D"),
-            Edge("B", "C"), Edge("B", "D"), Edge("C", "D"),
+            Edge("A", "B"),
+            Edge("A", "C"),
+            Edge("A", "D"),
+            Edge("B", "C"),
+            Edge("B", "D"),
+            Edge("C", "D"),
         ]
         positions = {"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (1.0, 1.0), "D": (0.0, 1.0)}
         # A-C and B-D cross
@@ -1220,10 +1227,7 @@ class TestGraph(unittest.TestCase):
         """Half same length gives ratio 0.5."""
         edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "D"), Edge("D", "E")]
         # A-B: 1, B-C: 1, C-D: 2, D-E: 2
-        positions = {
-            "A": (0.0, 0.0), "B": (1.0, 0.0), "C": (2.0, 0.0),
-            "D": (4.0, 0.0), "E": (6.0, 0.0)
-        }
+        positions = {"A": (0.0, 0.0), "B": (1.0, 0.0), "C": (2.0, 0.0), "D": (4.0, 0.0), "E": (6.0, 0.0)}
         ratio = GraphUtils.edge_length_uniformity_ratio(edges, positions, tolerance=0.1)
         self.assertAlmostEqual(ratio, 0.5, places=5)
 

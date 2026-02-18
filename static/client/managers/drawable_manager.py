@@ -88,6 +88,7 @@ if TYPE_CHECKING:
     from drawables.circle_arc import CircleArc
     from geometry.graph_state import GraphState
 
+
 class DrawableManager:
     """
     Manages drawable objects for a Canvas.
@@ -118,7 +119,9 @@ class DrawableManager:
         self.proxy: DrawableManagerProxy = DrawableManagerProxy(self)
 
         # Instantiate DependencyManager with just the proxy
-        self.dependency_manager: DrawableDependencyManager = DrawableDependencyManager(drawable_manager_proxy=self.proxy)
+        self.dependency_manager: DrawableDependencyManager = DrawableDependencyManager(
+            drawable_manager_proxy=self.proxy
+        )
 
         # Initialize specialized managers with the proxy
         self.point_manager: PointManager = PointManager(
@@ -126,13 +129,11 @@ class DrawableManager:
         )
 
         self.segment_manager: SegmentManager = SegmentManager(
-            canvas, self.drawables, self.name_generator, self.dependency_manager,
-            self.point_manager, self.proxy
+            canvas, self.drawables, self.name_generator, self.dependency_manager, self.point_manager, self.proxy
         )
 
         self.vector_manager: VectorManager = VectorManager(
-            canvas, self.drawables, self.name_generator, self.dependency_manager,
-            self.point_manager, self.proxy
+            canvas, self.drawables, self.name_generator, self.dependency_manager, self.point_manager, self.proxy
         )
 
         self.polygon_manager: PolygonManager = PolygonManager(
@@ -158,13 +159,11 @@ class DrawableManager:
         )
 
         self.circle_manager: CircleManager = CircleManager(
-            canvas, self.drawables, self.name_generator, self.dependency_manager,
-            self.point_manager, self.proxy
+            canvas, self.drawables, self.name_generator, self.dependency_manager, self.point_manager, self.proxy
         )
 
         self.ellipse_manager: EllipseManager = EllipseManager(
-            canvas, self.drawables, self.name_generator, self.dependency_manager,
-            self.point_manager, self.proxy
+            canvas, self.drawables, self.name_generator, self.dependency_manager, self.point_manager, self.proxy
         )
 
         self.colored_area_manager: ColoredAreaManager = ColoredAreaManager(
@@ -172,8 +171,13 @@ class DrawableManager:
         )
 
         self.angle_manager: AngleManager = AngleManager(
-            canvas, self.drawables, self.name_generator, self.dependency_manager,
-            self.point_manager, self.segment_manager, self.proxy
+            canvas,
+            self.drawables,
+            self.name_generator,
+            self.dependency_manager,
+            self.point_manager,
+            self.segment_manager,
+            self.proxy,
         )
 
         self.label_manager: LabelManager = LabelManager(
@@ -454,7 +458,9 @@ class DrawableManager:
             label_visible=label_visible,
         )
 
-    def delete_segment(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> bool:
+    def delete_segment(
+        self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False
+    ) -> bool:
         """Delete a segment at the specified coordinates"""
         return bool(self.segment_manager.delete_segment(x1, y1, x2, y2, delete_children, delete_parents))
 
@@ -889,18 +895,21 @@ class DrawableManager:
         fill_opacity: Optional[float],
         bar_count: Optional[float],
     ) -> Dict[str, Any]:
-        return cast(Dict[str, Any], self.statistics_manager.plot_distribution(
-            name=name,
-            representation=representation,
-            distribution_type=distribution_type,
-            distribution_params=distribution_params,
-            plot_bounds=plot_bounds,
-            shade_bounds=shade_bounds,
-            curve_color=curve_color,
-            fill_color=fill_color,
-            fill_opacity=fill_opacity,
-            bar_count=bar_count,
-        ))
+        return cast(
+            Dict[str, Any],
+            self.statistics_manager.plot_distribution(
+                name=name,
+                representation=representation,
+                distribution_type=distribution_type,
+                distribution_params=distribution_params,
+                plot_bounds=plot_bounds,
+                shade_bounds=shade_bounds,
+                curve_color=curve_color,
+                fill_color=fill_color,
+                fill_opacity=fill_opacity,
+                bar_count=bar_count,
+            ),
+        )
 
     def plot_bars(
         self,
@@ -917,19 +926,22 @@ class DrawableManager:
         x_start: Optional[float],
         y_base: Optional[float],
     ) -> Dict[str, Any]:
-        return cast(Dict[str, Any], self.statistics_manager.plot_bars(
-            name=name,
-            values=values,
-            labels_below=labels_below,
-            labels_above=labels_above,
-            bar_spacing=bar_spacing,
-            bar_width=bar_width,
-            stroke_color=stroke_color,
-            fill_color=fill_color,
-            fill_opacity=fill_opacity,
-            x_start=x_start,
-            y_base=y_base,
-        ))
+        return cast(
+            Dict[str, Any],
+            self.statistics_manager.plot_bars(
+                name=name,
+                values=values,
+                labels_below=labels_below,
+                labels_above=labels_above,
+                bar_spacing=bar_spacing,
+                bar_width=bar_width,
+                stroke_color=stroke_color,
+                fill_color=fill_color,
+                fill_opacity=fill_opacity,
+                x_start=x_start,
+                y_base=y_base,
+            ),
+        )
 
     def delete_plot(self, name: str) -> bool:
         return bool(self.statistics_manager.delete_plot(name))
@@ -947,17 +959,20 @@ class DrawableManager:
         show_points: Optional[bool],
         point_color: Optional[str],
     ) -> Dict[str, Any]:
-        return cast(Dict[str, Any], self.statistics_manager.fit_regression(
-            name=name,
-            x_data=x_data,
-            y_data=y_data,
-            model_type=model_type,
-            degree=degree,
-            plot_bounds=plot_bounds,
-            curve_color=curve_color,
-            show_points=show_points,
-            point_color=point_color,
-        ))
+        return cast(
+            Dict[str, Any],
+            self.statistics_manager.fit_regression(
+                name=name,
+                x_data=x_data,
+                y_data=y_data,
+                model_type=model_type,
+                degree=degree,
+                plot_bounds=plot_bounds,
+                curve_color=curve_color,
+                show_points=show_points,
+                point_color=point_color,
+            ),
+        )
 
     # ------------------- Graph Methods -------------------
     def create_graph(self, graph_state: "GraphState") -> "Drawable":
@@ -1000,14 +1015,31 @@ class DrawableManager:
         self.graph_manager.capture_state(name)
 
     # ------------------- Angle Methods -------------------
-    def create_angle(self, vx: float, vy: float, p1x: float, p1y: float, p2x: float, p2y: float, color: Optional[str] = None, angle_name: Optional[str] = None, is_reflex: bool = False, extra_graphics: bool = True) -> Optional["Angle"]:
+    def create_angle(
+        self,
+        vx: float,
+        vy: float,
+        p1x: float,
+        p1y: float,
+        p2x: float,
+        p2y: float,
+        color: Optional[str] = None,
+        angle_name: Optional[str] = None,
+        is_reflex: bool = False,
+        extra_graphics: bool = True,
+    ) -> Optional["Angle"]:
         """Creates an angle defined by three points."""
         return self.angle_manager.create_angle(
-            vx, vy, p1x, p1y, p2x, p2y,
+            vx,
+            vy,
+            p1x,
+            p1y,
+            p2x,
+            p2y,
             color=color,
             angle_name=angle_name,
             is_reflex=is_reflex,
-            extra_graphics=extra_graphics
+            extra_graphics=extra_graphics,
         )
 
     def delete_angle(self, name: str) -> bool:
@@ -1144,9 +1176,7 @@ class DrawableManager:
         Returns:
             The created Segment drawable
         """
-        return self.tangent_manager.create_tangent_line(
-            curve_name, parameter, name=name, length=length, color=color
-        )
+        return self.tangent_manager.create_tangent_line(curve_name, parameter, name=name, length=length, color=color)
 
     def create_normal_line(
         self,
@@ -1168,9 +1198,7 @@ class DrawableManager:
         Returns:
             The created Segment drawable
         """
-        return self.tangent_manager.create_normal_line(
-            curve_name, parameter, name=name, length=length, color=color
-        )
+        return self.tangent_manager.create_normal_line(curve_name, parameter, name=name, length=length, color=color)
 
     # ------------------- Construction Methods -------------------
 
@@ -1210,9 +1238,10 @@ class DrawableManager:
         color: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Drop a perpendicular from a point to a segment."""
-        return self.construction_manager.create_perpendicular_from_point(
+        result: Dict[str, Any] = self.construction_manager.create_perpendicular_from_point(
             point_name, segment_name, name=name, color=color
         )
+        return result
 
     def create_angle_bisector(
         self,
@@ -1227,8 +1256,7 @@ class DrawableManager:
     ) -> "Segment":
         """Create a segment along the bisector of an angle."""
         return self.construction_manager.create_angle_bisector(
-            vertex_name, p1_name, p2_name,
-            angle_name=angle_name, length=length, name=name, color=color
+            vertex_name, p1_name, p2_name, angle_name=angle_name, length=length, name=name, color=color
         )
 
     def create_circumcircle(
@@ -1244,8 +1272,11 @@ class DrawableManager:
         """Create the circumscribed circle of a triangle or three points."""
         return self.construction_manager.create_circumcircle(
             triangle_name=triangle_name,
-            p1_name=p1_name, p2_name=p2_name, p3_name=p3_name,
-            name=name, color=color,
+            p1_name=p1_name,
+            p2_name=p2_name,
+            p3_name=p3_name,
+            name=name,
+            color=color,
         )
 
     def create_incircle(
@@ -1257,7 +1288,9 @@ class DrawableManager:
     ) -> "Circle":
         """Create the inscribed circle of a triangle."""
         return self.construction_manager.create_incircle(
-            triangle_name, name=name, color=color,
+            triangle_name,
+            name=name,
+            color=color,
         )
 
     def create_parallel_line(

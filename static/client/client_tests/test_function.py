@@ -20,7 +20,7 @@ class TestFunction(unittest.TestCase):
                 get_visible_right_bound=SimpleMock(return_value=10),
                 get_visible_top_bound=SimpleMock(return_value=10),
                 get_visible_bottom_bound=SimpleMock(return_value=-10),
-                height=500
+                height=500,
             ),
             is_point_within_canvas_visible_area=SimpleMock(return_value=True),
             # Add coordinate_mapper properties
@@ -31,7 +31,7 @@ class TestFunction(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)
+            offset=Position(0, 0),
         )
 
         # Sync canvas state with coordinate mapper
@@ -41,7 +41,9 @@ class TestFunction(unittest.TestCase):
         self.right_bound = 9
         self.function_string = "x*2"
         self.name = "DoubleX"
-        self.function = Function(self.function_string, self.name, left_bound=self.left_bound, right_bound=self.right_bound)
+        self.function = Function(
+            self.function_string, self.name, left_bound=self.left_bound, right_bound=self.right_bound
+        )
 
     def test_initialize(self) -> None:
         # Test that the function is correctly initialized
@@ -54,7 +56,7 @@ class TestFunction(unittest.TestCase):
             _ = Function("sin(/0)", "InvalidFunction")
 
     def test_get_class_name(self) -> None:
-        self.assertEqual(self.function.get_class_name(), 'Function')
+        self.assertEqual(self.function.get_class_name(), "Function")
 
     def test_generate_values(self) -> None:
         # Test the generation of function values within canvas bounds using FunctionRenderable
@@ -77,7 +79,11 @@ class TestFunction(unittest.TestCase):
             for point_tuple in path:
                 # Convert tuple (x, y) to screen coordinates for bounds checking
                 math_x, math_y = self.canvas.coordinate_mapper.screen_to_math(point_tuple[0], point_tuple[1])
-                self.assertTrue(self.canvas.cartesian2axis.get_visible_left_bound() <= math_x <= self.canvas.cartesian2axis.get_visible_right_bound())
+                self.assertTrue(
+                    self.canvas.cartesian2axis.get_visible_left_bound()
+                    <= math_x
+                    <= self.canvas.cartesian2axis.get_visible_right_bound()
+                )
 
                 # Count points within and outside y bounds
                 if bottom_bound <= math_y <= top_bound:
@@ -86,12 +92,18 @@ class TestFunction(unittest.TestCase):
                     points_outside_bounds += 1
 
         # Ensure majority of points are within bounds
-        self.assertGreater(points_within_bounds, points_outside_bounds,
-                          "Majority of points should be within y bounds")
+        self.assertGreater(points_within_bounds, points_outside_bounds, "Majority of points should be within y bounds")
 
     def test_get_state(self) -> None:
         state = self.function.get_state()
-        expected_state = {"name": self.name, "args": {"function_string": self.function_string, "left_bound": self.left_bound, "right_bound": self.right_bound}}
+        expected_state = {
+            "name": self.name,
+            "args": {
+                "function_string": self.function_string,
+                "left_bound": self.left_bound,
+                "right_bound": self.right_bound,
+            },
+        }
         self.assertEqual(state, expected_state)
 
     def test_deepcopy(self) -> None:
@@ -142,7 +154,7 @@ class TestFunction(unittest.TestCase):
         # 1. Check if renderable has invalidate_cache method
         # 2. Call it if it exists
         # 3. Call build_screen_paths()
-        if hasattr(renderable, 'invalidate_cache'):
+        if hasattr(renderable, "invalidate_cache"):
             renderable.invalidate_cache()
 
         # Build paths again after cache invalidation
@@ -166,8 +178,11 @@ class TestFunction(unittest.TestCase):
         high_amp_points = sum(len(path) for path in high_amp_paths)
 
         # High amplitude function should have at least as many points
-        self.assertGreaterEqual(high_amp_points, low_amp_points,
-                              f"Expected high amplitude function ({high_amp_points} points) to have at least as many points as low amplitude ({low_amp_points})")
+        self.assertGreaterEqual(
+            high_amp_points,
+            low_amp_points,
+            f"Expected high amplitude function ({high_amp_points} points) to have at least as many points as low amplitude ({low_amp_points})",
+        )
 
     def test_discontinuity_handling(self) -> None:
         # Test function with discontinuity using FunctionRenderable
@@ -186,12 +201,18 @@ class TestFunction(unittest.TestCase):
         # Find gaps in x coordinates that indicate discontinuity
         has_discontinuity = False
         for i in range(1, len(flat_points)):
-            math_x1, math_y1 = self.canvas.coordinate_mapper.screen_to_math(flat_points[i-1][0], flat_points[i-1][1])
+            math_x1, math_y1 = self.canvas.coordinate_mapper.screen_to_math(
+                flat_points[i - 1][0], flat_points[i - 1][1]
+            )
             math_x2, math_y2 = self.canvas.coordinate_mapper.screen_to_math(flat_points[i][0], flat_points[i][1])
             # Check for either a large x gap or a transition through bounds
-            if (abs(math_x2 - math_x1) > discontinuous_function.step * 2) or \
-               (abs(math_y2 - math_y1) > (self.canvas.cartesian2axis.get_visible_top_bound() -
-                                          self.canvas.cartesian2axis.get_visible_bottom_bound())):
+            if (abs(math_x2 - math_x1) > discontinuous_function.step * 2) or (
+                abs(math_y2 - math_y1)
+                > (
+                    self.canvas.cartesian2axis.get_visible_top_bound()
+                    - self.canvas.cartesian2axis.get_visible_bottom_bound()
+                )
+            ):
                 has_discontinuity = True
                 break
 
@@ -291,8 +312,8 @@ class TestFunction(unittest.TestCase):
         for path in paths:
             if len(path) > 1:  # Only check paths with at least 2 points
                 for i in range(1, len(path)):
-                    dx = abs(path[i][0] - path[i-1][0])  # x coordinates
-                    dy = abs(path[i][1] - path[i-1][1])  # y coordinates
+                    dx = abs(path[i][0] - path[i - 1][0])  # x coordinates
+                    dy = abs(path[i][1] - path[i - 1][1])  # y coordinates
                     self.assertGreater(dx + dy, 0, "Points should not be duplicates")
 
     def test_high_frequency_trig_functions(self) -> None:
@@ -320,10 +341,16 @@ class TestFunction(unittest.TestCase):
                     total_points = sum(len(path) for path in paths)
 
                     # Check bounds: at least min_points, at most canvas width + 1 (endpoint-inclusive)
-                    self.assertGreaterEqual(total_points, min_points,
-                                         f"{function_string} ({description}): {total_points} points, expected at least {min_points}")
-                    self.assertLessEqual(total_points, canvas_width + 1,
-                                       f"{function_string} ({description}): {total_points} points, exceeds canvas width + 1")
+                    self.assertGreaterEqual(
+                        total_points,
+                        min_points,
+                        f"{function_string} ({description}): {total_points} points, expected at least {min_points}",
+                    )
+                    self.assertLessEqual(
+                        total_points,
+                        canvas_width + 1,
+                        f"{function_string} ({description}): {total_points} points, exceeds canvas width + 1",
+                    )
                 except Exception as e:
                     self.fail(f"Failed to handle {function_string}: {str(e)}")
 
@@ -349,6 +376,7 @@ class TestFunctionUndefinedAt(unittest.TestCase):
     def test_function_with_single_undefined_point(self) -> None:
         """Test that a function with a single undefined point returns NaN at that point."""
         import math
+
         f = Function("2", "constant_with_hole", undefined_at=[0])
 
         self.assertAlmostEqual(f.function(-5), 2.0)
@@ -359,6 +387,7 @@ class TestFunctionUndefinedAt(unittest.TestCase):
     def test_function_with_multiple_undefined_points(self) -> None:
         """Test that a function with multiple undefined points returns NaN at those points."""
         import math
+
         f = Function("x^2", "parabola_with_holes", undefined_at=[-1, 0, 1])
 
         self.assertAlmostEqual(f.function(-5), 25.0)

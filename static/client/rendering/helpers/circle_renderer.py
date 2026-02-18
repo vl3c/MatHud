@@ -37,4 +37,3 @@ def render_circle_helper(primitives, circle, coordinate_mapper, style):
         width=float(style.get("circle_stroke_width", 1) or 1),
     )
     _render_circle(primitives, center, radius, stroke)
-

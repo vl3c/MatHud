@@ -49,9 +49,34 @@ User query: "{query}"
 Return a JSON array of up to {max_results} tool names. Example: ["create_circle", "create_point"]"""
     _STOPWORDS = frozenset(
         {
-            "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
-            "how", "i", "if", "in", "is", "it", "me", "of", "on", "or",
-            "please", "show", "the", "to", "up", "use", "with", "you",
+            "a",
+            "an",
+            "and",
+            "are",
+            "as",
+            "at",
+            "be",
+            "by",
+            "for",
+            "from",
+            "how",
+            "i",
+            "if",
+            "in",
+            "is",
+            "it",
+            "me",
+            "of",
+            "on",
+            "or",
+            "please",
+            "show",
+            "the",
+            "to",
+            "up",
+            "use",
+            "with",
+            "you",
         }
     )
 
@@ -172,14 +197,8 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         max_results = max(1, min(20, max_results))
 
         # Use provided model, instance default, or fallback to gpt-4.1-mini.
-        # Tool search is a lightweight classification task — reasoning models
-        # are overkill and their max_completion_tokens budget includes internal
-        # reasoning tokens, so 500 tokens may not leave enough room for output.
-        # For OpenAI reasoning models, downgrade to gpt-4.1-mini automatically.
         if model is None:
             model = self.default_model or AIModel.from_identifier("gpt-4.1-mini")
-        if getattr(model, "is_reasoning_model", False) and getattr(model, "provider", "") == "openai":
-            model = AIModel.from_identifier("gpt-4.1-mini")
 
         # Build the prompt
         tool_descriptions = self.build_tool_descriptions()
@@ -191,12 +210,19 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
 
         try:
             # Call the AI model
-            response = self.client.chat.completions.create(
-                model=model.id,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,  # Deterministic for consistent results
-                max_tokens=500,  # Tool names are short
-            )
+            request_kwargs: Dict[str, Any] = {
+                "model": model.id,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.0,  # Deterministic for consistent results
+            }
+            # OpenAI reasoning models in Chat Completions reject max_tokens
+            # and require max_completion_tokens.
+            if model.is_reasoning_model and model.provider == "openai":
+                request_kwargs["max_completion_tokens"] = 500
+            else:
+                request_kwargs["max_tokens"] = 500
+
+            response = self.client.chat.completions.create(**request_kwargs)
 
             # Extract the response content
             content = response.choices[0].message.content
@@ -257,11 +283,18 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         # Intent boosts for common confusion clusters.
         if any(t in query_tokens for t in ("move", "shift", "translate")) and tool_name == "translate_object":
             score += 4.0
-        if any(t in query_tokens for t in ("area", "shade", "region")) and tool_name in {"calculate_area", "create_colored_area", "create_region_colored_area"}:
+        if any(t in query_tokens for t in ("area", "shade", "region")) and tool_name in {
+            "calculate_area",
+            "create_colored_area",
+            "create_region_colored_area",
+        }:
             score += 2.0
         if any(t in query_tokens for t in ("distribution", "gaussian", "normal")) and tool_name == "plot_distribution":
             score += 4.0
-        if any(t in query_tokens for t in ("determinant", "eigenvalue", "matrix", "vector")) and tool_name == "evaluate_linear_algebra_expression":
+        if (
+            any(t in query_tokens for t in ("determinant", "eigenvalue", "matrix", "vector"))
+            and tool_name == "evaluate_linear_algebra_expression"
+        ):
             score += 4.0
         if any(t in query_tokens for t in ("undo", "redo", "history")) and tool_name in {"undo", "redo"}:
             score += 4.0

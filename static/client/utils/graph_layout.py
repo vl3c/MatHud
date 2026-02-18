@@ -32,6 +32,7 @@ from utils.graph_utils import Edge, GraphUtils
 # Box Utilities
 # =============================================================================
 
+
 def _default_box(box: Optional[Dict[str, float]], width: float, height: float) -> Dict[str, float]:
     """Normalize placement box, using canvas dimensions as fallback."""
     if not box:
@@ -86,10 +87,7 @@ def _center_graph_in_box(
         return positions
 
     # Apply translation to all positions
-    return {
-        vid: (pos[0] + dx, pos[1] + dy)
-        for vid, pos in positions.items()
-    }
+    return {vid: (pos[0] + dx, pos[1] + dy) for vid, pos in positions.items()}
 
 
 def _add_missing_vertices(
@@ -107,6 +105,7 @@ def _add_missing_vertices(
 # =============================================================================
 # Layout Selector
 # =============================================================================
+
 
 def layout_vertices(
     vertex_ids: List[str],
@@ -254,6 +253,7 @@ def _infer_root(vertex_ids: List[str], edges: List[Edge[str]]) -> Optional[str]:
 # Circular Layout
 # =============================================================================
 
+
 def _circular_layout(vertex_ids: List[str], box: Dict[str, float]) -> Dict[str, Tuple[float, float]]:
     """
     Place vertices evenly spaced around a circle.
@@ -278,6 +278,7 @@ def _circular_layout(vertex_ids: List[str], box: Dict[str, float]) -> Dict[str, 
 # =============================================================================
 # Grid Layout (TSM Orthogonal)
 # =============================================================================
+
 
 def _simple_grid_placement(
     vertex_ids: List[str],
@@ -355,10 +356,7 @@ def _optimize_layout_if_needed(
 
 def _count_diagonal_edges(ortho_rep: OrthogonalRep) -> int:
     """Count edges with more than one direction (diagonal edges)."""
-    return sum(
-        1 for edge_key in ortho_rep.edge_directions
-        if len(ortho_rep.edge_directions[edge_key]) > 1
-    )
+    return sum(1 for edge_key in ortho_rep.edge_directions if len(ortho_rep.edge_directions[edge_key]) > 1)
 
 
 def _ensure_float_positions(
@@ -583,6 +581,7 @@ def _orthogonal_tree_layout(
 # TSM Phase 1: Planarity and Embedding
 # =============================================================================
 
+
 def _is_planar(
     vertex_ids: List[str],
     edges: List[Edge[str]],
@@ -621,8 +620,7 @@ def _is_planar(
         # Each component must be planar
         for component in components:
             comp_vertices = list(component)
-            comp_edges = [e for e in edges
-                         if e.source in component and e.target in component]
+            comp_edges = [e for e in edges if e.source in component and e.target in component]
             comp_planarity = _is_planar(comp_vertices, comp_edges)
             is_comp_planar = comp_planarity[0]
             if not is_comp_planar:
@@ -654,6 +652,7 @@ def _trivial_embedding(
 
 class _DfsResult:
     """Result of DFS traversal for planarity checking."""
+
     def __init__(self) -> None:
         self.dfs_number: Dict[str, int] = {}
         self.dfs_parent: Dict[str, Optional[str]] = {}
@@ -690,7 +689,7 @@ def _dfs_for_planarity(
             if neighbor not in result.visited:
                 result.tree_edges.append((node, neighbor))
                 stack.append((neighbor, node))
-            elif neighbor != parent and result.dfs_number.get(neighbor, float('inf')) < result.dfs_number.get(node, 0):
+            elif neighbor != parent and result.dfs_number.get(neighbor, float("inf")) < result.dfs_number.get(node, 0):
                 result.back_edges.append((node, neighbor))
 
     return result
@@ -708,15 +707,11 @@ def _compute_lowpoints(
         lowpt[v] = dfs_result.dfs_number.get(v, 0)
         lowpt2[v] = dfs_result.dfs_number.get(v, 0)
 
-    sorted_by_dfs = sorted(
-        vertex_ids,
-        key=lambda x: dfs_result.dfs_number.get(x, 0),
-        reverse=True
-    )
+    sorted_by_dfs = sorted(vertex_ids, key=lambda x: dfs_result.dfs_number.get(x, 0), reverse=True)
 
     for v in sorted_by_dfs:
         # Update from back edges
-        for (src, tgt) in dfs_result.back_edges:
+        for src, tgt in dfs_result.back_edges:
             if src == v:
                 tgt_num = dfs_result.dfs_number.get(tgt, 0)
                 if tgt_num < lowpt[v]:
@@ -771,9 +766,7 @@ def _lr_planarity_check(
         return False, None
 
     # Accept graphs passing edge bounds
-    embedding = _build_embedding_from_dfs(
-        vertex_ids, adjacency, dfs_result.dfs_number, dfs_result.dfs_parent
-    )
+    embedding = _build_embedding_from_dfs(vertex_ids, adjacency, dfs_result.dfs_number, dfs_result.dfs_parent)
     return True, embedding
 
 
@@ -826,12 +819,14 @@ def _build_embedding_from_dfs(
 # TSM Phase 2: Orthogonalization
 # =============================================================================
 
+
 class OrthogonalRep:
     """
     Orthogonal representation of a planar graph.
 
     Stores vertex grid positions and edge routing directions.
     """
+
     def __init__(self) -> None:
         self.vertex_pos: Dict[str, Tuple[int, int]] = {}
         self.edge_directions: Dict[Tuple[str, str], List[str]] = {}
@@ -928,10 +923,7 @@ def _find_cycle_components(
 
         component_verts = _find_component_from_start(start, adj_no_bridges, visited)
         component_set = set(component_verts)
-        component_edges = [
-            e for e in non_bridge_edges
-            if e.source in component_set and e.target in component_set
-        ]
+        component_edges = [e for e in non_bridge_edges if e.source in component_set and e.target in component_set]
 
         # Check if this component is a simple cycle
         if len(component_edges) == len(component_verts) and len(component_verts) >= 3:
@@ -1087,18 +1079,18 @@ def _compute_edge_directions(
 
         directions: List[str] = []
         if u_col == v_col:
-            directions.append('S' if v_row > u_row else 'N')
+            directions.append("S" if v_row > u_row else "N")
         elif u_row == v_row:
-            directions.append('E' if v_col > u_col else 'W')
+            directions.append("E" if v_col > u_col else "W")
         else:
             if v_row > u_row:
-                directions.append('S')
+                directions.append("S")
             else:
-                directions.append('N')
+                directions.append("N")
             if v_col > u_col:
-                directions.append('E')
+                directions.append("E")
             else:
-                directions.append('W')
+                directions.append("W")
 
         edge_directions[(u, v)] = directions
 
@@ -1184,6 +1176,7 @@ def _orthogonalize_multi_cycle(
 
 class _BfsTreeResult:
     """Result of BFS tree construction."""
+
     def __init__(self) -> None:
         self.parent: Dict[str, Optional[str]] = {}
         self.children: Dict[str, List[str]] = {}
@@ -1307,24 +1300,24 @@ def _compute_edge_directions_with_stats(
 
         if delta_col == 0:
             if delta_row > 0:
-                directions.append('S')
+                directions.append("S")
             elif delta_row < 0:
-                directions.append('N')
+                directions.append("N")
         elif delta_row == 0:
             if delta_col > 0:
-                directions.append('E')
+                directions.append("E")
             elif delta_col < 0:
-                directions.append('W')
+                directions.append("W")
         else:
             diagonal_count += 1
             if delta_row > 0:
-                directions.append('S')
+                directions.append("S")
             elif delta_row < 0:
-                directions.append('N')
+                directions.append("N")
             if delta_col > 0:
-                directions.append('E')
+                directions.append("E")
             elif delta_col < 0:
-                directions.append('W')
+                directions.append("W")
 
         edge_directions[(u, v)] = directions
 
@@ -1476,6 +1469,7 @@ def _align_for_orthogonality(
 # TSM Phase 3: Compaction
 # =============================================================================
 
+
 def _compact_orthogonal(
     ortho_rep: OrthogonalRep,
     vertex_ids: List[str],
@@ -1534,6 +1528,7 @@ def _compact_orthogonal(
 # Planarization (for non-planar graphs)
 # =============================================================================
 
+
 def _find_all_edge_crossings(
     edges: List[Edge[str]],
     positions: Dict[str, Tuple[float, float]],
@@ -1543,14 +1538,13 @@ def _find_all_edge_crossings(
     edge_list = list(edges)
 
     for i, e1 in enumerate(edge_list):
-        for e2 in edge_list[i + 1:]:
+        for e2 in edge_list[i + 1 :]:
             # Skip edges sharing a vertex
             if e1.source in (e2.source, e2.target) or e1.target in (e2.source, e2.target):
                 continue
 
             crossing = _edge_intersection(
-                positions[e1.source], positions[e1.target],
-                positions[e2.source], positions[e2.target]
+                positions[e1.source], positions[e1.target], positions[e2.source], positions[e2.target]
             )
 
             if crossing is not None:
@@ -1626,15 +1620,12 @@ def _planarize_graph(
     if not crossings:
         return vertex_ids, edges, set()
 
-    dummy_vertices, dummy_ids, edge_splits, edges_to_remove = \
-        _create_dummy_vertices_for_crossings(crossings)
+    dummy_vertices, dummy_ids, edge_splits, edges_to_remove = _create_dummy_vertices_for_crossings(crossings)
 
     new_vertices = list(vertex_ids) + dummy_vertices
 
     # Add edges that don't need splitting
-    new_edges: List[Edge[str]] = [
-        e for e in edges if (e.source, e.target) not in edges_to_remove
-    ]
+    new_edges: List[Edge[str]] = [e for e in edges if (e.source, e.target) not in edges_to_remove]
 
     # Add split edges
     new_edges.extend(_create_split_edges(edge_splits))
@@ -1685,6 +1676,7 @@ def _edge_intersection(
 # Crossing Elimination
 # =============================================================================
 
+
 def _find_crossing_pairs(
     edges: List[Edge[str]],
     positions: Dict[str, Tuple[float, float]],
@@ -1715,10 +1707,7 @@ def _find_crossing_pairs(
                 continue
 
             # Check if edges share a vertex
-            shares_vertex = (
-                e1.source in (e2.source, e2.target) or
-                e1.target in (e2.source, e2.target)
-            )
+            shares_vertex = e1.source in (e2.source, e2.target) or e1.target in (e2.source, e2.target)
 
             if shares_vertex:
                 # Check for adjacent edge overlap
@@ -1801,6 +1790,7 @@ def _edges_collinear_overlap(
 
     Two edges overlap if they are on the same line and their projections overlap.
     """
+
     # Check if all 4 points are collinear
     def cross_product(o: Tuple[float, float], a: Tuple[float, float], b: Tuple[float, float]) -> float:
         return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
@@ -1930,10 +1920,7 @@ def _count_crossings_for_vertex(
                 continue
 
             # Check if edges share a vertex
-            shares_vertex = (
-                e1.source in (e2.source, e2.target) or
-                e1.target in (e2.source, e2.target)
-            )
+            shares_vertex = e1.source in (e2.source, e2.target) or e1.target in (e2.source, e2.target)
 
             if shares_vertex:
                 # Check for adjacent edge overlap (vertex on segment)
@@ -2249,9 +2236,7 @@ def _phase1_eliminate_crossings(
         improved = False
 
         for crossing_pair in crossing_pairs:
-            best_move = _find_best_crossing_move(
-                crossing_pair, grid_pos, edges, grid_size, box, best_crossing_count
-            )
+            best_move = _find_best_crossing_move(crossing_pair, grid_pos, edges, grid_size, box, best_crossing_count)
 
             if best_move is not None:
                 v = best_move[0]
@@ -2267,9 +2252,7 @@ def _phase1_eliminate_crossings(
             continue
 
         # Try expanded search
-        expanded_result = _try_expanded_search(
-            vertex_ids, grid_pos, edges, grid_size, box, best_crossing_count
-        )
+        expanded_result = _try_expanded_search(vertex_ids, grid_pos, edges, grid_size, box, best_crossing_count)
         improved = expanded_result[0]
         best_crossing_count = expanded_result[1]
         best_grid_pos = expanded_result[2]
@@ -2336,9 +2319,7 @@ def _search_nearby_ortho_positions(
                 continue
 
             new_pos = (new_col, new_row)
-            ortho_result = _try_ortho_position(
-                v, new_pos, best_ortho_pos, grid_pos, edges, grid_size, best_ortho_count
-            )
+            ortho_result = _try_ortho_position(v, new_pos, best_ortho_pos, grid_pos, edges, grid_size, best_ortho_count)
             best_ortho_pos = ortho_result[0]
             best_ortho_count = ortho_result[1]
 
@@ -2367,9 +2348,7 @@ def _search_neighbor_aligned_positions(
             if (test_col, n_row) in occupied or (test_col, n_row) == old_pos:
                 continue
             new_pos = (test_col, n_row)
-            ortho_result = _try_ortho_position(
-                v, new_pos, best_ortho_pos, grid_pos, edges, grid_size, best_ortho_count
-            )
+            ortho_result = _try_ortho_position(v, new_pos, best_ortho_pos, grid_pos, edges, grid_size, best_ortho_count)
             best_ortho_pos = ortho_result[0]
             best_ortho_count = ortho_result[1]
 
@@ -2378,9 +2357,7 @@ def _search_neighbor_aligned_positions(
             if (n_col, test_row) in occupied or (n_col, test_row) == old_pos:
                 continue
             new_pos = (n_col, test_row)
-            ortho_result = _try_ortho_position(
-                v, new_pos, best_ortho_pos, grid_pos, edges, grid_size, best_ortho_count
-            )
+            ortho_result = _try_ortho_position(v, new_pos, best_ortho_pos, grid_pos, edges, grid_size, best_ortho_count)
             best_ortho_pos = ortho_result[0]
             best_ortho_count = ortho_result[1]
 
@@ -2416,16 +2393,13 @@ def _phase2_optimize_orthogonality(
             occupied = {grid_pos[vid] for vid in grid_pos if vid != v}
 
             # Strategy 1: Search nearby positions
-            search_result = _search_nearby_ortho_positions(
-                v, old_pos, grid_pos, edges, grid_size, occupied
-            )
+            search_result = _search_nearby_ortho_positions(v, old_pos, grid_pos, edges, grid_size, occupied)
             best_ortho_pos = search_result[0]
             best_ortho_count = search_result[1]
 
             # Strategy 2: Try aligning with each neighbor
             align_result = _search_neighbor_aligned_positions(
-                v, adjacency, grid_pos, edges, grid_size, occupied,
-                old_pos, best_ortho_pos, best_ortho_count
+                v, adjacency, grid_pos, edges, grid_size, occupied, old_pos, best_ortho_pos, best_ortho_count
             )
             best_ortho_pos = align_result[0]
             best_ortho_count = align_result[1]
@@ -2469,9 +2443,7 @@ def _eliminate_crossings(
     grid_pos = _to_grid_coords(positions, box, grid_size)
 
     # Phase 1: Eliminate crossings
-    phase1_result = _phase1_eliminate_crossings(
-        vertex_ids, edges, grid_pos, grid_size, box, max_iterations
-    )
+    phase1_result = _phase1_eliminate_crossings(vertex_ids, edges, grid_pos, grid_size, box, max_iterations)
     best_grid_pos = phase1_result[0]
     best_crossing_count = phase1_result[1]
 
@@ -2530,8 +2502,8 @@ def _normalize_orthogonal_edge_lengths(
         return positions
 
     # Calculate gaps
-    y_gaps = [sorted_ys[i+1] - sorted_ys[i] for i in range(len(sorted_ys)-1)] if len(sorted_ys) > 1 else []
-    x_gaps = [sorted_xs[i+1] - sorted_xs[i] for i in range(len(sorted_xs)-1)] if len(sorted_xs) > 1 else []
+    y_gaps = [sorted_ys[i + 1] - sorted_ys[i] for i in range(len(sorted_ys) - 1)] if len(sorted_ys) > 1 else []
+    x_gaps = [sorted_xs[i + 1] - sorted_xs[i] for i in range(len(sorted_xs) - 1)] if len(sorted_xs) > 1 else []
 
     all_gaps = [g for g in y_gaps + x_gaps if g > 1.0]  # Filter tiny gaps
     if not all_gaps:
@@ -2808,9 +2780,9 @@ def _equalize_edge_lengths(
 def _get_edge_neighbor(edge: Edge[str], vid: str) -> Optional[str]:
     """Get the neighbor vertex in an edge, or None if vid is not in the edge."""
     if edge.source == vid:
-        return edge.target
+        return str(edge.target)
     elif edge.target == vid:
-        return edge.source
+        return str(edge.source)
     return None
 
 
@@ -2970,6 +2942,7 @@ def _force_to_grid_fallback(
 # Radial Layout
 # =============================================================================
 
+
 def _radial_layout(
     vertex_ids: List[str],
     edges: List[Edge[str]],
@@ -3009,6 +2982,7 @@ def _radial_layout(
 # Tree Layout (Reingold-Tilford Style)
 # =============================================================================
 
+
 def _tree_layout(
     vertex_ids: List[str],
     edges: List[Edge[str]],
@@ -3045,9 +3019,7 @@ def _tree_layout(
 
     # Phase 3: Assign positions top-down
     positions = _assign_tree_positions(
-        root_id, children, subtree_widths,
-        box["x"], box["y"], box["height"],
-        scale_x, layer_height
+        root_id, children, subtree_widths, box["x"], box["y"], box["height"], scale_x, layer_height
     )
 
     _add_missing_vertices(positions, vertex_ids, box)
@@ -3113,6 +3085,7 @@ def _assign_tree_positions(
 # =============================================================================
 # Force-Directed Layout (Fruchterman-Reingold Style)
 # =============================================================================
+
 
 def _force_directed_layout(
     vertex_ids: List[str],
@@ -3189,7 +3162,7 @@ def _compute_forces(
         pos1 = positions[v1]
         x1 = float(pos1[0])
         y1 = float(pos1[1])
-        for v2 in vertex_ids[i + 1:]:
+        for v2 in vertex_ids[i + 1 :]:
             pos2 = positions[v2]
             x2 = float(pos2[0])
             y2 = float(pos2[1])

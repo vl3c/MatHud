@@ -189,4 +189,3 @@ def render_function_helper(primitives, func, coordinate_mapper, style):
 
     _render_function_paths(primitives, screen_paths, stroke, width, height)
     _render_function_label(primitives, func, screen_paths, stroke, style)
-

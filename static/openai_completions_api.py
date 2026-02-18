@@ -37,8 +37,8 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                     "type": "function",
                     "function": {
                         "name": getattr(getattr(tool_call, "function", None), "name", None),
-                        "arguments": getattr(getattr(tool_call, "function", None), "arguments", None)
-                    }
+                        "arguments": getattr(getattr(tool_call, "function", None), "arguments", None),
+                    },
                 }
                 for tool_call in tool_calls
             ]
@@ -260,13 +260,15 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
         normalized = []
         for tc in tool_calls_list:
             func = tc.get("function", {}) if isinstance(tc, dict) else {}
-            normalized.append({
-                "id": tc.get("id") if isinstance(tc, dict) else None,
-                "function": {
-                    "name": func.get("name") if isinstance(func, dict) else None,
-                    "arguments": func.get("arguments") if isinstance(func, dict) else None,
-                },
-            })
+            normalized.append(
+                {
+                    "id": tc.get("id") if isinstance(tc, dict) else None,
+                    "function": {
+                        "name": func.get("name") if isinstance(func, dict) else None,
+                        "arguments": func.get("arguments") if isinstance(func, dict) else None,
+                    },
+                }
+            )
         return normalized
 
     def _finalize_stream(self, accumulated_text: str, normalized_tool_calls: List[Dict[str, Any]]) -> None:
@@ -287,22 +289,25 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
         assistant_message = self._create_assistant_message(assistant_message_like)
         self.messages.append(assistant_message)
 
-        self._append_tool_messages([
-            SimpleNamespace(
-                id=tc.get("id"),
-                function=SimpleNamespace(
-                    name=tc.get("function", {}).get("name"),
-                    arguments=tc.get("function", {}).get("arguments"),
-                ),
-            )
-            for tc in normalized_tool_calls
-        ])
+        self._append_tool_messages(
+            [
+                SimpleNamespace(
+                    id=tc.get("id"),
+                    function=SimpleNamespace(
+                        name=tc.get("function", {}).get("name"),
+                        arguments=tc.get("function", {}).get("arguments"),
+                    ),
+                )
+                for tc in normalized_tool_calls
+            ]
+        )
 
         self._clean_conversation_history()
 
     def _prepare_tool_calls_for_response(self, normalized_tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Prepare tool calls for the final response."""
         import json as _json
+
         result = []
         for tc in normalized_tool_calls:
             func = tc.get("function", {}) if isinstance(tc, dict) else {}
@@ -312,9 +317,10 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 func_args = _json.loads(func_args_raw) if func_args_raw else {}
             except Exception:
                 func_args = {}
-            result.append({
-                "function_name": func_name or "",
-                "arguments": func_args,
-            })
+            result.append(
+                {
+                    "function_name": func_name or "",
+                    "arguments": func_args,
+                }
+            )
         return result
-

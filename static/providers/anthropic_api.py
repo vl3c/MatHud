@@ -65,8 +65,7 @@ class AnthropicAPI(OpenAIAPIBase):
             import anthropic
         except ImportError as e:
             raise ImportError(
-                "anthropic package is required for Anthropic provider. "
-                "Install with: pip install anthropic"
+                "anthropic package is required for Anthropic provider. Install with: pip install anthropic"
             ) from e
 
         self._anthropic_client = anthropic.Anthropic(api_key=_get_anthropic_api_key())
@@ -159,12 +158,14 @@ class AnthropicAPI(OpenAIAPIBase):
                             args = json.loads(args_str) if isinstance(args_str, str) else args_str
                         except json.JSONDecodeError:
                             args = {}
-                        content_blocks.append({
-                            "type": "tool_use",
-                            "id": tc.get("id", ""),
-                            "name": func.get("name", ""),
-                            "input": args,
-                        })
+                        content_blocks.append(
+                            {
+                                "type": "tool_use",
+                                "id": tc.get("id", ""),
+                                "name": func.get("name", ""),
+                                "input": args,
+                            }
+                        )
                     anthropic_messages.append({"role": "assistant", "content": content_blocks})
                 else:
                     anthropic_messages.append({"role": "assistant", "content": content or ""})
@@ -208,14 +209,16 @@ class AnthropicAPI(OpenAIAPIBase):
                     parts = url.split(",", 1)
                     if len(parts) == 2:
                         media_type_part = parts[0].replace("data:", "").replace(";base64", "")
-                        anthropic_blocks.append({
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type_part,
-                                "data": parts[1],
-                            },
-                        })
+                        anthropic_blocks.append(
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type_part,
+                                    "data": parts[1],
+                                },
+                            }
+                        )
 
         return anthropic_blocks
 
@@ -274,14 +277,16 @@ class AnthropicAPI(OpenAIAPIBase):
             if block.type == "text":
                 text_content += block.text
             elif block.type == "tool_use":
-                tool_calls.append({
-                    "id": block.id,
-                    "type": "function",
-                    "function": {
-                        "name": block.name,
-                        "arguments": json.dumps(block.input),
-                    },
-                })
+                tool_calls.append(
+                    {
+                        "id": block.id,
+                        "type": "function",
+                        "function": {
+                            "name": block.name,
+                            "arguments": json.dumps(block.input),
+                        },
+                    }
+                )
 
         # Create assistant message for history
         assistant_message: MessageDict = {"role": "assistant", "content": text_content}
@@ -292,11 +297,13 @@ class AnthropicAPI(OpenAIAPIBase):
         # Append placeholder tool messages
         if tool_calls:
             for tc in tool_calls:
-                self.messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc["id"],
-                    "content": "Awaiting result...",
-                })
+                self.messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": "Awaiting result...",
+                    }
+                )
 
         self._clean_conversation_history()
 
@@ -314,7 +321,9 @@ class AnthropicAPI(OpenAIAPIBase):
                         ),
                     )
                     for tc in tool_calls
-                ] if tool_calls else None,
+                ]
+                if tool_calls
+                else None,
             ),
             finish_reason=finish_reason,
         )
@@ -408,9 +417,7 @@ class AnthropicAPI(OpenAIAPIBase):
             "finish_reason": finish_reason or "stop",
         }
 
-    def _finalize_anthropic_stream(
-        self, accumulated_text: str, tool_calls: List[Dict[str, Any]]
-    ) -> None:
+    def _finalize_anthropic_stream(self, accumulated_text: str, tool_calls: List[Dict[str, Any]]) -> None:
         """Finalize the streaming response by updating messages."""
         # Create assistant message
         assistant_message: MessageDict = {"role": "assistant", "content": accumulated_text}
@@ -427,17 +434,17 @@ class AnthropicAPI(OpenAIAPIBase):
 
         # Append placeholder tool messages
         for tc in tool_calls:
-            self.messages.append({
-                "role": "tool",
-                "tool_call_id": tc["id"],
-                "content": "Awaiting result...",
-            })
+            self.messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": "Awaiting result...",
+                }
+            )
 
         self._clean_conversation_history()
 
-    def _prepare_tool_calls_for_response(
-        self, tool_calls: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _prepare_tool_calls_for_response(self, tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Prepare tool calls for the final response."""
         result = []
         for tc in tool_calls:
@@ -448,10 +455,12 @@ class AnthropicAPI(OpenAIAPIBase):
                 func_args = json.loads(func_args_raw) if func_args_raw else {}
             except json.JSONDecodeError:
                 func_args = {}
-            result.append({
-                "function_name": func_name,
-                "arguments": func_args,
-            })
+            result.append(
+                {
+                    "function_name": func_name,
+                    "arguments": func_args,
+                }
+            )
         return result
 
 

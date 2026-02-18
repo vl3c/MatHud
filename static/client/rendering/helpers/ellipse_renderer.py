@@ -77,4 +77,3 @@ def render_ellipse_helper(primitives, ellipse, coordinate_mapper, style):
         rotation_rad = 0.0
 
     _render_ellipse(primitives, center, rx, ry, rotation_rad, stroke)
-

@@ -245,9 +245,7 @@ class GraphManager:
         if isinstance(existing, DirectedGraph):
             vectors: List["Vector"] = list(existing.vectors)
             for vector in vectors:
-                self.vector_manager.delete_vector(
-                    vector.origin.x, vector.origin.y, vector.tip.x, vector.tip.y
-                )
+                self.vector_manager.delete_vector(vector.origin.x, vector.origin.y, vector.tip.x, vector.tip.y)
                 point_names.add(vector.origin.name)
                 point_names.add(vector.tip.name)
         else:
@@ -272,9 +270,7 @@ class GraphManager:
         for v_name in point_names:
             self.point_manager.delete_point_by_name(v_name)
 
-        removed = remove_drawable_with_dependencies(
-            self.drawables, self.dependency_manager, existing
-        )
+        removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, existing)
         if removed and self.canvas.draw_enabled:
             self.canvas.draw()
         return bool(removed)

@@ -15,9 +15,7 @@ class RecordingPrimitives(shared.RendererPrimitives):
         self.calls.append(("fill_polygon", (points, fill, stroke), dict(kwargs)))
 
     def draw_text(self, text, position, font, color, alignment, style_overrides=None, **kwargs):
-        self.calls.append(
-            ("draw_text", (text, position, font, color, alignment, style_overrides), dict(kwargs))
-        )
+        self.calls.append(("draw_text", (text, position, font, color, alignment, style_overrides), dict(kwargs)))
 
     # The remaining primitives are not needed for these tests.
     def stroke_line(self, *_args, **_kwargs):
@@ -161,5 +159,3 @@ class TestBarRenderer(unittest.TestCase):
         bar2 = Bar(name="B2", x_left=0.0, x_right=1.0, y_bottom=2.0, y_top=2.0)
         shared.render_bar_helper(self.primitives, bar2, self.mapper, self.style)
         self.assertEqual(self.primitives.calls, [])
-
-

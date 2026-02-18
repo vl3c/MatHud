@@ -245,9 +245,11 @@ class TestMathUtilsTangentFunctions(unittest.TestCase):
 
     def test_numerical_derivative_at_polynomial(self) -> None:
         """Test numerical derivative of x^2 at x=3."""
+
         # y = x^2, y' = 2x, y'(3) = 6
         def func(x):
             return x**2
+
         deriv = MathUtils.numerical_derivative_at(func, 3.0)
         self.assertIsNotNone(deriv)
         self.assertAlmostEqual(deriv, 6.0, places=4)
@@ -288,7 +290,7 @@ class TestMathUtilsTangentFunctions(unittest.TestCase):
         slope = 2.0
         p1, p2 = MathUtils.tangent_line_endpoints(slope, point, length)
 
-        actual_length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+        actual_length = math.sqrt((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2)
         self.assertAlmostEqual(actual_length, 6.0, places=5)
 
     def test_normal_slope_from_horizontal(self) -> None:

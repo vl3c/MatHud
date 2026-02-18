@@ -45,6 +45,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
 
+
 class DrawablesContainer:
     """
     A container for storing and accessing drawable objects by their class names.
@@ -85,9 +86,7 @@ class DrawablesContainer:
 
         for drawable in others:
             class_name = (
-                drawable.get_class_name()
-                if hasattr(drawable, "get_class_name")
-                else drawable.__class__.__name__
+                drawable.get_class_name() if hasattr(drawable, "get_class_name") else drawable.__class__.__name__
             )
             if class_name == "Circle":
                 circles.append(drawable)
@@ -174,7 +173,7 @@ class DrawablesContainer:
         """
         colored_areas = []
         for drawable_type in self._drawables:
-            if 'ColoredArea' in drawable_type:
+            if "ColoredArea" in drawable_type:
                 colored_areas.extend(self._drawables[drawable_type])
         return colored_areas
 
@@ -187,7 +186,7 @@ class DrawablesContainer:
         """
         other_drawables = []
         for drawable_type in self._drawables:
-            if 'ColoredArea' not in drawable_type:
+            if "ColoredArea" not in drawable_type:
                 other_drawables.extend(self._drawables[drawable_type])
         return other_drawables
 
@@ -209,7 +208,7 @@ class DrawablesContainer:
         colored: List["Drawable"] = []
         others: List["Drawable"] = []
         for class_name, bucket in self._renderables.items():
-            if 'ColoredArea' in class_name:
+            if "ColoredArea" in class_name:
                 colored.extend(bucket)
             else:
                 others.extend(bucket)
@@ -229,7 +228,7 @@ class DrawablesContainer:
         """
         state_dict = {}
         for category, drawables in self._drawables.items():
-            state_dict[category + 's'] = [drawable.get_state() for drawable in drawables]
+            state_dict[category + "s"] = [drawable.get_state() for drawable in drawables]
         return state_dict
 
     def rebuild_renderables(self) -> None:
@@ -243,22 +242,22 @@ class DrawablesContainer:
     @property
     def Points(self) -> List["Drawable"]:
         """Get all Point objects."""
-        return self.get_by_class_name('Point')
+        return self.get_by_class_name("Point")
 
     @property
     def Segments(self) -> List["Drawable"]:
         """Get all Segment objects."""
-        return self.get_by_class_name('Segment')
+        return self.get_by_class_name("Segment")
 
     @property
     def Vectors(self) -> List["Drawable"]:
         """Get all Vector objects."""
-        return self.get_by_class_name('Vector')
+        return self.get_by_class_name("Vector")
 
     @property
     def Triangles(self) -> List["Drawable"]:
         """Get all Triangle objects."""
-        return self.get_by_class_name('Triangle')
+        return self.get_by_class_name("Triangle")
 
     def get_triangle_by_name(self, name: str) -> Optional["Drawable"]:
         """Retrieve a triangle by name."""
@@ -272,7 +271,7 @@ class DrawablesContainer:
     @property
     def Rectangles(self) -> List["Drawable"]:
         """Get all Rectangle objects."""
-        return self.get_by_class_name('Rectangle')
+        return self.get_by_class_name("Rectangle")
 
     def get_rectangle_by_name(self, name: str) -> Optional["Drawable"]:
         """Retrieve a rectangle by name."""
@@ -286,7 +285,7 @@ class DrawablesContainer:
     @property
     def Quadrilaterals(self) -> List["Drawable"]:
         """Get all Quadrilateral objects."""
-        return self.get_by_class_name('Quadrilateral')
+        return self.get_by_class_name("Quadrilateral")
 
     def get_quadrilateral_by_name(self, name: str) -> Optional["Drawable"]:
         """Retrieve a quadrilateral by name."""
@@ -300,7 +299,7 @@ class DrawablesContainer:
     @property
     def Pentagons(self) -> List["Drawable"]:
         """Get all Pentagon objects."""
-        return self.get_by_class_name('Pentagon')
+        return self.get_by_class_name("Pentagon")
 
     def get_pentagon_by_name(self, name: str) -> Optional["Drawable"]:
         """Retrieve a pentagon by name."""
@@ -314,7 +313,7 @@ class DrawablesContainer:
     @property
     def Hexagons(self) -> List["Drawable"]:
         """Get all Hexagon objects."""
-        return self.get_by_class_name('Hexagon')
+        return self.get_by_class_name("Hexagon")
 
     def get_hexagon_by_name(self, name: str) -> Optional["Drawable"]:
         """Retrieve a hexagon by name."""
@@ -328,8 +327,16 @@ class DrawablesContainer:
     def iter_polygons(self, allowed_classes: Optional[Iterable[str]] = None) -> Iterable["Drawable"]:
         """Iterate over stored polygon drawables, optionally filtered by class name."""
         polygon_classes = (
-            "Triangle", "Quadrilateral", "Rectangle", "Pentagon", "Hexagon",
-            "Heptagon", "Octagon", "Nonagon", "Decagon", "GenericPolygon",
+            "Triangle",
+            "Quadrilateral",
+            "Rectangle",
+            "Pentagon",
+            "Hexagon",
+            "Heptagon",
+            "Octagon",
+            "Nonagon",
+            "Decagon",
+            "GenericPolygon",
         )
         target_classes = tuple(allowed_classes) if allowed_classes else polygon_classes
         for class_name in target_classes:
@@ -348,67 +355,67 @@ class DrawablesContainer:
     @property
     def Circles(self) -> List["Drawable"]:
         """Get all Circle objects."""
-        return self.get_by_class_name('Circle')
+        return self.get_by_class_name("Circle")
 
     @property
     def Ellipses(self) -> List["Drawable"]:
         """Get all Ellipse objects."""
-        return self.get_by_class_name('Ellipse')
+        return self.get_by_class_name("Ellipse")
 
     @property
     def Functions(self) -> List["Drawable"]:
         """Get all Function objects."""
-        return self.get_by_class_name('Function')
+        return self.get_by_class_name("Function")
 
     @property
     def PiecewiseFunctions(self) -> List["Drawable"]:
         """Get all PiecewiseFunction objects."""
-        return self.get_by_class_name('PiecewiseFunction')
+        return self.get_by_class_name("PiecewiseFunction")
 
     @property
     def ParametricFunctions(self) -> List["Drawable"]:
         """Get all ParametricFunction objects."""
-        return self.get_by_class_name('ParametricFunction')
+        return self.get_by_class_name("ParametricFunction")
 
     @property
     def Labels(self) -> List["Drawable"]:
         """Get all Label objects."""
-        return self.get_by_class_name('Label')
+        return self.get_by_class_name("Label")
 
     @property
     def ColoredAreas(self) -> List["Drawable"]:
         """Get all ColoredArea objects."""
-        return self.get_by_class_name('ColoredArea')
+        return self.get_by_class_name("ColoredArea")
 
     @property
     def FunctionsBoundedColoredAreas(self) -> List["Drawable"]:
         """Get all FunctionsBoundedColoredArea objects."""
-        return self.get_by_class_name('FunctionsBoundedColoredArea')
+        return self.get_by_class_name("FunctionsBoundedColoredArea")
 
     @property
     def Angles(self) -> List["Drawable"]:
         """Get all Angle objects."""
-        return self.get_by_class_name('Angle')
+        return self.get_by_class_name("Angle")
 
     @property
     def CircleArcs(self) -> List["Drawable"]:
         """Get all CircleArc objects."""
-        return self.get_by_class_name('CircleArc')
+        return self.get_by_class_name("CircleArc")
 
     @property
     def SegmentsBoundedColoredAreas(self) -> List["Drawable"]:
         """Get all SegmentsBoundedColoredArea objects."""
-        return self.get_by_class_name('SegmentsBoundedColoredArea')
+        return self.get_by_class_name("SegmentsBoundedColoredArea")
 
     @property
     def FunctionSegmentBoundedColoredAreas(self) -> List["Drawable"]:
         """Get all FunctionSegmentBoundedColoredArea objects."""
-        return self.get_by_class_name('FunctionSegmentBoundedColoredArea')
+        return self.get_by_class_name("FunctionSegmentBoundedColoredArea")
 
     @property
     def ClosedShapeColoredAreas(self) -> List["Drawable"]:
         """Get all ClosedShapeColoredArea objects."""
-        return self.get_by_class_name('ClosedShapeColoredArea')
+        return self.get_by_class_name("ClosedShapeColoredArea")
 
     # Direct dictionary-like access
     def __getitem__(self, key: str) -> List["Drawable"]:

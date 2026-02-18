@@ -34,4 +34,3 @@ class PolygonType(str, Enum):
             return cls(value.strip().lower())
         except Exception as exc:
             raise ValueError(f"Unsupported polygon type '{value}'.") from exc
-

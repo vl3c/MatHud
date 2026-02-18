@@ -17,12 +17,10 @@ class TestDrawableNameGenerator(unittest.TestCase):
 
     def test_get_drawable_names(self) -> None:
         # Here, get_drawables_by_class_name is expected to be a callable that returns a list of mocks when called
-        set_drawables = SimpleMock(
-            return_value=[SimpleMock(name='Point1'), SimpleMock(name='Point2')]
-        )
+        set_drawables = SimpleMock(return_value=[SimpleMock(name="Point1"), SimpleMock(name="Point2")])
         setattr(self.canvas, "get_drawables_by_class_name", set_drawables)
-        result = self.generator.get_drawable_names('Point')
-        self.assertEqual(result, ['Point1', 'Point2'])
+        result = self.generator.get_drawable_names("Point")
+        self.assertEqual(result, ["Point1", "Point2"])
 
     def test_filter_string(self) -> None:
         # Test with a string that contains letters, digits, apostrophes, and parentheses
@@ -48,13 +46,13 @@ class TestDrawableNameGenerator(unittest.TestCase):
 
         # Define predictable returns for each class name
         mock_returns = {
-            'Point': [SimpleMock(name='Point1'), SimpleMock(name='Point2')],
-            'Segment': [SimpleMock(name='Segment1'), SimpleMock(name='Segment2')],
-            'Triangle': [SimpleMock(name='Triangle1'), SimpleMock(name='Triangle2')],
-            'Rectangle': [SimpleMock(name='Rectangle1'), SimpleMock(name='Rectangle2')],
-            'Circle': [SimpleMock(name='Circle1'), SimpleMock(name='Circle2')],
-            'Ellipse': [SimpleMock(name='Ellipse1'), SimpleMock(name='Ellipse2')],
-            'Function': [SimpleMock(name='Function1'), SimpleMock(name='Function2')]
+            "Point": [SimpleMock(name="Point1"), SimpleMock(name="Point2")],
+            "Segment": [SimpleMock(name="Segment1"), SimpleMock(name="Segment2")],
+            "Triangle": [SimpleMock(name="Triangle1"), SimpleMock(name="Triangle2")],
+            "Rectangle": [SimpleMock(name="Rectangle1"), SimpleMock(name="Rectangle2")],
+            "Circle": [SimpleMock(name="Circle1"), SimpleMock(name="Circle2")],
+            "Ellipse": [SimpleMock(name="Ellipse1"), SimpleMock(name="Ellipse2")],
+            "Function": [SimpleMock(name="Function1"), SimpleMock(name="Function2")],
         }
 
         # Set up the canvas.get_drawables_by_class_name to return the appropriate mock objects
@@ -71,7 +69,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
         printed_lines = []
 
         def mock_print(*args: object, **kwargs: object) -> None:
-            line = ' '.join(str(arg) for arg in args)
+            line = " ".join(str(arg) for arg in args)
             printed_lines.append(line)
 
         # Replace print with our mock
@@ -92,14 +90,17 @@ class TestDrawableNameGenerator(unittest.TestCase):
             "Rectangle names: ['Rectangle1', 'Rectangle2']",
             "Circle names: ['Circle1', 'Circle2']",
             "Ellipse names: ['Ellipse1', 'Ellipse2']",
-            "Function names: ['Function1', 'Function2']"
+            "Function names: ['Function1', 'Function2']",
         ]
 
         # Compare line by line for easier debugging
-        self.assertEqual(len(printed_lines), len(expected_lines),
-                         f"Expected {len(expected_lines)} lines but got {len(printed_lines)}")
+        self.assertEqual(
+            len(printed_lines),
+            len(expected_lines),
+            f"Expected {len(expected_lines)} lines but got {len(printed_lines)}",
+        )
         for i, (actual, expected) in enumerate(zip(printed_lines, expected_lines)):
-            self.assertEqual(actual, expected, f"Line {i+1} doesn't match: {actual} != {expected}")
+            self.assertEqual(actual, expected, f"Line {i + 1} doesn't match: {actual} != {expected}")
 
     def test_split_point_names_basic(self) -> None:
         result = self.generator.split_point_names("A'B'CD", 4)
@@ -149,28 +150,28 @@ class TestDrawableNameGenerator(unittest.TestCase):
         setattr(
             self.canvas,
             "get_drawables_by_class_name",
-            SimpleMock(return_value=[SimpleMock(name='A')]),
+            SimpleMock(return_value=[SimpleMock(name="A")]),
         )
         result = self.generator.generate_point_name(None)
-        self.assertEqual(result, 'B')
+        self.assertEqual(result, "B")
 
     def test_generate_point_name_with_preferred_name(self) -> None:
         setattr(
             self.canvas,
             "get_drawables_by_class_name",
-            SimpleMock(return_value=[SimpleMock(name='A')]),
+            SimpleMock(return_value=[SimpleMock(name="A")]),
         )
-        result = self.generator.generate_point_name('B')
-        self.assertEqual(result, 'B')
+        result = self.generator.generate_point_name("B")
+        self.assertEqual(result, "B")
 
     def test_generate_point_name_with_used_preferred_name(self) -> None:
         setattr(
             self.canvas,
             "get_drawables_by_class_name",
-            SimpleMock(return_value=[SimpleMock(name='A'), SimpleMock(name='B')]),
+            SimpleMock(return_value=[SimpleMock(name="A"), SimpleMock(name="B")]),
         )
-        result = self.generator.generate_point_name('B')
-        self.assertNotEqual(result, 'B')
+        result = self.generator.generate_point_name("B")
+        self.assertNotEqual(result, "B")
 
     def test_generate_point_name_with_complex_preferred_name(self) -> None:
         # When we pass "AB'C" as preferred_name, and 'A' is already used,
@@ -179,7 +180,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
         setattr(
             self.canvas,
             "get_drawables_by_class_name",
-            SimpleMock(return_value=[SimpleMock(name='A'), SimpleMock(name="B'")]),
+            SimpleMock(return_value=[SimpleMock(name="A"), SimpleMock(name="B'")]),
         )
 
         # Reset the dictionary for a clean test
@@ -192,20 +193,20 @@ class TestDrawableNameGenerator(unittest.TestCase):
 
     def test_increment_function_name(self) -> None:
         # Test with a function name that ends with a number
-        result = self.generator._increment_function_name('f4')
-        self.assertEqual(result, 'f5')
+        result = self.generator._increment_function_name("f4")
+        self.assertEqual(result, "f5")
         # Test with a function name that does not end with a number
-        result = self.generator._increment_function_name('f')
-        self.assertEqual(result, 'f1')
+        result = self.generator._increment_function_name("f")
+        self.assertEqual(result, "f1")
         # Test with a function name that ends with a large number
-        result = self.generator._increment_function_name('f99')
-        self.assertEqual(result, 'f100')
+        result = self.generator._increment_function_name("f99")
+        self.assertEqual(result, "f100")
         # Test with a function name that ends with a number and has other numbers in it
-        result = self.generator._increment_function_name('f4f4')
-        self.assertEqual(result, 'f4f5')
+        result = self.generator._increment_function_name("f4f4")
+        self.assertEqual(result, "f4f5")
         # Test with a function name that does not end with a number and has other numbers in it
-        result = self.generator._increment_function_name('f4f')
-        self.assertEqual(result, 'f4f1')
+        result = self.generator._increment_function_name("f4f")
+        self.assertEqual(result, "f4f1")
 
     def test_generate_unique_function_name(self) -> None:
         self.canvas.get_drawables_by_class_name = SimpleMock(return_value=[])
@@ -220,46 +221,40 @@ class TestDrawableNameGenerator(unittest.TestCase):
         self.assertEqual(result, "v1")
 
     def test_generate_function_name(self) -> None:
-        self.canvas.get_drawables_by_class_name = SimpleMock(
-            return_value=[SimpleMock(name='f'), SimpleMock(name='f1')]
-        )
+        self.canvas.get_drawables_by_class_name = SimpleMock(return_value=[SimpleMock(name="f"), SimpleMock(name="f1")])
         result = self.generator.generate_function_name(None)
-        self.assertEqual(result, 'g')
+        self.assertEqual(result, "g")
 
     def test_generate_function_name_with_preferred_name(self) -> None:
-        self.canvas.get_drawables_by_class_name = SimpleMock(
-            return_value=[SimpleMock(name='f1')]
-        )
-        result = self.generator.generate_function_name('f2')
-        self.assertEqual(result, 'f2')
+        self.canvas.get_drawables_by_class_name = SimpleMock(return_value=[SimpleMock(name="f1")])
+        result = self.generator.generate_function_name("f2")
+        self.assertEqual(result, "f2")
 
     def test_generate_function_name_with_used_preferred_name(self) -> None:
         self.canvas.get_drawables_by_class_name = SimpleMock(
-            return_value=[SimpleMock(name='f1'), SimpleMock(name='f2')]
+            return_value=[SimpleMock(name="f1"), SimpleMock(name="f2")]
         )
-        result = self.generator.generate_function_name('f2')
-        self.assertEqual(result, 'f3')
+        result = self.generator.generate_function_name("f2")
+        self.assertEqual(result, "f3")
 
     def test_generate_function_name_with_preferred_name_and_parentheses(self) -> None:
-        self.canvas.get_drawables_by_class_name = SimpleMock(
-            return_value=[SimpleMock(name='f1')]
-        )
-        result = self.generator.generate_function_name('f2(x)')
-        self.assertEqual(result, 'f2')
+        self.canvas.get_drawables_by_class_name = SimpleMock(return_value=[SimpleMock(name="f1")])
+        result = self.generator.generate_function_name("f2(x)")
+        self.assertEqual(result, "f2")
 
     def test_generate_function_name_with_used_preferred_name_and_parentheses(self) -> None:
         self.canvas.get_drawables_by_class_name = SimpleMock(
-            return_value=[SimpleMock(name='f1'), SimpleMock(name='f2')]
+            return_value=[SimpleMock(name="f1"), SimpleMock(name="f2")]
         )
-        result = self.generator.generate_function_name('f2(x)')
-        self.assertEqual(result, 'f3')
+        result = self.generator.generate_function_name("f2(x)")
+        self.assertEqual(result, "f3")
 
     def test_generate_function_name_with_complex_expression(self) -> None:
         self.canvas.get_drawables_by_class_name = SimpleMock(
-            return_value=[SimpleMock(name='f1'), SimpleMock(name='f2')]
+            return_value=[SimpleMock(name="f1"), SimpleMock(name="f2")]
         )
-        result = self.generator.generate_function_name('g(x) = sin(x)')
-        self.assertEqual(result, 'g')
+        result = self.generator.generate_function_name("g(x) = sin(x)")
+        self.assertEqual(result, "g")
 
     def test_generate_angle_name_from_segments_valid(self) -> None:
         # Standard case: AB, AC -> angle_BAC (assuming B, C sorted)
@@ -306,7 +301,7 @@ class TestDrawableNameGenerator(unittest.TestCase):
     def test_generate_angle_name_collinear_same_segment_implicitly(self) -> None:
         # e.g. AB, BA - this implies 2 points, not 3 unique points for an angle
         name = self.generator.generate_angle_name_from_segments("AB", "BA")
-        self.assertIsNone(name) # Should result in 2 unique points, not 3
+        self.assertIsNone(name)  # Should result in 2 unique points, not 3
 
     def test_generate_angle_name_identical_segments(self) -> None:
         result = self.generator.generate_angle_name_from_segments("AB", "AB")
@@ -319,17 +314,17 @@ class TestDrawableNameGenerator(unittest.TestCase):
 
         # Case 1: First segment name is a single letter "A".
         # split_point_names("A") -> ["A", ""], which is invalid.
-        result = self.generator.generate_angle_name_from_segments("A", "BC") # BC is valid
+        result = self.generator.generate_angle_name_from_segments("A", "BC")  # BC is valid
         self.assertIsNone(result, "Should be None for segment 'A'.")
 
         # Case 2: Second segment name is a single letter "A".
-        result = self.generator.generate_angle_name_from_segments("BC", "A") # BC is valid
-        self.assertIsNone(result, "Should be None for segment 'A' (second arg)." )
+        result = self.generator.generate_angle_name_from_segments("BC", "A")  # BC is valid
+        self.assertIsNone(result, "Should be None for segment 'A' (second arg).")
 
         # Case 3: Segment name is a single letter with an apostrophe "A'".
         # split_point_names("A'") -> ["A'", ""], which is invalid.
         result = self.generator.generate_angle_name_from_segments("A'", "BC")
-        self.assertIsNone(result, "Should be None for segment 'A\''.")
+        self.assertIsNone(result, "Should be None for segment 'A''.")
 
     def test_generate_angle_name_empty_or_none_segment_names(self) -> None:
         name = self.generator.generate_angle_name_from_segments("", "AB")

@@ -49,11 +49,12 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
             "math-svg": self.mock_svg_element,
             "chat-input": self.mock_chat_input,
             "send-button": self.mock_send_button,
-            "new-conversation-button": self.mock_new_conversation_button
+            "new-conversation-button": self.mock_new_conversation_button,
         }
 
         # Replace the actual document with our mock
         import canvas_event_handler
+
         self.original_document = canvas_event_handler.document
         canvas_event_handler.document = self.mock_document
 
@@ -63,6 +64,7 @@ class TestCanvasEventHandlerTouch(unittest.TestCase):
     def tearDown(self) -> None:
         """Restore original document."""
         import canvas_event_handler
+
         canvas_event_handler.document = self.original_document
 
     def _create_mock_touch(self, client_x: float, client_y: float) -> SimpleMock:

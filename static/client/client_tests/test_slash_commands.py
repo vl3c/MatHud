@@ -31,9 +31,7 @@ class MockCanvas:
         self.coordinate_mapper.right_bound = 10
         self.coordinate_mapper.top_bound = 10
         self.coordinate_mapper.bottom_bound = -10
-        self.coordinate_mapper.get_visible_bounds = lambda: {
-            "left": -10, "right": 10, "top": 10, "bottom": -10
-        }
+        self.coordinate_mapper.get_visible_bounds = lambda: {"left": -10, "right": 10, "top": 10, "bottom": -10}
 
         # Mock cartesian2axis
         self.cartesian2axis = MagicMock()
@@ -451,7 +449,7 @@ class TestUtilityCommands(unittest.TestCase):
         # Error message may contain "Invalid JSON" or other JSON parsing errors
         self.assertTrue(
             "Invalid JSON" in result.message or "JSON" in result.message or "Error" in result.message,
-            f"Expected JSON error message, got: {result.message}"
+            f"Expected JSON error message, got: {result.message}",
         )
 
     def test_cmd_list(self) -> None:
@@ -688,18 +686,13 @@ class TestCommandAutocomplete(unittest.TestCase):
     def test_filter_empty_prefix(self) -> None:
         """Test filtering with empty prefix shows all commands."""
         self.autocomplete.filter("")
-        self.assertEqual(
-            len(self.autocomplete.filtered_commands),
-            len(self.command_handler.get_commands_list())
-        )
+        self.assertEqual(len(self.autocomplete.filtered_commands), len(self.command_handler.get_commands_list()))
 
     def test_filter_matching_prefix(self) -> None:
         """Test filtering with matching prefix."""
         self.autocomplete.filter("he")
         # Should match /help
-        self.assertTrue(
-            any("/help" in cmd for cmd, _ in self.autocomplete.filtered_commands)
-        )
+        self.assertTrue(any("/help" in cmd for cmd, _ in self.autocomplete.filtered_commands))
 
     def test_filter_no_match(self) -> None:
         """Test filtering with non-matching prefix."""
@@ -709,9 +702,7 @@ class TestCommandAutocomplete(unittest.TestCase):
     def test_filter_case_insensitive(self) -> None:
         """Test filtering is case-insensitive."""
         self.autocomplete.filter("HE")
-        self.assertTrue(
-            any("/help" in cmd for cmd, _ in self.autocomplete.filtered_commands)
-        )
+        self.assertTrue(any("/help" in cmd for cmd, _ in self.autocomplete.filtered_commands))
 
     def test_select_next_wraps(self) -> None:
         """Test select_next wraps around."""
@@ -845,7 +836,7 @@ class TestExpandableContent(unittest.TestCase):
         """Test that messages over 800 chars are considered long."""
         # Create a message over 800 characters
         long_message = "x" * 801
-        line_count = long_message.count('\n')
+        line_count = long_message.count("\n")
         is_long = len(long_message) > 800 or line_count > 20
         self.assertTrue(is_long)
 
@@ -853,49 +844,49 @@ class TestExpandableContent(unittest.TestCase):
         """Test that messages with >20 newlines are considered long."""
         # Create a message with 22 lines (21 newlines) to trigger > 20 check
         long_message = "\n".join(["line"] * 22)
-        line_count = long_message.count('\n')
+        line_count = long_message.count("\n")
         is_long = len(long_message) > 800 or line_count > 20
         self.assertTrue(is_long)
 
     def test_short_message_not_expandable(self) -> None:
         """Test that short messages are not considered long."""
         short_message = "This is a short message"
-        line_count = short_message.count('\n')
+        line_count = short_message.count("\n")
         is_long = len(short_message) > 800 or line_count > 20
         self.assertFalse(is_long)
 
     def test_preview_truncation_by_lines(self) -> None:
         """Test preview is truncated to 10 lines."""
         lines = ["line " + str(i) for i in range(20)]
-        message = '\n'.join(lines)
+        message = "\n".join(lines)
 
         # Simulate preview creation logic
-        msg_lines = message.split('\n')
+        msg_lines = message.split("\n")
         if len(msg_lines) > 10:
-            preview_text = '\n'.join(msg_lines[:10]) + '\n...'
+            preview_text = "\n".join(msg_lines[:10]) + "\n..."
         else:
             preview_text = message
 
-        preview_lines = preview_text.split('\n')
+        preview_lines = preview_text.split("\n")
         # Should have 10 lines plus the "..." line
         self.assertEqual(len(preview_lines), 11)
-        self.assertTrue(preview_text.endswith('...'))
+        self.assertTrue(preview_text.endswith("..."))
 
     def test_preview_truncation_by_chars(self) -> None:
         """Test preview is truncated to 500 chars when few lines."""
         message = "a" * 600  # Long but single line
 
         # Simulate preview creation logic
-        lines = message.split('\n')
+        lines = message.split("\n")
         if len(lines) > 10:
-            preview_text = '\n'.join(lines[:10]) + '\n...'
+            preview_text = "\n".join(lines[:10]) + "\n..."
         elif len(message) > 500:
-            preview_text = message[:500] + '...'
+            preview_text = message[:500] + "..."
         else:
             preview_text = message
 
         self.assertEqual(len(preview_text), 503)  # 500 + "..."
-        self.assertTrue(preview_text.endswith('...'))
+        self.assertTrue(preview_text.endswith("..."))
 
 
 class TestExportCommandOutput(unittest.TestCase):
@@ -917,6 +908,7 @@ class TestExportCommandOutput(unittest.TestCase):
     def test_export_returns_valid_json(self) -> None:
         """Test /export returns valid JSON string."""
         import json
+
         result = self.handler.execute("/export")
         self.assertTrue(result.success)
         # The message should be valid JSON
@@ -929,6 +921,7 @@ class TestExportCommandOutput(unittest.TestCase):
     def test_export_data_matches_message(self) -> None:
         """Test /export data field matches message content."""
         import json
+
         result = self.handler.execute("/export")
         self.assertTrue(result.success)
         parsed_message = json.loads(result.message)
@@ -972,9 +965,7 @@ class TestStatusCommandOutput(unittest.TestCase):
         self.assertTrue(result.success)
         # Should contain bound information
         msg_lower = result.message.lower()
-        self.assertTrue(
-            "bound" in msg_lower or "left" in msg_lower or "right" in msg_lower
-        )
+        self.assertTrue("bound" in msg_lower or "left" in msg_lower or "right" in msg_lower)
 
     def test_status_shows_coordinate_system(self) -> None:
         """Test /status shows coordinate system mode."""

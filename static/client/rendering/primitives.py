@@ -65,7 +65,9 @@ class Label:
 class StrokeStyle:
     __slots__ = ("color", "width", "line_join", "line_cap")
 
-    def __init__(self, color: str, width: float, line_join: Optional[str] = None, line_cap: Optional[str] = None, **kwargs: Any) -> None:
+    def __init__(
+        self, color: str, width: float, line_join: Optional[str] = None, line_cap: Optional[str] = None, **kwargs: Any
+    ) -> None:
         self.color = str(color)
         self.width = float(width)
         self.line_join = line_join
@@ -113,7 +115,9 @@ class TextAlignment:
 class RendererPrimitives:
     """Backend-specific primitive surface consumed by shared helpers."""
 
-    def stroke_line(self, start: Tuple[float, float], end: Tuple[float, float], stroke: StrokeStyle, *, include_width: bool = True) -> None:
+    def stroke_line(
+        self, start: Tuple[float, float], end: Tuple[float, float], stroke: StrokeStyle, *, include_width: bool = True
+    ) -> None:
         raise NotImplementedError
 
     def stroke_polyline(self, points: List[Tuple[float, float]], stroke: StrokeStyle) -> None:
@@ -122,10 +126,20 @@ class RendererPrimitives:
     def stroke_circle(self, center: Tuple[float, float], radius: float, stroke: StrokeStyle) -> None:
         raise NotImplementedError
 
-    def fill_circle(self, center: Tuple[float, float], radius: float, fill: FillStyle, stroke: Optional[StrokeStyle] = None, *, screen_space: bool = False) -> None:
+    def fill_circle(
+        self,
+        center: Tuple[float, float],
+        radius: float,
+        fill: FillStyle,
+        stroke: Optional[StrokeStyle] = None,
+        *,
+        screen_space: bool = False,
+    ) -> None:
         raise NotImplementedError
 
-    def stroke_ellipse(self, center: Tuple[float, float], radius_x: float, radius_y: float, rotation_rad: float, stroke: StrokeStyle) -> None:
+    def stroke_ellipse(
+        self, center: Tuple[float, float], radius_x: float, radius_y: float, rotation_rad: float, stroke: StrokeStyle
+    ) -> None:
         raise NotImplementedError
 
     def fill_polygon(
@@ -139,7 +153,9 @@ class RendererPrimitives:
     ) -> None:
         raise NotImplementedError
 
-    def fill_joined_area(self, forward: List[Tuple[float, float]], reverse: List[Tuple[float, float]], fill: FillStyle) -> None:
+    def fill_joined_area(
+        self, forward: List[Tuple[float, float]], reverse: List[Tuple[float, float]], fill: FillStyle
+    ) -> None:
         raise NotImplementedError
 
     def stroke_arc(

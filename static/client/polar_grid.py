@@ -125,13 +125,10 @@ class PolarGrid(Drawable):
         if self.width is None or self.height is None:
             return 0
         ox, oy = self.origin_screen
-        corners = [
-            (0, 0), (self.width, 0),
-            (0, self.height), (self.width, self.height)
-        ]
+        corners = [(0, 0), (self.width, 0), (0, self.height), (self.width, self.height)]
         max_dist = 0.0
         for cx, cy in corners:
-            dist = math.sqrt((cx - ox)**2 + (cy - oy)**2)
+            dist = math.sqrt((cx - ox) ** 2 + (cy - oy) ** 2)
             if dist > max_dist:
                 max_dist = dist
         return max_dist * 1.1  # Add 10% margin
@@ -142,12 +139,12 @@ class PolarGrid(Drawable):
         scale = self.coordinate_mapper.scale_factor
         if scale <= 0:
             scale = 1.0
-        return self.max_radius_screen / scale
+        return float(self.max_radius_screen / scale)
 
     @property
     def display_spacing(self) -> float:
         """Get the spacing between circles in screen pixels."""
-        return abs(self._current_radial_spacing) * self.coordinate_mapper.scale_factor
+        return float(abs(self._current_radial_spacing) * self.coordinate_mapper.scale_factor)
 
     def reset(self) -> None:
         """Reset polar grid to initial state."""
@@ -172,7 +169,7 @@ class PolarGrid(Drawable):
         Returns:
             List of radii for each concentric circle
         """
-        circles = []
+        circles: list[float] = []
         spacing = self.display_spacing
         if spacing <= 0:
             return circles
@@ -248,8 +245,8 @@ class PolarGrid(Drawable):
         possible_spacings = [magnitude * i for i in [1, 2, 5, 10]]
         for spacing in possible_spacings:
             if spacing >= effective_ideal:
-                return spacing
-        return possible_spacings[0]
+                return float(spacing)
+        return float(possible_spacings[0])
 
     def _invalidate_cache_on_zoom(self) -> None:
         """Update radial spacing for zoom operations."""

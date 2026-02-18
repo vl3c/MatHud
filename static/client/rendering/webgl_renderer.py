@@ -101,51 +101,63 @@ class WebGLRenderer(RendererProtocol):
     def register_default_drawables(self) -> None:
         try:
             from drawables.point import Point as PointDrawable
+
             self.register(PointDrawable, self._render_point)
         except Exception:
             pass
         try:
             from drawables.segment import Segment as SegmentDrawable
+
             self.register(SegmentDrawable, self._render_segment)
         except Exception:
             pass
         try:
             from drawables.circle import Circle as CircleDrawable
+
             self.register(CircleDrawable, self._render_circle)
         except Exception:
             pass
         try:
             from drawables.circle_arc import CircleArc as CircleArcDrawable
+
             self.register(CircleArcDrawable, self._render_circle_arc)
         except Exception:
             pass
         try:
             from drawables.functions_bounded_colored_area import FunctionsBoundedColoredArea as FunctionsAreaDrawable
+
             self.register(FunctionsAreaDrawable, self._render_drawable)
         except Exception:
             pass
         try:
-            from drawables.function_segment_bounded_colored_area import FunctionSegmentBoundedColoredArea as FunctionSegmentAreaDrawable
+            from drawables.function_segment_bounded_colored_area import (
+                FunctionSegmentBoundedColoredArea as FunctionSegmentAreaDrawable,
+            )
+
             self.register(FunctionSegmentAreaDrawable, self._render_drawable)
         except Exception:
             pass
         try:
             from drawables.segments_bounded_colored_area import SegmentsBoundedColoredArea as SegmentsAreaDrawable
+
             self.register(SegmentsAreaDrawable, self._render_drawable)
         except Exception:
             pass
         try:
             from drawables.closed_shape_colored_area import ClosedShapeColoredArea as ClosedShapeAreaDrawable
+
             self.register(ClosedShapeAreaDrawable, self._render_drawable)
         except Exception:
             pass
         try:
             from drawables.label import Label as LabelDrawable
+
             self.register(LabelDrawable, self._render_label)
         except Exception:
             pass
         try:
             from drawables.bar import Bar as BarDrawable
+
             self.register(BarDrawable, self._render_drawable)
         except Exception:
             pass
@@ -194,7 +206,9 @@ class WebGLRenderer(RendererProtocol):
     # ------------------------------------------------------------------
     # Drawing helpers
 
-    def _draw_points(self, points: Sequence[Tuple[float, float]], color: Tuple[float, float, float, float], size: float) -> None:
+    def _draw_points(
+        self, points: Sequence[Tuple[float, float]], color: Tuple[float, float, float, float], size: float
+    ) -> None:
         self._use_program_for_draw()
         flat = self._prepare_vertices(points)
         self._set_color_uniform(color)
@@ -440,5 +454,3 @@ class WebGLRenderer(RendererProtocol):
         canvas_el.style.pointerEvents = "none"
         canvas_el.style.display = "block"
         canvas_el.style.zIndex = "20"
-
-

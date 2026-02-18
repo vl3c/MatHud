@@ -86,7 +86,7 @@ class AppManager:
         Returns:
             bool: True if deployed (PORT environment variable is set), False for local development
         """
-        return os.environ.get('PORT') is not None
+        return os.environ.get("PORT") is not None
 
     @staticmethod
     def _load_env() -> None:
@@ -105,7 +105,7 @@ class AppManager:
         """
         AppManager._load_env()
         # Require auth if deployed OR if explicitly enabled via REQUIRE_AUTH
-        return AppManager.is_deployed() or os.getenv('REQUIRE_AUTH', '').lower() in ('true', '1', 'yes')
+        return AppManager.is_deployed() or os.getenv("REQUIRE_AUTH", "").lower() in ("true", "1", "yes")
 
     @staticmethod
     def get_auth_pin() -> Optional[str]:
@@ -121,7 +121,7 @@ class AppManager:
     def make_response(
         data: JsonValue | None = None,
         message: Optional[str] = None,
-        status: str = 'success',
+        status: str = "success",
         code: int = 200,
     ) -> Tuple[Response, int]:
         """Create a consistent JSON response format.
@@ -136,9 +136,9 @@ class AppManager:
             tuple: (Flask JSON response, HTTP status code)
         """
         response: ApiResponseDict = {
-            'status': status,
-            'message': message,
-            'data': data,
+            "status": status,
+            "message": message,
+            "data": data,
         }
         return jsonify(response), code
 
@@ -154,29 +154,29 @@ class AppManager:
         Returns:
             Flask: Configured Flask application instance
         """
-        app = MatHudFlask(__name__, template_folder='../templates', static_folder='../static')
+        app = MatHudFlask(__name__, template_folder="../templates", static_folder="../static")
 
         # Load environment variables from project .env and parent .env (API keys)
         AppManager._load_env()
 
         # Configure session management for authentication using modern CacheLib backend
-        app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
+        app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(32))
 
         # Create session directory if it doesn't exist
-        session_dir = os.path.join(os.getcwd(), 'flask_session')
+        session_dir = os.path.join(os.getcwd(), "flask_session")
         os.makedirs(session_dir, exist_ok=True)
 
         # Modern Flask-Session configuration using CacheLib
-        app.config['SESSION_TYPE'] = 'cachelib'
-        app.config['SESSION_CACHELIB'] = FileSystemCache(cache_dir=session_dir)
-        app.config['SESSION_PERMANENT'] = False
-        app.config['SESSION_KEY_PREFIX'] = 'mathud:'
+        app.config["SESSION_TYPE"] = "cachelib"
+        app.config["SESSION_CACHELIB"] = FileSystemCache(cache_dir=session_dir)
+        app.config["SESSION_PERMANENT"] = False
+        app.config["SESSION_KEY_PREFIX"] = "mathud:"
 
         # Security settings for deployed environments
         if AppManager.is_deployed():
-            app.config['SESSION_COOKIE_SECURE'] = True
-            app.config['SESSION_COOKIE_HTTPONLY'] = True
-            app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+            app.config["SESSION_COOKIE_SECURE"] = True
+            app.config["SESSION_COOKIE_HTTPONLY"] = True
+            app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
         # Initialize Flask-Session
         FlaskSession(app)
@@ -204,6 +204,7 @@ class AppManager:
 
         # Import and register routes
         from static.routes import register_routes
+
         register_routes(app)
 
         return app
@@ -213,6 +214,7 @@ class AppManager:
         """Initialize TTS manager and log availability status."""
         try:
             from static.tts_manager import get_tts_manager
+
             manager = get_tts_manager()
             if manager.is_available():
                 print("TTS: Kokoro initialized successfully")

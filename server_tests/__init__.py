@@ -11,9 +11,6 @@ if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
 # Add the site-packages directory to Python path
-SITE_PACKAGES_PATH: str = os.path.join(
-    PROJECT_ROOT,
-    'static', 'client'
-)
+SITE_PACKAGES_PATH: str = os.path.join(PROJECT_ROOT, "static", "client")
 if SITE_PACKAGES_PATH not in sys.path:
     sys.path.append(SITE_PACKAGES_PATH)

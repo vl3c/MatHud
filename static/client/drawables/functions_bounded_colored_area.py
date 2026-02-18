@@ -40,8 +40,16 @@ class FunctionsBoundedColoredArea(ColoredArea):
         num_sample_points (int): Number of points for path generation
     """
 
-    def __init__(self, func1: Union[Function, None, float, int], func2: Optional[Union[Function, float, int]] = None, left_bound: Optional[float] = None, right_bound: Optional[float] = None,
-                 color: str = "lightblue", opacity: float = 0.3, num_sample_points: int = 100) -> None:
+    def __init__(
+        self,
+        func1: Union[Function, None, float, int],
+        func2: Optional[Union[Function, float, int]] = None,
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
+        color: str = "lightblue",
+        opacity: float = 0.3,
+        num_sample_points: int = 100,
+    ) -> None:
         """Initialize a functions bounded colored area.
 
         Args:
@@ -62,14 +70,31 @@ class FunctionsBoundedColoredArea(ColoredArea):
         self.right_bound: Optional[float] = right_bound
         self.num_sample_points: int = num_sample_points
 
-    def _validate_parameters(self, func1: Union[Function, None, float, int], func2: Optional[Union[Function, float, int]], left_bound: Optional[float], right_bound: Optional[float], num_sample_points: int) -> None:
+    def _validate_parameters(
+        self,
+        func1: Union[Function, None, float, int],
+        func2: Optional[Union[Function, float, int]],
+        left_bound: Optional[float],
+        right_bound: Optional[float],
+        num_sample_points: int,
+    ) -> None:
         """Validate input parameters for function bounded area creation."""
         # Validate that func1 is provided in valid format (use duck typing for testing)
-        if func1 is not None and not isinstance(func1, (int, float)) and not isinstance(func1, Function) and not self._is_function_like(func1):
+        if (
+            func1 is not None
+            and not isinstance(func1, (int, float))
+            and not isinstance(func1, Function)
+            and not self._is_function_like(func1)
+        ):
             raise ValueError("func1 must be provided as a Function, None, or a number")
 
         # Validate func2 type if provided (use duck typing for testing)
-        if func2 is not None and not isinstance(func2, (int, float)) and not isinstance(func2, Function) and not self._is_function_like(func2):
+        if (
+            func2 is not None
+            and not isinstance(func2, (int, float))
+            and not isinstance(func2, Function)
+            and not self._is_function_like(func2)
+        ):
             raise ValueError("func2 must be a Function, None, or a number")
 
         # Validate bounds if provided
@@ -94,7 +119,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
 
     def _is_function_like(self, obj: Any) -> bool:
         """Check if an object has the necessary attributes to be treated as a function (duck typing)."""
-        required_attrs = ['name', 'function']
+        required_attrs = ["name", "function"]
         return all(hasattr(obj, attr) for attr in required_attrs)
 
     def _is_function_or_function_like(self, obj: Any) -> bool:
@@ -108,11 +133,13 @@ class FunctionsBoundedColoredArea(ColoredArea):
         elif func is not None and not isinstance(func, (int, float)) and self._is_function_like(func):
             return cast(str, func.name)
         elif func is None:
-            return 'x_axis'
+            return "x_axis"
         else:
-            return f'y_{func}'
+            return f"y_{func}"
 
-    def _generate_name(self, func1: Union[Function, None, float, int], func2: Optional[Union[Function, float, int]]) -> str:
+    def _generate_name(
+        self, func1: Union[Function, None, float, int], func2: Optional[Union[Function, float, int]]
+    ) -> str:
         """Generate a descriptive name for the colored area."""
         f1_name: str = self._get_function_name(func1)
         f2_name: str = self._get_function_name(func2)
@@ -120,7 +147,7 @@ class FunctionsBoundedColoredArea(ColoredArea):
 
     def get_class_name(self) -> str:
         """Return the class name 'FunctionsBoundedColoredArea'."""
-        return 'FunctionsBoundedColoredArea'
+        return "FunctionsBoundedColoredArea"
 
     def _get_function_y_at_x(self, func: Union[Function, None, float, int], x: float) -> Optional[float]:
         """Return math-space y for given x; mapping to screen is renderer's job."""
@@ -133,14 +160,16 @@ class FunctionsBoundedColoredArea(ColoredArea):
                 y: Any = func.function(x)
                 if y is None or not isinstance(y, (int, float)):
                     return None
-                if isinstance(y, float) and (y != y or abs(y) == float('inf')):
+                if isinstance(y, float) and (y != y or abs(y) == float("inf")):
                     return None
                 return float(y)
             return None
         except (ValueError, ZeroDivisionError, TypeError):
             return None
 
-    def _apply_function_bounds(self, bounds: List[Optional[float]], func: Union[Function, None, float, int]) -> List[Optional[float]]:
+    def _apply_function_bounds(
+        self, bounds: List[Optional[float]], func: Union[Function, None, float, int]
+    ) -> List[Optional[float]]:
         """
         Apply bounds from a function if it has defined bounds.
 
@@ -160,7 +189,12 @@ class FunctionsBoundedColoredArea(ColoredArea):
             return bounds
         if isinstance(func, (int, float)) or func is None:
             return bounds
-        if hasattr(func, 'left_bound') and hasattr(func, 'right_bound') and func.left_bound is not None and func.right_bound is not None:
+        if (
+            hasattr(func, "left_bound")
+            and hasattr(func, "right_bound")
+            and func.left_bound is not None
+            and func.right_bound is not None
+        ):
             if bounds[0] is None:
                 bounds[0] = func.left_bound
             else:
@@ -249,26 +283,35 @@ class FunctionsBoundedColoredArea(ColoredArea):
                 return False
             # Manual asymptote detection for functions with tangent asymptotes (e.g. f3)
             if isinstance(func, Function) or self._is_function_like(func):
-                if hasattr(func, 'name') and func.name == 'f3':
+                if hasattr(func, "name") and func.name == "f3":
                     import math
+
                     has_asym: bool = False
                     # Check known asymptote positions for tan(x/100)
                     for n in range(-5, 6):  # Check a reasonable range
-                        asym_x: float = 100 * (math.pi/2 + n * math.pi)
+                        asym_x: float = 100 * (math.pi / 2 + n * math.pi)
                         # Only consider very, very close to asymptote (20% of dx)
                         if abs(x_orig - asym_x) < dx * 0.2:
                             has_asym = True
                             break
                     return has_asym
                 # Default asymptote detection for other functions
-                if hasattr(func, 'has_vertical_asymptote_between_x'):
+                if hasattr(func, "has_vertical_asymptote_between_x"):
                     return cast(bool, func.has_vertical_asymptote_between_x(x_orig - dx, x_orig + dx))
             return False
         except Exception:
             # If asymptote detection fails, assume no asymptote
             return False
 
-    def _generate_path(self, func: Union[Function, None, float, int], left_bound: float, right_bound: float, dx: float, num_points: int, reverse: bool = False) -> List[Tuple[float, float]]:
+    def _generate_path(
+        self,
+        func: Union[Function, None, float, int],
+        left_bound: float,
+        right_bound: float,
+        dx: float,
+        num_points: int,
+        reverse: bool = False,
+    ) -> List[Tuple[float, float]]:
         """
         Generate a path of points for a function between bounds.
 
@@ -328,7 +371,9 @@ class FunctionsBoundedColoredArea(ColoredArea):
 
         return points
 
-    def _get_function_y_at_x_with_asymptote_handling(self, func: Union[Function, None, float, int], x_orig: float, dx: float) -> Optional[float]:
+    def _get_function_y_at_x_with_asymptote_handling(
+        self, func: Union[Function, None, float, int], x_orig: float, dx: float
+    ) -> Optional[float]:
         """
         Get y value for a function at x with asymptote handling.
 
@@ -375,25 +420,25 @@ class FunctionsBoundedColoredArea(ColoredArea):
 
             # Reject NaN or infinite values
             if isinstance(y, float):
-                if y != y or abs(y) == float('inf'):
+                if y != y or abs(y) == float("inf"):
                     return None
             return float(y)
 
         except (ValueError, ZeroDivisionError, TypeError, OverflowError):
             return None
 
-
-
     def get_state(self) -> Dict[str, Any]:
         """Serialize functions bounded area state for persistence."""
         state: Dict[str, Any] = cast(Dict[str, Any], super().get_state())
-        state["args"].update({
-            "func1": self._get_function_name(self.func1),
-            "func2": self._get_function_name(self.func2),
-            "left_bound": self.left_bound,
-            "right_bound": self.right_bound,
-            "num_sample_points": self.num_sample_points
-        })
+        state["args"].update(
+            {
+                "func1": self._get_function_name(self.func1),
+                "func2": self._get_function_name(self.func2),
+                "left_bound": self.left_bound,
+                "right_bound": self.right_bound,
+                "num_sample_points": self.num_sample_points,
+            }
+        )
         return state
 
     def update_left_bound(self, left_bound: Optional[float]) -> None:

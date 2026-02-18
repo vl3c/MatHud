@@ -119,42 +119,49 @@ class TestPolygonManager(unittest.TestCase):
 
     def test_create_pentagon(self) -> None:
         import math
+
         vertices = [(math.cos(2 * math.pi * i / 5), math.sin(2 * math.pi * i / 5)) for i in range(5)]
         polygon = self.polygon_manager.create_polygon(vertices, polygon_type="pentagon")
         self.assertIsInstance(polygon, Pentagon)
 
     def test_create_hexagon(self) -> None:
         import math
+
         vertices = [(math.cos(2 * math.pi * i / 6), math.sin(2 * math.pi * i / 6)) for i in range(6)]
         polygon = self.polygon_manager.create_polygon(vertices, polygon_type="hexagon")
         self.assertIsInstance(polygon, Hexagon)
 
     def test_create_heptagon(self) -> None:
         import math
+
         vertices = [(math.cos(2 * math.pi * i / 7), math.sin(2 * math.pi * i / 7)) for i in range(7)]
         polygon = self.polygon_manager.create_polygon(vertices, polygon_type="heptagon")
         self.assertIsInstance(polygon, Heptagon)
 
     def test_create_octagon(self) -> None:
         import math
+
         vertices = [(math.cos(2 * math.pi * i / 8), math.sin(2 * math.pi * i / 8)) for i in range(8)]
         polygon = self.polygon_manager.create_polygon(vertices, polygon_type="octagon")
         self.assertIsInstance(polygon, Octagon)
 
     def test_create_nonagon(self) -> None:
         import math
+
         vertices = [(math.cos(2 * math.pi * i / 9), math.sin(2 * math.pi * i / 9)) for i in range(9)]
         polygon = self.polygon_manager.create_polygon(vertices, polygon_type="nonagon")
         self.assertIsInstance(polygon, Nonagon)
 
     def test_create_decagon(self) -> None:
         import math
+
         vertices = [(math.cos(2 * math.pi * i / 10), math.sin(2 * math.pi * i / 10)) for i in range(10)]
         polygon = self.polygon_manager.create_polygon(vertices, polygon_type="decagon")
         self.assertIsInstance(polygon, Decagon)
 
     def test_create_generic_polygon(self) -> None:
         import math
+
         vertices = [(math.cos(2 * math.pi * i / 12), math.sin(2 * math.pi * i / 12)) for i in range(12)]
         polygon = self.polygon_manager.create_polygon(vertices, polygon_type="generic")
         self.assertIsInstance(polygon, GenericPolygon)
@@ -171,12 +178,14 @@ class TestPolygonManager(unittest.TestCase):
 
     def test_infer_pentagon_from_vertex_count(self) -> None:
         import math
+
         vertices = [(math.cos(2 * math.pi * i / 5), math.sin(2 * math.pi * i / 5)) for i in range(5)]
         polygon = self.polygon_manager.create_polygon(vertices)
         self.assertIsInstance(polygon, Pentagon)
 
     def test_infer_generic_from_large_vertex_count(self) -> None:
         import math
+
         vertices = [(math.cos(2 * math.pi * i / 15), math.sin(2 * math.pi * i / 15)) for i in range(15)]
         polygon = self.polygon_manager.create_polygon(vertices)
         self.assertIsInstance(polygon, GenericPolygon)
@@ -263,4 +272,3 @@ class TestPolygonManager(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

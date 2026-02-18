@@ -7,4 +7,4 @@ cannot be solved symbolically (transcendental, mixed nonlinear, 3+ variables).
 
 from .solver import solve_numeric
 
-__all__ = ['solve_numeric']
+__all__ = ["solve_numeric"]

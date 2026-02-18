@@ -47,7 +47,7 @@ class ExpressionEvaluator:
             float: The computed numeric result
         """
         result: Any = MathUtils.evaluate(expression, variables)
-        print(f"Evaluated numeric expression: {expression} = {result}")   # DEBUG
+        print(f"Evaluated numeric expression: {expression} = {result}")  # DEBUG
         # Convert numeric results to float for consistency
         if isinstance(result, (int, float)):
             result = float(result)
@@ -69,25 +69,25 @@ class ExpressionEvaluator:
         Raises:
             ValueError: If canvas is None, expression format is invalid, or function not found
         """
-        print(f"Evaluating function with expression: {expression}")   # DEBUG
+        print(f"Evaluating function with expression: {expression}")  # DEBUG
         if canvas is None:
             raise ValueError("Cannot evaluate function: no canvas available")
 
-        functions = canvas.get_drawables_by_class_name('Function')
+        functions = canvas.get_drawables_by_class_name("Function")
         # Split the expression into function name and argument
-        match: Optional[re.Match[str]] = re.match(r'(\w+)\((.+)\)', expression)
+        match: Optional[re.Match[str]] = re.match(r"(\w+)\((.+)\)", expression)
         if match:
             function_name: str
             argument: str
             function_name, argument = match.groups()
-            print(f"Function name: {function_name}, argument: {argument}")   # DEBUG
+            print(f"Function name: {function_name}, argument: {argument}")  # DEBUG
         else:
             raise ValueError(f"Invalid function expression: {expression}")
 
         for function in functions:
             if function.name.lower() == function_name.lower():
                 # If the function name matches, evaluate the function
-                print(f"Found function: {function.name} = {function.function_string}")   # DEBUG
+                print(f"Found function: {function.name} = {function.function_string}")  # DEBUG
                 try:
                     argument_val: float = float(argument)  # Convert argument to float
                     result: Any = function.function(argument_val)
@@ -102,7 +102,9 @@ class ExpressionEvaluator:
         raise ValueError(f"No function found with name: {function_name}")
 
     @staticmethod
-    def evaluate_expression(expression: str, variables: Optional[Dict[str, Any]] = None, canvas: Optional["Canvas"] = None) -> Union[float, str]:
+    def evaluate_expression(
+        expression: str, variables: Optional[Dict[str, Any]] = None, canvas: Optional["Canvas"] = None
+    ) -> Union[float, str]:
         """Main method to evaluate expressions with fallback from numeric to function evaluation.
 
         First attempts numeric evaluation, then falls back to function evaluation if available.

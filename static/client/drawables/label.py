@@ -47,9 +47,7 @@ class Label(Drawable):
         self._text: str = ""
         self._lines: List[str] = []
         self._rotation_degrees: float = (
-            float(rotation_degrees)
-            if rotation_degrees is not None
-            else float(default_label_rotation_degrees)
+            float(rotation_degrees) if rotation_degrees is not None else float(default_label_rotation_degrees)
         )
         self._reference_scale_factor: float = self._normalize_reference_scale(reference_scale_factor)
         self._visible: bool = bool(visible)

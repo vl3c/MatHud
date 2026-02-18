@@ -130,9 +130,7 @@ class StatisticsManager:
             plot_right_raw = plot_bounds_dict.get("right_bound")
             resolved_left, resolved_right = self._resolve_bounds(mean, sigma, plot_left_raw, plot_right_raw)
 
-            plot_name = self._generate_unique_name(
-                self.name_generator.filter_string(name or "") or "normal_plot"
-            )
+            plot_name = self._generate_unique_name(self.name_generator.filter_string(name or "") or "normal_plot")
 
             if rep == "discrete":
                 result_payload = self._plot_distribution_discrete(
@@ -288,24 +286,22 @@ class StatisticsManager:
             if not math.isfinite(y0):
                 raise ValueError("y_base must be finite")
 
-            plot_name = self._generate_unique_name(
-                self.name_generator.filter_string(name or "") or "bars_plot"
-            )
+            plot_name = self._generate_unique_name(self.name_generator.filter_string(name or "") or "bars_plot")
 
             plot = BarsPlot(
-            plot_name,
-            plot_type="bars",
-            values=[float(v) for v in values],
-            labels_below=[str(v) for v in labels_below],
-            labels_above=None if labels_above is None else [str(v) for v in labels_above],
-            bar_spacing=spacing,
-            bar_width=width,
-            x_start=x0,
-            y_base=y0,
-            stroke_color=None if stroke_color is None else str(stroke_color),
-            fill_color=self._normalize_fill_color(fill_color),
-            fill_opacity=self._normalize_fill_opacity(fill_opacity),
-        )
+                plot_name,
+                plot_type="bars",
+                values=[float(v) for v in values],
+                labels_below=[str(v) for v in labels_below],
+                labels_above=None if labels_above is None else [str(v) for v in labels_above],
+                bar_spacing=spacing,
+                bar_width=width,
+                x_start=x0,
+                y_base=y0,
+                stroke_color=None if stroke_color is None else str(stroke_color),
+                fill_color=self._normalize_fill_color(fill_color),
+                fill_opacity=self._normalize_fill_opacity(fill_opacity),
+            )
             self.drawables.add(plot)
 
             self.materialize_bars_plot(plot)
@@ -393,8 +389,7 @@ class StatisticsManager:
             # Validate model type
             if model not in SUPPORTED_MODEL_TYPES:
                 raise ValueError(
-                    f"Unsupported model_type '{model_type}'. "
-                    f"Supported: {', '.join(SUPPORTED_MODEL_TYPES)}"
+                    f"Unsupported model_type '{model_type}'. Supported: {', '.join(SUPPORTED_MODEL_TYPES)}"
                 )
 
             # Validate degree for polynomial
@@ -469,9 +464,7 @@ class StatisticsManager:
                             try:
                                 logger = getattr(self.canvas, "logger", None)
                                 if logger is not None:
-                                    logger.debug(
-                                        f"Failed to create regression point {point_preferred}: {e}"
-                                    )
+                                    logger.debug(f"Failed to create regression point {point_preferred}: {e}")
                             except Exception:
                                 pass
 
@@ -889,7 +882,7 @@ class StatisticsManager:
     def _normal_pdf_value(self, x: float, mean: float, sigma: float) -> float:
         # f(x) = 1/(sigma*sqrt(2*pi)) * exp(-(x-mean)^2/(2*sigma^2))
         coeff = 1.0 / (sigma * math.sqrt(2.0 * math.pi))
-        exponent = -((x - mean) ** 2) / (2.0 * (sigma ** 2))
+        exponent = -((x - mean) ** 2) / (2.0 * (sigma**2))
         return coeff * math.exp(exponent)
 
     def _delete_continuous_plot(self, plot: Any) -> None:

@@ -31,42 +31,50 @@ class ProjectMetricsAnalyzer:
         file_details: DefaultDict[str, List[Dict[str, Any]]] = defaultdict(list)
 
         self.metrics: Dict[str, Any] = {
-            'files': files,
-            'lines': lines,
-            'classes': 0,
-            'methods': 0,
-            'functions': 0,
-            'test_functions': 0,
-            'ai_functions': 0,
-            'drawable_classes': 0,
-            'manager_classes': 0,
-            'imports': 0,
-            'comments': 0,
-            'docstrings': 0,
-            'docstring_lines': 0,
-            'reference_manual_lines': 0,
-            'unique_python_imports': set(),
-            'python_dependencies': 0,
-            'javascript_libraries': 0,
-            'test_files': 0,
-            'file_details': file_details,
+            "files": files,
+            "lines": lines,
+            "classes": 0,
+            "methods": 0,
+            "functions": 0,
+            "test_functions": 0,
+            "ai_functions": 0,
+            "drawable_classes": 0,
+            "manager_classes": 0,
+            "imports": 0,
+            "comments": 0,
+            "docstrings": 0,
+            "docstring_lines": 0,
+            "reference_manual_lines": 0,
+            "unique_python_imports": set(),
+            "python_dependencies": 0,
+            "javascript_libraries": 0,
+            "test_files": 0,
+            "file_details": file_details,
         }
 
         # File extensions to analyze
         self.extensions: Dict[str, str] = {
-            '.py': 'Python',
-            '.html': 'HTML',
-            '.css': 'CSS',
-            '.txt': 'Text',
-            '.md': 'Markdown',
+            ".py": "Python",
+            ".html": "HTML",
+            ".css": "CSS",
+            ".txt": "Text",
+            ".md": "Markdown",
             # '.js': 'JavaScript',
-            '.json': 'JSON'
+            ".json": "JSON",
         }
 
         # Directories to exclude
         self.exclude_dirs: Set[str] = {
-            '__pycache__', '.git', 'venv', '.vscode', '.pytest_cache',
-            'logs', 'workspaces', 'canvas_snapshots', 'generated_svg', 'generated_png'
+            "__pycache__",
+            ".git",
+            "venv",
+            ".vscode",
+            ".pytest_cache",
+            "logs",
+            "workspaces",
+            "canvas_snapshots",
+            "generated_svg",
+            "generated_png",
         }
 
     def analyze_project(self) -> None:
@@ -94,13 +102,13 @@ class ProjectMetricsAnalyzer:
                 return
 
             file_type = self.extensions[suffix]
-            self.metrics['files'][file_type] += 1
+            self.metrics["files"][file_type] += 1
 
             # Read file content
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
-                    lines = content.split('\n')
+                    lines = content.split("\n")
             except UnicodeDecodeError:
                 # Skip binary files
                 return
@@ -108,42 +116,42 @@ class ProjectMetricsAnalyzer:
             line_count = len(lines)
 
             # Handle Reference Manual separately (contains duplicated docstrings)
-            is_reference_manual = file_path.name == 'Reference Manual.txt'
+            is_reference_manual = file_path.name == "Reference Manual.txt"
             if is_reference_manual:
                 # Track but don't count toward documentation totals
-                self.metrics['reference_manual_lines'] = line_count
+                self.metrics["reference_manual_lines"] = line_count
             else:
-                self.metrics['lines'][file_type] += line_count
+                self.metrics["lines"][file_type] += line_count
 
             # Store file details
             relative_path = file_path.relative_to(self.project_root)
             file_info: Dict[str, Any] = {
-                'path': str(relative_path),
-                'lines': line_count,
-                'size': file_path.stat().st_size,
-                'is_reference_manual': is_reference_manual
+                "path": str(relative_path),
+                "lines": line_count,
+                "size": file_path.stat().st_size,
+                "is_reference_manual": is_reference_manual,
             }
 
             # Analyze Python files in detail
-            if suffix == '.py':
+            if suffix == ".py":
                 py_metrics = self.analyze_python_file(content, file_path)
                 file_info.update(py_metrics)
 
                 # Subtract docstring lines from Python code lines
-                docstring_lines = py_metrics.get('docstring_lines', 0)
-                self.metrics['lines'][file_type] -= docstring_lines
-                self.metrics['docstring_lines'] += docstring_lines
-                file_info['lines'] -= docstring_lines
-                file_info['docstring_lines'] = docstring_lines
+                docstring_lines = py_metrics.get("docstring_lines", 0)
+                self.metrics["lines"][file_type] -= docstring_lines
+                self.metrics["docstring_lines"] += docstring_lines
+                file_info["lines"] -= docstring_lines
+                file_info["docstring_lines"] = docstring_lines
 
             # Count test files from server_tests and client_tests directories
             relative_path = file_path.relative_to(self.project_root)
-            if any(part in str(relative_path).lower() for part in ['server_tests', 'client_tests']):
-                if file_path.suffix.lower() == '.py':  # Only count Python test files
-                    self.metrics['test_files'] += 1
-                    file_info['is_test_file'] = True
+            if any(part in str(relative_path).lower() for part in ["server_tests", "client_tests"]):
+                if file_path.suffix.lower() == ".py":  # Only count Python test files
+                    self.metrics["test_files"] += 1
+                    file_info["is_test_file"] = True
 
-            file_details = cast(DefaultDict[str, List[Dict[str, Any]]], self.metrics['file_details'])
+            file_details = cast(DefaultDict[str, List[Dict[str, Any]]], self.metrics["file_details"])
             file_details[file_type].append(file_info)
 
         except Exception as e:
@@ -151,19 +159,19 @@ class ProjectMetricsAnalyzer:
 
     def analyze_python_file(self, content: str, file_path: Path) -> Dict[str, Any]:
         """Detailed analysis of Python files."""
-        lines = content.split('\n')
+        lines = content.split("\n")
         file_metrics: Dict[str, Any] = {
-            'classes': 0,
-            'methods': 0,
-            'functions': 0,
-            'test_functions': 0,
-            'imports': 0,
-            'comments': 0,
-            'docstrings': 0,
-            'docstring_lines': 0,
-            'is_drawable': False,
-            'is_manager': False,
-            'is_test': False
+            "classes": 0,
+            "methods": 0,
+            "functions": 0,
+            "test_functions": 0,
+            "imports": 0,
+            "comments": 0,
+            "docstrings": 0,
+            "docstring_lines": 0,
+            "is_drawable": False,
+            "is_manager": False,
+            "is_test": False,
         }
 
         in_multiline_string = False
@@ -179,18 +187,18 @@ class ProjectMetricsAnalyzer:
                     # Check if it's a single-line docstring
                     if stripped.endswith(string_delimiter) and len(stripped) > 6:
                         # Single-line docstring
-                        file_metrics['docstrings'] += 1
-                        self.metrics['docstrings'] += 1
-                        file_metrics['docstring_lines'] += 1
+                        file_metrics["docstrings"] += 1
+                        self.metrics["docstrings"] += 1
+                        file_metrics["docstring_lines"] += 1
                     else:
                         # Multi-line docstring starts
                         in_multiline_string = True
-                        file_metrics['docstrings'] += 1
-                        self.metrics['docstrings'] += 1
-                        file_metrics['docstring_lines'] += 1
+                        file_metrics["docstrings"] += 1
+                        self.metrics["docstrings"] += 1
+                        file_metrics["docstring_lines"] += 1
             else:
                 # Inside multiline docstring
-                file_metrics['docstring_lines'] += 1
+                file_metrics["docstring_lines"] += 1
                 if string_delimiter and string_delimiter in stripped:
                     in_multiline_string = False
                 continue
@@ -199,66 +207,78 @@ class ProjectMetricsAnalyzer:
                 continue
 
             # Class definitions
-            if re.match(r'^class\s+\w+', stripped):
-                file_metrics['classes'] += 1
-                self.metrics['classes'] += 1
+            if re.match(r"^class\s+\w+", stripped):
+                file_metrics["classes"] += 1
+                self.metrics["classes"] += 1
 
                 # Check for specific class types
-                if 'drawable' in file_path.name.lower() or any(
-                    keyword in stripped.lower() for keyword in ['drawable', 'point', 'segment', 'circle', 'triangle', 'rectangle', 'ellipse', 'vector', 'angle', 'function']
+                if "drawable" in file_path.name.lower() or any(
+                    keyword in stripped.lower()
+                    for keyword in [
+                        "drawable",
+                        "point",
+                        "segment",
+                        "circle",
+                        "triangle",
+                        "rectangle",
+                        "ellipse",
+                        "vector",
+                        "angle",
+                        "function",
+                    ]
                 ):
-                    file_metrics['is_drawable'] = True
-                    if 'drawable' in stripped.lower():
-                        self.metrics['drawable_classes'] += 1
+                    file_metrics["is_drawable"] = True
+                    if "drawable" in stripped.lower():
+                        self.metrics["drawable_classes"] += 1
 
-                if 'manager' in stripped.lower():
-                    file_metrics['is_manager'] = True
-                    self.metrics['manager_classes'] += 1
+                if "manager" in stripped.lower():
+                    file_metrics["is_manager"] = True
+                    self.metrics["manager_classes"] += 1
 
             # Method definitions (inside classes) - use original line for indentation
-            if re.match(r'^\s+def\s+\w+', line):
-                file_metrics['methods'] += 1
-                self.metrics['methods'] += 1
+            if re.match(r"^\s+def\s+\w+", line):
+                file_metrics["methods"] += 1
+                self.metrics["methods"] += 1
 
                 # Test methods
-                if 'def test_' in stripped:
-                    file_metrics['test_functions'] += 1
-                    self.metrics['test_functions'] += 1
+                if "def test_" in stripped:
+                    file_metrics["test_functions"] += 1
+                    self.metrics["test_functions"] += 1
 
             # Function definitions (at module level)
-            elif re.match(r'^def\s+\w+', stripped):
-                file_metrics['functions'] += 1
-                self.metrics['functions'] += 1
+            elif re.match(r"^def\s+\w+", stripped):
+                file_metrics["functions"] += 1
+                self.metrics["functions"] += 1
 
                 # Test functions
-                if 'def test_' in stripped:
-                    file_metrics['test_functions'] += 1
-                    self.metrics['test_functions'] += 1
+                if "def test_" in stripped:
+                    file_metrics["test_functions"] += 1
+                    self.metrics["test_functions"] += 1
 
             # Import statements
-            elif stripped.startswith('import ') or stripped.startswith('from '):
-                file_metrics['imports'] += 1
-                self.metrics['imports'] += 1
+            elif stripped.startswith("import ") or stripped.startswith("from "):
+                file_metrics["imports"] += 1
+                self.metrics["imports"] += 1
 
                 # Track unique imports for dependency analysis
                 import_module = self.extract_import_module(stripped)
                 if import_module:
-                    self.metrics['unique_python_imports'].add(import_module)
+                    self.metrics["unique_python_imports"].add(import_module)
 
             # Comments
-            elif stripped.startswith('#'):
-                file_metrics['comments'] += 1
-                self.metrics['comments'] += 1
+            elif stripped.startswith("#"):
+                file_metrics["comments"] += 1
+                self.metrics["comments"] += 1
 
         # Check if it's a test file
-        if 'test' in file_path.name.lower():
-            file_metrics['is_test'] = True
+        if "test" in file_path.name.lower():
+            file_metrics["is_test"] = True
 
         # Special case: analyze functions_definitions.py for AI functions
-        if file_path.name == 'functions_definitions.py':
+        if file_path.name == "functions_definitions.py":
             ai_functions = self.count_ai_functions(content)
-            self.metrics['ai_functions'] = ai_functions
-            file_metrics['ai_functions'] = ai_functions
+            self.metrics["ai_functions"] = ai_functions
+            file_metrics["ai_functions"] = ai_functions
 
         return file_metrics
 
@@ -266,15 +286,15 @@ class ProjectMetricsAnalyzer:
         """Extract the main module name from an import statement."""
         try:
             # Handle 'import module' and 'from module import ...'
-            if import_line.startswith('import '):
-                module = import_line[7:].split('.')[0].split(' as ')[0].split(',')[0].strip()
-            elif import_line.startswith('from '):
-                module = import_line[5:].split('.')[0].split(' import')[0].strip()
+            if import_line.startswith("import "):
+                module = import_line[7:].split(".")[0].split(" as ")[0].split(",")[0].strip()
+            elif import_line.startswith("from "):
+                module = import_line[5:].split(".")[0].split(" import")[0].strip()
             else:
                 return None
 
             # Filter out relative imports and local modules
-            if module and not module.startswith('.') and module.isidentifier():
+            if module and not module.startswith(".") and module.isidentifier():
                 return module
             return None
         except Exception:
@@ -287,59 +307,66 @@ class ProjectMetricsAnalyzer:
 
         # Main requirements.txt
         requirements_files = [
-            self.project_root / 'requirements.txt',
-            self.project_root / 'diagrams' / 'diagram_requirements.txt'
+            self.project_root / "requirements.txt",
+            self.project_root / "diagrams" / "diagram_requirements.txt",
         ]
 
         for requirements_file in requirements_files:
             if requirements_file.exists():
                 try:
-                    with open(requirements_file, 'r', encoding='utf-8') as f:
+                    with open(requirements_file, "r", encoding="utf-8") as f:
                         content = f.read()
-                        lines = [line.strip() for line in content.split('\n') if line.strip() and not line.strip().startswith('#')]
+                        lines = [
+                            line.strip()
+                            for line in content.split("\n")
+                            if line.strip() and not line.strip().startswith("#")
+                        ]
                         # Count dependencies (remove version specs)
                         for line in lines:
-                            dep = line.split('==')[0].split('>=')[0].split('<=')[0].split('~=')[0].split('!=')[0].strip()
+                            dep = (
+                                line.split("==")[0].split(">=")[0].split("<=")[0].split("~=")[0].split("!=")[0].strip()
+                            )
                             if dep:
                                 deps.add(dep)
                 except Exception:
                     pass
 
-        self.metrics['python_dependencies'] = len(deps)
+        self.metrics["python_dependencies"] = len(deps)
 
         # Analyze index.html for JavaScript libraries
-        index_file = self.project_root / 'templates' / 'index.html'
+        index_file = self.project_root / "templates" / "index.html"
         if index_file.exists():
             try:
-                with open(index_file, 'r', encoding='utf-8') as f:
+                with open(index_file, "r", encoding="utf-8") as f:
                     content = f.read()
                     # Count script tags and CDN libraries
                     js_libs = set()
 
                     # Look for script src tags
                     import re
+
                     script_pattern = r'<script[^>]+src=["\']([^"\']+)["\']'
                     matches = re.findall(script_pattern, content, re.IGNORECASE)
 
                     for src in matches:
-                        if 'http' in src or 'cdn' in src:
+                        if "http" in src or "cdn" in src:
                             # External library
-                            lib_name = src.split('/')[-1].split('.')[0]
+                            lib_name = src.split("/")[-1].split(".")[0]
                             js_libs.add(lib_name)
-                        elif '.js' in src:
+                        elif ".js" in src:
                             # Local library
-                            lib_name = src.split('/')[-1].split('.')[0]
+                            lib_name = src.split("/")[-1].split(".")[0]
                             js_libs.add(lib_name)
 
                     # Also check for specific known libraries mentioned in text
-                    if 'brython' in content.lower():
-                        js_libs.add('brython')
-                    if 'mathjax' in content.lower():
-                        js_libs.add('mathjax')
-                    if 'nerdamer' in content.lower():
-                        js_libs.add('nerdamer')
+                    if "brython" in content.lower():
+                        js_libs.add("brython")
+                    if "mathjax" in content.lower():
+                        js_libs.add("mathjax")
+                    if "nerdamer" in content.lower():
+                        js_libs.add("nerdamer")
 
-                    self.metrics['javascript_libraries'] = len(js_libs)
+                    self.metrics["javascript_libraries"] = len(js_libs)
             except Exception:
                 pass
 
@@ -358,19 +385,19 @@ class ProjectMetricsAnalyzer:
 
     def print_summary(self) -> None:
         """Print summary metrics to console."""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("MATHUD PROJECT METRICS SUMMARY")
-        print("="*60)
+        print("=" * 60)
 
         print("\nFILE STATISTICS:")
-        total_files = sum(self.metrics['files'].values())
-        total_lines = sum(self.metrics['lines'].values())
+        total_files = sum(self.metrics["files"].values())
+        total_lines = sum(self.metrics["lines"].values())
         print(f"   Total Files: {total_files:,}")
         print(f"   Total Lines: {total_lines:,}")
 
         print("\nFILES BY TYPE:")
-        for file_type, count in sorted(self.metrics['files'].items()):
-            lines = self.metrics['lines'][file_type]
+        for file_type, count in sorted(self.metrics["files"].items()):
+            lines = self.metrics["lines"][file_type]
             print(f"   {file_type:>10}: {count:>3} files, {lines:>6,} lines")
 
         print("\nCODE STRUCTURE:")
@@ -402,9 +429,9 @@ class ProjectMetricsAnalyzer:
 
     def save_overview_table(self) -> None:
         """Save a formatted overview table to file."""
-        output_file = self.project_root / 'Documentation' / 'Project Overview Table.txt'
+        output_file = self.project_root / "Documentation" / "Project Overview Table.txt"
 
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             f.write("MatHud Project Overview Table\n")
             f.write("=" * 50 + "\n")
             f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
@@ -415,16 +442,22 @@ class ProjectMetricsAnalyzer:
             f.write(f"{'Metric':<25} {'Count':<10} {'Details':<15}\n")
             f.write("-" * 50 + "\n")
 
-            total_files = sum(self.metrics['files'].values())
-            total_lines = sum(self.metrics['lines'].values())
+            total_files = sum(self.metrics["files"].values())
+            total_lines = sum(self.metrics["lines"].values())
 
             f.write(f"{'Total Files':<25} {total_files:<10,} {'All types':<15}\n")
             f.write(f"{'Total Lines of Code':<25} {total_lines:<10,} {'All files':<15}\n")
-            f.write(f"{'Python Files':<25} {self.metrics['files']['Python']:<10} {self.metrics['lines']['Python']:,} lines\n")
+            f.write(
+                f"{'Python Files':<25} {self.metrics['files']['Python']:<10} {self.metrics['lines']['Python']:,} lines\n"
+            )
             f.write(f"{'HTML Files':<25} {self.metrics['files']['HTML']:<10} {self.metrics['lines']['HTML']:,} lines\n")
             f.write(f"{'CSS Files':<25} {self.metrics['files']['CSS']:<10} {self.metrics['lines']['CSS']:,} lines\n")
-            f.write(f"{'JavaScript Files':<25} {self.metrics['files']['JavaScript']:<10} {self.metrics['lines']['JavaScript']:,} lines\n")
-            f.write(f"{'Documentation Files':<25} {self.metrics['files']['Text'] + self.metrics['files']['Markdown']:<10} {self.metrics['lines']['Text'] + self.metrics['lines']['Markdown']:,} lines\n")
+            f.write(
+                f"{'JavaScript Files':<25} {self.metrics['files']['JavaScript']:<10} {self.metrics['lines']['JavaScript']:,} lines\n"
+            )
+            f.write(
+                f"{'Documentation Files':<25} {self.metrics['files']['Text'] + self.metrics['files']['Markdown']:<10} {self.metrics['lines']['Text'] + self.metrics['lines']['Markdown']:,} lines\n"
+            )
 
             f.write("\n" + "-" * 50 + "\n")
             f.write("CODE ARCHITECTURE\n")
@@ -438,10 +471,14 @@ class ProjectMetricsAnalyzer:
             f.write("\n" + "-" * 50 + "\n")
             f.write("DEPENDENCIES\n")
             f.write("-" * 50 + "\n")
-            f.write(f"{'Python Dependencies':<25} {self.metrics['python_dependencies']:<10} {'External packages':<15}\n")
+            f.write(
+                f"{'Python Dependencies':<25} {self.metrics['python_dependencies']:<10} {'External packages':<15}\n"
+            )
             f.write(f"{'JavaScript Libraries':<25} {self.metrics['javascript_libraries']:<10} {'Frontend libs':<15}\n")
             f.write(f"{'Import Statements':<25} {self.metrics['imports']:<10} {'All imports':<15}\n")
-            f.write(f"{'Unique Python Imports':<25} {len(self.metrics['unique_python_imports']):<10} {'Distinct modules':<15}\n")
+            f.write(
+                f"{'Unique Python Imports':<25} {len(self.metrics['unique_python_imports']):<10} {'Distinct modules':<15}\n"
+            )
 
             f.write("\n" + "-" * 50 + "\n")
             f.write("TESTING\n")
@@ -473,22 +510,24 @@ class ProjectMetricsAnalyzer:
             f.write(f"• {self.metrics['test_functions']} test functions for quality assurance\n")
             f.write("• Flask backend with Brython frontend architecture\n")
             f.write("• Interactive SVG canvas with real-time mathematical visualization\n\n")
-            f.write(f"NOTE: Reference Manual.txt ({self.metrics['reference_manual_lines']:,} lines) contains duplicated docstring\n")
+            f.write(
+                f"NOTE: Reference Manual.txt ({self.metrics['reference_manual_lines']:,} lines) contains duplicated docstring\n"
+            )
             f.write("content and is excluded from documentation totals to avoid double-counting.\n")
 
         print(f"\nOverview table saved to: {output_file}")
 
     def save_detailed_report(self) -> None:
         """Save detailed metrics report to file."""
-        output_file = self.project_root / 'Documentation' / 'metrics' / 'detailed_project_metrics.txt'
+        output_file = self.project_root / "Documentation" / "metrics" / "detailed_project_metrics.txt"
 
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             f.write("MatHud Project - Detailed Metrics Report\n")
             f.write("=" * 60 + "\n")
             f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
 
             # Detailed file breakdown by type
-            file_details = cast(DefaultDict[str, List[Dict[str, Any]]], self.metrics['file_details'])
+            file_details = cast(DefaultDict[str, List[Dict[str, Any]]], self.metrics["file_details"])
             for file_type in sorted(file_details.keys()):
                 files = file_details[file_type]
                 if not files:
@@ -498,34 +537,35 @@ class ProjectMetricsAnalyzer:
                 f.write("-" * 40 + "\n")
 
                 # Sort files by line count (descending)
-                files.sort(key=lambda x: int(x['lines']), reverse=True)
+                files.sort(key=lambda x: int(x["lines"]), reverse=True)
 
                 for file_info in files:
                     f.write(f"{file_info['path']:<40} {file_info['lines']:>6} lines")
 
-                    if file_type == 'Python':
-                        if file_info.get('classes', 0) > 0:
+                    if file_type == "Python":
+                        if file_info.get("classes", 0) > 0:
                             f.write(f" | {file_info['classes']} classes")
-                        if file_info.get('methods', 0) > 0:
+                        if file_info.get("methods", 0) > 0:
                             f.write(f" | {file_info['methods']} methods")
-                        if file_info.get('functions', 0) > 0:
+                        if file_info.get("functions", 0) > 0:
                             f.write(f" | {file_info['functions']} functions")
-                        if file_info.get('test_functions', 0) > 0:
+                        if file_info.get("test_functions", 0) > 0:
                             f.write(f" | {file_info['test_functions']} tests")
-                        if file_info.get('ai_functions', 0) > 0:
+                        if file_info.get("ai_functions", 0) > 0:
                             f.write(f" | {file_info['ai_functions']} AI functions")
 
                     # Mark Reference Manual as duplicated content
-                    if file_info.get('is_reference_manual', False):
+                    if file_info.get("is_reference_manual", False):
                         f.write(f" | {file_info['size']:,} bytes | EXCLUDED (duplicated docstrings)\n")
                     else:
                         f.write(f" | {file_info['size']:,} bytes\n")
 
-                total_lines = sum(f['lines'] for f in files)
-                total_size = sum(f['size'] for f in files)
+                total_lines = sum(f["lines"] for f in files)
+                total_size = sum(f["size"] for f in files)
                 f.write(f"\nSubtotal: {total_lines:,} lines, {total_size:,} bytes\n")
 
         print(f"Detailed report saved to: {output_file}")
+
 
 def main() -> None:
     """Main function to run the project analysis."""
@@ -543,6 +583,7 @@ def main() -> None:
     print("\nAnalysis complete! Generated files:")
     print("   • Documentation/Project Overview Table.txt (summary)")
     print("   • Documentation/metrics/detailed_project_metrics.txt (detailed breakdown)")
+
 
 if __name__ == "__main__":
     main()

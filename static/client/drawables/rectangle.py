@@ -34,6 +34,7 @@ from drawables.quadrilateral import Quadrilateral
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
 
+
 class Rectangle(Quadrilateral):
     """Represents a rectangle formed by four connected line segments.
 
@@ -46,7 +47,10 @@ class Rectangle(Quadrilateral):
         segment3 (Segment): Third side of the rectangle
         segment4 (Segment): Fourth side of the rectangle
     """
-    def __init__(self, segment1: Segment, segment2: Segment, segment3: Segment, segment4: Segment, color: str = default_color) -> None:
+
+    def __init__(
+        self, segment1: Segment, segment2: Segment, segment3: Segment, segment4: Segment, color: str = default_color
+    ) -> None:
         """Initialize a rectangle from four connected line segments.
 
         Validates that the segments form a proper rectangle with right angles.
@@ -63,34 +67,41 @@ class Rectangle(Quadrilateral):
         """
         if not self._segments_form_rectangle(segment1, segment2, segment3, segment4):
             raise ValueError("The segments do not form a rectangle")
-        if not MathUtils.is_rectangle(segment1.point1.x, segment1.point1.y,
-                                 segment2.point1.x, segment2.point1.y,
-                                 segment3.point1.x, segment3.point1.y,
-                                 segment4.point1.x, segment4.point1.y):
+        if not MathUtils.is_rectangle(
+            segment1.point1.x,
+            segment1.point1.y,
+            segment2.point1.x,
+            segment2.point1.y,
+            segment3.point1.x,
+            segment3.point1.y,
+            segment4.point1.x,
+            segment4.point1.y,
+        ):
             raise ValueError("The quadrilateral formed by the segments is not a rectangle")
         super().__init__(segment1, segment2, segment3, segment4, color=color)
         self._set_base_type_labels(["quadrilateral", "rectangle"])
 
     def get_class_name(self) -> str:
-        return 'Rectangle'
+        return "Rectangle"
 
     def _segments_form_rectangle(self, s1: Segment, s2: Segment, s3: Segment, s4: Segment) -> bool:
         # Check if the end point of one segment is the start point of the next
         correct_connections: bool = (
-            s1.point2 == s2.point1 and
-            s2.point2 == s3.point1 and
-            s3.point2 == s4.point1 and
-            s4.point2 == s1.point1
+            s1.point2 == s2.point1 and s2.point2 == s3.point1 and s3.point2 == s4.point1 and s4.point2 == s1.point1
         )
         return correct_connections
 
     def get_state(self) -> Dict[str, Any]:
         # Collect all point names into a list
         point_names: list[str] = [
-            self.segment1.point1.name, self.segment1.point2.name,
-            self.segment2.point1.name, self.segment2.point2.name,
-            self.segment3.point1.name, self.segment3.point2.name,
-            self.segment4.point1.name, self.segment4.point2.name
+            self.segment1.point1.name,
+            self.segment1.point2.name,
+            self.segment2.point1.name,
+            self.segment2.point2.name,
+            self.segment3.point1.name,
+            self.segment3.point2.name,
+            self.segment4.point1.name,
+            self.segment4.point2.name,
         ]
         # Convert the list into a set to remove duplicates, then convert it back to a list and sort it
         points_names: list[str] = sorted(list(set(point_names)))

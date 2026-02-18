@@ -24,6 +24,7 @@ SimpleMock = SimpleNamespace
 
 class Position:
     """Simple Position class for testing."""
+
     def __init__(self, x: float = 0, y: float = 0):
         self.x = x
         self.y = y
@@ -31,6 +32,7 @@ class Position:
 
 class MockPolarGrid:
     """Mock PolarGrid for testing."""
+
     def __init__(self, coordinate_mapper: Any):
         self.coordinate_mapper = coordinate_mapper
         self.class_name = "PolarGrid"
@@ -435,5 +437,5 @@ class TestCoordinateSystemManagerIntegration(unittest.TestCase):
         self.assertEqual(id(manager.polar_grid), polar_id)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

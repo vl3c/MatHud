@@ -149,5 +149,3 @@ def draw_point_style_label_with_coords(
         screen_space=True,
         metadata=label_metadata,
     )
-
-

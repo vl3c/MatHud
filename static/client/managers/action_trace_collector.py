@@ -22,9 +22,14 @@ _MAX_TRACES = 100
 _MAX_RESULT_STR_LEN = 500
 
 # Functions that are not safe to replay (side-effects outside canvas state).
-_NON_REPLAYABLE_FUNCTIONS = frozenset({
-    "save_workspace", "load_workspace", "delete_workspace", "run_tests",
-})
+_NON_REPLAYABLE_FUNCTIONS = frozenset(
+    {
+        "save_workspace",
+        "load_workspace",
+        "delete_workspace",
+        "run_tests",
+    }
+)
 
 
 class ActionTraceCollector:
@@ -225,7 +230,10 @@ class ActionTraceCollector:
             new_result: Any = None
             try:
                 results = ResultProcessor.get_results(
-                    [call], available_functions, undoable_functions, canvas,
+                    [call],
+                    available_functions,
+                    undoable_functions,
+                    canvas,
                 )
                 # Get the single result value (first entry in the dict)
                 if results:
@@ -238,13 +246,15 @@ class ActionTraceCollector:
 
             original = tc.get("result")
             matched = self._results_match(original, new_result)
-            match_report.append({
-                "function_name": fn,
-                "matched": matched,
-                "original_result": self._truncate(original),
-                "new_result": self._truncate(new_result),
-                "is_error": is_error,
-            })
+            match_report.append(
+                {
+                    "function_name": fn,
+                    "matched": matched,
+                    "original_result": self._truncate(original),
+                    "new_result": self._truncate(new_result),
+                    "is_error": is_error,
+                }
+            )
 
         return {"match_report": match_report, "skipped": skipped}
 

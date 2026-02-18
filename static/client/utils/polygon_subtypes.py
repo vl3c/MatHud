@@ -37,7 +37,7 @@ class _BaseSubtype(Enum):
         return (member.value for member in cls)
 
     def __str__(self) -> str:
-        return self.value
+        return str(self.value)
 
 
 class TriangleSubtype(_BaseSubtype):
@@ -60,4 +60,3 @@ class QuadrilateralSubtype(_BaseSubtype):
 
 
 __all__ = ["TriangleSubtype", "QuadrilateralSubtype"]
-

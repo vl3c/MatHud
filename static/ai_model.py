@@ -437,9 +437,7 @@ def _format_display_name(model_name: str) -> str:
         if i > 0:
             prev_char = base[i - 1]
             # Add space between letter and digit
-            if (prev_char.isalpha() and char.isdigit()) or (
-                prev_char.isdigit() and char.isalpha()
-            ):
+            if (prev_char.isalpha() and char.isdigit()) or (prev_char.isdigit() and char.isalpha()):
                 # But not for decimal points in version numbers
                 if not (prev_char.isdigit() and char == "."):
                     formatted += " "

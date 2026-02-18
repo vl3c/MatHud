@@ -36,6 +36,7 @@ from drawables.polygon import Polygon
 from drawables.segment import Segment
 from utils.geometry_utils import GeometryUtils
 
+
 class Triangle(Polygon):
     """Represents a triangle formed by three connected line segments.
 
@@ -47,6 +48,7 @@ class Triangle(Polygon):
         segment2 (Segment): Second side of the triangle
         segment3 (Segment): Third side of the triangle
     """
+
     def __init__(self, segment1: Segment, segment2: Segment, segment3: Segment, color: str = default_color) -> None:
         """Initialize a triangle from three connected line segments.
 
@@ -74,14 +76,22 @@ class Triangle(Polygon):
 
     def _set_name(self) -> str:
         # Get unique vertices using a set first, then sort
-        vertices: Set[str] = {p.name for p in [self.segment1.point1, self.segment1.point2,
-                                   self.segment2.point1, self.segment2.point2,
-                                   self.segment3.point1, self.segment3.point2]}
+        vertices: Set[str] = {
+            p.name
+            for p in [
+                self.segment1.point1,
+                self.segment1.point2,
+                self.segment2.point1,
+                self.segment2.point2,
+                self.segment3.point1,
+                self.segment3.point2,
+            ]
+        }
         vertices_list: list[str] = sorted(vertices)  # Convert to sorted list
         return vertices_list[0] + vertices_list[1] + vertices_list[2]  # Now we're guaranteed three unique points
 
     def get_class_name(self) -> str:
-        return 'Triangle'
+        return "Triangle"
 
     def _segments_form_triangle(self, s1: Segment, s2: Segment, s3: Segment) -> bool:
         points: list[Point] = [s1.point1, s1.point2, s2.point1, s2.point2, s3.point1, s3.point2]
@@ -115,9 +125,12 @@ class Triangle(Polygon):
     def get_state(self) -> Dict[str, Any]:
         # Collect all point names into a list
         point_names: list[str] = [
-            self.segment1.point1.name, self.segment1.point2.name,
-            self.segment2.point1.name, self.segment2.point2.name,
-            self.segment3.point1.name, self.segment3.point2.name
+            self.segment1.point1.name,
+            self.segment1.point2.name,
+            self.segment2.point1.name,
+            self.segment2.point2.name,
+            self.segment3.point1.name,
+            self.segment3.point2.name,
         ]
         # Find the most frequent point
         most_frequent_point: str = max(set(point_names), key=point_names.count)
@@ -147,9 +160,12 @@ class Triangle(Polygon):
     def get_vertices(self) -> Set[Point]:
         """Return the set of unique vertices of the triangle"""
         return {
-            self.segment1.point1, self.segment1.point2,
-            self.segment2.point1, self.segment2.point2,
-            self.segment3.point1, self.segment3.point2
+            self.segment1.point1,
+            self.segment1.point2,
+            self.segment2.point1,
+            self.segment2.point2,
+            self.segment3.point1,
+            self.segment3.point2,
         }
 
     def update_color(self, color: str) -> None:

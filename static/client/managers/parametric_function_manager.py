@@ -164,9 +164,7 @@ class ParametricFunctionManager:
         self._archive_for_undo()
 
         # Remove from container
-        result = remove_drawable_with_dependencies(
-            self.drawables, self.dependency_manager, func
-        )
+        result = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, func)
 
         # Trigger render if enabled
         if result and getattr(self.canvas, "draw_enabled", False):

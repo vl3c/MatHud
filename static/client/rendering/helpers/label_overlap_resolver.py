@@ -205,5 +205,3 @@ class ScreenOffsetLabelOverlapResolver:
         self._group_to_dy[group] = dy
         self._placed_rects.append(shift_rect_y(inflate_rect(base_rect, self._padding_px), dy))
         return dy
-
-

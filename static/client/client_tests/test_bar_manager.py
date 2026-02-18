@@ -272,5 +272,3 @@ class TestBarManager(unittest.TestCase):
         calls.clear()
         self.assertTrue(self.bar_manager.delete_bar("ToDelete2", archive=False, redraw=False))
         self.assertEqual(calls, [])
-
-

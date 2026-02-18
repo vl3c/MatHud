@@ -262,8 +262,7 @@ class ServerManager:
                         )
                     return (
                         False,
-                        f"Port {self.port} is already in use. "
-                        f"Choose another port or stop the existing listener.",
+                        f"Port {self.port} is already in use. Choose another port or stop the existing listener.",
                     )
             else:
                 owner_pid = self._find_listener_pid_on_port()
@@ -275,8 +274,7 @@ class ServerManager:
                     )
                 return (
                     False,
-                    f"Port {self.port} is already in use. "
-                    f"Choose another port or stop the existing listener.",
+                    f"Port {self.port} is already in use. Choose another port or stop the existing listener.",
                 )
 
         # Set environment to disable auth for CLI operations
@@ -451,6 +449,7 @@ def status(port: int, as_json: bool) -> None:
 
     if as_json:
         import json
+
         click.echo(json.dumps(info))
     else:
         if info["running"]:

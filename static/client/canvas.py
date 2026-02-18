@@ -89,7 +89,10 @@ class Canvas:
         zoom_direction (int): Current zoom direction (-1=in, 1=out, 0=none)
         zoom_step (float): Zoom increment per step
     """
-    def __init__(self, width: float, height: float, draw_enabled: bool = True, renderer: Optional[RendererProtocol] = None) -> None:
+
+    def __init__(
+        self, width: float, height: float, draw_enabled: bool = True, renderer: Optional[RendererProtocol] = None
+    ) -> None:
         """Initialize the mathematical canvas with specified dimensions.
 
         Sets up the coordinate system, managers, and initial state for mathematical visualization.
@@ -284,9 +287,7 @@ class Canvas:
         if apply_zoom and hasattr(drawable, "_invalidate_cache_on_zoom"):
             drawable._invalidate_cache_on_zoom()
 
-    def _render_drawable_with_renderer(
-        self, renderer: Optional[RendererProtocol], drawable: Any
-    ) -> None:
+    def _render_drawable_with_renderer(self, renderer: Optional[RendererProtocol], drawable: Any) -> None:
         if renderer is not None:
             try:
                 renderer.render(drawable, self.coordinate_mapper)
@@ -318,9 +319,7 @@ class Canvas:
     def _safe_drawable_class_name(self, drawable: Any) -> str:
         try:
             return str(
-                drawable.get_class_name()
-                if hasattr(drawable, "get_class_name")
-                else drawable.__class__.__name__
+                drawable.get_class_name() if hasattr(drawable, "get_class_name") else drawable.__class__.__name__
             )
         except Exception:
             return str(drawable.__class__.__name__)
@@ -785,9 +784,7 @@ class Canvas:
             if isinstance(name, str) and name:
                 prefixes.append(f"{name}_bar_")
 
-    def _filter_bars_excluding_prefixes(
-        self, bars_state: List[Any], prefixes: List[str]
-    ) -> List[Any]:
+    def _filter_bars_excluding_prefixes(self, bars_state: List[Any], prefixes: List[str]) -> List[Any]:
         kept: List[Any] = []
         for item in bars_state:
             if not isinstance(item, dict):
@@ -948,7 +945,9 @@ class Canvas:
             label_visible=label_visible,
         )
 
-    def delete_segment(self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False) -> bool:
+    def delete_segment(
+        self, x1: float, y1: float, x2: float, y2: float, delete_children: bool = True, delete_parents: bool = False
+    ) -> bool:
         """Delete a segment by its endpoint coordinates"""
         return bool(self.drawable_manager.delete_segment(x1, y1, x2, y2, delete_children, delete_parents))
 
@@ -981,7 +980,9 @@ class Canvas:
         intersect_left = MathUtils.segments_intersect(x1, y1, x2, y2, 0, self.height, 0, 0)
         point1_visible: bool = self.is_point_within_canvas_visible_area(x1, y1)
         point2_visible: bool = self.is_point_within_canvas_visible_area(x2, y2)
-        return bool(intersect_top or intersect_right or intersect_bottom or intersect_left or point1_visible or point2_visible)
+        return bool(
+            intersect_top or intersect_right or intersect_bottom or intersect_left or point1_visible or point2_visible
+        )
 
     def get_vector(self, x1: float, y1: float, x2: float, y2: float) -> Optional["Drawable"]:
         """Get a vector by its origin and tip coordinates"""
@@ -1040,18 +1041,21 @@ class Canvas:
         fill_opacity: Optional[float] = None,
         bar_count: Optional[float] = None,
     ) -> Dict[str, Any]:
-        return cast(Dict[str, Any], self.drawable_manager.plot_distribution(
-            name=name,
-            representation=representation,
-            distribution_type=distribution_type,
-            distribution_params=distribution_params,
-            plot_bounds=plot_bounds,
-            shade_bounds=shade_bounds,
-            curve_color=curve_color,
-            fill_color=fill_color,
-            fill_opacity=fill_opacity,
-            bar_count=bar_count,
-        ))
+        return cast(
+            Dict[str, Any],
+            self.drawable_manager.plot_distribution(
+                name=name,
+                representation=representation,
+                distribution_type=distribution_type,
+                distribution_params=distribution_params,
+                plot_bounds=plot_bounds,
+                shade_bounds=shade_bounds,
+                curve_color=curve_color,
+                fill_color=fill_color,
+                fill_opacity=fill_opacity,
+                bar_count=bar_count,
+            ),
+        )
 
     def plot_bars(
         self,
@@ -1068,19 +1072,22 @@ class Canvas:
         x_start: Optional[float] = None,
         y_base: Optional[float] = None,
     ) -> Dict[str, Any]:
-        return cast(Dict[str, Any], self.drawable_manager.plot_bars(
-            name=name,
-            values=values or [],
-            labels_below=labels_below or [],
-            labels_above=labels_above,
-            bar_spacing=bar_spacing,
-            bar_width=bar_width,
-            stroke_color=stroke_color,
-            fill_color=fill_color,
-            fill_opacity=fill_opacity,
-            x_start=x_start,
-            y_base=y_base,
-        ))
+        return cast(
+            Dict[str, Any],
+            self.drawable_manager.plot_bars(
+                name=name,
+                values=values or [],
+                labels_below=labels_below or [],
+                labels_above=labels_above,
+                bar_spacing=bar_spacing,
+                bar_width=bar_width,
+                stroke_color=stroke_color,
+                fill_color=fill_color,
+                fill_opacity=fill_opacity,
+                x_start=x_start,
+                y_base=y_base,
+            ),
+        )
 
     def delete_plot(self, name: str) -> bool:
         return bool(self.drawable_manager.delete_plot(name))
@@ -1098,17 +1105,20 @@ class Canvas:
         show_points: Optional[bool] = None,
         point_color: Optional[str] = None,
     ) -> Dict[str, Any]:
-        return cast(Dict[str, Any], self.drawable_manager.fit_regression(
-            name=name,
-            x_data=x_data if x_data is not None else [],
-            y_data=y_data if y_data is not None else [],
-            model_type=model_type,
-            degree=degree,
-            plot_bounds=plot_bounds,
-            curve_color=curve_color,
-            show_points=show_points,
-            point_color=point_color,
-        ))
+        return cast(
+            Dict[str, Any],
+            self.drawable_manager.fit_regression(
+                name=name,
+                x_data=x_data if x_data is not None else [],
+                y_data=y_data if y_data is not None else [],
+                model_type=model_type,
+                degree=degree,
+                plot_bounds=plot_bounds,
+                curve_color=curve_color,
+                show_points=show_points,
+                point_color=point_color,
+            ),
+        )
 
     # ------------------- Graph Methods -------------------
     def create_graph(self, graph_state: "GraphState") -> "Drawable":
@@ -1461,9 +1471,7 @@ class Canvas:
         Returns:
             The created Segment drawable
         """
-        return self.drawable_manager.create_tangent_line(
-            curve_name, parameter, name=name, length=length, color=color
-        )
+        return self.drawable_manager.create_tangent_line(curve_name, parameter, name=name, length=length, color=color)
 
     def create_normal_line(
         self,
@@ -1485,9 +1493,7 @@ class Canvas:
         Returns:
             The created Segment drawable
         """
-        return self.drawable_manager.create_normal_line(
-            curve_name, parameter, name=name, length=length, color=color
-        )
+        return self.drawable_manager.create_normal_line(curve_name, parameter, name=name, length=length, color=color)
 
     # ------------------- Construction Methods -------------------
 
@@ -1514,9 +1520,7 @@ class Canvas:
         color: Optional[str] = None,
     ) -> "Drawable":
         """Create the perpendicular bisector of a segment."""
-        return self.drawable_manager.create_perpendicular_bisector(
-            segment_name, length=length, name=name, color=color
-        )
+        return self.drawable_manager.create_perpendicular_bisector(segment_name, length=length, name=name, color=color)
 
     def create_perpendicular_from_point(
         self,
@@ -1527,9 +1531,8 @@ class Canvas:
         color: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Drop a perpendicular from a point to a segment."""
-        return self.drawable_manager.create_perpendicular_from_point(
-            point_name, segment_name, name=name, color=color
-        )
+        result: Dict[str, Any] = self.drawable_manager.create_perpendicular_from_point(point_name, segment_name, name=name, color=color)
+        return result
 
     def create_angle_bisector(
         self,
@@ -1544,8 +1547,7 @@ class Canvas:
     ) -> "Drawable":
         """Create a segment along the bisector of an angle."""
         return self.drawable_manager.create_angle_bisector(
-            vertex_name, p1_name, p2_name,
-            angle_name=angle_name, length=length, name=name, color=color
+            vertex_name, p1_name, p2_name, angle_name=angle_name, length=length, name=name, color=color
         )
 
     def create_parallel_line(
@@ -1575,8 +1577,11 @@ class Canvas:
         """Create the circumscribed circle of a triangle or three points."""
         return self.drawable_manager.create_circumcircle(
             triangle_name=triangle_name,
-            p1_name=p1_name, p2_name=p2_name, p3_name=p3_name,
-            name=name, color=color,
+            p1_name=p1_name,
+            p2_name=p2_name,
+            p3_name=p3_name,
+            name=name,
+            color=color,
         )
 
     def create_incircle(
@@ -1588,7 +1593,9 @@ class Canvas:
     ) -> "Drawable":
         """Create the inscribed circle of a triangle."""
         return self.drawable_manager.create_incircle(
-            triangle_name, name=name, color=color,
+            triangle_name,
+            name=name,
+            color=color,
         )
 
     def translate_object(self, name: str, x_offset: float, y_offset: float) -> bool:
@@ -1619,13 +1626,16 @@ class Canvas:
         segment_name: Optional[str] = None,
     ) -> bool:
         """Reflect a drawable across an axis, line, or segment."""
-        return bool(self.transformations_manager.reflect_object(
-            name, axis,
-            line_a=float(line_a) if line_a is not None else 0,
-            line_b=float(line_b) if line_b is not None else 0,
-            line_c=float(line_c) if line_c is not None else 0,
-            segment_name=str(segment_name) if segment_name else "",
-        ))
+        return bool(
+            self.transformations_manager.reflect_object(
+                name,
+                axis,
+                line_a=float(line_a) if line_a is not None else 0,
+                line_b=float(line_b) if line_b is not None else 0,
+                line_c=float(line_c) if line_c is not None else 0,
+                segment_name=str(segment_name) if segment_name else "",
+            )
+        )
 
     def scale_object(
         self,
@@ -1669,9 +1679,7 @@ class Canvas:
             range_val: Half-size for the specified axis
             range_axis: 'x' or 'y' - which axis the range applies to
         """
-        left, right, top, bottom = self._compute_zoom_bounds(
-            center_x, center_y, range_val, range_axis
-        )
+        left, right, top, bottom = self._compute_zoom_bounds(center_x, center_y, range_val, range_axis)
         self.coordinate_mapper.set_visible_bounds(left, right, top, bottom)
         self._invalidate_cartesian_cache_on_zoom()
         self.draw(apply_zoom=True)
@@ -1709,7 +1717,7 @@ class Canvas:
             return None, None
 
         # If the shape is a rectangle, don't check for parent shapes
-        if shape.get_class_name() == 'Rectangle':
+        if shape.get_class_name() == "Rectangle":
             return None, None
 
         rectangles = self.drawable_manager.drawables.Rectangles
@@ -1718,7 +1726,7 @@ class Canvas:
             return rectangle_parent, rectangle_parent.get_class_name()
 
         # Only check triangles if no rectangle was found and the shape isn't a triangle
-        if shape.get_class_name() == 'Triangle':
+        if shape.get_class_name() == "Triangle":
             return None, None
 
         triangles = self.drawable_manager.drawables.Triangles
@@ -1776,9 +1784,19 @@ class Canvas:
             segments.append(shape.segment4)
         return segments
 
-    def create_colored_area(self, drawable1_name: str, drawable2_name: Optional[str] = None, left_bound: Optional[float] = None, right_bound: Optional[float] = None, color: str = default_area_fill_color, opacity: float = default_area_opacity) -> "Drawable":
+    def create_colored_area(
+        self,
+        drawable1_name: str,
+        drawable2_name: Optional[str] = None,
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
+        color: str = default_area_fill_color,
+        opacity: float = default_area_opacity,
+    ) -> "Drawable":
         """Creates a vertical bounded colored area between two functions, two segments, or a function and a segment"""
-        return self.drawable_manager.create_colored_area(drawable1_name, drawable2_name, left_bound, right_bound, color, opacity)
+        return self.drawable_manager.create_colored_area(
+            drawable1_name, drawable2_name, left_bound, right_bound, color, opacity
+        )
 
     def create_region_colored_area(
         self,
@@ -1864,16 +1882,33 @@ class Canvas:
 
     # ------------------- Angle Methods -------------------
 
-    def create_angle(self, vx: float, vy: float, p1x: float, p1y: float, p2x: float, p2y: float, color: Optional[str] = None, angle_name: Optional[str] = None, is_reflex: bool = False, extra_graphics: bool = True) -> Optional["Drawable"]:
+    def create_angle(
+        self,
+        vx: float,
+        vy: float,
+        p1x: float,
+        p1y: float,
+        p2x: float,
+        p2y: float,
+        color: Optional[str] = None,
+        angle_name: Optional[str] = None,
+        is_reflex: bool = False,
+        extra_graphics: bool = True,
+    ) -> Optional["Drawable"]:
         """Create an angle defined by three points via AngleManager."""
         angle_manager = self._get_angle_manager()
         if angle_manager:
             return angle_manager.create_angle(
-                vx, vy, p1x, p1y, p2x, p2y,
+                vx,
+                vy,
+                p1x,
+                p1y,
+                p2x,
+                p2y,
                 color=color,
                 angle_name=angle_name,
                 is_reflex=is_reflex,
-                extra_graphics=extra_graphics
+                extra_graphics=extra_graphics,
             )
         return None
 
@@ -1888,9 +1923,7 @@ class Canvas:
         """Update editable angle properties via AngleManager."""
         angle_manager = self._get_angle_manager()
         if angle_manager:
-            return bool(angle_manager.update_angle(
-                name, new_color=new_color
-            ))
+            return bool(angle_manager.update_angle(name, new_color=new_color))
         return False
 
     def _get_angle_manager(self) -> Any:
@@ -2124,9 +2157,7 @@ class Canvas:
     def _resolve_renderer_mode(self, renderer: Optional[RendererProtocol]) -> str:
         if renderer is None:
             return "none"
-        mode_from_name = self._resolve_renderer_mode_from_name(
-            renderer.__class__.__name__.lower()
-        )
+        mode_from_name = self._resolve_renderer_mode_from_name(renderer.__class__.__name__.lower())
         if mode_from_name is not None:
             return mode_from_name
         module = getattr(renderer, "__module__", "")

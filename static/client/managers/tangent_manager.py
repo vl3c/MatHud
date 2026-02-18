@@ -298,9 +298,7 @@ class TangentManager:
         normal_slope = MathUtils.normal_slope(tangent_slope)
 
         # Calculate normal endpoints
-        endpoints = MathUtils.tangent_line_endpoints(
-            normal_slope, tangent_data["point"], length
-        )
+        endpoints = MathUtils.tangent_line_endpoints(normal_slope, tangent_data["point"], length)
 
         return {
             "point": tangent_data["point"],
@@ -354,7 +352,10 @@ class TangentManager:
 
         # Create the segment using segment manager
         segment = self.segment_manager.create_segment(
-            x1, y1, x2, y2,
+            x1,
+            y1,
+            x2,
+            y2,
             name=name or "",
             color=color,
             extra_graphics=True,
@@ -410,7 +411,10 @@ class TangentManager:
 
         # Create the segment using segment manager
         segment = self.segment_manager.create_segment(
-            x1, y1, x2, y2,
+            x1,
+            y1,
+            x2,
+            y2,
             name=name or "",
             color=color,
             extra_graphics=True,

@@ -66,6 +66,7 @@ if TYPE_CHECKING:
     from drawables.point import Point
     from drawables.segment import Segment
 
+
 class WorkspaceManager:
     """
     Client-side workspace manager that handles workspace operations via AJAX communication.
@@ -96,6 +97,7 @@ class WorkspaceManager:
         Returns:
             str: Success or error message from the save operation.
         """
+
         def on_complete(req: Any) -> str:
             return self._parse_save_workspace_response(req, name)
 
@@ -114,7 +116,7 @@ class WorkspaceManager:
                 return f'Workspace "{name if name else "current"}" saved successfully.'
             return self._format_workspace_error("saving", response)
         except Exception as e:
-            return f'Error saving workspace: {str(e)}'
+            return f"Error saving workspace: {str(e)}"
 
     def _build_save_workspace_payload(self, name: Optional[str]) -> Dict[str, Any]:
         return {
@@ -430,9 +432,7 @@ class WorkspaceManager:
 
         points = [self.canvas.get_point_by_name(name) for name in arg_point_names]
         if not all(points):
-            missing_names: List[str] = [
-                str(arg_point_names[i]) for i, p in enumerate(points) if not p
-            ]
+            missing_names: List[str] = [str(arg_point_names[i]) for i, p in enumerate(points) if not p]
             self._warn_rectangle_missing_points(rect_name, missing_names)
             return
 
@@ -477,13 +477,14 @@ class WorkspaceManager:
         except PolygonCanonicalizationError:
             return self._canonicalize_rectangle_from_diagonal(points, rect_name)
 
-    def _canonicalize_rectangle_vertices(
-        self, points: List[Optional["Point"]]
-    ) -> List[Tuple[float, float]]:
-        return cast(List[Tuple[float, float]], canonicalize_rectangle(
-            [(point.x, point.y) for point in points if point is not None],
-            construction_mode="vertices",
-        ))
+    def _canonicalize_rectangle_vertices(self, points: List[Optional["Point"]]) -> List[Tuple[float, float]]:
+        return cast(
+            List[Tuple[float, float]],
+            canonicalize_rectangle(
+                [(point.x, point.y) for point in points if point is not None],
+                construction_mode="vertices",
+            ),
+        )
 
     def _canonicalize_rectangle_from_diagonal(
         self,
@@ -492,19 +493,18 @@ class WorkspaceManager:
     ) -> Optional[List[Tuple[float, float]]]:
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, rect_name)
         if not p_diag1 or not p_diag2:
-            print(
-                f"Warning: Could not determine diagonal points for rectangle '{rect_name}'. Skipping."
-            )
+            print(f"Warning: Could not determine diagonal points for rectangle '{rect_name}'. Skipping.")
             return None
         try:
-            return cast(Optional[List[Tuple[float, float]]], canonicalize_rectangle(
-                [(p_diag1.x, p_diag1.y), (p_diag2.x, p_diag2.y)],
-                construction_mode="diagonal",
-            ))
-        except PolygonCanonicalizationError:
-            print(
-                f"Warning: Unable to canonicalize rectangle '{rect_name}' from supplied coordinates. Skipping."
+            return cast(
+                Optional[List[Tuple[float, float]]],
+                canonicalize_rectangle(
+                    [(p_diag1.x, p_diag1.y), (p_diag2.x, p_diag2.y)],
+                    construction_mode="diagonal",
+                ),
             )
+        except PolygonCanonicalizationError:
+            print(f"Warning: Unable to canonicalize rectangle '{rect_name}' from supplied coordinates. Skipping.")
             return None
 
     def _create_circles(self, state: Dict[str, Any]) -> None:
@@ -515,9 +515,7 @@ class WorkspaceManager:
             self._restore_circle(item_state)
 
     def _restore_circle(self, item_state: Dict[str, Any]) -> None:
-        center_point: Optional["Point"] = self.canvas.get_point_by_name(
-            item_state["args"]["center"]
-        )
+        center_point: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["center"])
         if center_point:
             self.canvas.create_circle(
                 center_point.x,
@@ -534,9 +532,7 @@ class WorkspaceManager:
             self._restore_ellipse(item_state)
 
     def _restore_ellipse(self, item_state: Dict[str, Any]) -> None:
-        center_point: Optional["Point"] = self.canvas.get_point_by_name(
-            item_state["args"]["center"]
-        )
+        center_point: Optional["Point"] = self.canvas.get_point_by_name(item_state["args"]["center"])
         if center_point:
             self.canvas.create_ellipse(
                 center_point.x,
@@ -638,9 +634,7 @@ class WorkspaceManager:
             created.name = name
 
     def _warn_colored_area_restore_failure(self, item_state: Dict[str, Any], exc: Exception) -> None:
-        print(
-            f"Warning: Could not restore colored area '{item_state.get('name', 'Unnamed')}': {exc}"
-        )
+        print(f"Warning: Could not restore colored area '{item_state.get('name', 'Unnamed')}': {exc}")
 
     def _create_plots(self, state: Dict[str, Any]) -> None:
         """
@@ -914,9 +908,7 @@ class WorkspaceManager:
             opacity=opacity,
         )
 
-    def _closed_shape_style_args(
-        self, shape_args: Dict[str, Any]
-    ) -> Tuple[Any, Any, Any]:
+    def _closed_shape_style_args(self, shape_args: Dict[str, Any]) -> Tuple[Any, Any, Any]:
         color = shape_args.get("color", default_area_fill_color)
         opacity = shape_args.get("opacity", default_area_opacity)
         resolution = shape_args.get("resolution", default_closed_shape_resolution)
@@ -962,15 +954,9 @@ class WorkspaceManager:
             opacity=args.get("opacity", default_area_opacity),
         )
 
-    def _generic_colored_area_drawable_names(
-        self, args: Dict[str, Any]
-    ) -> Tuple[Any, Any]:
-        drawable1_name = (
-            args.get("drawable1_name") or args.get("segment1") or args.get("func1")
-        )
-        drawable2_name = (
-            args.get("drawable2_name") or args.get("segment2") or args.get("func2")
-        )
+    def _generic_colored_area_drawable_names(self, args: Dict[str, Any]) -> Tuple[Any, Any]:
+        drawable1_name = args.get("drawable1_name") or args.get("segment1") or args.get("func1")
+        drawable2_name = args.get("drawable2_name") or args.get("segment2") or args.get("func2")
         return drawable1_name, drawable2_name
 
     def _create_angles(self, state: Dict[str, Any]) -> None:
@@ -1011,9 +997,7 @@ class WorkspaceManager:
             return
 
         try:
-            self.canvas.create_circle_arc(
-                **self._build_restored_circle_arc_kwargs(arc_state, args, point1, point2)
-            )
+            self.canvas.create_circle_arc(**self._build_restored_circle_arc_kwargs(arc_state, args, point1, point2))
         except Exception as exc:
             self._warn_circle_arc_restore_failure(arc_state, exc)
 
@@ -1214,9 +1198,7 @@ class WorkspaceManager:
         self._materialize_plots(plots, materializer)
 
     def _get_statistics_manager_for_materialization(self, materializer_name: str) -> Any:
-        stats_manager = getattr(
-            getattr(self.canvas, "drawable_manager", None), "statistics_manager", None
-        )
+        stats_manager = getattr(getattr(self.canvas, "drawable_manager", None), "statistics_manager", None)
         if stats_manager is None or not hasattr(stats_manager, materializer_name):
             return None
         return stats_manager
@@ -1260,15 +1242,16 @@ class WorkspaceManager:
         Returns:
             str: Success or error message from the load operation.
         """
+
         def on_complete(req: Any) -> str:
             return self._parse_load_workspace_response(req, name)
 
-        url: str = f'/load_workspace?name={name}' if name else '/load_workspace'
+        url: str = f"/load_workspace?name={name}" if name else "/load_workspace"
         return self._execute_sync_request(
-            method='GET',
+            method="GET",
             url=url,
             on_complete=on_complete,
-            error_prefix='Error loading workspace',
+            error_prefix="Error loading workspace",
         )
 
     def _parse_load_workspace_response(self, req: Any, name: Optional[str]) -> str:
@@ -1300,14 +1283,15 @@ class WorkspaceManager:
         Returns:
             str: Comma-separated list of workspace names, or 'None' if empty.
         """
+
         def on_complete(req: Any) -> str:
             return self._parse_list_workspaces_response(req)
 
         return self._execute_sync_request(
-            method='GET',
-            url='/list_workspaces',
+            method="GET",
+            url="/list_workspaces",
             on_complete=on_complete,
-            error_prefix='Error listing workspaces',
+            error_prefix="Error listing workspaces",
         )
 
     def _parse_list_workspaces_response(self, req: Any) -> str:
@@ -1335,15 +1319,16 @@ class WorkspaceManager:
         Returns:
             str: Success or error message from the delete operation.
         """
+
         def on_complete(req: Any) -> str:
             return self._parse_delete_workspace_response(req, name)
 
-        url: str = f'/delete_workspace?name={name}'
+        url: str = f"/delete_workspace?name={name}"
         return self._execute_sync_request(
-            method='GET',
+            method="GET",
             url=url,
             on_complete=on_complete,
-            error_prefix='Error deleting workspace',
+            error_prefix="Error deleting workspace",
         )
 
     def _parse_delete_workspace_response(self, req: Any, name: str) -> str:
@@ -1382,7 +1367,7 @@ class WorkspaceManager:
         return cast(List[str], response.get("data", []))
 
     def _format_workspace_error(self, action_gerund: str, response: Dict[str, Any]) -> str:
-        return f'Error {action_gerund} workspace: {response.get("message")}'
+        return f"Error {action_gerund} workspace: {response.get('message')}"
 
     def _execute_sync_request(
         self,

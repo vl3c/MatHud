@@ -44,6 +44,7 @@ class TestGraphManager(unittest.TestCase):
         )
 
         self.points_created: List[Point] = []
+
         def create_point(x: float, y: float, name: str = "", color: str = None, extra_graphics: bool = True) -> Point:
             p = Point(x, y, name=name if name else f"P{len(self.points_created)}")
             self.points_created.append(p)
@@ -57,7 +58,10 @@ class TestGraphManager(unittest.TestCase):
         )
 
         self.segments_created: List[Segment] = []
-        def create_segment_from_points(p1: Point, p2: Point, name: str = "", color: str = None, label_text: str = "", label_visible: bool = False) -> Segment:
+
+        def create_segment_from_points(
+            p1: Point, p2: Point, name: str = "", color: str = None, label_text: str = "", label_visible: bool = False
+        ) -> Segment:
             seg = Segment(p1, p2, color=color or "#000000")
             self.segments_created.append(seg)
             self.drawables.add(seg)
@@ -68,7 +72,9 @@ class TestGraphManager(unittest.TestCase):
             create_segment_from_points=create_segment_from_points,
             delete_segment=SimpleMock(return_value=True),
             create_segment=lambda *args, **kwargs: create_segment_from_points(
-                Point(args[0], args[1]), Point(args[2], args[3]), **{k: v for k, v in kwargs.items() if k != 'extra_graphics'}
+                Point(args[0], args[1]),
+                Point(args[2], args[3]),
+                **{k: v for k, v in kwargs.items() if k != "extra_graphics"},
             ),
         )
 

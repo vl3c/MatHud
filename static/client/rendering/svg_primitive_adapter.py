@@ -439,7 +439,9 @@ class SvgPrimitiveAdapter(RendererPrimitives):
             return str(int(num))
         return str(num)
 
-    def _ensure_stroke_attrs(self, elem: Any, cache: Dict[str, Any], stroke: StrokeStyle, *, include_width: bool = True) -> None:
+    def _ensure_stroke_attrs(
+        self, elem: Any, cache: Dict[str, Any], stroke: StrokeStyle, *, include_width: bool = True
+    ) -> None:
         stroke_cache = cache.setdefault("stroke", {})
         if stroke_cache.get("color") != stroke.color:
             self._set_attribute(elem, cache, "stroke", stroke.color)
@@ -645,7 +647,9 @@ class SvgPrimitiveAdapter(RendererPrimitives):
                 except Exception:
                     rotation_deg = 0.0
                 if math.isfinite(rotation_deg) and rotation_deg != 0.0:
-                    transform_value = f"rotate({-rotation_deg} {self._format_number(position[0])} {self._format_number(position[1])})"
+                    transform_value = (
+                        f"rotate({-rotation_deg} {self._format_number(position[0])} {self._format_number(position[1])})"
+                    )
                     self._set_attribute(elem, cache, "transform", transform_value)
                 else:
                     self._set_attribute(elem, cache, "transform", None)
@@ -823,7 +827,9 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         end_y = center[1] + radius * math.sin(end_angle_rad)
         large_arc_flag = "1" if abs(end_angle_rad - start_angle_rad) > math.pi else "0"
         sweep_flag = "1" if sweep_clockwise else "0"
-        radius_str = str(int(radius)) if isinstance(radius, (int, float)) and float(radius).is_integer() else str(radius)
+        radius_str = (
+            str(int(radius)) if isinstance(radius, (int, float)) and float(radius).is_integer() else str(radius)
+        )
         d = f"M {start_x} {start_y} A {radius_str} {radius_str} 0 {large_arc_flag} {sweep_flag} {end_x} {end_y}"
         kwargs = self._stroke_kwargs(stroke)
         kwargs["fill"] = "none"
@@ -890,4 +896,3 @@ class SvgPrimitiveAdapter(RendererPrimitives):
         surface = self._surface
         surface.setAttribute("width", str(width))
         surface.setAttribute("height", str(height))
-

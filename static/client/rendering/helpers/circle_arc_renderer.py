@@ -104,7 +104,9 @@ def _compute_circle_arc_sweep(circle_arc, center_screen, point1_screen):
 
 
 @_manages_shape
-def _stroke_circle_arc(primitives, circle_arc, center_screen, radius_on_screen, start_angle, end_angle, sweep_clockwise, style):
+def _stroke_circle_arc(
+    primitives, circle_arc, center_screen, radius_on_screen, start_angle, end_angle, sweep_clockwise, style
+):
     """Stroke a circle arc with the computed parameters.
 
     Args:
@@ -179,4 +181,3 @@ def render_circle_arc_helper(primitives, circle_arc, coordinate_mapper, style):
         sweep_clockwise,
         style,
     )
-

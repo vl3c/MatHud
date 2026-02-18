@@ -207,9 +207,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
 
         # Use developer message as system prompt
-        self.messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": OpenAIAPIBase.DEV_MSG}
-        ]
+        self.messages: List[Dict[str, Any]] = [{"role": "system", "content": OpenAIAPIBase.DEV_MSG}]
 
     @abstractmethod
     def _is_available(self) -> bool:
@@ -265,10 +263,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
             if supports_tools(model_name):
                 tool_capable.append(model_info)
 
-        _logger.info(
-            f"Discovered {len(tool_capable)} tool-capable models "
-            f"out of {len(all_models)} total"
-        )
+        _logger.info(f"Discovered {len(tool_capable)} tool-capable models out of {len(all_models)} total")
         return tool_capable
 
     def reset_conversation(self) -> None:
@@ -476,14 +471,16 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         # Build tool calls list
         tool_calls = []
         for tc in raw_tool_calls:
-            tool_calls.append({
-                "id": tc.id,
-                "type": "function",
-                "function": {
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments,
-                },
-            })
+            tool_calls.append(
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+            )
 
         # Add assistant message to history
         assistant_message: Dict[str, Any] = {"role": "assistant", "content": text_content}
@@ -493,11 +490,13 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
 
         # Add placeholder tool messages
         for tc in tool_calls:
-            self.messages.append({
-                "role": "tool",
-                "tool_call_id": tc["id"],
-                "content": "Awaiting result...",
-            })
+            self.messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": "Awaiting result...",
+                }
+            )
 
         self._clean_conversation_history()
 
@@ -515,14 +514,14 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
                         ),
                     )
                     for tc in tool_calls
-                ] if tool_calls else None,
+                ]
+                if tool_calls
+                else None,
             ),
             finish_reason=finish_reason,
         )
 
-    def _finalize_stream(
-        self, accumulated_text: str, tool_calls: List[Dict[str, Any]]
-    ) -> None:
+    def _finalize_stream(self, accumulated_text: str, tool_calls: List[Dict[str, Any]]) -> None:
         """Finalize the streaming response by updating messages."""
         # Create assistant message
         assistant_message: Dict[str, Any] = {"role": "assistant", "content": accumulated_text}
@@ -539,17 +538,17 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
 
         # Add placeholder tool messages
         for tc in tool_calls:
-            self.messages.append({
-                "role": "tool",
-                "tool_call_id": tc["id"],
-                "content": "Awaiting result...",
-            })
+            self.messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": "Awaiting result...",
+                }
+            )
 
         self._clean_conversation_history()
 
-    def _prepare_tool_calls_for_response(
-        self, tool_calls: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _prepare_tool_calls_for_response(self, tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Prepare tool calls for the final response."""
         import json
 
@@ -562,8 +561,10 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
                 func_args = json.loads(func_args_raw) if func_args_raw else {}
             except json.JSONDecodeError:
                 func_args = {}
-            result.append({
-                "function_name": func_name,
-                "arguments": func_args,
-            })
+            result.append(
+                {
+                    "function_name": func_name,
+                    "arguments": func_args,
+                }
+            )
         return result
