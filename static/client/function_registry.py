@@ -197,6 +197,7 @@ class FunctionRegistry:
             "plot_bars": canvas.plot_bars,
             "delete_plot": canvas.delete_plot,
             "fit_regression": canvas.fit_regression,
+            "compute_descriptive_statistics": canvas.compute_descriptive_statistics,
             # ===== ANGLE OPERATIONS =====
             "create_angle": canvas.create_angle,
             "delete_angle": canvas.delete_angle,

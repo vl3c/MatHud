@@ -20,7 +20,7 @@ MatHud pairs a canvas with an AI assistant so users can sketch geometric scenes,
 2. Geometry primitives: create, edit, and relate points, segments, vectors, triangles, rectangles, circles, ellipses, and angles.
 3. Mathematics: evaluate expressions, solve equations, differentiate, integrate, work with complex numbers, and run statistical routines.
 4. Graph theory: create graphs, trees, DAGs; run analyses (shortest path, MST, topological sort, BFS/DFS).
-5. Statistics: plot probability distributions (normal, discrete) and bar charts.
+5. Statistics: plot probability distributions (normal, discrete) and bar charts; compute descriptive statistics (mean, median, mode, quartiles, etc.).
 6. Workspace operations: save, load, list, delete, import, and export named workspaces.
 
 ## Key References
@@ -353,6 +353,7 @@ For features that extend existing managers (e.g., `fit_regression` in `Statistic
 ## Statistics
 - `plot a continuous normal distribution with mean 0 and sigma 1, shade from -1 to 1`
 - `plot a bar chart with values [10, 20, 5] and labels ["A", "B", "C"]`
+- `compute descriptive statistics for [10, 20, 30, 40, 50]`
 
 ## Parametric Curves
 - `draw a parametric circle with x(t) = cos(t) and y(t) = sin(t)`

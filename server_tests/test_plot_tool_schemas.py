@@ -185,3 +185,26 @@ class TestPlotToolSchemas(unittest.TestCase):
 
         name = _require_dict(props.get("name"), "delete_plot.name")
         self.assertEqual(name.get("type"), "string")
+
+    def test_compute_descriptive_statistics_schema(self) -> None:
+        tool = _find_tool("compute_descriptive_statistics")
+        fn = _require_dict(tool.get("function"), "function")
+        self.assertTrue(fn.get("strict"))
+
+        params = self._get_params("compute_descriptive_statistics")
+        props = _require_dict(
+            params.get("properties"),
+            "compute_descriptive_statistics.properties",
+        )
+        required = _require_list(
+            params.get("required"),
+            "compute_descriptive_statistics.required",
+        )
+
+        self.assertEqual(required, ["data"])
+
+        data = _require_dict(props.get("data"), "data")
+        self.assertEqual(data.get("type"), "array")
+        data_items = _require_dict(data.get("items"), "data.items")
+        self.assertEqual(data_items.get("type"), "number")
+        self.assertEqual(data.get("minItems"), 1)

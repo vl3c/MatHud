@@ -25,6 +25,9 @@ from drawables.bar import Bar
 from drawables.discrete_plot import DiscretePlot
 from drawables.plot import Plot
 from utils.statistics.distributions import default_normal_bounds, normal_pdf_expression
+from utils.statistics.descriptive import (
+    compute_descriptive_statistics as _compute_descriptive_statistics,
+)
 from utils.statistics.regression import fit_regression as _fit_regression, SUPPORTED_MODEL_TYPES
 
 if TYPE_CHECKING:
@@ -518,6 +521,25 @@ class StatisticsManager:
         except Exception:
             pass
         return None
+
+    def compute_descriptive_statistics(
+        self,
+        *,
+        data: List[float],
+    ) -> Dict[str, Any]:
+        """Compute descriptive statistics for a list of numbers.
+
+        Delegates to the pure algorithm in ``utils.statistics.descriptive``.
+        No canvas mutations or undo/redo archiving — purely computational.
+
+        Args:
+            data: Non-empty list of finite numbers.
+
+        Returns:
+            Dict with count, mean, median, mode, standard_deviation,
+            variance, min, max, q1, q3, iqr, range.
+        """
+        return dict(_compute_descriptive_statistics(data))
 
     def delete_plot(self, name: str) -> bool:
         started_at = time.perf_counter()

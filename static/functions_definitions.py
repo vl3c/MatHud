@@ -2509,6 +2509,27 @@ FUNCTIONS: List[Dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "compute_descriptive_statistics",
+            "description": "Computes descriptive statistics for a list of numbers. Returns count, mean, median, mode, population standard deviation, population variance, min, max, first quartile (Q1), third quartile (Q3), interquartile range (IQR), and range. Mode is returned as a list of values with the highest frequency; the list is empty if all values appear with equal frequency (no meaningful mode). Quartiles use the median-of-halves (exclusive) method. Use this for summarizing datasets, finding central tendency and spread, or answering questions about data distributions.",
+            "strict": True,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {"type": "number"},
+                        "minItems": 1,
+                        "description": "Array of numbers to analyze. Must contain at least one number. All values must be finite (no Infinity or NaN).",
+                    }
+                },
+                "required": ["data"],
+                "additionalProperties": False,
+            },
+        },
+    },
     # END PLOT FUNCTIONS
     # START ANGLE FUNCTIONS
     {

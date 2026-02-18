@@ -1120,6 +1120,18 @@ class Canvas:
             ),
         )
 
+    def compute_descriptive_statistics(
+        self,
+        *,
+        data: List[float],
+    ) -> Dict[str, Any]:
+        return cast(
+            Dict[str, Any],
+            self.drawable_manager.compute_descriptive_statistics(
+                data=data,
+            ),
+        )
+
     # ------------------- Graph Methods -------------------
     def create_graph(self, graph_state: "GraphState") -> "Drawable":
         return self.drawable_manager.create_graph(graph_state)

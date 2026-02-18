@@ -1,17 +1,22 @@
-"""Statistics utilities for regression and distribution analysis.
+"""Statistics utilities for regression, distribution, and descriptive analysis.
 
-This package provides statistical functions for curve fitting and
-probability distribution generation.
+This package provides statistical functions for curve fitting,
+probability distribution generation, and descriptive statistics.
 
 Key Features:
     - Multiple regression model types (linear, polynomial, exponential, etc.)
     - R-squared calculation for goodness of fit
     - Expression building for fitted models
     - Normal distribution PDF expression generation
+    - Descriptive statistics (mean, median, mode, quartiles, etc.)
 """
 
 from __future__ import annotations
 
+from utils.statistics.descriptive import (
+    DescriptiveStatisticsResult,
+    compute_descriptive_statistics,
+)
 from utils.statistics.regression import (
     RegressionResult,
     SUPPORTED_MODEL_TYPES,
