@@ -319,7 +319,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         end_angle_rad: float,
         sweep_clockwise: bool,
         stroke: StrokeStyle,
-        css_class: str = None,
+        css_class: Optional[str] = None,
         *,
         screen_space: bool = False,
         metadata: Optional[Dict[str, Any]] = None,
@@ -601,7 +601,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
     # ------------------------------------------------------------------
 
     def _batch_stroke_line(self, command: Any) -> None:
-        args = getattr(command, "args", ())
+        args: tuple[Any, ...] = getattr(command, "args", ())
         kwargs = getattr(command, "kwargs", {})
         if len(args) < 3:
             return
@@ -610,7 +610,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         self._queue_line_segment(start, end, stroke, include_width)
 
     def _batch_polyline(self, command: Any) -> None:
-        args = getattr(command, "args", ())
+        args: tuple[Any, ...] = getattr(command, "args", ())
         if len(args) < 2:
             return
         points, stroke = args[:2]
@@ -667,7 +667,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
     # ------------------------------------------------------------------
 
     def _batch_fill_polygon_from_command(self, command: Any) -> None:
-        args = getattr(command, "args", ())
+        args: tuple[Any, ...] = getattr(command, "args", ())
         if not args:
             return
         if command.op == "fill_polygon":
@@ -699,7 +699,7 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
         batch = getattr(self, "_polygon_batch", None)
         if batch is None or batch["signature"] != signature:
             self._flush_polygon_batch()
-            self._polygon_batch = {
+            self._polygon_batch: dict[str, Any] | None = {
                 "fill": fill,
                 "stroke": stroke,
                 "polygons": [],

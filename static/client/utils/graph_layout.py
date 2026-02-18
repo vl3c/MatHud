@@ -2780,9 +2780,9 @@ def _equalize_edge_lengths(
 def _get_edge_neighbor(edge: Edge[str], vid: str) -> Optional[str]:
     """Get the neighbor vertex in an edge, or None if vid is not in the edge."""
     if edge.source == vid:
-        return edge.target
+        return str(edge.target)
     elif edge.target == vid:
-        return edge.source
+        return str(edge.source)
     return None
 
 

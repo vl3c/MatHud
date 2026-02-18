@@ -18,7 +18,7 @@ Default Preference Order:
 
 from __future__ import annotations
 
-from typing import Callable, Optional, TypeVar
+from typing import Callable, Optional, TypeVar, cast
 
 RendererType = TypeVar("RendererType")
 
@@ -35,7 +35,7 @@ def _load_renderer(module_path: str, attr: str) -> Optional[RendererType]:
     """
     try:
         module = __import__(module_path, fromlist=[attr])
-        return getattr(module, attr)
+        return cast(Optional[RendererType], getattr(module, attr))
     except Exception:
         return None
 

@@ -25,6 +25,14 @@ from utils.graph_utils import Edge, GraphUtils
 
 class GraphAnalyzer:
     @staticmethod
+    def _string_or_none(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        return str(value)
+
+    @staticmethod
     def _build_edges(state: GraphState) -> List[Edge[str]]:
         return [Edge(edge.source, edge.target) for edge in state.edges]
 
@@ -55,10 +63,10 @@ class GraphAnalyzer:
         for edge in state.edges:
             if directed:
                 if edge.source == u and edge.target == v:
-                    return edge.name or edge.id
+                    return GraphAnalyzer._string_or_none(edge.name) or GraphAnalyzer._string_or_none(edge.id)
             else:
                 if (edge.source == u and edge.target == v) or (edge.source == v and edge.target == u):
-                    return edge.name or edge.id
+                    return GraphAnalyzer._string_or_none(edge.name) or GraphAnalyzer._string_or_none(edge.id)
         return None
 
     @staticmethod
@@ -71,19 +79,19 @@ class GraphAnalyzer:
         if root is None:
             # No root specified, use first vertex from state if available
             if state.vertices:
-                return state.vertices[0].id
+                return GraphAnalyzer._string_or_none(state.vertices[0].id)
             if adjacency:
                 return next(iter(adjacency.keys()))
             return None
         # If root is already in adjacency, use it directly
-        if root in adjacency:
+        if isinstance(root, str) and root in adjacency:
             return root
         # Handle old format: internal IDs like "v0", "v1"
         if isinstance(root, str) and root.startswith("v") and root[1:].isdigit():
             idx = int(root[1:])
             # First try state.vertices (more reliable ordering)
             if state.vertices and 0 <= idx < len(state.vertices):
-                candidate = state.vertices[idx].id
+                candidate = GraphAnalyzer._string_or_none(state.vertices[idx].id)
                 if candidate in adjacency:
                     return candidate
             # Fall back to sorted adjacency keys
@@ -92,8 +100,9 @@ class GraphAnalyzer:
                 return vertex_ids[idx]
         # Try matching root against vertex names in state
         for v in state.vertices:
-            if v.name == root and v.id in adjacency:
-                return v.id
+            vertex_id = GraphAnalyzer._string_or_none(v.id)
+            if v.name == root and vertex_id in adjacency:
+                return vertex_id
         # Fallback: return first vertex from adjacency
         if adjacency:
             return next(iter(adjacency.keys()))

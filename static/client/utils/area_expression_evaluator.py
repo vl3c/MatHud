@@ -40,7 +40,12 @@ if TYPE_CHECKING:
 class _RegionWithSource:
     """Wrapper to track the source drawable for special handling."""
 
-    def __init__(self, region: Region, source_type: str, source_drawable: Optional["Drawable"] = None) -> None:
+    def __init__(
+        self,
+        region: Optional[Region],
+        source_type: str,
+        source_drawable: Optional["Drawable"] = None,
+    ) -> None:
         self.region = region
         self.source_type = source_type  # "arc", "segment", "polygon", "circle", "ellipse"
         self.source_drawable = source_drawable
@@ -374,7 +379,7 @@ class AreaExpressionEvaluator:
             return _RegionWithSource(region, "arc", drawable)
 
         if class_name == "Segment":
-            return _RegionWithSource(None, "segment", drawable)  # type: ignore
+            return _RegionWithSource(None, "segment", drawable)
 
         if hasattr(drawable, "get_segments"):
             region = Region.from_polygon(drawable)
@@ -498,6 +503,8 @@ class AreaExpressionEvaluator:
             # For segments without a pre-computed region, create a half-plane
             if result.region is None and result.source_type == "segment":
                 seg = result.source_drawable
+                if seg is None:
+                    return None
                 p1 = (seg.point1.x, seg.point1.y)
                 p2 = (seg.point2.x, seg.point2.y)
                 return Region.from_half_plane(p1, p2)
@@ -595,6 +602,8 @@ class AreaExpressionEvaluator:
 
         segment = segment_source.source_drawable
         shape = shape_source.source_drawable
+        if segment is None or shape is None:
+            return None
 
         if shape_source.source_type == "arc":
             return AreaExpressionEvaluator._arc_segment_enclosed_region(shape, segment)
@@ -605,6 +614,8 @@ class AreaExpressionEvaluator:
             p1 = (segment.point1.x, segment.point1.y)
             p2 = (segment.point2.x, segment.point2.y)
             half_plane = Region.from_half_plane(p1, p2)
+            if shape_source.region is None:
+                return None
             return shape_source.region.intersection(half_plane)
 
         return None

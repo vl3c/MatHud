@@ -1250,9 +1250,10 @@ class DrawableManager:
         color: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Drop a perpendicular from a point to a segment."""
-        return self.construction_manager.create_perpendicular_from_point(
+        result: Dict[str, Any] = self.construction_manager.create_perpendicular_from_point(
             point_name, segment_name, name=name, color=color
         )
+        return result
 
     def create_angle_bisector(
         self,

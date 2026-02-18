@@ -118,12 +118,13 @@ class ProcessFunctionCalls:
         Returns:
             Tuple of (results dict, list of traced call records)
         """
-        return ResultProcessor.get_results_traced(
+        result: tuple[dict[str, Any], list[dict[str, Any]]] = ResultProcessor.get_results_traced(
             calls,
             available_functions,
             undoable_functions,
             canvas,
         )
+        return result
 
     @staticmethod
     def validate_results(results: Dict[str, Any]) -> bool:

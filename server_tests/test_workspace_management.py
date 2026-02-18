@@ -96,7 +96,7 @@ class TestWorkspaceManagement(unittest.TestCase):
         )
         self.assertFalse(success, "Save workspace should return False with invalid name")
 
-        if os.name != "nt" and os.getuid() != 0:  # Skip on Windows and root
+        if os.name != "nt" and getattr(os, "getuid", lambda: -1)() != 0:  # Skip on Windows and root
             test_dir = os.path.join(WORKSPACES_DIR, TEST_DIR)
             original_mode = os.stat(test_dir).st_mode
             try:

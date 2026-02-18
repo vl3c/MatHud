@@ -198,6 +198,7 @@ class SvgRenderer(RendererProtocol):
         self._telemetry = SvgTelemetry()
         self._plan_cache: Dict[str, Dict[str, Any]] = {}
         self._cartesian_cache: Optional[Dict[str, Any]] = None
+        self._offscreen_surface: Optional[Any] = None
         self._initialize_plan_state()
         adapter_surface_id = self._configure_surfaces()
         self._shared_primitives: SvgPrimitiveAdapter = SvgPrimitiveAdapter(

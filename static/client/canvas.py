@@ -1543,7 +1543,8 @@ class Canvas:
         color: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Drop a perpendicular from a point to a segment."""
-        return self.drawable_manager.create_perpendicular_from_point(point_name, segment_name, name=name, color=color)
+        result: Dict[str, Any] = self.drawable_manager.create_perpendicular_from_point(point_name, segment_name, name=name, color=color)
+        return result
 
     def create_angle_bisector(
         self,
