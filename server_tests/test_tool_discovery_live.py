@@ -31,6 +31,8 @@ CSV_FIELDS = [
     "ranked",
     "status",
     "error",
+    "search_ms",
+    "search_mode",
 ]
 
 
@@ -116,7 +118,7 @@ def _search_ranked_names_with_model(
             content = str(content)
         tool_names = service._parse_tool_names(content)
 
-        ranked: List[str] = []
+        ranked = []
         for name in tool_names:
             if name in ESSENTIAL_TOOLS:
                 continue
@@ -305,6 +307,7 @@ def test_live_tool_discovery_benchmark() -> None:
         for tool_name in expected_any:
             assert tool_name in all_tools, f"Unknown expected tool '{tool_name}' in {case_id}"
 
+        search_start = time.perf_counter()
         ranked, search_error = _search_ranked_names_with_model(
             service=service,
             model=model,
@@ -312,6 +315,8 @@ def test_live_tool_discovery_benchmark() -> None:
             max_results=max_results,
             provider_instance=provider_instance,
         )
+        search_ms = (time.perf_counter() - search_start) * 1000
+        search_mode = os.getenv("TOOL_SEARCH_MODE", "local").strip().lower()
 
         blocked = _is_blocked_error(search_error)
         infra_blocked = _is_infra_error(search_error)
@@ -381,6 +386,8 @@ def test_live_tool_discovery_benchmark() -> None:
             "ranked": "|".join(ranked),
             "status": status,
             "error": search_error or "",
+            "search_ms": f"{search_ms:.1f}",
+            "search_mode": search_mode,
         }
         rows.append(row)
         if csv_path is not None:
