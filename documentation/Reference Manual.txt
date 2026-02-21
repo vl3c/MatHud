@@ -3761,6 +3761,37 @@ Dependencies:
 - Parameter validation: Strict JSON schema enforcement for all function arguments
 - Type safety: Required parameters and type checking for robust AI integration
 
+### Tool Search Service (`static/tool_search_service.py`)
+
+Provides tool discovery via fast local keyword/category matching (default) or AI-powered semantic matching. The search mode is selected by the `TOOL_SEARCH_MODE` environment variable:
+
+- `local` — keyword + category index, no API call (~0.01ms per query)
+- `api` — AI-powered semantic search via gpt-5-nano
+- `hybrid` (default) — local first, falls back to API when confidence is low
+
+**Architecture:**
+- 13 tool categories (geometry_create, geometry_delete, geometry_update, constructions, functions_plots, math, statistics, graph_theory, canvas, workspace, transforms, areas, inspection) with keyword triggers
+- Inverted indices built at module load time for O(1) token lookups
+- Multi-signal scoring: category boost, name index match, description index match, exact tool name match, action-verb alignment, and intent-based disambiguation boosts
+- LRU result cache with 5-minute TTL (100 entries max)
+- Lazy OpenAI client initialization — local mode never touches the network
+
+**Class: ToolSearchService**
+
+Key Methods:
+- `search_tools(query, model=None, max_results=10)`: Main entry point; dispatches to local or API search based on mode
+- `search_tools_local(query, max_results=10)`: Fast local keyword/category search (no API call)
+- `search_tools_formatted(query, model=None, max_results=10)`: Returns dict with tools list, count, and query for AI consumption
+- `get_tool_by_name(name)`: Look up a tool definition by name (static method)
+- `build_tool_descriptions(exclude_meta_tools=True)`: Build compact string of tool names and descriptions (static method)
+- `get_all_tools()`: Get all available tool definitions (static method)
+
+Module-level Functions:
+- `clear_search_cache()`: Clear the search result cache
+
+**Environment Variables:**
+- `TOOL_SEARCH_MODE`: Search mode selection (`local`, `api`, or `hybrid`; default: `hybrid`)
+
 ### Flask Application Manager (`static/app_manager.py`)
 
 **File Header:**
