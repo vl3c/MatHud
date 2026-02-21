@@ -61,6 +61,22 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         self._previous_response_id = None
         self._log("[Responses API] Conversation reset, cleared previous_response_id")
 
+    def clear_previous_response_id(self) -> None:
+        """Clear the stored response ID (e.g. after user interruption)."""
+        if self._previous_response_id is not None:
+            self._log("[Responses API] Cleared previous_response_id")
+            self._previous_response_id = None
+
+    def add_partial_assistant_message(self, content: str) -> None:
+        """Add a partial assistant message and clear stale response ID.
+
+        When the user interrupts, the previous response may have pending
+        tool calls that will never be answered.  Clearing the ID prevents
+        the next request from referencing that broken state.
+        """
+        super().add_partial_assistant_message(content)
+        self.clear_previous_response_id()
+
     def _is_regular_message_turn(self) -> bool:
         """Check if this is a regular user message turn (not a tool call continuation).
 

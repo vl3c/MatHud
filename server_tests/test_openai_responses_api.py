@@ -615,6 +615,52 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         self.assertEqual(final_event["ai_tool_calls"][0]["function_name"], "create_point")
         self.assertEqual(final_event["ai_tool_calls"][0]["arguments"], {"x": 5, "y": 10})
 
+    @patch("static.openai_api_base.OpenAI")
+    def test_clear_previous_response_id(self, mock_openai: Mock) -> None:
+        """Test clear_previous_response_id resets the stored ID."""
+        api = OpenAIResponsesAPI()
+        api._previous_response_id = "resp_abc123"
+
+        api.clear_previous_response_id()
+
+        self.assertIsNone(api._previous_response_id)
+
+    @patch("static.openai_api_base.OpenAI")
+    def test_clear_previous_response_id_noop_when_none(self, mock_openai: Mock) -> None:
+        """Test clear_previous_response_id is a no-op when ID is already None."""
+        api = OpenAIResponsesAPI()
+        self.assertIsNone(api._previous_response_id)
+
+        api.clear_previous_response_id()  # Should not raise
+
+        self.assertIsNone(api._previous_response_id)
+
+    @patch("static.openai_api_base.OpenAI")
+    def test_add_partial_message_clears_previous_response_id(self, mock_openai: Mock) -> None:
+        """Test add_partial_assistant_message clears stale previous_response_id."""
+        api = OpenAIResponsesAPI()
+        api._previous_response_id = "resp_stale_with_pending_tool_calls"
+
+        api.add_partial_assistant_message("Partial AI response before stop")
+
+        self.assertIsNone(api._previous_response_id)
+
+    @patch("static.openai_api_base.OpenAI")
+    def test_partial_message_still_appends_to_history(self, mock_openai: Mock) -> None:
+        """Test add_partial_assistant_message still appends the message via super()."""
+        api = OpenAIResponsesAPI()
+        api._previous_response_id = "resp_xyz"
+        initial_count = len(api.messages)
+
+        api.add_partial_assistant_message("Some partial text")
+
+        # Message should be appended
+        self.assertEqual(len(api.messages), initial_count + 1)
+        self.assertEqual(api.messages[-1]["role"], "assistant")
+        self.assertEqual(api.messages[-1]["content"], "Some partial text")
+        # And ID should be cleared
+        self.assertIsNone(api._previous_response_id)
+
 
 class TestOpenAIResponsesAPIIntegration(unittest.TestCase):
     """Integration tests that actually call the OpenAI Responses API.
