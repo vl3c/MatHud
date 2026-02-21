@@ -49,11 +49,7 @@ class AITestResult(unittest.TextTestResult):
 
     def get_failures_and_errors(self) -> Dict[str, Any]:
         """Return error details together with summary metadata."""
-        output: Any = (
-            self.output_stream.get_output()
-            if hasattr(self.output_stream, "get_output")
-            else None
-        )
+        output: Any = self.output_stream.get_output() if hasattr(self.output_stream, "get_output") else None
         return {
             "failures": self.failures_details,
             "errors": self.errors_details,

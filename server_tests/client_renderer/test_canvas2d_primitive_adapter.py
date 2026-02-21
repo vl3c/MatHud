@@ -114,7 +114,9 @@ class MockCanvasContext:
     def arc(self, x: float, y: float, radius: float, start: float, end: float, ccw: bool = False) -> None:
         self.operations.append(("arc", x, y, radius, start, end, ccw))
 
-    def ellipse(self, x: float, y: float, rx: float, ry: float, rotation: float, start: float, end: float, ccw: bool = False) -> None:
+    def ellipse(
+        self, x: float, y: float, rx: float, ry: float, rotation: float, start: float, end: float, ccw: bool = False
+    ) -> None:
         self.operations.append(("ellipse", x, y, rx, ry, rotation, start, end, ccw))
 
     def closePath(self) -> None:
@@ -153,6 +155,7 @@ class TestCanvas2DPrimitiveAdapter(unittest.TestCase):
     def setUp(self) -> None:
         self.canvas_el = MockCanvasElement()
         from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
+
         self.adapter = Canvas2DPrimitiveAdapter(self.canvas_el)
 
     def test_stroke_line_draws_line(self) -> None:
@@ -268,6 +271,7 @@ class TestCanvas2DPrimitiveAdapterStateManagement(unittest.TestCase):
     def test_stroke_state_cached_between_calls(self) -> None:
         canvas_el = MockCanvasElement()
         from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
+
         adapter = Canvas2DPrimitiveAdapter(canvas_el)
 
         stroke = StrokeStyle(color="#FF0000", width=2.0)
@@ -287,6 +291,7 @@ class TestCanvas2DPrimitiveAdapterStateManagement(unittest.TestCase):
     def test_different_strokes_change_state(self) -> None:
         canvas_el = MockCanvasElement()
         from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
+
         adapter = Canvas2DPrimitiveAdapter(canvas_el)
 
         stroke1 = StrokeStyle(color="#FF0000", width=1.0)
@@ -302,6 +307,7 @@ class TestCanvas2DPrimitiveAdapterStateManagement(unittest.TestCase):
     def test_fill_with_no_opacity_uses_default_alpha(self) -> None:
         canvas_el = MockCanvasElement()
         from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
+
         adapter = Canvas2DPrimitiveAdapter(canvas_el)
 
         fill = FillStyle(color="#0000FF", opacity=None)
@@ -317,6 +323,7 @@ class TestCanvas2DPrimitiveAdapterEdgeCases(unittest.TestCase):
     def test_empty_polyline_does_not_crash(self) -> None:
         canvas_el = MockCanvasElement()
         from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
+
         adapter = Canvas2DPrimitiveAdapter(canvas_el)
 
         stroke = StrokeStyle(color="#000000", width=1.0)
@@ -329,6 +336,7 @@ class TestCanvas2DPrimitiveAdapterEdgeCases(unittest.TestCase):
     def test_zero_radius_circle_handles_gracefully(self) -> None:
         canvas_el = MockCanvasElement()
         from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
+
         adapter = Canvas2DPrimitiveAdapter(canvas_el)
 
         fill = FillStyle(color="#FF0000")
@@ -341,6 +349,7 @@ class TestCanvas2DPrimitiveAdapterEdgeCases(unittest.TestCase):
     def test_negative_radius_circle_handles_gracefully(self) -> None:
         canvas_el = MockCanvasElement()
         from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
+
         adapter = Canvas2DPrimitiveAdapter(canvas_el)
 
         fill = FillStyle(color="#FF0000")
@@ -356,4 +365,3 @@ __all__ = [
     "TestCanvas2DPrimitiveAdapterStateManagement",
     "TestCanvas2DPrimitiveAdapterEdgeCases",
 ]
-

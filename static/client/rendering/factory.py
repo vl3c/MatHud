@@ -18,7 +18,7 @@ Default Preference Order:
 
 from __future__ import annotations
 
-from typing import Callable, Optional, TypeVar
+from typing import Callable, Optional, TypeVar, cast
 
 RendererType = TypeVar("RendererType")
 
@@ -35,9 +35,10 @@ def _load_renderer(module_path: str, attr: str) -> Optional[RendererType]:
     """
     try:
         module = __import__(module_path, fromlist=[attr])
-        return getattr(module, attr)
+        return cast(Optional[RendererType], getattr(module, attr))
     except Exception:
         return None
+
 
 from rendering.interfaces import RendererProtocol
 
@@ -65,9 +66,7 @@ def _build_preference_chain(preferred: Optional[str]) -> list[str]:
     return chain
 
 
-def _safe_instantiate(
-    factory: Callable[[], Optional[RendererProtocol]], *, error_message: str
-) -> RendererProtocol:
+def _safe_instantiate(factory: Callable[[], Optional[RendererProtocol]], *, error_message: str) -> RendererProtocol:
     """Instantiate a renderer and raise if it returns None."""
     renderer = factory()
     if renderer is None:

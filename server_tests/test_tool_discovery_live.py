@@ -31,6 +31,8 @@ CSV_FIELDS = [
     "ranked",
     "status",
     "error",
+    "search_ms",
+    "search_mode",
 ]
 
 
@@ -44,11 +46,7 @@ def _load_dataset() -> Dict[str, Any]:
 
 
 def _tool_name_set() -> set[str]:
-    return {
-        f.get("function", {}).get("name", "")
-        for f in FUNCTIONS
-        if f.get("function", {}).get("name")
-    }
+    return {f.get("function", {}).get("name", "") for f in FUNCTIONS if f.get("function", {}).get("name")}
 
 
 def _tool_hash(tool_names: set[str]) -> str:
@@ -120,7 +118,7 @@ def _search_ranked_names_with_model(
             content = str(content)
         tool_names = service._parse_tool_names(content)
 
-        ranked: List[str] = []
+        ranked = []
         for name in tool_names:
             if name in ESSENTIAL_TOOLS:
                 continue
@@ -224,12 +222,10 @@ def test_live_tool_discovery_benchmark() -> None:
     actual_hash = _tool_hash(all_tools)
 
     assert len(all_tools) == expected_count, (
-        "Tool count mismatch; refresh dataset. "
-        f"expected={expected_count}, actual={len(all_tools)}"
+        f"Tool count mismatch; refresh dataset. expected={expected_count}, actual={len(all_tools)}"
     )
     assert actual_hash == expected_hash, (
-        "Tool hash mismatch; refresh dataset. "
-        f"expected={expected_hash}, actual={actual_hash}"
+        f"Tool hash mismatch; refresh dataset. expected={expected_hash}, actual={actual_hash}"
     )
 
     model = _resolve_model()
@@ -294,11 +290,7 @@ def test_live_tool_discovery_benchmark() -> None:
     if csv_path is not None and resume:
         completed_case_ids = _load_existing_case_ids(csv_path)
         if completed_case_ids:
-            selected_cases = [
-                c
-                for c in selected_cases
-                if str(c.get("id", "")) not in completed_case_ids
-            ]
+            selected_cases = [c for c in selected_cases if str(c.get("id", "")) not in completed_case_ids]
     if tool_limit > 0:
         selected_cases = selected_cases[:tool_limit]
 
@@ -315,6 +307,7 @@ def test_live_tool_discovery_benchmark() -> None:
         for tool_name in expected_any:
             assert tool_name in all_tools, f"Unknown expected tool '{tool_name}' in {case_id}"
 
+        search_start = time.perf_counter()
         ranked, search_error = _search_ranked_names_with_model(
             service=service,
             model=model,
@@ -322,6 +315,8 @@ def test_live_tool_discovery_benchmark() -> None:
             max_results=max_results,
             provider_instance=provider_instance,
         )
+        search_ms = (time.perf_counter() - search_start) * 1000
+        search_mode = os.getenv("TOOL_SEARCH_MODE", "local").strip().lower()
 
         blocked = _is_blocked_error(search_error)
         infra_blocked = _is_infra_error(search_error)
@@ -391,6 +386,8 @@ def test_live_tool_discovery_benchmark() -> None:
             "ranked": "|".join(ranked),
             "status": status,
             "error": search_error or "",
+            "search_ms": f"{search_ms:.1f}",
+            "search_mode": search_mode,
         }
         rows.append(row)
         if csv_path is not None:
@@ -420,8 +417,7 @@ def test_live_tool_discovery_benchmark() -> None:
         _write_csv(Path("/tmp/tool_discovery_results.csv"), rows)
 
     assert positive_evaluated > 0, (
-        "No positive cases were evaluated (all may have been blocked). "
-        "Inspect TOOL_DISCOVERY_CSV output for details."
+        "No positive cases were evaluated (all may have been blocked). Inspect TOOL_DISCOVERY_CSV output for details."
     )
     assert blocked_rate <= blocked_max, (
         f"Blocked rate too high: {blocked_rate:.3f} > {blocked_max:.3f}. "
@@ -440,6 +436,5 @@ def test_live_tool_discovery_benchmark() -> None:
         f"Sample failing cases: {failed_case_ids[:12]}"
     )
     assert confusion_hard_miss_rate <= confusion_hard_miss_max, (
-        "Confusion hard-miss rate too high: "
-        f"{confusion_hard_miss_rate:.3f} > {confusion_hard_miss_max:.3f}"
+        f"Confusion hard-miss rate too high: {confusion_hard_miss_rate:.3f} > {confusion_hard_miss_max:.3f}"
     )

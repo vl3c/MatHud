@@ -48,4 +48,3 @@ def render_segment_helper(primitives, segment, coordinate_mapper, style):
     embedded_label = getattr(segment, "label", None)
     if embedded_label is not None:
         render_label_helper(primitives, embedded_label, coordinate_mapper, style)
-

@@ -85,4 +85,3 @@ class Octagon(Polygon):
         new_octagon = Octagon(new_segments, color=self.color)
         memo[id(self)] = new_octagon
         return new_octagon
-

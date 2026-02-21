@@ -58,7 +58,7 @@ class DrawableNameGenerator:
     def reset_state(self) -> None:
         """Reset the state of all specialized name generators."""
         self.point_generator.reset_state()
-        self.function_generator.reset_state() # Assuming FunctionNameGenerator might also have state
+        self.function_generator.reset_state()  # Assuming FunctionNameGenerator might also have state
         if hasattr(self.label_generator, "reset_state"):
             self.label_generator.reset_state()
 
@@ -186,9 +186,7 @@ class DrawableNameGenerator:
         """Generate a unique label name, using preferred_name when provided."""
         return str(self.label_generator.generate_label_name(preferred_name))
 
-    def extract_point_names_from_arc_name(
-        self, arc_name: Optional[str]
-    ) -> Tuple[Optional[str], Optional[str]]:
+    def extract_point_names_from_arc_name(self, arc_name: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
         """Extract suggested point names from an arc name suggestion.
 
         Args:
@@ -219,9 +217,9 @@ class DrawableNameGenerator:
         Returns:
             Unique arc name
         """
-        return str(self.arc_generator.generate_arc_name(
-            proposed_name, point1_name, point2_name, use_major_arc, existing_names
-        ))
+        return str(
+            self.arc_generator.generate_arc_name(proposed_name, point1_name, point2_name, use_major_arc, existing_names)
+        )
 
     def _is_valid_point_list(self, points: List[str]) -> bool:
         """Helper to check if a list of points is valid for angle name generation.
@@ -235,8 +233,7 @@ class DrawableNameGenerator:
         if not points or not isinstance(points, list) or len(points) != 2:
             return False
         # Ensure both point names are non-empty strings
-        if not (isinstance(points[0], str) and points[0] and \
-                isinstance(points[1], str) and points[1]):
+        if not (isinstance(points[0], str) and points[0] and isinstance(points[1], str) and points[1]):
             return False
         return True
 
@@ -257,11 +254,11 @@ class DrawableNameGenerator:
 
         # Temporarily reset next_index for these specific segment names if they were parsed before
         # This ensures a fresh parse by split_point_names for this method's context
-        if hasattr(self.point_generator, 'used_letters_from_names'): # Check if attribute exists
+        if hasattr(self.point_generator, "used_letters_from_names"):  # Check if attribute exists
             if segment1_name in self.point_generator.used_letters_from_names:
-                self.point_generator.used_letters_from_names[segment1_name]['next_index'] = 0
+                self.point_generator.used_letters_from_names[segment1_name]["next_index"] = 0
             if segment2_name in self.point_generator.used_letters_from_names:
-                self.point_generator.used_letters_from_names[segment2_name]['next_index'] = 0
+                self.point_generator.used_letters_from_names[segment2_name]["next_index"] = 0
 
         s1_points: List[str] = self.point_generator.split_point_names(segment1_name)
         s2_points: List[str] = self.point_generator.split_point_names(segment2_name)
@@ -287,7 +284,9 @@ class DrawableNameGenerator:
 
         # Identify and sort the two arm points (excluding the vertex)
         # Ensure elements are strings before comparison with vertex_name if there's any doubt
-        arm_point_candidates: List[str] = [str(p) for p in all_unique_points if p is not None and str(p) != str(vertex_name)]
+        arm_point_candidates: List[str] = [
+            str(p) for p in all_unique_points if p is not None and str(p) != str(vertex_name)
+        ]
         arm_point_names: List[str] = sorted(arm_point_candidates)
 
         if len(arm_point_names) != 2:

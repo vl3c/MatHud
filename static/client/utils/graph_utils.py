@@ -47,6 +47,7 @@ class Edge(Generic[V]):
         source: The starting vertex of the edge
         target: The ending vertex of the edge
     """
+
     __slots__ = ("_source", "_target")
 
     def __init__(self, source: V, target: V) -> None:
@@ -557,9 +558,7 @@ class GraphUtils:
         directed: bool = False,
     ) -> Optional[List[V]]:
         adjacency = (
-            GraphUtils.build_directed_adjacency_map(edges)
-            if directed
-            else GraphUtils.build_adjacency_map(edges)
+            GraphUtils.build_directed_adjacency_map(edges) if directed else GraphUtils.build_adjacency_map(edges)
         )
         if start not in adjacency or goal not in adjacency:
             return None
@@ -1236,6 +1235,7 @@ class GraphUtils:
         Returns:
             True if the edges are collinear and overlap.
         """
+
         # Cross product to check collinearity
         def cross_product(
             o: Tuple[float, float],
@@ -1386,10 +1386,7 @@ class GraphUtils:
                     continue
 
                 # Check if edges share a vertex
-                shares_vertex = (
-                    e1.source in (e2.source, e2.target) or
-                    e1.target in (e2.source, e2.target)
-                )
+                shares_vertex = e1.source in (e2.source, e2.target) or e1.target in (e2.source, e2.target)
 
                 if shares_vertex:
                     # Check for adjacent edge overlap
@@ -1503,4 +1500,3 @@ class GraphUtils:
         if total == 0:
             return 1.0
         return same_count / total
-

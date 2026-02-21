@@ -11,41 +11,41 @@ from rendering.renderables import FunctionRenderable
 class TestMathFunctions(unittest.TestCase):
     def setUp(self) -> None:
         # Mock points for use in some tests (math-space coordinates only)
-        self.point1 = SimpleMock(x=0, y=0, name='A')
-        self.point2 = SimpleMock(x=1, y=1, name='B')
+        self.point1 = SimpleMock(x=0, y=0, name="A")
+        self.point2 = SimpleMock(x=1, y=1, name="B")
         # Mock segment using mocked points
         self.segment = SimpleMock(point1=self.point1, point2=self.point2)
 
     def test_format_number_for_cartesian(self) -> None:
         test_cases = [
-            (123456789, 6, '1.2e+8'),
-            (0.000123456789, 6, '0.00012'),
-            (123456, 6, '123456'),
-            (123.456, 6, '123.456'),
-            (0, 6, '0'),
-            (-123456789, 6, '-1.2e+8'),
-            (-0.000123456789, 6, '-0.00012'),
-            (-123456, 6, '-123456'),
-            (-123.456, 6, '-123.456'),
-            (1.23456789, 6, '1.23457'),
-            (0.000000123456789, 6, '1.2e-7'),
-            (123456.789, 6, '123457'),
-            (123.456789, 6, '123.457'),
-            (0.00000000000001, 6, '1e-14'),
-            (-1.23456789, 6, '-1.23457'),
-            (-0.000000123456789, 6, '-1.2e-7'),
-            (-123456.789, 6, '-123457'),
-            (-123.456789, 6, '-123.457'),
-            (-0.00000000000001, 6, '-1e-14'),
-            (123456789, 3, '1.2e+8'),
-            (0.000123456789, 3, '1.2e-4'),
-            (123456, 3, '1.2e+5'),
-            (123.456, 3, '123'),
-            (1.23456789, 3, '1.23'),
-            (0.000000123456789, 3, '1.2e-7'),
-            (123456.789, 3, '1.2e+5'),
-            (123.456789, 3, '123'),
-            (0.00000000000001, 3, '1e-14'),
+            (123456789, 6, "1.2e+8"),
+            (0.000123456789, 6, "0.00012"),
+            (123456, 6, "123456"),
+            (123.456, 6, "123.456"),
+            (0, 6, "0"),
+            (-123456789, 6, "-1.2e+8"),
+            (-0.000123456789, 6, "-0.00012"),
+            (-123456, 6, "-123456"),
+            (-123.456, 6, "-123.456"),
+            (1.23456789, 6, "1.23457"),
+            (0.000000123456789, 6, "1.2e-7"),
+            (123456.789, 6, "123457"),
+            (123.456789, 6, "123.457"),
+            (0.00000000000001, 6, "1e-14"),
+            (-1.23456789, 6, "-1.23457"),
+            (-0.000000123456789, 6, "-1.2e-7"),
+            (-123456.789, 6, "-123457"),
+            (-123.456789, 6, "-123.457"),
+            (-0.00000000000001, 6, "-1e-14"),
+            (123456789, 3, "1.2e+8"),
+            (0.000123456789, 3, "1.2e-4"),
+            (123456, 3, "1.2e+5"),
+            (123.456, 3, "123"),
+            (1.23456789, 3, "1.23"),
+            (0.000000123456789, 3, "1.2e-7"),
+            (123456.789, 3, "1.2e+5"),
+            (123.456789, 3, "123"),
+            (0.00000000000001, 3, "1e-14"),
         ]
         for i, (input, max_digits, expected) in enumerate(test_cases):
             with self.subTest(i=i):
@@ -61,9 +61,9 @@ class TestMathFunctions(unittest.TestCase):
         self.assertFalse(MathUtils.segment_matches_coordinates(self.segment, 2, 2, 3, 3))  # Incorrect coordinates
 
     def test_segment_matches_point_names(self) -> None:
-        self.assertTrue(MathUtils.segment_matches_point_names(self.segment, 'A', 'B'))
-        self.assertTrue(MathUtils.segment_matches_point_names(self.segment, 'B', 'A'))  # Reverse order
-        self.assertFalse(MathUtils.segment_matches_point_names(self.segment, 'C', 'D'))  # Incorrect names
+        self.assertTrue(MathUtils.segment_matches_point_names(self.segment, "A", "B"))
+        self.assertTrue(MathUtils.segment_matches_point_names(self.segment, "B", "A"))  # Reverse order
+        self.assertFalse(MathUtils.segment_matches_point_names(self.segment, "C", "D"))  # Incorrect names
 
     def test_segment_endpoints_helpers(self) -> None:
         segment = SimpleMock(
@@ -354,6 +354,7 @@ class TestMathFunctions(unittest.TestCase):
             MathUtils.sample_ellipse_arc(0.0, 0.0, 2.0, 0.0, 0.0, math.pi),
             [],
         )
+
     def test_segment_endpoints_additional_cases(self) -> None:
         degenerate_segment = SimpleMock(
             point1=SimpleMock(x=-1.0, y=-1.0),
@@ -499,31 +500,31 @@ class TestMathFunctions(unittest.TestCase):
         # Test case: Point on simple horizontal segment
         self.assertTrue(
             MathUtils.is_point_on_segment(5, 0, 0, 0, 10, 0),
-            "Point (5,0) should be detected as being on segment from (0,0) to (10,0)"
+            "Point (5,0) should be detected as being on segment from (0,0) to (10,0)",
         )
 
         # Test case: Point on simple vertical segment
         self.assertTrue(
             MathUtils.is_point_on_segment(0, 5, 0, 0, 0, 10),
-            "Point (0,5) should be detected as being on segment from (0,0) to (0,10)"
+            "Point (0,5) should be detected as being on segment from (0,0) to (0,10)",
         )
 
         # Test case: Point slightly off segment
         self.assertFalse(
             MathUtils.is_point_on_segment(5, 5.1, 0, 0, 10, 10),
-            "Point (5,5.1) should be detected as NOT being on segment from (0,0) to (10,10)"
+            "Point (5,5.1) should be detected as NOT being on segment from (0,0) to (10,10)",
         )
 
         # Test case: Point outside bounding box of segment
         self.assertFalse(
             MathUtils.is_point_on_segment(15, 15, 0, 0, 10, 10),
-            "Point (15,15) should be detected as NOT being on segment from (0,0) to (10,10)"
+            "Point (15,15) should be detected as NOT being on segment from (0,0) to (10,10)",
         )
 
         # Test case: Using the specific coordinates from the user's example
         self.assertTrue(
             MathUtils.is_point_on_segment(100.0, 45.332, -122.0, -69.0, 311.0, 154.0),
-            "Point (100.0, 45.332) should be detected as being on segment from (-122.0, -69.0) to (311.0, 154.0)"
+            "Point (100.0, 45.332) should be detected as being on segment from (-122.0, -69.0) to (311.0, 154.0)",
         )
 
         # Test case: Additional real-world examples on a longer segment
@@ -533,36 +534,40 @@ class TestMathFunctions(unittest.TestCase):
 
         # Point C at y = 100
         self.assertTrue(
-            MathUtils.is_point_on_segment(-113.39, 100.0, segment_start_x, segment_start_y, segment_end_x, segment_end_y),
-            "Point C (-113.39, 100.0) should be detected as being on segment from (-245.0, 195.0) to (323.0, -215.0)"
+            MathUtils.is_point_on_segment(
+                -113.39, 100.0, segment_start_x, segment_start_y, segment_end_x, segment_end_y
+            ),
+            "Point C (-113.39, 100.0) should be detected as being on segment from (-245.0, 195.0) to (323.0, -215.0)",
         )
 
         # Point D at y = -24
         self.assertTrue(
             MathUtils.is_point_on_segment(58.4, -24.0, segment_start_x, segment_start_y, segment_end_x, segment_end_y),
-            "Point D (58.4, -24.0) should be detected as being on segment from (-245.0, 195.0) to (323.0, -215.0)"
+            "Point D (58.4, -24.0) should be detected as being on segment from (-245.0, 195.0) to (323.0, -215.0)",
         )
 
         # Point E at x = 3
         self.assertTrue(
             MathUtils.is_point_on_segment(3.0, 15.99, segment_start_x, segment_start_y, segment_end_x, segment_end_y),
-            "Point E (3.0, 15.99) should be detected as being on segment from (-245.0, 195.0) to (323.0, -215.0)"
+            "Point E (3.0, 15.99) should be detected as being on segment from (-245.0, 195.0) to (323.0, -215.0)",
         )
 
         # Point F at x = -199
         self.assertTrue(
-            MathUtils.is_point_on_segment(-199.0, 161.8, segment_start_x, segment_start_y, segment_end_x, segment_end_y),
-            "Point F (-199.0, 161.8) should be detected as being on segment from (-245.0, 195.0) to (323.0, -215.0)"
+            MathUtils.is_point_on_segment(
+                -199.0, 161.8, segment_start_x, segment_start_y, segment_end_x, segment_end_y
+            ),
+            "Point F (-199.0, 161.8) should be detected as being on segment from (-245.0, 195.0) to (323.0, -215.0)",
         )
 
         # Test case: Calculate a point that's exactly on the segment using linear interpolation
         t = 0.51
-        point_x = -122.0 * (1-t) + 311.0 * t
-        point_y = -69.0 * (1-t) + 154.0 * t
+        point_x = -122.0 * (1 - t) + 311.0 * t
+        point_y = -69.0 * (1 - t) + 154.0 * t
 
         self.assertTrue(
             MathUtils.is_point_on_segment(point_x, point_y, -122.0, -69.0, 311.0, 154.0),
-            f"Interpolated point ({point_x}, {point_y}) should be detected as being on segment from (-122.0, -69.0) to (311.0, 154.0)"
+            f"Interpolated point ({point_x}, {point_y}) should be detected as being on segment from (-122.0, -69.0) to (311.0, 154.0)",
         )
 
     def test_get_triangle_area(self) -> None:
@@ -577,45 +582,67 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(MathUtils.get_rectangle_area(p1, p2), 6)
 
     def test_cross_product(self) -> None:
-        self.assertEqual(MathUtils.cross_product(Position(0, 0), Position(1, 0), Position(0, 1)), 1)       # "Perpendicular vectors"
-        self.assertEqual(MathUtils.cross_product(Position(0, 0), Position(1, 1), Position(1, 1)), 0)       # "Zero vector test"
-        self.assertEqual(MathUtils.cross_product(Position(1, 2), Position(-1, -1), Position(2, -3)), 13)   # "Negative values test"
-        self.assertEqual(MathUtils.cross_product(Position(0, 0), Position(1, 0), Position(2, 0)), 0)       # "Collinear vectors"
+        self.assertEqual(
+            MathUtils.cross_product(Position(0, 0), Position(1, 0), Position(0, 1)), 1
+        )  # "Perpendicular vectors"
+        self.assertEqual(
+            MathUtils.cross_product(Position(0, 0), Position(1, 1), Position(1, 1)), 0
+        )  # "Zero vector test"
+        self.assertEqual(
+            MathUtils.cross_product(Position(1, 2), Position(-1, -1), Position(2, -3)), 13
+        )  # "Negative values test"
+        self.assertEqual(
+            MathUtils.cross_product(Position(0, 0), Position(1, 0), Position(2, 0)), 0
+        )  # "Collinear vectors"
 
     def test_dot_product(self) -> None:
-        self.assertEqual(MathUtils.dot_product(Position(0, 0), Position(1, 0), Position(1, 0)), 1)      # "Parallel vectors"
-        self.assertEqual(MathUtils.dot_product(Position(0, 0), Position(0, 0), Position(0, 1)), 0)      # "Zero vector test"
-        self.assertEqual(MathUtils.dot_product(Position(1, 2), Position(-1, -1), Position(2, -3)), 13)  # "Negative values test"
-        self.assertEqual(MathUtils.dot_product(Position(0, 0), Position(1, 0), Position(0, 1)), 0)      # "Perpendicular vectors"
+        self.assertEqual(MathUtils.dot_product(Position(0, 0), Position(1, 0), Position(1, 0)), 1)  # "Parallel vectors"
+        self.assertEqual(MathUtils.dot_product(Position(0, 0), Position(0, 0), Position(0, 1)), 0)  # "Zero vector test"
+        self.assertEqual(
+            MathUtils.dot_product(Position(1, 2), Position(-1, -1), Position(2, -3)), 13
+        )  # "Negative values test"
+        self.assertEqual(
+            MathUtils.dot_product(Position(0, 0), Position(1, 0), Position(0, 1)), 0
+        )  # "Perpendicular vectors"
 
     def test_is_right_angle(self) -> None:
-        self.assertEqual(MathUtils.is_right_angle(Position(0, 0), Position(1, 0), Position(0, 1)), True)   # "Right angle"
-        self.assertEqual(MathUtils.is_right_angle(Position(0, 0), Position(1, 1), Position(1, 0)), False)  # "Not right angle"
-        self.assertEqual(MathUtils.is_right_angle(Position(0, 0), Position(1, 0), Position(1, 1)), False)  # "Almost right angle but not quite"
+        self.assertEqual(
+            MathUtils.is_right_angle(Position(0, 0), Position(1, 0), Position(0, 1)), True
+        )  # "Right angle"
+        self.assertEqual(
+            MathUtils.is_right_angle(Position(0, 0), Position(1, 1), Position(1, 0)), False
+        )  # "Not right angle"
+        self.assertEqual(
+            MathUtils.is_right_angle(Position(0, 0), Position(1, 0), Position(1, 1)), False
+        )  # "Almost right angle but not quite"
 
     def test_calculate_angle_degrees(self) -> None:
         # Vertex at origin for simplicity in these tests
-        v = (0,0)
+        v = (0, 0)
         # Test cases: (arm1_coords, arm2_coords, expected_degrees)
         test_cases = [
-            ((1,0), (1,0), None),      # Arm2 coincident with Arm1 (relative to vertex, leads to zero length vector for arm2 if not careful, or zero angle)
-                                        # Actually, MathUtils.calculate_angle_degrees has zero-length arm check based on v1x, v1y etc.
-                                        # If arm1=(1,0) and arm2=(1,0), v1=(1,0), v2=(1,0). angle1=0, angle2=0. diff=0. result=0.
-                                        # This case is more for are_points_valid_for_angle_geometry which checks p1 vs p2.
-                                        # For calculate_angle_degrees itself, if p1 and p2 are same *and distinct from vertex*, it's 0 deg.
-            ((1,0), (2,0), 0.0),       # Collinear, same direction from vertex
-            ((1,0), (1,1), 45.0),      # 45 degrees
-            ((1,0), (0,1), 90.0),      # 90 degrees
-            ((1,0), (-1,1), 135.0),    # 135 degrees
-            ((1,0), (-1,0), 180.0),    # 180 degrees
-            ((1,0), (-1,-1), 225.0),   # 225 degrees
-            ((1,0), (0,-1), 270.0),    # 270 degrees
-            ((1,0), (1,-1), 315.0),    # 315 degrees
+            (
+                (1, 0),
+                (1, 0),
+                None,
+            ),  # Arm2 coincident with Arm1 (relative to vertex, leads to zero length vector for arm2 if not careful, or zero angle)
+            # Actually, MathUtils.calculate_angle_degrees has zero-length arm check based on v1x, v1y etc.
+            # If arm1=(1,0) and arm2=(1,0), v1=(1,0), v2=(1,0). angle1=0, angle2=0. diff=0. result=0.
+            # This case is more for are_points_valid_for_angle_geometry which checks p1 vs p2.
+            # For calculate_angle_degrees itself, if p1 and p2 are same *and distinct from vertex*, it's 0 deg.
+            ((1, 0), (2, 0), 0.0),  # Collinear, same direction from vertex
+            ((1, 0), (1, 1), 45.0),  # 45 degrees
+            ((1, 0), (0, 1), 90.0),  # 90 degrees
+            ((1, 0), (-1, 1), 135.0),  # 135 degrees
+            ((1, 0), (-1, 0), 180.0),  # 180 degrees
+            ((1, 0), (-1, -1), 225.0),  # 225 degrees
+            ((1, 0), (0, -1), 270.0),  # 270 degrees
+            ((1, 0), (1, -1), 315.0),  # 315 degrees
             # Test None returns for zero-length arms from vertex
-            ((0,0), (1,1), None),      # Arm1 is at vertex
-            ((1,1), (0,0), None),      # Arm2 is at vertex
+            ((0, 0), (1, 1), None),  # Arm1 is at vertex
+            ((1, 1), (0, 0), None),  # Arm2 is at vertex
             # Test order of arms (p1, p2 vs p2, p1)
-            ((0,1), (1,0), 270.0),     # P1=(0,1), P2=(1,0) -> angle from +Y to +X is 270 deg CCW
+            ((0, 1), (1, 0), 270.0),  # P1=(0,1), P2=(1,0) -> angle from +Y to +X is 270 deg CCW
         ]
 
         for i, (p1_coords, p2_coords, expected) in enumerate(test_cases):
@@ -624,13 +651,13 @@ class TestMathFunctions(unittest.TestCase):
                 if expected is None:
                     self.assertIsNone(result)
                 else:
-                    self.assertIsNotNone(result) # Make sure it's not None before almostEqual
+                    self.assertIsNotNone(result)  # Make sure it's not None before almostEqual
                     self.assertAlmostEqual(result, expected, places=5)
 
         # Test with non-origin vertex
-        v_offset = (5,5)
-        p1_offset = (6,5) # (1,0) relative to v_offset
-        p2_offset = (5,6) # (0,1) relative to v_offset
+        v_offset = (5, 5)
+        p1_offset = (6, 5)  # (1,0) relative to v_offset
+        p2_offset = (5, 6)  # (0,1) relative to v_offset
         self.assertAlmostEqual(MathUtils.calculate_angle_degrees(v_offset, p1_offset, p2_offset), 90.0, places=5)
 
     def test_are_points_valid_for_angle_geometry(self) -> None:
@@ -638,26 +665,31 @@ class TestMathFunctions(unittest.TestCase):
         v = (0.0, 0.0)
         p1 = (1.0, 0.0)
         p2 = (0.0, 1.0)
-        p3 = (1.0, 0.0) # Same as p1
+        p3 = (1.0, 0.0)  # Same as p1
         p4_close_to_v = (MathUtils.EPSILON / 2, MathUtils.EPSILON / 2)
         p5_close_to_p1 = (p1[0] + MathUtils.EPSILON / 2, p1[1] + MathUtils.EPSILON / 2)
 
         test_cases = [
-            (v, p1, p2, True),          # Valid case
-            (v, v, p2, False),          # Vertex == Arm1
-            (v, p1, v, False),          # Vertex == Arm2
-            (v, p1, p1, False),         # Arm1 == Arm2 (p1 used twice for arm2)
-            (v, p1, p3, False),         # Arm1 == Arm2 (p3 is same as p1)
-            (v, v, v, False),           # All three coincident at vertex
-            (p1, p1, p1, False),        # All three coincident at p1
+            (v, p1, p2, True),  # Valid case
+            (v, v, p2, False),  # Vertex == Arm1
+            (v, p1, v, False),  # Vertex == Arm2
+            (v, p1, p1, False),  # Arm1 == Arm2 (p1 used twice for arm2)
+            (v, p1, p3, False),  # Arm1 == Arm2 (p3 is same as p1)
+            (v, v, v, False),  # All three coincident at vertex
+            (p1, p1, p1, False),  # All three coincident at p1
             # Epsilon tests
-            (v, p4_close_to_v, p2, False), # Arm1 too close to Vertex
-            (v, p1, p4_close_to_v, False), # Arm2 too close to Vertex
-            (v, p1, p5_close_to_p1, False), # Arm2 too close to Arm1
-            ((0,0), (1,0), (1.0000000001, 0.0000000001), False) # arm2 very close to arm1 (within typical float precision but potentially outside strict epsilon for p1 vs p2)
-                                                                # The are_points_valid uses direct comparison with EPSILON for each pair.
-                                                                # If MathUtils.EPSILON = 1e-9, (1.0, 0.0) vs (1.0000000001, 0.0000000001)
-                                                                # dx = 1e-10, dy = 1e-10. Both are < EPSILON. So this should be False.
+            (v, p4_close_to_v, p2, False),  # Arm1 too close to Vertex
+            (v, p1, p4_close_to_v, False),  # Arm2 too close to Vertex
+            (v, p1, p5_close_to_p1, False),  # Arm2 too close to Arm1
+            (
+                (0, 0),
+                (1, 0),
+                (1.0000000001, 0.0000000001),
+                False,
+            ),  # arm2 very close to arm1 (within typical float precision but potentially outside strict epsilon for p1 vs p2)
+            # The are_points_valid uses direct comparison with EPSILON for each pair.
+            # If MathUtils.EPSILON = 1e-9, (1.0, 0.0) vs (1.0000000001, 0.0000000001)
+            # dx = 1e-10, dy = 1e-10. Both are < EPSILON. So this should be False.
         ]
 
         for i, (vc, ac1, ac2, expected) in enumerate(test_cases):
@@ -835,36 +867,37 @@ class TestMathFunctions(unittest.TestCase):
     def test_check_div_by_zero(self) -> None:
         # Test cases that should raise ZeroDivisionError
         zero_division_cases = [
-            "1/0",                    # Simple division by zero
-            "1/(3-3)",               # Division by parenthesized zero
-            "1/(2*0)",               # Direct multiplication by zero in denominator
-            "1/(0*x)",               # Variable expression evaluating to zero
-            "10/(x-2)",              # Variable expression evaluating to zero with variables
-            "1/(3*0+1-1)",           # Complex expression evaluating to zero
-            "1/(-0)",                # Negative zero
-            "1/(0.0)",               # Zero as float
-            "1/(0e0)",               # Zero in scientific notation
+            "1/0",  # Simple division by zero
+            "1/(3-3)",  # Division by parenthesized zero
+            "1/(2*0)",  # Direct multiplication by zero in denominator
+            "1/(0*x)",  # Variable expression evaluating to zero
+            "10/(x-2)",  # Variable expression evaluating to zero with variables
+            "1/(3*0+1-1)",  # Complex expression evaluating to zero
+            "1/(-0)",  # Negative zero
+            "1/(0.0)",  # Zero as float
+            "1/(0e0)",  # Zero in scientific notation
         ]
 
         # Nested parentheses cases
         nested_zero_division_cases = [
-            "1/2/(1-1)",             # Chained division with zero
-            "1/(2/(1-1))",           # Nested division with zero
-            "1/9*(3-3)",             # Multiplication after division resulting in zero
-            "1/(9*(3-3))",           # Division by parenthesized multiplication resulting in zero
-            "2/((1-1)*5)",           # Division by zero with extra parentheses
-            "1/((2-2)*3*(4+1))",     # Multiple terms evaluating to zero
-            "2/(1/(1-1))",           # Division by infinity (division by zero in denominator)
-            "1/((3-3)/(4-4))",       # Multiple zeros in nested divisions
-            "1/9*3*(1-1)",           # Multiple operations after division resulting in zero
-            "1/3*2*(5-5)*4",         # Zero product in denominator with multiple terms
+            "1/2/(1-1)",  # Chained division with zero
+            "1/(2/(1-1))",  # Nested division with zero
+            "1/9*(3-3)",  # Multiplication after division resulting in zero
+            "1/(9*(3-3))",  # Division by parenthesized multiplication resulting in zero
+            "2/((1-1)*5)",  # Division by zero with extra parentheses
+            "1/((2-2)*3*(4+1))",  # Multiple terms evaluating to zero
+            "2/(1/(1-1))",  # Division by infinity (division by zero in denominator)
+            "1/((3-3)/(4-4))",  # Multiple zeros in nested divisions
+            "1/9*3*(1-1)",  # Multiple operations after division resulting in zero
+            "1/3*2*(5-5)*4",  # Zero product in denominator with multiple terms
         ]
 
         # Test all zero division cases
         for expr in zero_division_cases:
             result = MathUtils.evaluate(expr)
-            self.assertTrue(isinstance(result, str) and "Error" in result,
-                          f"Expected error for expression: {expr}, got {result}")
+            self.assertTrue(
+                isinstance(result, str) and "Error" in result, f"Expected error for expression: {expr}, got {result}"
+            )
 
         # Test nested zero division cases
         # Note: The result of 0.0 for these cases is not typical and might be due to JavaScript's handling.
@@ -875,86 +908,97 @@ class TestMathFunctions(unittest.TestCase):
             elif expr == "1/((3-3)/(4-4))":  # JavaScript returns nan for this case
                 self.assertEqual(str(result).lower(), "nan", f"Expected nan for expression: {expr}, got {result}")
             else:
-                self.assertTrue(isinstance(result, str) and "Error" in result,
-                              f"Expected error for nested expression: {expr}, got {result}")
+                self.assertTrue(
+                    isinstance(result, str) and "Error" in result,
+                    f"Expected error for nested expression: {expr}, got {result}",
+                )
 
         # Test with variables
         result = MathUtils.evaluate("10/(x-2)", {"x": 2})
-        self.assertTrue(isinstance(result, str) and "Error" in result,
-                       f"Expected error for expression with x=2, got {result}")
+        self.assertTrue(
+            isinstance(result, str) and "Error" in result, f"Expected error for expression with x=2, got {result}"
+        )
 
         # Test cases that should NOT raise ZeroDivisionError
         valid_division_cases = [
-            "1/2",                   # Simple valid division
-            "1/(3-2)",              # Valid division with parentheses
-            "1/2/3",                # Chained valid division
-            "1/(2/3)",              # Nested valid division
-            "1/9*(3-2)",            # Valid multiplication after division
-            "1/(9*(3-2))",          # Valid division with parenthesized multiplication
-            "2/((1+1)*5)",          # Valid division with extra parentheses
-            "1/(2*1)",              # Valid multiplication in denominator
-            "1/(x+1)",              # Valid variable expression
-            "10/(x+2)",             # Valid variable expression with variables
-            "1/(3*2+1)",            # Valid complex expression
-            "1/((2+2)*3*(4+1))",    # Valid multiple terms
-            "2/(1/(1+1))",          # Valid nested division
-            "1/((3-2)/(4-3))",      # Valid nested divisions
-            "1/9*3*(2-1)",          # Valid multiple operations
-            "1/3*2*(5+5)*4",        # Valid product in denominator
-            "1/3+4/5",              # Multiple separate divisions
-            "1/3 + 4/5",            # Divisions with whitespace
-            "1 / 3 * 2 * (5+5) * 4" # Complex expression with whitespace
+            "1/2",  # Simple valid division
+            "1/(3-2)",  # Valid division with parentheses
+            "1/2/3",  # Chained valid division
+            "1/(2/3)",  # Nested valid division
+            "1/9*(3-2)",  # Valid multiplication after division
+            "1/(9*(3-2))",  # Valid division with parenthesized multiplication
+            "2/((1+1)*5)",  # Valid division with extra parentheses
+            "1/(2*1)",  # Valid multiplication in denominator
+            "1/(x+1)",  # Valid variable expression
+            "10/(x+2)",  # Valid variable expression with variables
+            "1/(3*2+1)",  # Valid complex expression
+            "1/((2+2)*3*(4+1))",  # Valid multiple terms
+            "2/(1/(1+1))",  # Valid nested division
+            "1/((3-2)/(4-3))",  # Valid nested divisions
+            "1/9*3*(2-1)",  # Valid multiple operations
+            "1/3*2*(5+5)*4",  # Valid product in denominator
+            "1/3+4/5",  # Multiple separate divisions
+            "1/3 + 4/5",  # Divisions with whitespace
+            "1 / 3 * 2 * (5+5) * 4",  # Complex expression with whitespace
         ]
 
         # Test all valid division cases
         for expr in valid_division_cases:
             result = MathUtils.evaluate(expr, {"x": 5})  # Using x=5 for variable cases
-            self.assertFalse(isinstance(result, str) and "Error" in result,
-                           f"Unexpected error for valid expression: {expr}, got {result}")
-            self.assertIsInstance(result, (int, float, str),
-                                f"Result should be numeric or string for expression: {expr}")
+            self.assertFalse(
+                isinstance(result, str) and "Error" in result,
+                f"Unexpected error for valid expression: {expr}, got {result}",
+            )
+            self.assertIsInstance(
+                result, (int, float, str), f"Result should be numeric or string for expression: {expr}"
+            )
 
         # Test with different variable values
         result = MathUtils.evaluate("1/(x+1)", {"x": -1})  # Should raise error
-        self.assertTrue(isinstance(result, str) and "Error" in result,
-                       f"Expected error for expression with x=-1, got {result}")
+        self.assertTrue(
+            isinstance(result, str) and "Error" in result, f"Expected error for expression with x=-1, got {result}"
+        )
 
         # Test edge cases
         edge_cases = [
-            ("1/1e-100", False),     # Very small but non-zero denominator
+            ("1/1e-100", False),  # Very small but non-zero denominator
             ("1/(1-0.999999999)", False),  # Nearly zero but not quite
-            ("1/(-0)", True),        # Negative zero
-            ("1/(0.0)", True),       # Zero as float
-            ("1/(0e0)", True),       # Zero in scientific notation
+            ("1/(-0)", True),  # Negative zero
+            ("1/(0.0)", True),  # Zero as float
+            ("1/(0e0)", True),  # Zero in scientific notation
         ]
 
         for expr, should_raise in edge_cases:
             result = MathUtils.evaluate(expr)
             if should_raise:
-                self.assertTrue(isinstance(result, str) and "Error" in result,
-                              f"Expected error for edge case: {expr}, got {result}")
+                self.assertTrue(
+                    isinstance(result, str) and "Error" in result, f"Expected error for edge case: {expr}, got {result}"
+                )
             else:
-                self.assertFalse(isinstance(result, str) and "Error" in result,
-                               f"Unexpected error for edge case: {expr}, got {result}")
-                self.assertIsInstance(result, (int, float, str),
-                                    f"Result should be numeric or string for edge case: {expr}")
+                self.assertFalse(
+                    isinstance(result, str) and "Error" in result,
+                    f"Unexpected error for edge case: {expr}, got {result}",
+                )
+                self.assertIsInstance(
+                    result, (int, float, str), f"Result should be numeric or string for edge case: {expr}"
+                )
 
     def test_limit(self) -> None:
-        result = MathUtils.limit('sin(x) / x', 'x', 0)
+        result = MathUtils.limit("sin(x) / x", "x", 0)
         result = float(result)  # convert result to float
         self.assertEqual(result, 1.0)
 
     def test_derivative(self) -> None:
-        result = MathUtils.derivative('x^2', 'x')
+        result = MathUtils.derivative("x^2", "x")
         self.assertEqual(result, "2*x")
 
     def test_integral_indefinite(self) -> None:
-        result = MathUtils.integral('x^2', 'x')
+        result = MathUtils.integral("x^2", "x")
         result = MathUtils.simplify(result)  # simplify the result
         self.assertEqual(result, "0.3333333333333333*x^3")
 
     def test_integral(self) -> None:
-        result = MathUtils.integral('x^2', 'x', 0, 1)
+        result = MathUtils.integral("x^2", "x", 0, 1)
         result = float(result)  # convert result to float
         self.assertAlmostEqual(result, 0.333, places=3)
 
@@ -972,15 +1016,15 @@ class TestMathFunctions(unittest.TestCase):
             MathUtils.numeric_integrate("x", "x", 0, 1, "midpoint", 10001)
 
     def test_simplify(self) -> None:
-        result = MathUtils.simplify('x^2 + 2*x + 1')
+        result = MathUtils.simplify("x^2 + 2*x + 1")
         self.assertEqual(result, "(1+x)^2")
 
     def test_expand(self) -> None:
-        result = MathUtils.expand('(x + 1)^2')
+        result = MathUtils.expand("(x + 1)^2")
         self.assertEqual(result, "1+2*x+x^2")
 
     def test_factor(self) -> None:
-        result = MathUtils.factor('x^2 - 1')
+        result = MathUtils.factor("x^2 - 1")
         self.assertEqual(result, "(-1+x)*(1+x)")
 
     def test_get_equation_type_with_linear_equation(self) -> None:
@@ -1090,13 +1134,13 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(result, 0, "Other non-linear equations should indicate complex or uncertain scenarios.")
 
     def test_solve1(self) -> None:
-        result = MathUtils.solve('x^2 - 4', 'x')
+        result = MathUtils.solve("x^2 - 4", "x")
         result = json.loads(result)  # parse result from JSON string to list
         result = [float(r) for r in result]  # convert results to floats
         self.assertEqual(result, [2.0, -2.0])
 
     def test_solve2(self) -> None:
-        result = MathUtils.solve('0.4 * x + 37.2 = -0.9 * x - 8', 'x')
+        result = MathUtils.solve("0.4 * x + 37.2 = -0.9 * x - 8", "x")
         result = json.loads(result)  # Parse result from JSON string to list
         # Assuming the result is always a list with a single item for this test case
         solution = float(result[0])  # Convert the first (and only) result to float
@@ -1132,13 +1176,13 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(result, {"x1": 0.0, "y1": 1.0, "x2": -1.0, "y2": 0.0})
 
     def test_solve_system_of_equations_linear(self) -> None:
-        result = MathUtils.solve_system_of_equations(['x + y = 4', 'x - y = 2'])
+        result = MathUtils.solve_system_of_equations(["x + y = 4", "x - y = 2"])
         result = dict(item.split(" = ") for item in result.split(", "))  # parse result from string to dictionary
         result = {k: float(v) for k, v in result.items()}  # convert results to floats
         self.assertEqual(result, {"x": 3.0, "y": 1.0})
 
     def test_solve_system_of_equations_quadratic_linear(self) -> None:
-        result = MathUtils.solve_system_of_equations(['x^2 = y', '-x + 2 = y'])
+        result = MathUtils.solve_system_of_equations(["x^2 = y", "-x + 2 = y"])
         result = dict(item.split(" = ") for item in result.split(", "))  # parse result from string to dictionary
         result = {k: float(v) for k, v in result.items()}  # convert results to floats
         self.assertEqual(result, {"x1": 1.0, "y1": 1.0, "x2": -2.0, "y2": 4.0})
@@ -1177,7 +1221,7 @@ class TestMathFunctions(unittest.TestCase):
         # (-10 + π/2)/π ≤ n ≤ (10 + π/2)/π
         # -3.02 ≤ n ≤ 3.66
         # Therefore n goes from -2 to 3 inclusive
-        expected = sorted([round((-math.pi/2 + n*math.pi), 6) for n in range(-2, 4)])
+        expected = sorted([round((-math.pi / 2 + n * math.pi), 6) for n in range(-2, 4)])
         actual = sorted([round(x, 6) for x in result])
         self.assertEqual(actual, expected, "tan(x) should have correct asymptotes in [-10, 10]")
 
@@ -1187,7 +1231,7 @@ class TestMathFunctions(unittest.TestCase):
         # (-5 + π/2)/π ≤ n ≤ (5 + π/2)/π
         # -1.41 ≤ n ≤ 2.07
         # Therefore n goes from -1 to 2 inclusive
-        expected = sorted([round((-math.pi/2 + n*math.pi), 6) for n in range(-1, 3)])
+        expected = sorted([round((-math.pi / 2 + n * math.pi), 6) for n in range(-1, 3)])
         actual = sorted([round(x, 6) for x in result])
         self.assertEqual(actual, expected, "tan(x) should have correct asymptotes in [-5, 5]")
 
@@ -1197,7 +1241,7 @@ class TestMathFunctions(unittest.TestCase):
         # (-3 + π/2)/π ≤ n ≤ (3 + π/2)/π
         # -0.77 ≤ n ≤ 1.43
         # Therefore n goes from 0 to 1 inclusive
-        expected = sorted([round((-math.pi/2 + n*math.pi), 6) for n in range(0, 2)])
+        expected = sorted([round((-math.pi / 2 + n * math.pi), 6) for n in range(0, 2)])
         actual = sorted([round(x, 6) for x in result])
         self.assertEqual(actual, expected, "tan(x) should have correct asymptotes in [-3, 3]")
 
@@ -1247,9 +1291,11 @@ class TestMathFunctions(unittest.TestCase):
         # (-5 + π/2)/π ≤ n ≤ (5 + π/2)/π
         # -1.41 ≤ n ≤ 2.07
         # Therefore n goes from -1 to 2 inclusive (all values that give asymptotes within [-5, 5])
-        expected_vert = sorted([round((-math.pi/2 + n*math.pi), 6) for n in range(-1, 3)])
+        expected_vert = sorted([round((-math.pi / 2 + n * math.pi), 6) for n in range(-1, 3)])
         actual_vert = sorted([round(x, 6) for x in vert])
-        self.assertEqual(actual_vert, expected_vert, "tan(x) should have vertical asymptotes at x = π/2 + nπ within bounds")
+        self.assertEqual(
+            actual_vert, expected_vert, "tan(x) should have vertical asymptotes at x = π/2 + nπ within bounds"
+        )
         self.assertEqual(horiz, [], "tan(x) should have no horizontal asymptotes")
         self.assertEqual(disc, [], "tan(x) should have no point discontinuities")
 
@@ -1276,7 +1322,9 @@ class TestMathFunctions(unittest.TestCase):
 
         # Test floor function with bounds
         result = MathUtils.calculate_point_discontinuities("floor(x)", -2, 2)
-        self.assertEqual(result, [-2, -1, 0, 1, 2], "Floor function should have discontinuities at integers within bounds")
+        self.assertEqual(
+            result, [-2, -1, 0, 1, 2], "Floor function should have discontinuities at integers within bounds"
+        )
 
         # Test ceil function with bounds
         result = MathUtils.calculate_point_discontinuities("ceil(x)", -1.5, 1.5)
@@ -1334,18 +1382,15 @@ class TestMathFunctions(unittest.TestCase):
             coordinate_mapper.sync_from_canvas(mock_canvas)
 
             # Test function with vertical asymptotes: tan(x) has asymptotes at π/2 + nπ
-            function = Function(
-                function_string="tan(x)",
-                name="test_tan",
-                left_bound=-5,
-                right_bound=5
-            )
+            function = Function(function_string="tan(x)", name="test_tan", left_bound=-5, right_bound=5)
 
             # Generate paths via FunctionRenderable
             paths = FunctionRenderable(function, coordinate_mapper).build_screen_paths().paths
 
             # Test that we have multiple paths (indicating path breaks at asymptotes)
-            self.assertGreater(len(paths), 1, "tan(x) should generate multiple separate paths due to vertical asymptotes")
+            self.assertGreater(
+                len(paths), 1, "tan(x) should generate multiple separate paths due to vertical asymptotes"
+            )
 
             # Test that no path spans across a vertical asymptote
             for path in paths:
@@ -1356,24 +1401,25 @@ class TestMathFunctions(unittest.TestCase):
                     path_max_x = max(x_coords)
 
                     # Check that no vertical asymptote lies within this path's x range (exclusive)
-                    asymptotes_in_path = [asym for asym in function.vertical_asymptotes
-                                        if path_min_x < asym < path_max_x]
+                    asymptotes_in_path = [
+                        asym for asym in function.vertical_asymptotes if path_min_x < asym < path_max_x
+                    ]
 
-                    self.assertEqual(len(asymptotes_in_path), 0,
-                                   f"Path from x={path_min_x:.3f} to x={path_max_x:.3f} should not span across vertical asymptote(s) {asymptotes_in_path}")
+                    self.assertEqual(
+                        len(asymptotes_in_path),
+                        0,
+                        f"Path from x={path_min_x:.3f} to x={path_max_x:.3f} should not span across vertical asymptote(s) {asymptotes_in_path}",
+                    )
 
             # Test with another function: 1/x has asymptote at x=0
-            function2 = Function(
-                function_string="1/x",
-                name="test_reciprocal",
-                left_bound=-2,
-                right_bound=2
-            )
+            function2 = Function(function_string="1/x", name="test_reciprocal", left_bound=-2, right_bound=2)
 
             paths2 = FunctionRenderable(function2, coordinate_mapper).build_screen_paths().paths
 
             # Should have exactly 2 paths (one for x < 0, one for x > 0)
-            self.assertGreaterEqual(len(paths2), 2, "1/x should generate at least 2 separate paths due to vertical asymptote at x=0")
+            self.assertGreaterEqual(
+                len(paths2), 2, "1/x should generate at least 2 separate paths due to vertical asymptote at x=0"
+            )
 
             # Verify no path spans across x=0
             for path in paths2:
@@ -1384,8 +1430,10 @@ class TestMathFunctions(unittest.TestCase):
 
                     # Path should not cross x=0
                     crosses_zero = path_min_x < 0 < path_max_x
-                    self.assertFalse(crosses_zero,
-                                   f"Path from x={path_min_x:.3f} to x={path_max_x:.3f} should not cross the vertical asymptote at x=0")
+                    self.assertFalse(
+                        crosses_zero,
+                        f"Path from x={path_min_x:.3f} to x={path_max_x:.3f} should not cross the vertical asymptote at x=0",
+                    )
 
             print("Vertical asymptote path breaking test passed successfully")
 
@@ -1422,12 +1470,7 @@ class TestMathFunctions(unittest.TestCase):
             coordinate_mapper.sync_from_canvas(mock_canvas)
 
             # Test a continuous function: sin(x) should have one continuous path
-            function_sin = Function(
-                function_string="sin(x)",
-                name="test_sin",
-                left_bound=-10,
-                right_bound=10
-            )
+            function_sin = Function(function_string="sin(x)", name="test_sin", left_bound=-10, right_bound=10)
 
             paths_sin = FunctionRenderable(function_sin, coordinate_mapper).build_screen_paths().paths
 
@@ -1442,21 +1485,18 @@ class TestMathFunctions(unittest.TestCase):
                 # Check continuity within the path
                 max_gap = 0
                 for i in range(1, len(path)):
-                    x1, _ = mock_canvas.coordinate_mapper.screen_to_math(path[i-1][0], path[i-1][1])
+                    x1, _ = mock_canvas.coordinate_mapper.screen_to_math(path[i - 1][0], path[i - 1][1])
                     x2, _ = mock_canvas.coordinate_mapper.screen_to_math(path[i][0], path[i][1])
                     gap = abs(x2 - x1)
                     max_gap = max(max_gap, gap)
 
                 # The maximum gap between consecutive points shouldn't be too large
-                self.assertLess(max_gap, 1.0, f"sin(x) should have continuous points with max gap < 1.0, found {max_gap}")
+                self.assertLess(
+                    max_gap, 1.0, f"sin(x) should have continuous points with max gap < 1.0, found {max_gap}"
+                )
 
             # Test a quadratic function: x^2 should also be one continuous path
-            function_quad = Function(
-                function_string="x^2",
-                name="test_quad",
-                left_bound=-5,
-                right_bound=5
-            )
+            function_quad = Function(function_string="x^2", name="test_quad", left_bound=-5, right_bound=5)
 
             paths_quad = FunctionRenderable(function_quad, coordinate_mapper).build_screen_paths().paths
 
@@ -1468,7 +1508,7 @@ class TestMathFunctions(unittest.TestCase):
                 function_string="sin(x/10) + cos(x/15)",  # Two different frequencies, no asymptotes
                 name="test_moderate",
                 left_bound=-20,
-                right_bound=20
+                right_bound=20,
             )
 
             paths_moderate = FunctionRenderable(function_moderate, coordinate_mapper).build_screen_paths().paths
@@ -1480,23 +1520,26 @@ class TestMathFunctions(unittest.TestCase):
                 function_string="10 * sin(x / 20)",  # Simpler version to test basic functionality
                 name="test_complex",
                 left_bound=-50,  # Even safer range
-                right_bound=50
+                right_bound=50,
             )
 
             paths_complex = FunctionRenderable(function_complex, coordinate_mapper).build_screen_paths().paths
 
             # This simplified function should definitely generate paths
-            self.assertGreater(len(paths_complex), 0,
-                           f"Complex function should generate at least one path. "
-                           f"Function: {function_complex.function_string}, "
-                           f"Generated {len(paths_complex)} paths")
+            self.assertGreater(
+                len(paths_complex),
+                0,
+                f"Complex function should generate at least one path. "
+                f"Function: {function_complex.function_string}, "
+                f"Generated {len(paths_complex)} paths",
+            )
 
             # Test a simpler case to ensure basic functionality
             function_simple = Function(
                 function_string="sin(x/10)",  # Simple sine function
                 name="test_simple",
                 left_bound=-10,
-                right_bound=10
+                right_bound=10,
             )
 
             paths_simple = FunctionRenderable(function_simple, coordinate_mapper).build_screen_paths().paths
@@ -1509,7 +1552,7 @@ class TestMathFunctions(unittest.TestCase):
                     function_string="100 * sin(x / 50) + 50 * tan(x / 100)",
                     name="test_original",
                     left_bound=-30,  # Very small, safe range
-                    right_bound=30
+                    right_bound=30,
                 )
 
                 paths_original = FunctionRenderable(function_original, coordinate_mapper).build_screen_paths().paths
@@ -1519,7 +1562,9 @@ class TestMathFunctions(unittest.TestCase):
                     total_points_orig = sum(len(path) for path in paths_original)
                     self.assertGreater(total_points_orig, 5, "Original function should generate some points")
                 else:
-                    print(f"WARNING: Original complex function generated 0 paths - asymptotes: {function_original.vertical_asymptotes[:3] if hasattr(function_original, 'vertical_asymptotes') else 'None'}")
+                    print(
+                        f"WARNING: Original complex function generated 0 paths - asymptotes: {function_original.vertical_asymptotes[:3] if hasattr(function_original, 'vertical_asymptotes') else 'None'}"
+                    )
 
             except Exception as e:
                 print(f"WARNING: Original complex function failed: {e}")
@@ -1535,12 +1580,18 @@ class TestMathFunctions(unittest.TestCase):
                     # Check for reasonable continuity in the longest path
                     max_gap = 0
                     for i in range(1, len(longest_path)):
-                        x1, _ = mock_canvas.coordinate_mapper.screen_to_math(longest_path[i-1][0], longest_path[i-1][1])
+                        x1, _ = mock_canvas.coordinate_mapper.screen_to_math(
+                            longest_path[i - 1][0], longest_path[i - 1][1]
+                        )
                         x2, _ = mock_canvas.coordinate_mapper.screen_to_math(longest_path[i][0], longest_path[i][1])
                         gap = abs(x2 - x1)
                         max_gap = max(max_gap, gap)
 
-                    self.assertLess(max_gap, 20.0, f"Complex function should have reasonably continuous points, max gap was {max_gap}")
+                    self.assertLess(
+                        max_gap,
+                        20.0,
+                        f"Complex function should have reasonably continuous points, max gap was {max_gap}",
+                    )
 
             print("Function path continuity test passed successfully")
 
@@ -1554,7 +1605,7 @@ class TestMathFunctions(unittest.TestCase):
             SimpleMock(name="A", x=0, y=1),
             SimpleMock(name="B", x=1, y=1),
             SimpleMock(name="C", x=1, y=0),
-            SimpleMock(name="D", x=0, y=0)
+            SimpleMock(name="D", x=0, y=0),
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect1")
         self.assertIsNotNone(p_diag1, "p_diag1 should not be None")
@@ -1566,15 +1617,18 @@ class TestMathFunctions(unittest.TestCase):
         expected_pairs = [("A", "C"), ("B", "D")]
         # Sort the names in the actual pair to make comparison order-independent
         # And check if this sorted pair is one of the sorted expected pairs
-        self.assertIn(actual_pair, [tuple(sorted(p)) for p in expected_pairs],
-                      f"Expected diagonal pair like AC or BD, got {actual_pair}")
+        self.assertIn(
+            actual_pair,
+            [tuple(sorted(p)) for p in expected_pairs],
+            f"Expected diagonal pair like AC or BD, got {actual_pair}",
+        )
 
     def test_find_diagonal_points_shuffled_order(self) -> None:
         points = [
             SimpleMock(name="D", x=0, y=0),
             SimpleMock(name="B", x=1, y=1),
             SimpleMock(name="A", x=0, y=1),
-            SimpleMock(name="C", x=1, y=0)
+            SimpleMock(name="C", x=1, y=0),
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect2")
         self.assertIsNotNone(p_diag1, "p_diag1 should not be None")
@@ -1583,16 +1637,19 @@ class TestMathFunctions(unittest.TestCase):
         self.assertNotEqual(p_diag1.y, p_diag2.y)
 
         actual_pair = tuple(sorted((p_diag1.name, p_diag2.name)))
-        expected_pairs = [("A", "C"), ("B", "D")] # Same expected pairs
-        self.assertIn(actual_pair, [tuple(sorted(p)) for p in expected_pairs],
-                      f"Expected diagonal pair like AC or BD, got {actual_pair}")
+        expected_pairs = [("A", "C"), ("B", "D")]  # Same expected pairs
+        self.assertIn(
+            actual_pair,
+            [tuple(sorted(p)) for p in expected_pairs],
+            f"Expected diagonal pair like AC or BD, got {actual_pair}",
+        )
 
     def test_find_diagonal_points_collinear_fail_case(self) -> None:
         points = [
             SimpleMock(name="A", x=0, y=0),
             SimpleMock(name="B", x=1, y=0),
             SimpleMock(name="C", x=2, y=0),
-            SimpleMock(name="D", x=3, y=0)
+            SimpleMock(name="D", x=3, y=0),
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect3_Collinear")
         self.assertIsNone(p_diag1)
@@ -1603,7 +1660,7 @@ class TestMathFunctions(unittest.TestCase):
             SimpleMock(name="A", x=0, y=1),
             SimpleMock(name="B", x=1, y=1),
             SimpleMock(name="C", x=1, y=0),
-            SimpleMock(name="D", x=2, y=0)
+            SimpleMock(name="D", x=2, y=0),
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect4_L-shape")
         self.assertIsNotNone(p_diag1)
@@ -1612,10 +1669,7 @@ class TestMathFunctions(unittest.TestCase):
         self.assertEqual(p_diag2.name, "C")
 
     def test_find_diagonal_points_less_than_4_points(self) -> None:
-        points = [
-            SimpleMock(name="A", x=0, y=0),
-            SimpleMock(name="B", x=1, y=1)
-        ]
+        points = [SimpleMock(name="A", x=0, y=0), SimpleMock(name="B", x=1, y=1)]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect5_TooFew")
         self.assertIsNone(p_diag1)
         self.assertIsNone(p_diag2)
@@ -1625,7 +1679,7 @@ class TestMathFunctions(unittest.TestCase):
             SimpleMock(name="A1", x=0, y=1),
             SimpleMock(name="B", x=1, y=1),
             SimpleMock(name="C", x=1, y=0),
-            SimpleMock(name="A2", x=0, y=1)
+            SimpleMock(name="A2", x=0, y=1),
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect6_Degenerate")
         self.assertIsNotNone(p_diag1)
@@ -1638,7 +1692,7 @@ class TestMathFunctions(unittest.TestCase):
             SimpleMock(name="A", x=0, y=0),
             SimpleMock(name="C", x=1, y=1),
             SimpleMock(name="B", x=0, y=1),
-            SimpleMock(name="D", x=1, y=0)
+            SimpleMock(name="D", x=1, y=0),
         ]
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect7")
         self.assertIsNotNone(p_diag1)
@@ -1784,7 +1838,7 @@ class TestNumberTheory(unittest.TestCase):
             if i == 0:
                 self.assertEqual(MathUtils.next_prime(0), exp)
             else:
-                self.assertEqual(MathUtils.next_prime(expected[i-1] + 1), exp)
+                self.assertEqual(MathUtils.next_prime(expected[i - 1] + 1), exp)
 
     # ========== prev_prime tests ==========
     def test_prev_prime_basic(self) -> None:
@@ -1819,14 +1873,14 @@ class TestNumberTheory(unittest.TestCase):
         """Test totient for prime numbers (should be p-1)."""
         primes = [2, 3, 5, 7, 11, 13, 17, 19, 23]
         for p in primes:
-            self.assertEqual(MathUtils.totient(p), p - 1, f"totient({p}) should be {p-1}")
+            self.assertEqual(MathUtils.totient(p), p - 1, f"totient({p}) should be {p - 1}")
 
     def test_totient_prime_powers(self) -> None:
         """Test totient for prime powers (p^k -> p^(k-1) * (p-1))."""
-        self.assertEqual(MathUtils.totient(4), 2)   # 2^2 -> 2^1 * 1 = 2
-        self.assertEqual(MathUtils.totient(8), 4)   # 2^3 -> 2^2 * 1 = 4
-        self.assertEqual(MathUtils.totient(9), 6)   # 3^2 -> 3^1 * 2 = 6
-        self.assertEqual(MathUtils.totient(27), 18) # 3^3 -> 3^2 * 2 = 18
+        self.assertEqual(MathUtils.totient(4), 2)  # 2^2 -> 2^1 * 1 = 2
+        self.assertEqual(MathUtils.totient(8), 4)  # 2^3 -> 2^2 * 1 = 4
+        self.assertEqual(MathUtils.totient(9), 6)  # 3^2 -> 3^1 * 2 = 6
+        self.assertEqual(MathUtils.totient(27), 18)  # 3^3 -> 3^2 * 2 = 18
 
     def test_totient_100(self) -> None:
         """Test totient(100)."""
@@ -2090,13 +2144,13 @@ class TestSequencesAndSeries(unittest.TestCase):
     def test_geometric_sum_infinite_third(self) -> None:
         """Test geometric_sum_infinite with r=1/3."""
         # a/(1-r) = 1/(1-1/3) = 1.5
-        self.assertEqual(MathUtils.geometric_sum_infinite(1, 1/3), 1.5)
+        self.assertEqual(MathUtils.geometric_sum_infinite(1, 1 / 3), 1.5)
 
     def test_geometric_sum_infinite_negative_ratio(self) -> None:
         """Test geometric_sum_infinite with negative ratio."""
         # a/(1-r) = 1/(1-(-0.5)) = 1/1.5 = 2/3
         result = MathUtils.geometric_sum_infinite(1, -0.5)
-        self.assertAlmostEqual(result, 2/3, places=10)
+        self.assertAlmostEqual(result, 2 / 3, places=10)
 
     def test_geometric_sum_infinite_divergent(self) -> None:
         """Test geometric_sum_infinite raises for divergent series."""

@@ -31,7 +31,9 @@ class _IdentityDependencyManager:
         return {self._lookup[child_id] for child_id in child_ids if child_id in self._lookup}
 
 
-def _build_canvas(primary_drawable: object, segments: List[Segment]) -> Tuple[SimpleMock, _IdentityDependencyManager, SimpleMock]:
+def _build_canvas(
+    primary_drawable: object, segments: List[Segment]
+) -> Tuple[SimpleMock, _IdentityDependencyManager, SimpleMock]:
     renderer = SimpleMock()
     renderer.invalidate_drawable_cache = SimpleMock()
 
@@ -116,9 +118,7 @@ class TestTransformationsManager(unittest.TestCase):
         )
 
         canvas, dependency_manager, renderer = _build_canvas(rectangle, [s1, s2, s3, s4])
-        dependency_manager.register_many(
-            (segment, area) for segment in (s1, s2, s3, s4)
-        )
+        dependency_manager.register_many((segment, area) for segment in (s1, s2, s3, s4))
 
         initial_snapshot = area.get_state()["args"]["geometry_snapshot"]
 

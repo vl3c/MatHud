@@ -24,6 +24,7 @@ def _manages_shape(render_fn):
     Returns:
         Wrapped function that calls begin_shape before and end_shape after.
     """
+
     def wrapper(primitives, *args, **kwargs):
         begin_shape = getattr(primitives, "begin_shape", None)
         end_shape = getattr(primitives, "end_shape", None)
@@ -35,5 +36,5 @@ def _manages_shape(render_fn):
         finally:
             if managing:
                 end_shape()
-    return wrapper
 
+    return wrapper

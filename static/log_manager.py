@@ -46,7 +46,7 @@ class LogManager:
     Supports optional forwarding of logs to the browser console.
     """
 
-    def __init__(self, logs_dir: str = './logs/') -> None:
+    def __init__(self, logs_dir: str = "./logs/") -> None:
         """Initialize LogManager with specified logs directory.
 
         Args:
@@ -90,7 +90,7 @@ class LogManager:
         Returns:
             str: Date-based log filename (e.g., 'mathud_session_24_03_15.log')
         """
-        return datetime.now().strftime('mathud_session_%y_%m_%d.log')
+        return datetime.now().strftime("mathud_session_%y_%m_%d.log")
 
     def _setup_logging(self) -> None:
         """Initialize logging configuration.
@@ -105,16 +105,14 @@ class LogManager:
         root_logger = logging.getLogger()
         if not root_logger.handlers:
             logging.basicConfig(
-                filename=log_file_path,
-                level=logging.INFO,
-                format='%(asctime)s %(levelname)s %(message)s'
+                filename=log_file_path, level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
             )
 
         self._logger.setLevel(logging.INFO)
         self._logger.propagate = False
         if not self._logger.handlers:
-            handler = logging.FileHandler(log_file_path, encoding='utf-8')
-            handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+            handler = logging.FileHandler(log_file_path, encoding="utf-8")
+            handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
             self._logger.addHandler(handler)
         self.log_new_session()
 
@@ -146,19 +144,19 @@ class LogManager:
 
         svg_state = user_message_json.get("svg_state")
         if isinstance(svg_state, dict):
-            self._logger.info(f'### SVG state dimensions: {svg_state.get("dimensions")}')
+            self._logger.info(f"### SVG state dimensions: {svg_state.get('dimensions')}")
 
         canvas_state = user_message_json.get("canvas_state")
         if canvas_state is not None:
-            self._logger.info(f'### Canvas state: {canvas_state}')
+            self._logger.info(f"### Canvas state: {canvas_state}")
 
         previous_results = user_message_json.get("previous_results")
         if previous_results is not None:
-            self._logger.info(f'### Previously calculated results: {previous_results}')
+            self._logger.info(f"### Previously calculated results: {previous_results}")
 
         user_message_text = user_message_json.get("user_message")
         if user_message_text is not None:
-            self._logger.info(f'### User message: {user_message_text}')
+            self._logger.info(f"### User message: {user_message_text}")
 
     def log_ai_response(self, ai_message: str) -> None:
         """Log AI response message.
@@ -166,7 +164,7 @@ class LogManager:
         Args:
             ai_message: AI-generated response text
         """
-        self._logger.info(f'### AI response: {ai_message}')
+        self._logger.info(f"### AI response: {ai_message}")
 
     def log_ai_tool_calls(self, ai_tool_calls: Sequence[ProcessedToolCall] | Sequence[Dict[str, Any]] | None) -> None:
         """Log AI tool calls.
@@ -175,7 +173,7 @@ class LogManager:
             ai_tool_calls: List of AI-requested function calls (ProcessedToolCall or dict)
         """
         if ai_tool_calls is not None:
-            self._logger.info(f'### AI tool calls: {list(ai_tool_calls)}')
+            self._logger.info(f"### AI tool calls: {list(ai_tool_calls)}")
 
     def log_action_trace(self, trace_summary: Dict[str, Any]) -> None:
         """Log a structured action trace summary as a JSON line.

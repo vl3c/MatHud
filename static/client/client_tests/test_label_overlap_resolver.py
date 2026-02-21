@@ -23,5 +23,3 @@ class TestLabelOverlapResolver(unittest.TestCase):
 
         dy_again = resolver.get_or_place_dy("line", (0.0, 10.0, 0.0, 10.0), step=10.0)
         self.assertEqual(dy_again, dy)
-
-

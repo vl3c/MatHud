@@ -90,7 +90,9 @@ class AIInterface:
         self._stop_requested = False
         self._tests_running = False
         self._stop_tests_requested = False
-        self.available_functions: Dict[str, Any] = FunctionRegistry.get_available_functions(canvas, self.workspace_manager, self)
+        self.available_functions: Dict[str, Any] = FunctionRegistry.get_available_functions(
+            canvas, self.workspace_manager, self
+        )
         self.undoable_functions: tuple[str, ...] = FunctionRegistry.get_undoable_functions()
         self.markdown_parser: MarkdownParser = MarkdownParser()
         # Slash command handler for local commands
@@ -111,9 +113,9 @@ class AIInterface:
         self._needs_continuation_separator: bool = False  # Add newline before next text after tool calls
         # Tool call log state
         self._tool_call_log_entries: list[dict[str, Any]] = []
-        self._tool_call_log_element: Optional[Any] = None   # <details> element
-        self._tool_call_log_summary: Optional[Any] = None   # <summary> element
-        self._tool_call_log_content: Optional[Any] = None   # content container div
+        self._tool_call_log_element: Optional[Any] = None  # <details> element
+        self._tool_call_log_summary: Optional[Any] = None  # <summary> element
+        self._tool_call_log_content: Optional[Any] = None  # content container div
         # Timeout state
         self._response_timeout_id: Optional[int] = None
         # Chat message menu state
@@ -140,16 +142,14 @@ class AIInterface:
             except Exception as exc:
                 return window.JSON.parse(json.dumps({"error": str(exc)}))
 
-        window.getActionTraces = lambda: _safe_json_to_js(
-            self._trace_collector.export_traces_json()
-        )
-        window.getLastActionTrace = lambda: _safe_json_to_js(
-            self._trace_collector.get_last_trace_json()
-        )
+        window.getActionTraces = lambda: _safe_json_to_js(self._trace_collector.export_traces_json())
+        window.getLastActionTrace = lambda: _safe_json_to_js(self._trace_collector.get_last_trace_json())
         window.clearActionTraces = lambda: self._trace_collector.clear()
         window.replayLastTrace = lambda: _safe_json_to_js(
             self._trace_collector.replay_last_trace(
-                self.available_functions, self.undoable_functions, self.canvas,
+                self.available_functions,
+                self.undoable_functions,
+                self.canvas,
             )
         )
 
@@ -157,6 +157,7 @@ class AIInterface:
         """Run unit tests for the AIInterface class and return results to the AI as the function result."""
         try:
             from test_runner import TestRunner
+
             test_runner = TestRunner(self.canvas, self.available_functions, self.undoable_functions)
 
             # Run tests and get formatted results in one step
@@ -164,23 +165,26 @@ class AIInterface:
             return cast(Dict[str, Any], test_runner.format_results_for_ai(results))
         except ImportError as e:
             print(f"Test runner not available: {e}")
-            return cast(Dict[str, Any], {
-                "tests_run": 0,
-                "failures": 0,
-                "errors": 1,
-                "failing_tests": [],
-                "error_tests": [{"test": "Test Runner Import", "error": f"Could not import test runner: {e}"}]
-            })
+            return cast(
+                Dict[str, Any],
+                {
+                    "tests_run": 0,
+                    "failures": 0,
+                    "errors": 1,
+                    "failing_tests": [],
+                    "error_tests": [{"test": "Test Runner Import", "error": f"Could not import test runner: {e}"}],
+                },
+            )
 
     def compare_canvas_state(self) -> None:
         """Send current canvas state to debug endpoint and log full-vs-summary output."""
         try:
             payload = json.dumps({"canvas_state": self.canvas.get_canvas_state()})
             req = ajax.ajax(timeout=20000)
-            req.bind('complete', self._on_compare_canvas_state_complete)
-            req.bind('error', self._on_compare_canvas_state_error)
-            req.open('POST', '/api/debug/canvas-state-comparison', True)
-            req.set_header('content-type', 'application/json')
+            req.bind("complete", self._on_compare_canvas_state_complete)
+            req.bind("error", self._on_compare_canvas_state_error)
+            req.open("POST", "/api/debug/canvas-state-comparison", True)
+            req.set_header("content-type", "application/json")
             req.send(payload)
             console.log("[MatHud] Requested canvas-state comparison...")
         except Exception as e:
@@ -202,11 +206,11 @@ class AIInterface:
             console.log("=== Canvas State Comparison ===")
             console.log(
                 "Full state:",
-                f"{metrics.get('full_bytes', 0)} bytes (~{metrics.get('full_estimated_tokens', 0)} tokens)"
+                f"{metrics.get('full_bytes', 0)} bytes (~{metrics.get('full_estimated_tokens', 0)} tokens)",
             )
             console.log(
                 "Summary:",
-                f"{metrics.get('summary_bytes', 0)} bytes (~{metrics.get('summary_estimated_tokens', 0)} tokens)"
+                f"{metrics.get('summary_bytes', 0)} bytes (~{metrics.get('summary_estimated_tokens', 0)} tokens)",
             )
             console.log("Reduction:", f"{metrics.get('reduction_pct', 0.0)}%")
             console.log("Full state object:")
@@ -236,6 +240,7 @@ class AIInterface:
         """
         try:
             from test_runner import TestRunner
+
             test_runner = TestRunner(self.canvas, self.available_functions, self.undoable_functions)
 
             # Run tests asynchronously and get formatted results
@@ -243,13 +248,16 @@ class AIInterface:
             return cast(Dict[str, Any], test_runner.format_results_for_ai(results))
         except ImportError as e:
             print(f"Test runner not available: {e}")
-            return cast(Dict[str, Any], {
-                "tests_run": 0,
-                "failures": 0,
-                "errors": 1,
-                "failing_tests": [],
-                "error_tests": [{"test": "Test Runner Import", "error": f"Could not import test runner: {e}"}]
-            })
+            return cast(
+                Dict[str, Any],
+                {
+                    "tests_run": 0,
+                    "failures": 0,
+                    "errors": 1,
+                    "failing_tests": [],
+                    "error_tests": [{"test": "Test Runner Import", "error": f"Could not import test runner: {e}"}],
+                },
+            )
 
     def initialize_autocomplete(self) -> None:
         """Initialize the command autocomplete popup.
@@ -401,6 +409,7 @@ class AIInterface:
                     def handler(event: Any) -> None:
                         event.stopPropagation()
                         self._remove_attached_image(index)
+
                     return handler
 
                 remove_btn.bind("click", make_remove_handler(idx))
@@ -457,10 +466,12 @@ class AIInterface:
 
         for key, value in call_results.items():
             # Skip storing workspace management functions and test results in computations
-            if key.startswith("list_workspaces") or \
-               key.startswith("save_workspace") or \
-               key.startswith("load_workspace") or \
-               key.startswith("run_tests"):
+            if (
+                key.startswith("list_workspaces")
+                or key.startswith("save_workspace")
+                or key.startswith("load_workspace")
+                or key.startswith("run_tests")
+            ):
                 continue
 
             if not ProcessFunctionCalls.is_successful_result(value):
@@ -486,7 +497,7 @@ class AIInterface:
         """Trigger MathJax rendering for newly added content."""
         try:
             # Check if MathJax is available
-            if hasattr(window, 'MathJax') and hasattr(window.MathJax, 'typesetPromise'):
+            if hasattr(window, "MathJax") and hasattr(window.MathJax, "typesetPromise"):
                 # Re-render math in the chat history
                 window.MathJax.typesetPromise([document["chat-history"]])
         except Exception:
@@ -795,29 +806,29 @@ class AIInterface:
         result = text
 
         # Remove code blocks
-        result = re.sub(r'```[\s\S]*?```', '', result)
-        result = re.sub(r'`[^`]+`', '', result)
+        result = re.sub(r"```[\s\S]*?```", "", result)
+        result = re.sub(r"`[^`]+`", "", result)
 
         # Remove headers
-        result = re.sub(r'^#{1,6}\s+', '', result, flags=re.MULTILINE)
+        result = re.sub(r"^#{1,6}\s+", "", result, flags=re.MULTILINE)
 
         # Remove bold/italic
-        result = re.sub(r'\*\*([^*]+)\*\*', r'\1', result)
-        result = re.sub(r'\*([^*]+)\*', r'\1', result)
-        result = re.sub(r'__([^_]+)__', r'\1', result)
-        result = re.sub(r'_([^_]+)_', r'\1', result)
+        result = re.sub(r"\*\*([^*]+)\*\*", r"\1", result)
+        result = re.sub(r"\*([^*]+)\*", r"\1", result)
+        result = re.sub(r"__([^_]+)__", r"\1", result)
+        result = re.sub(r"_([^_]+)_", r"\1", result)
 
         # Remove links, keep text
-        result = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', result)
+        result = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", result)
 
         # Remove images
-        result = re.sub(r'!\[[^\]]*\]\([^)]+\)', '', result)
+        result = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", result)
 
         # Remove horizontal rules
-        result = re.sub(r'^[-*_]{3,}$', '', result, flags=re.MULTILINE)
+        result = re.sub(r"^[-*_]{3,}$", "", result, flags=re.MULTILINE)
 
         # Clean up extra whitespace
-        result = re.sub(r'\n{3,}', '\n\n', result)
+        result = re.sub(r"\n{3,}", "\n\n", result)
         result = result.strip()
 
         return result
@@ -969,6 +980,7 @@ class AIInterface:
                     def make_image_click_handler(url: str) -> Any:
                         def handler(event: Any) -> None:
                             self._show_image_modal(url)
+
                         return handler
 
                     img.bind("click", make_image_click_handler(data_url))
@@ -985,10 +997,10 @@ class AIInterface:
             print(f"Error creating message element: {e}")
             # Fall back to simple paragraph
             if sender == "AI":
-                content = message.replace('\n', '<br>')
-                return html.P(f'<strong>{sender}:</strong> {content}', innerHTML=True)
+                content = message.replace("\n", "<br>")
+                return html.P(f"<strong>{sender}:</strong> {content}", innerHTML=True)
             else:
-                return html.P(f'<strong>{sender}:</strong> {message}')
+                return html.P(f"<strong>{sender}:</strong> {message}")
 
     def _print_ai_message_in_chat(self, ai_message: str) -> None:
         """Print an AI message to the chat history with markdown support and scroll to bottom."""
@@ -1193,9 +1205,7 @@ class AIInterface:
             error_message = result_value if is_error else ""
 
             # Full untruncated args for the expanded view
-            args_full = ", ".join(
-                f"{k}: {v}" for k, v in args.items() if k != "canvas"
-            )
+            args_full = ", ".join(f"{k}: {v}" for k, v in args.items() if k != "canvas")
 
             # Format result for display (truncate if too long)
             result_display = ""
@@ -1346,6 +1356,7 @@ class AIInterface:
                     if self._reasoning_summary is not None and self._request_start_time is not None:
                         try:
                             from browser import window
+
                             elapsed_ms = window.Date.now() - self._request_start_time
                             elapsed_seconds = int(elapsed_ms / 1000)
                             self._reasoning_summary.text = f"Thought for {elapsed_seconds} seconds"
@@ -1428,7 +1439,12 @@ class AIInterface:
             has_tool_call_log = bool(self._tool_call_log_entries)
 
             # Only remove if there's NO actual text content anywhere and no tool call log
-            if self._stream_message_container is not None and not has_buffer_text and not has_element_text and not has_tool_call_log:
+            if (
+                self._stream_message_container is not None
+                and not has_buffer_text
+                and not has_element_text
+                and not has_tool_call_log
+            ):
                 history = document["chat-history"]
                 try:
                     history.removeChild(self._stream_message_container)
@@ -1452,10 +1468,10 @@ class AIInterface:
         try:
             event = self._normalize_stream_event(event_obj)
 
-            finish_reason = event.get('finish_reason', 'stop')
-            ai_tool_calls = event.get('ai_tool_calls', [])
-            ai_message = event.get('ai_message', '')
-            error_details = event.get('error_details', '')
+            finish_reason = event.get("finish_reason", "stop")
+            ai_tool_calls = event.get("ai_tool_calls", [])
+            ai_message = event.get("ai_message", "")
+            error_details = event.get("error_details", "")
 
             # Log error details to console for debugging
             if finish_reason == "error":
@@ -1482,7 +1498,10 @@ class AIInterface:
             traced_calls: list[Dict[str, Any]] = []
             try:
                 call_results, traced_calls = ProcessFunctionCalls.get_results_traced(
-                    ai_tool_calls, self.available_functions, self.undoable_functions, self.canvas,
+                    ai_tool_calls,
+                    self.available_functions,
+                    self.undoable_functions,
+                    self.canvas,
                 )
                 self._store_results_in_canvas_state(call_results)
                 self._add_tool_call_entries(ai_tool_calls, call_results)
@@ -1493,7 +1512,10 @@ class AIInterface:
                         state_after = self.canvas.get_canvas_state()
                         total_ms = window.performance.now() - t0
                         trace = self._trace_collector.build_trace(
-                            state_before, state_after, traced_calls, total_ms,
+                            state_before,
+                            state_after,
+                            traced_calls,
+                            total_ms,
                         )
                         self._trace_collector.store(trace)
                     except Exception:
@@ -1506,7 +1528,10 @@ class AIInterface:
                 state_after = self.canvas.get_canvas_state()
                 total_ms = window.performance.now() - t0
                 trace = self._trace_collector.build_trace(
-                    state_before, state_after, traced_calls, total_ms,
+                    state_before,
+                    state_after,
+                    traced_calls,
+                    total_ms,
                 )
                 self._trace_collector.store(trace)
                 trace_summary = self._trace_collector.build_compact_summary(trace)
@@ -1517,8 +1542,10 @@ class AIInterface:
                 if self._stream_buffer.strip():
                     self._needs_continuation_separator = True
                 self._send_prompt_to_ai(
-                    None, json.dumps(call_results),
-                    canvas_state=state_after, action_trace=trace_summary,
+                    None,
+                    json.dumps(call_results),
+                    canvas_state=state_after,
+                    action_trace=trace_summary,
                 )
             except Exception as e:
                 # Always capture trace even on partial failure
@@ -1526,7 +1553,10 @@ class AIInterface:
                     state_after = self.canvas.get_canvas_state()
                     total_ms = window.performance.now() - t0
                     trace = self._trace_collector.build_trace(
-                        state_before, state_after, traced_calls, total_ms,
+                        state_before,
+                        state_after,
+                        traced_calls,
+                        total_ms,
                     )
                     self._trace_collector.store(trace)
                 except Exception:
@@ -1584,10 +1614,7 @@ class AIInterface:
             chat_input.value = self._last_user_message
             # Apply visual error feedback
             chat_input.classList.add("error-flash")
-            window.setTimeout(
-                lambda: chat_input.classList.remove("error-flash"),
-                2000
-            )
+            window.setTimeout(lambda: chat_input.classList.remove("error-flash"), 2000)
         except Exception as e:
             print(f"Error restoring user message: {e}")
 
@@ -1603,7 +1630,17 @@ class AIInterface:
             except Exception:
                 pass
             result = {}
-            for key in ["type", "text", "ai_message", "ai_tool_calls", "finish_reason", "error_details", "level", "message", "source"]:
+            for key in [
+                "type",
+                "text",
+                "ai_message",
+                "ai_tool_calls",
+                "finish_reason",
+                "error_details",
+                "level",
+                "message",
+                "source",
+            ]:
                 try:
                     result[key] = getattr(event_obj, key)
                 except Exception:
@@ -1643,7 +1680,7 @@ class AIInterface:
             sender_label = html.SPAN("System: ", Class="chat-sender system")
 
             # Check if message is long and needs expandable display
-            line_count = message.count('\n')
+            line_count = message.count("\n")
             is_long_message = len(message) > 800 or line_count > 20
 
             if is_long_message:
@@ -1687,11 +1724,11 @@ class AIInterface:
             A DOM element with expandable content
         """
         # Create preview (first ~500 chars or 10 lines)
-        lines = message.split('\n')
+        lines = message.split("\n")
         if len(lines) > 10:
-            preview_text = '\n'.join(lines[:10]) + '\n...'
+            preview_text = "\n".join(lines[:10]) + "\n..."
         elif len(message) > 500:
-            preview_text = message[:500] + '...'
+            preview_text = message[:500] + "..."
         else:
             preview_text = message
 
@@ -1739,12 +1776,13 @@ class AIInterface:
         Returns:
             Escaped text safe for HTML
         """
-        return (text
-            .replace("&", "&amp;")
+        return (
+            text.replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
             .replace('"', "&quot;")
-            .replace("'", "&#x27;"))
+            .replace("'", "&#x27;")
+        )
 
     def _debug_log_ai_response(self, ai_message: str, ai_function_calls: Any, finish_reason: str) -> None:
         """Log debug information about the AI response."""
@@ -1791,10 +1829,7 @@ class AIInterface:
             # Cancel any existing timeout first
             self._cancel_response_timeout()
             timeout_ms = self.REASONING_TIMEOUT_MS if use_reasoning_timeout else self.AI_RESPONSE_TIMEOUT_MS
-            self._response_timeout_id = window.setTimeout(
-                self._on_response_timeout,
-                timeout_ms
-            )
+            self._response_timeout_id = window.setTimeout(self._on_response_timeout, timeout_ms)
         except Exception as e:
             print(f"Error starting response timeout: {e}")
 
@@ -1824,7 +1859,7 @@ class AIInterface:
     def _abort_current_stream(self) -> None:
         """Abort the current streaming connection if one is active."""
         try:
-            if hasattr(window, 'abortCurrentStream'):
+            if hasattr(window, "abortCurrentStream"):
                 window.abortCurrentStream()
         except Exception as e:
             print(f"Error aborting stream: {e}")
@@ -1862,34 +1897,45 @@ class AIInterface:
         if finish_reason == "stop" or finish_reason == "error":
             self._print_ai_message_in_chat(ai_message)
             self._enable_send_controls()
-        else: # finish_reason == "tool_calls" or "function_call"
+        else:  # finish_reason == "tool_calls" or "function_call"
             state_before = self.canvas.get_canvas_state()
             t0 = window.performance.now()
             traced_calls: list[Dict[str, Any]] = []
             try:
                 call_results, traced_calls = ProcessFunctionCalls.get_results_traced(
-                    tool_calls, self.available_functions, self.undoable_functions, self.canvas,
+                    tool_calls,
+                    self.available_functions,
+                    self.undoable_functions,
+                    self.canvas,
                 )
                 self._store_results_in_canvas_state(call_results)
 
                 state_after = self.canvas.get_canvas_state()
                 total_ms = window.performance.now() - t0
                 trace = self._trace_collector.build_trace(
-                    state_before, state_after, traced_calls, total_ms,
+                    state_before,
+                    state_after,
+                    traced_calls,
+                    total_ms,
                 )
                 self._trace_collector.store(trace)
                 trace_summary = self._trace_collector.build_compact_summary(trace)
 
                 self._send_prompt_to_ai(
-                    None, json.dumps(call_results),
-                    canvas_state=state_after, action_trace=trace_summary,
+                    None,
+                    json.dumps(call_results),
+                    canvas_state=state_after,
+                    action_trace=trace_summary,
                 )
             except Exception as e:
                 try:
                     state_after = self.canvas.get_canvas_state()
                     total_ms = window.performance.now() - t0
                     trace = self._trace_collector.build_trace(
-                        state_before, state_after, traced_calls, total_ms,
+                        state_before,
+                        state_after,
+                        traced_calls,
+                        total_ms,
                     )
                     self._trace_collector.store(trace)
                 except Exception:
@@ -1908,17 +1954,17 @@ class AIInterface:
         try:
             if request.status == 200 or request.status == 0:
                 # Extract data from the proper response structure
-                response_data = request.json.get('data')
+                response_data = request.json.get("data")
                 if not response_data:
-                    error_msg = request.json.get('message', 'Invalid response format')
+                    error_msg = request.json.get("message", "Invalid response format")
                     print(f"Error: {error_msg}")
                     document["ai-response"].text = error_msg
                     self._enable_send_controls()
                     return
 
-                ai_message = response_data.get('ai_message')
-                ai_function_calls = response_data.get('ai_tool_calls')
-                finish_reason = response_data.get('finish_reason')
+                ai_message = response_data.get("ai_message")
+                ai_function_calls = response_data.get("ai_tool_calls")
+                finish_reason = response_data.get("finish_reason")
 
                 # Parse the AI's response and create / delete drawables as needed
                 self._process_ai_response(ai_message, ai_function_calls, finish_reason)
@@ -1936,13 +1982,13 @@ class AIInterface:
         action_trace: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Create the JSON payload for the request, optionally including SVG and Canvas2D state."""
-        payload: Dict[str, Any] = {'message': prompt}
+        payload: Dict[str, Any] = {"message": prompt}
         if action_trace is not None:
-            payload['action_trace'] = action_trace
+            payload["action_trace"] = action_trace
         vision_enabled = self._is_vision_enabled(prompt)
         renderer_mode = getattr(self.canvas, "renderer_mode", None)
         if isinstance(renderer_mode, str):
-            payload['renderer_mode'] = renderer_mode
+            payload["renderer_mode"] = renderer_mode
 
         svg_state_payload: Optional[Dict[str, Any]] = None
         if include_svg:
@@ -1952,15 +1998,12 @@ class AIInterface:
                 container = document["math-container"]
                 rect = container.getBoundingClientRect()
                 svg_state_payload = {
-                    'content': svg_content,
-                    'dimensions': {
-                        'width': rect.width,
-                        'height': rect.height
-                    },
-                    'viewBox': svg_element.getAttribute("viewBox"),
-                    'transform': svg_element.getAttribute("transform")
+                    "content": svg_content,
+                    "dimensions": {"width": rect.width, "height": rect.height},
+                    "viewBox": svg_element.getAttribute("viewBox"),
+                    "transform": svg_element.getAttribute("transform"),
                 }
-                payload['svg_state'] = svg_state_payload
+                payload["svg_state"] = svg_state_payload
             except Exception as exc:
                 print(f"Failed to collect SVG state: {exc}")
 
@@ -1969,17 +2012,17 @@ class AIInterface:
 
         snapshot: Dict[str, Any] = {}
         if isinstance(renderer_mode, str):
-            snapshot['renderer_mode'] = renderer_mode
+            snapshot["renderer_mode"] = renderer_mode
         if svg_state_payload:
-            snapshot['svg_state'] = svg_state_payload
+            snapshot["svg_state"] = svg_state_payload
 
         if renderer_mode == "canvas2d":
             canvas_image = self._capture_canvas2d_snapshot()
             if canvas_image:
-                snapshot['canvas_image'] = canvas_image
+                snapshot["canvas_image"] = canvas_image
 
         if snapshot:
-            payload['vision_snapshot'] = snapshot
+            payload["vision_snapshot"] = snapshot
 
         return payload
 
@@ -2012,10 +2055,10 @@ class AIInterface:
     def _make_request(self, payload: Dict[str, Any]) -> None:
         """Send an AJAX request with the given payload."""
         req = ajax.ajax()
-        req.bind('complete', self._on_complete)
-        req.bind('error', self._on_error)
-        req.open('POST', '/send_message', True)
-        req.set_header('content-type', 'application/json')
+        req.bind("complete", self._on_complete)
+        req.bind("error", self._on_error)
+        req.open("POST", "/send_message", True)
+        req.set_header("content-type", "application/json")
         req.send(json.dumps(payload))
 
     def _start_streaming_request(self, payload: Dict[str, Any]) -> None:
@@ -2032,7 +2075,7 @@ class AIInterface:
                 self._on_stream_final,
                 self._on_stream_error,
                 self._on_stream_reasoning,
-                self._on_stream_log
+                self._on_stream_log,
             )
         except Exception as e:
             print(f"Falling back to non-streaming request due to error: {e}")
@@ -2066,13 +2109,15 @@ class AIInterface:
             "user_message": user_message,
             "tool_call_results": tool_call_results,
             "use_vision": use_vision,
-            "ai_model": document["ai-model-selector"].value
+            "ai_model": document["ai-model-selector"].value,
         }
         # Include attached images if provided (works independently of vision toggle)
         if attached_images:
             prompt_json["attached_images"] = attached_images
         prompt = json.dumps(prompt_json)
-        print(f'Prompt for AI (stream): {prompt[:500]}...' if len(prompt) > 500 else f'Prompt for AI (stream): {prompt}')
+        print(
+            f"Prompt for AI (stream): {prompt[:500]}..." if len(prompt) > 500 else f"Prompt for AI (stream): {prompt}"
+        )
 
         # For new user messages, reset all state including containers and buffers
         # For tool call results, preserve everything to keep intermediary text visible
@@ -2117,7 +2162,7 @@ class AIInterface:
             "user_message": user_message,
             "tool_call_results": tool_call_results,
             "use_vision": use_vision,
-            "ai_model": document["ai-model-selector"].value
+            "ai_model": document["ai-model-selector"].value,
         }
 
         # Include attached images if provided (works independently of vision toggle)
@@ -2216,12 +2261,10 @@ class AIInterface:
             self._print_user_message_in_chat("Run tests (direct execution)")
 
             # Run tests asynchronously with stop callback
-            results = await self.run_tests_async(
-                should_stop=lambda: self._stop_tests_requested
-            )
+            results = await self.run_tests_async(should_stop=lambda: self._stop_tests_requested)
 
             # Check if tests were stopped
-            was_stopped = results.get('stopped', False)
+            was_stopped = results.get("stopped", False)
 
             if was_stopped:
                 summary = (
@@ -2239,14 +2282,14 @@ class AIInterface:
                     f"- **Errors:** {results.get('errors', 0)}\n"
                 )
 
-            if results.get('failing_tests'):
+            if results.get("failing_tests"):
                 summary += "\n#### Failures:\n"
-                for fail in results['failing_tests']:
+                for fail in results["failing_tests"]:
                     summary += f"- **{fail['test']}**: {fail['error']}\n"
 
-            if results.get('error_tests'):
+            if results.get("error_tests"):
                 summary += "\n#### Errors:\n"
-                for err in results['error_tests']:
+                for err in results["error_tests"]:
                     summary += f"- **{err['test']}**: {err['error']}\n"
 
             self._print_ai_message_in_chat(summary)
@@ -2278,7 +2321,7 @@ class AIInterface:
         if user_message or has_images:
             # Buffer message for recovery on error before clearing
             self._last_user_message = user_message
-            document["chat-input"].value = ''
+            document["chat-input"].value = ""
             self.send_user_message(user_message)
 
     def start_new_conversation(self, event: Any) -> None:
@@ -2294,6 +2337,6 @@ class AIInterface:
 
         # 4. Call the backend to reset the AI conversation state
         req = ajax.ajax()
-        req.open('POST', '/new_conversation', True)
-        req.set_header('content-type', 'application/json')
+        req.open("POST", "/new_conversation", True)
+        req.set_header("content-type", "application/json")
         req.send()

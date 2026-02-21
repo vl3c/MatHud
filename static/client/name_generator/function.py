@@ -44,10 +44,10 @@ class FunctionNameGenerator(NameGenerator):
         Returns:
             tuple: (prefix, number) where number is None if no suffix found
         """
-        match: Optional[re.Match[str]] = re.search(r'(?<=\w)(\d+)$', func_name)
+        match: Optional[re.Match[str]] = re.search(r"(?<=\w)(\d+)$", func_name)
         if match:
             number: int = int(match.group())
-            prefix: str = func_name[:match.start()]
+            prefix: str = func_name[: match.start()]
             return prefix, number
         return func_name, None
 
@@ -69,7 +69,7 @@ class FunctionNameGenerator(NameGenerator):
         if number is not None:
             return prefix + str(number + 1)
         else:
-            return func_name + '1'
+            return func_name + "1"
 
     def _try_function_name(self, letter: str, number: int, existing_names: List[str]) -> Optional[str]:
         """Try a function name with the given letter and number.
@@ -96,8 +96,8 @@ class FunctionNameGenerator(NameGenerator):
         Raises:
             ValueError: If all function names are somehow taken (highly unlikely)
         """
-        func_alphabet: str = 'fghijklmnopqrstuvwxyzabcde'
-        function_names: List[str] = self.get_drawable_names('Function')
+        func_alphabet: str = "fghijklmnopqrstuvwxyzabcde"
+        function_names: List[str] = self.get_drawable_names("Function")
 
         for number in count():
             for letter in func_alphabet:
@@ -116,9 +116,9 @@ class FunctionNameGenerator(NameGenerator):
         Returns:
             str: Function name without parentheses and arguments
         """
-        match: Optional[re.Match[str]] = re.search(r'(?<=\w)(?=\()', preferred_name)
+        match: Optional[re.Match[str]] = re.search(r"(?<=\w)(?=\()", preferred_name)
         if match:
-            return preferred_name[:match.start()]
+            return preferred_name[: match.start()]
         return preferred_name
 
     def _find_available_function_name(self, preferred_name: str, function_names: List[str]) -> str:
@@ -153,7 +153,7 @@ class FunctionNameGenerator(NameGenerator):
         if not preferred_name:
             return self._generate_unique_function_name()
 
-        function_names: List[str] = self.get_drawable_names('Function')
+        function_names: List[str] = self.get_drawable_names("Function")
 
         # Extract name before parenthesis if present
         clean_name: str = self._extract_function_name_before_parenthesis(preferred_name)
@@ -161,9 +161,7 @@ class FunctionNameGenerator(NameGenerator):
         # Find an available function name
         return self._find_available_function_name(clean_name, function_names)
 
-    def _try_parametric_function_name(
-        self, letter: str, number: int, existing_names: List[str]
-    ) -> Optional[str]:
+    def _try_parametric_function_name(self, letter: str, number: int, existing_names: List[str]) -> Optional[str]:
         """Try a parametric function name with the given letter and number.
 
         Args:
@@ -188,14 +186,12 @@ class FunctionNameGenerator(NameGenerator):
         Returns:
             Unique parametric function name
         """
-        func_alphabet: str = 'fghijklmnopqrstuvwxyzabcde'
-        parametric_names: List[str] = self.get_drawable_names('ParametricFunction')
+        func_alphabet: str = "fghijklmnopqrstuvwxyzabcde"
+        parametric_names: List[str] = self.get_drawable_names("ParametricFunction")
 
         for number in count():
             for letter in func_alphabet:
-                name: Optional[str] = self._try_parametric_function_name(
-                    letter, number, parametric_names
-                )
+                name: Optional[str] = self._try_parametric_function_name(letter, number, parametric_names)
                 if name:
                     return name
 
@@ -218,7 +214,7 @@ class FunctionNameGenerator(NameGenerator):
             return self._generate_unique_parametric_function_name()
 
         # If a preferred name is provided, check if it's available
-        parametric_names: List[str] = self.get_drawable_names('ParametricFunction')
+        parametric_names: List[str] = self.get_drawable_names("ParametricFunction")
 
         if preferred_name not in parametric_names:
             return preferred_name

@@ -15,19 +15,25 @@ import numpy as np
 def main() -> None:
     np.set_printoptions(linewidth=200, suppress=True)
 
-    a_matrix = np.array([
-        [42, -17, 63, -5],
-        [-28, 91, -74, 60],
-        [39, -56, 81, -13],
-        [22, -48, 9, 100],
-    ], dtype=float)
+    a_matrix = np.array(
+        [
+            [42, -17, 63, -5],
+            [-28, 91, -74, 60],
+            [39, -56, 81, -13],
+            [22, -48, 9, 100],
+        ],
+        dtype=float,
+    )
 
-    b_matrix = np.array([
-        [15, -88, 71, 20],
-        [-93, 7, -44, 55],
-        [61, -36, 29, 90],
-        [-14, 66, -53, 77],
-    ], dtype=float)
+    b_matrix = np.array(
+        [
+            [15, -88, 71, 20],
+            [-93, 7, -44, 55],
+            [61, -36, 29, 90],
+            [-14, 66, -53, 77],
+        ],
+        dtype=float,
+    )
 
     a_plus_b = a_matrix + b_matrix
     a_inverse = np.linalg.inv(a_matrix)
@@ -62,4 +68,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

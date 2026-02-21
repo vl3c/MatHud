@@ -222,6 +222,7 @@ class TriangleCanonicalizer:
     @staticmethod
     def _order_ccw(points: Sequence[PointTuple]) -> List[PointTuple]:
         centroid = TriangleCanonicalizer._compute_centroid(points)
+
         def angle(point: PointTuple) -> float:
             return math.atan2(point[1] - centroid[1], point[0] - centroid[0])
 
@@ -318,6 +319,3 @@ def canonicalize_triangle(
 
 
 __all__ = ["TriangleCanonicalizer", "canonicalize_triangle"]
-
-
-

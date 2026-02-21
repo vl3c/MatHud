@@ -56,6 +56,7 @@ class MathUtils:
     Class Attributes:
         EPSILON (float): Global tolerance constant (1e-9) for floating-point comparisons
     """
+
     # Epsilon (tolerance)
     EPSILON = 1e-9
     MAX_SERIES_TERMS = 1000
@@ -83,22 +84,22 @@ class MathUtils:
         if n == 0:
             return "0"
         # Use scientific notation for very large or very small numbers but not zero
-        elif abs(n) >= 10**max_digits or (abs(n) < 10**(-max_digits + 1)):
+        elif abs(n) >= 10**max_digits or (abs(n) < 10 ** (-max_digits + 1)):
             formatted_number = f"{n:.1e}"
         else:
             formatted_number = f"{n:.{max_digits}g}"
         # Process scientific notation to adjust exponent formatting
-        if 'e' in formatted_number:
-            base, exponent = formatted_number.split('e')
-            base = base.rstrip('0').rstrip('.')
+        if "e" in formatted_number:
+            base, exponent = formatted_number.split("e")
+            base = base.rstrip("0").rstrip(".")
             # Fix handling for exponent sign
-            sign = exponent[0] if exponent.startswith('-') else '+'
-            exponent_number = exponent.lstrip('+').lstrip('-').lstrip('0') or '0'
+            sign = exponent[0] if exponent.startswith("-") else "+"
+            exponent_number = exponent.lstrip("+").lstrip("-").lstrip("0") or "0"
             formatted_number = f"{base}e{sign}{exponent_number}"
         else:
             # Truncate to max_digits significant digits for non-scientific notation
-            if '.' in formatted_number:
-                formatted_number = formatted_number[:formatted_number.find('.') + max_digits]
+            if "." in formatted_number:
+                formatted_number = formatted_number[: formatted_number.find(".") + max_digits]
         return formatted_number
 
     @staticmethod
@@ -144,8 +145,12 @@ class MathUtils:
         Returns:
             bool: True if segment endpoints match coordinates (in either order), False otherwise
         """
-        first_direction_match = MathUtils.point_matches_coordinates(segment.point1, x1, y1) and MathUtils.point_matches_coordinates(segment.point2, x2, y2)
-        second_direction_match = MathUtils.point_matches_coordinates(segment.point1, x2, y2) and MathUtils.point_matches_coordinates(segment.point2, x1, y1)
+        first_direction_match = MathUtils.point_matches_coordinates(
+            segment.point1, x1, y1
+        ) and MathUtils.point_matches_coordinates(segment.point2, x2, y2)
+        second_direction_match = MathUtils.point_matches_coordinates(
+            segment.point1, x2, y2
+        ) and MathUtils.point_matches_coordinates(segment.point2, x1, y1)
         return bool(first_direction_match or second_direction_match)
 
     @staticmethod
@@ -330,13 +335,14 @@ class MathUtils:
         # Check if point is on the line defined by the segment
         # Using the cross product approach to check if three points are collinear
         from drawables.point import Position
+
         origin = Position(sp1x, sp1y)
         p1 = Position(sp2x, sp2y)
         p2 = Position(px, py)
         cross_product = MathUtils.cross_product(origin, p1, p2)
 
         # Calculate segment length for a better threshold
-        segment_length = math.sqrt((sp2x - sp1x)**2 + (sp2y - sp1y)**2)
+        segment_length = math.sqrt((sp2x - sp1x) ** 2 + (sp2y - sp1y) ** 2)
 
         # Calculate a threshold as a proportion of the segment length
         # This makes it work well for both small and large coordinate values
@@ -790,6 +796,7 @@ class MathUtils:
         y4: Number,
     ) -> bool:  # points must be in clockwise or counterclockwise order
         from drawables.point import Position
+
         points = [Position(x, y) for x, y in [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]]
 
         # Check for duplicate points with tolerance
@@ -800,7 +807,9 @@ class MathUtils:
                     return False
 
         # Calculate all pairwise distances
-        distances = [MathUtils.get_2D_distance(p1, p2) for i, p1 in enumerate(points) for j, p2 in enumerate(points) if i < j]
+        distances = [
+            MathUtils.get_2D_distance(p1, p2) for i, p1 in enumerate(points) for j, p2 in enumerate(points) if i < j
+        ]
 
         # Group similar distances using tolerance
         grouped_distances: List[List[float]] = []
@@ -836,7 +845,6 @@ class MathUtils:
 
         return True
 
-
     # DEPRECATED BUT FASTER
     @staticmethod
     def evaluate_expression_using_python(expression: str) -> float:
@@ -851,6 +859,7 @@ class MathUtils:
             float: Result of evaluating expression at x=0
         """
         from expression_validator import ExpressionValidator
+
         result = ExpressionValidator.parse_function_string(expression)(0)
         return float(result)
 
@@ -982,12 +991,13 @@ class MathUtils:
         Returns:
             String representation of the ellipse formula
         """
+
         def fmt_num(n: Any) -> str:
             try:
                 n_float = float(n)
                 if n_float.is_integer():
                     return str(int(n_float))
-                return str(n_float).rstrip('0').rstrip('.')
+                return str(n_float).rstrip("0").rstrip(".")
             except Exception:
                 return str(n)
 
@@ -1003,9 +1013,9 @@ class MathUtils:
             sin_a = math.sin(angle_rad)
 
             # Calculate coefficients for the rotated ellipse equation
-            A = (cos_a**2/rx**2) + (sin_a**2/ry**2)
-            B = 2*cos_a*sin_a*(1/rx**2 - 1/ry**2)
-            C = (sin_a**2/rx**2) + (cos_a**2/ry**2)
+            A = (cos_a**2 / rx**2) + (sin_a**2 / ry**2)
+            B = 2 * cos_a * sin_a * (1 / rx**2 - 1 / ry**2)
+            C = (sin_a**2 / rx**2) + (cos_a**2 / ry**2)
 
             # Format coefficients to 4 decimal places for readability
             A = round(A, 4)
@@ -1057,10 +1067,22 @@ class MathUtils:
 
     # Number theory functions that require Python evaluation (not available in Math.js)
     _PYTHON_ONLY_FUNCTIONS = {
-        'is_prime', 'prime_factors', 'mod_pow', 'mod_inverse',
-        'next_prime', 'prev_prime', 'totient', 'divisors',
-        'summation', 'product', 'arithmetic_sum', 'geometric_sum',
-        'geometric_sum_infinite', 'ratio_test', 'root_test', 'p_series_test'
+        "is_prime",
+        "prime_factors",
+        "mod_pow",
+        "mod_inverse",
+        "next_prime",
+        "prev_prime",
+        "totient",
+        "divisors",
+        "summation",
+        "product",
+        "arithmetic_sum",
+        "geometric_sum",
+        "geometric_sum_infinite",
+        "ratio_test",
+        "root_test",
+        "p_series_test",
     }
 
     @staticmethod
@@ -1080,6 +1102,7 @@ class MathUtils:
         """
         try:
             from expression_validator import ExpressionValidator
+
             js_expression = ExpressionValidator.fix_math_expression(expression, python_compatible=False)
             python_expression = ExpressionValidator.fix_math_expression(expression, python_compatible=True)
             ExpressionValidator.validate_expression_tree(python_expression)
@@ -1087,7 +1110,9 @@ class MathUtils:
             # Check if expression contains Python-only functions (number theory)
             if any(func in expression for func in MathUtils._PYTHON_ONLY_FUNCTIONS):
                 # Use Python evaluation for number theory functions
-                result = ExpressionValidator.evaluate_expression(python_expression, variables.get('x', 0) if variables else 0)
+                result = ExpressionValidator.evaluate_expression(
+                    python_expression, variables.get("x", 0) if variables else 0
+                )
                 # Preserve boolean and list types for better display
                 if isinstance(result, bool):
                     return "True" if result else "False"
@@ -1105,10 +1130,15 @@ class MathUtils:
             converted_result = MathUtils.try_convert_to_number(result)
 
             # Check for division by zero
-            if "lim" not in expression and "limit" not in expression and \
-                (converted_result == float('-inf') or \
-                 converted_result == float('inf') or \
-                    str(converted_result).lower() in ['-inf', 'inf', 'infinity', '-infinity']):
+            if (
+                "lim" not in expression
+                and "limit" not in expression
+                and (
+                    converted_result == float("-inf")
+                    or converted_result == float("inf")
+                    or str(converted_result).lower() in ["-inf", "inf", "infinity", "-infinity"]
+                )
+            ):
                 raise ZeroDivisionError()
 
             return converted_result
@@ -1152,11 +1182,11 @@ class MathUtils:
             str: Limit result as string or error message
         """
         try:
-            value_to_approach = str(value_to_approach).lower().replace(' ', '')
-            if value_to_approach in ['inf', 'infinity']:
-                value_to_approach = 'Infinity'
-            elif value_to_approach in ['-inf', '-infinity']:
-                value_to_approach = '-Infinity'
+            value_to_approach = str(value_to_approach).lower().replace(" ", "")
+            if value_to_approach in ["inf", "infinity"]:
+                value_to_approach = "Infinity"
+            elif value_to_approach in ["-inf", "-infinity"]:
+                value_to_approach = "-Infinity"
             return str(window.nerdamer(f"limit({expression}, {variable}, {value_to_approach})").text())
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
@@ -1225,9 +1255,7 @@ class MathUtils:
         if steps <= 0:
             raise ValueError("steps must be positive")
         if steps > MathUtils.MAX_NUMERIC_INTEGRATION_STEPS:
-            raise ValueError(
-                f"steps cannot exceed {MathUtils.MAX_NUMERIC_INTEGRATION_STEPS}"
-            )
+            raise ValueError(f"steps cannot exceed {MathUtils.MAX_NUMERIC_INTEGRATION_STEPS}")
 
         expr = window.nerdamer(expression)
 
@@ -1304,26 +1332,27 @@ class MathUtils:
     @staticmethod
     def get_equation_type(equation: str) -> str:
         import re
+
         try:
             # Preprocess the equation by expanding it to eliminate parentheses
             expanded_equation = MathUtils.expand(equation)
             # Remove whitespaces for easier processing
-            expanded_equation = expanded_equation.replace(' ', '')
+            expanded_equation = expanded_equation.replace(" ", "")
 
             # Split into left and right sides if equation contains =
-            if '=' in expanded_equation:
-                left, right = expanded_equation.split('=')
+            if "=" in expanded_equation:
+                left, right = expanded_equation.split("=")
                 # If one side is just 'y', use the other side for analysis
-                if left.strip() == 'y':
+                if left.strip() == "y":
                     expanded_equation = right
-                elif right.strip() == 'y':
+                elif right.strip() == "y":
                     expanded_equation = left
 
             # Check for higher order equations (power >= 5)
             # Pattern: x^5, y^6, z^10, etc.
             # Matches: 'x^5', 'y^9', 'x^10', 'y^123'
             # Does not match: 'x^2', 'x^3', 'x^4'
-            higher_order_match = re.search(r'\b[a-zA-Z]\^([5-9]|\d{2,})\b', expanded_equation)
+            higher_order_match = re.search(r"\b[a-zA-Z]\^([5-9]|\d{2,})\b", expanded_equation)
             if higher_order_match:
                 power = higher_order_match.group(1)
                 return f"Order {power}"
@@ -1331,13 +1360,13 @@ class MathUtils:
             # Check for multiple variables
             # Pattern: any letters a-z or A-Z
             # Matches: 'x', 'y', 'X', 'Y'
-            set(re.findall(r'[a-zA-Z]', expanded_equation))
+            set(re.findall(r"[a-zA-Z]", expanded_equation))
 
             # Check for trigonometric equations
             # Pattern: trig function followed by parentheses and content
             # Matches: 'sin(x)', 'cos(2x)', 'tan(x+y)'
             # Does not match: 'sin', 'cos x', 'tan[x]'
-            trigonometric_match = re.search(r'\b(sin|cos|tan|csc|sec|cot)\s*\(([^)]+)\)', expanded_equation)
+            trigonometric_match = re.search(r"\b(sin|cos|tan|csc|sec|cot)\s*\(([^)]+)\)", expanded_equation)
             if trigonometric_match:
                 return "Trigonometric"
 
@@ -1347,14 +1376,14 @@ class MathUtils:
             # Does not match: 'x+y', 'x-y'
             # Note: Only check for variable products, not just multiple variables
             # (linear equations like x + y = 4 should not be flagged as non-linear)
-            if re.search(r'[a-zA-Z]\s*[*]?\s*[a-zA-Z]', expanded_equation):
+            if re.search(r"[a-zA-Z]\s*[*]?\s*[a-zA-Z]", expanded_equation):
                 return "Other Non-linear"
 
             # Check for quartic equations
             # Pattern: letter followed by ^4
             # Matches: 'x^4', 'y^4'
             # Does not match: 'x^2', 'x^5', 'x4'
-            quartic_match = re.search(r'\b[a-zA-Z]\^4\b', expanded_equation)
+            quartic_match = re.search(r"\b[a-zA-Z]\^4\b", expanded_equation)
             if quartic_match:
                 return "Quartic"
 
@@ -1362,7 +1391,7 @@ class MathUtils:
             # Pattern: letter followed by ^3
             # Matches: 'x^3', 'y^3'
             # Does not match: 'x^2', 'x^4', 'x3'
-            cubic_match = re.search(r'\b[a-zA-Z]\^3\b', expanded_equation)
+            cubic_match = re.search(r"\b[a-zA-Z]\^3\b", expanded_equation)
             if cubic_match:
                 return "Cubic"
 
@@ -1370,7 +1399,7 @@ class MathUtils:
             # Pattern: letter followed by ^2
             # Matches: 'x^2', 'y^2'
             # Does not match: 'x^3', 'x2', 'x^'
-            quadratic_match = re.search(r'\b[a-zA-Z]\^2\b', expanded_equation)
+            quadratic_match = re.search(r"\b[a-zA-Z]\^2\b", expanded_equation)
             if quadratic_match:
                 return "Quadratic"
 
@@ -1378,7 +1407,7 @@ class MathUtils:
             # Pattern: single letter
             # Matches: 'x', 'y' (when not part of another term)
             # Does not match: 'x^2', 'xy', '2'
-            linear_match = re.search(r'\b[a-zA-Z]\b', expanded_equation)
+            linear_match = re.search(r"\b[a-zA-Z]\b", expanded_equation)
             if linear_match:
                 return "Linear"
 
@@ -1400,12 +1429,7 @@ class MathUtils:
             equation_types = [MathUtils.get_equation_type(eq) for eq in equations]
 
             # Create a dictionary mapping equation types to their degrees
-            type_to_degree = {
-                "Linear": 1,
-                "Quadratic": 2,
-                "Cubic": 3,
-                "Quartic": 4
-            }
+            type_to_degree = {"Linear": 1, "Quadratic": 2, "Cubic": 3, "Quartic": 4}
 
             # If any equation type is unknown, trigonometric, or contains 'Error'
             if any(t in ["Unknown", "Trigonometric"] or "Error" in t for t in equation_types):
@@ -1465,13 +1489,13 @@ class MathUtils:
 
             print(f"Attempting to solve a system of linear equations: {equations}")
             # Use nerdamer to solve the system of equations
-            solutions = window.nerdamer.solveEquations(equations) # returns [['x', 3], ['y', 1]]
+            solutions = window.nerdamer.solveEquations(equations)  # returns [['x', 3], ['y', 1]]
             print(f"Solutions: {solutions}")
             # Prepare the solution dictionary
             solution_dict = {sol[0]: sol[1] for sol in solutions}
             # Convert solution_dict to string format
             solution_strings = [f"{k} = {v}" for k, v in solution_dict.items()]
-            return ', '.join(solution_strings)
+            return ", ".join(solution_strings)
         except ValueError as ve:
             raise ve
         except Exception as e:
@@ -1488,15 +1512,16 @@ class MathUtils:
             print(f"Attempting to solve a system of linear and quadratic equations: {equations}")
 
             from expression_validator import ExpressionValidator
+
             eq1 = MathUtils.expand(equations[0])
             eq1 = ExpressionValidator.fix_math_expression(eq1, python_compatible=False)
             # Split by '=' to separate the left and right sides of the equation and take the side containing the variable
-            eq1 = eq1.split('=')[0] if 'x' in eq1.split('=')[0] else eq1.split('=')[1]
+            eq1 = eq1.split("=")[0] if "x" in eq1.split("=")[0] else eq1.split("=")[1]
 
             eq2 = MathUtils.expand(equations[1])
             eq2 = ExpressionValidator.fix_math_expression(eq2, python_compatible=False)
             # Split by '=' to separate the left and right sides of the equation and take the side containing the variable
-            eq2 = eq2.split('=')[0] if 'x' in eq2.split('=')[0] else eq2.split('=')[1]
+            eq2 = eq2.split("=")[0] if "x" in eq2.split("=")[0] else eq2.split("=")[1]
 
             linear, quadratic = (eq1, eq2) if "^2" in eq2 else (eq2, eq1)
 
@@ -1504,44 +1529,46 @@ class MathUtils:
             system_eq = MathUtils.expand(system_eq)
 
             # Extract m, n = coefficients of the linear equation (assuming y = mx + n form)
-            lin_coeffs_str = window.nerdamer.coeffs(linear, 'x').text() # The coefficients are placed in the index of their power. So constants are in the 0th place, x^2 would be in the 2nd place, etc.
+            lin_coeffs_str = window.nerdamer.coeffs(
+                linear, "x"
+            ).text()  # The coefficients are placed in the index of their power. So constants are in the 0th place, x^2 would be in the 2nd place, etc.
             lin_coeffs = literal_eval(lin_coeffs_str)
             m, n = lin_coeffs[1], lin_coeffs[0]
 
             # Extract a, b, c = coefficients of system equation
-            quadratic_coeffs_str = window.nerdamer.coeffs(system_eq, 'x').text()
+            quadratic_coeffs_str = window.nerdamer.coeffs(system_eq, "x").text()
             quadratic_coeffs = literal_eval(quadratic_coeffs_str)
             a, b, c = quadratic_coeffs[2], quadratic_coeffs[1], quadratic_coeffs[0]
 
             # Solve the quadratic equation of the system
-            discriminant = b**2 - 4*a*c
+            discriminant = b**2 - 4 * a * c
             if discriminant < 0:
                 raise ValueError(f"No real solution for the quadratic equation {quadratic}.")
 
-            x1 = (-b + math.sqrt(discriminant)) / (2*a)
-            x2 = (-b - math.sqrt(discriminant)) / (2*a)
+            x1 = (-b + math.sqrt(discriminant)) / (2 * a)
+            x2 = (-b - math.sqrt(discriminant)) / (2 * a)
 
             # If the linear equation is not directly in terms of y, adjust accordingly
-            y1 = m*x1 + n
-            y2 = m*x2 + n
+            y1 = m * x1 + n
+            y2 = m * x2 + n
 
             # Format solutions
             solutions = []
             if discriminant > 0:  # Two solutions
-                solutions.append(('x1', x1))
-                solutions.append(('y1', y1))
-                solutions.append(('x2', x2))
-                solutions.append(('y2', y2))
+                solutions.append(("x1", x1))
+                solutions.append(("y1", y1))
+                solutions.append(("x2", x2))
+                solutions.append(("y2", y2))
             elif discriminant == 0:  # One solution
-                solutions.append(('x', x1))
-                solutions.append(('y', y1))
+                solutions.append(("x", x1))
+                solutions.append(("y", y1))
 
             # Prepare the solution dictionary (assuming a single solution format for simplification)
             solution_dict = {sol[0]: sol[1] for sol in solutions}
 
             # Convert solution_dict to string format
             solution_strings = [f"{k} = {v}" for k, v in solution_dict.items()]
-            return ', '.join(solution_strings)
+            return ", ".join(solution_strings)
 
         except ValueError as ve:
             raise ve
@@ -1561,7 +1588,7 @@ class MathUtils:
             for equation in equations:
                 eq = MathUtils.expand(equation)
                 eq = ExpressionValidator.fix_math_expression(eq, python_compatible=False)
-                eq = eq.split('=')[0] if 'x' in eq.split('=')[0] else eq.split('=')[1]
+                eq = eq.split("=")[0] if "x" in eq.split("=")[0] else eq.split("=")[1]
                 eqs.append(eq)
 
             # Construct the system equation by setting the equations equal to each other
@@ -1569,37 +1596,35 @@ class MathUtils:
             system_eq = MathUtils.expand(system_eq)
 
             # Use nerdamer to solve the system equation for x
-            x_solutions_raw = MathUtils.solve(system_eq, 'x')
+            x_solutions_raw = MathUtils.solve(system_eq, "x")
             x_solutions_data = json.loads(x_solutions_raw)
             x_solutions = [float(r) for r in x_solutions_data]
 
             solution_dict = {}
             for x_solution in x_solutions:
                 # Substitute x_solution into both original equations to find y
-                y_equation1 = eqs[0].replace('x', f"({x_solution})")
-                y_equation2 = eqs[1].replace('x', f"({x_solution})")
+                y_equation1 = eqs[0].replace("x", f"({x_solution})")
+                y_equation2 = eqs[1].replace("x", f"({x_solution})")
 
-                if 'y' not in y_equation1:
-                    y_equation1 += ' = y'
-                if 'y' not in y_equation2:
-                    y_equation2 += ' = y'
+                if "y" not in y_equation1:
+                    y_equation1 += " = y"
+                if "y" not in y_equation2:
+                    y_equation2 += " = y"
 
-                y1_raw = MathUtils.solve(y_equation1, 'y')
-                y2_raw = MathUtils.solve(y_equation2, 'y')
+                y1_raw = MathUtils.solve(y_equation1, "y")
+                y2_raw = MathUtils.solve(y_equation2, "y")
 
                 y1_value: Optional[float] = float(json.loads(y1_raw)[0]) if y1_raw else None
                 y2_value: Optional[float] = float(json.loads(y2_raw)[0]) if y2_raw else None
 
-                print(
-                    f"Solving for x = {x_solution}: {y_equation1} = {y1_value}, {y_equation2} = {y2_value}"
-                )
+                print(f"Solving for x = {x_solution}: {y_equation1} = {y1_value}, {y_equation2} = {y2_value}")
 
                 if y1_value is not None and y2_value is not None and y1_value == y2_value:
                     solution_dict[x_solution] = y1_value
 
             solution_strings = [f"(x = {k}, y = {v})" for k, v in solution_dict.items()]
             print(f"Solutions found: {solution_strings}")
-            return ', '.join(solution_strings)
+            return ", ".join(solution_strings)
 
         except ValueError as ve:
             raise ve
@@ -1612,13 +1637,14 @@ class MathUtils:
             raise ValueError("Invalid input for equations. Expected a list of equations.")
         try:
             # Split single equation strings into two equations
-            if len(equations) == 1 and 'x' in equations[0] and '=' in equations[0]:
-                eq1, eq2 = equations[0].split('=')
+            if len(equations) == 1 and "x" in equations[0] and "=" in equations[0]:
+                eq1, eq2 = equations[0].split("=")
                 eq1 += "= y"
                 eq2 += "= y"
                 equations = [eq1, eq2]
 
             from expression_validator import ExpressionValidator
+
             equations = [ExpressionValidator.fix_math_expression(eq, python_compatible=False) for eq in equations]
 
             max_solutions_of_system = MathUtils.determine_max_number_of_solutions(equations)
@@ -1651,7 +1677,7 @@ class MathUtils:
                 try:
                     solutions = window.nerdamer.solveEquations(equations)
                     solution_strings = [f"{solution[0]} = {solution[1]}" for solution in solutions]
-                    return ', '.join(solution_strings)
+                    return ", ".join(solution_strings)
                 except Exception as e:
                     print(f"Nerdamer failed ({e}), falling back to numeric solver")
                     return MathUtils.solve_numeric(equations)
@@ -1683,6 +1709,7 @@ class MathUtils:
             JSON string with solutions, variables, and method information.
         """
         from numeric_solver import solve_numeric as _solve_numeric
+
         return str(_solve_numeric(equations, variables, initial_guesses, tolerance, max_iterations))
 
     @staticmethod
@@ -1820,6 +1847,7 @@ class MathUtils:
         a, mod = int(a), int(mod)
         if mod <= 0:
             raise ValueError("mod_inverse requires a positive modulus")
+
         # Extended Euclidean Algorithm
         def extended_gcd(a: int, b: int) -> Tuple[int, int, int]:
             if a == 0:
@@ -1977,9 +2005,7 @@ class MathUtils:
             return "0"
         term_count = end - start + 1
         if term_count > MathUtils.MAX_SERIES_TERMS:
-            raise ValueError(
-                f"summation supports at most {MathUtils.MAX_SERIES_TERMS} terms"
-            )
+            raise ValueError(f"summation supports at most {MathUtils.MAX_SERIES_TERMS} terms")
         total = 0.0
         for i in range(start, end + 1):
             value = float(window.nerdamer(expression).sub(variable, i).evaluate().text())
@@ -2013,9 +2039,7 @@ class MathUtils:
             return "1"
         term_count = end - start + 1
         if term_count > MathUtils.MAX_SERIES_TERMS:
-            raise ValueError(
-                f"product supports at most {MathUtils.MAX_SERIES_TERMS} terms"
-            )
+            raise ValueError(f"product supports at most {MathUtils.MAX_SERIES_TERMS} terms")
         total = 1.0
         for i in range(start, end + 1):
             value = float(window.nerdamer(expression).sub(variable, i).evaluate().text())
@@ -2080,7 +2104,7 @@ class MathUtils:
             raise ValueError("Number of terms must be at least 1")
         if ratio == 1:
             return first * n
-        result = first * (1 - ratio ** n) / (1 - ratio)
+        result = first * (1 - ratio**n) / (1 - ratio)
         # Return integer if it's a whole number
         if result == int(result):
             return int(result)
@@ -2326,33 +2350,33 @@ class MathUtils:
         vertical_asymptotes: List[float] = []
 
         # For logarithmic functions
-        if 'log' in function_string:
+        if "log" in function_string:
             vertical_asymptotes.append(0.0)
 
         # For rational functions
-        if '/' in function_string:
-            denominator = function_string.split('/')[-1].strip()
+        if "/" in function_string:
+            denominator = function_string.split("/")[-1].strip()
             try:
                 # Try to solve denominator = 0
-                zeros = json.loads(MathUtils.solve(denominator, 'x'))
+                zeros = json.loads(MathUtils.solve(denominator, "x"))
                 vertical_asymptotes.extend(float(x) for x in zeros)
             except:
                 pass
 
         # For tangent functions
-        if 'tan' in function_string:
+        if "tan" in function_string:
             # Find all tangent terms in the function
-            tan_matches = re.findall(r'tan\((.*?)(?:\)|$)', function_string)
+            tan_matches = re.findall(r"tan\((.*?)(?:\)|$)", function_string)
             for tan_arg in tan_matches:
                 coeff = 1.0
                 # Check for x/divisor pattern first (e.g., x/100)
-                div_match = re.search(r'x\s*/\s*(\d+\.?\d*)', tan_arg)
+                div_match = re.search(r"x\s*/\s*(\d+\.?\d*)", tan_arg)
                 if div_match:
                     divisor = float(div_match.group(1))
                     coeff = 1.0 / divisor if divisor != 0 else 1.0
                 else:
                     # Check for coefficient*x pattern (e.g., 2*x or 2x)
-                    coeff_match = re.search(r'([+-]?\d+\.?\d*)\s*\*?\s*x', tan_arg)
+                    coeff_match = re.search(r"([+-]?\d+\.?\d*)\s*\*?\s*x", tan_arg)
                     if coeff_match:
                         coeff = float(coeff_match.group(1))
 
@@ -2364,7 +2388,7 @@ class MathUtils:
                 # Asymptotes occur at x = (pi/2 + n*pi)/coeff
                 n = math.floor(left * coeff / math.pi - 0.5)
                 while True:
-                    x = (math.pi/2 + n*math.pi) / coeff
+                    x = (math.pi / 2 + n * math.pi) / coeff
                     if x > right:
                         break
                     if x >= left:
@@ -2384,7 +2408,7 @@ class MathUtils:
 
         try:
             # Check limit as x approaches infinity
-            limit_inf = float(MathUtils.limit(function_string, 'x', 'inf'))
+            limit_inf = float(MathUtils.limit(function_string, "x", "inf"))
             if not math.isinf(limit_inf) and not math.isnan(limit_inf):
                 horizontal_asymptotes.append(limit_inf)
         except:
@@ -2392,7 +2416,7 @@ class MathUtils:
 
         try:
             # Check limit as x approaches negative infinity
-            limit_neg_inf = float(MathUtils.limit(function_string, 'x', '-inf'))
+            limit_neg_inf = float(MathUtils.limit(function_string, "x", "-inf"))
             if not math.isinf(limit_neg_inf) and not math.isnan(limit_neg_inf):
                 horizontal_asymptotes.append(limit_neg_inf)
         except:
@@ -2432,20 +2456,20 @@ class MathUtils:
 
         # For piecewise functions (indicated by presence of conditional operators)
         # Match both Python-style (if/else) and mathematical notation (<, >, etc.)
-        if any(op in function_string for op in ['if', 'else', '<', '>', '<=', '>=', '==']):
+        if any(op in function_string for op in ["if", "else", "<", ">", "<=", ">=", "=="]):
             # Extract transition points from conditions
             # Handle both styles of conditions
             condition_patterns = [
-                r'(?:<=|>=|<|>|==)\s*(-?\d*\.?\d+)',  # Mathematical notation
-                r'if\s+x\s*(?:<=|>=|<|>|==)\s*(-?\d*\.?\d+)',  # Python if notation
-                r'(?:<=|>=|<|>|==)\s*x\s*(?:<=|>=|<|>|==)\s*(-?\d*\.?\d+)'  # Double conditions
+                r"(?:<=|>=|<|>|==)\s*(-?\d*\.?\d+)",  # Mathematical notation
+                r"if\s+x\s*(?:<=|>=|<|>|==)\s*(-?\d*\.?\d+)",  # Python if notation
+                r"(?:<=|>=|<|>|==)\s*x\s*(?:<=|>=|<|>|==)\s*(-?\d*\.?\d+)",  # Double conditions
             ]
             for pattern in condition_patterns:
                 matches = re.findall(pattern, function_string)
                 point_discontinuities_set.update(float(x) for x in matches)
 
         # For floor and ceil functions
-        if 'floor' in function_string or 'ceil' in function_string:
+        if "floor" in function_string or "ceil" in function_string:
             # If bounds are provided, check each integer within bounds
             if left_bound is not None and right_bound is not None:
                 left = math.ceil(left_bound)
@@ -2453,14 +2477,14 @@ class MathUtils:
                 point_discontinuities_set.update(range(left, right + 1))
 
         # For absolute value function at its corners
-        if 'abs' in function_string:
+        if "abs" in function_string:
             # Extract all arguments of abs functions
-            abs_pattern = r'abs\((.*?)\)'
+            abs_pattern = r"abs\((.*?)\)"
             matches = re.findall(abs_pattern, function_string)
             for match in matches:
                 try:
                     # Try to solve the argument = 0 to find the corner point
-                    zeros = json.loads(MathUtils.solve(match, 'x'))
+                    zeros = json.loads(MathUtils.solve(match, "x"))
                     point_discontinuities_set.update(float(x) for x in zeros)
                 except:
                     pass
@@ -2548,12 +2572,10 @@ class MathUtils:
         # Sort by a combination of factors that make good rectangle diagonals:
         # 1. Prefer more balanced rectangles (closer dx/dy ratio to 1.0)
         # 2. Then by distance as secondary criterion
-        def diagonal_score(
-            diag_info: Tuple[PointLike, PointLike, float, float, float]
-        ) -> Tuple[float, float]:
+        def diagonal_score(diag_info: Tuple[PointLike, PointLike, float, float, float]) -> Tuple[float, float]:
             p1, p2, distance, dx, dy = diag_info
             # Calculate how balanced the rectangle would be (closer to 1.0 is better)
-            aspect_ratio = max(dx, dy) / min(dx, dy) if min(dx, dy) > 0 else float('inf')
+            aspect_ratio = max(dx, dy) / min(dx, dy) if min(dx, dy) > 0 else float("inf")
             balance_score = 1.0 / aspect_ratio  # Higher score for more balanced rectangles
             # Return tuple for sorting: (balance_score descending, distance descending)
             return (-balance_score, -distance)
@@ -2634,10 +2656,7 @@ class MathUtils:
                 y_left = eval_func(seg_left)
                 y_mid = eval_func(seg_mid)
                 y_right = eval_func(seg_right)
-                if not all(
-                    isinstance(v, (int, float)) and math.isfinite(v)
-                    for v in [y_left, y_mid, y_right]
-                ):
+                if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in [y_left, y_mid, y_right]):
                     continue
                 expected_mid = (y_left + y_right) / 2
                 deviation = abs(y_mid - expected_mid)
@@ -2714,7 +2733,7 @@ class MathUtils:
             return (px, py - half_length), (px, py + half_length)
 
         # Calculate dx from: length/2 = sqrt(dx^2 + (slope*dx)^2) = dx * sqrt(1 + slope^2)
-        dx = half_length / math.sqrt(1 + slope ** 2)
+        dx = half_length / math.sqrt(1 + slope**2)
         dy = slope * dx
 
         return (px - dx, py - dy), (px + dx, py + dy)
@@ -2836,9 +2855,12 @@ class MathUtils:
 
     @staticmethod
     def perpendicular_foot(
-        px: float, py: float,
-        x1: float, y1: float,
-        x2: float, y2: float,
+        px: float,
+        py: float,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
     ) -> Tuple[float, float]:
         """Project a point onto a line defined by two points.
 
@@ -2876,9 +2898,12 @@ class MathUtils:
 
     @staticmethod
     def angle_bisector_direction(
-        vx: float, vy: float,
-        p1x: float, p1y: float,
-        p2x: float, p2y: float,
+        vx: float,
+        vy: float,
+        p1x: float,
+        p1y: float,
+        p2x: float,
+        p2y: float,
     ) -> Tuple[float, float]:
         """Compute the unit vector along the angle bisector.
 
@@ -2937,9 +2962,12 @@ class MathUtils:
 
     @staticmethod
     def circumcenter(
-        x1: float, y1: float,
-        x2: float, y2: float,
-        x3: float, y3: float,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        x3: float,
+        y3: float,
     ) -> Tuple[float, float, float]:
         """Compute the circumcenter and circumradius of a triangle.
 
@@ -2978,9 +3006,12 @@ class MathUtils:
 
     @staticmethod
     def incenter_and_inradius(
-        x1: float, y1: float,
-        x2: float, y2: float,
-        x3: float, y3: float,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        x3: float,
+        y3: float,
     ) -> Tuple[float, float, float]:
         """Compute the incenter and inradius of a triangle.
 

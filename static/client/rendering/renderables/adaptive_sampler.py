@@ -66,8 +66,7 @@ class AdaptiveSampler:
         if len(valid_asymptotes) > MAX_SUBRANGES - 1:
             # Too many asymptotes - just sample without splitting
             samples, _ = AdaptiveSampler.generate_samples(
-                left_bound, right_bound, eval_func, math_to_screen,
-                initial_segments, max_samples
+                left_bound, right_bound, eval_func, math_to_screen, initial_segments, max_samples
             )
             return [samples] if samples else []
 
@@ -91,8 +90,7 @@ class AdaptiveSampler:
                 continue
 
             samples, _ = AdaptiveSampler.generate_samples(
-                sub_left, sub_right, eval_func, math_to_screen,
-                initial_segments, max_samples
+                sub_left, sub_right, eval_func, math_to_screen, initial_segments, max_samples
             )
 
             if samples:
@@ -137,8 +135,7 @@ class AdaptiveSampler:
         min_expected_samples = 20
         if len(results) < min_expected_samples and initial_segments is None:
             estimated_period = AdaptiveSampler._detect_periodicity(
-                left_bound, right_bound, results,
-                eval_func, math_to_screen
+                left_bound, right_bound, results, eval_func, math_to_screen
             )
             if estimated_period is not None:
                 range_width = right_bound - left_bound
@@ -179,10 +176,7 @@ class AdaptiveSampler:
 
             if p_left is not None and p_right is not None:
                 AdaptiveSampler._subdivide(
-                    x_left, x_right,
-                    p_left, p_right,
-                    eval_func, math_to_screen,
-                    0, results, max_samples
+                    x_left, x_right, p_left, p_right, eval_func, math_to_screen, 0, results, max_samples
                 )
 
         return results
@@ -300,12 +294,10 @@ class AdaptiveSampler:
             return
 
         AdaptiveSampler._subdivide(
-            x_left, x_mid, p_left, p_mid,
-            eval_func, math_to_screen, depth + 1, results, max_samples
+            x_left, x_mid, p_left, p_mid, eval_func, math_to_screen, depth + 1, results, max_samples
         )
         AdaptiveSampler._subdivide(
-            x_mid, x_right, p_mid, p_right,
-            eval_func, math_to_screen, depth + 1, results, max_samples
+            x_mid, x_right, p_mid, p_right, eval_func, math_to_screen, depth + 1, results, max_samples
         )
 
     @staticmethod
@@ -331,4 +323,3 @@ class AdaptiveSampler:
         distance = cross / math.sqrt(length_sq)
 
         return distance < PIXEL_TOLERANCE
-

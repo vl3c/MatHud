@@ -68,12 +68,14 @@ class ParametricFunction(Drawable):
         try:
             self.x_expression: str = ExpressionValidator.fix_math_expression(x_expression)
             self.y_expression: str = ExpressionValidator.fix_math_expression(y_expression)
-            self._x_function: Callable[[float], float] = ExpressionValidator.parse_parametric_expression(self.x_expression)
-            self._y_function: Callable[[float], float] = ExpressionValidator.parse_parametric_expression(self.y_expression)
-        except Exception as e:
-            raise ValueError(
-                f"Failed to parse parametric expressions x='{x_expression}', y='{y_expression}': {str(e)}"
+            self._x_function: Callable[[float], float] = ExpressionValidator.parse_parametric_expression(
+                self.x_expression
             )
+            self._y_function: Callable[[float], float] = ExpressionValidator.parse_parametric_expression(
+                self.y_expression
+            )
+        except Exception as e:
+            raise ValueError(f"Failed to parse parametric expressions x='{x_expression}', y='{y_expression}': {str(e)}")
 
         super().__init__(name=name or "p", color=color)
 
@@ -116,7 +118,7 @@ class ParametricFunction(Drawable):
                 "t_min": self.t_min,
                 "t_max": self.t_max,
                 "color": self.color,
-            }
+            },
         }
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> "ParametricFunction":

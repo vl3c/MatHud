@@ -33,6 +33,7 @@ from drawables.drawable import Drawable
 from drawables.point import Point
 from drawables.segment import Segment
 
+
 class Vector(Drawable):
     """Represents a directed line segment (vector) with origin, tip, and arrow head visualization.
 
@@ -44,6 +45,7 @@ class Vector(Drawable):
         origin (Point): Starting point of the vector (property access to segment.point1)
         tip (Point): Ending point of the vector (property access to segment.point2)
     """
+
     def __init__(self, origin: Point, tip: Point, color: str = default_color) -> None:
         """Initialize a vector with origin and tip points.
 
@@ -67,7 +69,7 @@ class Vector(Drawable):
         return self.segment.point2
 
     def get_class_name(self) -> str:
-        return 'Vector'
+        return "Vector"
 
     def get_state(self) -> Dict[str, Any]:
         return {

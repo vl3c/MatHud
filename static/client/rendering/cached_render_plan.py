@@ -265,7 +265,9 @@ def _screen_to_math_point(screen_point: Tuple[float, float], state: MapState) ->
     return (mx, my)
 
 
-def _reproject_points(points: Iterable[Tuple[float, float]], old: MapState, new: MapState) -> Tuple[Tuple[float, float], ...]:
+def _reproject_points(
+    points: Iterable[Tuple[float, float]], old: MapState, new: MapState
+) -> Tuple[Tuple[float, float], ...]:
     """Reproject multiple screen points from one map state to another.
 
     Args:
@@ -309,9 +311,7 @@ def _get_safe_scale(state: MapState, key: str = "scale") -> float:
     return 1.0 if value <= 0 else value
 
 
-def _reproject_stroke_line(
-    command: PrimitiveCommand, old_state: MapState, new_state: MapState
-) -> None:
+def _reproject_stroke_line(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
     """Reproject a stroke_line command to a new map state.
 
     Updates the command's start/end points and geometry metadata in place.
@@ -323,9 +323,7 @@ def _reproject_stroke_line(
     command.meta["geometry"] = _quantize_geometry((new_start, new_end))
 
 
-def _reproject_stroke_polyline(
-    command: PrimitiveCommand, old_state: MapState, new_state: MapState
-) -> None:
+def _reproject_stroke_polyline(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
     """Reproject a stroke_polyline command to a new map state.
 
     Updates the command's point list and geometry metadata in place.
@@ -336,9 +334,7 @@ def _reproject_stroke_polyline(
     command.meta["geometry"] = _quantize_geometry(new_points)
 
 
-def _reproject_stroke_circle(
-    command: PrimitiveCommand, old_state: MapState, new_state: MapState
-) -> None:
+def _reproject_stroke_circle(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
     """Reproject a stroke_circle command to a new map state.
 
     Updates center position and radius (unless screen_space flag is set).
@@ -351,9 +347,7 @@ def _reproject_stroke_circle(
     command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
 
 
-def _reproject_fill_circle(
-    command: PrimitiveCommand, old_state: MapState, new_state: MapState
-) -> None:
+def _reproject_fill_circle(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
     """Reproject a fill_circle command to a new map state.
 
     Updates center position, radius, and geometry metadata in place.
@@ -366,9 +360,7 @@ def _reproject_fill_circle(
     command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
 
 
-def _reproject_stroke_ellipse(
-    command: PrimitiveCommand, old_state: MapState, new_state: MapState
-) -> None:
+def _reproject_stroke_ellipse(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
     """Reproject a stroke_ellipse command to a new map state.
 
     Updates center position, both radii, and geometry metadata in place.
@@ -381,9 +373,7 @@ def _reproject_stroke_ellipse(
     command.meta["geometry"] = _quantize_geometry((new_center, new_rx, new_ry, rotation))
 
 
-def _reproject_fill_joined_area(
-    command: PrimitiveCommand, old_state: MapState, new_state: MapState
-) -> None:
+def _reproject_fill_joined_area(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
     """Reproject a fill_joined_area command to a new map state.
 
     Updates both forward and reverse point arrays used for shaded regions.
@@ -395,9 +385,7 @@ def _reproject_fill_joined_area(
     command.meta["geometry"] = _quantize_geometry(new_forward + new_reverse)
 
 
-def _compute_vector_arrow_points(
-    vector_meta: Dict[str, Any], new_state: MapState
-) -> Tuple[Tuple[float, float], ...]:
+def _compute_vector_arrow_points(vector_meta: Dict[str, Any], new_state: MapState) -> Tuple[Tuple[float, float], ...]:
     """Compute arrow head triangle points for a vector in the new map state.
 
     Vector arrows are rendered in screen space with a fixed tip size, so they
@@ -436,9 +424,7 @@ def _compute_vector_arrow_points(
     return (tip, base1, base2)
 
 
-def _reproject_fill_polygon(
-    command: PrimitiveCommand, old_state: MapState, new_state: MapState
-) -> None:
+def _reproject_fill_polygon(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
     """Reproject a fill_polygon command to a new map state.
 
     Handles both regular polygons and vector arrow heads specially, since
@@ -614,9 +600,7 @@ def _reproject_arc_with_circle_meta(
     )
 
 
-def _reproject_stroke_arc(
-    command: PrimitiveCommand, old_state: MapState, new_state: MapState
-) -> None:
+def _reproject_stroke_arc(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
     """Reproject a stroke_arc command to a new map state.
 
     Handles three cases: angle arcs (with angle metadata), circle arcs
@@ -788,9 +772,7 @@ def _reproject_text_with_label_meta(
     return new_position, font
 
 
-def _reproject_draw_text(
-    command: PrimitiveCommand, old_state: MapState, new_state: MapState
-) -> None:
+def _reproject_draw_text(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
     """Reproject a draw_text command to a new map state.
 
     Handles angle labels, point labels, standalone labels, and plain text
@@ -1277,7 +1259,9 @@ class _RecordingPrimitives(shared.RendererPrimitives):
             return {key: self._pool_styles(item) for key, item in value.items()}
         return value
 
-    def _record(self, op: str, args: PrimitiveArgs, kwargs: PrimitiveKwargs, *, style: Any = None, geometry: Iterable[Any] = ()) -> None:
+    def _record(
+        self, op: str, args: PrimitiveArgs, kwargs: PrimitiveKwargs, *, style: Any = None, geometry: Iterable[Any] = ()
+    ) -> None:
         """Record a primitive operation as a command."""
         command_key = f"{self._drawable_key}:{op}:{self._counter}"
         self._counter += 1
@@ -1330,7 +1314,9 @@ class _RecordingPrimitives(shared.RendererPrimitives):
         return self._screen_space_used
 
     def stroke_line(self, start, end, stroke, *, include_width=True):
-        self._record("stroke_line", (start, end, stroke), {"include_width": include_width}, style=stroke, geometry=(start, end))
+        self._record(
+            "stroke_line", (start, end, stroke), {"include_width": include_width}, style=stroke, geometry=(start, end)
+        )
 
     def stroke_polyline(self, points, stroke):
         self._record("stroke_polyline", (tuple(points), stroke), {}, style=stroke, geometry=points)
@@ -1348,7 +1334,13 @@ class _RecordingPrimitives(shared.RendererPrimitives):
         )
 
     def stroke_ellipse(self, center, radius_x, radius_y, rotation_rad, stroke):
-        self._record("stroke_ellipse", (center, radius_x, radius_y, rotation_rad, stroke), {}, style=stroke, geometry=(center, radius_x, radius_y, rotation_rad))
+        self._record(
+            "stroke_ellipse",
+            (center, radius_x, radius_y, rotation_rad, stroke),
+            {},
+            style=stroke,
+            geometry=(center, radius_x, radius_y, rotation_rad),
+        )
 
     def fill_polygon(self, points, fill, stroke=None, *, screen_space=False, metadata=None):
         self._record(
@@ -1360,7 +1352,13 @@ class _RecordingPrimitives(shared.RendererPrimitives):
         )
 
     def fill_joined_area(self, forward, reverse, fill):
-        self._record("fill_joined_area", (tuple(forward), tuple(reverse), fill), {}, style=fill, geometry=list(forward) + list(reverse))
+        self._record(
+            "fill_joined_area",
+            (tuple(forward), tuple(reverse), fill),
+            {},
+            style=fill,
+            geometry=list(forward) + list(reverse),
+        )
 
     def stroke_arc(
         self,
@@ -1581,4 +1579,3 @@ def build_plan_for_polar(
     )
     plan.update_map_state(map_state)
     return plan
-

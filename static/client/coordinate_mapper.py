@@ -257,22 +257,17 @@ class CoordinateMapper:
         left_bound, top_bound = self.screen_to_math(0, 0)
         right_bound, bottom_bound = self.screen_to_math(self.canvas_width, self.canvas_height)
 
-        return {
-            'left': left_bound,
-            'right': right_bound,
-            'top': top_bound,
-            'bottom': bottom_bound
-        }
+        return {"left": left_bound, "right": right_bound, "top": top_bound, "bottom": bottom_bound}
 
     def get_visible_width(self) -> float:
         """Get mathematical width of visible area."""
         bounds: Dict[str, float] = self.get_visible_bounds()
-        return bounds['right'] - bounds['left']
+        return bounds["right"] - bounds["left"]
 
     def get_visible_height(self) -> float:
         """Get mathematical height of visible area."""
         bounds: Dict[str, float] = self.get_visible_bounds()
-        return bounds['top'] - bounds['bottom']
+        return bounds["top"] - bounds["bottom"]
 
     def get_visible_left_bound(self) -> float:
         """Get mathematical left boundary of visible area.
@@ -398,14 +393,14 @@ class CoordinateMapper:
             dict: Current coordinate mapper state
         """
         return {
-            'canvas_width': self.canvas_width,
-            'canvas_height': self.canvas_height,
-            'scale_factor': self.scale_factor,
-            'offset': {'x': self.offset.x, 'y': self.offset.y},
-            'origin': {'x': self.origin.x, 'y': self.origin.y},
-            'zoom_point': {'x': self.zoom_point.x, 'y': self.zoom_point.y},
-            'zoom_direction': self.zoom_direction,
-            'zoom_step': self.zoom_step
+            "canvas_width": self.canvas_width,
+            "canvas_height": self.canvas_height,
+            "scale_factor": self.scale_factor,
+            "offset": {"x": self.offset.x, "y": self.offset.y},
+            "origin": {"x": self.origin.x, "y": self.origin.y},
+            "zoom_point": {"x": self.zoom_point.x, "y": self.zoom_point.y},
+            "zoom_direction": self.zoom_direction,
+            "zoom_step": self.zoom_step,
         }
 
     def set_state(self, state: Dict[str, Any]) -> None:
@@ -415,20 +410,20 @@ class CoordinateMapper:
             state (dict): State dictionary with mapper properties
         """
         # Update canvas dimensions if provided
-        self.canvas_width = state.get('canvas_width', self.canvas_width)
-        self.canvas_height = state.get('canvas_height', self.canvas_height)
+        self.canvas_width = state.get("canvas_width", self.canvas_width)
+        self.canvas_height = state.get("canvas_height", self.canvas_height)
 
-        self.scale_factor = state.get('scale_factor', 1.0)
-        offset_data: Dict[str, float] = state.get('offset', {'x': 0, 'y': 0})
-        self.offset = Position(offset_data['x'], offset_data['y'])
-        origin_data: Dict[str, float] = state.get('origin', {'x': self.canvas_width / 2, 'y': self.canvas_height / 2})
-        self.origin = Position(origin_data['x'], origin_data['y'])
+        self.scale_factor = state.get("scale_factor", 1.0)
+        offset_data: Dict[str, float] = state.get("offset", {"x": 0, "y": 0})
+        self.offset = Position(offset_data["x"], offset_data["y"])
+        origin_data: Dict[str, float] = state.get("origin", {"x": self.canvas_width / 2, "y": self.canvas_height / 2})
+        self.origin = Position(origin_data["x"], origin_data["y"])
 
         # Zoom state
-        zoom_point_data: Dict[str, float] = state.get('zoom_point', {'x': 0, 'y': 0})
-        self.zoom_point = Position(zoom_point_data['x'], zoom_point_data['y'])
-        self.zoom_direction = state.get('zoom_direction', 0)
-        self.zoom_step = state.get('zoom_step', 0.1)
+        zoom_point_data: Dict[str, float] = state.get("zoom_point", {"x": 0, "y": 0})
+        self.zoom_point = Position(zoom_point_data["x"], zoom_point_data["y"])
+        self.zoom_direction = state.get("zoom_direction", 0)
+        self.zoom_step = state.get("zoom_step", 0.1)
 
     def sync_from_canvas(self, canvas: "Canvas") -> None:
         """Synchronize coordinate mapper state with Canvas object.
@@ -440,34 +435,34 @@ class CoordinateMapper:
             canvas: Canvas object with scale_factor, offset, center, etc.
         """
         # Update basic transformation parameters
-        self.scale_factor = getattr(canvas, 'scale_factor', 1.0)
+        self.scale_factor = getattr(canvas, "scale_factor", 1.0)
 
         # Handle offset - Canvas uses Position objects
-        canvas_offset: Any = getattr(canvas, 'offset', None)
+        canvas_offset: Any = getattr(canvas, "offset", None)
         if canvas_offset:
             self.offset = Position(canvas_offset.x, canvas_offset.y)
         else:
             self.offset = Position(0, 0)
 
         # Update canvas dimensions first if they've changed
-        if hasattr(canvas, 'width') and hasattr(canvas, 'height'):
+        if hasattr(canvas, "width") and hasattr(canvas, "height"):
             self.canvas_width = canvas.width
             self.canvas_height = canvas.height
 
         # Handle origin - Use canvas.center as the base origin (before offset)
         # Note: cartesian2axis.origin already includes offset via math_to_screen,
         # so we must use canvas.center to avoid double-counting offset
-        canvas_center: Any = getattr(canvas, 'center', None)
+        canvas_center: Any = getattr(canvas, "center", None)
         if canvas_center:
             self.origin = Position(canvas_center.x, canvas_center.y)
         else:
             self.origin = Position(self.canvas_width / 2, self.canvas_height / 2)
 
         # Handle zoom state if available
-        if hasattr(canvas, 'zoom_point'):
+        if hasattr(canvas, "zoom_point"):
             zoom_point: Any = canvas.zoom_point
             self.zoom_point = Position(zoom_point.x, zoom_point.y)
-        if hasattr(canvas, 'zoom_direction'):
+        if hasattr(canvas, "zoom_direction"):
             self.zoom_direction = canvas.zoom_direction
-        if hasattr(canvas, 'zoom_step'):
+        if hasattr(canvas, "zoom_step"):
             self.zoom_step = canvas.zoom_step

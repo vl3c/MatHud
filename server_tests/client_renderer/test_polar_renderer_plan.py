@@ -23,6 +23,7 @@ from .renderer_fixtures import PlanStub, TelemetryRecorder
 
 class Position:
     """Simple Position class for testing."""
+
     def __init__(self, x: float = 0, y: float = 0):
         self.x = x
         self.y = y
@@ -259,28 +260,31 @@ class TestPolarRendererMethodAvailability(unittest.TestCase):
     def test_svg_renderer_has_render_polar_import(self) -> None:
         """Test that svg_renderer imports build_plan_for_polar."""
         from rendering import svg_renderer
+
         # Check that the import statement exists in the module
         import_source = svg_renderer.__file__
-        with open(import_source, 'r') as f:
+        with open(import_source, "r") as f:
             content = f.read()
         self.assertIn("build_plan_for_polar", content)
 
     def test_canvas2d_renderer_has_render_polar_import(self) -> None:
         """Test that canvas2d_renderer imports build_plan_for_polar."""
         from rendering import canvas2d_renderer
+
         import_source = canvas2d_renderer.__file__
-        with open(import_source, 'r') as f:
+        with open(import_source, "r") as f:
             content = f.read()
         self.assertIn("build_plan_for_polar", content)
 
     def test_webgl_renderer_has_render_polar_import(self) -> None:
         """Test that webgl_renderer imports build_plan_for_polar."""
         from rendering import webgl_renderer
+
         import_source = webgl_renderer.__file__
-        with open(import_source, 'r') as f:
+        with open(import_source, "r") as f:
             content = f.read()
         self.assertIn("build_plan_for_polar", content)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

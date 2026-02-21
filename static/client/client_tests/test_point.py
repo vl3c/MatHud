@@ -22,7 +22,7 @@ class TestPoint(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+            offset=Position(0, 0),  # Set to (0,0) for simpler tests
         )
 
         # Sync canvas state with coordinate mapper
@@ -44,10 +44,10 @@ class TestPoint(unittest.TestCase):
         self.assertEqual(self.point.color, "red")
 
     def test_get_class_name(self) -> None:
-        self.assertEqual(self.point.get_class_name(), 'Point')
+        self.assertEqual(self.point.get_class_name(), "Point")
 
     def test_str(self) -> None:
-        self.assertEqual(str(self.point), '1,2')
+        self.assertEqual(str(self.point), "1,2")
 
     def test_get_state(self) -> None:
         expected_state = {"name": "p1", "args": {"position": {"x": 1, "y": 2}}}
@@ -90,4 +90,3 @@ class TestPoint(unittest.TestCase):
         # This test would check if draw calls create_svg_element with expected arguments
         # Might require a more complex setup or mocking to verify SVG output
         pass
-

@@ -48,7 +48,7 @@ def _read_rows(log_file: Path, modes: Optional[set[str]]) -> List[Dict[str, Any]
         marker_idx = line.find(LOG_MARKER)
         if marker_idx < 0:
             continue
-        payload_text = line[marker_idx + len(LOG_MARKER):].strip()
+        payload_text = line[marker_idx + len(LOG_MARKER) :].strip()
         if not payload_text:
             continue
         try:

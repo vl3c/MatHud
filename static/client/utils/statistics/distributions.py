@@ -36,9 +36,7 @@ def normal_pdf_expression(mean: float, sigma: float) -> str:
         raise ValueError("sigma must be > 0")
 
     # f(x) = (1 / (sigma * sqrt(2*pi))) * exp(-((x-mean)^2) / (2*sigma^2))
-    return (
-        f"(1/(({sigma})*sqrt(2*pi)))*exp(-(((x-({mean}))^2)/(2*({sigma})^2)))"
-    )
+    return f"(1/(({sigma})*sqrt(2*pi)))*exp(-(((x-({mean}))^2)/(2*({sigma})^2)))"
 
 
 def default_normal_bounds(mean: float, sigma: float, k: float = 4.0) -> Tuple[float, float]:
@@ -50,6 +48,3 @@ def default_normal_bounds(mean: float, sigma: float, k: float = 4.0) -> Tuple[fl
     if k <= 0.0:
         raise ValueError("k must be > 0")
     return (mean - k * sigma, mean + k * sigma)
-
-
-

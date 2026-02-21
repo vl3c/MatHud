@@ -102,7 +102,7 @@ class TestRendererLogic(unittest.TestCase):
         self.assertIsNotNone(metadata)
         label_meta = metadata["point_label"]
         self.assertEqual(label_meta["math_position"], (point.x, point.y))
-        self.assertEqual(label_meta["screen_offset"], (float(style["point_radius"]), float(-style["point_radius"])) )
+        self.assertEqual(label_meta["screen_offset"], (float(style["point_radius"]), float(-style["point_radius"])))
 
     def test_canvas2d_font_cache_quantizes_similar_sizes(self) -> None:
         canvas_el = SimpleNamespace(getContext=lambda _kind: SimpleNamespace())

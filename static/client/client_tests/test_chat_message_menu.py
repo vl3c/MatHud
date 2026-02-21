@@ -102,5 +102,3 @@ class TestChatMessageMenu(unittest.TestCase):
                 pass
 
         copy_mock.assert_called_once_with(raw_text)
-
-

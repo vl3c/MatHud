@@ -23,7 +23,7 @@ class TestCartesian2Axis(unittest.TestCase):
             zoom_direction=0,
             offset=Position(0, 0),  # Set to (0,0) for simpler tests
             zoom_point=Position(0, 0),
-            zoom_step=0.1
+            zoom_step=0.1,
         )
 
         # Sync canvas state with coordinate mapper
@@ -50,7 +50,7 @@ class TestCartesian2Axis(unittest.TestCase):
 
         self.assertEqual(left_bound, -400.0)  # -self.origin.x / self.canvas.scale_factor
         self.assertEqual(right_bound, 400.0)  # (self.width - self.origin.x) / self.canvas.scale_factor
-        self.assertEqual(top_bound, 300.0)    # self.origin.y / self.canvas.scale_factor
+        self.assertEqual(top_bound, 300.0)  # self.origin.y / self.canvas.scale_factor
         self.assertEqual(bottom_bound, -300.0)  # (self.origin.y - self.height) / self.canvas.scale_factor
 
         # Test bounds with different scale factor - bounds are now dynamic via CoordinateMapper
@@ -168,11 +168,11 @@ class TestCartesian2Axis(unittest.TestCase):
 
     def test_get_axis_helpers(self) -> None:
         # Test the axis helper methods we added during refactoring
-        self.assertEqual(self.cartesian_system._get_axis_origin('x'), self.cartesian_system.origin.x)
-        self.assertEqual(self.cartesian_system._get_axis_origin('y'), self.cartesian_system.origin.y)
+        self.assertEqual(self.cartesian_system._get_axis_origin("x"), self.cartesian_system.origin.x)
+        self.assertEqual(self.cartesian_system._get_axis_origin("y"), self.cartesian_system.origin.y)
 
-        self.assertEqual(self.cartesian_system._get_axis_boundary('x'), self.cartesian_system.width)
-        self.assertEqual(self.cartesian_system._get_axis_boundary('y'), self.cartesian_system.height)
+        self.assertEqual(self.cartesian_system._get_axis_boundary("x"), self.cartesian_system.width)
+        self.assertEqual(self.cartesian_system._get_axis_boundary("y"), self.cartesian_system.height)
 
     def test_should_continue_drawing(self) -> None:
         # Test the boundary condition method for drawing
@@ -356,6 +356,7 @@ class TestCartesian2Axis(unittest.TestCase):
 
     def _count_grid_lines(self, origin: float, dimension_px: float, display_tick: float) -> int:
         import math
+
         if display_tick <= 0:
             return 0
         start_n = int(math.ceil(-origin / display_tick))
@@ -369,6 +370,7 @@ class TestCartesian2Axis(unittest.TestCase):
 
     def _calculate_adaptive_tick_spacing(self, width: float, scale_factor: float, max_ticks: int = 10) -> float:
         import math
+
         relative_width = width / scale_factor
         ideal_spacing = relative_width / max_ticks
         if ideal_spacing <= 0:
@@ -405,12 +407,16 @@ class TestCartesian2Axis(unittest.TestCase):
             count_y = self._count_grid_lines(oy, height_px, display_tick)
 
             self.assertAlmostEqual(
-                count_x, base_count_x, delta=2,
-                msg=f"X grid line count {count_x} differs from base {base_count_x} at ox={ox}"
+                count_x,
+                base_count_x,
+                delta=2,
+                msg=f"X grid line count {count_x} differs from base {base_count_x} at ox={ox}",
             )
             self.assertAlmostEqual(
-                count_y, base_count_y, delta=2,
-                msg=f"Y grid line count {count_y} differs from base {base_count_y} at oy={oy}"
+                count_y,
+                base_count_y,
+                delta=2,
+                msg=f"Y grid line count {count_y} differs from base {base_count_y} at oy={oy}",
             )
 
     def test_grid_line_count_bounded_across_zoom_levels(self) -> None:
@@ -428,22 +434,10 @@ class TestCartesian2Axis(unittest.TestCase):
             count_x = self._count_grid_lines(ox, width_px, display_tick)
             count_y = self._count_grid_lines(oy, height_px, display_tick)
 
-            self.assertGreaterEqual(
-                count_x, 4,
-                msg=f"Too few X grid lines ({count_x}) at scale {scale_factor}"
-            )
-            self.assertLessEqual(
-                count_x, 25,
-                msg=f"Too many X grid lines ({count_x}) at scale {scale_factor}"
-            )
-            self.assertGreaterEqual(
-                count_y, 3,
-                msg=f"Too few Y grid lines ({count_y}) at scale {scale_factor}"
-            )
-            self.assertLessEqual(
-                count_y, 20,
-                msg=f"Too many Y grid lines ({count_y}) at scale {scale_factor}"
-            )
+            self.assertGreaterEqual(count_x, 4, msg=f"Too few X grid lines ({count_x}) at scale {scale_factor}")
+            self.assertLessEqual(count_x, 25, msg=f"Too many X grid lines ({count_x}) at scale {scale_factor}")
+            self.assertGreaterEqual(count_y, 3, msg=f"Too few Y grid lines ({count_y}) at scale {scale_factor}")
+            self.assertLessEqual(count_y, 20, msg=f"Too many Y grid lines ({count_y}) at scale {scale_factor}")
 
     def test_grid_line_count_constant_at_extreme_distances(self) -> None:
         width_px = 800
@@ -461,9 +455,12 @@ class TestCartesian2Axis(unittest.TestCase):
             base_count_y = self._count_grid_lines(base_oy, height_px, display_tick)
 
             extreme_offsets = [
-                1e6, -1e6,
-                1e9, -1e9,
-                1e12, -1e12,
+                1e6,
+                -1e6,
+                1e9,
+                -1e9,
+                1e12,
+                -1e12,
             ]
 
             for offset in extreme_offsets:
@@ -473,12 +470,16 @@ class TestCartesian2Axis(unittest.TestCase):
                 count_y = self._count_grid_lines(oy, height_px, display_tick)
 
                 self.assertAlmostEqual(
-                    count_x, base_count_x, delta=2,
-                    msg=f"scale={scale_factor}, offset={offset}: X count {count_x} vs base {base_count_x}"
+                    count_x,
+                    base_count_x,
+                    delta=2,
+                    msg=f"scale={scale_factor}, offset={offset}: X count {count_x} vs base {base_count_x}",
                 )
                 self.assertAlmostEqual(
-                    count_y, base_count_y, delta=2,
-                    msg=f"scale={scale_factor}, offset={offset}: Y count {count_y} vs base {base_count_y}"
+                    count_y,
+                    base_count_y,
+                    delta=2,
+                    msg=f"scale={scale_factor}, offset={offset}: Y count {count_y} vs base {base_count_y}",
                 )
 
     def test_grid_line_count_combined_zoom_and_distance(self) -> None:
@@ -521,11 +522,5 @@ class TestCartesian2Axis(unittest.TestCase):
             x_range = max(x_counts) - min(x_counts)
             y_range = max(y_counts) - min(y_counts)
 
-            self.assertLessEqual(
-                x_range, 2,
-                msg=f"At scale {scale_factor}, X counts vary too much: {counts}"
-            )
-            self.assertLessEqual(
-                y_range, 2,
-                msg=f"At scale {scale_factor}, Y counts vary too much: {counts}"
-            )
+            self.assertLessEqual(x_range, 2, msg=f"At scale {scale_factor}, X counts vary too much: {counts}")
+            self.assertLessEqual(y_range, 2, msg=f"At scale {scale_factor}, Y counts vary too much: {counts}")

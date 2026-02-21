@@ -49,4 +49,3 @@ class LabelNameGenerator(NameGenerator):
             return ""
         filtered = self.filter_string(trimmed)
         return filtered or trimmed
-

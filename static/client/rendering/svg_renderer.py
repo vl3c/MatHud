@@ -198,6 +198,7 @@ class SvgRenderer(RendererProtocol):
         self._telemetry = SvgTelemetry()
         self._plan_cache: Dict[str, Dict[str, Any]] = {}
         self._cartesian_cache: Optional[Dict[str, Any]] = None
+        self._offscreen_surface: Optional[Any] = None
         self._initialize_plan_state()
         adapter_surface_id = self._configure_surfaces()
         self._shared_primitives: SvgPrimitiveAdapter = SvgPrimitiveAdapter(
@@ -386,9 +387,7 @@ class SvgRenderer(RendererProtocol):
         drawable_name = "Cartesian2Axis"
         map_state = self._capture_map_state(coordinate_mapper)
         signature = self._compute_drawable_signature(cartesian, coordinate_mapper)
-        plan_context = self._resolve_cartesian_plan(
-            cartesian, coordinate_mapper, map_state, signature, drawable_name
-        )
+        plan_context = self._resolve_cartesian_plan(cartesian, coordinate_mapper, map_state, signature, drawable_name)
         if plan_context is None:
             return
         self._cartesian_rendered_this_frame = True
@@ -403,9 +402,7 @@ class SvgRenderer(RendererProtocol):
         drawable_name = "PolarGrid"
         map_state = self._capture_map_state(coordinate_mapper)
         signature = self._compute_drawable_signature(polar_grid, coordinate_mapper)
-        plan_context = self._resolve_polar_plan(
-            polar_grid, coordinate_mapper, map_state, signature, drawable_name
-        )
+        plan_context = self._resolve_polar_plan(polar_grid, coordinate_mapper, map_state, signature, drawable_name)
         if plan_context is None:
             return
         self._cartesian_rendered_this_frame = True
@@ -433,9 +430,7 @@ class SvgRenderer(RendererProtocol):
         else:
             if plan_entry is not None:
                 self._drop_plan_group(plan_entry.get("plan"))
-            plan = self._build_polar_plan_with_metrics(
-                polar_grid, coordinate_mapper, map_state, drawable_name
-            )
+            plan = self._build_polar_plan_with_metrics(polar_grid, coordinate_mapper, map_state, drawable_name)
             if plan is None:
                 self._cartesian_cache = None
                 return None
@@ -808,9 +803,7 @@ class SvgRenderer(RendererProtocol):
         else:
             if plan_entry is not None:
                 self._drop_plan_group(plan_entry.get("plan"))
-            plan = self._build_cartesian_plan_with_metrics(
-                cartesian, coordinate_mapper, map_state, drawable_name
-            )
+            plan = self._build_cartesian_plan_with_metrics(cartesian, coordinate_mapper, map_state, drawable_name)
             if plan is None:
                 self._cartesian_cache = None
                 return None
@@ -871,9 +864,7 @@ class SvgRenderer(RendererProtocol):
         else:
             if cached_entry is not None:
                 self._drop_plan_group(cached_entry.get("plan"))
-            plan = self._build_drawable_plan_with_metrics(
-                drawable, coordinate_mapper, map_state, drawable_name
-            )
+            plan = self._build_drawable_plan_with_metrics(drawable, coordinate_mapper, map_state, drawable_name)
             if plan is None:
                 self._plan_cache.pop(cache_key, None)
                 return None
@@ -1012,5 +1003,3 @@ class SvgRenderer(RendererProtocol):
         transform = getattr(plan, "get_transform", lambda: None)()
         if callable(set_transform):
             set_transform(plan_key, transform)
-
-

@@ -82,9 +82,7 @@ class SimpleMock:
             raise AssertionError(f"Expected one call, got {len(self.calls)}")
         call_args, call_kwargs = self.calls[0]
         if call_args != args or call_kwargs != kwargs:
-            raise AssertionError(
-                f"Expected call with ({args}, {kwargs}), got ({call_args}, {call_kwargs})"
-            )
+            raise AssertionError(f"Expected call with ({args}, {kwargs}), got ({call_args}, {call_kwargs})")
 
     def assert_called_once(self) -> None:
         """Assert the mock was called exactly once (any arguments)."""

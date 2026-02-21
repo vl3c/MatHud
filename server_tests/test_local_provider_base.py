@@ -5,7 +5,6 @@ Tests shared functionality for local LLM providers including
 tool capability detection and model name normalization.
 """
 
-
 from static.providers.local import (
     TOOL_CAPABLE_MODEL_FAMILIES,
     LocalProviderRegistry,
@@ -165,6 +164,7 @@ class TestLocalProviderRegistry:
     def test_get_provider_class_ollama(self) -> None:
         """Can retrieve Ollama provider class."""
         from static.providers.local.ollama_api import OllamaAPI
+
         provider_class = LocalProviderRegistry.get_provider_class("ollama")
         assert provider_class is OllamaAPI
 

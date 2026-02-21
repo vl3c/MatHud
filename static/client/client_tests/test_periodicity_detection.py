@@ -50,6 +50,7 @@ class TestPeriodicityDetection(unittest.TestCase):
 
     def test_range_hint_scales_test_range(self):
         """range_hint should scale test_range for long-period functions."""
+
         # sin(x/50) has period 2*pi*50 ~ 314
         # With default test_range=20, it looks linear
         # With range_hint=600, it should be detected
@@ -60,19 +61,18 @@ class TestPeriodicityDetection(unittest.TestCase):
         is_periodic_default, _ = MathUtils.detect_function_periodicity(long_period_sin)
 
         # With range_hint - should detect
-        is_periodic_hint, period = MathUtils.detect_function_periodicity(
-            long_period_sin, range_hint=600
-        )
+        is_periodic_hint, period = MathUtils.detect_function_periodicity(long_period_sin, range_hint=600)
         self.assertTrue(is_periodic_hint)
         self.assertIsNotNone(period)
 
     def test_tan_with_asymptotes(self):
         """tan(x) has asymptotes - should still detect periodicity or handle gracefully."""
+
         def safe_tan(x):
             try:
                 return math.tan(x)
             except:
-                return float('inf')
+                return float("inf")
 
         # Should not crash, may or may not detect as periodic due to asymptotes
         is_periodic, period = MathUtils.detect_function_periodicity(safe_tan)
@@ -81,20 +81,22 @@ class TestPeriodicityDetection(unittest.TestCase):
 
     def test_combined_sin_function(self):
         """100*sin(x/50) + 50*tan(x/100) with range_hint should be detected."""
+
         def combo(x):
             try:
                 return 100 * math.sin(x / 50) + 50 * math.tan(x / 100)
             except:
-                return float('inf')
+                return float("inf")
 
         is_periodic, period = MathUtils.detect_function_periodicity(combo, range_hint=600)
         self.assertTrue(is_periodic)
 
     def test_one_over_x_not_periodic(self):
         """1/x has curvature that may trigger periodicity detection."""
+
         def one_over_x(x):
             if x == 0:
-                return float('inf')
+                return float("inf")
             return 1 / x
 
         # 1/x has curvature on both sides of the asymptote which may look
@@ -110,6 +112,7 @@ class TestPeriodicityEdgeCases(unittest.TestCase):
 
     def test_function_with_exceptions(self):
         """Function that throws exceptions should be handled gracefully."""
+
         def bad_func(x):
             if x > 0:
                 raise ValueError("test error")
@@ -121,16 +124,18 @@ class TestPeriodicityEdgeCases(unittest.TestCase):
 
     def test_function_returning_nan(self):
         """Function returning NaN should be handled gracefully."""
+
         def nan_func(x):
-            return float('nan')
+            return float("nan")
 
         is_periodic, period = MathUtils.detect_function_periodicity(nan_func)
         self.assertFalse(is_periodic)
 
     def test_function_returning_inf(self):
         """Function returning infinity should be handled gracefully."""
+
         def inf_func(x):
-            return float('inf')
+            return float("inf")
 
         is_periodic, period = MathUtils.detect_function_periodicity(inf_func)
         self.assertFalse(is_periodic)
@@ -138,9 +143,7 @@ class TestPeriodicityEdgeCases(unittest.TestCase):
     def test_range_hint_capped_at_1000(self):
         """range_hint should be capped at 1000 to avoid excessive computation."""
         # With very large range_hint, test_range should be capped
-        is_periodic, period = MathUtils.detect_function_periodicity(
-            math.sin, range_hint=10000
-        )
+        is_periodic, period = MathUtils.detect_function_periodicity(math.sin, range_hint=10000)
         # Should still work (capped at 1000)
         self.assertTrue(is_periodic)
 
@@ -149,4 +152,3 @@ __all__ = [
     "TestPeriodicityDetection",
     "TestPeriodicityEdgeCases",
 ]
-

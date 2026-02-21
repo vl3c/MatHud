@@ -77,8 +77,7 @@ def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
         provider_instance = create_provider_instance(provider_name, **create_kwargs)
         if provider_instance is None:
             raise ValueError(
-                f"Provider '{provider_name}' is not available. "
-                f"Check that the API key is configured in .env."
+                f"Provider '{provider_name}' is not available. Check that the API key is configured in .env."
             )
         app.providers[provider_name] = provider_instance
 
@@ -114,7 +113,7 @@ def save_canvas_snapshot_from_data_url(data_url: str) -> bool:
 
 
 def extract_vision_payload(
-    request_payload: Dict[str, Any]
+    request_payload: Dict[str, Any],
 ) -> tuple[Optional[Dict[str, Any]], Optional[str], Optional[str], Optional[List[str]]]:
     """Extract vision-related data from the request payload.
 
@@ -129,27 +128,27 @@ def extract_vision_payload(
     renderer_mode: Optional[str] = None
     attached_images: Optional[List[str]] = None
 
-    raw_svg_state = request_payload.get('svg_state')
+    raw_svg_state = request_payload.get("svg_state")
     if isinstance(raw_svg_state, dict):
         svg_state = raw_svg_state
-    raw_renderer = request_payload.get('renderer_mode')
+    raw_renderer = request_payload.get("renderer_mode")
     if isinstance(raw_renderer, str):
         renderer_mode = raw_renderer
 
-    vision_snapshot = request_payload.get('vision_snapshot')
+    vision_snapshot = request_payload.get("vision_snapshot")
     if isinstance(vision_snapshot, dict):
-        snapshot_svg = vision_snapshot.get('svg_state')
+        snapshot_svg = vision_snapshot.get("svg_state")
         if isinstance(snapshot_svg, dict):
             svg_state = snapshot_svg
-        snapshot_renderer = vision_snapshot.get('renderer_mode')
+        snapshot_renderer = vision_snapshot.get("renderer_mode")
         if isinstance(snapshot_renderer, str):
             renderer_mode = snapshot_renderer
-        snapshot_canvas = vision_snapshot.get('canvas_image')
+        snapshot_canvas = vision_snapshot.get("canvas_image")
         if isinstance(snapshot_canvas, str):
             canvas_image = snapshot_canvas
 
     # Extract attached images from the request payload
-    raw_attached_images = request_payload.get('attached_images')
+    raw_attached_images = request_payload.get("attached_images")
     if isinstance(raw_attached_images, list):
         attached_images = [img for img in raw_attached_images if isinstance(img, str)]
 
@@ -243,12 +242,12 @@ def _intercept_search_tools(
 
 def _tool_call_name(call: Dict[str, Any]) -> Optional[str]:
     """Extract a tool call function name from normalized or nested shapes."""
-    function_name = call.get('function_name')
+    function_name = call.get("function_name")
     if isinstance(function_name, str):
         return function_name
-    function = call.get('function')
+    function = call.get("function")
     if isinstance(function, dict):
-        nested_name = function.get('name')
+        nested_name = function.get("name")
         if isinstance(nested_name, str):
             return nested_name
     return None
@@ -257,14 +256,14 @@ def _tool_call_name(call: Dict[str, Any]) -> Optional[str]:
 def _find_search_tools_call(tool_calls: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Return the first search_tools call, if any."""
     for call in tool_calls:
-        if _tool_call_name(call) == 'search_tools':
+        if _tool_call_name(call) == "search_tools":
             return call
     return None
 
 
 def _normalize_search_tools_args(call: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize search_tools arguments to a dictionary."""
-    args = call.get('arguments', {})
+    args = call.get("arguments", {})
     if isinstance(args, dict):
         return args
     if isinstance(args, str):
@@ -280,10 +279,10 @@ def _normalize_search_tools_args(call: Dict[str, Any]) -> Dict[str, Any]:
 def _extract_search_query_and_limit(call: Dict[str, Any]) -> tuple[str, int]:
     """Extract (query, max_results) from a search_tools call."""
     args = _normalize_search_tools_args(call)
-    query = args.get('query', '')
+    query = args.get("query", "")
     if not isinstance(query, str):
-        query = ''
-    raw_max_results = args.get('max_results', 10)
+        query = ""
+    raw_max_results = args.get("max_results", 10)
     if isinstance(raw_max_results, int):
         max_results = raw_max_results
     else:
@@ -296,11 +295,7 @@ def _collect_allowed_tool_names(
     essential_tools: AbstractSet[str],
 ) -> set[str]:
     """Collect allowed tool names from search result plus essentials."""
-    allowed_names = {
-        t.get('function', {}).get('name')
-        for t in search_result
-        if isinstance(t, dict)
-    }
+    allowed_names = {t.get("function", {}).get("name") for t in search_result if isinstance(t, dict)}
     allowed_names.update(essential_tools)
     return allowed_names
 
@@ -362,12 +357,13 @@ def require_auth(f: F) -> F:
     Returns:
         Wrapped function that checks authentication before proceeding
     """
+
     @functools.wraps(f)
     def decorated_function(*args: Any, **kwargs: Any) -> ResponseReturnValue:
         # Require authentication when deployed or explicitly enabled
         if AppManager.requires_auth():
-            if not session.get('authenticated'):
-                return redirect(url_for('login'))
+            if not session.get("authenticated"):
+                return redirect(url_for("login"))
         return f(*args, **kwargs)
 
     return cast(F, decorated_function)
@@ -383,26 +379,26 @@ def register_routes(app: MatHudFlask) -> None:
         app: Flask application instance
     """
 
-    @app.route('/login', methods=['GET', 'POST'])
+    @app.route("/login", methods=["GET", "POST"])
     def login() -> ResponseReturnValue:
         """Handle user authentication with access code."""
         if not AppManager.requires_auth():
-            return redirect(url_for('get_index'))
+            return redirect(url_for("get_index"))
 
         # If user is already authenticated, redirect to main page
-        if session.get('authenticated'):
-            return redirect(url_for('get_index'))
+        if session.get("authenticated"):
+            return redirect(url_for("get_index"))
 
-        if request.method == 'POST':
-            client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+        if request.method == "POST":
+            client_ip = request.environ.get("HTTP_X_FORWARDED_FOR", request.remote_addr)
             current_time = time.time()
 
-            pin_submitted = request.form.get('pin', '')
+            pin_submitted = request.form.get("pin", "")
             auth_pin = AppManager.get_auth_pin()
 
             if not auth_pin:
-                flash('Authentication not configured')
-                return render_template('login.html')
+                flash("Authentication not configured")
+                return render_template("login.html")
 
             is_pin_correct = hmac.compare_digest(pin_submitted, auth_pin)
 
@@ -410,9 +406,9 @@ def register_routes(app: MatHudFlask) -> None:
 
             if is_pin_correct:
                 # 1. PIN is correct. Login succeeds immediately.
-                session['authenticated'] = True
-                login_attempts.pop(client_ip, None) # Clear any old rate limit.
-                return redirect(url_for('get_index'))
+                session["authenticated"] = True
+                login_attempts.pop(client_ip, None)  # Clear any old rate limit.
+                return redirect(url_for("get_index"))
             else:
                 # 2. PIN is incorrect. Now we handle rate limiting.
                 if client_ip in login_attempts:
@@ -422,42 +418,41 @@ def register_routes(app: MatHudFlask) -> None:
                         # 2a. Cooldown is ACTIVE. Block and show countdown.
                         remaining_cooldown = 5.0 - time_since_last_failed
                         display_time = math.ceil(remaining_cooldown)
-                        flash(f'Too many attempts. Please wait {display_time} seconds.')
-                        return render_template('login.html')
+                        flash(f"Too many attempts. Please wait {display_time} seconds.")
+                        return render_template("login.html")
 
                 # 2b. PIN was wrong, but no active cooldown. Start a new one.
                 login_attempts[client_ip] = current_time
-                flash('Invalid access code')
+                flash("Invalid access code")
 
                 # Cleanup logic (runs only after a failed attempt)
                 if len(login_attempts) > 1000:
-                    cutoff = current_time - 3600 # 1 hour
+                    cutoff = current_time - 3600  # 1 hour
                     for ip, timestamp in list(login_attempts.items()):
                         if timestamp < cutoff:
                             del login_attempts[ip]
 
-                return render_template('login.html')
+                return render_template("login.html")
 
         # For GET request
-        return render_template('login.html')
+        return render_template("login.html")
 
-    @app.route('/logout')
+    @app.route("/logout")
     def logout() -> ResponseReturnValue:
         """Handle user logout and session cleanup."""
-        session.pop('authenticated', None)
+        session.pop("authenticated", None)
         if AppManager.requires_auth():
-            return redirect(url_for('login'))
-        return redirect(url_for('get_index'))
+            return redirect(url_for("login"))
+        return redirect(url_for("get_index"))
 
-    @app.route('/auth_status')
+    @app.route("/auth_status")
     def auth_status() -> ResponseReturnValue:
         """Return authentication status information."""
-        return AppManager.make_response(data={
-            'auth_required': AppManager.requires_auth(),
-            'authenticated': session.get('authenticated', False)
-        })
+        return AppManager.make_response(
+            data={"auth_required": AppManager.requires_auth(), "authenticated": session.get("authenticated", False)}
+        )
 
-    @app.route('/api/available_models', methods=['GET'])
+    @app.route("/api/available_models", methods=["GET"])
     @require_auth
     def get_available_models() -> ResponseReturnValue:
         """Return models grouped by provider, only for available providers."""
@@ -503,7 +498,7 @@ def register_routes(app: MatHudFlask) -> None:
 
         return jsonify(models_by_provider)
 
-    @app.route('/api/preload_model', methods=['POST'])
+    @app.route("/api/preload_model", methods=["POST"])
     @require_auth
     def preload_model() -> ResponseReturnValue:
         """Preload an Ollama model into memory.
@@ -519,16 +514,16 @@ def register_routes(app: MatHudFlask) -> None:
         request_payload = request.get_json(silent=True)
         if not isinstance(request_payload, dict):
             return AppManager.make_response(
-                message='Invalid request body',
-                status='error',
+                message="Invalid request body",
+                status="error",
                 code=400,
             )
 
-        model_id = request_payload.get('model_id')
+        model_id = request_payload.get("model_id")
         if not isinstance(model_id, str) or not model_id:
             return AppManager.make_response(
-                message='model_id is required',
-                status='error',
+                message="model_id is required",
+                status="error",
                 code=400,
             )
 
@@ -536,24 +531,24 @@ def register_routes(app: MatHudFlask) -> None:
         model = AIModel.from_identifier(model_id)
         if model.provider != PROVIDER_OLLAMA:
             return AppManager.make_response(
-                message='Model preloading only supported for Ollama models',
-                status='error',
+                message="Model preloading only supported for Ollama models",
+                status="error",
                 code=400,
             )
 
         # Check if server is running
         if not OllamaAPI.is_server_running():
             return AppManager.make_response(
-                message='Ollama server is not running',
-                status='error',
+                message="Ollama server is not running",
+                status="error",
                 code=503,
             )
 
         # Check if already loaded
         if OllamaAPI.is_model_loaded(model_id):
             return AppManager.make_response(
-                data={'already_loaded': True},
-                message=f'Model {model_id} is already loaded',
+                data={"already_loaded": True},
+                message=f"Model {model_id} is already loaded",
             )
 
         # Preload the model (this may take a while)
@@ -561,17 +556,17 @@ def register_routes(app: MatHudFlask) -> None:
 
         if success:
             return AppManager.make_response(
-                data={'already_loaded': False},
+                data={"already_loaded": False},
                 message=message,
             )
         else:
             return AppManager.make_response(
                 message=message,
-                status='error',
+                status="error",
                 code=500,
             )
 
-    @app.route('/api/model_status', methods=['GET'])
+    @app.route("/api/model_status", methods=["GET"])
     @require_auth
     def get_model_status() -> ResponseReturnValue:
         """Get the loading status of Ollama models.
@@ -584,11 +579,11 @@ def register_routes(app: MatHudFlask) -> None:
         """
         from static.providers.local.ollama_api import OllamaAPI
 
-        model_id = request.args.get('model_id')
+        model_id = request.args.get("model_id")
 
         if not OllamaAPI.is_server_running():
             return AppManager.make_response(
-                data={'server_running': False, 'loaded_models': []},
+                data={"server_running": False, "loaded_models": []},
             )
 
         loaded_models = OllamaAPI.get_loaded_models()
@@ -597,28 +592,28 @@ def register_routes(app: MatHudFlask) -> None:
             is_loaded = OllamaAPI.is_model_loaded(model_id)
             return AppManager.make_response(
                 data={
-                    'server_running': True,
-                    'model_id': model_id,
-                    'is_loaded': is_loaded,
-                    'loaded_models': loaded_models,
+                    "server_running": True,
+                    "model_id": model_id,
+                    "is_loaded": is_loaded,
+                    "loaded_models": loaded_models,
                 },
             )
 
         return AppManager.make_response(
             data={
-                'server_running': True,
-                'loaded_models': loaded_models,
+                "server_running": True,
+                "loaded_models": loaded_models,
             },
         )
 
-    @app.route('/api/debug/conversation', methods=['GET'])
+    @app.route("/api/debug/conversation", methods=["GET"])
     @require_auth
     def debug_conversation() -> ResponseReturnValue:
         """Debug endpoint to view conversation history for all providers.
 
         Returns the message history for debugging purposes.
         """
-        provider_name = request.args.get('provider')
+        provider_name = request.args.get("provider")
 
         def summarize_message(msg: Dict[str, Any]) -> Dict[str, Any]:
             """Summarize a message for display, truncating long content."""
@@ -675,100 +670,83 @@ def register_routes(app: MatHudFlask) -> None:
 
         return AppManager.make_response(data=cast(JsonValue, result))
 
-    @app.route('/api/debug/canvas-state-comparison', methods=['POST'])
+    @app.route("/api/debug/canvas-state-comparison", methods=["POST"])
     @require_auth
     def debug_canvas_state_comparison() -> ResponseReturnValue:
         """Development-only endpoint for full vs summary canvas-state comparison."""
         if AppManager.is_deployed():
             return AppManager.make_response(
-                message='Not found',
-                status='error',
+                message="Not found",
+                status="error",
                 code=404,
             )
 
         payload = request.get_json(silent=True)
         if not isinstance(payload, dict):
             return AppManager.make_response(
-                message='Invalid request body',
-                status='error',
+                message="Invalid request body",
+                status="error",
                 code=400,
             )
 
-        canvas_state = payload.get('canvas_state')
+        canvas_state = payload.get("canvas_state")
         if not isinstance(canvas_state, dict):
             return AppManager.make_response(
-                message='canvas_state must be an object',
-                status='error',
+                message="canvas_state must be an object",
+                status="error",
                 code=400,
             )
 
         comparison = compare_canvas_states(canvas_state)
         return AppManager.make_response(data=cast(JsonValue, comparison))
 
-    @app.route('/')
+    @app.route("/")
     @require_auth
     def get_index() -> ResponseReturnValue:
-        return render_template('index.html')
+        return render_template("index.html")
 
-    @app.route('/init_webdriver')
+    @app.route("/init_webdriver")
     @require_auth
     def init_webdriver_route() -> ResponseReturnValue:
         """Route to initialize WebDriver after Flask has started"""
         if not app.webdriver_manager:
             try:
                 from static.webdriver_manager import WebDriverManager
-                port = app.config.get('SERVER_PORT', 5000)
+
+                port = app.config.get("SERVER_PORT", 5000)
                 base_url = f"http://127.0.0.1:{port}/"
                 app.webdriver_manager = WebDriverManager(base_url=base_url)
             except Exception as e:
                 print(f"Failed to initialize WebDriverManager: {str(e)}")
                 return AppManager.make_response(
-                    message=f"WebDriver initialization failed: {str(e)}",
-                    status='error',
-                    code=500
+                    message=f"WebDriver initialization failed: {str(e)}", status="error", code=500
                 )
         return AppManager.make_response(message="WebDriver initialization successful")
 
-    @app.route('/save_workspace', methods=['POST'])
+    @app.route("/save_workspace", methods=["POST"])
     @require_auth
     def save_workspace_route() -> ResponseReturnValue:
         """Save the current workspace state."""
         try:
             data = request.get_json(silent=True)
             if not isinstance(data, dict):
-                return AppManager.make_response(
-                    message='Invalid request body',
-                    status='error',
-                    code=400
-                )
+                return AppManager.make_response(message="Invalid request body", status="error", code=400)
 
-            state = data.get('state')
-            name = data.get('name')
+            state = data.get("state")
+            name = data.get("name")
 
             if name is not None and not isinstance(name, str):
-                return AppManager.make_response(
-                    message='Workspace name must be a string',
-                    status='error',
-                    code=400
-                )
+                return AppManager.make_response(message="Workspace name must be a string", status="error", code=400)
 
             success = app.workspace_manager.save_workspace(state, name)
             if success:
-                return AppManager.make_response(message='Workspace saved successfully')
+                return AppManager.make_response(message="Workspace saved successfully")
             else:
-                return AppManager.make_response(
-                    message='Failed to save workspace',
-                    status='error',
-                    code=500
-                )
+                return AppManager.make_response(message="Failed to save workspace", status="error", code=500)
         except Exception as e:
-            return AppManager.make_response(
-                message=str(e),
-                status='error',
-                code=500
-            )
+            return AppManager.make_response(message=str(e), status="error", code=500)
 
-    @app.route('/send_message_stream', methods=['POST'])
+    @app.route("/send_message_stream", methods=["POST"])
     @require_auth
     def send_message_stream() -> ResponseReturnValue:
         """Stream AI response tokens for the provided message payload.
@@ -785,17 +763,17 @@ def register_routes(app: MatHudFlask) -> None:
         request_payload_raw: JsonValue = request.get_json(silent=True)
         if not isinstance(request_payload_raw, dict):
             return AppManager.make_response(
-                message='Invalid request body',
-                status='error',
+                message="Invalid request body",
+                status="error",
                 code=400,
             )
         request_payload: JsonObject = request_payload_raw
 
-        message_raw = request_payload.get('message')
+        message_raw = request_payload.get("message")
         if not isinstance(message_raw, str) or not message_raw:
             return AppManager.make_response(
-                message='Message is required',
-                status='error',
+                message="Message is required",
+                status="error",
                 code=400,
             )
         message: str = message_raw
@@ -804,26 +782,26 @@ def register_routes(app: MatHudFlask) -> None:
             message_json_value: JsonValue = json.loads(message)
         except (json.JSONDecodeError, TypeError):
             return AppManager.make_response(
-                message='Invalid message format',
-                status='error',
+                message="Invalid message format",
+                status="error",
                 code=400,
             )
 
         if not isinstance(message_json_value, dict):
             return AppManager.make_response(
-                message='Invalid message format',
-                status='error',
+                message="Invalid message format",
+                status="error",
                 code=400,
             )
         message_json: JsonObject = message_json_value
 
         svg_state, canvas_image_data, _, _ = extract_vision_payload(request_payload)
-        use_vision = bool(message_json.get('use_vision', False))
-        ai_model_raw = message_json.get('ai_model')
+        use_vision = bool(message_json.get("use_vision", False))
+        ai_model_raw = message_json.get("ai_model")
         ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
 
         # Extract attached images from the message JSON (not request_payload)
-        attached_images_raw = message_json.get('attached_images')
+        attached_images_raw = message_json.get("attached_images")
         attached_images: Optional[List[str]] = None
         if isinstance(attached_images_raw, list):
             attached_images = [img for img in attached_images_raw if isinstance(img, str)]
@@ -841,7 +819,7 @@ def register_routes(app: MatHudFlask) -> None:
         app.log_manager.log_user_message(message)
 
         # Log action trace if present (sent as top-level field, not in prompt)
-        action_trace_raw = request_payload.get('action_trace')
+        action_trace_raw = request_payload.get("action_trace")
         if isinstance(action_trace_raw, dict):
             app.log_manager.log_action_trace(action_trace_raw)
 
@@ -854,7 +832,7 @@ def register_routes(app: MatHudFlask) -> None:
         )
 
         # Check for search_tools results and inject tools if found
-        tool_call_results_raw = message_json.get('tool_call_results')
+        tool_call_results_raw = message_json.get("tool_call_results")
         if isinstance(tool_call_results_raw, str) and tool_call_results_raw:
             _maybe_inject_search_tools(app.ai_api, tool_call_results_raw)
             _maybe_inject_search_tools(app.responses_api, tool_call_results_raw)
@@ -892,26 +870,24 @@ def register_routes(app: MatHudFlask) -> None:
 
                     if isinstance(event, dict):
                         event_dict = cast(StreamEventDict, event)
-                        if event_dict.get('type') == 'final':
+                        if event_dict.get("type") == "final":
                             try:
-                                app.log_manager.log_ai_response(str(event_dict.get('ai_message', '')))
-                                tool_calls = event_dict.get('ai_tool_calls')
+                                app.log_manager.log_ai_response(str(event_dict.get("ai_message", "")))
+                                tool_calls = event_dict.get("ai_tool_calls")
                                 if isinstance(tool_calls, list):
                                     dict_tool_calls: List[Dict[str, Any]] = [
-                                        cast(Dict[str, Any], call)
-                                        for call in tool_calls
-                                        if isinstance(call, dict)
+                                        cast(Dict[str, Any], call) for call in tool_calls if isinstance(call, dict)
                                     ]
                                     # Intercept search_tools and filter other tool calls
                                     if dict_tool_calls:
                                         filtered_calls = _intercept_search_tools(app, dict_tool_calls, provider)
-                                        event_dict['ai_tool_calls'] = cast(JsonValue, filtered_calls)
+                                        event_dict["ai_tool_calls"] = cast(JsonValue, filtered_calls)
                                         app.log_manager.log_ai_tool_calls(filtered_calls)
                             except Exception:
                                 pass
                             # Reset tools if AI finished (not requesting more tool calls)
-                            finish_reason = event_dict.get('finish_reason')
-                            if finish_reason != 'tool_calls':
+                            finish_reason = event_dict.get("finish_reason")
+                            if finish_reason != "tool_calls":
                                 if app.ai_api.has_injected_tools():
                                     app.ai_api.reset_tools()
                                 if app.responses_api.has_injected_tools():
@@ -961,35 +937,27 @@ def register_routes(app: MatHudFlask) -> None:
                     }
                     yield json.dumps(fallback_payload) + "\n"
 
-        response = Response(generate(), mimetype='application/x-ndjson')
+        response = Response(generate(), mimetype="application/x-ndjson")
         # Headers to reduce buffering in some proxies
-        response.headers['Cache-Control'] = 'no-cache'
-        response.headers['X-Accel-Buffering'] = 'no'
+        response.headers["Cache-Control"] = "no-cache"
+        response.headers["X-Accel-Buffering"] = "no"
         return response
 
-    @app.route('/load_workspace', methods=['GET'])
+    @app.route("/load_workspace", methods=["GET"])
     @require_auth
     def load_workspace_route() -> ResponseReturnValue:
         """Load a workspace state."""
         try:
-            name = request.args.get('name')
+            name = request.args.get("name")
             state = app.workspace_manager.load_workspace(name)
 
-            return AppManager.make_response(data={'state': state})
+            return AppManager.make_response(data={"state": state})
         except FileNotFoundError as e:
-            return AppManager.make_response(
-                message=str(e),
-                status='error',
-                code=404
-            )
+            return AppManager.make_response(message=str(e), status="error", code=404)
         except Exception as e:
-            return AppManager.make_response(
-                message=str(e),
-                status='error',
-                code=500
-            )
+            return AppManager.make_response(message=str(e), status="error", code=500)
 
-    @app.route('/list_workspaces', methods=['GET'])
+    @app.route("/list_workspaces", methods=["GET"])
     @require_auth
     def list_workspaces_route() -> ResponseReturnValue:
         """List all saved workspaces."""
@@ -997,42 +965,26 @@ def register_routes(app: MatHudFlask) -> None:
             workspaces = app.workspace_manager.list_workspaces()
             return AppManager.make_response(data=cast(JsonValue, workspaces))
         except Exception as e:
-            return AppManager.make_response(
-                message=str(e),
-                status='error',
-                code=500
-            )
+            return AppManager.make_response(message=str(e), status="error", code=500)
 
-    @app.route('/delete_workspace', methods=['GET'])
+    @app.route("/delete_workspace", methods=["GET"])
     @require_auth
     def delete_workspace_route() -> ResponseReturnValue:
         """Delete a workspace."""
         try:
-            name = request.args.get('name')
+            name = request.args.get("name")
             if not name:
-                return AppManager.make_response(
-                    message='Workspace name is required',
-                    status='error',
-                    code=400
-                )
+                return AppManager.make_response(message="Workspace name is required", status="error", code=400)
 
             success = app.workspace_manager.delete_workspace(name)
             if success:
-                return AppManager.make_response(message='Workspace deleted successfully')
+                return AppManager.make_response(message="Workspace deleted successfully")
             else:
-                return AppManager.make_response(
-                    message='Failed to delete workspace',
-                    status='error',
-                    code=404
-                )
+                return AppManager.make_response(message="Failed to delete workspace", status="error", code=404)
         except Exception as e:
-            return AppManager.make_response(
-                message=str(e),
-                status='error',
-                code=500
-            )
+            return AppManager.make_response(message=str(e), status="error", code=500)
 
-    @app.route('/new_conversation', methods=['POST'])
+    @app.route("/new_conversation", methods=["POST"])
     @require_auth
     def new_conversation_route() -> ResponseReturnValue:
         """Reset the AI conversation history for a new session."""
@@ -1043,15 +995,11 @@ def register_routes(app: MatHudFlask) -> None:
             for provider in app.providers.values():
                 provider.reset_conversation()
             app.log_manager.log_new_session()
-            return AppManager.make_response(message='New conversation started.')
+            return AppManager.make_response(message="New conversation started.")
         except Exception as e:
-            return AppManager.make_response(
-                message=str(e),
-                status='error',
-                code=500
-            )
+            return AppManager.make_response(message=str(e), status="error", code=500)
 
-    @app.route('/save_partial_response', methods=['POST'])
+    @app.route("/save_partial_response", methods=["POST"])
     @require_auth
     def save_partial_response() -> ResponseReturnValue:
         """Save a partial AI response that was interrupted by the user."""
@@ -1059,16 +1007,16 @@ def register_routes(app: MatHudFlask) -> None:
             request_payload = request.get_json(silent=True)
             if not isinstance(request_payload, dict):
                 return AppManager.make_response(
-                    message='Invalid request body',
-                    status='error',
+                    message="Invalid request body",
+                    status="error",
                     code=400,
                 )
 
-            partial_message = request_payload.get('partial_message', '')
+            partial_message = request_payload.get("partial_message", "")
             if not isinstance(partial_message, str):
                 return AppManager.make_response(
-                    message='Invalid partial message',
-                    status='error',
+                    message="Invalid partial message",
+                    status="error",
                     code=400,
                 )
 
@@ -1080,13 +1028,9 @@ def register_routes(app: MatHudFlask) -> None:
             for provider in app.providers.values():
                 provider.add_partial_assistant_message(partial_message)
 
-            return AppManager.make_response(message='Partial response saved.')
+            return AppManager.make_response(message="Partial response saved.")
         except Exception as e:
-            return AppManager.make_response(
-                message=str(e),
-                status='error',
-                code=500
-            )
+            return AppManager.make_response(message=str(e), status="error", code=500)
 
     def _process_ai_response(app: MatHudFlask, choice: Any) -> tuple[str, ToolCallList]:
         """Process the AI response choice and log the results.
@@ -1113,22 +1057,22 @@ def register_routes(app: MatHudFlask) -> None:
 
         return ai_message, tool_calls
 
-    @app.route('/send_message', methods=['POST'])
+    @app.route("/send_message", methods=["POST"])
     @require_auth
     def send_message() -> ResponseReturnValue:
         request_payload = request.get_json(silent=True)
         if not isinstance(request_payload, dict):
             return AppManager.make_response(
-                message='Invalid request body',
-                status='error',
+                message="Invalid request body",
+                status="error",
                 code=400,
             )
 
-        message = request_payload.get('message')
+        message = request_payload.get("message")
         if not isinstance(message, str) or not message:
             return AppManager.make_response(
-                message='Message is required',
-                status='error',
+                message="Message is required",
+                status="error",
                 code=400,
             )
 
@@ -1136,25 +1080,25 @@ def register_routes(app: MatHudFlask) -> None:
             message_json_raw = json.loads(message)
         except (json.JSONDecodeError, TypeError):
             return AppManager.make_response(
-                message='Invalid message format',
-                status='error',
+                message="Invalid message format",
+                status="error",
                 code=400,
             )
 
         if not isinstance(message_json_raw, dict):
             return AppManager.make_response(
-                message='Invalid message format',
-                status='error',
+                message="Invalid message format",
+                status="error",
                 code=400,
             )
 
         svg_state, canvas_image_data, _, _ = extract_vision_payload(request_payload)
-        use_vision = bool(message_json_raw.get('use_vision', False))
-        ai_model_raw = message_json_raw.get('ai_model')
+        use_vision = bool(message_json_raw.get("use_vision", False))
+        ai_model_raw = message_json_raw.get("ai_model")
         ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
 
         # Extract attached images from the message JSON
-        attached_images_raw = message_json_raw.get('attached_images')
+        attached_images_raw = message_json_raw.get("attached_images")
         attached_images: Optional[List[str]] = None
         if isinstance(attached_images_raw, list):
             attached_images = [img for img in attached_images_raw if isinstance(img, str)]
@@ -1172,7 +1116,7 @@ def register_routes(app: MatHudFlask) -> None:
         app.log_manager.log_user_message(message)
 
         # Log action trace if present (sent as top-level field, not in prompt)
-        action_trace_raw_legacy = request_payload.get('action_trace')
+        action_trace_raw_legacy = request_payload.get("action_trace")
         if isinstance(action_trace_raw_legacy, dict):
             app.log_manager.log_action_trace(action_trace_raw_legacy)
 
@@ -1185,7 +1129,7 @@ def register_routes(app: MatHudFlask) -> None:
         )
 
         # Check for search_tools results and inject tools if found
-        tool_call_results_raw = message_json_raw.get('tool_call_results')
+        tool_call_results_raw = message_json_raw.get("tool_call_results")
         if isinstance(tool_call_results_raw, str) and tool_call_results_raw:
             _maybe_inject_search_tools(app.ai_api, tool_call_results_raw)
             _maybe_inject_search_tools(app.responses_api, tool_call_results_raw)
@@ -1198,7 +1142,7 @@ def register_routes(app: MatHudFlask) -> None:
 
         def _reset_tools_if_needed(finish_reason: Any) -> None:
             """Reset tools if AI finished (not requesting more tool calls)."""
-            if finish_reason != 'tool_calls':
+            if finish_reason != "tool_calls":
                 if app.ai_api.has_injected_tools():
                     app.ai_api.reset_tools()
                 if app.responses_api.has_injected_tools():
@@ -1219,7 +1163,7 @@ def register_routes(app: MatHudFlask) -> None:
                         break
 
                 if final_event is None:
-                    _reset_tools_if_needed('error')
+                    _reset_tools_if_needed("error")
                     return AppManager.make_response(
                         message="No final response event produced",
                         status="error",
@@ -1242,11 +1186,16 @@ def register_routes(app: MatHudFlask) -> None:
                 app.log_manager.log_ai_tool_calls(ai_tool_calls)
 
                 _reset_tools_if_needed(finish_reason)
-                return AppManager.make_response(data=cast(JsonObject, {
-                    "ai_message": ai_message,
-                    "ai_tool_calls": cast(JsonValue, ai_tool_calls),
-                    "finish_reason": finish_reason,
-                }))
+                return AppManager.make_response(
+                    data=cast(
+                        JsonObject,
+                        {
+                            "ai_message": ai_message,
+                            "ai_tool_calls": cast(JsonValue, ai_tool_calls),
+                            "finish_reason": finish_reason,
+                        },
+                    )
+                )
 
             choice = provider.create_chat_completion(message)
             ai_message, ai_tool_calls_processed = _process_ai_response(app, choice)
@@ -1254,23 +1203,28 @@ def register_routes(app: MatHudFlask) -> None:
             # Intercept search_tools and filter other tool calls
             if ai_tool_calls:
                 ai_tool_calls = _intercept_search_tools(app, ai_tool_calls, provider)
-            finish_reason = getattr(choice, 'finish_reason', None)
+            finish_reason = getattr(choice, "finish_reason", None)
 
             _reset_tools_if_needed(finish_reason)
-            return AppManager.make_response(data=cast(JsonObject, {
-                "ai_message": ai_message,
-                "ai_tool_calls": cast(JsonValue, ai_tool_calls),
-                "finish_reason": finish_reason,
-            }))
+            return AppManager.make_response(
+                data=cast(
+                    JsonObject,
+                    {
+                        "ai_message": ai_message,
+                        "ai_tool_calls": cast(JsonValue, ai_tool_calls),
+                        "finish_reason": finish_reason,
+                    },
+                )
+            )
         except Exception as exc:
-            _reset_tools_if_needed('error')
+            _reset_tools_if_needed("error")
             return AppManager.make_response(
                 message=str(exc),
-                status='error',
+                status="error",
                 code=500,
             )
 
-    @app.route('/search_tools', methods=['POST'])
+    @app.route("/search_tools", methods=["POST"])
     @require_auth
     def search_tools_route() -> ResponseReturnValue:
         """Search for tools matching a query description.
@@ -1290,20 +1244,20 @@ def register_routes(app: MatHudFlask) -> None:
         request_payload = request.get_json(silent=True)
         if not isinstance(request_payload, dict):
             return AppManager.make_response(
-                message='Invalid request body',
-                status='error',
+                message="Invalid request body",
+                status="error",
                 code=400,
             )
 
-        query = request_payload.get('query')
+        query = request_payload.get("query")
         if not isinstance(query, str) or not query.strip():
             return AppManager.make_response(
-                message='Query is required',
-                status='error',
+                message="Query is required",
+                status="error",
                 code=400,
             )
 
-        max_results_raw = request_payload.get('max_results')
+        max_results_raw = request_payload.get("max_results")
         max_results = 10  # default
         if isinstance(max_results_raw, int):
             max_results = max_results_raw
@@ -1311,7 +1265,7 @@ def register_routes(app: MatHudFlask) -> None:
             max_results = int(max_results_raw)
 
         # Get current model from request to use same provider for search
-        ai_model_raw = request_payload.get('ai_model')
+        ai_model_raw = request_payload.get("ai_model")
         ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
 
         try:
@@ -1332,11 +1286,11 @@ def register_routes(app: MatHudFlask) -> None:
         except Exception as exc:
             return AppManager.make_response(
                 message=str(exc),
-                status='error',
+                status="error",
                 code=500,
             )
 
-    @app.route('/api/tts', methods=['POST'])
+    @app.route("/api/tts", methods=["POST"])
     @require_auth
     def generate_tts() -> ResponseReturnValue:
         """Generate text-to-speech audio from text.
@@ -1354,28 +1308,28 @@ def register_routes(app: MatHudFlask) -> None:
         request_payload = request.get_json(silent=True)
         if not isinstance(request_payload, dict):
             return AppManager.make_response(
-                message='Invalid request body',
-                status='error',
+                message="Invalid request body",
+                status="error",
                 code=400,
             )
 
-        text = request_payload.get('text')
+        text = request_payload.get("text")
         if not isinstance(text, str) or not text.strip():
             return AppManager.make_response(
-                message='Text is required',
-                status='error',
+                message="Text is required",
+                status="error",
                 code=400,
             )
 
-        voice_raw = request_payload.get('voice')
+        voice_raw = request_payload.get("voice")
         voice = voice_raw if isinstance(voice_raw, str) else None
 
         tts_manager = get_tts_manager()
 
         if not tts_manager.is_available():
             return AppManager.make_response(
-                message='TTS service is not available. Kokoro may not be installed.',
-                status='error',
+                message="TTS service is not available. Kokoro may not be installed.",
+                status="error",
                 code=503,
             )
 
@@ -1388,21 +1342,21 @@ def register_routes(app: MatHudFlask) -> None:
         if not success:
             return AppManager.make_response(
                 message=str(result),
-                status='error',
+                status="error",
                 code=500,
             )
 
         # Return WAV audio bytes
         return Response(
             result,
-            mimetype='audio/wav',
+            mimetype="audio/wav",
             headers={
-                'Content-Type': 'audio/wav',
-                'Content-Disposition': 'inline; filename="tts_output.wav"',
-            }
+                "Content-Type": "audio/wav",
+                "Content-Disposition": 'inline; filename="tts_output.wav"',
+            },
         )
 
-    @app.route('/api/tts/voices', methods=['GET'])
+    @app.route("/api/tts/voices", methods=["GET"])
     @require_auth
     def get_tts_voices() -> ResponseReturnValue:
         """Get available TTS voices.
@@ -1411,8 +1365,13 @@ def register_routes(app: MatHudFlask) -> None:
             JSON response with list of voice IDs
         """
         tts_manager = get_tts_manager()
-        return AppManager.make_response(data=cast(JsonValue, {
-            'voices': tts_manager.get_voices(),
-            'default_voice': tts_manager.DEFAULT_VOICE,
-            'available': tts_manager.is_available(),
-        }))
+        return AppManager.make_response(
+            data=cast(
+                JsonValue,
+                {
+                    "voices": tts_manager.get_voices(),
+                    "default_voice": tts_manager.DEFAULT_VOICE,
+                    "available": tts_manager.is_available(),
+                },
+            )
+        )

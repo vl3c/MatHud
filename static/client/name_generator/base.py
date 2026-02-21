@@ -71,4 +71,4 @@ class NameGenerator:
             return ""
         pattern: str = r"[a-zA-Z0-9_'\(\)]+"
         matches: List[str] = re.findall(pattern, name)
-        return ''.join(matches)
+        return "".join(matches)

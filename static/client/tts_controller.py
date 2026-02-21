@@ -144,17 +144,20 @@ class TTSController:
         # Make request to TTS endpoint
         try:
             req = ajax.ajax()
-            req.bind('complete', self._on_request_complete)
-            req.bind('error', self._on_request_error)
-            req.responseType = 'blob'
-            req.open('POST', '/api/tts', True)
-            req.set_header('Content-Type', 'application/json')
+            req.bind("complete", self._on_request_complete)
+            req.bind("error", self._on_request_error)
+            req.responseType = "blob"
+            req.open("POST", "/api/tts", True)
+            req.set_header("Content-Type", "application/json")
 
             import json
-            payload = json.dumps({
-                'text': text,
-                'voice': voice,
-            })
+
+            payload = json.dumps(
+                {
+                    "text": text,
+                    "voice": voice,
+                }
+            )
             req.send(payload)
 
         except Exception as e:
@@ -187,7 +190,7 @@ class TTSController:
         Returns:
             Human-readable error message
         """
-        status = getattr(req, 'status', 0)
+        status = getattr(req, "status", 0)
 
         # Handle common HTTP status codes with helpful messages
         if status == 503:
@@ -200,12 +203,13 @@ class TTSController:
         # Try to parse JSON error response
         try:
             # Try responseText first (works better for non-blob responses)
-            response_text = getattr(req, 'responseText', None) or getattr(req, 'text', None)
+            response_text = getattr(req, "responseText", None) or getattr(req, "text", None)
             if response_text:
                 import json
+
                 data = json.loads(response_text)
                 if isinstance(data, dict):
-                    msg = data.get('message', '')
+                    msg = data.get("message", "")
                     if msg:
                         return f"TTS error: {msg}"
         except Exception:
@@ -242,8 +246,8 @@ class TTSController:
                 self._cleanup_audio()
                 self._set_state("idle")
 
-            audio.addEventListener('ended', on_ended)
-            audio.addEventListener('error', on_error)
+            audio.addEventListener("ended", on_ended)
+            audio.addEventListener("error", on_error)
 
             # Store reference and play
             self._audio = audio
@@ -259,7 +263,7 @@ class TTSController:
     def _cleanup_audio(self) -> None:
         """Clean up audio resources."""
         try:
-            if hasattr(self, '_audio_url') and self._audio_url:
+            if hasattr(self, "_audio_url") and self._audio_url:
                 window.URL.revokeObjectURL(self._audio_url)
                 self._audio_url = None
         except Exception:

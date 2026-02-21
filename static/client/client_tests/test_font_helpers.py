@@ -31,11 +31,11 @@ class TestCoerceFontSize(unittest.TestCase):
         self.assertEqual(result, 12.0)
 
     def test_nan_candidate_uses_fallback(self) -> None:
-        result = _coerce_font_size(float('nan'), 10)
+        result = _coerce_font_size(float("nan"), 10)
         self.assertEqual(result, 10.0)
 
     def test_infinity_candidate_uses_fallback(self) -> None:
-        result = _coerce_font_size(float('inf'), 10)
+        result = _coerce_font_size(float("inf"), 10)
         self.assertEqual(result, 10.0)
 
     def test_invalid_string_uses_fallback(self) -> None:
@@ -80,6 +80,7 @@ class TestComputeZoomAdjustedFontSize(unittest.TestCase):
 
     def test_extreme_zoom_out_returns_minimum(self) -> None:
         from constants import label_min_screen_font_px
+
         label = SimpleNamespace(reference_scale_factor=1.0)
         mapper = SimpleNamespace(scale_factor=0.01)
         result = _compute_zoom_adjusted_font_size(16.0, label, mapper)
@@ -89,6 +90,7 @@ class TestComputeZoomAdjustedFontSize(unittest.TestCase):
 
     def test_vanish_threshold(self) -> None:
         from constants import label_vanish_threshold_px
+
         label = SimpleNamespace(reference_scale_factor=1.0)
         mapper = SimpleNamespace(scale_factor=0.001)
         result = _compute_zoom_adjusted_font_size(2.0, label, mapper)
@@ -126,4 +128,3 @@ class TestComputeZoomAdjustedFontSize(unittest.TestCase):
 
 
 __all__ = ["TestCoerceFontSize", "TestComputeZoomAdjustedFontSize"]
-

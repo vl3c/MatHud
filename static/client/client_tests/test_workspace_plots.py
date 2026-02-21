@@ -145,5 +145,3 @@ class TestWorkspacePlotsRestore(unittest.TestCase):
         self.assertNotIn("MyBars", self._names_for_class(canvas2, "DiscretePlot"))
         self.assertNotIn("Poll", self._names_for_class(canvas2, "BarsPlot"))
         self.assertNotIn("MyPlot", self._names_for_class(canvas2, "ContinuousPlot"))
-
-

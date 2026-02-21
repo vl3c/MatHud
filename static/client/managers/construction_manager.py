@@ -122,9 +122,7 @@ class ConstructionManager:
         dx = seg.point2.x - seg.point1.x
         dy = seg.point2.y - seg.point1.y
         if abs(dx) < MathUtils.EPSILON and abs(dy) < MathUtils.EPSILON:
-            raise ValueError(
-                f"Degenerate segment '{getattr(seg, 'name', '')}': endpoints coincide"
-            )
+            raise ValueError(f"Degenerate segment '{getattr(seg, 'name', '')}': endpoints coincide")
         if abs(dx) < MathUtils.EPSILON:
             return None
         return dy / dx
@@ -164,14 +162,13 @@ class ConstructionManager:
             p1 = self._get_point(p1_name)
             p2 = self._get_point(p2_name)
         else:
-            raise ValueError(
-                "Provide either 'segment_name' or both 'p1_name' and 'p2_name'"
-            )
+            raise ValueError("Provide either 'segment_name' or both 'p1_name' and 'p2_name'")
 
         mx, my = MathUtils.get_2D_midpoint(p1, p2)
 
         point = self.point_manager.create_point(
-            mx, my,
+            mx,
+            my,
             name=name or "",
             color=color or default_color,
             extra_graphics=False,
@@ -218,7 +215,10 @@ class ConstructionManager:
 
         self._archive_for_undo()
         segment = self.segment_manager.create_segment(
-            x1, y1, x2, y2,
+            x1,
+            y1,
+            x2,
+            y2,
             name=name or "",
             color=color,
             extra_graphics=True,
@@ -256,9 +256,12 @@ class ConstructionManager:
             color = default_color
 
         foot_x, foot_y = MathUtils.perpendicular_foot(
-            pt.x, pt.y,
-            seg.point1.x, seg.point1.y,
-            seg.point2.x, seg.point2.y,
+            pt.x,
+            pt.y,
+            seg.point1.x,
+            seg.point1.y,
+            seg.point2.x,
+            seg.point2.y,
         )
 
         # Use suspend_archiving pattern for composite construction
@@ -268,14 +271,18 @@ class ConstructionManager:
 
         try:
             foot_point = self.point_manager.create_point(
-                foot_x, foot_y,
+                foot_x,
+                foot_y,
                 name="",
                 color=color,
                 extra_graphics=False,
             )
 
             perp_segment = self.segment_manager.create_segment(
-                pt.x, pt.y, foot_x, foot_y,
+                pt.x,
+                pt.y,
+                foot_x,
+                foot_y,
                 name=name or "",
                 color=color,
                 extra_graphics=True,
@@ -350,9 +357,7 @@ class ConstructionManager:
             p1x, p1y = p1.x, p1.y
             p2x, p2y = p2.x, p2.y
         else:
-            raise ValueError(
-                "Provide either 'angle_name' or all of 'vertex_name', 'p1_name', 'p2_name'"
-            )
+            raise ValueError("Provide either 'angle_name' or all of 'vertex_name', 'p1_name', 'p2_name'")
 
         if length is None:
             length = DEFAULT_CONSTRUCTION_LENGTH
@@ -367,7 +372,6 @@ class ConstructionManager:
             dx, dy = -dx, -dy
 
         # Create segment from vertex along bisector direction
-        half = length / 2
         x1 = vx
         y1 = vy
         x2 = vx + dx * length
@@ -375,7 +379,10 @@ class ConstructionManager:
 
         self._archive_for_undo()
         segment = self.segment_manager.create_segment(
-            x1, y1, x2, y2,
+            x1,
+            y1,
+            x2,
+            y2,
             name=name or "",
             color=color,
             extra_graphics=True,
@@ -425,7 +432,10 @@ class ConstructionManager:
 
         self._archive_for_undo()
         segment = self.segment_manager.create_segment(
-            x1, y1, x2, y2,
+            x1,
+            y1,
+            x2,
+            y2,
             name=name or "",
             color=color,
             extra_graphics=True,
@@ -454,9 +464,7 @@ class ConstructionManager:
             p3 = self._get_point(p3_name)
             return (p1.x, p1.y, p2.x, p2.y, p3.x, p3.y)
         else:
-            raise ValueError(
-                "Provide either 'triangle_name' or all of 'p1_name', 'p2_name', 'p3_name'"
-            )
+            raise ValueError("Provide either 'triangle_name' or all of 'p1_name', 'p2_name', 'p3_name'")
 
     def create_circumcircle(
         self,
@@ -486,9 +494,7 @@ class ConstructionManager:
         Raises:
             ValueError: If inputs not found or points are collinear
         """
-        x1, y1, x2, y2, x3, y3 = self._triangle_vertices(
-            triangle_name, p1_name, p2_name, p3_name
-        )
+        x1, y1, x2, y2, x3, y3 = self._triangle_vertices(triangle_name, p1_name, p2_name, p3_name)
         if color is None:
             color = default_color
 
@@ -501,7 +507,9 @@ class ConstructionManager:
 
         try:
             circle = self.proxy.create_circle(
-                cx, cy, radius,
+                cx,
+                cy,
+                radius,
                 name=name or "",
                 color=color,
                 extra_graphics=True,
@@ -547,9 +555,12 @@ class ConstructionManager:
             color = default_color
 
         cx, cy, radius = MathUtils.incenter_and_inradius(
-            verts[0].x, verts[0].y,
-            verts[1].x, verts[1].y,
-            verts[2].x, verts[2].y,
+            verts[0].x,
+            verts[0].y,
+            verts[1].x,
+            verts[1].y,
+            verts[2].x,
+            verts[2].y,
         )
 
         # Use suspend_archiving since create_circle internally archives
@@ -559,7 +570,9 @@ class ConstructionManager:
 
         try:
             circle = self.proxy.create_circle(
-                cx, cy, radius,
+                cx,
+                cy,
+                radius,
                 name=name or "",
                 color=color,
                 extra_graphics=True,

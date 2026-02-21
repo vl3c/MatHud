@@ -39,11 +39,11 @@ class TTSManager:
     # Available voices
     VOICES: List[str] = [
         "am_michael",  # Male - clear, natural
-        "am_fenrir",   # Male - deeper tone
-        "am_onyx",     # Male - darker tone
-        "am_echo",     # Male - resonant
-        "af_nova",     # Female - clear
-        "af_bella",    # Female - warm
+        "am_fenrir",  # Male - deeper tone
+        "am_onyx",  # Male - darker tone
+        "am_echo",  # Male - resonant
+        "af_nova",  # Female - clear
+        "af_bella",  # Female - warm
     ]
 
     DEFAULT_VOICE: str = "am_michael"
@@ -72,7 +72,7 @@ class TTSManager:
             from kokoro import KPipeline
 
             # Initialize Kokoro pipeline for American English
-            self._pipeline = KPipeline(lang_code='a', repo_id='hexgrad/Kokoro-82M')
+            self._pipeline = KPipeline(lang_code="a", repo_id="hexgrad/Kokoro-82M")
             return True, self._pipeline
 
         except ImportError as e:
@@ -181,9 +181,7 @@ class TTSManager:
             Tuple of (success, audio_bytes_or_error_message)
         """
         try:
-            future: Future[Tuple[bool, Union[bytes, str]]] = self._executor.submit(
-                self.generate_speech, text, voice
-            )
+            future: Future[Tuple[bool, Union[bytes, str]]] = self._executor.submit(self.generate_speech, text, voice)
             return future.result(timeout=timeout)
         except TimeoutError:
             return False, "TTS generation timed out"
@@ -206,7 +204,7 @@ class TTSManager:
         buffer = io.BytesIO()
 
         # Write WAV to buffer
-        sf.write(buffer, audio, sample_rate, format='WAV', subtype='PCM_16')
+        sf.write(buffer, audio, sample_rate, format="WAV", subtype="PCM_16")
 
         # Get bytes
         buffer.seek(0)

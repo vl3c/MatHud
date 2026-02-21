@@ -43,7 +43,22 @@ class Function(Drawable):
         estimated_period: Estimated period if is_periodic is True.
         undefined_at: Explicit list of x values where function is undefined.
     """
-    def __init__(self, function_string: str, name: Optional[str] = None, step: float = default_point_size, color: str = default_color, left_bound: Optional[float] = None, right_bound: Optional[float] = None, vertical_asymptotes: Optional[List[float]] = None, horizontal_asymptotes: Optional[List[float]] = None, point_discontinuities: Optional[List[float]] = None, is_periodic: Optional[bool] = None, estimated_period: Optional[float] = None, undefined_at: Optional[List[float]] = None) -> None:
+
+    def __init__(
+        self,
+        function_string: str,
+        name: Optional[str] = None,
+        step: float = default_point_size,
+        color: str = default_color,
+        left_bound: Optional[float] = None,
+        right_bound: Optional[float] = None,
+        vertical_asymptotes: Optional[List[float]] = None,
+        horizontal_asymptotes: Optional[List[float]] = None,
+        point_discontinuities: Optional[List[float]] = None,
+        is_periodic: Optional[bool] = None,
+        estimated_period: Optional[float] = None,
+        undefined_at: Optional[List[float]] = None,
+    ) -> None:
         self.step: float = step
         self.left_bound: Optional[float] = left_bound
         self.right_bound: Optional[float] = right_bound
@@ -82,7 +97,7 @@ class Function(Drawable):
         """Evaluate the function at x. Returns NaN for explicit undefined points."""
         for hole in self.undefined_at:
             if abs(x - hole) < 1e-12:
-                return float('nan')
+                return float("nan")
         return self._base_function(x)
 
     def _detect_periodicity(self) -> None:
@@ -95,7 +110,7 @@ class Function(Drawable):
         )
 
     def get_class_name(self) -> str:
-        return 'Function'
+        return "Function"
 
     def get_state(self) -> Dict[str, Any]:
         function_string: str = self.function_string
@@ -104,16 +119,16 @@ class Function(Drawable):
             "args": {
                 "function_string": function_string,
                 "left_bound": self.left_bound,
-                "right_bound": self.right_bound
-            }
+                "right_bound": self.right_bound,
+            },
         }
 
         # Only include asymptotes and discontinuities lists that have values
-        if hasattr(self, 'vertical_asymptotes') and self.vertical_asymptotes:
+        if hasattr(self, "vertical_asymptotes") and self.vertical_asymptotes:
             state["args"]["vertical_asymptotes"] = self.vertical_asymptotes
-        if hasattr(self, 'horizontal_asymptotes') and self.horizontal_asymptotes:
+        if hasattr(self, "horizontal_asymptotes") and self.horizontal_asymptotes:
             state["args"]["horizontal_asymptotes"] = self.horizontal_asymptotes
-        if hasattr(self, 'point_discontinuities') and self.point_discontinuities:
+        if hasattr(self, "point_discontinuities") and self.point_discontinuities:
             state["args"]["point_discontinuities"] = self.point_discontinuities
         if self.undefined_at:
             state["args"]["undefined_at"] = self.undefined_at
@@ -130,9 +145,15 @@ class Function(Drawable):
             color=self.color,
             left_bound=self.left_bound,
             right_bound=self.right_bound,
-            vertical_asymptotes=self.vertical_asymptotes.copy() if hasattr(self, 'vertical_asymptotes') and self.vertical_asymptotes is not None else None,
-            horizontal_asymptotes=self.horizontal_asymptotes.copy() if hasattr(self, 'horizontal_asymptotes') and self.horizontal_asymptotes is not None else None,
-            point_discontinuities=self.point_discontinuities.copy() if hasattr(self, 'point_discontinuities') and self.point_discontinuities is not None else None,
+            vertical_asymptotes=self.vertical_asymptotes.copy()
+            if hasattr(self, "vertical_asymptotes") and self.vertical_asymptotes is not None
+            else None,
+            horizontal_asymptotes=self.horizontal_asymptotes.copy()
+            if hasattr(self, "horizontal_asymptotes") and self.horizontal_asymptotes is not None
+            else None,
+            point_discontinuities=self.point_discontinuities.copy()
+            if hasattr(self, "point_discontinuities") and self.point_discontinuities is not None
+            else None,
             is_periodic=self.is_periodic,
             estimated_period=self.estimated_period,
             undefined_at=self.undefined_at.copy() if self.undefined_at else None,
@@ -163,17 +184,18 @@ class Function(Drawable):
             # First handle horizontal translation by replacing x with (x - x_offset)
             if x_offset != 0:
                 import re
+
                 # Use all allowed functions from ExpressionValidator
                 protected_funcs: list[str] = sorted(ExpressionValidator.ALLOWED_FUNCTIONS, key=len, reverse=True)
 
                 # Create a regex pattern that matches standalone x while protecting function names
-                func_pattern: str = '|'.join(map(re.escape, protected_funcs))
+                func_pattern: str = "|".join(map(re.escape, protected_funcs))
                 # Use word boundaries to match standalone 'x'
-                pattern: str = rf'\b(x)\b|({func_pattern})'
+                pattern: str = rf"\b(x)\b|({func_pattern})"
 
                 def replace_match(match: Any) -> str:
                     if match.group(1):  # If it's a standalone 'x'
-                        return f'(x - {x_offset})'
+                        return f"(x - {x_offset})"
                     elif match.group(2):  # If it's a function name
                         return cast(str, match.group(2))  # Return the function name unchanged
                     return cast(str, match.group(0))
@@ -221,23 +243,21 @@ class Function(Drawable):
         from utils.math_utils import MathUtils
 
         # Calculate asymptotes and discontinuities using MathUtil
-        self.vertical_asymptotes, self.horizontal_asymptotes, self.point_discontinuities = MathUtils.calculate_asymptotes_and_discontinuities(
-            self.function_string,
-            self.left_bound,
-            self.right_bound
+        self.vertical_asymptotes, self.horizontal_asymptotes, self.point_discontinuities = (
+            MathUtils.calculate_asymptotes_and_discontinuities(self.function_string, self.left_bound, self.right_bound)
         )
 
     def has_point_discontinuity_between_x(self, x1: float, x2: float) -> bool:
         """Check if there is a point discontinuity between x1 and x2"""
-        return (hasattr(self, 'point_discontinuities') and any(x1 < x < x2 for x in self.point_discontinuities))
+        return hasattr(self, "point_discontinuities") and any(x1 < x < x2 for x in self.point_discontinuities)
 
     def has_vertical_asymptote_between_x(self, x1: float, x2: float) -> bool:
         """Check if there is a vertical asymptote between x1 and x2"""
-        return (hasattr(self, 'vertical_asymptotes') and any(x1 <= x < x2 for x in self.vertical_asymptotes))
+        return hasattr(self, "vertical_asymptotes") and any(x1 <= x < x2 for x in self.vertical_asymptotes)
 
     def get_vertical_asymptote_between_x(self, x1: float, x2: float) -> Optional[float]:
         """Get the x value of a vertical asymptote between x1 and x2, if any exists"""
-        if hasattr(self, 'vertical_asymptotes'):
+        if hasattr(self, "vertical_asymptotes"):
             for x in self.vertical_asymptotes:
                 if x1 <= x < x2:
                     return x

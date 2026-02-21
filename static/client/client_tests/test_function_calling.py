@@ -19,10 +19,12 @@ class TestProcessFunctionCalls(unittest.TestCase):
     def setUp(self) -> None:
         # Setup the mock canvas and its functions as described
         self.canvas = Canvas(500, 500, draw_enabled=False)  # Assuming a basic mock or actual Canvas class
-        self.mock_cartesian2axis = SimpleMock(draw=SimpleMock(return_value=None),
-                                              reset=SimpleMock(return_value=None),
-                                              get_state=SimpleMock(return_value={'Cartesian_System_Visibility': 'cartesian_state'}),
-                                              origin=Position(0, 0))  # Assuming Position is defined elsewhere
+        self.mock_cartesian2axis = SimpleMock(
+            draw=SimpleMock(return_value=None),
+            reset=SimpleMock(return_value=None),
+            get_state=SimpleMock(return_value={"Cartesian_System_Visibility": "cartesian_state"}),
+            origin=Position(0, 0),
+        )  # Assuming Position is defined elsewhere
         self.canvas.cartesian2axis = self.mock_cartesian2axis
 
         # Mocking a function in canvas.drawables['Function']
@@ -41,7 +43,7 @@ class TestProcessFunctionCalls(unittest.TestCase):
 
     def test_evaluate_expression_with_variables(self) -> None:
         expression = "x - 4 + y * 5"
-        variables = {'x': 7, 'y': 65}
+        variables = {"x": 7, "y": 65}
         result = ProcessFunctionCalls.evaluate_expression(expression, variables=variables, canvas=self.canvas)
         self.assertEqual(result, 328)  # Expected result for "x - 4 + y * 5" with x = 7 and y = 65
 
@@ -73,8 +75,10 @@ class TestProcessFunctionCalls(unittest.TestCase):
         self.assertEqual(result, 25)  # Expected result for "Quadratic(5)"
 
     def test_get_results1(self) -> None:
-        available_functions = {'evaluate_expression': ProcessFunctionCalls.evaluate_expression}
-        calls = [{'function_name': 'evaluate_expression', 'arguments': {'expression': 'Quadratic(5)', 'canvas': self.canvas}}]
+        available_functions = {"evaluate_expression": ProcessFunctionCalls.evaluate_expression}
+        calls = [
+            {"function_name": "evaluate_expression", "arguments": {"expression": "Quadratic(5)", "canvas": self.canvas}}
+        ]
         undoable_functions = ()  # Example, assuming no undoable functions for simplicity
         results: Dict[str, Any] = ProcessFunctionCalls.get_results(
             calls,
@@ -83,17 +87,22 @@ class TestProcessFunctionCalls(unittest.TestCase):
             self.canvas,
         )
         self.assertTrue(len(results) > 0)
-        self.assertIn('Quadratic(5)', results) # Check if the result for "Quadratic(5)" is available
-        self.assertEqual(results['Quadratic(5)'], 25)  # Expected result for "Quadratic(5)"
+        self.assertIn("Quadratic(5)", results)  # Check if the result for "Quadratic(5)" is available
+        self.assertEqual(results["Quadratic(5)"], 25)  # Expected result for "Quadratic(5)"
 
     def test_get_results2(self) -> None:
-        available_functions = {'evaluate_expression': ProcessFunctionCalls.evaluate_expression}
-        calls = [{'function_name': 'evaluate_expression', 'arguments': {'expression': 'x + y', 'variables': {'x': 5, 'y': 1}, 'canvas': self.canvas}}]
+        available_functions = {"evaluate_expression": ProcessFunctionCalls.evaluate_expression}
+        calls = [
+            {
+                "function_name": "evaluate_expression",
+                "arguments": {"expression": "x + y", "variables": {"x": 5, "y": 1}, "canvas": self.canvas},
+            }
+        ]
         undoable_functions = ()  # Example, assuming no undoable functions for simplicity
         results = ProcessFunctionCalls.get_results(calls, available_functions, undoable_functions, self.canvas)
         self.assertTrue(len(results) > 0)
-        self.assertIn('x+y for x:5, y:1', results)
-        self.assertEqual(results['x+y for x:5, y:1'], 6)
+        self.assertIn("x+y for x:5, y:1", results)
+        self.assertEqual(results["x+y for x:5, y:1"], 6)
 
     def test_get_current_canvas_state_tool_returns_envelope(self) -> None:
         workspace_manager = WorkspaceManager(self.canvas)
@@ -122,14 +131,16 @@ class TestProcessFunctionCalls(unittest.TestCase):
         workspace_manager = WorkspaceManager(self.canvas)
         available_functions = FunctionRegistry.get_available_functions(self.canvas, workspace_manager)
         undoable_functions = FunctionRegistry.get_undoable_functions()
-        calls = [{
-            "function_name": "get_current_canvas_state",
-            "arguments": {
-                "drawable_types": ["point"],
-                "object_names": ["a"],
-                "include_computations": False,
-            },
-        }]
+        calls = [
+            {
+                "function_name": "get_current_canvas_state",
+                "arguments": {
+                    "drawable_types": ["point"],
+                    "object_names": ["a"],
+                    "include_computations": False,
+                },
+            }
+        ]
 
         results = ProcessFunctionCalls.get_results(calls, available_functions, undoable_functions, self.canvas)
 
@@ -226,9 +237,7 @@ class TestProcessFunctionCalls(unittest.TestCase):
         LinearAlgebraUtils.evaluate_expression = staticmethod(fake_evaluate)
 
         with self.assertRaises(ValueError):
-            ProcessFunctionCalls.evaluate_linear_algebra_expression([
-                {"name": "A", "value": [[1.0]]}
-            ], "A")
+            ProcessFunctionCalls.evaluate_linear_algebra_expression([{"name": "A", "value": [[1.0]]}], "A")
 
     def test_evaluate_linear_algebra_expression_supports_grouped_operations(self) -> None:
         captured_calls: List[Any] = []
@@ -476,8 +485,24 @@ class TestProcessFunctionCalls(unittest.TestCase):
                 "function_name": "evaluate_linear_algebra_expression",
                 "arguments": {
                     "objects": [
-                        {"name": "Ainv", "value": [[0.08978748025755, -0.0431349377372, -0.1110128961747, 0.01593866015249], [0.00113046897795, 0.01621907946636, 0.01479939945209, -0.00775100230215], [-0.04488430734323, 0.03425951076629, 0.07993324152089, -0.01240860042922], [-0.01517103288635, 0.01419148847707, 0.02433255715856, 0.00388978770005]]},
-                        {"name": "Binv", "value": [[-0.01852789402109, -0.00012003596207, 0.01726042942533, -0.01527634792136], [0.03015604564334, -0.02073178307553, -0.02950658907737, 0.0414638983539], [0.05327575815057, -0.02568902469341, -0.04039437128784, 0.05172564429912], [0.007453579912, 0.00006621910084, 0.00062570406241, 0.01027237643632]]},
+                        {
+                            "name": "Ainv",
+                            "value": [
+                                [0.08978748025755, -0.0431349377372, -0.1110128961747, 0.01593866015249],
+                                [0.00113046897795, 0.01621907946636, 0.01479939945209, -0.00775100230215],
+                                [-0.04488430734323, 0.03425951076629, 0.07993324152089, -0.01240860042922],
+                                [-0.01517103288635, 0.01419148847707, 0.02433255715856, 0.00388978770005],
+                            ],
+                        },
+                        {
+                            "name": "Binv",
+                            "value": [
+                                [-0.01852789402109, -0.00012003596207, 0.01726042942533, -0.01527634792136],
+                                [0.03015604564334, -0.02073178307553, -0.02950658907737, 0.0414638983539],
+                                [0.05327575815057, -0.02568902469341, -0.04039437128784, 0.05172564429912],
+                                [0.007453579912, 0.00006621910084, 0.00062570406241, 0.01027237643632],
+                            ],
+                        },
                     ],
                     "expression": "Ainv * Binv",
                 },

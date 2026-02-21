@@ -143,4 +143,3 @@ class Quadrilateral(Polygon):
         )
         memo[id(self)] = new_quad
         return new_quad
-

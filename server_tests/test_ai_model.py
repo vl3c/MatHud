@@ -17,11 +17,7 @@ class TestAIModel(unittest.TestCase):
 
     def test_model_initialization(self) -> None:
         """Test direct model initialization with all parameters."""
-        model = AIModel(
-            identifier="test-model",
-            has_vision=True,
-            is_reasoning_model=True
-        )
+        model = AIModel(identifier="test-model", has_vision=True, is_reasoning_model=True)
         self.assertEqual(model.id, "test-model")
         self.assertTrue(model.has_vision)
         self.assertTrue(model.is_reasoning_model)
@@ -120,37 +116,29 @@ class TestAIModel(unittest.TestCase):
         reasoning_models = ["gpt-5-chat-latest", "gpt-5.2-chat-latest", "gpt-5.2", "o3", "o4-mini"]
         for model_id in reasoning_models:
             model = AIModel.from_identifier(model_id)
-            self.assertTrue(
-                model.is_reasoning_model,
-                f"{model_id} should be a reasoning model"
-            )
+            self.assertTrue(model.is_reasoning_model, f"{model_id} should be a reasoning model")
 
     def test_all_standard_models_identified(self) -> None:
         """Test that all standard models are correctly identified as non-reasoning."""
         standard_models = [
-            "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano",
-            "gpt-4o", "gpt-4o-mini", "gpt-5-nano", "gpt-3.5-turbo"
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4.1-nano",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "gpt-5-nano",
+            "gpt-3.5-turbo",
         ]
         for model_id in standard_models:
             model = AIModel.from_identifier(model_id)
-            self.assertFalse(
-                model.is_reasoning_model,
-                f"{model_id} should NOT be a reasoning model"
-            )
+            self.assertFalse(model.is_reasoning_model, f"{model_id} should NOT be a reasoning model")
 
     def test_model_configs_completeness(self) -> None:
         """Test that MODEL_CONFIGS has both required keys for all models."""
         for model_id, config in AIModel.MODEL_CONFIGS.items():
-            self.assertIn(
-                "has_vision", config,
-                f"{model_id} missing 'has_vision' in config"
-            )
-            self.assertIn(
-                "is_reasoning_model", config,
-                f"{model_id} missing 'is_reasoning_model' in config"
-            )
+            self.assertIn("has_vision", config, f"{model_id} missing 'has_vision' in config")
+            self.assertIn("is_reasoning_model", config, f"{model_id} missing 'is_reasoning_model' in config")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

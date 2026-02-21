@@ -57,6 +57,7 @@ class TestQuadrilateral(unittest.TestCase):
 
     def test_rhombus_flags(self) -> None:
         import math
+
         h = math.sqrt(3)
         points = [
             _make_point("A", 0.0, 0.0),
@@ -237,4 +238,3 @@ class TestQuadrilateral(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

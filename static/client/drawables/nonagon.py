@@ -85,4 +85,3 @@ class Nonagon(Polygon):
         new_nonagon = Nonagon(new_segments, color=self.color)
         memo[id(self)] = new_nonagon
         return new_nonagon
-

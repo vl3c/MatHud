@@ -451,6 +451,10 @@ def all_cmd(port: int, with_auth: bool, start_server: bool, skip_lint: bool) -> 
         raise SystemExit(1)
 
     lint_label = "Lint + " if not skip_lint else ""
-    click.echo(click.style(f"\nAll passed! ({lint_label}Server + {results.get('tests_run', 0)} client tests)", fg="green", bold=True))
+    click.echo(
+        click.style(
+            f"\nAll passed! ({lint_label}Server + {results.get('tests_run', 0)} client tests)", fg="green", bold=True
+        )
+    )
     if results.get("screenshot"):
         click.echo(f"\nScreenshot saved to: {results['screenshot']}")

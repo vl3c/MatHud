@@ -173,4 +173,3 @@ __all__ = [
     "TestFilterValidPoints",
     "TestRenderColoredAreaHelper",
 ]
-

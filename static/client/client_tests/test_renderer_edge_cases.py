@@ -46,8 +46,12 @@ class RecordingPrimitives(SimpleMock, shared.RendererPrimitives):
     def fill_joined_area(self, forward, reverse, fill):
         self._record("fill_joined_area", forward, reverse, fill)
 
-    def stroke_arc(self, center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class=None, **kwargs):
-        self._record("stroke_arc", center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class, **kwargs)
+    def stroke_arc(
+        self, center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class=None, **kwargs
+    ):
+        self._record(
+            "stroke_arc", center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke, css_class, **kwargs
+        )
 
     def draw_text(self, text, position, font, color, alignment, style_overrides=None, **kwargs):
         self._record("draw_text", text, position, font, color, alignment, style_overrides, **kwargs)
@@ -72,7 +76,7 @@ class TestPointEdgeCases(unittest.TestCase):
         self.style = {"point_radius": 4, "point_color": "#000"}
 
     def test_point_with_nan_coordinates_does_not_crash(self) -> None:
-        point = Point(float('nan'), 5.0, name="P")
+        point = Point(float("nan"), 5.0, name="P")
 
         try:
             shared.render_point_helper(self.primitives, point, self.mapper, self.style)
@@ -80,7 +84,7 @@ class TestPointEdgeCases(unittest.TestCase):
             self.fail(f"Point with NaN coordinate raised exception: {e}")
 
     def test_point_with_infinity_coordinates_does_not_crash(self) -> None:
-        point = Point(float('inf'), 10.0, name="P")
+        point = Point(float("inf"), 10.0, name="P")
 
         try:
             shared.render_point_helper(self.primitives, point, self.mapper, self.style)
@@ -88,7 +92,7 @@ class TestPointEdgeCases(unittest.TestCase):
             self.fail(f"Point with Infinity coordinate raised exception: {e}")
 
     def test_point_with_negative_infinity_does_not_crash(self) -> None:
-        point = Point(5.0, float('-inf'), name="P")
+        point = Point(5.0, float("-inf"), name="P")
 
         try:
             shared.render_point_helper(self.primitives, point, self.mapper, self.style)
@@ -130,7 +134,7 @@ class TestSegmentEdgeCases(unittest.TestCase):
 
     def test_segment_with_nan_endpoint_does_not_crash(self) -> None:
         p1 = Point(0, 0, name="A")
-        p2 = Point(float('nan'), 5, name="B")
+        p2 = Point(float("nan"), 5, name="B")
         segment = Segment(p1, p2)
 
         try:
@@ -140,7 +144,7 @@ class TestSegmentEdgeCases(unittest.TestCase):
 
     def test_segment_with_infinity_endpoint_does_not_crash(self) -> None:
         p1 = Point(0, 0, name="A")
-        p2 = Point(float('inf'), float('inf'), name="B")
+        p2 = Point(float("inf"), float("inf"), name="B")
         segment = Segment(p1, p2)
 
         try:
@@ -176,7 +180,7 @@ class TestCircleEdgeCases(unittest.TestCase):
 
     def test_circle_with_nan_radius_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
-        circle = Circle(center, radius=float('nan'))
+        circle = Circle(center, radius=float("nan"))
 
         try:
             shared.render_circle_helper(self.primitives, circle, self.mapper, self.style)
@@ -185,7 +189,7 @@ class TestCircleEdgeCases(unittest.TestCase):
 
     def test_circle_with_infinity_radius_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
-        circle = Circle(center, radius=float('inf'))
+        circle = Circle(center, radius=float("inf"))
 
         try:
             shared.render_circle_helper(self.primitives, circle, self.mapper, self.style)
@@ -211,7 +215,7 @@ class TestCircleEdgeCases(unittest.TestCase):
             self.fail(f"Circle with negative radius raised exception: {e}")
 
     def test_circle_with_nan_center_does_not_crash(self) -> None:
-        center = Point(float('nan'), float('nan'), name="O")
+        center = Point(float("nan"), float("nan"), name="O")
         circle = Circle(center, radius=10)
 
         try:
@@ -241,7 +245,7 @@ class TestVectorEdgeCases(unittest.TestCase):
 
     def test_vector_with_nan_endpoint_does_not_crash(self) -> None:
         p1 = Point(0, 0, name="A")
-        p2 = Point(float('nan'), 0, name="B")
+        p2 = Point(float("nan"), 0, name="B")
         vector = Vector(p1, p2)
 
         try:
@@ -251,7 +255,7 @@ class TestVectorEdgeCases(unittest.TestCase):
 
     def test_vector_with_infinity_does_not_crash(self) -> None:
         p1 = Point(0, 0, name="A")
-        p2 = Point(float('inf'), 0, name="B")
+        p2 = Point(float("inf"), 0, name="B")
         vector = Vector(p1, p2)
 
         try:
@@ -286,7 +290,7 @@ class TestEllipseEdgeCases(unittest.TestCase):
 
     def test_ellipse_with_nan_radii_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
-        ellipse = Ellipse(center, radius_x=float('nan'), radius_y=float('nan'))
+        ellipse = Ellipse(center, radius_x=float("nan"), radius_y=float("nan"))
 
         try:
             shared.render_ellipse_helper(self.primitives, ellipse, self.mapper, self.style)
@@ -304,7 +308,7 @@ class TestEllipseEdgeCases(unittest.TestCase):
 
     def test_ellipse_with_nan_rotation_does_not_crash(self) -> None:
         center = Point(5, 5, name="O")
-        ellipse = Ellipse(center, radius_x=10, radius_y=5, rotation_angle=float('nan'))
+        ellipse = Ellipse(center, radius_x=10, radius_y=5, rotation_angle=float("nan"))
 
         try:
             shared.render_ellipse_helper(self.primitives, ellipse, self.mapper, self.style)
@@ -343,7 +347,7 @@ class TestLabelEdgeCases(unittest.TestCase):
             self.fail(f"Label with long text raised exception: {e}")
 
     def test_label_with_nan_font_size_does_not_crash(self) -> None:
-        label = Label(5, 5, "Test", font_size=float('nan'))
+        label = Label(5, 5, "Test", font_size=float("nan"))
 
         try:
             shared.render_label_helper(self.primitives, label, self.mapper, self.style)
@@ -367,7 +371,7 @@ class TestLabelEdgeCases(unittest.TestCase):
             self.fail(f"Label with negative font size raised exception: {e}")
 
     def test_label_with_nan_position_does_not_crash(self) -> None:
-        label = Label(float('nan'), float('nan'), "Test")
+        label = Label(float("nan"), float("nan"), "Test")
 
         try:
             shared.render_label_helper(self.primitives, label, self.mapper, self.style)
@@ -401,8 +405,8 @@ class TestCartesianEdgeCases(unittest.TestCase):
 
     def test_cartesian_with_nan_dimensions_does_not_crash(self) -> None:
         cartesian = SimpleNamespace(
-            width=float('nan'),
-            height=float('nan'),
+            width=float("nan"),
+            height=float("nan"),
             current_tick_spacing=50,
             default_tick_spacing=50,
         )
@@ -448,4 +452,3 @@ __all__ = [
     "TestLabelEdgeCases",
     "TestCartesianEdgeCases",
 ]
-

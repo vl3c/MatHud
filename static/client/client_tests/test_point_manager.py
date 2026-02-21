@@ -38,9 +38,7 @@ class TestPointManagerUpdates(unittest.TestCase):
 
         self.drawable_manager_proxy = SimpleMock(
             name="DrawableManagerProxyMock",
-            segment_manager=SimpleMock(
-                name="SegmentManagerMock", _split_segments_with_point=MagicMock()
-            ),
+            segment_manager=SimpleMock(name="SegmentManagerMock", _split_segments_with_point=MagicMock()),
             create_drawables_from_new_connections=MagicMock(),
             delete_ellipse=MagicMock(),
             delete_circle=MagicMock(),
@@ -59,9 +57,7 @@ class TestPointManagerUpdates(unittest.TestCase):
     def test_update_point_allows_solitary_edits(self) -> None:
         point = self.point_manager.create_point(0, 0, "A", extra_graphics=False)
 
-        result = self.point_manager.update_point(
-            "A", new_name="B", new_x=5.0, new_y=6.0, new_color="#123456"
-        )
+        result = self.point_manager.update_point("A", new_name="B", new_x=5.0, new_y=6.0, new_color="#123456")
 
         self.assertTrue(result)
         self.assertEqual(point.name, "B")
@@ -169,9 +165,7 @@ class TestPointManagerUpdates(unittest.TestCase):
         self.dependency_manager.register_dependency(dependent_segment, point)
 
         with self.assertRaises(ValueError):
-            self.point_manager.update_point(
-                "A", new_name="B", new_x=3.0, new_y=4.0, new_color="#00ff00"
-            )
+            self.point_manager.update_point("A", new_name="B", new_x=3.0, new_y=4.0, new_color="#00ff00")
 
     def test_update_point_rename_conflict_preserves_original_name(self) -> None:
         self.point_manager.create_point(0, 0, "A", extra_graphics=False)

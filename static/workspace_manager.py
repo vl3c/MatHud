@@ -67,7 +67,7 @@ class WorkspaceManager:
         if not name or not isinstance(name, str):
             return False
 
-        if not re.match(r'^[\w-]+\Z$', name):  # Only allow alphanumeric characters, underscores, and hyphens
+        if not re.match(r"^[\w-]+\Z$", name):  # Only allow alphanumeric characters, underscores, and hyphens
             return False
 
         return True
@@ -163,7 +163,7 @@ class WorkspaceManager:
             }
 
             file_path = self.get_workspace_path(name, test_dir)
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(workspace_data, f, indent=2)
 
             return True
@@ -187,7 +187,7 @@ class WorkspaceManager:
         current_workspaces: List[str] = []
 
         for filename in os.listdir(target_dir):
-            if filename.startswith('current_workspace_') and filename.endswith('.json'):
+            if filename.startswith("current_workspace_") and filename.endswith(".json"):
                 file_path = os.path.join(target_dir, filename)
                 current_workspaces.append(file_path)
 
@@ -216,7 +216,7 @@ class WorkspaceManager:
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"No workspace found at {file_path}")
 
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 workspace_data_raw: JsonValue = json.load(f)
 
             if not isinstance(workspace_data_raw, dict):
@@ -253,7 +253,9 @@ class WorkspaceManager:
         migrated_state = self._migrate_state(state, schema_version)
 
         metadata_name_raw = metadata.get("name")
-        metadata_name = metadata_name_raw if isinstance(metadata_name_raw, str) and metadata_name_raw else workspace_name
+        metadata_name = (
+            metadata_name_raw if isinstance(metadata_name_raw, str) and metadata_name_raw else workspace_name
+        )
         metadata_last_modified_raw = metadata.get("last_modified")
         metadata_last_modified = (
             metadata_last_modified_raw
@@ -287,8 +289,7 @@ class WorkspaceManager:
             return state
         if schema_version > CURRENT_WORKSPACE_SCHEMA_VERSION:
             raise ValueError(
-                f"Unsupported workspace schema_version: {schema_version} "
-                f"(current: {CURRENT_WORKSPACE_SCHEMA_VERSION})"
+                f"Unsupported workspace schema_version: {schema_version} (current: {CURRENT_WORKSPACE_SCHEMA_VERSION})"
             )
         return state
 
@@ -312,7 +313,7 @@ class WorkspaceManager:
 
                 file_path = os.path.join(target_dir, filename)
                 try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, "r", encoding="utf-8") as f:
                         data_raw: JsonValue = json.load(f)
                     if isinstance(data_raw, dict):
                         metadata_candidate = data_raw.get("metadata")

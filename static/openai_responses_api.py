@@ -117,12 +117,14 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         for tool in self.tools:
             if isinstance(tool, dict) and tool.get("type") == "function":
                 func = tool.get("function", {})
-                converted_tools.append({
-                    "type": "function",
-                    "name": func.get("name", ""),
-                    "description": func.get("description", ""),
-                    "parameters": func.get("parameters", {}),
-                })
+                converted_tools.append(
+                    {
+                        "type": "function",
+                        "name": func.get("name", ""),
+                        "description": func.get("description", ""),
+                        "parameters": func.get("parameters", {}),
+                    }
+                )
         return converted_tools
 
     def _convert_messages_to_input(self) -> List[Dict[str, Any]]:
@@ -152,18 +154,14 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         self._flush_log()
         return input_messages
 
-    def _handle_developer_message(
-        self, msg: Dict[str, Any], output: List[Dict[str, Any]], index: int
-    ) -> int:
+    def _handle_developer_message(self, msg: Dict[str, Any], output: List[Dict[str, Any]], index: int) -> int:
         """Convert developer message to system role for Responses API."""
         content = msg.get("content", "")
         output.append({"role": "system", "content": content})
         self._log(f"[Responses API] Including developer message at index {index}")
         return index + 1
 
-    def _handle_assistant_with_tool_calls(
-        self, msg: Dict[str, Any], output: List[Dict[str, Any]], index: int
-    ) -> int:
+    def _handle_assistant_with_tool_calls(self, msg: Dict[str, Any], output: List[Dict[str, Any]], index: int) -> int:
         """Convert assistant tool calls and results to text message pairs."""
         tool_calls = msg.get("tool_calls", [])
         tool_results, end_index = self._collect_tool_results(index + 1)
@@ -173,7 +171,9 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             user_msg = self._create_tool_results_message(tool_results)
             output.append(assistant_msg)
             output.append(user_msg)
-            self._log(f"[Responses API] Converted tool call+results at index {index}-{end_index - 1} to assistant+user messages")
+            self._log(
+                f"[Responses API] Converted tool call+results at index {index}-{end_index - 1} to assistant+user messages"
+            )
             return end_index
         else:
             self._log(f"[Responses API] Skipping assistant with pending tool calls at index {index}")
@@ -184,9 +184,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         self._log(f"[Responses API] Skipping orphan tool message at index {index}")
         return index + 1
 
-    def _handle_regular_message(
-        self, msg: Dict[str, Any], role: str, output: List[Dict[str, Any]], index: int
-    ) -> int:
+    def _handle_regular_message(self, msg: Dict[str, Any], role: str, output: List[Dict[str, Any]], index: int) -> int:
         """Include regular user/assistant messages, converting content format if needed."""
         content = msg.get("content", "")
         # Convert Chat Completions content format to Responses API format
@@ -412,9 +410,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             yield {"type": "reasoning", "text": "(Reasoning in progress...)\n"}
             state["reasoning_placeholder_sent"] = True
 
-    def _handle_function_call_item(
-        self, item: Any, output_index: int, accumulator: Dict[int, Dict[str, Any]]
-    ) -> None:
+    def _handle_function_call_item(self, item: Any, output_index: int, accumulator: Dict[int, Dict[str, Any]]) -> None:
         """Handle function call items from output_item.added events."""
         call_id = getattr(item, "call_id", None)
         name = getattr(item, "name", None)
@@ -493,7 +489,9 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         self._log(f"[Responses API] Final ai_tool_calls: {ai_tool_calls}")
 
         final_finish_reason = "tool_calls" if ai_tool_calls else (state["finish_reason"] or "stop")
-        self._log(f"[Responses API] Yielding final event with {len(ai_tool_calls)} tool calls, finish_reason={final_finish_reason}")
+        self._log(
+            f"[Responses API] Yielding final event with {len(ai_tool_calls)} tool calls, finish_reason={final_finish_reason}"
+        )
         self._flush_log()
 
         return {
@@ -591,13 +589,15 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         for i in sorted(acc):
             tc = acc[i]
             func = tc.get("function", {})
-            result.append({
-                "id": tc.get("id"),
-                "function": {
-                    "name": func.get("name"),
-                    "arguments": func.get("arguments"),
-                },
-            })
+            result.append(
+                {
+                    "id": tc.get("id"),
+                    "function": {
+                        "name": func.get("name"),
+                        "arguments": func.get("arguments"),
+                    },
+                }
+            )
         return result
 
     def _finalize_stream(self, text: str, tool_calls: List[Dict[str, Any]]) -> None:
@@ -616,16 +616,18 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             ],
         )
         self.messages.append(self._create_assistant_message(assistant_msg))
-        self._append_tool_messages([
-            SimpleNamespace(
-                id=tc.get("id"),
-                function=SimpleNamespace(
-                    name=tc.get("function", {}).get("name"),
-                    arguments=tc.get("function", {}).get("arguments"),
-                ),
-            )
-            for tc in tool_calls
-        ])
+        self._append_tool_messages(
+            [
+                SimpleNamespace(
+                    id=tc.get("id"),
+                    function=SimpleNamespace(
+                        name=tc.get("function", {}).get("name"),
+                        arguments=tc.get("function", {}).get("arguments"),
+                    ),
+                )
+                for tc in tool_calls
+            ]
+        )
         self._clean_conversation_history()
 
     def _create_assistant_message(self, response_message: Any) -> MessageDict:
@@ -640,8 +642,8 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
                     "type": "function",
                     "function": {
                         "name": getattr(getattr(tc, "function", None), "name", None),
-                        "arguments": getattr(getattr(tc, "function", None), "arguments", None)
-                    }
+                        "arguments": getattr(getattr(tc, "function", None), "arguments", None),
+                    },
                 }
                 for tc in tool_calls
             ]

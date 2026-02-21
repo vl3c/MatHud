@@ -93,7 +93,7 @@ class TestCanvasStateSummarizer(unittest.TestCase):
             state["Segments"].append(
                 {
                     "name": f"s{i}",
-                    "args": {"p1": f"P{i}", "p2": f"P{i+1}", "label": {"text": "", "visible": False}},
+                    "args": {"p1": f"P{i}", "p2": f"P{i + 1}", "label": {"text": "", "visible": False}},
                     "_p1_coords": [i, i],
                     "_p2_coords": [i + 1, i + 1],
                 }
@@ -110,4 +110,3 @@ class TestCanvasStateSummarizer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

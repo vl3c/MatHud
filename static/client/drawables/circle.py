@@ -45,6 +45,7 @@ class Circle(Drawable):
         radius (float): Radius in mathematical coordinate units
         circle_formula (dict): Algebraic circle equation coefficients
     """
+
     def __init__(self, center_point: Point, radius: float, color: str = default_color) -> None:
         """Initialize a circle with center point and radius.
 
@@ -59,7 +60,7 @@ class Circle(Drawable):
         super().__init__(name=self._generate_default_name(), color=color)
 
     def get_class_name(self) -> str:
-        return 'Circle'
+        return "Circle"
 
     def _calculate_circle_algebraic_formula(self) -> Dict[str, float]:
         x: float = self.center.x
@@ -71,7 +72,10 @@ class Circle(Drawable):
     def get_state(self) -> Dict[str, Any]:
         radius: float = self.radius
         center: str = self.center.name
-        state: Dict[str, Any] = {"name": self.name, "args": {"center": center, "radius": radius, "circle_formula": self.circle_formula}}
+        state: Dict[str, Any] = {
+            "name": self.name,
+            "args": {"center": center, "radius": radius, "circle_formula": self.circle_formula},
+        }
         return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
@@ -106,8 +110,7 @@ class Circle(Drawable):
             raise ValueError("Scale factor must not be zero")
         if abs(sx - sy) > 1e-9:
             raise ValueError(
-                "Non-uniform scaling of a circle is not supported; "
-                "convert to an ellipse first or use equal sx and sy"
+                "Non-uniform scaling of a circle is not supported; convert to an ellipse first or use equal sx and sy"
             )
         self.center.scale(sx, sy, cx, cy)
         self.radius = abs(self.radius * sx)

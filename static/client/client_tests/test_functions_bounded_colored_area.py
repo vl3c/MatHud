@@ -30,7 +30,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
             zoom_point=Position(1, 1),
             zoom_direction=1,
             zoom_step=0.1,
-            offset=Position(0, 0)  # Set to (0,0) for simpler tests
+            offset=Position(0, 0),  # Set to (0,0) for simpler tests
         )
 
         # Sync canvas state with coordinate mapper
@@ -41,13 +41,13 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
             name="f1",
             function=lambda x: x,  # Linear function y = x
             left_bound=-5,
-            right_bound=5
+            right_bound=5,
         )
         self.func2 = SimpleMock(
             name="f2",
             function=lambda x: x**2,  # Quadratic function y = x^2
             left_bound=-3,
-            right_bound=3
+            right_bound=3,
         )
 
     def test_init(self) -> None:
@@ -61,7 +61,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
     def test_get_class_name(self) -> None:
         """Test class name retrieval."""
         area = FunctionsBoundedColoredArea(self.func1, self.func2)
-        self.assertEqual(area.get_class_name(), 'FunctionsBoundedColoredArea')
+        self.assertEqual(area.get_class_name(), "FunctionsBoundedColoredArea")
 
     def test_get_bounds_model_default_then_clipped_in_renderer(self) -> None:
         """Model provides math-space defaults; renderer handles viewport clipping."""
@@ -136,7 +136,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
             "right_bound": 2,
             "color": "lightblue",
             "opacity": 0.3,
-            "num_sample_points": 100
+            "num_sample_points": 100,
         }
         self.assertEqual(state["args"], expected_args)
 
@@ -153,17 +153,18 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         """Test asymptote detection for tangent function."""
         # Create a tangent function with known asymptotes
         import math
+
         tangent_func = SimpleMock(
             name="f3",  # Special name that triggers asymptote detection
-            function=lambda x: math.tan(x/100),
+            function=lambda x: math.tan(x / 100),
             left_bound=-500,
-            right_bound=500
+            right_bound=500,
         )
 
         area = FunctionsBoundedColoredArea(tangent_func, self.func2)
 
         # Test asymptote detection at known asymptote positions
-        asym_x = 100 * (math.pi/2)  # First asymptote
+        asym_x = 100 * (math.pi / 2)  # First asymptote
         dx = 1.0
 
         # Should detect asymptote when very close
@@ -178,10 +179,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         """Test that asymptotes are properly handled during path generation."""
         # Create function with division by zero at x=0
         asymptote_func = SimpleMock(
-            name="asymptote_func",
-            function=lambda x: 1/x if x != 0 else float('inf'),
-            left_bound=-5,
-            right_bound=5
+            name="asymptote_func", function=lambda x: 1 / x if x != 0 else float("inf"), left_bound=-5, right_bound=5
         )
 
         area = FunctionsBoundedColoredArea(asymptote_func, None)
@@ -217,18 +215,17 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         # Function that returns various problematic values
         problematic_func = SimpleMock(
             name="problematic",
-            function=lambda x: {
-                2: None,
-                3: "not_a_number"
-            }.get(x, x)  # Return x for other values, None and string for specific cases
+            function=lambda x: {2: None, 3: "not_a_number"}.get(
+                x, x
+            ),  # Return x for other values, None and string for specific cases
         )
 
         area = FunctionsBoundedColoredArea(problematic_func, self.func2)
 
         # Test cases that should return None
         test_cases = [
-            (2, None),   # None -> None
-            (3, None),   # String -> None (not int/float)
+            (2, None),  # None -> None
+            (3, None),  # String -> None (not int/float)
         ]
 
         for x_input, expected in test_cases:
@@ -252,7 +249,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         self.assertIsNotNone(result_none, "None function (x-axis) should return a result")
 
         # Test that different functions return different results
-        result1 = area._get_function_y_at_x(5, 2.0)   # y = 5
+        result1 = area._get_function_y_at_x(5, 2.0)  # y = 5
         result2 = area._get_function_y_at_x(10, 2.0)  # y = 10
         self.assertNotEqual(result1, result2, "Different constant functions should return different canvas coordinates")
 
@@ -303,15 +300,13 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
             name="large_func",
             function=lambda x: x**10,  # Very large values for |x| > 1
             left_bound=-2,
-            right_bound=2
+            right_bound=2,
         )
 
         area = FunctionsBoundedColoredArea(large_value_func, None)
 
         # Should handle large values without crashing (math-only behavior now)
-        result = area._get_function_y_at_x_with_asymptote_handling(
-            large_value_func, 1.5, 0.1
-        )
+        result = area._get_function_y_at_x_with_asymptote_handling(large_value_func, 1.5, 0.1)
 
         # Should return a clipped value, not crash
         self.assertIsNotNone(result)
@@ -335,9 +330,9 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
         # Function that always returns None
         invalid_func = SimpleMock(
             name="invalid_func",
-            function=lambda x: float('nan'),  # Always invalid
+            function=lambda x: float("nan"),  # Always invalid
             left_bound=-1,
-            right_bound=1
+            right_bound=1,
         )
 
         area = FunctionsBoundedColoredArea(invalid_func, None)
@@ -355,6 +350,7 @@ class TestFunctionsBoundedColoredArea(unittest.TestCase):
 
         # Mock coordinate_mapper for predictable results
         call_count = [0]  # Use list to allow modification in nested function
+
         def mock_math_to_screen(x: float, y: float) -> tuple[float, float]:
             call_count[0] += 1
             return (x * 10 + 250, 250 - y * 10)  # Simple linear transformation

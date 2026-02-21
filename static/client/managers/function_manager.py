@@ -57,6 +57,7 @@ if TYPE_CHECKING:
     from managers.drawable_manager_proxy import DrawableManagerProxy
     from name_generator.drawable import DrawableNameGenerator
 
+
 class FunctionManager:
     """Manages function drawables for a Canvas with mathematical expression support."""
 
@@ -143,7 +144,9 @@ class FunctionManager:
             # If it exists, update its expression
             try:
                 existing_function.function_string = ExpressionValidator.fix_math_expression(function_string)
-                existing_function._base_function = ExpressionValidator.parse_function_string(function_string, use_mathjs=False)
+                existing_function._base_function = ExpressionValidator.parse_function_string(
+                    function_string, use_mathjs=False
+                )
             except Exception as e:
                 raise ValueError(f"Failed to parse function string '{function_string}': {str(e)}")
             # Update the bounds
@@ -210,9 +213,7 @@ class FunctionManager:
         self.canvas.undo_redo_manager.archive()
 
         # Remove the function
-        removed = remove_drawable_with_dependencies(
-            self.drawables, self.dependency_manager, function
-        )
+        removed = remove_drawable_with_dependencies(self.drawables, self.dependency_manager, function)
 
         # Also delete any colored areas associated with this function
         self.canvas.drawable_manager.delete_colored_areas_for_function(function, archive=False)

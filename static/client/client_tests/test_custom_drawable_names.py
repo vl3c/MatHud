@@ -13,9 +13,12 @@ from client_tests.simple_mock import SimpleMock
 class TestCustomDrawableNames(unittest.TestCase):
     def setUp(self) -> None:
         self.canvas = Canvas(500, 500, draw_enabled=False)
-        self.mock_cartesian2axis = SimpleMock(draw=SimpleMock(return_value=None), reset=SimpleMock(return_value=None),
-                                              get_state=SimpleMock(return_value={'Cartesian_System_Visibility': 'cartesian_state'}),
-                                              origin=Position(0, 0))
+        self.mock_cartesian2axis = SimpleMock(
+            draw=SimpleMock(return_value=None),
+            reset=SimpleMock(return_value=None),
+            get_state=SimpleMock(return_value={"Cartesian_System_Visibility": "cartesian_state"}),
+            origin=Position(0, 0),
+        )
         self.canvas.cartesian2axis = self.mock_cartesian2axis
 
     def tearDown(self) -> None:
@@ -108,7 +111,7 @@ class TestCustomDrawableNames(unittest.TestCase):
             rectangle.segment1.point1.name,
             rectangle.segment1.point2.name,
             rectangle.segment2.point2.name,
-            rectangle.segment3.point2.name
+            rectangle.segment3.point2.name,
         ]
         # Check that the points use the first four letters of "Rectangle"
         self.assertIn("R", points)
@@ -125,7 +128,7 @@ class TestCustomDrawableNames(unittest.TestCase):
             rectangle2.segment1.point1.name,
             rectangle2.segment1.point2.name,
             rectangle2.segment2.point2.name,
-            rectangle2.segment3.point2.name
+            rectangle2.segment3.point2.name,
         ]
         # Check that the points use the next available letters
         self.assertIn("A", points2)
@@ -144,7 +147,7 @@ class TestCustomDrawableNames(unittest.TestCase):
             rectangle.segment1.point1.name,
             rectangle.segment1.point2.name,
             rectangle.segment2.point2.name,
-            rectangle.segment3.point2.name
+            rectangle.segment3.point2.name,
         ]
         # Check that the points use the letters with their apostrophes
         self.assertIn("W'", points)
@@ -207,12 +210,12 @@ class TestCustomDrawableNames(unittest.TestCase):
     def test_name_fallback_sequence(self) -> None:
         # Create 26 points to use up all letters
         for i in range(26):
-            point = self.canvas.create_point(i*10, i*10)
-            expected_letter = chr(ord('A') + i)  # A, B, C, ...
+            point = self.canvas.create_point(i * 10, i * 10)
+            expected_letter = chr(ord("A") + i)  # A, B, C, ...
             self.assertEqual(point.name, expected_letter)
         # Check we have all letters A-Z
-        expected_names = [letter for letter in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
-        actual_names = sorted(self.canvas.name_generator.get_drawable_names('Point'))
+        expected_names = [letter for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"]
+        actual_names = sorted(self.canvas.name_generator.get_drawable_names("Point"))
         self.assertEqual(actual_names, expected_names)
 
         # Try to create a point with custom name - should use first letter with apostrophe
@@ -220,21 +223,21 @@ class TestCustomDrawableNames(unittest.TestCase):
         self.assertEqual(point.name, "C'")
         expected_names.append("C'")
         expected_names.sort()
-        actual_names = sorted(self.canvas.name_generator.get_drawable_names('Point'))
+        actual_names = sorted(self.canvas.name_generator.get_drawable_names("Point"))
         self.assertEqual(actual_names, expected_names)
 
         # Create 25 more points without names - should get A'-Z' (except C' which is already used)
         for i in range(25):  # 25 because C' is already used
-            point = self.canvas.create_point(i*10 + 400, i*10 + 400)
+            point = self.canvas.create_point(i * 10 + 400, i * 10 + 400)
 
         # Check we have all letters A'-Z'
-        expected_names = expected_names + [letter + "'" for letter in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' if letter != 'C']
+        expected_names = expected_names + [letter + "'" for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if letter != "C"]
         expected_names.sort()
-        actual_names = sorted(self.canvas.name_generator.get_drawable_names('Point'))
+        actual_names = sorted(self.canvas.name_generator.get_drawable_names("Point"))
         self.assertEqual(actual_names, expected_names)
 
         # Try to create another point - should use first letter with two apostrophes
         point2 = self.canvas.create_point(310, 310)  # No custom name
         self.assertEqual(point2.name, "A''")
         expected_names.append("A''")
-        self.assertEqual(sorted(self.canvas.name_generator.get_drawable_names('Point')), sorted(expected_names))
+        self.assertEqual(sorted(self.canvas.name_generator.get_drawable_names("Point")), sorted(expected_names))

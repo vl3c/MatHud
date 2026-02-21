@@ -33,8 +33,8 @@ class _RelationTestBase(unittest.TestCase):
 # Parallel
 # ------------------------------------------------------------------
 
-class TestParallel(_RelationTestBase):
 
+class TestParallel(_RelationTestBase):
     def test_horizontal_parallel(self) -> None:
         s1 = self.canvas.create_segment(0, 0, 4, 0, name="AB")
         s2 = self.canvas.create_segment(0, 2, 4, 2, name="CD")
@@ -87,8 +87,8 @@ class TestParallel(_RelationTestBase):
 # Perpendicular
 # ------------------------------------------------------------------
 
-class TestPerpendicular(_RelationTestBase):
 
+class TestPerpendicular(_RelationTestBase):
     def test_axes_cross(self) -> None:
         s1 = self.canvas.create_segment(0, 0, 4, 0, name="AB")
         s2 = self.canvas.create_segment(5, 0, 5, 4, name="CD")
@@ -126,8 +126,8 @@ class TestPerpendicular(_RelationTestBase):
 # Collinear
 # ------------------------------------------------------------------
 
-class TestCollinear(_RelationTestBase):
 
+class TestCollinear(_RelationTestBase):
     def test_three_on_x_axis(self) -> None:
         self.canvas.create_point(0, 0, name="A")
         self.canvas.create_point(3, 0, name="B")
@@ -148,7 +148,8 @@ class TestCollinear(_RelationTestBase):
         self.canvas.create_point(2, 2, name="C")
         self.canvas.create_point(5, 5, name="D")
         res = self._inspect(
-            "collinear", ["A", "B", "C", "D"],
+            "collinear",
+            ["A", "B", "C", "D"],
             ["point", "point", "point", "point"],
         )
         self.assertTrue(res["result"])
@@ -181,8 +182,8 @@ class TestCollinear(_RelationTestBase):
 # Concyclic
 # ------------------------------------------------------------------
 
-class TestConcyclic(_RelationTestBase):
 
+class TestConcyclic(_RelationTestBase):
     def test_four_on_unit_circle(self) -> None:
         r = 5.0
         self.canvas.create_point(r, 0, name="A")
@@ -190,7 +191,8 @@ class TestConcyclic(_RelationTestBase):
         self.canvas.create_point(-r, 0, name="C")
         self.canvas.create_point(0, -r, name="D")
         res = self._inspect(
-            "concyclic", ["A", "B", "C", "D"],
+            "concyclic",
+            ["A", "B", "C", "D"],
             ["point", "point", "point", "point"],
         )
         self.assertTrue(res["result"])
@@ -201,7 +203,8 @@ class TestConcyclic(_RelationTestBase):
         self.canvas.create_point(-5, 0, name="C")
         self.canvas.create_point(1, 1, name="D")
         res = self._inspect(
-            "concyclic", ["A", "B", "C", "D"],
+            "concyclic",
+            ["A", "B", "C", "D"],
             ["point", "point", "point", "point"],
         )
         self.assertFalse(res["result"])
@@ -212,7 +215,8 @@ class TestConcyclic(_RelationTestBase):
         self.canvas.create_point(2, 0, name="C")
         self.canvas.create_point(0, 1, name="D")
         res = self._inspect(
-            "concyclic", ["A", "B", "C", "D"],
+            "concyclic",
+            ["A", "B", "C", "D"],
             ["point", "point", "point", "point"],
         )
         self.assertFalse(res["result"])
@@ -222,8 +226,8 @@ class TestConcyclic(_RelationTestBase):
 # Equal Length
 # ------------------------------------------------------------------
 
-class TestEqualLength(_RelationTestBase):
 
+class TestEqualLength(_RelationTestBase):
     def test_equal_segments(self) -> None:
         s1 = self.canvas.create_segment(0, 0, 3, 4, name="AB")
         s2 = self.canvas.create_segment(10, 10, 13, 14, name="CD")
@@ -250,24 +254,32 @@ class TestEqualLength(_RelationTestBase):
 # Similar Triangles
 # ------------------------------------------------------------------
 
-class TestSimilarTriangles(_RelationTestBase):
 
+class TestSimilarTriangles(_RelationTestBase):
     def test_scaled_copy(self) -> None:
         t1 = self.canvas.create_polygon(
-            [(0, 0), (3, 0), (0, 4)], polygon_type=PolygonType.TRIANGLE, name="ABC",
+            [(0, 0), (3, 0), (0, 4)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="ABC",
         )
         t2 = self.canvas.create_polygon(
-            [(10, 10), (16, 10), (10, 18)], polygon_type=PolygonType.TRIANGLE, name="DEF",
+            [(10, 10), (16, 10), (10, 18)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="DEF",
         )
         res = self._inspect("similar", [t1.name, t2.name], ["triangle", "triangle"])
         self.assertTrue(res["result"])
 
     def test_not_similar(self) -> None:
         t1 = self.canvas.create_polygon(
-            [(0, 0), (3, 0), (0, 4)], polygon_type=PolygonType.TRIANGLE, name="ABC",
+            [(0, 0), (3, 0), (0, 4)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="ABC",
         )
         t2 = self.canvas.create_polygon(
-            [(10, 10), (20, 10), (10, 11)], polygon_type=PolygonType.TRIANGLE, name="DEF",
+            [(10, 10), (20, 10), (10, 11)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="DEF",
         )
         res = self._inspect("similar", [t1.name, t2.name], ["triangle", "triangle"])
         self.assertFalse(res["result"])
@@ -277,24 +289,32 @@ class TestSimilarTriangles(_RelationTestBase):
 # Congruent Triangles
 # ------------------------------------------------------------------
 
-class TestCongruentTriangles(_RelationTestBase):
 
+class TestCongruentTriangles(_RelationTestBase):
     def test_same_shape(self) -> None:
         t1 = self.canvas.create_polygon(
-            [(0, 0), (3, 0), (0, 4)], polygon_type=PolygonType.TRIANGLE, name="ABC",
+            [(0, 0), (3, 0), (0, 4)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="ABC",
         )
         t2 = self.canvas.create_polygon(
-            [(10, 10), (13, 10), (10, 14)], polygon_type=PolygonType.TRIANGLE, name="DEF",
+            [(10, 10), (13, 10), (10, 14)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="DEF",
         )
         res = self._inspect("congruent", [t1.name, t2.name], ["triangle", "triangle"])
         self.assertTrue(res["result"])
 
     def test_similar_not_congruent(self) -> None:
         t1 = self.canvas.create_polygon(
-            [(0, 0), (3, 0), (0, 4)], polygon_type=PolygonType.TRIANGLE, name="ABC",
+            [(0, 0), (3, 0), (0, 4)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="ABC",
         )
         t2 = self.canvas.create_polygon(
-            [(10, 10), (16, 10), (10, 18)], polygon_type=PolygonType.TRIANGLE, name="DEF",
+            [(10, 10), (16, 10), (10, 18)],
+            polygon_type=PolygonType.TRIANGLE,
+            name="DEF",
         )
         res = self._inspect("congruent", [t1.name, t2.name], ["triangle", "triangle"])
         self.assertFalse(res["result"])
@@ -304,8 +324,8 @@ class TestCongruentTriangles(_RelationTestBase):
 # Tangent
 # ------------------------------------------------------------------
 
-class TestTangent(_RelationTestBase):
 
+class TestTangent(_RelationTestBase):
     def test_segment_tangent_to_circle(self) -> None:
         c1 = self.canvas.create_circle(0, 0, 5)
         # Horizontal line y = 5 is tangent to circle centered at origin with radius 5
@@ -360,14 +380,15 @@ class TestTangent(_RelationTestBase):
 # Concurrent
 # ------------------------------------------------------------------
 
-class TestConcurrent(_RelationTestBase):
 
+class TestConcurrent(_RelationTestBase):
     def test_three_lines_through_origin(self) -> None:
         s1 = self.canvas.create_segment(-5, 0, 5, 0, name="AB")
         s2 = self.canvas.create_segment(0, -5, 0, 5, name="CD")
         s3 = self.canvas.create_segment(-5, -5, 5, 5, name="EF")
         res = self._inspect(
-            "concurrent", [s1.name, s2.name, s3.name],
+            "concurrent",
+            [s1.name, s2.name, s3.name],
             ["segment", "segment", "segment"],
         )
         self.assertTrue(res["result"])
@@ -380,7 +401,8 @@ class TestConcurrent(_RelationTestBase):
         s2 = self.canvas.create_segment(5, 0, 5, 4, name="CD")
         s3 = self.canvas.create_segment(1, 1, 5, 2, name="EF")
         res = self._inspect(
-            "concurrent", [s1.name, s2.name, s3.name],
+            "concurrent",
+            [s1.name, s2.name, s3.name],
             ["segment", "segment", "segment"],
         )
         self.assertFalse(res["result"])
@@ -390,7 +412,8 @@ class TestConcurrent(_RelationTestBase):
         s2 = self.canvas.create_segment(0, 2, 4, 2, name="CD")
         s3 = self.canvas.create_segment(5, 0, 5, 4, name="EF")
         res = self._inspect(
-            "concurrent", [s1.name, s2.name, s3.name],
+            "concurrent",
+            [s1.name, s2.name, s3.name],
             ["segment", "segment", "segment"],
         )
         self.assertFalse(res["result"])
@@ -400,8 +423,8 @@ class TestConcurrent(_RelationTestBase):
 # Point on Line
 # ------------------------------------------------------------------
 
-class TestPointOnLine(_RelationTestBase):
 
+class TestPointOnLine(_RelationTestBase):
     def test_on_extended_line(self) -> None:
         s1 = self.canvas.create_segment(0, 0, 2, 2, name="AB")
         self.canvas.create_point(5, 5, name="P")
@@ -432,8 +455,8 @@ class TestPointOnLine(_RelationTestBase):
 # Point on Circle
 # ------------------------------------------------------------------
 
-class TestPointOnCircle(_RelationTestBase):
 
+class TestPointOnCircle(_RelationTestBase):
     def test_on_circle(self) -> None:
         c1 = self.canvas.create_circle(0, 0, 5)
         self.canvas.create_point(3, 4, name="P")
@@ -457,8 +480,8 @@ class TestPointOnCircle(_RelationTestBase):
 # Auto Inspect
 # ------------------------------------------------------------------
 
-class TestAutoInspect(_RelationTestBase):
 
+class TestAutoInspect(_RelationTestBase):
     def test_two_parallel_equal_segments(self) -> None:
         s1 = self.canvas.create_segment(0, 0, 4, 0, name="AB")
         s2 = self.canvas.create_segment(0, 3, 4, 3, name="CD")
@@ -469,11 +492,7 @@ class TestAutoInspect(_RelationTestBase):
         self.assertIn("perpendicular", checks)
         self.assertIn("equal_length", checks)
         # Both parallel and equal length should be true
-        true_ops = [
-            r["operation"]
-            for r in res["details"]["results"]
-            if r.get("result") is True
-        ]
+        true_ops = [r["operation"] for r in res["details"]["results"] if r.get("result") is True]
         self.assertIn("parallel", true_ops)
         self.assertIn("equal_length", true_ops)
 
@@ -492,8 +511,8 @@ class TestAutoInspect(_RelationTestBase):
 # Error cases
 # ------------------------------------------------------------------
 
-class TestInspectErrors(_RelationTestBase):
 
+class TestInspectErrors(_RelationTestBase):
     def test_wrong_object_count(self) -> None:
         s1 = self.canvas.create_segment(0, 0, 4, 0, name="AB")
         res = self._inspect("parallel", [s1.name], ["segment"])

@@ -81,6 +81,7 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
 
         # Initialize message history with developer message
         from static.openai_api_base import OpenAIAPIBase
+
         self.messages = [{"role": "developer", "content": OpenAIAPIBase.DEV_MSG}]
 
 

@@ -54,8 +54,6 @@ class ArchitectureDiagramGenerator:
             self.svg_dir.mkdir(exist_ok=True)
             (self.svg_dir / "architecture").mkdir(exist_ok=True)
 
-
-
     def clean_generated_folders(self) -> None:
         """Carefully delete all content from generated_png and generated_svg folders."""
         print("Cleaning generated folders before architecture diagram generation...")
@@ -94,6 +92,7 @@ class ArchitectureDiagramGenerator:
                     elif item.is_dir():
                         # Recursively delete directory contents
                         import shutil
+
                         shutil.rmtree(item)
                         folder_dirs += 1
                         total_deleted_dirs += 1
@@ -123,8 +122,6 @@ class ArchitectureDiagramGenerator:
         else:
             return self.png_dir / "architecture"
 
-
-
     def generate_system_overview_diagram(self) -> None:
         """Generate overall MatHud system architecture diagram."""
         try:
@@ -142,23 +139,20 @@ class ArchitectureDiagramGenerator:
                 output_dir = self.get_output_dir(fmt)
                 diagram_path = output_dir / "system_overview"
 
-                with Diagram("MatHud System Overview",
-                            filename=str(diagram_path),
-                            show=False,
-                            direction="TB",
-                            outformat=fmt,
-                            graph_attr={
-                                "fontname": DIAGRAM_FONT,
-                                "fontsize": str(DIAGRAM_FONT_SIZE),
-                                "dpi": "150"
-                            },
-                            node_attr={
-                                "fontname": DIAGRAM_FONT,
-                                "fontsize": str(DIAGRAM_FONT_SIZE),
-                                "width": "1.2",
-                                "height": "1.2"
-                            }):
-
+                with Diagram(
+                    "MatHud System Overview",
+                    filename=str(diagram_path),
+                    show=False,
+                    direction="TB",
+                    outformat=fmt,
+                    graph_attr={"fontname": DIAGRAM_FONT, "fontsize": str(DIAGRAM_FONT_SIZE), "dpi": "150"},
+                    node_attr={
+                        "fontname": DIAGRAM_FONT,
+                        "fontsize": str(DIAGRAM_FONT_SIZE),
+                        "width": "1.2",
+                        "height": "1.2",
+                    },
+                ):
                     # User Interface Layer
                     user = Client("User Browser")
 
@@ -242,8 +236,8 @@ class ArchitectureDiagramGenerator:
                 print(f"  + System overview diagram: {diagram_path}.{fmt}")
 
                 # Post-process SVG files to use configured font
-                if fmt == 'svg':
-                    post_process_svg_fonts(output_dir / f'system_overview.{fmt}')
+                if fmt == "svg":
+                    post_process_svg_fonts(output_dir / f"system_overview.{fmt}")
 
         except Exception as e:
             print(f"System overview diagram failed: {e}")
@@ -261,23 +255,20 @@ class ArchitectureDiagramGenerator:
                 output_dir = self.get_output_dir(fmt)
                 diagram_path = output_dir / "ai_integration"
 
-                with Diagram("MatHud AI Integration & Function Call Flow",
-                            filename=str(diagram_path),
-                            show=False,
-                            direction="LR",
-                            outformat=fmt,
-                            graph_attr={
-                                "fontname": DIAGRAM_FONT,
-                                "fontsize": str(DIAGRAM_FONT_SIZE),
-                                "dpi": "150"
-                            },
-                            node_attr={
-                                "fontname": DIAGRAM_FONT,
-                                "fontsize": str(DIAGRAM_FONT_SIZE),
-                                "width": "1.2",
-                                "height": "1.2"
-                            }):
-
+                with Diagram(
+                    "MatHud AI Integration & Function Call Flow",
+                    filename=str(diagram_path),
+                    show=False,
+                    direction="LR",
+                    outformat=fmt,
+                    graph_attr={"fontname": DIAGRAM_FONT, "fontsize": str(DIAGRAM_FONT_SIZE), "dpi": "150"},
+                    node_attr={
+                        "fontname": DIAGRAM_FONT,
+                        "fontsize": str(DIAGRAM_FONT_SIZE),
+                        "width": "1.2",
+                        "height": "1.2",
+                    },
+                ):
                     # Input Sources
                     with Cluster("User Input"):
                         user_text = Client("User Message\n(Math Problems)")
@@ -340,8 +331,8 @@ class ArchitectureDiagramGenerator:
                 print(f"  + AI integration diagram: {diagram_path}.{fmt}")
 
                 # Post-process SVG files to use configured font
-                if fmt == 'svg':
-                    post_process_svg_fonts(output_dir / f'ai_integration.{fmt}')
+                if fmt == "svg":
+                    post_process_svg_fonts(output_dir / f"ai_integration.{fmt}")
 
         except Exception as e:
             print(f"AI integration diagram failed: {e}")
@@ -358,23 +349,20 @@ class ArchitectureDiagramGenerator:
                 output_dir = self.get_output_dir(fmt)
                 diagram_path = output_dir / "webdriver_flow"
 
-                with Diagram("MatHud Vision System & WebDriver Flow",
-                            filename=str(diagram_path),
-                            show=False,
-                            direction="TB",
-                            outformat=fmt,
-                            graph_attr={
-                                "fontname": DIAGRAM_FONT,
-                                "fontsize": str(DIAGRAM_FONT_SIZE),
-                                "dpi": "150"
-                            },
-                            node_attr={
-                                "fontname": DIAGRAM_FONT,
-                                "fontsize": str(DIAGRAM_FONT_SIZE),
-                                "width": "1.2",
-                                "height": "1.2"
-                            }):
-
+                with Diagram(
+                    "MatHud Vision System & WebDriver Flow",
+                    filename=str(diagram_path),
+                    show=False,
+                    direction="TB",
+                    outformat=fmt,
+                    graph_attr={"fontname": DIAGRAM_FONT, "fontsize": str(DIAGRAM_FONT_SIZE), "dpi": "150"},
+                    node_attr={
+                        "fontname": DIAGRAM_FONT,
+                        "fontsize": str(DIAGRAM_FONT_SIZE),
+                        "width": "1.2",
+                        "height": "1.2",
+                    },
+                ):
                     # Trigger
                     with Cluster("Vision Request Trigger"):
                         user_request = Client("User Enables Vision\n+ Sends Message")
@@ -432,8 +420,8 @@ class ArchitectureDiagramGenerator:
                 print(f"  + WebDriver flow diagram: {diagram_path}.{fmt}")
 
                 # Post-process SVG files to use configured font
-                if fmt == 'svg':
-                    post_process_svg_fonts(output_dir / f'webdriver_flow.{fmt}')
+                if fmt == "svg":
+                    post_process_svg_fonts(output_dir / f"webdriver_flow.{fmt}")
 
         except Exception as e:
             print(f"WebDriver flow diagram failed: {e}")
@@ -453,23 +441,20 @@ class ArchitectureDiagramGenerator:
                 output_dir = self.get_output_dir(fmt)
                 diagram_path = output_dir / "data_flow"
 
-                with Diagram("MatHud Data Flow Pipeline",
-                            filename=str(diagram_path),
-                            show=False,
-                            direction="LR",
-                            outformat=fmt,
-                            graph_attr={
-                                "fontname": DIAGRAM_FONT,
-                                "fontsize": str(DIAGRAM_FONT_SIZE),
-                                "dpi": "150"
-                            },
-                            node_attr={
-                                "fontname": DIAGRAM_FONT,
-                                "fontsize": str(DIAGRAM_FONT_SIZE),
-                                "width": "1.2",
-                                "height": "1.2"
-                            }):
-
+                with Diagram(
+                    "MatHud Data Flow Pipeline",
+                    filename=str(diagram_path),
+                    show=False,
+                    direction="LR",
+                    outformat=fmt,
+                    graph_attr={"fontname": DIAGRAM_FONT, "fontsize": str(DIAGRAM_FONT_SIZE), "dpi": "150"},
+                    node_attr={
+                        "fontname": DIAGRAM_FONT,
+                        "fontsize": str(DIAGRAM_FONT_SIZE),
+                        "width": "1.2",
+                        "height": "1.2",
+                    },
+                ):
                     # Input Stage
                     with Cluster("Input Stage"):
                         user_input = Client("User Input")
@@ -525,8 +510,8 @@ class ArchitectureDiagramGenerator:
                 print(f"  + Data flow diagram: {diagram_path}.{fmt}")
 
                 # Post-process SVG files to use configured font
-                if fmt == 'svg':
-                    post_process_svg_fonts(output_dir / f'data_flow.{fmt}')
+                if fmt == "svg":
+                    post_process_svg_fonts(output_dir / f"data_flow.{fmt}")
 
         except Exception as e:
             print(f"Data flow diagram failed: {e}")
@@ -542,23 +527,20 @@ class ArchitectureDiagramGenerator:
                 output_dir = self.get_output_dir(fmt)
                 diagram_path = output_dir / "manager_architecture"
 
-                with Diagram("MatHud Manager Pattern Architecture",
-                            filename=str(diagram_path),
-                            show=False,
-                            direction="TB",
-                            outformat=fmt,
-                            graph_attr={
-                                "fontname": DIAGRAM_FONT,
-                                "fontsize": str(DIAGRAM_FONT_SIZE),
-                                "dpi": "150"
-                            },
-                            node_attr={
-                                "fontname": DIAGRAM_FONT,
-                                "fontsize": str(DIAGRAM_FONT_SIZE),
-                                "width": "1.2",
-                                "height": "1.2"
-                            }):
-
+                with Diagram(
+                    "MatHud Manager Pattern Architecture",
+                    filename=str(diagram_path),
+                    show=False,
+                    direction="TB",
+                    outformat=fmt,
+                    graph_attr={"fontname": DIAGRAM_FONT, "fontsize": str(DIAGRAM_FONT_SIZE), "dpi": "150"},
+                    node_attr={
+                        "fontname": DIAGRAM_FONT,
+                        "fontsize": str(DIAGRAM_FONT_SIZE),
+                        "width": "1.2",
+                        "height": "1.2",
+                    },
+                ):
                     # Central Coordinator
                     with Cluster("Central Canvas System"):
                         canvas = Python("Canvas\n(SVG Manipulation)")
@@ -638,8 +620,8 @@ class ArchitectureDiagramGenerator:
                 print(f"  + Manager architecture diagram: {diagram_path}.{fmt}")
 
                 # Post-process SVG files to use configured font
-                if fmt == 'svg':
-                    post_process_svg_fonts(output_dir / f'manager_architecture.{fmt}')
+                if fmt == "svg":
+                    post_process_svg_fonts(output_dir / f"manager_architecture.{fmt}")
 
         except Exception as e:
             print(f"Manager architecture diagram failed: {e}")
@@ -703,5 +685,5 @@ def main() -> None:
     generator.generate_all_architecture_diagrams(clean_first=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

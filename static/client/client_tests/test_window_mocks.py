@@ -16,7 +16,7 @@ class TestWindowMocks(unittest.TestCase):
         self.mock_window = SimpleMock(
             setTimeout=SimpleMock(return_value=123),  # Return a mock timer ID
             clearTimeout=SimpleMock(),
-            performance=self.mock_performance
+            performance=self.mock_performance,
         )
 
         # Save original window references
@@ -25,15 +25,15 @@ class TestWindowMocks(unittest.TestCase):
         self.original_clearTimeout = browser_window.clearTimeout
 
         # Replace the browser window objects
-        browser_window.performance = self.mock_performance
-        browser_window.setTimeout = self.mock_window.setTimeout
-        browser_window.clearTimeout = self.mock_window.clearTimeout
+        browser_window.performance = self.mock_performance  # type: ignore[assignment]
+        browser_window.setTimeout = self.mock_window.setTimeout  # type: ignore[method-assign]
+        browser_window.clearTimeout = self.mock_window.clearTimeout  # type: ignore[method-assign]
 
     def tearDown(self) -> None:
         # Restore original window objects
         browser_window.performance = self.original_performance
-        browser_window.setTimeout = self.original_setTimeout
-        browser_window.clearTimeout = self.original_clearTimeout
+        browser_window.setTimeout = self.original_setTimeout  # type: ignore[method-assign]
+        browser_window.clearTimeout = self.original_clearTimeout  # type: ignore[method-assign]
 
     def test_performance_now(self) -> None:
         """Test that window.performance.now() returns the correct time and updates properly."""
@@ -50,8 +50,10 @@ class TestWindowMocks(unittest.TestCase):
 
     def test_set_timeout(self) -> None:
         """Test that setTimeout stores the callback and returns the expected timer ID."""
+
         def callback() -> None:
             return None
+
         wait_time = 100
 
         # Call setTimeout and verify return value
@@ -78,6 +80,7 @@ class TestWindowMocks(unittest.TestCase):
 
     def test_mock_chain(self) -> None:
         """Test that the entire mock chain works together."""
+
         def callback() -> None:
             return None
 

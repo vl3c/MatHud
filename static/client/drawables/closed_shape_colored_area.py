@@ -10,7 +10,12 @@ from __future__ import annotations
 import copy
 from typing import Any, Dict, List, Optional, Tuple
 
-from constants import default_area_fill_color, default_area_opacity, default_closed_shape_resolution, closed_shape_resolution_minimum
+from constants import (
+    default_area_fill_color,
+    default_area_opacity,
+    default_closed_shape_resolution,
+    closed_shape_resolution_minimum,
+)
 from drawables.circle import Circle
 from drawables.colored_area import ColoredArea
 from drawables.ellipse import Ellipse
@@ -197,5 +202,3 @@ class ClosedShapeColoredArea(ColoredArea):
             ]
 
         return snapshot
-
-

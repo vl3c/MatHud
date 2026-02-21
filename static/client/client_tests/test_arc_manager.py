@@ -27,7 +27,9 @@ class TestArcManager(unittest.TestCase):
         )
         self.points_by_name: Dict[str, Point] = {}
 
-        def create_point(x: float, y: float, name: Optional[str] = None, extra_graphics: bool = True, **kwargs: Any) -> Point:
+        def create_point(
+            x: float, y: float, name: Optional[str] = None, extra_graphics: bool = True, **kwargs: Any
+        ) -> Point:
             assigned_name = name or f"P_{len(self.points_by_name)}"
             point = Point(x, y, assigned_name)
             self.points_by_name[assigned_name] = point
@@ -60,7 +62,9 @@ class TestArcManager(unittest.TestCase):
 
         self.name_generator = SimpleMock(
             extract_point_names_from_arc_name=lambda arc_name: (None, None),
-            generate_arc_name=lambda proposed, p1, p2, major, existing: proposed if proposed else f"{'ArcMaj' if major else 'ArcMin'}_{p1}{p2}",
+            generate_arc_name=lambda proposed, p1, p2, major, existing: (
+                proposed if proposed else f"{'ArcMaj' if major else 'ArcMin'}_{p1}{p2}"
+            ),
         )
 
         self.arc_manager = ArcManager(
@@ -114,12 +118,8 @@ class TestArcManager(unittest.TestCase):
         )
 
         self.assertIsNotNone(arc)
-        self.assertTrue(
-            math.isclose(math.hypot(arc.point1.x, arc.point1.y), 5.0, rel_tol=1e-9, abs_tol=1e-9)
-        )
-        self.assertTrue(
-            math.isclose(math.hypot(arc.point2.x, arc.point2.y), 5.0, rel_tol=1e-9, abs_tol=1e-9)
-        )
+        self.assertTrue(math.isclose(math.hypot(arc.point1.x, arc.point1.y), 5.0, rel_tol=1e-9, abs_tol=1e-9))
+        self.assertTrue(math.isclose(math.hypot(arc.point2.x, arc.point2.y), 5.0, rel_tol=1e-9, abs_tol=1e-9))
 
     def test_create_circle_arc_projects_existing_points(self) -> None:
         existing_point_a = self.point_manager.create_point(1, 0, name="A")
@@ -253,7 +253,6 @@ class TestArcManager(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.arc_manager.update_circle_arc("arc_AB")
 
-
     def test_handle_circle_removed_deletes_arcs(self) -> None:
         arc = self.arc_manager.create_circle_arc(
             point1_x=5,
@@ -290,4 +289,3 @@ class TestArcManager(unittest.TestCase):
         self.arc_manager.load_circle_arcs(state)
         self.assertEqual(len(self.drawables.CircleArcs), 1)
         self.assertEqual(self.drawables.CircleArcs[0].name, "arc_AB")
-

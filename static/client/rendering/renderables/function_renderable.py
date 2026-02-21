@@ -64,13 +64,15 @@ class FunctionRenderable:
         screen_height = getattr(self.mapper, "canvas_height", None)
         return (int(screen_width or 0), int(screen_height or 0))
 
-    def _update_cache_state(self, scale: Optional[float], bounds: Tuple[float, float], screen_sig: Tuple[int, int]) -> None:
+    def _update_cache_state(
+        self, scale: Optional[float], bounds: Tuple[float, float], screen_sig: Tuple[int, int]
+    ) -> None:
         self._last_scale = scale
         self._last_bounds = bounds
         self._last_screen_bounds = screen_sig
 
     def _should_regenerate(self) -> bool:
-        current_scale: Optional[float] = getattr(self.mapper, 'scale_factor', None)
+        current_scale: Optional[float] = getattr(self.mapper, "scale_factor", None)
         current_bounds: Tuple[float, float] = self._get_visible_bounds()
         screen_signature = self._get_screen_signature()
         if self._cached_screen_paths is None or not self._cache_valid:
@@ -100,14 +102,14 @@ class FunctionRenderable:
 
     def _is_discontinuity(self, x: float) -> bool:
         try:
-            if getattr(self.func, 'point_discontinuities', None) and x in self.func.point_discontinuities:
+            if getattr(self.func, "point_discontinuities", None) and x in self.func.point_discontinuities:
                 return True
         except Exception:
             pass
         return False
 
     def _get_asymptote_between(self, x1: float, x2: float) -> Optional[float]:
-        if not hasattr(self.func, 'get_vertical_asymptote_between_x'):
+        if not hasattr(self.func, "get_vertical_asymptote_between_x"):
             return None
         try:
             return cast(Optional[float], self.func.get_vertical_asymptote_between_x(x1, x2))
@@ -123,7 +125,7 @@ class FunctionRenderable:
     def _is_invalid_y(self, y: Optional[float]) -> bool:
         if y is None:
             return True
-        if isinstance(y, float) and (y != y or abs(y) == float('inf')):
+        if isinstance(y, float) and (y != y or abs(y) == float("inf")):
             return True
         return False
 
@@ -182,8 +184,8 @@ class FunctionRenderable:
 
     def _get_effective_bounds(self) -> Tuple[float, float]:
         visible_left, visible_right = self._get_visible_bounds()
-        base_left: Optional[float] = getattr(self.func, 'left_bound', None)
-        base_right: Optional[float] = getattr(self.func, 'right_bound', None)
+        base_left: Optional[float] = getattr(self.func, "left_bound", None)
+        base_right: Optional[float] = getattr(self.func, "right_bound", None)
         # Use visible bounds when no explicit function bounds are set
         if base_left is None:
             base_left = visible_left
@@ -192,8 +194,8 @@ class FunctionRenderable:
         return max(visible_left, base_left), min(visible_right, base_right)
 
     def _get_screen_dimensions(self) -> Tuple[float, float]:
-        width: float = getattr(self.mapper, 'canvas_width', 0) or 0
-        height: float = getattr(self.mapper, 'canvas_height', 0) or 0
+        width: float = getattr(self.mapper, "canvas_width", 0) or 0
+        height: float = getattr(self.mapper, "canvas_height", 0) or 0
         return width, height
 
     def _calculate_sample_points_by_subrange(self, left_bound: float, right_bound: float) -> list[list[float]]:
@@ -201,33 +203,43 @@ class FunctionRenderable:
         Calculate sample points, splitting at asymptotes and discontinuities into separate sub-ranges.
         Returns a list of sample lists, one per continuous sub-range.
         """
-        canvas_width = int(getattr(self.mapper, 'canvas_width', 800) or 800)
+        canvas_width = int(getattr(self.mapper, "canvas_width", 800) or 800)
 
         initial_segments = None
-        if getattr(self.func, 'is_periodic', False) and getattr(self.func, 'estimated_period', None):
+        if getattr(self.func, "is_periodic", False) and getattr(self.func, "estimated_period", None):
             range_width = right_bound - left_bound
             num_periods = range_width / self.func.estimated_period
             initial_segments = min(canvas_width, max(8, int(num_periods * 4)))
 
         # Get asymptotes AND point discontinuities - both require splitting
-        asymptotes = getattr(self.func, 'vertical_asymptotes', []) or []
-        point_discontinuities = getattr(self.func, 'point_discontinuities', []) or []
+        asymptotes = getattr(self.func, "vertical_asymptotes", []) or []
+        point_discontinuities = getattr(self.func, "point_discontinuities", []) or []
 
         # Combine all split points (asymptotes and discontinuities)
         all_split_points = sorted(set(asymptotes + point_discontinuities))
 
         if all_split_points:
-            return cast(list[list[float]], AdaptiveSampler.generate_samples_with_asymptotes(
-                left_bound, right_bound, self.func.function,
-                self.mapper.math_to_screen, all_split_points, initial_segments,
-                max_samples=canvas_width
-            ))
+            return cast(
+                list[list[float]],
+                AdaptiveSampler.generate_samples_with_asymptotes(
+                    left_bound,
+                    right_bound,
+                    self.func.function,
+                    self.mapper.math_to_screen,
+                    all_split_points,
+                    initial_segments,
+                    max_samples=canvas_width,
+                ),
+            )
         else:
             # No split points - single range
             samples, _ = AdaptiveSampler.generate_samples(
-                left_bound, right_bound, self.func.function,
-                self.mapper.math_to_screen, initial_segments,
-                max_samples=canvas_width
+                left_bound,
+                right_bound,
+                self.func.function,
+                self.mapper.math_to_screen,
+                initial_segments,
+                max_samples=canvas_width,
             )
             return [samples] if samples else []
 
@@ -238,7 +250,6 @@ class FunctionRenderable:
             return (sx, sy), y_val
         except Exception:
             return (None, None), None
-
 
     def _adjust_point_for_asymptote_ahead(
         self, x: float, step: float, scaled_point: Tuple, y_val: Any
@@ -264,8 +275,7 @@ class FunctionRenderable:
         return abs(prev_sy - sy) > height * 2
 
     def _is_point_visible(
-        self, sx: float, sy: float, width: float, height: float,
-        visible_min_x: float, visible_max_x: float
+        self, sx: float, sy: float, width: float, height: float, visible_min_x: float, visible_max_x: float
     ) -> bool:
         if sy >= height or sy <= 0:
             return False
@@ -281,11 +291,7 @@ class FunctionRenderable:
             return height  # bottom of screen
         return sy
 
-    def _finalize_path(
-        self,
-        current_path: list[tuple[float, float]],
-        paths: list[list[tuple[float, float]]]
-    ) -> None:
+    def _finalize_path(self, current_path: list[tuple[float, float]], paths: list[list[tuple[float, float]]]) -> None:
         """Add current path to paths list if non-empty."""
         if current_path:
             paths.append(current_path)
@@ -328,9 +334,7 @@ class FunctionRenderable:
         """Check if y coordinate is within screen bounds."""
         return 0 <= sy <= height
 
-    def _build_path_from_samples(
-        self, sample_points: list[float], height: float
-    ) -> list[list[tuple[float, float]]]:
+    def _build_path_from_samples(self, sample_points: list[float], height: float) -> list[list[tuple[float, float]]]:
         """
         Build screen paths from a list of sample x-values (within a single sub-range).
         Path breaks on: failed evaluation, large y-jumps, discontinuities, or asymptotes.
@@ -399,8 +403,13 @@ class FunctionRenderable:
         return paths
 
     def _extend_paths_to_boundaries(
-        self, paths: list[list[tuple[float, float]]], width: float, height: float, step: float,
-        left_bound: float, right_bound: float
+        self,
+        paths: list[list[tuple[float, float]]],
+        width: float,
+        height: float,
+        step: float,
+        left_bound: float,
+        right_bound: float,
     ) -> None:
         """
         Ensures each sub-path extends to screen boundaries for complete rendering.
@@ -638,9 +647,7 @@ class FunctionRenderable:
             t = (height - y1) / (y2 - y1)
             return (x1 + t * (x2 - x1), height)
 
-    def _clamp_to_boundary(
-        self, x1: float, y1: float, x2: float, y2: float, height: float
-    ) -> tuple[float, float]:
+    def _clamp_to_boundary(self, x1: float, y1: float, x2: float, y2: float, height: float) -> tuple[float, float]:
         """
         If (x2,y2) is outside screen, return intersection of line (x1,y1)→(x2,y2)
         with screen boundary. Uses linear interpolation: t = (target_y - y1) / (y2 - y1)
@@ -656,10 +663,20 @@ class FunctionRenderable:
         return (x1 + t * (x2 - x1), height)
 
     def _handle_boundary_crossing(
-        self, x: float, left_bound: float, right_bound: float, width: float, height: float,
-        prev_sx: float, prev_sy: float, sx_val: float, sy: float,
-        neighbor_prev_scaled_point: Tuple, scaled_point: Tuple,
-        current_path: list, paths: list
+        self,
+        x: float,
+        left_bound: float,
+        right_bound: float,
+        width: float,
+        height: float,
+        prev_sx: float,
+        prev_sy: float,
+        sx_val: float,
+        sy: float,
+        neighbor_prev_scaled_point: Tuple,
+        scaled_point: Tuple,
+        current_path: list,
+        paths: list,
     ) -> Optional[Tuple[list, list, bool]]:
         if x <= left_bound:
             return None
@@ -676,18 +693,14 @@ class FunctionRenderable:
 
         if crossed_bound_onto_screen:
             # Compute intersection point at screen boundary instead of using off-screen point
-            boundary_pt = self._compute_boundary_intersection(
-                prev_sx, prev_sy, sx_val, sy, height
-            )
+            boundary_pt = self._compute_boundary_intersection(prev_sx, prev_sy, sx_val, sy, height)
             current_path.append(boundary_pt)
             current_path.append((scaled_point[0], scaled_point[1]))
             return current_path, paths, True
 
         if crossed_bound_off_screen:
             # Compute intersection point at screen boundary
-            boundary_pt = self._compute_boundary_intersection(
-                prev_sx, prev_sy, sx_val, sy, height
-            )
+            boundary_pt = self._compute_boundary_intersection(prev_sx, prev_sy, sx_val, sy, height)
             current_path.append(boundary_pt)
             if current_path:
                 paths.append(current_path)
@@ -715,4 +728,3 @@ class FunctionRenderable:
                 return current_path, paths, True
 
         return None
-
