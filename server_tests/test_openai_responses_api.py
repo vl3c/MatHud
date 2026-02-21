@@ -661,6 +661,25 @@ class TestOpenAIResponsesAPI(unittest.TestCase):
         # And ID should be cleared
         self.assertIsNone(api._previous_response_id)
 
+    @patch("static.openai_api_base.OpenAI")
+    def test_add_empty_partial_message_still_clears_response_id(self, mock_openai: Mock) -> None:
+        """Test that empty partial message still clears stale previous_response_id.
+
+        When the user interrupts a tool-call-only response, the stream buffer
+        is empty. The backend must still clear the stale response ID even though
+        no message is appended to history.
+        """
+        api = OpenAIResponsesAPI()
+        api._previous_response_id = "resp_pending_tool_calls"
+        initial_count = len(api.messages)
+
+        api.add_partial_assistant_message("")
+
+        # No message should be appended (base class skips empty content)
+        self.assertEqual(len(api.messages), initial_count)
+        # But the stale response ID must still be cleared
+        self.assertIsNone(api._previous_response_id)
+
 
 class TestOpenAIResponsesAPIIntegration(unittest.TestCase):
     """Integration tests that actually call the OpenAI Responses API.

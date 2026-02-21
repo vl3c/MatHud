@@ -1065,14 +1065,16 @@ def register_routes(app: MatHudFlask) -> None:
                 )
 
             partial_message = request_payload.get('partial_message', '')
-            if not isinstance(partial_message, str) or not partial_message.strip():
+            if not isinstance(partial_message, str):
                 return AppManager.make_response(
-                    message='No partial message to save',
+                    message='Invalid partial message',
                     status='error',
                     code=400,
                 )
 
-            # Add the partial response to all API conversation histories
+            # Always notify all APIs so they can clear stale conversation
+            # state (e.g. previous_response_id after interrupted tool calls).
+            # The base class skips appending empty text to history.
             app.ai_api.add_partial_assistant_message(partial_message)
             app.responses_api.add_partial_assistant_message(partial_message)
             for provider in app.providers.values():
