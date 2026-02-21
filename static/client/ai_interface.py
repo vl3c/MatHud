@@ -1869,9 +1869,10 @@ class AIInterface:
         self._stop_requested = True
         self._abort_current_stream()
         self._cancel_response_timeout()
-        # Save partial response to conversation history before finalizing
-        if self._stream_buffer and self._stream_buffer.strip():
-            self._save_partial_response(self._stream_buffer)
+        # Always notify the backend so it can clear stale conversation state
+        # (e.g. previous_response_id pointing to unanswered tool calls).
+        # The backend handles empty text gracefully.
+        self._save_partial_response(self._stream_buffer or "")
         self._finalize_stream_message()
         self._print_system_message_in_chat("Generation stopped.")
         self._enable_send_controls()
