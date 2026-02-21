@@ -18,9 +18,22 @@ _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-from static.tool_search_service import ToolSearchService
+from static.tool_search_service import (
+    TOOL_CATEGORIES,
+    ToolSearchService,
+    _TOOL_BY_NAME,
+    _TOOL_NAME_INDEX,
+    _search_cache,
+    clear_search_cache,
+)
 from static.ai_model import AIModel
 from static.functions_definitions import FUNCTIONS
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache() -> None:
+    """Clear the search cache before each test."""
+    clear_search_cache()
 
 
 class TestToolSearchServiceBasics:
@@ -136,7 +149,12 @@ class TestToolNameParsing:
 
 
 class TestSearchToolsWithMock:
-    """Test search_tools with mocked OpenAI client."""
+    """Test search_tools with mocked OpenAI client (API mode)."""
+
+    @pytest.fixture(autouse=True)
+    def _api_mode(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Force API search mode for these tests."""
+        monkeypatch.setenv("TOOL_SEARCH_MODE", "api")
 
     @pytest.fixture
     def mock_client(self) -> MagicMock:
@@ -307,17 +325,22 @@ class TestSearchToolsWithMock:
         assert "max_tokens" not in call_args.kwargs
 
     def test_search_uses_default_model_when_none(self, service: ToolSearchService, mock_client: MagicMock) -> None:
-        """search_tools should use gpt-4.1-mini when no model specified."""
+        """search_tools should use gpt-5-nano when no model specified."""
         self._setup_mock_response(mock_client, '["create_circle"]')
 
         service.search_tools("draw")
 
         call_args = mock_client.chat.completions.create.call_args
-        assert call_args.kwargs.get("model") == "gpt-4.1-mini"
+        assert call_args.kwargs.get("model") == "gpt-5-nano"
 
 
 class TestSearchToolsFormatted:
     """Test the search_tools_formatted method."""
+
+    @pytest.fixture(autouse=True)
+    def _api_mode(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Force API search mode for these tests."""
+        monkeypatch.setenv("TOOL_SEARCH_MODE", "api")
 
     @pytest.fixture
     def mock_client(self) -> MagicMock:
@@ -471,7 +494,7 @@ class TestOpenAIAPIBaseToolModes:
             with patch.object(OpenAIAPIBase, "_initialize_api_key", return_value="test-key"):
                 api = OpenAIAPIBase()
                 with pytest.raises(ValueError):
-                    api.set_tool_mode("invalid")  # type: ignore
+                    api.set_tool_mode("invalid")
 
     def test_custom_tools_override_mode(self) -> None:
         """Custom tools should override tool mode selection."""
@@ -549,8 +572,9 @@ class TestSearchToolsExclusion:
         descriptions = ToolSearchService.build_tool_descriptions(exclude_meta_tools=False)
         assert "- search_tools:" in descriptions
 
-    def test_search_filters_out_search_tools(self) -> None:
-        """search_tools should not appear in search results."""
+    def test_search_filters_out_search_tools(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """search_tools should not appear in search results (API mode)."""
+        monkeypatch.setenv("TOOL_SEARCH_MODE", "api")
         mock_client = MagicMock()
         mock_message = MagicMock()
         mock_message.content = '["search_tools", "create_circle", "create_point"]'
@@ -740,3 +764,252 @@ class TestExtractListFromParsed:
         """Should return empty for None."""
         result = ToolSearchService._extract_list_from_parsed(None)
         assert result == []
+
+
+class TestLocalSearch:
+    """Test the local search engine."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self) -> None:
+        clear_search_cache()
+        self.service = ToolSearchService.__new__(ToolSearchService)
+        self.service._client = None
+        self.service._client_initialized = False
+        self.service.default_model = None
+        self.service.last_error = None
+
+    def test_local_search_returns_results(self) -> None:
+        """search_tools_local should return matching tools."""
+        results = self.service.search_tools_local("draw a circle")
+        assert len(results) > 0
+        names = [t["function"]["name"] for t in results]
+        assert "create_circle" in names
+
+    def test_local_search_respects_max_results(self) -> None:
+        """search_tools_local should limit results."""
+        results = self.service.search_tools_local("create something", max_results=3)
+        assert len(results) <= 3
+
+    def test_local_search_empty_query(self) -> None:
+        """search_tools_local should return empty for empty tokens."""
+        results = self.service.search_tools_local("")
+        assert results == []
+
+    def test_local_search_excludes_search_tools(self) -> None:
+        """search_tools_local should not return search_tools."""
+        results = self.service.search_tools_local("search for tools", max_results=20)
+        names = [t["function"]["name"] for t in results]
+        assert "search_tools" not in names
+
+    def test_local_search_finds_solve(self) -> None:
+        """Local search should find solve for equation queries."""
+        results = self.service.search_tools_local("solve x^2 = 4")
+        names = [t["function"]["name"] for t in results[:3]]
+        assert "solve" in names
+
+    def test_local_search_finds_workspace(self) -> None:
+        """Local search should find workspace tools."""
+        results = self.service.search_tools_local("save workspace as test")
+        names = [t["function"]["name"] for t in results[:3]]
+        assert "save_workspace" in names
+
+    def test_local_search_finds_parametric(self) -> None:
+        """Local search should find parametric functions."""
+        results = self.service.search_tools_local("draw parametric curve x=cos(t) y=sin(t)")
+        names = [t["function"]["name"] for t in results[:3]]
+        assert "draw_parametric_function" in names
+
+    def test_local_search_graph_vs_function(self) -> None:
+        """'graph f(x)' should match draw_function, not generate_graph."""
+        results = self.service.search_tools_local("graph f(x) = sin(x)")
+        names = [t["function"]["name"] for t in results[:3]]
+        assert "draw_function" in names
+
+    def test_local_search_graph_theory(self) -> None:
+        """Graph with vertices/edges should match graph theory tools."""
+        results = self.service.search_tools_local(
+            "create a directed graph with vertices A B C and edges A-B B-C"
+        )
+        names = [t["function"]["name"] for t in results[:3]]
+        assert "generate_graph" in names
+
+    def test_local_search_deterministic(self) -> None:
+        """Same query should always return same results."""
+        r1 = self.service.search_tools_local("draw a triangle")
+        clear_search_cache()
+        r2 = self.service.search_tools_local("draw a triangle")
+        n1 = [t["function"]["name"] for t in r1]
+        n2 = [t["function"]["name"] for t in r2]
+        assert n1 == n2
+
+
+class TestSearchCache:
+    """Test the LRU result cache."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        clear_search_cache()
+        monkeypatch.setenv("TOOL_SEARCH_MODE", "local")
+
+    def test_cache_returns_same_results(self) -> None:
+        """Cached results should match original results."""
+        service = ToolSearchService.__new__(ToolSearchService)
+        service._client = None
+        service._client_initialized = False
+        service.default_model = None
+        service.last_error = None
+
+        r1 = service.search_tools("draw a circle")
+        r2 = service.search_tools("draw a circle")
+        n1 = [t["function"]["name"] for t in r1]
+        n2 = [t["function"]["name"] for t in r2]
+        assert n1 == n2
+
+    def test_cache_populated_after_search(self) -> None:
+        """Cache should have an entry after a search."""
+        service = ToolSearchService.__new__(ToolSearchService)
+        service._client = None
+        service._client_initialized = False
+        service.default_model = None
+        service.last_error = None
+
+        assert len(_search_cache) == 0
+        service.search_tools("draw a circle")
+        assert len(_search_cache) == 1
+
+    def test_clear_cache(self) -> None:
+        """clear_search_cache should empty the cache."""
+        service = ToolSearchService.__new__(ToolSearchService)
+        service._client = None
+        service._client_initialized = False
+        service.default_model = None
+        service.last_error = None
+
+        service.search_tools("draw")
+        assert len(_search_cache) > 0
+        clear_search_cache()
+        assert len(_search_cache) == 0
+
+    def test_different_queries_different_cache_keys(self) -> None:
+        """Different queries should use different cache keys."""
+        service = ToolSearchService.__new__(ToolSearchService)
+        service._client = None
+        service._client_initialized = False
+        service.default_model = None
+        service.last_error = None
+
+        service.search_tools("draw a circle")
+        service.search_tools("solve equation")
+        assert len(_search_cache) == 2
+
+
+class TestSearchModeSwitching:
+    """Test TOOL_SEARCH_MODE env var switching."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self) -> None:
+        clear_search_cache()
+
+    def test_local_mode_no_api_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Local mode should not call the API."""
+        monkeypatch.setenv("TOOL_SEARCH_MODE", "local")
+        mock_client = MagicMock()
+        service = ToolSearchService(client=mock_client)
+
+        results = service.search_tools("draw a circle")
+
+        mock_client.chat.completions.create.assert_not_called()
+        assert len(results) > 0
+        names = [t["function"]["name"] for t in results]
+        assert "create_circle" in names
+
+    def test_api_mode_calls_api(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """API mode should call the OpenAI API."""
+        monkeypatch.setenv("TOOL_SEARCH_MODE", "api")
+        mock_client = MagicMock()
+        mock_message = MagicMock()
+        mock_message.content = '["create_circle"]'
+        mock_choice = MagicMock()
+        mock_choice.message = mock_message
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+        mock_client.chat.completions.create.return_value = mock_response
+
+        service = ToolSearchService(client=mock_client)
+        results = service.search_tools("draw a circle")
+
+        mock_client.chat.completions.create.assert_called_once()
+        assert len(results) == 1
+
+    def test_default_mode_is_hybrid(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Default mode (no env var) should be hybrid."""
+        monkeypatch.delenv("TOOL_SEARCH_MODE", raising=False)
+        mock_client = MagicMock()
+        service = ToolSearchService(client=mock_client)
+
+        # Hybrid uses local first; high-confidence queries won't hit the API
+        results = service.search_tools("draw a circle")
+
+        mock_client.chat.completions.create.assert_not_called()
+        assert len(results) > 0
+
+    def test_hybrid_mode_uses_local_when_confident(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Hybrid mode should use local results when confidence is high."""
+        monkeypatch.setenv("TOOL_SEARCH_MODE", "hybrid")
+        mock_client = MagicMock()
+        service = ToolSearchService(client=mock_client)
+
+        # "draw a circle" should have high confidence locally
+        results = service.search_tools("create a circle at 0,0 with radius 5")
+
+        # Should not need API for a confident local match
+        mock_client.chat.completions.create.assert_not_called()
+        names = [t["function"]["name"] for t in results]
+        assert "create_circle" in names
+
+
+class TestToolCategoryRegistry:
+    """Test the TOOL_CATEGORIES constant and indices."""
+
+    def test_categories_not_empty(self) -> None:
+        """TOOL_CATEGORIES should be non-empty."""
+        assert len(TOOL_CATEGORIES) > 0
+
+    def test_all_category_tools_exist(self) -> None:
+        """Every tool listed in a category should exist in FUNCTIONS."""
+        all_tool_names = {f.get("function", {}).get("name") for f in FUNCTIONS}
+        for cat_name, entry in TOOL_CATEGORIES.items():
+            for tool_name in entry["tools"]:
+                assert tool_name in all_tool_names, (
+                    f"Tool '{tool_name}' in category '{cat_name}' not found in FUNCTIONS"
+                )
+
+    def test_name_index_populated(self) -> None:
+        """Tool name index should be populated."""
+        assert len(_TOOL_NAME_INDEX) > 0
+        # "create" should index multiple tools
+        assert len(_TOOL_NAME_INDEX.get("create", [])) > 5
+
+    def test_tool_by_name_lookup(self) -> None:
+        """_TOOL_BY_NAME should include all tools."""
+        assert "create_circle" in _TOOL_BY_NAME
+        assert "search_tools" in _TOOL_BY_NAME  # meta-tools still in lookup
+        assert "undo" in _TOOL_BY_NAME
+
+
+class TestLazyClientInitialization:
+    """Test that OpenAI client is lazily initialized."""
+
+    def test_no_client_needed_for_local_mode(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Local mode should work without API key."""
+        monkeypatch.setenv("TOOL_SEARCH_MODE", "local")
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        service = ToolSearchService.__new__(ToolSearchService)
+        service._client = None
+        service._client_initialized = False
+        service.default_model = None
+        service.last_error = None
+
+        results = service.search_tools("draw a circle")
+        assert len(results) > 0

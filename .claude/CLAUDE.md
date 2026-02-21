@@ -53,6 +53,7 @@ AUTH_PIN=123456            # Optional: access code when auth is enabled
 REQUIRE_AUTH=true          # Force authentication in local development
 PORT=5000                  # Set by hosting platforms to indicate deployed mode
 SECRET_KEY=override-me     # Optional: otherwise random key generated per launch
+TOOL_SEARCH_MODE=hybrid    # Tool discovery: local | api | hybrid (default: hybrid)
 ```
 
 ## Running the App

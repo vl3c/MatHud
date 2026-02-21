@@ -38,7 +38,8 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Coordinate Conversion: rectangular to polar and polar to rectangular transformations
 - Equation Solving: linear equations, quadratic equations, systems of equations, numeric solving for transcendental/nonlinear systems via multi-start Newton-Raphson
 - Linear Algebra: matrix and vector arithmetic, transpose, inverse, determinant, dot/cross products, norms, traces, diagonal/identity/zeros/ones helpers, reshape/size queries, and grouped expressions evaluated via MathJS
-- Advanced Operations: 70 AI tool definitions available in `static/functions_definitions.py` including canvas operations, geometric shape creation/deletion, mathematical operations, transformations, coordinate system management, and workspace management
+- Advanced Operations: 90+ AI tool definitions available in `static/functions_definitions.py` including canvas operations, geometric shape creation/deletion, mathematical operations, transformations, coordinate system management, and workspace management
+- Tool Discovery: `static/tool_search_service.py` provides fast local keyword/category search (hybrid mode by default) to select relevant tools per query without requiring an API call for every interaction
 
 ## Geometric Shape Management
 - Points: create, delete, translate points with coordinates and labels

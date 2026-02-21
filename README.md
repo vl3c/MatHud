@@ -84,6 +84,7 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    REQUIRE_AUTH=true               # Force authentication in local development
    PORT=5000                       # Set by hosting platforms to indicate deployed mode
    SECRET_KEY=override-me          # Optional: otherwise a random key is generated per launch
+   TOOL_SEARCH_MODE=hybrid         # Tool discovery: local | api | hybrid (default: hybrid)
    ```
 2. Authentication rules (`static/app_manager.py`):
    1. When `PORT` is set (typical in hosted deployments), authentication is enforced automatically.
