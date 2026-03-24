@@ -43,7 +43,6 @@ from constants import (
 from drawables_aggregator import Point
 from cartesian_system_2axis import Cartesian2Axis
 from coordinate_mapper import CoordinateMapper
-from utils.math_utils import MathUtils
 from utils.style_utils import StyleUtils
 from utils.graph_analyzer import GraphAnalyzer
 from utils.relation_inspector import RelationInspector
@@ -54,6 +53,7 @@ from managers.drawable_manager import DrawableManager
 from managers.drawable_dependency_manager import DrawableDependencyManager
 from managers.transformations_manager import TransformationsManager
 from managers.coordinate_system_manager import CoordinateSystemManager
+from managers.visibility_manager import VisibilityManager
 from managers.polygon_type import PolygonType
 from constants import DEFAULT_RENDERER_MODE
 from rendering.factory import create_renderer
@@ -117,6 +117,9 @@ class Canvas:
         self.cartesian2axis: Cartesian2Axis = Cartesian2Axis(self.coordinate_mapper)
 
         # Add managers
+        self.visibility_manager: VisibilityManager = VisibilityManager(
+            self.coordinate_mapper, width, height
+        )
         self.undo_redo_manager: UndoRedoManager = UndoRedoManager(self)
         self.drawable_manager: DrawableManager = DrawableManager(self)
         self.dependency_manager: DrawableDependencyManager = self.drawable_manager.dependency_manager
@@ -295,65 +298,8 @@ class Canvas:
                 pass
 
     def _is_drawable_visible(self, drawable: "Drawable") -> bool:
-        """Best-effort visibility check to avoid rendering off-canvas objects.
-
-        Mirrors prior behavior for segments and points; other types default to visible
-        because they manage their own bounds or are inexpensive.
-        """
-        class_name = self._safe_drawable_class_name(drawable)
-        try:
-            if class_name == "Point":
-                return self._is_point_drawable_visible(drawable)
-
-            if class_name == "Segment":
-                return self._is_segment_drawable_visible(drawable)
-
-            if class_name == "Vector":
-                return self._is_vector_drawable_visible(drawable)
-
-            # Default: visible
-            return True
-        except Exception:
-            return True
-
-    def _safe_drawable_class_name(self, drawable: Any) -> str:
-        try:
-            return str(
-                drawable.get_class_name() if hasattr(drawable, "get_class_name") else drawable.__class__.__name__
-            )
-        except Exception:
-            return str(drawable.__class__.__name__)
-
-    def _is_point_drawable_visible(self, drawable: Any) -> bool:
-        # Use screen coordinates if available, else compute
-        # Math-only point; map via CoordinateMapper
-        x, y = self.coordinate_mapper.math_to_screen(drawable.x, drawable.y)
-        return self.is_point_within_canvas_visible_area(x, y)
-
-    def _is_segment_drawable_visible(self, drawable: Any) -> bool:
-        return self._is_math_segment_visible(drawable.point1, drawable.point2)
-
-    def _is_vector_drawable_visible(self, drawable: Any) -> bool:
-        seg = getattr(drawable, "segment", None)
-        if seg is None:
-            return True
-        return self._is_math_segment_visible(seg.point1, seg.point2)
-
-    def _is_math_segment_visible(self, p1: Any, p2: Any) -> bool:
-        x1, y1, x2, y2 = self._segment_screen_coordinates(p1, p2)
-        return self._is_screen_segment_visible(x1, y1, x2, y2)
-
-    def _segment_screen_coordinates(self, p1: Any, p2: Any) -> Tuple[float, float, float, float]:
-        x1, y1 = self.coordinate_mapper.math_to_screen(p1.x, p1.y)
-        x2, y2 = self.coordinate_mapper.math_to_screen(p2.x, p2.y)
-        return x1, y1, x2, y2
-
-    def _is_screen_segment_visible(self, x1: float, y1: float, x2: float, y2: float) -> bool:
-        return (
-            self.is_point_within_canvas_visible_area(x1, y1)
-            or self.is_point_within_canvas_visible_area(x2, y2)
-            or self.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
-        )
+        """Best-effort visibility check — delegates to VisibilityManager."""
+        return self.visibility_manager.is_drawable_visible(drawable)
 
     # Removed legacy zoom displacement; zoom handled via CoordinateMapper
 
@@ -905,8 +851,8 @@ class Canvas:
         )
 
     def is_point_within_canvas_visible_area(self, x: float, y: float) -> bool:
-        """Check if a point is within the visible area of the canvas"""
-        return (0 <= x <= self.width) and (0 <= y <= self.height)
+        """Check if a point is within the visible area of the canvas — delegates to VisibilityManager."""
+        return self.visibility_manager.is_point_within_canvas_visible_area(x, y)
 
     def get_segment_by_coordinates(self, x1: float, y1: float, x2: float, y2: float) -> Optional["Drawable"]:
         """Get a segment by its endpoint coordinates"""
@@ -973,16 +919,8 @@ class Canvas:
         )
 
     def any_segment_part_visible_in_canvas_area(self, x1: float, y1: float, x2: float, y2: float) -> bool:
-        """Check if any part of a segment is visible in the canvas area"""
-        intersect_top = MathUtils.segments_intersect(x1, y1, x2, y2, 0, 0, self.width, 0)
-        intersect_right = MathUtils.segments_intersect(x1, y1, x2, y2, self.width, 0, self.width, self.height)
-        intersect_bottom = MathUtils.segments_intersect(x1, y1, x2, y2, self.width, self.height, 0, self.height)
-        intersect_left = MathUtils.segments_intersect(x1, y1, x2, y2, 0, self.height, 0, 0)
-        point1_visible: bool = self.is_point_within_canvas_visible_area(x1, y1)
-        point2_visible: bool = self.is_point_within_canvas_visible_area(x2, y2)
-        return bool(
-            intersect_top or intersect_right or intersect_bottom or intersect_left or point1_visible or point2_visible
-        )
+        """Check if any part of a segment is visible — delegates to VisibilityManager."""
+        return self.visibility_manager.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
 
     def get_vector(self, x1: float, y1: float, x2: float, y2: float) -> Optional["Drawable"]:
         """Get a vector by its origin and tip coordinates"""
