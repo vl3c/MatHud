@@ -157,6 +157,7 @@ from .test_drawable_renderers import (
     TestCircleArcRenderer,
     TestRendererEdgeCases as TestDrawableRendererEdgeCases,
 )
+from .test_base_drawable_manager import TestBaseDrawableManager
 from .test_point_manager import TestPointManagerUpdates
 from .test_bar_renderer import TestBarRenderer
 from .test_function_renderables import (
@@ -257,6 +258,23 @@ from .test_action_trace_collector import (
     TestCompactSummary,
 )
 from .test_result_processor_traced import TestGetResultsTraced
+from .test_base_telemetry import (
+    TestBaseTelemetryInit,
+    TestBaseTelemetryReset,
+    TestBaseTelemetryBeginFrame,
+    TestBaseTelemetryTiming,
+    TestBaseTelemetryRecordPlanBuild,
+    TestBaseTelemetryRecordPlanApply,
+    TestBaseTelemetryRecordPlanMiss,
+    TestBaseTelemetryRecordPlanSkip,
+    TestBaseTelemetryCartesian,
+    TestBaseTelemetryAdapterEvent,
+    TestBaseTelemetryBatchDepth,
+    TestBaseTelemetrySnapshot,
+    TestBaseTelemetryDrain,
+    TestBaseTelemetryNewDrawableBucket,
+    TestCanvas2DTelemetryOverride,
+)
 
 
 class Tests:
@@ -356,6 +374,7 @@ class Tests:
             TestSegmentLabelRenderer,
             TestCircleArcRenderer,
             TestDrawableRendererEdgeCases,
+            TestBaseDrawableManager,
             TestPointManagerUpdates,
             TestFunctionRenderable,
             TestFunctionsBoundedAreaRenderable,
@@ -558,6 +577,21 @@ class Tests:
             TestExportTracesJson,
             TestCompactSummary,
             TestGetResultsTraced,
+            TestBaseTelemetryInit,
+            TestBaseTelemetryReset,
+            TestBaseTelemetryBeginFrame,
+            TestBaseTelemetryTiming,
+            TestBaseTelemetryRecordPlanBuild,
+            TestBaseTelemetryRecordPlanApply,
+            TestBaseTelemetryRecordPlanMiss,
+            TestBaseTelemetryRecordPlanSkip,
+            TestBaseTelemetryCartesian,
+            TestBaseTelemetryAdapterEvent,
+            TestBaseTelemetryBatchDepth,
+            TestBaseTelemetrySnapshot,
+            TestBaseTelemetryDrain,
+            TestBaseTelemetryNewDrawableBucket,
+            TestCanvas2DTelemetryOverride,
         ]
 
     def _create_test_suite(self) -> unittest.TestSuite:
