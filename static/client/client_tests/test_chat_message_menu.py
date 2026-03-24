@@ -6,45 +6,7 @@ from typing import Any, Optional
 from browser import html, window
 
 from message_menu_manager import MessageMenuManager
-from .simple_mock import SimpleMock
-
-
-def _get_class_attr(node: Any) -> str:
-    try:
-        attrs = getattr(node, "attrs", None)
-        # Brython may expose attrs as a dict-like object (not always a plain dict).
-        if attrs is not None and hasattr(attrs, "get"):
-            value = attrs.get("class", "")
-            if isinstance(value, str):
-                return value
-            return "" if value is None else str(value)
-    except Exception:
-        pass
-
-    # Fallbacks for environments where attrs is not dict-like.
-    try:
-        value = getattr(node, "class_name", None)
-        if isinstance(value, str):
-            return value
-    except Exception:
-        pass
-
-    try:
-        value = getattr(node, "className", None)
-        if isinstance(value, str):
-            return value
-    except Exception:
-        pass
-
-    try:
-        getter = getattr(node, "getAttribute", None)
-        if callable(getter):
-            value = getter("class")
-            if isinstance(value, str):
-                return value
-    except Exception:
-        pass
-    return ""
+from .simple_mock import SimpleMock, get_class_attr as _get_class_attr
 
 
 class TestChatMessageMenu(unittest.TestCase):

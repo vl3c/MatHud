@@ -481,8 +481,6 @@ class ChatUIManager:
                     # Update summary to show elapsed time and ensure dropdown stays closed
                     if self._reasoning_summary is not None and self._request_start_time is not None:
                         try:
-                            from browser import window
-
                             elapsed_ms = window.Date.now() - self._request_start_time
                             elapsed_seconds = int(elapsed_ms / 1000)
                             self._reasoning_summary.text = f"Thought for {elapsed_seconds} seconds"

@@ -6,6 +6,7 @@ and get_active_provider using MagicMock-based app/provider stubs.
 
 from __future__ import annotations
 
+import unittest
 from unittest.mock import MagicMock, patch
 
 from static.route_helpers import (
@@ -32,7 +33,7 @@ def _make_app(
 # reset_tools_for_all_providers
 # ---------------------------------------------------------------------------
 
-class TestResetToolsForAllProviders:
+class TestResetToolsForAllProviders(unittest.TestCase):
     """Tests for reset_tools_for_all_providers."""
 
     def test_noop_when_finish_reason_is_tool_calls(self) -> None:
@@ -142,7 +143,7 @@ class TestResetToolsForAllProviders:
 # update_all_provider_models
 # ---------------------------------------------------------------------------
 
-class TestUpdateAllProviderModels:
+class TestUpdateAllProviderModels(unittest.TestCase):
     """Tests for update_all_provider_models."""
 
     def test_sets_model_on_both_providers(self) -> None:
@@ -160,7 +161,7 @@ class TestUpdateAllProviderModels:
 # get_active_provider
 # ---------------------------------------------------------------------------
 
-class TestGetActiveProvider:
+class TestGetActiveProvider(unittest.TestCase):
     """Tests for get_active_provider."""
 
     def test_returns_ai_api_when_model_id_is_none(self) -> None:

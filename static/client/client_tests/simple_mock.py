@@ -3,6 +3,49 @@ from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 
 
+def get_class_attr(node: Any) -> str:
+    """Extract the CSS class string from a DOM node across Brython environments.
+
+    Tries multiple access patterns because Brython may expose attrs as a
+    dict-like object, a plain attribute, or via ``getAttribute``.
+    """
+    try:
+        attrs = getattr(node, "attrs", None)
+        # Brython may expose attrs as a dict-like object (not always a plain dict).
+        if attrs is not None and hasattr(attrs, "get"):
+            value = attrs.get("class", "")
+            if isinstance(value, str):
+                return value
+            return "" if value is None else str(value)
+    except Exception:
+        pass
+
+    # Fallbacks for environments where attrs is not dict-like.
+    try:
+        value = getattr(node, "class_name", None)
+        if isinstance(value, str):
+            return value
+    except Exception:
+        pass
+
+    try:
+        value = getattr(node, "className", None)
+        if isinstance(value, str):
+            return value
+    except Exception:
+        pass
+
+    try:
+        getter = getattr(node, "getAttribute", None)
+        if callable(getter):
+            value = getter("class")
+            if isinstance(value, str):
+                return value
+    except Exception:
+        pass
+    return ""
+
+
 class SimpleMock:
     _attributes: Dict[str, Any]
     _return_value: Any

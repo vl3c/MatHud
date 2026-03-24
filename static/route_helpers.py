@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 def reset_tools_for_all_providers(
     app: MatHudFlask,
-    finish_reason: object,
+    finish_reason: Optional[str],
     *,
     active_provider: Optional[OpenAIAPIBase] = None,
 ) -> None:

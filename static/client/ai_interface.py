@@ -291,12 +291,6 @@ class AIInterface:
             if not ProcessFunctionCalls.is_successful_result(value):
                 continue
 
-            # Format numeric results consistently
-            if isinstance(value, (int, float)):
-                float(value)  # Always convert numeric values to float
-            else:
-                pass
-
             # DISABLED: Saving basic calculations to canvas state (takes up too many tokens, not useful info to store)
             # self.canvas.add_computation(
             #     expression=key,  # The key is already the expression
@@ -822,7 +816,7 @@ class AIInterface:
         try:
             payload_json = json.dumps(payload)
             payload_js = window.JSON.parse(payload_json)
-            # Don't reset any state here - all state management is done in _send_prompt_to_ai_stream
+            # Don't reset any state here - all state management is done in _send_prompt_to_ai
             # This preserves intermediary text and reasoning content across tool call continuations
             # Call JS streaming helper with reasoning and log callbacks
             window.sendMessageStream(
@@ -850,43 +844,6 @@ class AIInterface:
             print(f"Error preparing request with SVG: {str(e)}")
             # Fall back to sending request without SVG state
             payload = self._create_request_payload(prompt, include_svg=False, action_trace=action_trace)
-            self._start_streaming_request(payload)
-
-    def _send_prompt_to_ai_stream(
-        self,
-        user_message: Optional[str] = None,
-        tool_call_results: Optional[str] = None,
-        attached_images: Optional[list[str]] = None,
-    ) -> None:
-        canvas_state = self.canvas.get_canvas_state()
-        use_vision = document["vision-toggle"].checked and user_message is not None and tool_call_results is None
-        prompt_json: Dict[str, Any] = {
-            "canvas_state": canvas_state,
-            "user_message": user_message,
-            "tool_call_results": tool_call_results,
-            "use_vision": use_vision,
-            "ai_model": document["ai-model-selector"].value,
-        }
-        # Include attached images if provided (works independently of vision toggle)
-        if attached_images:
-            prompt_json["attached_images"] = attached_images
-        prompt = json.dumps(prompt_json)
-        print(
-            f"Prompt for AI (stream): {prompt[:500]}..." if len(prompt) > 500 else f"Prompt for AI (stream): {prompt}"
-        )
-
-        # For new user messages, reset all state including containers and buffers
-        # For tool call results, preserve everything to keep intermediary text visible
-        if user_message is not None and tool_call_results is None:
-            self._chat_ui.request_start_time = window.Date.now()
-            self._chat_ui.reset_streaming_state()
-
-        try:
-            payload = self._create_request_payload(prompt, include_svg=True)
-            self._start_streaming_request(payload)
-        except Exception as e:
-            print(f"Error preparing streaming request: {str(e)}")
-            payload = self._create_request_payload(prompt, include_svg=False)
             self._start_streaming_request(payload)
 
     def _send_prompt_to_ai(

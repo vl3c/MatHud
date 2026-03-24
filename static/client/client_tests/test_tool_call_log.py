@@ -8,32 +8,7 @@ from browser import html
 from tool_call_log_manager import ToolCallLogManager
 from message_menu_manager import MessageMenuManager
 from chat_ui_manager import ChatUIManager
-from .simple_mock import SimpleMock
-
-
-def _get_class_attr(node: Any) -> str:
-    try:
-        attrs = getattr(node, "attrs", None)
-        if attrs is not None and hasattr(attrs, "get"):
-            value = attrs.get("class", "")
-            if isinstance(value, str):
-                return value
-            return "" if value is None else str(value)
-    except Exception:
-        pass
-    try:
-        value = getattr(node, "class_name", None)
-        if isinstance(value, str):
-            return value
-    except Exception:
-        pass
-    try:
-        value = getattr(node, "className", None)
-        if isinstance(value, str):
-            return value
-    except Exception:
-        pass
-    return ""
+from .simple_mock import SimpleMock, get_class_attr as _get_class_attr
 
 
 def _find_child_by_class(parent: Any, cls: str) -> Optional[Any]:
