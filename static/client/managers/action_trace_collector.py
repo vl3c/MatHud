@@ -12,14 +12,12 @@ import json
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from browser import window
+from constants import MAX_RESULT_STR_LEN, MAX_TRACES
 
 if TYPE_CHECKING:
     TracedCall = Dict[str, Any]
     StateDelta = Dict[str, List[str]]
     ActionTrace = Dict[str, Any]
-
-_MAX_TRACES = 100
-_MAX_RESULT_STR_LEN = 500
 
 # Functions that are not safe to replay (side-effects outside canvas state).
 _NON_REPLAYABLE_FUNCTIONS = frozenset(
@@ -82,7 +80,7 @@ class ActionTraceCollector:
     # ------------------------------------------------------------------
 
     def store(self, trace: "ActionTrace") -> None:
-        """Append *trace* to the in-memory store (FIFO, capped at _MAX_TRACES).
+        """Append *trace* to the in-memory store (FIFO, capped at MAX_TRACES).
 
         Full canvas snapshots are stripped from all but the latest trace.
         """
@@ -95,8 +93,8 @@ class ActionTraceCollector:
         self._traces.append(trace)
 
         # Enforce FIFO cap
-        if len(self._traces) > _MAX_TRACES:
-            self._traces = self._traces[-_MAX_TRACES:]
+        if len(self._traces) > MAX_TRACES:
+            self._traces = self._traces[-MAX_TRACES:]
 
     # ------------------------------------------------------------------
     # Retrieval
@@ -290,9 +288,9 @@ class ActionTraceCollector:
 
     @staticmethod
     def _truncate(value: Any) -> Any:
-        """Truncate string values to _MAX_RESULT_STR_LEN for export."""
-        if isinstance(value, str) and len(value) > _MAX_RESULT_STR_LEN:
-            return value[:_MAX_RESULT_STR_LEN] + "..."
+        """Truncate string values to MAX_RESULT_STR_LEN for export."""
+        if isinstance(value, str) and len(value) > MAX_RESULT_STR_LEN:
+            return value[:MAX_RESULT_STR_LEN] + "..."
         return value
 
     @staticmethod

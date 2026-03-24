@@ -36,6 +36,12 @@ import traceback
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, cast
 
 from browser import document, html, ajax, window, console, aio
+from constants import (
+    AI_RESPONSE_TIMEOUT_MS,
+    IMAGE_SIZE_WARNING_BYTES,
+    MAX_ATTACHED_IMAGES,
+    REASONING_TIMEOUT_MS,
+)
 from function_registry import FunctionRegistry
 from process_function_calls import ProcessFunctionCalls
 from result_processor import ResultProcessor
@@ -64,16 +70,6 @@ class AIInterface:
         undoable_functions (tuple): Functions that support undo/redo operations
         markdown_parser (MarkdownParser): Converts markdown text to HTML for rich formatting
     """
-
-    # Timeout in milliseconds for AI responses (60 seconds for local LLMs)
-    AI_RESPONSE_TIMEOUT_MS: int = 60000
-    # Extended timeout for reasoning models and local LLMs (5 minutes)
-    REASONING_TIMEOUT_MS: int = 300000
-
-    # Maximum number of images per message
-    MAX_ATTACHED_IMAGES: int = 5
-    # Warning threshold for image size (10MB)
-    IMAGE_SIZE_WARNING_BYTES: int = 10 * 1024 * 1024
 
     def __init__(self, canvas: "Canvas") -> None:
         """Initialize the AI interface with canvas integration and function registry.
@@ -327,11 +323,11 @@ class AIInterface:
 
             # Check if we've hit the limit
             current_count = len(self._attached_images)
-            remaining = self.MAX_ATTACHED_IMAGES - current_count
+            remaining = MAX_ATTACHED_IMAGES - current_count
 
             if remaining <= 0:
                 self._print_system_message_in_chat(
-                    f"Maximum of {self.MAX_ATTACHED_IMAGES} images per message. Remove some to add more."
+                    f"Maximum of {MAX_ATTACHED_IMAGES} images per message. Remove some to add more."
                 )
                 file_input.value = ""
                 return
@@ -339,7 +335,7 @@ class AIInterface:
             files_to_process = min(files.length, remaining)
             if files.length > remaining:
                 self._print_system_message_in_chat(
-                    f"Only attaching {remaining} of {files.length} images (limit: {self.MAX_ATTACHED_IMAGES})."
+                    f"Only attaching {remaining} of {files.length} images (limit: {MAX_ATTACHED_IMAGES})."
                 )
 
             for i in range(files_to_process):
@@ -355,7 +351,7 @@ class AIInterface:
         """Read an image file and add it to the attached images list."""
         try:
             # Check file size
-            if hasattr(file, "size") and file.size > self.IMAGE_SIZE_WARNING_BYTES:
+            if hasattr(file, "size") and file.size > IMAGE_SIZE_WARNING_BYTES:
                 size_mb = file.size / (1024 * 1024)
                 self._print_system_message_in_chat(
                     f"Warning: Image '{file.name}' is {size_mb:.1f}MB. Large images may slow down processing."
@@ -1828,7 +1824,7 @@ class AIInterface:
         try:
             # Cancel any existing timeout first
             self._cancel_response_timeout()
-            timeout_ms = self.REASONING_TIMEOUT_MS if use_reasoning_timeout else self.AI_RESPONSE_TIMEOUT_MS
+            timeout_ms = REASONING_TIMEOUT_MS if use_reasoning_timeout else AI_RESPONSE_TIMEOUT_MS
             self._response_timeout_id = window.setTimeout(self._on_response_timeout, timeout_ms)
         except Exception as e:
             print(f"Error starting response timeout: {e}")
