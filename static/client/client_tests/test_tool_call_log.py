@@ -6,6 +6,8 @@ from typing import Any, Optional
 from browser import html
 
 from tool_call_log_manager import ToolCallLogManager
+from message_menu_manager import MessageMenuManager
+from chat_ui_manager import ChatUIManager
 from .simple_mock import SimpleMock
 
 
@@ -361,28 +363,20 @@ class TestToolCallLog(unittest.TestCase):
         from ai_interface import AIInterface
 
         ai = AIInterface.__new__(AIInterface)
-        ai._tool_call_log = ToolCallLogManager()
-        ai._stream_buffer = ""
-        ai._stream_content_element = None
-        ai._stream_message_container = None
-        ai._reasoning_buffer = ""
-        ai._reasoning_element = None
-        ai._reasoning_details = None
-        ai._reasoning_summary = None
-        ai._is_reasoning = False
-        ai._request_start_time = None
-        ai._needs_continuation_separator = False
-        ai._open_message_menu = None
-        ai._message_menu_global_bound = True
-        ai._copy_text_to_clipboard = SimpleMock(return_value=True)
+        tool_call_log = ToolCallLogManager()
+        ai._tool_call_log = tool_call_log
+        ai._chat_ui = ChatUIManager(
+            message_menu=MessageMenuManager(),
+            tool_call_log=tool_call_log,
+        )
 
         container = html.DIV()
         content = html.DIV(Class="chat-content")
         content.text = ""
         container <= content
-        ai._stream_message_container = container
-        ai._stream_content_element = content
-        ai._stream_buffer = ""
+        ai._chat_ui._stream_message_container = container
+        ai._chat_ui._stream_content_element = content
+        ai._chat_ui._stream_buffer = ""
 
         # Add tool call entries so the log is non-empty
         ai._tool_call_log.entries = [{"name": "f", "is_error": False}]
@@ -392,5 +386,5 @@ class TestToolCallLog(unittest.TestCase):
         ai._remove_empty_response_container()
 
         self.assertIs(
-            ai._stream_message_container, container, "Container should NOT be removed when tool call log has entries"
+            ai._chat_ui.stream_container, container, "Container should NOT be removed when tool call log has entries"
         )

@@ -12,6 +12,8 @@ from typing import Any
 from browser import document, html, window
 
 from tool_call_log_manager import ToolCallLogManager
+from message_menu_manager import MessageMenuManager
+from chat_ui_manager import ChatUIManager
 
 
 class TestErrorRecovery(unittest.TestCase):
@@ -85,20 +87,15 @@ class TestErrorRecovery(unittest.TestCase):
         ai = self._create_ai_interface()
 
         # Set up minimal state for _on_stream_final
-        ai._stream_buffer = ""
-        ai._stream_content_element = None
-        ai._stream_message_container = None
-        ai._reasoning_buffer = ""
-        ai._reasoning_element = None
-        ai._reasoning_details = None
-        ai._reasoning_summary = None
-        ai._is_reasoning = False
-        ai._request_start_time = None
-        ai._tool_call_log = ToolCallLogManager()
+        tool_call_log = ToolCallLogManager()
+        ai._tool_call_log = tool_call_log
+        ai._chat_ui = ChatUIManager(
+            message_menu=MessageMenuManager(),
+            tool_call_log=tool_call_log,
+        )
         ai.is_processing = True
         ai._stop_requested = False
         ai._response_timeout_id = None
-        ai.markdown_parser = type("MockParser", (), {"parse": lambda s, t: t})()
 
         # Mock methods
         ai._finalize_stream_message = lambda msg=None: None
@@ -124,20 +121,15 @@ class TestErrorRecovery(unittest.TestCase):
         ai = self._create_ai_interface()
 
         # Set up minimal state
-        ai._stream_buffer = ""
-        ai._stream_content_element = None
-        ai._stream_message_container = None
-        ai._reasoning_buffer = ""
-        ai._reasoning_element = None
-        ai._reasoning_details = None
-        ai._reasoning_summary = None
-        ai._is_reasoning = False
-        ai._request_start_time = None
-        ai._tool_call_log = ToolCallLogManager()
+        tool_call_log = ToolCallLogManager()
+        ai._tool_call_log = tool_call_log
+        ai._chat_ui = ChatUIManager(
+            message_menu=MessageMenuManager(),
+            tool_call_log=tool_call_log,
+        )
         ai.is_processing = True
         ai._stop_requested = False
         ai._response_timeout_id = None
-        ai.markdown_parser = type("MockParser", (), {"parse": lambda s, t: t})()
 
         # Track if restore was called
         restore_called = [False]
