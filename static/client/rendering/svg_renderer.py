@@ -20,7 +20,6 @@ Architecture:
 
 from __future__ import annotations
 
-import time
 from typing import Any, Callable, Dict, Optional, Set, Tuple
 
 from browser import document, svg, window
@@ -33,136 +32,18 @@ from rendering.cached_render_plan import (
 )
 from rendering.interfaces import RendererProtocol
 from rendering.style_manager import get_renderer_style
+from rendering.base_telemetry import BaseRendererTelemetry
 from rendering.svg_primitive_adapter import SvgPrimitiveAdapter
 
 
-class SvgTelemetry:
+class SvgTelemetry(BaseRendererTelemetry):
     """Performance telemetry collector for SVG rendering.
 
-    Tracks timing metrics for plan building and application, cache statistics,
-    and per-drawable performance data.
-
-    Attributes:
-        _phase_totals: Cumulative timing for each rendering phase.
-        _phase_counts: Operation counts for each phase.
-        _per_drawable: Per-drawable type timing breakdown.
-        _adapter_events: Event counts from the primitive adapter.
-        _frames: Total frames rendered since last reset.
+    Inherits all common timing, counting, and snapshot logic from
+    ``BaseRendererTelemetry``.  No SVG-specific overrides are needed at
+    this time, but the subclass is kept so the renderer can evolve its
+    telemetry independently if required.
     """
-
-    def __init__(self) -> None:
-        """Initialize telemetry with zeroed counters."""
-        self.reset()
-
-    def reset(self) -> None:
-        """Reset all telemetry counters to zero."""
-        self._phase_totals: Dict[str, float] = {
-            "plan_build_ms": 0.0,
-            "plan_apply_ms": 0.0,
-            "cartesian_plan_build_ms": 0.0,
-            "cartesian_plan_apply_ms": 0.0,
-        }
-        self._phase_counts: Dict[str, int] = {
-            "plan_build_count": 0,
-            "plan_apply_count": 0,
-            "cartesian_plan_count": 0,
-            "plan_miss_count": 0,
-            "plan_skip_count": 0,
-        }
-        self._per_drawable: Dict[str, Dict[str, float]] = {}
-        self._adapter_events: Dict[str, int] = {}
-        self._frames: int = 0
-        self._max_batch_depth: int = 0
-
-    def begin_frame(self) -> None:
-        self._frames += 1
-
-    def end_frame(self) -> None:
-        pass
-
-    def _now(self) -> float:
-        try:
-            perf = getattr(window, "performance", None)
-            if perf is not None:
-                return float(perf.now())
-        except Exception:
-            pass
-        return time.time() * 1000.0
-
-    def mark_time(self) -> float:
-        return self._now()
-
-    def elapsed_since(self, start: float) -> float:
-        return max(self._now() - start, 0.0)
-
-    def _drawable_bucket(self, name: str) -> Dict[str, float]:
-        bucket = self._per_drawable.get(name)
-        if bucket is None:
-            bucket = {
-                "plan_build_ms": 0.0,
-                "plan_apply_ms": 0.0,
-                "plan_build_count": 0,
-                "plan_apply_count": 0,
-                "plan_miss_count": 0,
-                "plan_skip_count": 0,
-            }
-            self._per_drawable[name] = bucket
-        return bucket
-
-    def record_plan_build(self, name: str, duration_ms: float, *, cartesian: bool = False) -> None:
-        self._phase_totals["plan_build_ms"] += duration_ms
-        self._phase_counts["plan_build_count"] += 1
-        bucket = self._drawable_bucket(name)
-        bucket["plan_build_ms"] += duration_ms
-        bucket["plan_build_count"] += 1
-        if cartesian:
-            self._phase_totals["cartesian_plan_build_ms"] += duration_ms
-            self._phase_counts["cartesian_plan_count"] += 1
-
-    def record_plan_apply(self, name: str, duration_ms: float, *, cartesian: bool = False) -> None:
-        self._phase_totals["plan_apply_ms"] += duration_ms
-        self._phase_counts["plan_apply_count"] += 1
-        bucket = self._drawable_bucket(name)
-        bucket["plan_apply_ms"] += duration_ms
-        bucket["plan_apply_count"] += 1
-        if cartesian:
-            self._phase_totals["cartesian_plan_apply_ms"] += duration_ms
-
-    def record_plan_miss(self, name: str) -> None:
-        self._phase_counts["plan_miss_count"] += 1
-        bucket = self._drawable_bucket(name)
-        bucket["plan_miss_count"] += 1
-
-    def record_plan_skip(self, name: str) -> None:
-        self._phase_counts["plan_skip_count"] += 1
-        bucket = self._drawable_bucket(name)
-        bucket["plan_skip_count"] += 1
-
-    def record_adapter_event(self, name: str, amount: int = 1) -> None:
-        self._adapter_events[name] = self._adapter_events.get(name, 0) + amount
-
-    def track_batch_depth(self, depth: int) -> None:
-        if depth > self._max_batch_depth:
-            self._max_batch_depth = depth
-
-    def snapshot(self) -> Dict[str, Any]:
-        adapter_events = dict(self._adapter_events)
-        if self._max_batch_depth:
-            adapter_events["max_batch_depth"] = self._max_batch_depth
-        per_drawable = {name: dict(bucket) for name, bucket in self._per_drawable.items()}
-        phase = dict(self._phase_totals)
-        phase.update(self._phase_counts)
-        return {
-            "frames": self._frames,
-            "phase": phase,
-            "per_drawable": per_drawable,
-            "adapter_events": adapter_events,
-        }
-
-    def drain(self) -> Dict[str, Any]:
-        snapshot = self.snapshot()
-        self.reset()
-        return snapshot
 
 
 class SvgRenderer(RendererProtocol):
