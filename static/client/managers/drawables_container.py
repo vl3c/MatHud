@@ -76,7 +76,8 @@ class DrawablesContainer:
         renderable_attr = getattr(drawable, "is_renderable", True)
         try:
             return bool(renderable_attr)
-        except Exception:
+        except Exception as e:
+            print(f"[DrawablesContainer] Error in layering comparison: {e}")
             return True
 
     def _apply_layering(self, colored: List["Drawable"], others: List["Drawable"]) -> List["Drawable"]:
