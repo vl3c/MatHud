@@ -48,7 +48,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 from drawables.angle import Angle
 from drawables.point import Point
 from drawables.segment import Segment
-from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from managers.base_drawable_manager import BaseDrawableManager
+from managers.edit_policy import EditRule
 
 if TYPE_CHECKING:
     from drawables.drawable import Drawable
@@ -61,7 +62,7 @@ if TYPE_CHECKING:
     from name_generator.drawable import DrawableNameGenerator
 
 
-class AngleManager:
+class AngleManager(BaseDrawableManager):
     """
     Manages Angle drawables for a Canvas.
     This class is responsible for:
@@ -69,6 +70,8 @@ class AngleManager:
     - Retrieving Angle objects by name, constituent segments, or defining points.
     - (Future) Deleting Angle objects and managing their dependencies.
     """
+
+    drawable_type: str = "Angle"
 
     def __init__(
         self,
@@ -92,14 +95,15 @@ class AngleManager:
             segment_manager: Manager for Segment drawables.
             drawable_manager_proxy: Proxy to the main DrawableManager or for inter-manager calls.
         """
-        self.canvas: "Canvas" = canvas
-        self.drawables: "DrawablesContainer" = drawables_container
-        self.name_generator: "DrawableNameGenerator" = name_generator
-        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        super().__init__(
+            canvas,
+            drawables_container,
+            name_generator,
+            dependency_manager,
+            drawable_manager_proxy,
+        )
         self.point_manager: "PointManager" = point_manager
         self.segment_manager: "SegmentManager" = segment_manager
-        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
-        self.angle_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Angle")
 
     def create_angle(
         self,
@@ -224,14 +228,8 @@ class AngleManager:
         Returns:
             The Angle object if found, otherwise None.
         """
-        # Ensure self.drawables.Angles exists and is iterable
-        if not hasattr(self.drawables, "Angles") or not isinstance(self.drawables.Angles, list):
-            # print("AngleManager: DrawablesContainer has no 'Angles' list or it's not a list.")
-            return None
-        for angle in self.drawables.Angles:
-            if angle.name == name:
-                return angle
-        return None
+        result = self._get_by_name(name)
+        return cast(Optional[Angle], result)
 
     def get_angle_by_segments(
         self, segment1: Segment, segment2: Segment, is_reflex_filter: Optional[bool] = None
@@ -432,12 +430,12 @@ class AngleManager:
         return pending_fields
 
     def _validate_angle_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
-        if not self.angle_edit_policy:
+        if not self.edit_policy:
             raise ValueError("Edit policy for angles is not configured.")
 
         validated_rules: Dict[str, EditRule] = {}
         for field in requested_fields:
-            rule = self.angle_edit_policy.get_rule(field)
+            rule = self.edit_policy.get_rule(field)
             if not rule:
                 raise ValueError(f"Editing field '{field}' is not permitted for angles.")
             validated_rules[field] = rule

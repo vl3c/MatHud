@@ -37,9 +37,10 @@ Mathematical Context:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, cast
 
 from drawables.vector import Vector
+from managers.base_drawable_manager import BaseDrawableManager
 from managers.dependency_removal import remove_drawable_with_dependencies
 from utils.math_utils import MathUtils
 
@@ -53,7 +54,7 @@ if TYPE_CHECKING:
     from name_generator.drawable import DrawableNameGenerator
 
 
-class VectorManager:
+class VectorManager(BaseDrawableManager):
     """
     Manages vector drawables for a Canvas.
 
@@ -62,6 +63,8 @@ class VectorManager:
     - Retrieving vector objects by various criteria
     - Deleting vector objects
     """
+
+    drawable_type: str = "Vector"
 
     def __init__(
         self,
@@ -83,12 +86,14 @@ class VectorManager:
             point_manager: Manager for point drawables
             drawable_manager_proxy: Proxy to the main DrawableManager
         """
-        self.canvas: "Canvas" = canvas
-        self.drawables: "DrawablesContainer" = drawables_container
-        self.name_generator: "DrawableNameGenerator" = name_generator
-        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        super().__init__(
+            canvas,
+            drawables_container,
+            name_generator,
+            dependency_manager,
+            drawable_manager_proxy,
+        )
         self.point_manager: "PointManager" = point_manager
-        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
 
     def get_vector(self, x1: float, y1: float, x2: float, y2: float) -> Optional[Vector]:
         """
@@ -115,12 +120,8 @@ class VectorManager:
         return None
 
     def get_vector_by_name(self, name: str) -> Optional[Vector]:
-        if not name:
-            return None
-        for vector in self.drawables.Vectors:
-            if vector.name == name:
-                return vector
-        return None
+        result = self._get_by_name(name)
+        return cast(Optional[Vector], result)
 
     def create_vector(
         self,
