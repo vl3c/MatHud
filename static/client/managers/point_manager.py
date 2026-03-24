@@ -39,7 +39,8 @@ from typing import TYPE_CHECKING, Dict, List, Optional, cast
 from drawables.point import Point
 from drawables.segment import Segment
 from utils.math_utils import MathUtils
-from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from managers.base_drawable_manager import BaseDrawableManager
+from managers.edit_policy import EditRule
 from managers.dependency_removal import get_polygon_segments, remove_drawable_with_dependencies
 
 if TYPE_CHECKING:
@@ -51,7 +52,7 @@ if TYPE_CHECKING:
     from name_generator.drawable import DrawableNameGenerator
 
 
-class PointManager:
+class PointManager(BaseDrawableManager):
     """
     Manages point drawables for a Canvas.
 
@@ -60,6 +61,8 @@ class PointManager:
     - Retrieving point objects by various criteria
     - Deleting point objects
     """
+
+    drawable_type: str = "Point"
 
     def __init__(
         self,
@@ -79,12 +82,13 @@ class PointManager:
             dependency_manager: Manager for drawable dependencies
             drawable_manager_proxy: Proxy to the main DrawableManager
         """
-        self.canvas: "Canvas" = canvas
-        self.drawables: "DrawablesContainer" = drawables_container
-        self.name_generator: "DrawableNameGenerator" = name_generator
-        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
-        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
-        self.point_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Point")
+        super().__init__(
+            canvas,
+            drawables_container,
+            name_generator,
+            dependency_manager,
+            drawable_manager_proxy,
+        )
 
     def get_point(self, x: float, y: float) -> Optional[Point]:
         """
@@ -117,10 +121,8 @@ class PointManager:
         Returns:
             Point: The point with the matching name, or None if not found
         """
-        for point in self.drawables.Points:
-            if point.name == name:
-                return point
-        return None
+        result = self._get_by_name(name)
+        return cast(Optional[Point], result)
 
     def create_point(
         self,
@@ -390,12 +392,12 @@ class PointManager:
 
     def _validate_point_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
         """Ensure every requested field is allowed by the policy definition."""
-        if not self.point_edit_policy:
+        if not self.edit_policy:
             raise ValueError("Edit policy for points is not configured.")
 
         validated_rules: Dict[str, EditRule] = {}
         for field in requested_fields:
-            rule = self.point_edit_policy.get_rule(field)
+            rule = self.edit_policy.get_rule(field)
             if not rule:
                 raise ValueError(f"Editing field '{field}' is not permitted for points.")
             validated_rules[field] = rule
