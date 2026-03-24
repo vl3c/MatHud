@@ -19,10 +19,10 @@ import secrets
 from typing import TYPE_CHECKING, Dict, Optional, Tuple, TypedDict, Union
 
 from cachelib.file import FileSystemCache
-from dotenv import load_dotenv
 from flask import Flask, Response, jsonify
 from flask_session import Session as FlaskSession
 
+from static.env_config import load_env_files
 from static.log_manager import LogManager
 from static.openai_completions_api import OpenAIChatCompletionsAPI
 from static.openai_responses_api import OpenAIResponsesAPI
@@ -91,10 +91,7 @@ class AppManager:
     @staticmethod
     def _load_env() -> None:
         """Load environment from project .env and parent .env (API keys)."""
-        load_dotenv()
-        parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
-        if os.path.exists(parent_env):
-            load_dotenv(parent_env)
+        load_env_files()
 
     @staticmethod
     def requires_auth() -> bool:

@@ -11,7 +11,7 @@ import logging
 import os
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
-from dotenv import load_dotenv
+from static.env_config import load_env_files
 
 if TYPE_CHECKING:
     from static.openai_api_base import OpenAIAPIBase
@@ -85,10 +85,7 @@ class ProviderRegistry:
             return LocalProviderRegistry.is_provider_available(provider_name)
 
         # API-based providers use API key check
-        load_dotenv()
-        parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
-        if os.path.exists(parent_env):
-            load_dotenv(parent_env)
+        load_env_files()
         key_name = cls._api_key_names.get(provider_name)
         if not key_name:
             return False
@@ -104,10 +101,7 @@ class ProviderRegistry:
         Returns:
             List of available provider names
         """
-        load_dotenv()
-        parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
-        if os.path.exists(parent_env):
-            load_dotenv(parent_env)
+        load_env_files()
         available = []
 
         # Check API-based providers

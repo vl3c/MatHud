@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from openai import OpenAI
 
 from static.ai_model import AIModel
+from static.config import CANVAS_SNAPSHOT_PATH
 from static.env_config import get_api_key
 from static.canvas_state_summarizer import compare_canvas_states
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
@@ -308,7 +309,7 @@ class OpenAIAPIBase:
         # Add canvas snapshot if vision is enabled
         if include_canvas_snapshot:
             try:
-                with open("canvas_snapshots/canvas.png", "rb") as image_file:
+                with open(CANVAS_SNAPSHOT_PATH, "rb") as image_file:
                     image_data = base64.b64encode(image_file.read()).decode("utf-8")
                     content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_data}"}})
                     has_images = True
