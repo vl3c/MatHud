@@ -1,7 +1,7 @@
 """Tests for the message recovery feature on AI errors.
 
-When an AI request fails (e.g., TEST_ERROR_TRIGGER_12345), the user's message
-should be restored to the input field so they can edit and retry.
+When an AI request fails, the user's message should be restored to the
+input field so they can edit and retry.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class TestErrorRecovery(unittest.TestCase):
 
         try:
             # Set the buffered message
-            test_message = "TEST_ERROR_TRIGGER_12345"
+            test_message = "simulate server error for retry"
             ai._last_user_message = test_message
 
             # Call the recovery method
@@ -158,7 +158,7 @@ class TestErrorRecovery(unittest.TestCase):
         ai._reset_tool_call_log_state = lambda: None
 
         # Set the buffered message
-        original_message = "TEST_ERROR_TRIGGER_12345"
+        original_message = "simulate server error for retry"
         ai._last_user_message = original_message
 
         # Simulate error completion event
