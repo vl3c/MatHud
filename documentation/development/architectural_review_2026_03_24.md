@@ -179,22 +179,28 @@ Constants that should be centralized are spread across files:
 
 ## Refactoring Roadmap
 
-### Phase 1: Quick Wins (low risk, high value)
-1. Remove debug code (test trigger in routes.py, print statements in expression_evaluator.py)
-2. Centralize scattered constants
-3. Standardize error handling (replace `print()` with `logging`, eliminate bare `except:`)
-4. Pin all dependencies in requirements.txt
+### Phase 1: Quick Wins — COMPLETE (PR #49)
+1. ~~Remove debug code (test trigger in routes.py, print statements in expression_evaluator.py)~~
+2. ~~Centralize scattered constants~~
+3. ~~Standardize error handling (replace `print()` with `logging`, eliminate bare `except:`)~~
+4. ~~Pin all dependencies in requirements.txt~~
+5. ~~Extract shared env loading into env_config.py~~
+6. ~~Extract route helpers (tool reset/provider deduplication)~~
 
-### Phase 2: Structural (medium risk, high value)
-5. Create `BaseDrawableManager` — eliminates manager duplication
-6. Extract `ChatUIManager` and `StreamingResponseHandler` from AIInterface
-7. Extract `VisibilityManager` from Canvas
-8. Create `ProviderManager` to unify provider operations in routes.py
-9. Make `get_state()` side-effect-free across all drawables
+### Phase 2: Structural — COMPLETE (PR #49)
+7. ~~Create `BaseDrawableManager` — 9 managers migrated~~
+8. ~~Extract `BaseRendererTelemetry` from SVG/Canvas2D~~
+9. ~~Extract `VisibilityManager` from Canvas~~
+10. ~~Make `get_state()` side-effect-free (Segment fix)~~
+11. ~~Decompose AIInterface (2,339 → 1,078 lines) into 5 classes:~~
+    - ~~ToolCallLogManager, MessageMenuManager, ImageAttachmentManager, TTSUIManager, ChatUIManager~~
+12. ~~Add tests for all new modules (35 server + 74 client)~~
 
-### Phase 3: Architecture (higher risk, long-term value)
-10. Add CI/CD pipeline with automated tests + linting
-11. Implement drawable state schema versioning
-12. Restructure dependency graph to eliminate `DrawableManagerProxy`
-13. Add workspace format migration support
-14. Extract route handler logic into service classes for testability
+### Phase 3: Architecture (higher risk, long-term value) — TODO
+13. **Add CI/CD pipeline** — GitHub Actions workflow running server tests (`pytest`), client tests (Selenium via CLI), ruff, and mypy on every PR. High value: protects all refactoring work going forward.
+14. **Implement drawable state schema versioning** — Add version field to each drawable's `get_state()` output. Create `from_state()` factory class methods on each drawable for deserialization. Validate schema on workspace load.
+15. **Restructure dependency graph to eliminate `DrawableManagerProxy`** — The proxy uses `__getattr__` reflection to break circular initialization. Restructure so managers receive specific interfaces (Protocols) rather than a proxy. This improves IDE support and type safety.
+16. **Add workspace format migration support** — With schema versioning in place, add migration functions that upgrade workspace JSON from version N to N+1. Enables breaking changes to serialization format without data loss.
+17. **Extract route handler logic into service classes** — Move business logic from Flask route functions into testable service classes. Routes become thin HTTP adapters. Enables testing without Flask test client.
+18. **Further decompose AIInterface** — The remaining 1,078 lines still mix request building, streaming orchestration, timeout management, and test execution. Candidates for extraction: `RequestBuilder` (~200 lines for payload/vision/send), `StreamingOrchestrator` (~200 lines for _on_stream_final/error/timeout).
+19. **Further decompose Canvas** — Canvas is still ~2,100 lines after VisibilityManager extraction. Candidates: `CanvasRenderingCoordinator` (frame batching, render dispatch), `ZoomController` (zoom displacement calculations).
