@@ -11,6 +11,8 @@ from typing import Any
 
 from browser import document, html, window
 
+from tool_call_log_manager import ToolCallLogManager
+
 
 class TestErrorRecovery(unittest.TestCase):
     """Test the message recovery mechanism on AI errors."""
@@ -92,10 +94,7 @@ class TestErrorRecovery(unittest.TestCase):
         ai._reasoning_summary = None
         ai._is_reasoning = False
         ai._request_start_time = None
-        ai._tool_call_log_entries = []
-        ai._tool_call_log_element = None
-        ai._tool_call_log_summary = None
-        ai._tool_call_log_content = None
+        ai._tool_call_log = ToolCallLogManager()
         ai.is_processing = True
         ai._stop_requested = False
         ai._response_timeout_id = None
@@ -105,7 +104,6 @@ class TestErrorRecovery(unittest.TestCase):
         ai._finalize_stream_message = lambda msg=None: None
         ai._enable_send_controls = lambda: None
         ai._normalize_stream_event = lambda e: e if isinstance(e, dict) else {}
-        ai._reset_tool_call_log_state = lambda: None
 
         # Set the buffered message
         ai._last_user_message = "test message"
@@ -135,10 +133,7 @@ class TestErrorRecovery(unittest.TestCase):
         ai._reasoning_summary = None
         ai._is_reasoning = False
         ai._request_start_time = None
-        ai._tool_call_log_entries = []
-        ai._tool_call_log_element = None
-        ai._tool_call_log_summary = None
-        ai._tool_call_log_content = None
+        ai._tool_call_log = ToolCallLogManager()
         ai.is_processing = True
         ai._stop_requested = False
         ai._response_timeout_id = None
@@ -155,7 +150,6 @@ class TestErrorRecovery(unittest.TestCase):
         ai._enable_send_controls = lambda: None
         ai._normalize_stream_event = lambda e: e if isinstance(e, dict) else {}
         ai._restore_user_message_on_error = mock_restore
-        ai._reset_tool_call_log_state = lambda: None
 
         # Set the buffered message
         original_message = "simulate server error for retry"

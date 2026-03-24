@@ -44,9 +44,9 @@ from constants import (
 )
 from function_registry import FunctionRegistry
 from process_function_calls import ProcessFunctionCalls
-from result_processor import ResultProcessor
 from workspace_manager import WorkspaceManager
 from markdown_parser import MarkdownParser
+from tool_call_log_manager import ToolCallLogManager
 from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
 from tts_controller import get_tts_controller, TTSController
@@ -107,11 +107,8 @@ class AIInterface:
         self._is_reasoning: bool = False
         self._request_start_time: Optional[float] = None  # Timestamp when user request started
         self._needs_continuation_separator: bool = False  # Add newline before next text after tool calls
-        # Tool call log state
-        self._tool_call_log_entries: list[dict[str, Any]] = []
-        self._tool_call_log_element: Optional[Any] = None  # <details> element
-        self._tool_call_log_summary: Optional[Any] = None  # <summary> element
-        self._tool_call_log_content: Optional[Any] = None  # content container div
+        # Tool call log state (delegated to ToolCallLogManager)
+        self._tool_call_log = ToolCallLogManager()
         # Timeout state
         self._response_timeout_id: Optional[int] = None
         # Chat message menu state
@@ -1063,197 +1060,6 @@ class AIInterface:
             except Exception as e:
                 print(f"Error creating reasoning element: {e}")
 
-    def _reset_tool_call_log_state(self) -> None:
-        """Reset all tool call log state for a new turn."""
-        self._tool_call_log_entries = []
-        self._tool_call_log_element = None
-        self._tool_call_log_summary = None
-        self._tool_call_log_content = None
-
-    def _format_tool_call_args_display(self, args: dict[str, Any]) -> str:
-        """Format a tool call's arguments dict for compact display.
-
-        Filters out the ``canvas`` key, truncates individual values to 30
-        characters and the total string to 80 characters.
-        """
-        parts: list[str] = []
-        for k, v in args.items():
-            if k == "canvas":
-                continue
-            v_str = str(v)
-            if len(v_str) > 30:
-                v_str = v_str[:27] + "..."
-            parts.append(f"{k}: {v_str}")
-        result = ", ".join(parts)
-        if len(result) > 80:
-            result = result[:77] + "..."
-        return result
-
-    def _create_tool_call_entry_element(self, entry: dict[str, Any]) -> Any:
-        """Build the DOM element for a single tool call log entry."""
-        div = html.DIV(Class="tool-call-entry")
-
-        is_error = entry.get("is_error", False)
-        status_class = "tool-call-status error" if is_error else "tool-call-status success"
-        status_char = "\u2717" if is_error else "\u2713"
-        status_span = html.SPAN(status_char, Class=status_class)
-        div <= status_span
-
-        name_span = html.SPAN(entry.get("name", ""), Class="tool-call-name")
-        div <= name_span
-
-        short_args = entry.get("args_display", "")
-        full_args = entry.get("args_full", short_args)
-        args_span = html.SPAN(f"({short_args})", Class="tool-call-args")
-        div <= args_span
-
-        # Show error message or result
-        result_display = entry.get("result_display", "")
-        result_full = entry.get("result_full", result_display)
-        result_span: Any = None
-
-        if is_error:
-            error_msg = entry.get("error_message", "")
-            if error_msg:
-                err_span = html.SPAN(f" \u2192 {error_msg}", Class="tool-call-error-msg")
-                div <= err_span
-        elif result_display:
-            result_span = html.SPAN(f" \u2192 {result_display}", Class="tool-call-result")
-            div <= result_span
-
-        # Click to toggle between truncated and full view
-        def _toggle_expand(event: Any) -> None:
-            try:
-                if div.classList.contains("expanded"):
-                    div.classList.remove("expanded")
-                    args_span.text = f"({short_args})"
-                    if result_span is not None and result_display:
-                        result_span.text = f" \u2192 {result_display}"
-                else:
-                    div.classList.add("expanded")
-                    args_span.text = f"({full_args})"
-                    if result_span is not None and result_full:
-                        result_span.text = f" \u2192 {result_full}"
-            except Exception:
-                pass
-
-        div.bind("click", _toggle_expand)
-
-        return div
-
-    def _ensure_tool_call_log_element(self) -> None:
-        """Create the tool-call-log ``<details>`` element if it doesn't exist yet."""
-        if self._tool_call_log_element is not None:
-            return
-
-        # We need a message container to attach to
-        if self._stream_message_container is None:
-            self._ensure_stream_message_element()
-
-        details = html.DETAILS(Class="tool-call-log-dropdown")
-        summary = html.SUMMARY("Using tools...", Class="tool-call-log-summary")
-        content_div = html.DIV(Class="tool-call-log-content")
-        details <= summary
-        details <= content_div
-
-        # Insert before the content element so it appears after reasoning but before text
-        if self._stream_message_container is not None and self._stream_content_element is not None:
-            try:
-                self._stream_message_container.insertBefore(details, self._stream_content_element)
-            except Exception:
-                self._stream_message_container <= details
-        elif self._stream_message_container is not None:
-            self._stream_message_container <= details
-
-        self._tool_call_log_element = details
-        self._tool_call_log_summary = summary
-        self._tool_call_log_content = content_div
-
-    def _add_tool_call_entries(self, tool_calls: list[dict[str, Any]], call_results: dict[str, Any]) -> None:
-        """Record tool call entries and update the dropdown UI.
-
-        Args:
-            tool_calls: Raw tool call dicts from the AI response.
-            call_results: Dict mapping result keys to their outcomes.
-        """
-        self._ensure_tool_call_log_element()
-
-        for call in tool_calls:
-            function_name: str = call.get("function_name", "")
-            args: dict[str, Any] = call.get("arguments", {})
-            args_display = self._format_tool_call_args_display(args)
-
-            result_key = ResultProcessor._generate_result_key(function_name, args)
-
-            # Special handling for evaluate_expression which uses expression as key
-            if function_name == "evaluate_expression" and "expression" in args:
-                expr = str(args.get("expression", "")).replace(" ", "")
-                variables = args.get("variables")
-                if variables and isinstance(variables, dict):
-                    vars_str = ", ".join(f"{k}:{v}" for k, v in variables.items())
-                    expr_key = f"{expr} for {vars_str}"
-                else:
-                    expr_key = expr
-                result_value = call_results.get(expr_key, call_results.get(result_key, ""))
-            else:
-                result_value = call_results.get(result_key, call_results.get(function_name, ""))
-            is_error = isinstance(result_value, str) and result_value.startswith("Error:")
-            error_message = result_value if is_error else ""
-
-            # Full untruncated args for the expanded view
-            args_full = ", ".join(f"{k}: {v}" for k, v in args.items() if k != "canvas")
-
-            # Format result for display (truncate if too long)
-            result_display = ""
-            if not is_error and result_value:
-                result_str = str(result_value)
-                if len(result_str) > 100:
-                    result_display = result_str[:97] + "..."
-                else:
-                    result_display = result_str
-
-            entry: dict[str, Any] = {
-                "name": function_name,
-                "args_display": args_display,
-                "args_full": args_full,
-                "is_error": is_error,
-                "error_message": error_message,
-                "result_display": result_display,
-                "result_full": str(result_value) if result_value else "",
-            }
-            self._tool_call_log_entries.append(entry)
-
-            entry_el = self._create_tool_call_entry_element(entry)
-            if self._tool_call_log_content is not None:
-                self._tool_call_log_content <= entry_el
-
-        # Update summary with running count
-        count = len(self._tool_call_log_entries)
-        if self._tool_call_log_summary is not None:
-            self._tool_call_log_summary.text = f"Using tools... ({count} so far)"
-
-    def _finalize_tool_call_log(self) -> None:
-        """Update the tool call log summary to its final state."""
-        if not self._tool_call_log_entries:
-            return
-
-        count = len(self._tool_call_log_entries)
-        error_count = sum(1 for e in self._tool_call_log_entries if e.get("is_error"))
-
-        label = f"Used {count} tool" if count == 1 else f"Used {count} tools"
-        if error_count:
-            label += f" ({error_count} failed)"
-
-        if self._tool_call_log_summary is not None:
-            self._tool_call_log_summary.text = label
-
-        # Ensure collapsed — removeAttribute is reliable for boolean HTML attributes
-        if self._tool_call_log_element is not None:
-            try:
-                self._tool_call_log_element.removeAttribute("open")
-            except Exception:
-                pass
-
     def _on_stream_log(self, event_obj: Any) -> None:
         """Handle a server log event: output to browser console with appropriate level."""
         try:
@@ -1332,7 +1138,7 @@ class AIInterface:
     def _finalize_stream_message(self, final_message: Optional[str] = None) -> None:
         """Convert the streamed plain text to parsed markdown and render math."""
         try:
-            self._finalize_tool_call_log()
+            self._tool_call_log.finalize()
 
             # Prefer the accumulated buffer (contains all text across tool calls)
             # Only use final_message as fallback if buffer is empty
@@ -1375,7 +1181,7 @@ class AIInterface:
                     # Reasoning but no text content - remove the empty container
                     self._remove_empty_response_container()
             elif text_to_render:
-                if self._tool_call_log_element is not None and self._stream_message_container is not None:
+                if self._tool_call_log.element is not None and self._stream_message_container is not None:
                     # Tool call log exists — update the container in place to preserve the dropdown
                     self._set_raw_message_text(self._stream_message_container, text_to_render)
                     if self._stream_content_element is not None:
@@ -1414,7 +1220,7 @@ class AIInterface:
             self._reasoning_summary = None
             self._is_reasoning = False
             self._request_start_time = None
-            self._reset_tool_call_log_state()
+            self._tool_call_log.reset()
 
     def _remove_empty_response_container(self) -> None:
         """Remove the current response container if it has no actual text content.
@@ -1432,7 +1238,7 @@ class AIInterface:
                     has_element_text = bool(element_text.strip())
                 except Exception:
                     pass
-            has_tool_call_log = bool(self._tool_call_log_entries)
+            has_tool_call_log = bool(self._tool_call_log.entries)
 
             # Only remove if there's NO actual text content anywhere and no tool call log
             if (
@@ -1454,7 +1260,7 @@ class AIInterface:
                 self._reasoning_summary = None
                 self._reasoning_buffer = ""
                 self._is_reasoning = False
-                self._reset_tool_call_log_state()
+                self._tool_call_log.reset()
                 # Don't reset _request_start_time here - we want to keep timing across tool calls
         except Exception as e:
             print(f"Error removing empty container: {e}")
@@ -1500,7 +1306,10 @@ class AIInterface:
                     self.canvas,
                 )
                 self._store_results_in_canvas_state(call_results)
-                self._add_tool_call_entries(ai_tool_calls, call_results)
+                if self._stream_message_container is None:
+                    self._ensure_stream_message_element()
+                self._tool_call_log.ensure_element(self._stream_message_container, self._stream_content_element)
+                self._tool_call_log.add_entries(ai_tool_calls, call_results)
 
                 if self._stop_requested:
                     # Still capture trace for the executed tool calls
@@ -2129,7 +1938,7 @@ class AIInterface:
             self._reasoning_summary = None
             self._is_reasoning = False
             self._needs_continuation_separator = False
-            self._reset_tool_call_log_state()
+            self._tool_call_log.reset()
 
         try:
             payload = self._create_request_payload(prompt, include_svg=True)
@@ -2182,7 +1991,7 @@ class AIInterface:
             self._reasoning_summary = None
             self._is_reasoning = False
             self._needs_continuation_separator = False
-            self._reset_tool_call_log_state()
+            self._tool_call_log.reset()
 
         self._send_request(prompt, action_trace=action_trace)
 
