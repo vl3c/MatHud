@@ -16,10 +16,10 @@ from collections.abc import Iterator, Sequence
 from types import SimpleNamespace
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from dotenv import load_dotenv
 from openai import OpenAI
 
 from static.ai_model import AIModel
+from static.env_config import get_api_key
 from static.canvas_state_summarizer import compare_canvas_states
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
 from static.token_estimation import estimate_tokens_from_bytes
@@ -83,21 +83,10 @@ class OpenAIAPIBase:
         to start with other providers configured. Actual OpenAI API calls will
         fail with an authentication error in that case.
         """
-        api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            return api_key
-
-        # Load from project .env, then parent .env (API keys may live outside repo)
-        load_dotenv()
-        parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
-        if os.path.exists(parent_env):
-            load_dotenv(parent_env)
-        api_key = os.getenv("OPENAI_API_KEY")
-
+        api_key = get_api_key("OPENAI_API_KEY", required=False, fallback="")
         if not api_key:
             logging.getLogger("mathud").warning("OPENAI_API_KEY not found. OpenAI models will be unavailable.")
             return "not-configured"
-
         return api_key
 
     def __init__(

@@ -25,10 +25,10 @@ import time
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
-from dotenv import load_dotenv
 from openai import OpenAI
 
 from static.ai_model import AIModel
+from static.env_config import get_api_key
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
 
 _logger = logging.getLogger("mathud")
@@ -416,21 +416,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
     @staticmethod
     def _initialize_api_key() -> str:
         """Initialize the OpenAI API key from environment or .env file."""
-        api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            return api_key
-
-        # Load from project .env, then parent .env (API keys may live outside repo)
-        load_dotenv()
-        parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
-        if os.path.exists(parent_env):
-            load_dotenv(parent_env)
-        api_key = os.getenv("OPENAI_API_KEY")
-
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY not found in environment or .env file")
-
-        return api_key
+        return get_api_key("OPENAI_API_KEY")
 
     @staticmethod
     def get_all_tools() -> List[FunctionDefinition]:
@@ -549,7 +535,6 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         scores: Dict[str, float] = defaultdict(float)
 
         # 1. Exact tool name match
-        query_lower = query.lower().strip()
         for token in query_tokens:
             if token in _ALL_TOOL_NAMES:
                 scores[token] += 8.0
