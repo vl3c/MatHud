@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from browser import html, window
 
-from ai_interface import AIInterface
+from message_menu_manager import MessageMenuManager
 from .simple_mock import SimpleMock
 
 
@@ -49,18 +49,16 @@ def _get_class_attr(node: Any) -> str:
 
 class TestChatMessageMenu(unittest.TestCase):
     def test_copy_message_text_uses_raw_source(self) -> None:
-        # Create an AIInterface instance without running __init__ to avoid heavy dependencies.
-        ai = AIInterface.__new__(AIInterface)
-        ai._open_message_menu = None
-        ai._message_menu_global_bound = True  # Avoid binding document handlers in tests.
+        # Create a MessageMenuManager instance without TTS callbacks.
+        mgr = MessageMenuManager()
 
         copy_mock = SimpleMock(return_value=True)
-        ai._copy_text_to_clipboard = copy_mock
+        mgr.copy_to_clipboard = copy_mock
 
         container = html.DIV()
         raw_text = "Hello \\(x^2\\)"
-        ai._set_raw_message_text(container, raw_text)
-        ai._attach_message_menu(container)
+        mgr.set_raw_text(container, raw_text)
+        mgr.attach(container)
 
         menu_button: Optional[Any] = None
         menu: Optional[Any] = None

@@ -47,6 +47,7 @@ from process_function_calls import ProcessFunctionCalls
 from workspace_manager import WorkspaceManager
 from markdown_parser import MarkdownParser
 from tool_call_log_manager import ToolCallLogManager
+from message_menu_manager import MessageMenuManager
 from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
 from tts_controller import get_tts_controller, TTSController
@@ -111,9 +112,11 @@ class AIInterface:
         self._tool_call_log = ToolCallLogManager()
         # Timeout state
         self._response_timeout_id: Optional[int] = None
-        # Chat message menu state
-        self._open_message_menu: Optional[Any] = None  # DOMNode
-        self._message_menu_global_bound: bool = False
+        # Chat message menu (delegated to MessageMenuManager)
+        self._message_menu = MessageMenuManager(
+            on_read_aloud=self._handle_tts_read_aloud,
+            on_tts_settings=self._show_tts_settings_modal,
+        )
         # Image attachment state
         self._attached_images: list[str] = []  # Data URLs of attached images
         # Message recovery state
@@ -497,250 +500,6 @@ class AIInterface:
             # MathJax not available or error occurred, continue silently
             pass
 
-    def _set_raw_message_text(self, message_container: Any, raw_text: str) -> None:
-        """Attach raw message source text to a message container for later actions (copy, etc.)."""
-        try:
-            # Store on the element object itself to avoid parsing rendered HTML.
-            setattr(message_container, "_raw_message_text", raw_text)
-        except Exception:
-            pass
-
-    def _get_raw_message_text(self, message_container: Any) -> str:
-        """Return the stored raw message text from the container, or empty string if missing."""
-        try:
-            value = getattr(message_container, "_raw_message_text", "")
-            if isinstance(value, str):
-                return value
-            return str(value)
-        except Exception:
-            return ""
-
-    def _copy_text_to_clipboard(self, text: str) -> bool:
-        """Copy text to clipboard using the modern API with a fallback for older contexts."""
-        if text is None:
-            text = ""
-        if not isinstance(text, str):
-            try:
-                text = str(text)
-            except Exception:
-                text = ""
-
-        # Prefer navigator.clipboard when available (may require secure context).
-        try:
-            navigator = getattr(window, "navigator", None)
-            clipboard = getattr(navigator, "clipboard", None) if navigator is not None else None
-            write_text = getattr(clipboard, "writeText", None) if clipboard is not None else None
-            if callable(write_text):
-                write_text(text)
-                return True
-        except Exception:
-            pass
-
-        # Fallback: temporary textarea + execCommand('copy')
-        try:
-            textarea = html.TEXTAREA()
-            textarea.value = text
-            textarea.attrs["readonly"] = "readonly"
-            textarea.style.position = "fixed"
-            textarea.style.left = "0"
-            textarea.style.top = "0"
-            textarea.style.opacity = "0"
-
-            # Append to DOM, select content, copy, then remove.
-            document <= textarea
-            try:
-                textarea.focus()
-            except Exception:
-                pass
-            try:
-                textarea.select()
-            except Exception:
-                pass
-            try:
-                textarea.setSelectionRange(0, len(text))
-            except Exception:
-                pass
-
-            copied = False
-            try:
-                copied = bool(window.document.execCommand("copy"))
-            except Exception:
-                try:
-                    copied = bool(document.execCommand("copy"))
-                except Exception:
-                    copied = False
-
-            try:
-                textarea.remove()
-            except Exception:
-                pass
-
-            return copied
-        except Exception:
-            return False
-
-    def _bind_message_menu_global_handlers(self) -> None:
-        """Bind global document handlers needed for message menus (close on outside click)."""
-        if self._message_menu_global_bound:
-            return
-        try:
-            document.bind("click", self._on_document_click_close_message_menu)
-            self._message_menu_global_bound = True
-        except Exception:
-            self._message_menu_global_bound = False
-
-    def _on_document_click_close_message_menu(self, _event: Any) -> None:
-        """Close any open message menu when clicking outside of it."""
-        try:
-            if self._open_message_menu is not None:
-                self._hide_message_menu(self._open_message_menu)
-        except Exception:
-            self._open_message_menu = None
-
-    def _hide_message_menu(self, menu: Any) -> None:
-        try:
-            menu.style.display = "none"
-        except Exception:
-            pass
-        if self._open_message_menu is menu:
-            self._open_message_menu = None
-
-    def _show_message_menu(self, menu: Any) -> None:
-        try:
-            if self._open_message_menu is not None and self._open_message_menu is not menu:
-                self._hide_message_menu(self._open_message_menu)
-        except Exception:
-            self._open_message_menu = None
-
-        try:
-            menu.style.display = "block"
-        except Exception:
-            pass
-        self._open_message_menu = menu
-
-    def _toggle_message_menu(self, menu: Any) -> None:
-        try:
-            current_display = getattr(menu.style, "display", "")
-        except Exception:
-            current_display = ""
-
-        if current_display == "none" or not current_display:
-            self._show_message_menu(menu)
-        else:
-            self._hide_message_menu(menu)
-
-    def _attach_message_menu(self, message_container: Any, is_ai_message: bool = False) -> None:
-        """Attach the per-message '...' menu to the message container (idempotent).
-
-        Args:
-            message_container: The DOM element to attach the menu to
-            is_ai_message: Whether this is an AI message (enables TTS option)
-        """
-        try:
-            if bool(getattr(message_container, "_has_message_menu", False)):
-                return
-            setattr(message_container, "_has_message_menu", True)
-        except Exception:
-            # If we cannot track state on the element, continue anyway.
-            pass
-
-        self._bind_message_menu_global_handlers()
-
-        menu_button = html.BUTTON("...", Class="chat-message-menu-button")
-        try:
-            menu_button.attrs["type"] = "button"
-            menu_button.attrs["title"] = "Message options"
-            menu_button.attrs["aria-label"] = "Message options"
-        except Exception:
-            pass
-
-        menu = html.DIV(Class="chat-message-menu")
-        try:
-            menu.style.display = "none"
-        except Exception:
-            pass
-
-        copy_item = html.BUTTON("Copy message text", Class="chat-message-menu-item")
-        try:
-            copy_item.attrs["type"] = "button"
-        except Exception:
-            pass
-
-        def _stop_propagation(ev: Any) -> None:
-            try:
-                ev.stopPropagation()
-            except Exception:
-                pass
-
-        def _on_menu_button_click(ev: Any) -> None:
-            _stop_propagation(ev)
-            self._toggle_message_menu(menu)
-
-        def _on_menu_click(ev: Any) -> None:
-            _stop_propagation(ev)
-
-        def _on_copy_click(ev: Any) -> None:
-            _stop_propagation(ev)
-            raw_text = self._get_raw_message_text(message_container)
-            self._copy_text_to_clipboard(raw_text)
-            self._hide_message_menu(menu)
-
-        try:
-            menu_button.bind("click", _on_menu_button_click)
-            menu.bind("click", _on_menu_click)
-            copy_item.bind("click", _on_copy_click)
-        except Exception:
-            pass
-
-        menu <= copy_item
-
-        # Add TTS options for AI messages
-        if is_ai_message:
-            read_aloud_item = html.BUTTON("Read aloud", Class="chat-message-menu-item tts-read-aloud")
-            try:
-                read_aloud_item.attrs["type"] = "button"
-            except Exception:
-                pass
-
-            def _on_read_aloud_click(ev: Any) -> None:
-                _stop_propagation(ev)
-                self._hide_message_menu(menu)
-                raw_text = self._get_raw_message_text(message_container)
-                self._handle_tts_read_aloud(raw_text, read_aloud_item)
-
-            try:
-                read_aloud_item.bind("click", _on_read_aloud_click)
-            except Exception:
-                pass
-
-            menu <= read_aloud_item
-
-            # TTS settings option
-            tts_settings_item = html.BUTTON("TTS settings...", Class="chat-message-menu-item")
-            try:
-                tts_settings_item.attrs["type"] = "button"
-            except Exception:
-                pass
-
-            def _on_tts_settings_click(ev: Any) -> None:
-                _stop_propagation(ev)
-                self._hide_message_menu(menu)
-                self._show_tts_settings_modal()
-
-            try:
-                tts_settings_item.bind("click", _on_tts_settings_click)
-            except Exception:
-                pass
-
-            menu <= tts_settings_item
-
-        # Add button + menu to the message container (positioned by CSS).
-        try:
-            message_container <= menu_button
-            message_container <= menu
-        except Exception:
-            pass
-
     def _handle_tts_read_aloud(self, text: str, button_element: Any) -> None:
         """Handle TTS read aloud action.
 
@@ -981,8 +740,8 @@ class AIInterface:
                 message_container <= images_container
 
             # Store the raw source text for copy actions (do not rely on rendered HTML)
-            self._set_raw_message_text(message_container, message)
-            self._attach_message_menu(message_container, is_ai_message=(sender == "AI"))
+            self._message_menu.set_raw_text(message_container, message)
+            self._message_menu.attach(message_container, is_ai_message=(sender == "AI"))
 
             return message_container
 
@@ -1019,8 +778,8 @@ class AIInterface:
                 self._stream_message_container = container
                 self._stream_content_element = content
                 # Initialize raw text storage for streaming content
-                self._set_raw_message_text(container, "")
-                self._attach_message_menu(container, is_ai_message=True)
+                self._message_menu.set_raw_text(container, "")
+                self._message_menu.attach(container, is_ai_message=True)
             except Exception as e:
                 print(f"Error creating streaming element: {e}")
 
@@ -1055,8 +814,8 @@ class AIInterface:
                 self._stream_message_container = container
                 self._stream_content_element = response_content
                 # Initialize raw text storage for reasoning responses
-                self._set_raw_message_text(container, "")
-                self._attach_message_menu(container, is_ai_message=True)
+                self._message_menu.set_raw_text(container, "")
+                self._message_menu.attach(container, is_ai_message=True)
             except Exception as e:
                 print(f"Error creating reasoning element: {e}")
 
@@ -1130,7 +889,7 @@ class AIInterface:
             if self._stream_content_element is not None:
                 self._stream_content_element.text = self._stream_buffer
             if self._stream_message_container is not None:
-                self._set_raw_message_text(self._stream_message_container, self._stream_buffer)
+                self._message_menu.set_raw_text(self._stream_message_container, self._stream_buffer)
             document["chat-history"].scrollTop = document["chat-history"].scrollHeight
         except Exception as e:
             print(f"Error handling stream token: {e}")
@@ -1147,7 +906,7 @@ class AIInterface:
             # If we have reasoning content and actual text, create a combined element
             if self._reasoning_buffer and self._stream_message_container is not None:
                 # Preserve raw source for copy actions
-                self._set_raw_message_text(self._stream_message_container, text_to_render)
+                self._message_menu.set_raw_text(self._stream_message_container, text_to_render)
                 if text_to_render and self._stream_content_element is not None:
                     # Update the response content with parsed markdown
                     parsed_content = self._parse_markdown_to_html(text_to_render)
@@ -1183,7 +942,7 @@ class AIInterface:
             elif text_to_render:
                 if self._tool_call_log.element is not None and self._stream_message_container is not None:
                     # Tool call log exists — update the container in place to preserve the dropdown
-                    self._set_raw_message_text(self._stream_message_container, text_to_render)
+                    self._message_menu.set_raw_text(self._stream_message_container, text_to_render)
                     if self._stream_content_element is not None:
                         parsed_content = self._parse_markdown_to_html(text_to_render)
                         self._stream_content_element.innerHTML = parsed_content
@@ -1502,8 +1261,8 @@ class AIInterface:
             message_container <= content_element
 
             # Store raw text for copy actions
-            self._set_raw_message_text(message_container, message)
-            self._attach_message_menu(message_container)
+            self._message_menu.set_raw_text(message_container, message)
+            self._message_menu.attach(message_container)
 
             # Add to chat history
             document["chat-history"] <= message_container
