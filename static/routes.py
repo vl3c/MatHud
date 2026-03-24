@@ -16,6 +16,7 @@ import base64
 import functools
 import hmac
 import json
+import logging
 import math
 import os
 import time
@@ -28,13 +29,17 @@ from flask.typing import ResponseReturnValue
 from static.ai_model import AIModel, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OLLAMA
 from static.app_manager import AppManager, MatHudFlask
 from static.canvas_state_summarizer import compare_canvas_states
+from static.config import CANVAS_SNAPSHOT_DIR, CANVAS_SNAPSHOT_PATH
 from static.openai_api_base import OpenAIAPIBase
 from static.providers import ProviderRegistry, create_provider_instance
+from static.route_helpers import get_active_provider, reset_tools_for_all_providers
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
 from static.tts_manager import get_tts_manager
 from static.webdriver_manager import SvgState
 
 F = TypeVar("F", bound=Callable[..., ResponseReturnValue])
+
+_logger = logging.getLogger(__name__)
 
 # Global dictionary to track login attempts by IP address
 # Format: {ip_address: last_attempt_timestamp}
@@ -44,8 +49,6 @@ StreamEventDict = Dict[str, JsonValue]
 
 login_attempts: Dict[str, float] = {}
 ToolCallList = List[ProcessedToolCall]
-CANVAS_SNAPSHOT_DIR = "canvas_snapshots"
-CANVAS_SNAPSHOT_PATH = os.path.join(CANVAS_SNAPSHOT_DIR, "canvas.png")
 
 
 def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
@@ -100,7 +103,7 @@ def save_canvas_snapshot_from_data_url(data_url: str) -> bool:
     try:
         image_bytes = base64.b64decode(encoded)
     except Exception as exc:
-        print(f"Failed to decode canvas snapshot: {exc}")
+        _logger.error("Failed to decode canvas snapshot: %s", exc)
         return False
     try:
         os.makedirs(CANVAS_SNAPSHOT_DIR, exist_ok=True)
@@ -108,7 +111,7 @@ def save_canvas_snapshot_from_data_url(data_url: str) -> bool:
             snapshot_file.write(image_bytes)
         return True
     except Exception as exc:
-        print(f"Failed to write canvas snapshot: {exc}")
+        _logger.error("Failed to write canvas snapshot: %s", exc)
         return False
 
 
@@ -174,13 +177,13 @@ def handle_vision_capture(
         try:
             init_webdriver()
         except Exception as exc:
-            print(f"Failed to initialize WebDriver for vision capture: {exc}")
+            _logger.error("Failed to initialize WebDriver for vision capture: %s", exc)
 
     if app.webdriver_manager is not None:
         try:
             app.webdriver_manager.capture_svg_state(cast(SvgState, svg_state))
         except Exception as exc:
-            print(f"WebDriver capture failed: {exc}")
+            _logger.error("WebDriver capture failed: %s", exc)
 
 
 def _intercept_search_tools(
@@ -237,6 +240,7 @@ def _intercept_search_tools(
         return _filter_tool_calls_by_allowed_names(tool_calls, allowed_names)
 
     except Exception:
+        _logger.exception("search_tools interception failed; returning original tool calls")
         return tool_calls  # On error, return original calls
 
 
@@ -717,7 +721,7 @@ def register_routes(app: MatHudFlask) -> None:
                 base_url = f"http://127.0.0.1:{port}/"
                 app.webdriver_manager = WebDriverManager(base_url=base_url)
             except Exception as e:
-                print(f"Failed to initialize WebDriverManager: {str(e)}")
+                _logger.error("Failed to initialize WebDriverManager: %s", e)
                 return AppManager.make_response(
                     message=f"WebDriver initialization failed: {str(e)}", status="error", code=500
                 )
@@ -807,14 +811,7 @@ def register_routes(app: MatHudFlask) -> None:
             attached_images = [img for img in attached_images_raw if isinstance(img, str)]
 
         # Get the provider for this model and update all relevant APIs
-        if ai_model:
-            app.ai_api.set_model(ai_model)
-            app.responses_api.set_model(ai_model)
-            # Get or create provider instance for this model
-            provider = get_provider_for_model(app, ai_model)
-        else:
-            # Use default OpenAI provider
-            provider = app.ai_api
+        provider = get_active_provider(app, ai_model)
 
         app.log_manager.log_user_message(message)
 
@@ -852,11 +849,6 @@ def register_routes(app: MatHudFlask) -> None:
                     yield json.dumps(log_event) + "\n"
 
             try:
-                # TEMPORARY TEST TRIGGER - REMOVE AFTER TESTING
-                if "TEST_ERROR_TRIGGER_12345" in message:
-                    raise ValueError("Test error triggered for message recovery testing")
-                # END TEMPORARY TEST TRIGGER
-
                 # Route to appropriate API based on model and provider
                 model = provider.get_model()
                 if model.provider == PROVIDER_OPENAI and model.is_reasoning_model:
@@ -884,17 +876,10 @@ def register_routes(app: MatHudFlask) -> None:
                                         event_dict["ai_tool_calls"] = cast(JsonValue, filtered_calls)
                                         app.log_manager.log_ai_tool_calls(filtered_calls)
                             except Exception:
-                                pass
+                                _logger.exception("Failed to log/filter final stream event")
                             # Reset tools if AI finished (not requesting more tool calls)
                             finish_reason = event_dict.get("finish_reason")
-                            if finish_reason != "tool_calls":
-                                if app.ai_api.has_injected_tools():
-                                    app.ai_api.reset_tools()
-                                if app.responses_api.has_injected_tools():
-                                    app.responses_api.reset_tools()
-                                # Reset tools on active provider if different
-                                if provider not in (app.ai_api, app.responses_api) and provider.has_injected_tools():
-                                    provider.reset_tools()
+                            reset_tools_for_all_providers(app, finish_reason, active_provider=provider)
                         yield json.dumps(event_dict) + "\n"
                     else:
                         yield json.dumps(event) + "\n"
@@ -903,16 +888,10 @@ def register_routes(app: MatHudFlask) -> None:
                 yield from _yield_pending_logs()
             except Exception as exc:
                 error_msg = f"Streaming exception: {exc}"
-                print(f"[Routes /send_message] {error_msg}")
+                _logger.error("%s", error_msg)
                 app.log_manager.log_error(error_msg, source="routes")
                 # Reset tools on error
-                if app.ai_api.has_injected_tools():
-                    app.ai_api.reset_tools()
-                if app.responses_api.has_injected_tools():
-                    app.responses_api.reset_tools()
-                # Reset tools on active provider if different
-                if provider not in (app.ai_api, app.responses_api) and provider.has_injected_tools():
-                    provider.reset_tools()
+                reset_tools_for_all_providers(app, "error", active_provider=provider)
                 # Yield pending logs so client sees them before error
                 yield from _yield_pending_logs()
                 # Include error details in the payload for transparency
@@ -927,7 +906,7 @@ def register_routes(app: MatHudFlask) -> None:
                     yield json.dumps(error_payload) + "\n"
                 except Exception:
                     fallback_error_msg = "Failed to send detailed error payload; falling back."
-                    print(f"[Routes /send_message] {fallback_error_msg}")
+                    _logger.error("%s", fallback_error_msg)
                     app.log_manager.log_error(fallback_error_msg, source="routes")
                     fallback_payload: StreamEventDict = {
                         "type": "final",
@@ -1104,14 +1083,7 @@ def register_routes(app: MatHudFlask) -> None:
             attached_images = [img for img in attached_images_raw if isinstance(img, str)]
 
         # Get the provider for this model and update all relevant APIs
-        if ai_model:
-            app.ai_api.set_model(ai_model)
-            app.responses_api.set_model(ai_model)
-            # Get or create provider instance for this model
-            provider = get_provider_for_model(app, ai_model)
-        else:
-            # Use default OpenAI provider
-            provider = app.ai_api
+        provider = get_active_provider(app, ai_model)
 
         app.log_manager.log_user_message(message)
 
@@ -1140,17 +1112,6 @@ def register_routes(app: MatHudFlask) -> None:
         # Store attached images in app context for API access
         app.current_attached_images = attached_images
 
-        def _reset_tools_if_needed(finish_reason: Any) -> None:
-            """Reset tools if AI finished (not requesting more tool calls)."""
-            if finish_reason != "tool_calls":
-                if app.ai_api.has_injected_tools():
-                    app.ai_api.reset_tools()
-                if app.responses_api.has_injected_tools():
-                    app.responses_api.reset_tools()
-                # Reset tools on active provider if different
-                if provider not in (app.ai_api, app.responses_api) and provider.has_injected_tools():
-                    provider.reset_tools()
-
         try:
             # Route to appropriate API based on model and provider
             model = provider.get_model()
@@ -1163,7 +1124,7 @@ def register_routes(app: MatHudFlask) -> None:
                         break
 
                 if final_event is None:
-                    _reset_tools_if_needed("error")
+                    reset_tools_for_all_providers(app, "error", active_provider=provider)
                     return AppManager.make_response(
                         message="No final response event produced",
                         status="error",
@@ -1185,7 +1146,7 @@ def register_routes(app: MatHudFlask) -> None:
                 app.log_manager.log_ai_response(ai_message)
                 app.log_manager.log_ai_tool_calls(ai_tool_calls)
 
-                _reset_tools_if_needed(finish_reason)
+                reset_tools_for_all_providers(app, finish_reason, active_provider=provider)
                 return AppManager.make_response(
                     data=cast(
                         JsonObject,
@@ -1205,7 +1166,7 @@ def register_routes(app: MatHudFlask) -> None:
                 ai_tool_calls = _intercept_search_tools(app, ai_tool_calls, provider)
             finish_reason = getattr(choice, "finish_reason", None)
 
-            _reset_tools_if_needed(finish_reason)
+            reset_tools_for_all_providers(app, finish_reason, active_provider=provider)
             return AppManager.make_response(
                 data=cast(
                     JsonObject,
@@ -1217,7 +1178,7 @@ def register_routes(app: MatHudFlask) -> None:
                 )
             )
         except Exception as exc:
-            _reset_tools_if_needed("error")
+            reset_tools_for_all_providers(app, "error", active_provider=provider)
             return AppManager.make_response(
                 message=str(exc),
                 status="error",

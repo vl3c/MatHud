@@ -249,7 +249,6 @@ class ResultProcessor:
         """Check if the function exists and update results if not."""
         if function_name not in available_functions:
             error_msg: str = f"Error: function {function_name} not found."
-            print(error_msg)  # DEBUG
             results[function_name] = error_msg
             return False
         return True
@@ -338,9 +337,6 @@ class ResultProcessor:
             function_name: Name of the function that caused the exception
             results: Dictionary to update with the error information
         """
-        error_message: str = f"Error calling function {function_name}: {exception}"
-        print(error_message)  # DEBUG
-
         # Use the function name as the key for storing the error
         key: str = function_name
 
