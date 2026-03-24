@@ -235,7 +235,7 @@ class ResultProcessor:
         result: Any = ResultProcessor._execute_function(function_name, args, available_functions)
 
         # Format the key for results dictionary
-        key: str = ResultProcessor._generate_result_key(function_name, args)
+        key: str = ResultProcessor.generate_result_key(function_name, args)
 
         # Process the result based on function type
         ResultProcessor._process_result(
@@ -260,7 +260,7 @@ class ResultProcessor:
         return result
 
     @staticmethod
-    def _generate_result_key(function_name: str, args: Dict[str, Any]) -> str:
+    def generate_result_key(function_name: str, args: Dict[str, Any]) -> str:
         """Generate a consistent key format for the results dictionary."""
         formatted_args: str = ResultProcessor._format_arguments(args)
         return f"{function_name}({formatted_args})"

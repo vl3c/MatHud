@@ -184,7 +184,7 @@ class ToolCallLogManager:
             args: dict[str, Any] = call.get("arguments", {})
             args_display = self.format_args_display(args)
 
-            result_key = ResultProcessor._generate_result_key(function_name, args)
+            result_key = ResultProcessor.generate_result_key(function_name, args)
 
             # Special handling for evaluate_expression which uses expression as key
             if function_name == "evaluate_expression" and "expression" in args:
@@ -250,9 +250,9 @@ class ToolCallLogManager:
         if self.summary is not None:
             self.summary.text = label
 
-        # Ensure collapsed — removeAttribute is reliable for boolean HTML attributes
+        # Ensure collapsed
         if self.element is not None:
             try:
-                self.element.removeAttribute("open")
+                del self.element.attrs["open"]
             except Exception:
                 pass
