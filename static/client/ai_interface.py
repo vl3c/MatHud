@@ -38,8 +38,6 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, cast
 from browser import document, html, ajax, window, console, aio
 from constants import (
     AI_RESPONSE_TIMEOUT_MS,
-    IMAGE_SIZE_WARNING_BYTES,
-    MAX_ATTACHED_IMAGES,
     REASONING_TIMEOUT_MS,
 )
 from function_registry import FunctionRegistry
@@ -48,6 +46,7 @@ from workspace_manager import WorkspaceManager
 from markdown_parser import MarkdownParser
 from tool_call_log_manager import ToolCallLogManager
 from message_menu_manager import MessageMenuManager
+from image_attachment_manager import ImageAttachmentManager
 from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
 from tts_controller import get_tts_controller, TTSController
@@ -117,8 +116,10 @@ class AIInterface:
             on_read_aloud=self._handle_tts_read_aloud,
             on_tts_settings=self._show_tts_settings_modal,
         )
-        # Image attachment state
-        self._attached_images: list[str] = []  # Data URLs of attached images
+        # Image attachment state (delegated to ImageAttachmentManager)
+        self._image_attachment = ImageAttachmentManager(
+            on_system_message=self._print_system_message_in_chat,
+        )
         # Message recovery state
         self._last_user_message: str = ""  # Buffered message for recovery on error
         # TTS state
@@ -272,188 +273,12 @@ class AIInterface:
             print(f"Error initializing command autocomplete: {e}")
 
     def initialize_image_attachment(self) -> None:
-        """Initialize image attachment functionality.
-
-        Binds event handlers for the attach button and file input.
-        Should be called after the DOM is ready.
-        """
-        try:
-            # Bind attach button click
-            if "attach-button" in document:
-                document["attach-button"].bind("click", self._on_attach_button_click)
-
-            # Bind file input change
-            if "image-attach-input" in document:
-                document["image-attach-input"].bind("change", self._on_files_selected)
-
-            # Bind modal close handlers
-            if "image-modal" in document:
-                modal = document["image-modal"]
-                modal.bind("click", self._on_modal_backdrop_click)
-
-            close_btn = document.select_one(".image-modal-close")
-            if close_btn:
-                close_btn.bind("click", self._close_image_modal)
-        except Exception as e:
-            print(f"Error initializing image attachment: {e}")
-
-    def _on_attach_button_click(self, event: Any) -> None:
-        """Handle attach button click - trigger file picker."""
-        try:
-            if "image-attach-input" in document:
-                document["image-attach-input"].click()
-        except Exception as e:
-            print(f"Error triggering file picker: {e}")
+        """Initialize image attachment functionality (delegates to ImageAttachmentManager)."""
+        self._image_attachment.initialize()
 
     def trigger_file_picker(self) -> None:
-        """Programmatically trigger the file picker for image attachment.
-
-        This is called by the /attach slash command.
-        """
-        self._on_attach_button_click(None)
-
-    def _on_files_selected(self, event: Any) -> None:
-        """Handle file input change - read selected files as data URLs."""
-        try:
-            file_input = event.target
-            files = file_input.files
-
-            if not files or files.length == 0:
-                return
-
-            # Check if we've hit the limit
-            current_count = len(self._attached_images)
-            remaining = MAX_ATTACHED_IMAGES - current_count
-
-            if remaining <= 0:
-                self._print_system_message_in_chat(
-                    f"Maximum of {MAX_ATTACHED_IMAGES} images per message. Remove some to add more."
-                )
-                file_input.value = ""
-                return
-
-            files_to_process = min(files.length, remaining)
-            if files.length > remaining:
-                self._print_system_message_in_chat(
-                    f"Only attaching {remaining} of {files.length} images (limit: {MAX_ATTACHED_IMAGES})."
-                )
-
-            for i in range(files_to_process):
-                file = files[i]
-                self._read_and_attach_image(file)
-
-            # Clear the input so the same file can be selected again
-            file_input.value = ""
-        except Exception as e:
-            print(f"Error handling file selection: {e}")
-
-    def _read_and_attach_image(self, file: Any) -> None:
-        """Read an image file and add it to the attached images list."""
-        try:
-            # Check file size
-            if hasattr(file, "size") and file.size > IMAGE_SIZE_WARNING_BYTES:
-                size_mb = file.size / (1024 * 1024)
-                self._print_system_message_in_chat(
-                    f"Warning: Image '{file.name}' is {size_mb:.1f}MB. Large images may slow down processing."
-                )
-
-            # Create FileReader to convert to data URL
-            reader = window.FileReader.new()
-
-            def on_load(event: Any) -> None:
-                try:
-                    data_url = reader.result
-                    if isinstance(data_url, str) and data_url.startswith("data:image"):
-                        self._attached_images.append(data_url)
-                        self._update_preview_area()
-                except Exception as e:
-                    print(f"Error processing image: {e}")
-
-            reader.onload = on_load
-            reader.readAsDataURL(file)
-        except Exception as e:
-            print(f"Error reading image file: {e}")
-
-    def _update_preview_area(self) -> None:
-        """Update the image preview area to reflect current attached images."""
-        try:
-            preview_area = document["image-preview-area"]
-
-            # Clear existing previews
-            preview_area.clear()
-
-            if not self._attached_images:
-                preview_area.style.display = "none"
-                return
-
-            preview_area.style.display = "flex"
-
-            for idx, data_url in enumerate(self._attached_images):
-                # Create preview item container
-                item = html.DIV(Class="image-preview-item")
-
-                # Create thumbnail image
-                img = html.IMG(src=data_url)
-                item <= img
-
-                # Create remove button
-                remove_btn = html.BUTTON("\u00d7", Class="remove-btn")
-                remove_btn.attrs["title"] = "Remove image"
-
-                # Bind remove handler with closure for index
-                def make_remove_handler(index: int) -> Any:
-                    def handler(event: Any) -> None:
-                        event.stopPropagation()
-                        self._remove_attached_image(index)
-
-                    return handler
-
-                remove_btn.bind("click", make_remove_handler(idx))
-                item <= remove_btn
-
-                preview_area <= item
-        except Exception as e:
-            print(f"Error updating preview area: {e}")
-
-    def _remove_attached_image(self, index: int) -> None:
-        """Remove an attached image by index."""
-        try:
-            if 0 <= index < len(self._attached_images):
-                self._attached_images.pop(index)
-                self._update_preview_area()
-        except Exception as e:
-            print(f"Error removing attached image: {e}")
-
-    def _clear_attached_images(self) -> None:
-        """Clear all attached images."""
-        self._attached_images = []
-        self._update_preview_area()
-
-    def _show_image_modal(self, data_url: str) -> None:
-        """Display an image in full-size modal."""
-        try:
-            modal = document["image-modal"]
-            modal_img = document["image-modal-img"]
-            modal_img.src = data_url
-            modal.style.display = "flex"
-        except Exception as e:
-            print(f"Error showing image modal: {e}")
-
-    def _close_image_modal(self, event: Any = None) -> None:
-        """Close the image modal."""
-        try:
-            modal = document["image-modal"]
-            modal.style.display = "none"
-        except Exception as e:
-            print(f"Error closing image modal: {e}")
-
-    def _on_modal_backdrop_click(self, event: Any) -> None:
-        """Close modal when clicking outside the image."""
-        try:
-            if event.target.id == "image-modal":
-                self._close_image_modal()
-        except Exception as e:
-            print(f"Error handling modal click: {e}")
+        """Programmatically trigger the file picker for image attachment."""
+        self._image_attachment.trigger_file_picker()
 
     def _store_results_in_canvas_state(self, call_results: Dict[str, Any]) -> None:
         """Store valid function call results in the canvas state, skipping special cases and formatting values."""
@@ -731,7 +556,7 @@ class AIInterface:
                     # Bind click to show modal
                     def make_image_click_handler(url: str) -> Any:
                         def handler(event: Any) -> None:
-                            self._show_image_modal(url)
+                            self._image_attachment.show_modal(url)
 
                         return handler
 
@@ -1763,7 +1588,7 @@ class AIInterface:
         Allows sending with just attached images (empty message).
         """
         has_text = bool(message.strip())
-        has_images = len(self._attached_images) > 0
+        has_images = len(self._image_attachment.images) > 0
 
         # Need either text or images to send
         if self.is_processing or (not has_text and not has_images):
@@ -1777,7 +1602,7 @@ class AIInterface:
             return
 
         # Capture attached images before clearing
-        images_to_send = list(self._attached_images) if self._attached_images else None
+        images_to_send = list(self._image_attachment.images) if self._image_attachment.images else None
 
         # Use a default message for image-only sends
         display_message = message if has_text else "[Image attached]"
@@ -1787,7 +1612,7 @@ class AIInterface:
         self._print_user_message_in_chat(display_message, images=images_to_send)
 
         # Clear attached images after displaying (not after successful send)
-        self._clear_attached_images()
+        self._image_attachment.clear()
 
         # Regular AI flow
         self._disable_send_controls()
@@ -1879,7 +1704,7 @@ class AIInterface:
 
         # Get the user's message from the input field
         user_message = document["chat-input"].value.strip()
-        has_images = len(self._attached_images) > 0
+        has_images = len(self._image_attachment.images) > 0
 
         # Allow sending if there's text OR attached images
         if user_message or has_images:
