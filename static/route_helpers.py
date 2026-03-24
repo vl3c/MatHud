@@ -6,7 +6,7 @@ provider model synchronization and tool lifecycle management.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Optional, cast
 
 if TYPE_CHECKING:
     from static.app_manager import MatHudFlask
@@ -17,7 +17,7 @@ def reset_tools_for_all_providers(
     app: MatHudFlask,
     finish_reason: object,
     *,
-    active_provider: OpenAIAPIBase | None = None,
+    active_provider: Optional[OpenAIAPIBase] = None,
 ) -> None:
     """Reset injected tools on all provider instances when a conversation turn ends.
 
@@ -63,7 +63,7 @@ def update_all_provider_models(app: MatHudFlask, model_id: str) -> None:
     app.responses_api.set_model(model_id)
 
 
-def get_active_provider(app: MatHudFlask, model_id: str | None) -> OpenAIAPIBase:
+def get_active_provider(app: MatHudFlask, model_id: Optional[str]) -> OpenAIAPIBase:
     """Return the correct provider for a given model, updating built-in APIs.
 
     When *model_id* is provided the built-in OpenAI providers are

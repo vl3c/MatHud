@@ -15,6 +15,8 @@ import unittest
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
 
+from constants import IMAGE_SIZE_WARNING_BYTES, MAX_ATTACHED_IMAGES
+
 
 class MockCanvas:
     """Mock canvas for testing."""
@@ -85,8 +87,6 @@ class TestAttachedImagesState(unittest.TestCase):
         # so we'll test the logic patterns directly
         self.ai = MagicMock(spec=AIInterface)
         self.ai._attached_images = []
-        self.ai.MAX_ATTACHED_IMAGES = 5
-        self.ai.IMAGE_SIZE_WARNING_BYTES = 10 * 1024 * 1024
 
     def test_initial_state_empty(self) -> None:
         """Test attached images starts empty."""
@@ -127,11 +127,11 @@ class TestAttachedImagesState(unittest.TestCase):
 
     def test_max_images_constant(self) -> None:
         """Test maximum images constant is set."""
-        self.assertEqual(self.ai.MAX_ATTACHED_IMAGES, 5)
+        self.assertEqual(MAX_ATTACHED_IMAGES, 5)
 
     def test_image_size_warning_constant(self) -> None:
         """Test image size warning threshold is 10MB."""
-        self.assertEqual(self.ai.IMAGE_SIZE_WARNING_BYTES, 10 * 1024 * 1024)
+        self.assertEqual(IMAGE_SIZE_WARNING_BYTES, 10 * 1024 * 1024)
 
 
 class TestImageValidation(unittest.TestCase):
