@@ -31,7 +31,6 @@ Dependencies:
 from __future__ import annotations
 
 import json
-import re
 import traceback
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, cast
 
@@ -49,7 +48,7 @@ from message_menu_manager import MessageMenuManager
 from image_attachment_manager import ImageAttachmentManager
 from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
-from tts_controller import get_tts_controller, TTSController
+from tts_ui_manager import TTSUIManager
 from managers.action_trace_collector import ActionTraceCollector
 
 if TYPE_CHECKING:
@@ -111,10 +110,12 @@ class AIInterface:
         self._tool_call_log = ToolCallLogManager()
         # Timeout state
         self._response_timeout_id: Optional[int] = None
+        # TTS UI (delegated to TTSUIManager)
+        self._tts_ui = TTSUIManager(on_system_message=self._print_system_message_in_chat)
         # Chat message menu (delegated to MessageMenuManager)
         self._message_menu = MessageMenuManager(
-            on_read_aloud=self._handle_tts_read_aloud,
-            on_tts_settings=self._show_tts_settings_modal,
+            on_read_aloud=self._tts_ui.handle_read_aloud,
+            on_tts_settings=self._tts_ui.show_settings_modal,
         )
         # Image attachment state (delegated to ImageAttachmentManager)
         self._image_attachment = ImageAttachmentManager(
@@ -122,9 +123,6 @@ class AIInterface:
         )
         # Message recovery state
         self._last_user_message: str = ""  # Buffered message for recovery on error
-        # TTS state
-        self._tts_controller: TTSController = get_tts_controller()
-        self._tts_settings_modal: Optional[Any] = None  # DOMNode for TTS settings modal
         # Action trace collector for deterministic tool-execution logs
         self._trace_collector: ActionTraceCollector = ActionTraceCollector()
         self._register_trace_js_api()
@@ -323,189 +321,6 @@ class AIInterface:
                 window.MathJax.typesetPromise([document["chat-history"]])
         except Exception:
             # MathJax not available or error occurred, continue silently
-            pass
-
-    def _handle_tts_read_aloud(self, text: str, button_element: Any) -> None:
-        """Handle TTS read aloud action.
-
-        Args:
-            text: Text to read aloud
-            button_element: The menu button to update based on state
-        """
-        if not text or not text.strip():
-            return
-
-        # If already playing, stop instead
-        if self._tts_controller.is_playing():
-            self._tts_controller.stop()
-            return
-
-        # Set up state change callback to update button text
-        def on_state_change(state: str) -> None:
-            try:
-                if state == "loading":
-                    button_element.text = "Loading..."
-                    button_element.classList.add("tts-loading")
-                    button_element.classList.remove("tts-playing")
-                elif state == "playing":
-                    button_element.text = "Stop reading"
-                    button_element.classList.remove("tts-loading")
-                    button_element.classList.add("tts-playing")
-                else:
-                    button_element.text = "Read aloud"
-                    button_element.classList.remove("tts-loading")
-                    button_element.classList.remove("tts-playing")
-            except Exception:
-                pass
-
-        # Set up error callback to show message to user
-        def on_error(message: str) -> None:
-            self._print_system_message_in_chat(message)
-
-        self._tts_controller.on_state_change = on_state_change
-        self._tts_controller.on_error = on_error
-
-        # Strip markdown formatting for cleaner TTS (basic cleanup)
-        clean_text = self._strip_markdown_for_tts(text)
-
-        # Start TTS
-        self._tts_controller.speak(clean_text)
-
-    def _strip_markdown_for_tts(self, text: str) -> str:
-        """Strip markdown formatting from text for cleaner TTS output.
-
-        Args:
-            text: Text with potential markdown formatting
-
-        Returns:
-            Clean text suitable for TTS
-        """
-        result = text
-
-        # Remove code blocks
-        result = re.sub(r"```[\s\S]*?```", "", result)
-        result = re.sub(r"`[^`]+`", "", result)
-
-        # Remove headers
-        result = re.sub(r"^#{1,6}\s+", "", result, flags=re.MULTILINE)
-
-        # Remove bold/italic
-        result = re.sub(r"\*\*([^*]+)\*\*", r"\1", result)
-        result = re.sub(r"\*([^*]+)\*", r"\1", result)
-        result = re.sub(r"__([^_]+)__", r"\1", result)
-        result = re.sub(r"_([^_]+)_", r"\1", result)
-
-        # Remove links, keep text
-        result = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", result)
-
-        # Remove images
-        result = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", result)
-
-        # Remove horizontal rules
-        result = re.sub(r"^[-*_]{3,}$", "", result, flags=re.MULTILINE)
-
-        # Clean up extra whitespace
-        result = re.sub(r"\n{3,}", "\n\n", result)
-        result = result.strip()
-
-        return result
-
-    def _show_tts_settings_modal(self) -> None:
-        """Display the TTS settings modal dialog."""
-        # Remove existing modal if present
-        self._close_tts_settings_modal()
-
-        # Create modal backdrop
-        modal = html.DIV(Class="tts-settings-modal")
-        modal.id = "tts-settings-modal"
-
-        # Create modal content
-        content = html.DIV(Class="tts-settings-content")
-
-        # Header
-        header = html.DIV(Class="tts-settings-header")
-        title = html.H3("TTS Settings")
-        close_btn = html.BUTTON("\u00d7", Class="tts-settings-close")
-        close_btn.attrs["type"] = "button"
-        close_btn.attrs["title"] = "Close"
-        header <= title
-        header <= close_btn
-        content <= header
-
-        # Voice selection
-        voice_group = html.DIV(Class="tts-settings-group")
-        voice_label = html.LABEL("Voice:")
-        voice_select = html.SELECT(id="tts-voice-select")
-
-        # Add voice options
-        # Note: Voice IDs must match TTSManager.VOICES in static/tts_manager.py
-        voices = [
-            ("am_michael", "Michael (Male)"),
-            ("am_fenrir", "Fenrir (Male, deeper)"),
-            ("am_onyx", "Onyx (Male, darker)"),
-            ("am_echo", "Echo (Male, resonant)"),
-            ("af_nova", "Nova (Female)"),
-            ("af_bella", "Bella (Female, warm)"),
-        ]
-        current_voice = self._tts_controller.get_voice()
-        for voice_id, voice_name in voices:
-            option = html.OPTION(voice_name, value=voice_id)
-            if voice_id == current_voice:
-                option.attrs["selected"] = "selected"
-            voice_select <= option
-
-        voice_group <= voice_label
-        voice_group <= voice_select
-        content <= voice_group
-
-        # Buttons
-        buttons = html.DIV(Class="tts-settings-buttons")
-        save_btn = html.BUTTON("Save", Class="tts-settings-save")
-        save_btn.attrs["type"] = "button"
-        cancel_btn = html.BUTTON("Cancel", Class="tts-settings-cancel")
-        cancel_btn.attrs["type"] = "button"
-        buttons <= save_btn
-        buttons <= cancel_btn
-        content <= buttons
-
-        modal <= content
-
-        # Bind events
-        def on_close(ev: Any) -> None:
-            self._close_tts_settings_modal()
-
-        def on_save(ev: Any) -> None:
-            try:
-                voice_value = document["tts-voice-select"].value
-                self._tts_controller.set_voice(voice_value)
-            except Exception as e:
-                print(f"Error saving TTS settings: {e}")
-            self._close_tts_settings_modal()
-
-        def on_backdrop_click(ev: Any) -> None:
-            if ev.target == modal:
-                self._close_tts_settings_modal()
-
-        close_btn.bind("click", on_close)
-        cancel_btn.bind("click", on_close)
-        save_btn.bind("click", on_save)
-        modal.bind("click", on_backdrop_click)
-
-        # Add to document
-        document <= modal
-        self._tts_settings_modal = modal
-
-    def _close_tts_settings_modal(self) -> None:
-        """Close and remove the TTS settings modal."""
-        try:
-            if self._tts_settings_modal:
-                self._tts_settings_modal.remove()
-                self._tts_settings_modal = None
-            # Also try by ID in case reference was lost
-            existing = document.select_one("#tts-settings-modal")
-            if existing:
-                existing.remove()
-        except Exception:
             pass
 
     def _create_message_element(
