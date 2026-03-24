@@ -170,7 +170,7 @@ class TestGetActiveProvider(unittest.TestCase):
 
         result = get_active_provider(app, None)
 
-        assert result is app.ai_api
+        self.assertIs(result, app.ai_api)
         app.ai_api.set_model.assert_not_called()
         app.responses_api.set_model.assert_not_called()
 
@@ -190,7 +190,7 @@ class TestGetActiveProvider(unittest.TestCase):
 
         mock_update.assert_called_once_with(app, "gpt-4.1")
         mock_get_provider.assert_called_once_with(app, "gpt-4.1")
-        assert result is sentinel_provider
+        self.assertIs(result, sentinel_provider)
 
     @patch("static.route_helpers.update_all_provider_models")
     @patch("static.routes.get_provider_for_model")
@@ -206,4 +206,4 @@ class TestGetActiveProvider(unittest.TestCase):
 
         result = get_active_provider(app, "o4-mini")
 
-        assert result is expected
+        self.assertIs(result, expected)

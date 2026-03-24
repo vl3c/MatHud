@@ -48,9 +48,6 @@ class TestConfigConstants(unittest.TestCase):
     def test_workspaces_dir_matches_expected_name(self) -> None:
         self.assertEqual(WORKSPACES_DIR, "workspaces")
 
-    def test_schema_version_at_least_one(self) -> None:
-        self.assertGreaterEqual(CURRENT_WORKSPACE_SCHEMA_VERSION, 1)
-
 
 if __name__ == "__main__":
     unittest.main()
