@@ -24,6 +24,8 @@ _logger = logging.getLogger("mathud")
 
 def _get_anthropic_api_key() -> str:
     """Get the Anthropic API key from environment."""
+    # required=True (default): Anthropic is an explicitly opted-in provider,
+    # so a missing key is a configuration error rather than a graceful fallback.
     return get_api_key("ANTHROPIC_API_KEY")
 
 

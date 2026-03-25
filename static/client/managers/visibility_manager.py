@@ -47,20 +47,6 @@ class VisibilityManager:
         self._height: float = height
 
     # ------------------------------------------------------------------
-    # Canvas-dimension accessors (kept in sync by Canvas when resized)
-    # ------------------------------------------------------------------
-
-    def update_dimensions(self, width: float, height: float) -> None:
-        """Update cached canvas dimensions after a resize.
-
-        Args:
-            width: New canvas viewport width in pixels.
-            height: New canvas viewport height in pixels.
-        """
-        self._width = width
-        self._height = height
-
-    # ------------------------------------------------------------------
     # Top-level drawable visibility
     # ------------------------------------------------------------------
 

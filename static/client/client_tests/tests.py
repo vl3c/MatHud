@@ -274,6 +274,7 @@ from .test_base_telemetry import (
     TestBaseTelemetryDrain,
     TestBaseTelemetryNewDrawableBucket,
     TestCanvas2DTelemetryOverride,
+    TestSvgTelemetry,
 )
 
 
@@ -592,6 +593,7 @@ class Tests:
             TestBaseTelemetryDrain,
             TestBaseTelemetryNewDrawableBucket,
             TestCanvas2DTelemetryOverride,
+            TestSvgTelemetry,
         ]
 
     def _create_test_suite(self) -> unittest.TestSuite:

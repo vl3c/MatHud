@@ -39,6 +39,12 @@ def get_api_key(
     The function checks ``os.environ`` before touching disk so that
     explicitly-set variables are returned immediately.
 
+    Callers choose *required* based on provider semantics:
+    - Opt-in providers (Anthropic, OpenRouter) use ``required=True`` because a
+      missing key means the user misconfigured an explicit provider choice.
+    - The default provider (OpenAI) uses ``required=False`` so the app can
+      start without an OpenAI key when only third-party providers are used.
+
     Args:
         name: Environment variable name (e.g. ``"OPENAI_API_KEY"``).
         required: When *True* and the key is missing, raise ``ValueError``.

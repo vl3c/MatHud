@@ -1,4 +1,4 @@
-"""Tests for BaseRendererTelemetry and Canvas2DTelemetry."""
+"""Tests for BaseRendererTelemetry, Canvas2DTelemetry, and SvgTelemetry."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import unittest
 
 from rendering.base_telemetry import BaseRendererTelemetry
 from rendering.canvas2d_renderer import Canvas2DTelemetry
+from rendering.svg_renderer import SvgTelemetry
 
 
 class TestBaseTelemetryInit(unittest.TestCase):
@@ -521,6 +522,54 @@ class TestCanvas2DTelemetryOverride(unittest.TestCase):
         self.assertEqual(snap["adapter_events"]["max_batch_depth"], 2)
 
 
+class TestSvgTelemetry(unittest.TestCase):
+    """Smoke tests for SvgTelemetry (empty subclass of BaseRendererTelemetry)."""
+
+    def test_instantiation(self) -> None:
+        tel = SvgTelemetry()
+        self.assertIsInstance(tel, BaseRendererTelemetry)
+
+    def test_has_base_methods(self) -> None:
+        tel = SvgTelemetry()
+        for method_name in ("reset", "begin_frame", "snapshot", "drain"):
+            self.assertTrue(
+                callable(getattr(tel, method_name, None)),
+                f"SvgTelemetry should have callable '{method_name}'",
+            )
+
+    def test_new_drawable_bucket_matches_base(self) -> None:
+        svg_tel = SvgTelemetry()
+        base_tel = BaseRendererTelemetry()
+        svg_bucket = svg_tel._new_drawable_bucket()
+        base_bucket = base_tel._new_drawable_bucket()
+        self.assertEqual(
+            set(svg_bucket.keys()),
+            set(base_bucket.keys()),
+            "SvgTelemetry bucket should have exactly the base keys (no extras)",
+        )
+
+    def test_new_drawable_bucket_values_zero(self) -> None:
+        tel = SvgTelemetry()
+        bucket = tel._new_drawable_bucket()
+        for key, value in bucket.items():
+            self.assertEqual(value, 0.0, f"{key} should be 0.0")
+
+    def test_snapshot_after_begin_frame(self) -> None:
+        tel = SvgTelemetry()
+        tel.begin_frame()
+        snap = tel.snapshot()
+        self.assertEqual(snap["frames"], 1)
+
+    def test_drain_resets(self) -> None:
+        tel = SvgTelemetry()
+        tel.begin_frame()
+        tel.record_plan_build("Point", 2.0)
+        result = tel.drain()
+        self.assertEqual(result["frames"], 1)
+        self.assertEqual(tel._frames, 0)
+        self.assertEqual(len(tel._per_drawable), 0)
+
+
 __all__ = [
     "TestBaseTelemetryInit",
     "TestBaseTelemetryReset",
@@ -537,4 +586,5 @@ __all__ = [
     "TestBaseTelemetryDrain",
     "TestBaseTelemetryNewDrawableBucket",
     "TestCanvas2DTelemetryOverride",
+    "TestSvgTelemetry",
 ]

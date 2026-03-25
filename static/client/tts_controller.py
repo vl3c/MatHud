@@ -24,6 +24,17 @@ from browser import ajax, document, window
 # State type
 TTSState = Literal["idle", "loading", "playing"]
 
+# Canonical voice list shared with tts_ui_manager.  Keep in sync with
+# TTSManager.VOICES in static/tts_manager.py on the server side.
+TTS_VOICE_OPTIONS: list[tuple[str, str]] = [
+    ("am_michael", "Michael (Male)"),
+    ("am_fenrir", "Fenrir (Male, deeper)"),
+    ("am_onyx", "Onyx (Male, darker)"),
+    ("am_echo", "Echo (Male, resonant)"),
+    ("af_nova", "Nova (Female)"),
+    ("af_bella", "Bella (Female, warm)"),
+]
+
 
 class TTSController:
     """Controls TTS audio playback in the browser.

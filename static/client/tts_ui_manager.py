@@ -14,7 +14,7 @@ from typing import Any, Callable, Optional
 
 from browser import document, html
 
-from tts_controller import get_tts_controller, TTSController
+from tts_controller import get_tts_controller, TTSController, TTS_VOICE_OPTIONS
 
 
 class TTSUIManager:
@@ -150,16 +150,9 @@ class TTSUIManager:
         voice_label = html.LABEL("Voice:")
         voice_select = html.SELECT(id="tts-voice-select")
 
-        # Add voice options
-        # Note: Voice IDs must match TTSManager.VOICES in static/tts_manager.py
-        voices = [
-            ("am_michael", "Michael (Male)"),
-            ("am_fenrir", "Fenrir (Male, deeper)"),
-            ("am_onyx", "Onyx (Male, darker)"),
-            ("am_echo", "Echo (Male, resonant)"),
-            ("af_nova", "Nova (Female)"),
-            ("af_bella", "Bella (Female, warm)"),
-        ]
+        # Voice options imported from tts_controller.TTS_VOICE_OPTIONS
+        # (canonical list kept in sync with TTSManager.VOICES on the server)
+        voices = TTS_VOICE_OPTIONS
         current_voice = self._tts_controller.get_voice()
         for voice_id, voice_name in voices:
             option = html.OPTION(voice_name, value=voice_id)

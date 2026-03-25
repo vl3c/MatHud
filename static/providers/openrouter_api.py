@@ -22,6 +22,8 @@ from static.providers import PROVIDER_OPENROUTER, ProviderRegistry
 
 def _get_openrouter_api_key() -> str:
     """Get the OpenRouter API key from environment."""
+    # required=True (default): OpenRouter is an explicitly opted-in provider,
+    # so a missing key is a configuration error rather than a graceful fallback.
     return get_api_key("OPENROUTER_API_KEY")
 
 
