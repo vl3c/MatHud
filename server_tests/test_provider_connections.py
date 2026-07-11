@@ -104,7 +104,7 @@ class TestAnthropicConnection(unittest.TestCase):
         discover_providers()
 
         # Use the cheapest Anthropic model (Haiku), with NO tools
-        model = AIModel.from_identifier("claude-haiku-4-5-20251001")
+        model = AIModel.from_identifier("claude-haiku-4-5")
         api = AnthropicAPI(model=model, max_tokens=50, tools=[])
 
         # Simple prompt that should get a short response
@@ -209,7 +209,7 @@ class TestProviderStreaming(unittest.TestCase):
 
         discover_providers()
 
-        model = AIModel.from_identifier("claude-haiku-4-5-20251001")
+        model = AIModel.from_identifier("claude-haiku-4-5")
         api = AnthropicAPI(model=model, max_tokens=50, tools=[])
 
         prompt = '{"user_message": "Reply with only the word: hello"}'

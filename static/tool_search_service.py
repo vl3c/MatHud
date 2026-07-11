@@ -867,9 +867,9 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         Returns:
             List of matching tool definitions, ordered by relevance.
         """
-        # Use provided model, instance default, or fallback to gpt-4.1-mini.
+        # Use provided model, instance default, or fallback to gpt-4.1-nano.
         if model is None:
-            model = self.default_model or AIModel.from_identifier("gpt-5-nano")
+            model = self.default_model or AIModel.from_identifier("gpt-4.1-nano")
 
         # Build the prompt
         tool_descriptions = self.build_tool_descriptions()

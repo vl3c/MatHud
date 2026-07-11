@@ -32,39 +32,37 @@ class ModelConfig(TypedDict, total=False):
 ModelConfigDict = Dict[str, ModelConfig]
 ModelIdentifier = Literal[
     # OpenAI models
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.5",
+    "gpt-5.2",
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4.1-nano",
-    "gpt-4o",
     "gpt-4o-mini",
-    "gpt-5-chat-latest",
-    "gpt-5.2-chat-latest",
-    "gpt-5.2",
-    "gpt-5-nano",
-    "gpt-3.5-turbo",
-    "o3",
-    "o4-mini",
     # Anthropic models
-    "claude-opus-4-5-20251101",
-    "claude-sonnet-4-5-20250929",
-    "claude-haiku-4-5-20251001",
+    "claude-fable-5",
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+    "claude-haiku-4-5",
     # OpenRouter models (paid)
-    "google/gemini-2.5-pro",
-    "google/gemini-3-pro-preview",
-    "google/gemini-3-flash-preview",
-    "deepseek/deepseek-v3.2",
-    "x-ai/grok-code-fast-1",
-    "z-ai/glm-4.7",
-    "minimax/minimax-m2.1",
-    "anthropic/claude-sonnet-4.5",
+    "google/gemini-3.1-pro-preview",
+    "google/gemini-3.5-flash",
+    "anthropic/claude-sonnet-5",
+    "deepseek/deepseek-v4-pro",
+    "qwen/qwen3.7-max",
+    "z-ai/glm-5.2",
+    "x-ai/grok-4.5",
+    "minimax/minimax-m3",
     # OpenRouter models (free)
     "meta-llama/llama-3.3-70b-instruct:free",
-    "google/gemma-3-27b-it:free",
+    "google/gemma-4-31b-it:free",
     "openai/gpt-oss-20b:free",
     "openai/gpt-oss-120b:free",
     "qwen/qwen3-next-80b-a3b-instruct:free",
-    "z-ai/glm-4.5-air:free",
     "nvidia/nemotron-3-nano-30b-a3b:free",
+    "tencent/hy3:free",
 ]
 
 
@@ -81,17 +79,30 @@ class AIModel:
         # OpenAI Models
         # ===================
         # Reasoning models (use Responses API)
-        "gpt-5-chat-latest": {
+        "gpt-5.6-sol": {
             "has_vision": True,
             "is_reasoning_model": True,
             "provider": PROVIDER_OPENAI,
-            "display_name": "GPT-5 Chat Latest",
+            "display_name": "GPT-5.6 Sol",
         },
-        "gpt-5.2-chat-latest": {
+        "gpt-5.6-terra": {
             "has_vision": True,
             "is_reasoning_model": True,
             "provider": PROVIDER_OPENAI,
-            "display_name": "GPT-5.2 Chat Latest",
+            "display_name": "GPT-5.6 Terra",
+        },
+        "gpt-5.6-luna": {
+            "has_vision": True,
+            "is_reasoning_model": True,
+            "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-5.6 Luna",
+        },
+        "gpt-5.5": {
+            "has_vision": True,
+            "is_reasoning_model": True,
+            "reasoning_effort": "medium",
+            "provider": PROVIDER_OPENAI,
+            "display_name": "GPT-5.5 (Medium Reasoning)",
         },
         "gpt-5.2": {
             "has_vision": True,
@@ -99,18 +110,6 @@ class AIModel:
             "reasoning_effort": "medium",
             "provider": PROVIDER_OPENAI,
             "display_name": "GPT-5.2 (Medium Reasoning)",
-        },
-        "o3": {
-            "has_vision": True,
-            "is_reasoning_model": True,
-            "provider": PROVIDER_OPENAI,
-            "display_name": "o3 (Reasoning)",
-        },
-        "o4-mini": {
-            "has_vision": True,
-            "is_reasoning_model": True,
-            "provider": PROVIDER_OPENAI,
-            "display_name": "o4-mini (Reasoning)",
         },
         # Standard models (use Chat Completions API)
         "gpt-4.1": {
@@ -131,46 +130,37 @@ class AIModel:
             "provider": PROVIDER_OPENAI,
             "display_name": "GPT-4.1 Nano",
         },
-        "gpt-4o": {
-            "has_vision": True,
-            "is_reasoning_model": False,
-            "provider": PROVIDER_OPENAI,
-            "display_name": "GPT-4o",
-        },
         "gpt-4o-mini": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENAI,
             "display_name": "GPT-4o Mini",
         },
-        "gpt-5-nano": {
-            "has_vision": True,
-            "is_reasoning_model": False,
-            "provider": PROVIDER_OPENAI,
-            "display_name": "GPT-5 Nano",
-        },
-        "gpt-3.5-turbo": {
-            "has_vision": False,
-            "is_reasoning_model": False,
-            "provider": PROVIDER_OPENAI,
-            "display_name": "GPT-3.5 Turbo",
-        },
         # ===================
         # Anthropic Models
         # ===================
-        "claude-opus-4-5-20251101": {
+        # Adaptive-thinking Claude models (Fable 5, Opus 4.8, Sonnet 5) reject the
+        # temperature sampling parameter, so they are flagged is_reasoning_model=True;
+        # AnthropicAPI._apply_temperature() uses that flag to omit temperature for them.
+        "claude-fable-5": {
             "has_vision": True,
-            "is_reasoning_model": False,
+            "is_reasoning_model": True,
             "provider": PROVIDER_ANTHROPIC,
-            "display_name": "Claude Opus 4.5",
+            "display_name": "Claude Fable 5",
         },
-        "claude-sonnet-4-5-20250929": {
+        "claude-opus-4-8": {
             "has_vision": True,
-            "is_reasoning_model": False,
+            "is_reasoning_model": True,
             "provider": PROVIDER_ANTHROPIC,
-            "display_name": "Claude Sonnet 4.5",
+            "display_name": "Claude Opus 4.8",
         },
-        "claude-haiku-4-5-20251001": {
+        "claude-sonnet-5": {
+            "has_vision": True,
+            "is_reasoning_model": True,
+            "provider": PROVIDER_ANTHROPIC,
+            "display_name": "Claude Sonnet 5",
+        },
+        "claude-haiku-4-5": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_ANTHROPIC,
@@ -179,53 +169,53 @@ class AIModel:
         # ===================
         # OpenRouter Models (Paid)
         # ===================
-        "google/gemini-2.5-pro": {
+        "google/gemini-3.1-pro-preview": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
-            "display_name": "Gemini 2.5 Pro",
+            "display_name": "Gemini 3.1 Pro",
         },
-        "google/gemini-3-pro-preview": {
+        "google/gemini-3.5-flash": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
-            "display_name": "Gemini 3 Pro Preview",
+            "display_name": "Gemini 3.5 Flash",
         },
-        "google/gemini-3-flash-preview": {
+        "anthropic/claude-sonnet-5": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
-            "display_name": "Gemini 3 Flash Preview",
+            "display_name": "Claude Sonnet 5 (OpenRouter)",
         },
-        "deepseek/deepseek-v3.2": {
+        "deepseek/deepseek-v4-pro": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
-            "display_name": "DeepSeek V3.2",
+            "display_name": "DeepSeek V4 Pro",
         },
-        "x-ai/grok-code-fast-1": {
+        "qwen/qwen3.7-max": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
-            "display_name": "Grok Code Fast",
+            "display_name": "Qwen3.7 Max",
         },
-        "z-ai/glm-4.7": {
+        "z-ai/glm-5.2": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
-            "display_name": "GLM 4.7",
+            "display_name": "GLM 5.2",
         },
-        "minimax/minimax-m2.1": {
-            "has_vision": False,
-            "is_reasoning_model": False,
-            "provider": PROVIDER_OPENROUTER,
-            "display_name": "MiniMax M2.1",
-        },
-        "anthropic/claude-sonnet-4.5": {
+        "x-ai/grok-4.5": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
-            "display_name": "Claude Sonnet 4.5 (OpenRouter)",
+            "display_name": "Grok 4.5",
+        },
+        "minimax/minimax-m3": {
+            "has_vision": True,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "MiniMax M3",
         },
         # ===================
         # OpenRouter Models (Free)
@@ -236,11 +226,11 @@ class AIModel:
             "provider": PROVIDER_OPENROUTER,
             "display_name": "Llama 3.3 70B",
         },
-        "google/gemma-3-27b-it:free": {
+        "google/gemma-4-31b-it:free": {
             "has_vision": True,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
-            "display_name": "Gemma 3 27B",
+            "display_name": "Gemma 4 31B",
         },
         "openai/gpt-oss-20b:free": {
             "has_vision": False,
@@ -258,23 +248,23 @@ class AIModel:
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
-            "display_name": "Qwen3 80B",
-        },
-        "z-ai/glm-4.5-air:free": {
-            "has_vision": False,
-            "is_reasoning_model": False,
-            "provider": PROVIDER_OPENROUTER,
-            "display_name": "GLM 4.5 Air",
+            "display_name": "Qwen3 Next 80B",
         },
         "nvidia/nemotron-3-nano-30b-a3b:free": {
             "has_vision": False,
             "is_reasoning_model": False,
             "provider": PROVIDER_OPENROUTER,
-            "display_name": "Nemotron 3 30B",
+            "display_name": "Nemotron 3 Nano 30B",
+        },
+        "tencent/hy3:free": {
+            "has_vision": False,
+            "is_reasoning_model": False,
+            "provider": PROVIDER_OPENROUTER,
+            "display_name": "Tencent Hy3",
         },
     }
 
-    DEFAULT_MODEL = "gpt-5.2"
+    DEFAULT_MODEL = "gpt-5.5"
 
     def __init__(
         self,

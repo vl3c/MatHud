@@ -60,9 +60,9 @@ class TestOpenAIAPIBase(unittest.TestCase):
     @patch("static.openai_api_base.OpenAI")
     def test_initialization_custom_model(self, mock_openai: Mock) -> None:
         """Test API initializes with custom model."""
-        custom_model = AIModel.from_identifier("gpt-4o")
+        custom_model = AIModel.from_identifier("gpt-4.1")
         api = OpenAIAPIBase(model=custom_model)
-        self.assertEqual(api.model.id, "gpt-4o")
+        self.assertEqual(api.model.id, "gpt-4.1")
 
     @patch("static.openai_api_base.OpenAI")
     def test_initialization_messages(self, mock_openai: Mock) -> None:
@@ -97,16 +97,16 @@ class TestOpenAIAPIBase(unittest.TestCase):
     def test_set_model(self, mock_openai: Mock) -> None:
         """Test set_model changes the model."""
         api = OpenAIAPIBase()
-        api.set_model("gpt-4o")
-        self.assertEqual(api.model.id, "gpt-4o")
+        api.set_model("gpt-4.1")
+        self.assertEqual(api.model.id, "gpt-4.1")
         self.assertFalse(api.model.is_reasoning_model)
 
     @patch("static.openai_api_base.OpenAI")
     def test_set_model_to_reasoning(self, mock_openai: Mock) -> None:
         """Test set_model to a reasoning model."""
         api = OpenAIAPIBase()
-        api.set_model("o3")
-        self.assertEqual(api.model.id, "o3")
+        api.set_model("gpt-5.5")
+        self.assertEqual(api.model.id, "gpt-5.5")
         self.assertTrue(api.model.is_reasoning_model)
 
     @patch("static.openai_api_base.OpenAI")

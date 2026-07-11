@@ -58,7 +58,7 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
         """Initialize OpenRouter API client.
 
         Args:
-            model: AI model to use. Defaults to Gemini 2.5 Pro.
+            model: AI model to use. Defaults to Gemini 3.1 Pro.
             temperature: Sampling temperature.
             tools: Custom tool definitions.
             max_tokens: Maximum tokens in response.
@@ -76,8 +76,8 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
             },
         )
 
-        # Set model (default to Gemini 2.5 Pro if not specified)
-        self.model: AIModel = model if model is not None else AIModel.from_identifier("google/gemini-2.5-pro")
+        # Set model (default to Gemini 3.1 Pro if not specified)
+        self.model: AIModel = model if model is not None else AIModel.from_identifier("google/gemini-3.1-pro-preview")
         self.temperature = temperature
         self.max_tokens = max_tokens
         self._tool_mode: ToolMode = tool_mode

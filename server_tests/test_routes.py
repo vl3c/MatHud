@@ -299,12 +299,12 @@ class TestAPIRouting(unittest.TestCase):
     def test_reasoning_model_identified(self) -> None:
         """Test that reasoning models are correctly identified."""
         # Set a reasoning model
-        self.app.ai_api.set_model("o3")
-        self.app.responses_api.set_model("o3")
+        self.app.ai_api.set_model("gpt-5.5")
+        self.app.responses_api.set_model("gpt-5.5")
 
         # Check both APIs have the model set
-        self.assertEqual(self.app.ai_api.get_model().id, "o3")
-        self.assertEqual(self.app.responses_api.get_model().id, "o3")
+        self.assertEqual(self.app.ai_api.get_model().id, "gpt-5.5")
+        self.assertEqual(self.app.responses_api.get_model().id, "gpt-5.5")
         self.assertTrue(self.app.ai_api.get_model().is_reasoning_model)
 
     @patch.object(OpenAIChatCompletionsAPI, "create_chat_completion_stream")
@@ -348,14 +348,14 @@ class TestAPIRouting(unittest.TestCase):
         )
 
         # Pre-set the model to a reasoning model
-        self.app.ai_api.model = self.app.ai_api.model.from_identifier("o3")
+        self.app.ai_api.model = self.app.ai_api.model.from_identifier("gpt-5.5")
 
         test_message = {
             "message": json.dumps(
                 {
                     "user_message": "test",
                     "use_vision": False,
-                    "ai_model": "o3",  # Reasoning model
+                    "ai_model": "gpt-5.5",  # Reasoning model
                 }
             ),
             "svg_state": None,
@@ -370,8 +370,8 @@ class TestAPIRouting(unittest.TestCase):
         """Test that all expected models are configured."""
         from static.ai_model import AIModel
 
-        reasoning_models = ["gpt-5-chat-latest", "gpt-5.2-chat-latest", "gpt-5.2", "o3", "o4-mini"]
-        standard_models = ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "gpt-5-nano", "gpt-3.5-turbo"]
+        reasoning_models = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.2"]
+        standard_models = ["gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini"]
 
         for model_id in reasoning_models:
             model = AIModel.from_identifier(model_id)
@@ -447,10 +447,10 @@ class TestStreamingResponseFormat(unittest.TestCase):
         )
 
         # Pre-set the model to a reasoning model
-        self.app.ai_api.model = self.app.ai_api.model.from_identifier("o3")
+        self.app.ai_api.model = self.app.ai_api.model.from_identifier("gpt-5.5")
 
         test_message = {
-            "message": json.dumps({"user_message": "test", "use_vision": False, "ai_model": "o3"}),
+            "message": json.dumps({"user_message": "test", "use_vision": False, "ai_model": "gpt-5.5"}),
             "svg_state": None,
         }
 

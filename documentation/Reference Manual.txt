@@ -3561,7 +3561,7 @@ Dependencies:
 
 **Key Features:**
 - **MathJax Configuration**: LaTeX rendering with inline `\(...\)` and display `$$...$$` math
-- **AI Model Selection**: Dropdown with GPT-4 family and GPT-3.5-turbo options
+- **AI Model Selection**: Provider-grouped dropdown populated from `/api/available_models`
 - **Vision Toggle**: Conditional enabling based on model capabilities
 - **Responsive Design**: Flexible dual-pane layout for different screen sizes
 
@@ -3766,7 +3766,7 @@ Dependencies:
 Provides tool discovery via fast local keyword/category matching (default) or AI-powered semantic matching. The search mode is selected by the `TOOL_SEARCH_MODE` environment variable:
 
 - `local` — keyword + category index, no API call (~0.01ms per query)
-- `api` — AI-powered semantic search via gpt-5-nano
+- `api` — AI-powered semantic search via gpt-4.1-nano
 - `hybrid` (default) — local first, falls back to API when confidence is low
 
 **Architecture:**
@@ -3958,9 +3958,9 @@ Manages model-specific capabilities (vision support, reasoning mode, provider as
 and provides factory methods for creating model instances from identifiers.
 
 Supported Providers:
-    - PROVIDER_OPENAI ("openai"): GPT-5.2, GPT-5, GPT-4.1, GPT-4o, o3, o4-mini, GPT-3.5 Turbo, etc.
-    - PROVIDER_ANTHROPIC ("anthropic"): Claude Opus 4.5, Claude Sonnet 4.5, Claude Haiku 4.5
-    - PROVIDER_OPENROUTER ("openrouter"): Gemini, DeepSeek, Grok, Llama, Gemma, and more (paid and free tiers)
+    - PROVIDER_OPENAI ("openai"): GPT-5.6 (Sol/Terra/Luna), GPT-5.5, GPT-5.2, GPT-4.1 family, GPT-4o mini
+    - PROVIDER_ANTHROPIC ("anthropic"): Claude Fable 5, Claude Opus 4.8, Claude Sonnet 5, Claude Haiku 4.5
+    - PROVIDER_OPENROUTER ("openrouter"): Gemini, DeepSeek, Qwen, GLM, Grok, MiniMax, Llama, Gemma, and more (paid and free tiers)
 ```
 
 **Key Methods:**
