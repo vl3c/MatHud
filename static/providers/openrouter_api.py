@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Optional
 
+import httpx
 from openai import OpenAI
 
 from static.ai_model import AIModel
@@ -37,6 +38,15 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
     # OpenRouter base URL
     OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
+    # OpenRouter emits keepalive bytes while the upstream model is still
+    # processing, so the read timeout only trips when the connection goes
+    # truly silent (a stalled provider), not while a model is thinking.
+    # With one retry the worst case is ~2x60s + backoff (~125s), which must
+    # stay below the client's REASONING_TIMEOUT_MS (300s) so a stall surfaces
+    # as a proper error event instead of a blind UI timeout.
+    REQUEST_TIMEOUT = httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=10.0)
+    MAX_RETRIES = 1
+
     def __init__(
         self,
         model: Optional[AIModel] = None,
@@ -58,6 +68,8 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
         self.client = OpenAI(
             api_key=_get_openrouter_api_key(),
             base_url=self.OPENROUTER_BASE_URL,
+            timeout=self.REQUEST_TIMEOUT,
+            max_retries=self.MAX_RETRIES,
             default_headers={
                 "HTTP-Referer": "https://mathud.app",
                 "X-Title": "MatHud",
