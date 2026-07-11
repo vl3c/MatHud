@@ -21,7 +21,7 @@ import math
 import os
 import time
 from collections.abc import Callable, Iterator, Set as AbstractSet
-from typing import Any, Dict, List, Optional, TypeVar, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, cast
 
 from flask import Response, flash, jsonify, redirect, render_template, request, session, stream_with_context, url_for
 from flask.typing import ResponseReturnValue
@@ -29,7 +29,12 @@ from flask.typing import ResponseReturnValue
 from static.ai_model import AIModel, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OLLAMA
 from static.app_manager import AppManager, MatHudFlask
 from static.canvas_state_summarizer import compare_canvas_states
-from static.config import CANVAS_SNAPSHOT_DIR, CANVAS_SNAPSHOT_PATH
+from static.config import (
+    CANVAS_SNAPSHOT_DIR,
+    CANVAS_SNAPSHOT_PATH,
+    MAX_ATTACHED_IMAGES,
+    MAX_IMAGE_BASE64_BYTES,
+)
 from static.openai_api_base import OpenAIAPIBase
 from static.providers import ProviderRegistry, create_provider_instance
 from static.route_helpers import get_active_provider, reset_tools_for_all_providers
@@ -41,14 +46,80 @@ F = TypeVar("F", bound=Callable[..., ResponseReturnValue])
 
 _logger = logging.getLogger(__name__)
 
-# Global dictionary to track login attempts by IP address
-# Format: {ip_address: last_attempt_timestamp}
 JsonValue = Union[str, int, float, bool, None, Dict[str, "JsonValue"], List["JsonValue"]]
 JsonObject = Dict[str, JsonValue]
 StreamEventDict = Dict[str, JsonValue]
 
+# ===== LOGIN RATE-LIMIT CONSTANTS =====
+# Per-IP cooldown between consecutive failed login attempts (seconds).
+LOGIN_ATTEMPT_COOLDOWN_SECONDS: float = 5.0
+# Prune the per-IP tracking dict once it grows past this many entries.
+LOGIN_ATTEMPTS_CLEANUP_THRESHOLD: int = 1000
+# Entries older than this (seconds) are removed during cleanup.
+LOGIN_ATTEMPTS_CLEANUP_AGE_SECONDS: float = 3600.0
+# Global failed-attempt ceiling, independent of source IP. Because per-IP limiting
+# keys on request.remote_addr, an attacker behind spoofed X-Forwarded-For headers or
+# a distributed set of sources could otherwise brute-force the 6-digit PIN. Once this
+# many failures occur across ALL IPs within the rolling window, every login attempt is
+# rejected with HTTP 429 until the window drains.
+GLOBAL_FAILED_ATTEMPTS_WINDOW_SECONDS: float = 300.0  # 5-minute rolling window
+GLOBAL_FAILED_ATTEMPTS_LIMIT: int = 50
+
+# Per-IP login attempt tracking. Format: {ip_address: last_failed_attempt_timestamp}
 login_attempts: Dict[str, float] = {}
+# Timestamps of recent failed login attempts across all IPs (for the global ceiling).
+global_failed_attempts: List[float] = []
 ToolCallList = List[ProcessedToolCall]
+
+
+def _prune_global_failed_attempts(current_time: float) -> None:
+    """Drop failed-attempt timestamps that have aged out of the global window."""
+    cutoff = current_time - GLOBAL_FAILED_ATTEMPTS_WINDOW_SECONDS
+    while global_failed_attempts and global_failed_attempts[0] < cutoff:
+        global_failed_attempts.pop(0)
+
+
+def _cleanup_login_attempts(current_time: float) -> None:
+    """Prune stale per-IP entries once the tracking dict grows too large."""
+    if len(login_attempts) <= LOGIN_ATTEMPTS_CLEANUP_THRESHOLD:
+        return
+    cutoff = current_time - LOGIN_ATTEMPTS_CLEANUP_AGE_SECONDS
+    for ip, timestamp in list(login_attempts.items()):
+        if timestamp < cutoff:
+            del login_attempts[ip]
+
+
+def reset_login_rate_limit_state() -> None:
+    """Reset all module-level login rate-limit state (used by tests)."""
+    login_attempts.clear()
+    global_failed_attempts.clear()
+
+
+def validate_attached_images(images: Optional[List[str]]) -> Optional[Tuple[Response, int]]:
+    """Enforce server-side limits on attached images.
+
+    Args:
+        images: List of base64 data-URL image strings, or None.
+
+    Returns:
+        An error response tuple if a limit is violated, otherwise None.
+    """
+    if not images:
+        return None
+    if len(images) > MAX_ATTACHED_IMAGES:
+        return AppManager.make_response(
+            message=f"Too many attached images (maximum {MAX_ATTACHED_IMAGES})",
+            status="error",
+            code=400,
+        )
+    for image in images:
+        if len(image) > MAX_IMAGE_BASE64_BYTES:
+            return AppManager.make_response(
+                message=f"Attached image exceeds the maximum size of {MAX_IMAGE_BASE64_BYTES} bytes",
+                status="error",
+                code=400,
+            )
+    return None
 
 
 def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
@@ -394,8 +465,19 @@ def register_routes(app: MatHudFlask) -> None:
             return redirect(url_for("get_index"))
 
         if request.method == "POST":
-            client_ip = request.environ.get("HTTP_X_FORWARDED_FOR", request.remote_addr)
+            # Key per-IP limiting on the real socket peer. The X-Forwarded-For header
+            # is client-controlled and MUST NOT be trusted for security decisions;
+            # trusting it would let an attacker reset the limiter on every request.
+            client_ip = request.remote_addr or "unknown"
             current_time = time.time()
+
+            # Global ceiling: independent of IP so it cannot be bypassed by spoofed
+            # X-Forwarded-For values or distributed sources. Once tripped, ALL logins
+            # (even from otherwise-clean IPs) are rejected until the window drains.
+            _prune_global_failed_attempts(current_time)
+            if len(global_failed_attempts) >= GLOBAL_FAILED_ATTEMPTS_LIMIT:
+                flash("Too many failed login attempts across all users. Please try again later.")
+                return render_template("login.html"), 429
 
             pin_submitted = request.form.get("pin", "")
             auth_pin = AppManager.get_auth_pin()
@@ -406,37 +488,29 @@ def register_routes(app: MatHudFlask) -> None:
 
             is_pin_correct = hmac.compare_digest(pin_submitted, auth_pin)
 
-            # --- NEW, CORRECT LOGIC ---
-
             if is_pin_correct:
-                # 1. PIN is correct. Login succeeds immediately.
+                # PIN is correct. Login succeeds immediately.
                 session["authenticated"] = True
                 login_attempts.pop(client_ip, None)  # Clear any old rate limit.
                 return redirect(url_for("get_index"))
-            else:
-                # 2. PIN is incorrect. Now we handle rate limiting.
-                if client_ip in login_attempts:
-                    time_since_last_failed = current_time - login_attempts[client_ip]
 
-                    if time_since_last_failed < 5.0:
-                        # 2a. Cooldown is ACTIVE. Block and show countdown.
-                        remaining_cooldown = 5.0 - time_since_last_failed
-                        display_time = math.ceil(remaining_cooldown)
-                        flash(f"Too many attempts. Please wait {display_time} seconds.")
-                        return render_template("login.html")
+            # PIN is incorrect: record the failure globally, then enforce per-IP cooldown.
+            global_failed_attempts.append(current_time)
 
-                # 2b. PIN was wrong, but no active cooldown. Start a new one.
-                login_attempts[client_ip] = current_time
-                flash("Invalid access code")
+            if client_ip in login_attempts:
+                time_since_last_failed = current_time - login_attempts[client_ip]
+                if time_since_last_failed < LOGIN_ATTEMPT_COOLDOWN_SECONDS:
+                    # Cooldown is ACTIVE. Block and show countdown.
+                    remaining_cooldown = LOGIN_ATTEMPT_COOLDOWN_SECONDS - time_since_last_failed
+                    display_time = math.ceil(remaining_cooldown)
+                    flash(f"Too many attempts. Please wait {display_time} seconds.")
+                    return render_template("login.html"), 429
 
-                # Cleanup logic (runs only after a failed attempt)
-                if len(login_attempts) > 1000:
-                    cutoff = current_time - 3600  # 1 hour
-                    for ip, timestamp in list(login_attempts.items()):
-                        if timestamp < cutoff:
-                            del login_attempts[ip]
-
-                return render_template("login.html")
+            # No active cooldown. Record this failure and start a new cooldown window.
+            login_attempts[client_ip] = current_time
+            flash("Invalid access code")
+            _cleanup_login_attempts(current_time)
+            return render_template("login.html")
 
         # For GET request
         return render_template("login.html")
@@ -810,6 +884,10 @@ def register_routes(app: MatHudFlask) -> None:
         if isinstance(attached_images_raw, list):
             attached_images = [img for img in attached_images_raw if isinstance(img, str)]
 
+        image_error = validate_attached_images(attached_images)
+        if image_error is not None:
+            return image_error
+
         # Get the provider for this model and update all relevant APIs
         provider = get_active_provider(app, ai_model)
 
@@ -1081,6 +1159,10 @@ def register_routes(app: MatHudFlask) -> None:
         attached_images: Optional[List[str]] = None
         if isinstance(attached_images_raw, list):
             attached_images = [img for img in attached_images_raw if isinstance(img, str)]
+
+        image_error = validate_attached_images(attached_images)
+        if image_error is not None:
+            return image_error
 
         # Get the provider for this model and update all relevant APIs
         provider = get_active_provider(app, ai_model)

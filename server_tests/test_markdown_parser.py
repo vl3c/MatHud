@@ -89,9 +89,83 @@ def hello():
         self.assertIn("</code></pre>", result)
 
     def test_links(self) -> None:
-        """Test link formatting."""
+        """Test link formatting for a safe (allowed-scheme) URL."""
         result = self.parser.parse("This is a [link](https://example.com) text")
         self.assertIn('<a href="https://example.com">link</a>', result)
+
+    def test_raw_script_tag_is_escaped(self) -> None:
+        """Raw <script> in AI output must be escaped, not executed."""
+        result = self.parser.parse("<script>alert(1)</script>")
+        self.assertNotIn("<script>", result)
+        self.assertIn("&lt;script&gt;", result)
+        self.assertIn("&lt;/script&gt;", result)
+
+    def test_img_onerror_is_escaped(self) -> None:
+        """An <img onerror=...> payload must be escaped, not rendered."""
+        result = self.parser.parse("<img src=x onerror=alert(1)>")
+        self.assertNotIn("<img", result)
+        self.assertIn("&lt;img", result)
+
+    def test_javascript_link_is_neutralized(self) -> None:
+        """javascript: links must not produce a live href."""
+        result = self.parser.parse("[x](javascript:alert(1))")
+        self.assertNotIn("href=\"javascript", result)
+        self.assertNotIn("javascript:alert", result)
+        # Link text is preserved as plain text.
+        self.assertIn("x", result)
+
+    def test_javascript_link_mixed_case_is_neutralized(self) -> None:
+        """Mixed-case JaVaScRiPt: scheme must be rejected case-insensitively."""
+        result = self.parser.parse("[x](JaVaScRiPt:alert(1))")
+        self.assertNotIn("<a href", result)
+        self.assertNotIn("alert(1)", result)
+
+    def test_javascript_link_with_control_char_is_neutralized(self) -> None:
+        """Embedded control chars (java\\tscript:) must not bypass sanitization."""
+        result = self.parser.parse("[x](java\tscript:alert(1))")
+        self.assertNotIn("<a href", result)
+        self.assertNotIn("alert(1)", result)
+
+    def test_data_uri_link_is_neutralized(self) -> None:
+        """data: URIs must be rejected."""
+        result = self.parser.parse("[x](data:text/html,<script>alert(1)</script>)")
+        self.assertNotIn("<a href", result)
+
+    def test_safe_https_link_still_renders(self) -> None:
+        """Allowed https links must still render as real anchors."""
+        result = self.parser.parse("[ok](https://example.com)")
+        self.assertIn('<a href="https://example.com">ok</a>', result)
+
+    def test_mailto_link_still_renders(self) -> None:
+        """mailto: links are allowed."""
+        result = self.parser.parse("[mail](mailto:a@b.com)")
+        self.assertIn('<a href="mailto:a@b.com">mail</a>', result)
+
+    def test_relative_link_still_renders(self) -> None:
+        """Relative URLs (no scheme) are allowed."""
+        result = self.parser.parse("[rel](/path/page)")
+        self.assertIn('<a href="/path/page">rel</a>', result)
+
+    def test_normal_markdown_still_renders_after_escaping(self) -> None:
+        """Bold, code, and headers must still render once escaping is in place."""
+        result = self.parser.parse("# Title\n\nSome **bold** and `code` here")
+        self.assertIn("<h1>Title</h1>", result)
+        self.assertIn("<strong>bold</strong>", result)
+        self.assertIn("<code>code</code>", result)
+
+    def test_angle_brackets_in_prose_are_escaped(self) -> None:
+        """Comparison operators in prose render as escaped entities."""
+        result = self.parser.parse("a < b and c > d")
+        self.assertIn("a &lt; b and c &gt; d", result)
+        self.assertNotIn("<b", result)
+
+    def test_code_block_with_script_is_escaped(self) -> None:
+        """A code block containing <script> must be escaped inside <pre><code>."""
+        code_block = "```\n<script>alert(1)</script>\n```"
+        result = self.parser.parse(code_block)
+        self.assertIn("<pre><code>", result)
+        self.assertIn("&lt;script&gt;", result)
+        self.assertNotIn("<script>", result)
 
     def test_unordered_lists(self) -> None:
         """Test unordered list formatting."""

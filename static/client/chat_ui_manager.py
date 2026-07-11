@@ -187,10 +187,12 @@ class ChatUIManager:
 
         except Exception as e:
             print(f"Error creating message element: {e}")
-            # Fall back to simple paragraph
+            # Fall back to simple paragraph. Escape sender/content before
+            # interpolating into innerHTML so raw HTML never executes here.
             if sender == "AI":
-                content = message.replace("\n", "<br>")
-                return html.P(f"<strong>{sender}:</strong> {content}", innerHTML=True)
+                content = self._escape_html(message).replace("\n", "<br>")
+                safe_sender = self._escape_html(sender)
+                return html.P(f"<strong>{safe_sender}:</strong> {content}", innerHTML=True)
             else:
                 return html.P(f"<strong>{sender}:</strong> {message}")
 
