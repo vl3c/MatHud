@@ -32,13 +32,11 @@ class ChatUIManager:
         tool_call_log: ToolCallLogManager,
         on_image_click: Optional[Callable[[str], None]] = None,
         on_start_timeout: Optional[Callable[[bool], None]] = None,
-        on_cancel_timeout: Optional[Callable[[], None]] = None,
     ) -> None:
         self._message_menu = message_menu
         self._tool_call_log = tool_call_log
         self._on_image_click = on_image_click
         self._on_start_timeout = on_start_timeout
-        self._on_cancel_timeout = on_cancel_timeout
 
         # Markdown parser
         self.markdown_parser: MarkdownParser = MarkdownParser()

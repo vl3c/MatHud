@@ -162,23 +162,13 @@ class ToolCallLogManager:
 
             The caller must ensure that ``ensure_element`` has been called
             (or the element already exists) before invoking this method.
-            This method calls ``ensure_element`` itself as a convenience,
-            but passes ``None`` containers — so the log dropdown will only
-            be created if the caller has previously set up the element.
+            Without it, entries still accumulate in ``self.entries`` but
+            no DOM nodes are appended.
 
         Args:
             tool_calls: Raw tool call dicts from the AI response.
             call_results: Dict mapping result keys to their outcomes.
         """
-        # ensure_element is a no-op when self.element is already set
-        # When called from AIInterface, ensure_element is called beforehand
-        # with the proper container references.
-        if self.element is None:
-            # Defensive: do nothing if the element was never created.
-            # The caller (AIInterface) is responsible for calling
-            # ensure_element with the right containers first.
-            pass
-
         for call in tool_calls:
             function_name: str = call.get("function_name", "")
             args: dict[str, Any] = call.get("arguments", {})
@@ -250,9 +240,9 @@ class ToolCallLogManager:
         if self.summary is not None:
             self.summary.text = label
 
-        # Ensure collapsed
+        # Ensure collapsed — removeAttribute is reliable for boolean HTML attributes
         if self.element is not None:
             try:
-                del self.element.attrs["open"]
+                self.element.removeAttribute("open")
             except Exception:
                 pass

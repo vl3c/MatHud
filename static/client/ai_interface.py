@@ -114,7 +114,6 @@ class AIInterface:
             tool_call_log=self._tool_call_log,
             on_image_click=self._image_attachment.show_modal,
             on_start_timeout=lambda use_reasoning: self._start_response_timeout(use_reasoning_timeout=use_reasoning),
-            on_cancel_timeout=self._cancel_response_timeout,
         )
         # Message recovery state
         self._last_user_message: str = ""  # Buffered message for recovery on error
