@@ -25,6 +25,10 @@ from typing import Optional, Tuple
 class MarkdownParser:
     """Custom markdown parser optimized for chat interface display."""
 
+    # URL schemes considered safe for link ``href`` attributes. Anything else
+    # (javascript:, data:, vbscript:, ...) is rejected by ``_sanitize_url``.
+    _ALLOWED_URL_SCHEMES = ("http", "https", "mailto")
+
     def parse(self, text: str) -> str:
         """Parse markdown text to HTML."""
         try:
@@ -35,12 +39,51 @@ class MarkdownParser:
 
         except Exception as e:
             print(f"Error in custom markdown parsing: {e}")
-            # Ultimate fallback
-            return text.replace("\n", "<br>")
+            # Ultimate fallback — escape so raw HTML never reaches innerHTML.
+            return self._escape_html(text).replace("\n", "<br>")
+
+    def _escape_html(self, text: str) -> str:
+        """Escape HTML special characters before any markdown transformation.
+
+        ``&`` is escaped first so later replacements do not double-escape, then
+        ``<``/``>`` neutralise raw tags, and the quotes protect attribute
+        contexts (e.g. sanitized link URLs interpolated into ``href``). This
+        runs up-front so the only tags in the output are ones this parser emits.
+        """
+        return (
+            text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&#x27;")
+        )
+
+    def _sanitize_url(self, url: str) -> Optional[str]:
+        """Return ``url`` if safe for an ``href``, otherwise ``None``.
+
+        Allows http/https/mailto plus scheme-relative (``//host``) and relative
+        URLs. Rejects javascript:, data:, vbscript: and any other explicit
+        scheme. Whitespace and control characters are stripped before the
+        scheme check so tricks like ``java\tscript:`` cannot slip through.
+        """
+        cleaned = re.sub(r"[\x00-\x20\x7f]", "", url)
+        scheme_match = re.match(r"^([a-zA-Z][a-zA-Z0-9+.\-]*):", cleaned)
+        if scheme_match:
+            scheme = scheme_match.group(1).lower()
+            if scheme not in self._ALLOWED_URL_SCHEMES:
+                return None
+        return url
 
     def _simple_markdown_parse(self, text: str) -> str:
         """Simple markdown parser for basic formatting using string operations."""
         try:
+            # Escape HTML entities up-front so raw tags in the source (e.g.
+            # <script> or <img onerror=...>) can never become live HTML at the
+            # innerHTML sink. Structural markdown markers (#, -, *, |, digits,
+            # backticks) are ASCII that escaping leaves intact; the only
+            # collision is the blockquote ">", handled as "&gt;" in the loop.
+            text = self._escape_html(text)
+
             # First handle tables
             text = self._process_tables(text)
 
@@ -83,9 +126,9 @@ class MarkdownParser:
                 # Lists - handle ordered and unordered with indentation
                 elif self._is_list_item(processed_line):
                     processed_line = self._process_list_item(processed_line)
-                # Blockquotes
-                elif processed_line.startswith("> "):
-                    processed_line = f"<blockquote>{processed_line[2:]}</blockquote>"
+                # Blockquotes (the ">" marker is escaped to "&gt;" up-front)
+                elif processed_line.startswith("&gt; "):
+                    processed_line = f"<blockquote>{processed_line[len('&gt; '):]}</blockquote>"
                 # Horizontal rules
                 elif processed_line.strip() == "---":
                     processed_line = "<hr>"
@@ -648,7 +691,13 @@ class MarkdownParser:
                 link_text = text[start + 1 : middle]
                 link_url = text[middle + 2 : end]
                 after = text[end + 1 :]
-                text = before + f'<a href="{link_url}">{link_text}</a>' + after
+                safe_url = self._sanitize_url(link_url)
+                if safe_url is None:
+                    # Unsafe scheme (e.g. javascript:) — drop the link, keep text.
+                    replacement = link_text
+                else:
+                    replacement = f'<a href="{safe_url}">{link_text}</a>'
+                text = before + replacement + after
 
             return text
 

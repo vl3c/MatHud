@@ -14,6 +14,7 @@ Dependencies:
 
 from __future__ import annotations
 
+import logging
 import os
 import secrets
 from typing import TYPE_CHECKING, Dict, Optional, Tuple, TypedDict, Union
@@ -22,6 +23,7 @@ from cachelib.file import FileSystemCache
 from flask import Flask, Response, jsonify
 from flask_session import Session as FlaskSession
 
+from static.config import MAX_CONTENT_LENGTH_BYTES
 from static.env_config import load_env_files
 from static.log_manager import LogManager
 from static.openai_completions_api import OpenAIChatCompletionsAPI
@@ -33,6 +35,9 @@ from static.workspace_manager import WorkspaceManager
 if TYPE_CHECKING:
     from static.openai_api_base import OpenAIAPIBase
     from static.webdriver_manager import WebDriverManager
+
+
+_logger = logging.getLogger(__name__)
 
 
 JsonValue = Union[str, int, float, bool, None, Dict[str, "JsonValue"], list["JsonValue"]]
@@ -156,8 +161,29 @@ class AppManager:
         # Load environment variables from project .env and parent .env (API keys)
         AppManager._load_env()
 
-        # Configure session management for authentication using modern CacheLib backend
-        app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(32))
+        # Configure session management for authentication using modern CacheLib backend.
+        # A persistent SECRET_KEY is required for sessions to survive process restarts.
+        # In deployed mode an ephemeral fallback silently logs everyone out on every
+        # restart, so warn prominently (but do not hard-fail).
+        secret_key_env = os.getenv("SECRET_KEY")
+        if secret_key_env:
+            app.secret_key = secret_key_env
+        else:
+            app.secret_key = secrets.token_hex(32)
+            if AppManager.is_deployed():
+                _logger.warning(
+                    "SECRET_KEY is not set in a deployed environment. A random key was "
+                    "generated for this process, so ALL user sessions will be invalidated "
+                    "on every restart. Set SECRET_KEY to a stable secret to persist sessions."
+                )
+
+        # Cap total request body size and return clean JSON on overflow so clients
+        # do not receive Flask's default HTML 413 page.
+        app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH_BYTES
+
+        @app.errorhandler(413)
+        def _handle_request_entity_too_large(_error: Exception) -> Tuple[Response, int]:
+            return jsonify({"error": "Request payload too large"}), 413
 
         # Create session directory if it doesn't exist
         session_dir = os.path.join(os.getcwd(), "flask_session")
