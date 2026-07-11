@@ -16,7 +16,8 @@ from collections.abc import Iterator, Sequence
 from types import SimpleNamespace
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from openai import OpenAI
+import httpx
+from openai import APITimeoutError, OpenAI
 
 from static.ai_model import AIModel
 from static.config import CANVAS_SNAPSHOT_PATH
@@ -34,6 +35,22 @@ StreamEvent = Dict[str, Any]
 
 # Tool mode type
 ToolMode = Literal["full", "search"]
+
+PROVIDER_TIMEOUT_MESSAGE = (
+    "The AI provider timed out before responding. Please try again or switch to a different model."
+)
+
+
+def stream_error_user_message(exc: BaseException, default: str) -> str:
+    """Return the user-facing message for a streaming failure.
+
+    The OpenAI SDK wraps timeouts in APITimeoutError only around the initial
+    request (time to response headers); a stall after streaming has begun
+    surfaces as a raw httpx.TimeoutException subclass, so both are matched.
+    """
+    if isinstance(exc, (APITimeoutError, httpx.TimeoutException)):
+        return PROVIDER_TIMEOUT_MESSAGE
+    return default
 
 # Essential tool names that should always be available after injection
 ESSENTIAL_TOOLS = frozenset(

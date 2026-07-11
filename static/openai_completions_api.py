@@ -12,7 +12,7 @@ from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
-from static.openai_api_base import OpenAIAPIBase, MessageDict, StreamEvent
+from static.openai_api_base import OpenAIAPIBase, MessageDict, StreamEvent, stream_error_user_message
 
 # Use the shared MatHud logger for file logging
 _logger = logging.getLogger("mathud")
@@ -116,7 +116,9 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             yield {"type": "token", "text": "\n"}
             yield {
                 "type": "final",
-                "ai_message": "I encountered an error processing your request. Please try again.",
+                "ai_message": stream_error_user_message(
+                    exc, "I encountered an error processing your request. Please try again."
+                ),
                 "ai_tool_calls": [],
                 "finish_reason": "error",
             }

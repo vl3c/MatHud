@@ -41,10 +41,11 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
     # OpenRouter emits keepalive bytes while the upstream model is still
     # processing, so the read timeout only trips when the connection goes
     # truly silent (a stalled provider), not while a model is thinking.
-    # Must stay well below the client's REASONING_TIMEOUT_MS (300s) so a
-    # stall surfaces as a proper error event instead of a blind UI timeout.
+    # With one retry the worst case is ~2x60s + backoff (~125s), which must
+    # stay below the client's REASONING_TIMEOUT_MS (300s) so a stall surfaces
+    # as a proper error event instead of a blind UI timeout.
     REQUEST_TIMEOUT = httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=10.0)
-    MAX_RETRIES = 2
+    MAX_RETRIES = 1
 
     def __init__(
         self,

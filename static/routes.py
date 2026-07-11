@@ -25,7 +25,6 @@ from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, cast
 
 from flask import Response, flash, jsonify, redirect, render_template, request, session, stream_with_context, url_for
 from flask.typing import ResponseReturnValue
-from openai import APITimeoutError
 
 from static.ai_model import AIModel, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OLLAMA
 from static.app_manager import AppManager, MatHudFlask
@@ -973,17 +972,10 @@ def register_routes(app: MatHudFlask) -> None:
                 reset_tools_for_all_providers(app, "error", active_provider=provider)
                 # Yield pending logs so client sees them before error
                 yield from _yield_pending_logs()
-                if isinstance(exc, APITimeoutError):
-                    user_error_message = (
-                        "The AI provider timed out before responding. "
-                        "Please try again or switch to a different model."
-                    )
-                else:
-                    user_error_message = f"Error: {exc}"
                 # Include error details in the payload for transparency
                 error_payload: StreamEventDict = {
                     "type": "final",
-                    "ai_message": user_error_message,
+                    "ai_message": f"Error: {exc}",
                     "ai_tool_calls": [],
                     "finish_reason": "error",
                     "error_details": str(exc),
