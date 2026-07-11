@@ -58,7 +58,7 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    ```
 4. Provide at least one AI provider API key by setting environment variables or creating `.env` in the project root:
    ```env
-   OPENAI_API_KEY=sk-...          # OpenAI models (GPT-4o, GPT-5, o3, etc.)
+   OPENAI_API_KEY=sk-...          # OpenAI models (GPT-5.6, GPT-5.5, GPT-4.1, etc.)
    ANTHROPIC_API_KEY=sk-ant-...   # Anthropic models (Claude Opus/Sonnet/Haiku 4.5)
    OPENROUTER_API_KEY=sk-or-...   # OpenRouter models (Gemini, DeepSeek, Llama, etc.)
    ```
@@ -190,9 +190,9 @@ MatHud supports three AI providers. The model dropdown dynamically shows only mo
 
 | Provider | Environment Variable | Models |
 |----------|---------------------|--------|
-| **OpenAI** | `OPENAI_API_KEY` | GPT-5.2, GPT-5, GPT-4.1, GPT-4o, o3, o4-mini, GPT-3.5 Turbo, etc. |
-| **Anthropic** | `ANTHROPIC_API_KEY` | Claude Opus 4.5, Claude Sonnet 4.5, Claude Haiku 4.5 |
-| **OpenRouter** | `OPENROUTER_API_KEY` | Gemini 3 Pro/Flash, Gemini 2.5 Pro, DeepSeek V3.2, Grok, Llama, Gemma, and more (paid and free tiers) |
+| **OpenAI** | `OPENAI_API_KEY` | GPT-5.6 (Sol/Terra/Luna), GPT-5.5, GPT-5.2, GPT-4.1 family, GPT-4o mini |
+| **Anthropic** | `ANTHROPIC_API_KEY` | Claude Fable 5, Claude Opus 4.8, Claude Sonnet 5, Claude Haiku 4.5 |
+| **OpenRouter** | `OPENROUTER_API_KEY` | Gemini 3.1 Pro/3.5 Flash, DeepSeek V4 Pro, Qwen, GLM, Grok, MiniMax, Llama, Gemma, and more (paid and free tiers) |
 
 Models without vision support are labeled "(text only)" in the dropdown. When no API keys are configured, the dropdown shows "No API keys configured".
 

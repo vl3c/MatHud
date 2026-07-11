@@ -142,7 +142,7 @@ python -m cli.main chat new [--port PORT]
 ```
 
 **Options:**
-- `--model, -m`: AI model (e.g., gpt-4o, claude-3-5-sonnet)
+- `--model, -m`: AI model (e.g., gpt-5.5, claude-sonnet-5)
 - `--vision, -v`: Include canvas snapshot
 - `--no-stream`: Wait for complete response
 - `--json`: Output as JSON

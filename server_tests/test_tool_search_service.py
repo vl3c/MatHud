@@ -281,12 +281,12 @@ class TestSearchToolsWithMock:
     ) -> None:
         """OpenAI reasoning models should use max_completion_tokens."""
         self._setup_mock_response(mock_client, '["create_circle"]')
-        model = AIModel.from_identifier("o4-mini")
+        model = AIModel.from_identifier("gpt-5.5")
 
         service.search_tools("draw", model=model)
 
         call_args = mock_client.chat.completions.create.call_args
-        assert call_args.kwargs.get("model") == "o4-mini"
+        assert call_args.kwargs.get("model") == "gpt-5.5"
         assert call_args.kwargs.get("max_completion_tokens") == 500
         assert "max_tokens" not in call_args.kwargs
 
@@ -314,24 +314,24 @@ class TestSearchToolsWithMock:
         self._setup_mock_response(mock_client, '["create_circle"]')
         service = ToolSearchService(
             client=mock_client,
-            default_model=AIModel.from_identifier("o3"),
+            default_model=AIModel.from_identifier("gpt-5.5"),
         )
 
         service.search_tools("draw")
 
         call_args = mock_client.chat.completions.create.call_args
-        assert call_args.kwargs.get("model") == "o3"
+        assert call_args.kwargs.get("model") == "gpt-5.5"
         assert call_args.kwargs.get("max_completion_tokens") == 500
         assert "max_tokens" not in call_args.kwargs
 
     def test_search_uses_default_model_when_none(self, service: ToolSearchService, mock_client: MagicMock) -> None:
-        """search_tools should use gpt-5-nano when no model specified."""
+        """search_tools should use gpt-4.1-nano when no model specified."""
         self._setup_mock_response(mock_client, '["create_circle"]')
 
         service.search_tools("draw")
 
         call_args = mock_client.chat.completions.create.call_args
-        assert call_args.kwargs.get("model") == "gpt-5-nano"
+        assert call_args.kwargs.get("model") == "gpt-4.1-nano"
 
 
 class TestSearchToolsFormatted:

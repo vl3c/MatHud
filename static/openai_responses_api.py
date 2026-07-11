@@ -1,7 +1,7 @@
 """
 MatHud OpenAI Responses API
 
-Responses API implementation for reasoning models (GPT-5, o3, o4-mini).
+Responses API implementation for reasoning models (GPT-5.6, GPT-5.5, GPT-5.2).
 Streams reasoning tokens during the thinking phase.
 """
 
@@ -20,7 +20,7 @@ _logger = logging.getLogger("mathud")
 
 
 class OpenAIResponsesAPI(OpenAIAPIBase):
-    """OpenAI Responses API for reasoning models (GPT-5, o3, o4-mini).
+    """OpenAI Responses API for reasoning models (GPT-5.6, GPT-5.5, GPT-5.2).
 
     Uses `previous_response_id` for multi-turn conversations, allowing OpenAI
     to manage conversation state server-side. This properly handles images

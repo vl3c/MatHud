@@ -54,7 +54,7 @@ class AnthropicAPI(OpenAIAPIBase):
         """Initialize Anthropic API client.
 
         Args:
-            model: AI model to use. Defaults to Claude Sonnet 4.5.
+            model: AI model to use. Defaults to Claude Sonnet 5.
             temperature: Sampling temperature.
             tools: Custom tool definitions.
             max_tokens: Maximum tokens in response.
@@ -72,7 +72,7 @@ class AnthropicAPI(OpenAIAPIBase):
 
         # Initialize base class (uses OpenAI client for compatibility, but we won't use it)
         # We override the key methods to use Anthropic instead
-        self.model: AIModel = model if model is not None else AIModel.from_identifier("claude-sonnet-4-5-20250929")
+        self.model: AIModel = model if model is not None else AIModel.from_identifier("claude-sonnet-5")
         self.temperature = temperature
         self.max_tokens = max_tokens
         self._tool_mode: ToolMode = tool_mode
@@ -237,6 +237,17 @@ class AnthropicAPI(OpenAIAPIBase):
         message_content = self._prepare_message_content(full_prompt)
         return {"role": "user", "content": message_content}
 
+    def _apply_temperature(self, request_kwargs: Dict[str, Any]) -> None:
+        """Add the temperature parameter only for models that accept it.
+
+        Adaptive-thinking Claude models (Claude Fable 5, Opus 4.8, Sonnet 5, and later)
+        reject the ``temperature`` sampling parameter with a 400 error. Those models are
+        flagged ``is_reasoning_model`` in the registry, so only send ``temperature`` for
+        non-reasoning models (e.g. Claude Haiku 4.5) that still support it.
+        """
+        if not self.model.is_reasoning_model:
+            request_kwargs["temperature"] = self.temperature
+
     def create_chat_completion(self, full_prompt: str) -> Any:
         """Create chat completion with Anthropic API."""
         user_message = self._parse_and_prepare_message(full_prompt)
@@ -248,13 +259,13 @@ class AnthropicAPI(OpenAIAPIBase):
             anthropic_tools = self._convert_tools_to_anthropic()
 
             # Anthropic API doesn't accept empty tools list - must be None or non-empty
-            create_kwargs = {
+            create_kwargs: Dict[str, Any] = {
                 "model": self.model.id,
                 "max_tokens": self.max_tokens,
                 "system": self._system_prompt,
                 "messages": anthropic_messages,
-                "temperature": self.temperature,
             }
+            self._apply_temperature(create_kwargs)
             if anthropic_tools:
                 create_kwargs["tools"] = anthropic_tools
 
@@ -344,13 +355,13 @@ class AnthropicAPI(OpenAIAPIBase):
             anthropic_tools = self._convert_tools_to_anthropic()
 
             # Anthropic API doesn't accept empty tools list - must be None or non-empty
-            stream_kwargs = {
+            stream_kwargs: Dict[str, Any] = {
                 "model": self.model.id,
                 "max_tokens": self.max_tokens,
                 "system": self._system_prompt,
                 "messages": anthropic_messages,
-                "temperature": self.temperature,
             }
+            self._apply_temperature(stream_kwargs)
             if anthropic_tools:
                 stream_kwargs["tools"] = anthropic_tools
 

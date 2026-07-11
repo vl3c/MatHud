@@ -319,7 +319,7 @@ class TestPromptPipelineNonStream(unittest.TestCase):
                 os.environ.pop(key, None)
         clear_search_cache()
 
-    # -- reasoning model (o3): uses create_response_stream, consumed via /send_message --
+    # -- reasoning model (gpt-5.5): uses create_response_stream, consumed via /send_message --
 
     @patch.object(OpenAIResponsesAPI, "create_response_stream")
     def test_reasoning_model_derivative(self, mock_stream: Mock) -> None:
@@ -330,7 +330,7 @@ class TestPromptPipelineNonStream(unittest.TestCase):
                 _tool_call("derive", {"expression": "x^3", "variable": "x"}),
             ],
         )
-        resp = self.client.post("/send_message", json=_make_payload("derivative of x^3", "o3"))
+        resp = self.client.post("/send_message", json=_make_payload("derivative of x^3", "gpt-5.5"))
         data = json.loads(resp.data)
 
         self.assertEqual(resp.status_code, 200)

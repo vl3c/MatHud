@@ -95,7 +95,7 @@ class TestSearchToolWiringSmoke(unittest.TestCase):
                 {
                     "user_message": "solve x^2-1=0",
                     "use_vision": False,
-                    "ai_model": "o3",
+                    "ai_model": "gpt-5.5",
                 }
             ),
             "svg_state": None,

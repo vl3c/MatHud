@@ -654,7 +654,7 @@ class TestOpenAIResponsesAPIIntegration(unittest.TestCase):
     """Integration tests that actually call the OpenAI Responses API.
 
     These tests require a valid OPENAI_API_KEY environment variable
-    and use reasoning models (GPT-5, o3, o4-mini).
+    and use reasoning models (GPT-5.6, GPT-5.5).
     They are skipped if the key is not available.
     """
 
@@ -675,8 +675,8 @@ class TestOpenAIResponsesAPIIntegration(unittest.TestCase):
     def test_integration_response_stream_format(self) -> None:
         """Test actual Responses API call returns correct format (minimal tokens)."""
         api = OpenAIResponsesAPI()
-        # Use o4-mini as it's a reasoning model, limit tokens
-        api.set_model("o4-mini")
+        # Use gpt-5.5 as it's a reasoning model, limit tokens
+        api.set_model("gpt-5.5")
         api.max_tokens = 20
 
         prompt = json.dumps({"user_message": "Say: OK", "use_vision": False})
@@ -699,7 +699,7 @@ class TestOpenAIResponsesAPIIntegration(unittest.TestCase):
     def test_integration_reasoning_tokens(self) -> None:
         """Test that reasoning models stream reasoning tokens (minimal tokens)."""
         api = OpenAIResponsesAPI()
-        api.set_model("o4-mini")
+        api.set_model("gpt-5.5")
         api.max_tokens = 30
 
         prompt = json.dumps({"user_message": "2+2=?", "use_vision": False})
@@ -725,7 +725,7 @@ class TestOpenAIResponsesAPIIntegration(unittest.TestCase):
     def test_integration_event_types_are_valid(self) -> None:
         """Test that all streamed events have valid types (minimal tokens)."""
         api = OpenAIResponsesAPI()
-        api.set_model("o4-mini")
+        api.set_model("gpt-5.5")
         api.max_tokens = 10
 
         prompt = json.dumps({"user_message": "1", "use_vision": False})
@@ -757,38 +757,38 @@ class TestOpenAIResponsesAPIModelRouting(unittest.TestCase):
     def test_set_model_to_reasoning(self, mock_openai: Mock) -> None:
         """Test setting model to a reasoning model."""
         api = OpenAIResponsesAPI()
-        api.set_model("o3")
+        api.set_model("gpt-5.6-sol")
 
-        self.assertEqual(api.model.id, "o3")
+        self.assertEqual(api.model.id, "gpt-5.6-sol")
         self.assertTrue(api.model.is_reasoning_model)
 
     @patch("static.openai_api_base.OpenAI")
-    def test_set_model_to_o4_mini(self, mock_openai: Mock) -> None:
-        """Test setting model to o4-mini."""
+    def test_set_model_to_gpt56_luna(self, mock_openai: Mock) -> None:
+        """Test setting model to gpt-5.6-luna."""
         api = OpenAIResponsesAPI()
-        api.set_model("o4-mini")
+        api.set_model("gpt-5.6-luna")
 
-        self.assertEqual(api.model.id, "o4-mini")
-        self.assertTrue(api.model.is_reasoning_model)
-        self.assertTrue(api.model.has_vision)
-
-    @patch("static.openai_api_base.OpenAI")
-    def test_set_model_to_gpt5(self, mock_openai: Mock) -> None:
-        """Test setting model to GPT-5-chat-latest."""
-        api = OpenAIResponsesAPI()
-        api.set_model("gpt-5-chat-latest")
-
-        self.assertEqual(api.model.id, "gpt-5-chat-latest")
+        self.assertEqual(api.model.id, "gpt-5.6-luna")
         self.assertTrue(api.model.is_reasoning_model)
         self.assertTrue(api.model.has_vision)
 
     @patch("static.openai_api_base.OpenAI")
-    def test_set_model_to_gpt52_chat_latest(self, mock_openai: Mock) -> None:
-        """Test setting model to GPT-5.2-chat-latest."""
+    def test_set_model_to_gpt56_terra(self, mock_openai: Mock) -> None:
+        """Test setting model to gpt-5.6-terra."""
         api = OpenAIResponsesAPI()
-        api.set_model("gpt-5.2-chat-latest")
+        api.set_model("gpt-5.6-terra")
 
-        self.assertEqual(api.model.id, "gpt-5.2-chat-latest")
+        self.assertEqual(api.model.id, "gpt-5.6-terra")
+        self.assertTrue(api.model.is_reasoning_model)
+        self.assertTrue(api.model.has_vision)
+
+    @patch("static.openai_api_base.OpenAI")
+    def test_set_model_to_gpt55(self, mock_openai: Mock) -> None:
+        """Test setting model to GPT-5.5."""
+        api = OpenAIResponsesAPI()
+        api.set_model("gpt-5.5")
+
+        self.assertEqual(api.model.id, "gpt-5.5")
         self.assertTrue(api.model.is_reasoning_model)
         self.assertTrue(api.model.has_vision)
 
