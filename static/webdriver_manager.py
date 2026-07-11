@@ -27,6 +27,8 @@ from selenium.webdriver.firefox.webdriver import WebDriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+from static.config import CANVAS_SNAPSHOT_DIR, CANVAS_SNAPSHOT_PATH
+
 
 class SvgDimensions(TypedDict):
     """SVG container dimensions."""
@@ -183,9 +185,8 @@ class WebDriverManager:
         """
         print("\nStarting capture_canvas...")
         try:
-            snapshots_dir = "canvas_snapshots"
-            if not os.path.exists(snapshots_dir):
-                os.makedirs(snapshots_dir)
+            if not os.path.exists(CANVAS_SNAPSHOT_DIR):
+                os.makedirs(CANVAS_SNAPSHOT_DIR)
 
             self._wait_for_svg_elements()
             self._verify_svg_content()
@@ -194,7 +195,7 @@ class WebDriverManager:
 
             time.sleep(1)  # Give time for changes to take effect
 
-            canvas_path = os.path.join(snapshots_dir, "canvas.png")
+            canvas_path = CANVAS_SNAPSHOT_PATH
             if self.driver is None:
                 raise RuntimeError("WebDriver not initialized")
             container = self.driver.find_element(By.CLASS_NAME, "math-container")

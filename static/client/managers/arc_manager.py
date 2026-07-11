@@ -12,7 +12,8 @@ import math
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 from drawables.circle_arc import CircleArc
-from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from managers.base_drawable_manager import BaseDrawableManager
+from managers.edit_policy import EditRule
 from utils.math_utils import MathUtils
 
 if TYPE_CHECKING:
@@ -27,8 +28,10 @@ if TYPE_CHECKING:
     from name_generator.drawable import DrawableNameGenerator
 
 
-class ArcManager:
+class ArcManager(BaseDrawableManager):
     """Manager responsible for lifecycle of CircleArc drawables."""
+
+    drawable_type: str = "CircleArc"
 
     def __init__(
         self,
@@ -39,13 +42,14 @@ class ArcManager:
         point_manager: "PointManager",
         drawable_manager_proxy: "DrawableManagerProxy",
     ) -> None:
-        self.canvas = canvas
-        self.drawables = drawables_container
-        self.name_generator = name_generator
-        self.dependency_manager = dependency_manager
-        self.point_manager = point_manager
-        self.drawable_manager = drawable_manager_proxy
-        self.arc_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("CircleArc")
+        super().__init__(
+            canvas,
+            drawables_container,
+            name_generator,
+            dependency_manager,
+            drawable_manager_proxy,
+        )
+        self.point_manager: "PointManager" = point_manager
 
     # ------------------------------------------------------------------
     # Creation helpers
@@ -472,10 +476,8 @@ class ArcManager:
         return arc
 
     def get_circle_arc_by_name(self, name: str) -> Optional[CircleArc]:
-        for arc in cast(List[CircleArc], self.drawables.CircleArcs):
-            if arc.name == name:
-                return arc
-        return None
+        result = self._get_by_name(name)
+        return cast(Optional[CircleArc], result)
 
     def delete_circle_arc(self, name: str) -> bool:
         arc = self.get_circle_arc_by_name(name)
@@ -516,7 +518,7 @@ class ArcManager:
 
         requested_fields = self._collect_arc_requested_fields(new_color, use_major_arc)
 
-        if self.arc_edit_policy:
+        if self.edit_policy:
             self._validate_arc_policy(requested_fields)
 
         self.canvas.undo_redo_manager.archive()
@@ -554,12 +556,12 @@ class ArcManager:
         return requested_fields
 
     def _validate_arc_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
-        if not self.arc_edit_policy:
+        if not self.edit_policy:
             return {}
 
         validated: Dict[str, EditRule] = {}
         for field in requested_fields:
-            rule = self.arc_edit_policy.get_rule(field)
+            rule = self.edit_policy.get_rule(field)
             if not rule:
                 raise ValueError(f"Editing field '{field}' is not permitted for circle arcs.")
             validated[field] = rule

@@ -235,7 +235,7 @@ class ResultProcessor:
         result: Any = ResultProcessor._execute_function(function_name, args, available_functions)
 
         # Format the key for results dictionary
-        key: str = ResultProcessor._generate_result_key(function_name, args)
+        key: str = ResultProcessor.generate_result_key(function_name, args)
 
         # Process the result based on function type
         ResultProcessor._process_result(
@@ -249,7 +249,6 @@ class ResultProcessor:
         """Check if the function exists and update results if not."""
         if function_name not in available_functions:
             error_msg: str = f"Error: function {function_name} not found."
-            print(error_msg)  # DEBUG
             results[function_name] = error_msg
             return False
         return True
@@ -261,7 +260,7 @@ class ResultProcessor:
         return result
 
     @staticmethod
-    def _generate_result_key(function_name: str, args: Dict[str, Any]) -> str:
+    def generate_result_key(function_name: str, args: Dict[str, Any]) -> str:
         """Generate a consistent key format for the results dictionary."""
         formatted_args: str = ResultProcessor._format_arguments(args)
         return f"{function_name}({formatted_args})"
@@ -338,9 +337,6 @@ class ResultProcessor:
             function_name: Name of the function that caused the exception
             results: Dictionary to update with the error information
         """
-        error_message: str = f"Error calling function {function_name}: {exception}"
-        print(error_message)  # DEBUG
-
         # Use the function name as the key for storing the error
         key: str = function_name
 

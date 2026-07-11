@@ -2,11 +2,15 @@
 Tests for the image attachment feature in the client.
 
 Tests cover:
-- _attached_images state management
+- ImageAttachmentManager state management (uses real manager)
 - Preview area DOM updates
 - Payload generation with attached images
 - /attach slash command
 - Image modal functionality
+
+Where possible, tests instantiate the real ``ImageAttachmentManager`` and
+exercise its public API directly.  Tests that require browser DOM elements
+(file picker, preview area rendering) still use mocks.
 """
 
 from __future__ import annotations
@@ -14,6 +18,9 @@ from __future__ import annotations
 import unittest
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
+
+from constants import IMAGE_SIZE_WARNING_BYTES, MAX_ATTACHED_IMAGES
+from image_attachment_manager import ImageAttachmentManager
 
 
 class MockCanvas:
@@ -74,64 +81,80 @@ class MockStyle:
 
 
 class TestAttachedImagesState(unittest.TestCase):
-    """Tests for _attached_images state management."""
+    """Tests for ImageAttachmentManager state management using the real class."""
 
     def setUp(self) -> None:
-        """Set up test fixtures with mock AI interface."""
-        from ai_interface import AIInterface
-
-        self.canvas = MockCanvas()
-        # We can't fully initialize AIInterface without browser module,
-        # so we'll test the logic patterns directly
-        self.ai = MagicMock(spec=AIInterface)
-        self.ai._attached_images = []
-        self.ai.MAX_ATTACHED_IMAGES = 5
-        self.ai.IMAGE_SIZE_WARNING_BYTES = 10 * 1024 * 1024
+        """Set up a real ImageAttachmentManager instance."""
+        self.mgr = ImageAttachmentManager()
 
     def test_initial_state_empty(self) -> None:
-        """Test attached images starts empty."""
-        self.assertEqual(self.ai._attached_images, [])
+        """Test images property starts empty."""
+        self.assertEqual(self.mgr.images, [])
 
     def test_append_image(self) -> None:
-        """Test appending an image to the list."""
+        """Test appending an image via internal list."""
         test_url = "data:image/png;base64,test123"
-        self.ai._attached_images.append(test_url)
-        self.assertEqual(len(self.ai._attached_images), 1)
-        self.assertEqual(self.ai._attached_images[0], test_url)
+        self.mgr._images.append(test_url)
+        self.assertEqual(len(self.mgr.images), 1)
+        self.assertEqual(self.mgr.images[0], test_url)
 
     def test_append_multiple_images(self) -> None:
         """Test appending multiple images."""
         images = ["data:image/png;base64,img1", "data:image/jpeg;base64,img2", "data:image/png;base64,img3"]
         for img in images:
-            self.ai._attached_images.append(img)
-        self.assertEqual(len(self.ai._attached_images), 3)
-        self.assertEqual(self.ai._attached_images, images)
+            self.mgr._images.append(img)
+        self.assertEqual(len(self.mgr.images), 3)
+        self.assertEqual(self.mgr.images, images)
 
-    def test_remove_image_by_index(self) -> None:
-        """Test removing an image by index."""
-        self.ai._attached_images = [
+    def test_remove_image_via_manager(self) -> None:
+        """Test removing an image through the manager's _remove_image method."""
+        self.mgr._images = [
             "data:image/png;base64,img1",
             "data:image/png;base64,img2",
             "data:image/png;base64,img3",
         ]
-        self.ai._attached_images.pop(1)
-        self.assertEqual(len(self.ai._attached_images), 2)
-        self.assertEqual(self.ai._attached_images[0], "data:image/png;base64,img1")
-        self.assertEqual(self.ai._attached_images[1], "data:image/png;base64,img3")
+        # Patch _update_preview_area to avoid DOM access
+        self.mgr._update_preview_area = lambda: None  # type: ignore[assignment]
+        self.mgr._remove_image(1)
+        self.assertEqual(len(self.mgr.images), 2)
+        self.assertEqual(self.mgr.images[0], "data:image/png;base64,img1")
+        self.assertEqual(self.mgr.images[1], "data:image/png;base64,img3")
 
     def test_clear_images(self) -> None:
-        """Test clearing all images."""
-        self.ai._attached_images = ["data:image/png;base64,img1", "data:image/png;base64,img2"]
-        self.ai._attached_images = []
-        self.assertEqual(len(self.ai._attached_images), 0)
+        """Test clearing all images via the manager's clear method."""
+        self.mgr._images = ["data:image/png;base64,img1", "data:image/png;base64,img2"]
+        # Patch _update_preview_area to avoid DOM access
+        self.mgr._update_preview_area = lambda: None  # type: ignore[assignment]
+        self.mgr.clear()
+        self.assertEqual(len(self.mgr.images), 0)
 
     def test_max_images_constant(self) -> None:
         """Test maximum images constant is set."""
-        self.assertEqual(self.ai.MAX_ATTACHED_IMAGES, 5)
+        self.assertEqual(MAX_ATTACHED_IMAGES, 5)
 
     def test_image_size_warning_constant(self) -> None:
         """Test image size warning threshold is 10MB."""
-        self.assertEqual(self.ai.IMAGE_SIZE_WARNING_BYTES, 10 * 1024 * 1024)
+        self.assertEqual(IMAGE_SIZE_WARNING_BYTES, 10 * 1024 * 1024)
+
+    def test_remove_invalid_index_negative(self) -> None:
+        """Test removing with negative index does nothing."""
+        self.mgr._images = ["img1", "img2", "img3"]
+        self.mgr._update_preview_area = lambda: None  # type: ignore[assignment]
+        self.mgr._remove_image(-1)
+        self.assertEqual(self.mgr.images, ["img1", "img2", "img3"])
+
+    def test_remove_invalid_index_too_large(self) -> None:
+        """Test removing with too large index does nothing."""
+        self.mgr._images = ["img1", "img2", "img3"]
+        self.mgr._update_preview_area = lambda: None  # type: ignore[assignment]
+        self.mgr._remove_image(10)
+        self.assertEqual(self.mgr.images, ["img1", "img2", "img3"])
+
+    def test_on_system_message_callback_stored(self) -> None:
+        """Test that the system message callback is stored correctly."""
+        messages: List[str] = []
+        mgr = ImageAttachmentManager(on_system_message=messages.append)
+        self.assertIs(mgr._on_system_message, messages.append)
 
 
 class TestImageValidation(unittest.TestCase):
@@ -273,113 +296,104 @@ class TestSlashCommandImage(unittest.TestCase):
 
 
 class TestImageLimitLogic(unittest.TestCase):
-    """Tests for image attachment limit enforcement logic."""
+    """Tests for image attachment limit enforcement using real ImageAttachmentManager."""
+
+    def setUp(self) -> None:
+        """Set up a real ImageAttachmentManager with DOM patched out."""
+        self.mgr = ImageAttachmentManager()
+        self.mgr._update_preview_area = lambda: None  # type: ignore[assignment]
 
     def test_remaining_slots_calculation(self) -> None:
-        """Test remaining slots calculation."""
-        max_images = 5
-        current_count = 2
-        remaining = max_images - current_count
+        """Test remaining slots calculation via manager state."""
+        self.mgr._images = ["img1", "img2"]
+        remaining = MAX_ATTACHED_IMAGES - len(self.mgr.images)
         self.assertEqual(remaining, 3)
 
     def test_remaining_slots_at_limit(self) -> None:
         """Test remaining slots when at limit."""
-        max_images = 5
-        current_count = 5
-        remaining = max_images - current_count
+        self.mgr._images = ["img"] * MAX_ATTACHED_IMAGES
+        remaining = MAX_ATTACHED_IMAGES - len(self.mgr.images)
         self.assertEqual(remaining, 0)
 
     def test_files_to_process_limited(self) -> None:
         """Test files to process is limited by remaining slots."""
-        max_images = 5
-        current_count = 3
-        remaining = max_images - current_count
+        self.mgr._images = ["img"] * 3
+        remaining = MAX_ATTACHED_IMAGES - len(self.mgr.images)
         files_selected = 5
-
         files_to_process = min(files_selected, remaining)
         self.assertEqual(files_to_process, 2)
 
     def test_all_files_processed_when_below_limit(self) -> None:
         """Test all files processed when total is below limit."""
-        max_images = 5
-        current_count = 1
-        remaining = max_images - current_count
+        self.mgr._images = ["img"]
+        remaining = MAX_ATTACHED_IMAGES - len(self.mgr.images)
         files_selected = 2
-
         files_to_process = min(files_selected, remaining)
         self.assertEqual(files_to_process, 2)
 
 
 class TestImageRemovalLogic(unittest.TestCase):
-    """Tests for image removal from attached images list."""
+    """Tests for image removal using real ImageAttachmentManager._remove_image."""
+
+    def setUp(self) -> None:
+        """Set up a real ImageAttachmentManager with DOM patched out."""
+        self.mgr = ImageAttachmentManager()
+        self.mgr._update_preview_area = lambda: None  # type: ignore[assignment]
 
     def test_remove_first_image(self) -> None:
         """Test removing first image from list."""
-        images = ["img1", "img2", "img3"]
-        index = 0
-        if 0 <= index < len(images):
-            images.pop(index)
-        self.assertEqual(images, ["img2", "img3"])
+        self.mgr._images = ["img1", "img2", "img3"]
+        self.mgr._remove_image(0)
+        self.assertEqual(self.mgr.images, ["img2", "img3"])
 
     def test_remove_middle_image(self) -> None:
         """Test removing middle image from list."""
-        images = ["img1", "img2", "img3"]
-        index = 1
-        if 0 <= index < len(images):
-            images.pop(index)
-        self.assertEqual(images, ["img1", "img3"])
+        self.mgr._images = ["img1", "img2", "img3"]
+        self.mgr._remove_image(1)
+        self.assertEqual(self.mgr.images, ["img1", "img3"])
 
     def test_remove_last_image(self) -> None:
         """Test removing last image from list."""
-        images = ["img1", "img2", "img3"]
-        index = 2
-        if 0 <= index < len(images):
-            images.pop(index)
-        self.assertEqual(images, ["img1", "img2"])
+        self.mgr._images = ["img1", "img2", "img3"]
+        self.mgr._remove_image(2)
+        self.assertEqual(self.mgr.images, ["img1", "img2"])
 
     def test_remove_invalid_index_negative(self) -> None:
         """Test removing with negative index does nothing."""
-        images = ["img1", "img2", "img3"]
-        original = images.copy()
-        index = -1
-        if 0 <= index < len(images):
-            images.pop(index)
-        self.assertEqual(images, original)
+        self.mgr._images = ["img1", "img2", "img3"]
+        self.mgr._remove_image(-1)
+        self.assertEqual(self.mgr.images, ["img1", "img2", "img3"])
 
     def test_remove_invalid_index_too_large(self) -> None:
         """Test removing with too large index does nothing."""
-        images = ["img1", "img2", "img3"]
-        original = images.copy()
-        index = 10
-        if 0 <= index < len(images):
-            images.pop(index)
-        self.assertEqual(images, original)
+        self.mgr._images = ["img1", "img2", "img3"]
+        self.mgr._remove_image(10)
+        self.assertEqual(self.mgr.images, ["img1", "img2", "img3"])
 
 
 class TestPreviewAreaLogic(unittest.TestCase):
-    """Tests for preview area update logic."""
+    """Tests for preview area update logic using real ImageAttachmentManager."""
 
     def test_preview_visible_with_images(self) -> None:
-        """Test preview area should be visible when images attached."""
-        attached_images = ["img1"]
-        should_show = len(attached_images) > 0
-        self.assertTrue(should_show)
+        """Test images list is non-empty when images attached."""
+        mgr = ImageAttachmentManager()
+        mgr._images = ["img1"]
+        self.assertTrue(len(mgr.images) > 0)
 
     def test_preview_hidden_without_images(self) -> None:
-        """Test preview area should be hidden when no images."""
-        attached_images: List[str] = []
-        should_show = len(attached_images) > 0
-        self.assertFalse(should_show)
+        """Test images list is empty when no images."""
+        mgr = ImageAttachmentManager()
+        self.assertFalse(len(mgr.images) > 0)
 
     def test_preview_thumbnail_count_matches_images(self) -> None:
-        """Test number of preview thumbnails matches attached images."""
-        attached_images = ["img1", "img2", "img3"]
-        thumbnail_count = len(attached_images)
-        self.assertEqual(thumbnail_count, 3)
+        """Test number of images matches attached count."""
+        mgr = ImageAttachmentManager()
+        mgr._images = ["img1", "img2", "img3"]
+        self.assertEqual(len(mgr.images), 3)
 
 
 class TestModalLogic(unittest.TestCase):
-    """Tests for image modal display logic."""
+    """Tests for image modal display logic (requires DOM mocks)."""
 
     def test_modal_display_style_visible(self) -> None:
         """Test modal display style when showing."""

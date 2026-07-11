@@ -19,8 +19,7 @@ import re
 from datetime import datetime
 from typing import Dict, List, Optional, TypedDict, Union, cast
 
-WORKSPACES_DIR = "workspaces"
-CURRENT_WORKSPACE_SCHEMA_VERSION = 1
+from static.config import CURRENT_WORKSPACE_SCHEMA_VERSION, WORKSPACES_DIR
 
 JsonPrimitive = Union[str, int, float, bool, None]
 JsonValue = Union[JsonPrimitive, Dict[str, "JsonValue"], List["JsonValue"]]

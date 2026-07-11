@@ -9,9 +9,8 @@ from typing import Any, Dict, cast
 from server_tests.test_mocks import CanvasStateDict, MockCanvas
 from static.client.managers.polygon_type import PolygonType
 from static.client.utils.polygon_canonicalizer import canonicalize_rectangle
+from static.config import CURRENT_WORKSPACE_SCHEMA_VERSION, WORKSPACES_DIR
 from static.workspace_manager import (
-    CURRENT_WORKSPACE_SCHEMA_VERSION,
-    WORKSPACES_DIR,
     WorkspaceManager,
     WorkspaceState,
 )

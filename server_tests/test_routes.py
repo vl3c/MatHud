@@ -7,7 +7,8 @@ from typing import Any, Dict, List, Optional
 from unittest.mock import Mock, patch
 
 from static.app_manager import AppManager, MatHudFlask
-from static.routes import CANVAS_SNAPSHOT_PATH, save_canvas_snapshot_from_data_url
+from static.config import CANVAS_SNAPSHOT_PATH
+from static.routes import save_canvas_snapshot_from_data_url
 from static.openai_completions_api import OpenAIChatCompletionsAPI
 from static.openai_responses_api import OpenAIResponsesAPI
 

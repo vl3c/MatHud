@@ -6,7 +6,8 @@ import json
 import unittest
 from typing import Any, Dict, List
 
-from managers.action_trace_collector import ActionTraceCollector, _MAX_TRACES
+from constants import MAX_TRACES
+from managers.action_trace_collector import ActionTraceCollector
 
 
 class TestComputeStateDelta(unittest.TestCase):
@@ -140,9 +141,9 @@ class TestStoreAndRetrieve(unittest.TestCase):
         self.assertIn("canvas_state_after", traces[1])
 
     def test_store_cap(self) -> None:
-        for i in range(_MAX_TRACES + 20):
+        for i in range(MAX_TRACES + 20):
             self.collector.store(self._make_trace(trace_id=f"t{i}"))
-        self.assertEqual(len(self.collector.get_traces()), _MAX_TRACES)
+        self.assertEqual(len(self.collector.get_traces()), MAX_TRACES)
 
     def test_clear(self) -> None:
         self.collector.store(self._make_trace())

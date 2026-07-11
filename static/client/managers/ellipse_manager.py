@@ -37,7 +37,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from drawables.ellipse import Ellipse
-from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from managers.base_drawable_manager import BaseDrawableManager
+from managers.edit_policy import EditRule
 from managers.dependency_removal import remove_drawable_with_dependencies
 
 if TYPE_CHECKING:
@@ -49,7 +50,7 @@ if TYPE_CHECKING:
     from name_generator.drawable import DrawableNameGenerator
 
 
-class EllipseManager:
+class EllipseManager(BaseDrawableManager):
     """
     Manages ellipse drawables for a Canvas.
 
@@ -58,6 +59,8 @@ class EllipseManager:
     - Retrieving ellipse objects by coordinates, parameters, or name
     - Deleting ellipse objects with proper cleanup and redrawing
     """
+
+    drawable_type: str = "Ellipse"
 
     def __init__(
         self,
@@ -79,13 +82,14 @@ class EllipseManager:
             point_manager: Manager for point drawables
             drawable_manager_proxy: Proxy to the main DrawableManager
         """
-        self.canvas: "Canvas" = canvas
-        self.drawables: "DrawablesContainer" = drawables_container
-        self.name_generator: "DrawableNameGenerator" = name_generator
-        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        super().__init__(
+            canvas,
+            drawables_container,
+            name_generator,
+            dependency_manager,
+            drawable_manager_proxy,
+        )
         self.point_manager: "PointManager" = point_manager
-        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
-        self.ellipse_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Ellipse")
 
     def get_ellipse(self, center_x: float, center_y: float, radius_x: float, radius_y: float) -> Optional[Ellipse]:
         """
@@ -123,11 +127,8 @@ class EllipseManager:
         Returns:
             Ellipse: The ellipse object with the given name, or None if not found
         """
-        ellipses = self.drawables.Ellipses
-        for ellipse in ellipses:
-            if ellipse.name == name:
-                return ellipse
-        return None
+        result = self._get_by_name(name)
+        return cast(Optional[Ellipse], result)
 
     def create_ellipse(
         self,
@@ -315,12 +316,12 @@ class EllipseManager:
         return pending_fields
 
     def _validate_ellipse_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
-        if not self.ellipse_edit_policy:
+        if not self.edit_policy:
             raise ValueError("Edit policy for ellipses is not configured.")
 
         validated_rules: Dict[str, EditRule] = {}
         for field in requested_fields:
-            rule = self.ellipse_edit_policy.get_rule(field)
+            rule = self.edit_policy.get_rule(field)
             if not rule:
                 raise ValueError(f"Editing field '{field}' is not permitted for ellipses.")
             validated_rules[field] = rule

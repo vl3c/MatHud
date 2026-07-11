@@ -8,6 +8,8 @@ Categories:
     - Visual Styling: Point sizes, colors, fonts
     - User Interaction: Click thresholds, zoom factors
     - Angle Visualization: Arc display and text positioning
+    - AI Interface: Timeouts, image limits
+    - Action Trace Collector: Trace storage limits
     - Performance: Event throttling for smooth interactions
 
 Dependencies:
@@ -58,6 +60,18 @@ zoom_out_scale_factor: float = 0.9  # 10% decrease per zoom out action
 # ===== RENDERER SELECTION =====
 # Default rendering backend used by Canvas when none is specified
 DEFAULT_RENDERER_MODE: str = "canvas2d"  # other options: "svg", "webgl"
+
+# ===== AI INTERFACE CONSTANTS =====
+# Timeouts and limits for AI communication
+AI_RESPONSE_TIMEOUT_MS: int = 60000  # Timeout for AI responses (60 seconds)
+REASONING_TIMEOUT_MS: int = 300000  # Extended timeout for reasoning models (5 minutes)
+MAX_ATTACHED_IMAGES: int = 5  # Maximum number of images per message
+IMAGE_SIZE_WARNING_BYTES: int = 10 * 1024 * 1024  # Warning threshold for image size (10MB)
+
+# ===== ACTION TRACE COLLECTOR CONSTANTS =====
+# Limits for the action trace storage system
+MAX_TRACES: int = 100  # Maximum number of traces kept in FIFO store
+MAX_RESULT_STR_LEN: int = 500  # Truncation length for result strings in exports
 
 # ===== PERFORMANCE OPTIMIZATION CONSTANTS =====
 # Event throttling settings for smooth user experience

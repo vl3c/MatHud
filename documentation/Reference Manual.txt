@@ -500,7 +500,7 @@ computation history for mathematical operations.
 - `_process_function_call(call, available_functions, non_computation_functions, unformattable_functions, canvas, results)`: Process a single function call and update results
 - `_is_function_available(function_name, available_functions, results)`: Check if the function exists and update results if not
 - `_execute_function(function_name, args, available_functions)`: Execute the function with the provided arguments
-- `_generate_result_key(function_name, args)`: Generate a consistent key format for the results dictionary
+- `generate_result_key(function_name, args)`: Generate a consistent key format for the results dictionary
 - `_process_result(function_name, args, result, key, unformattable_functions, non_computation_functions, canvas, results)`: Process the result based on function type
 - `_handle_exception(exception, function_name, results)`: Handle exceptions during function calls
 - `_add_computation_if_needed(result, function_name, non_computation_functions, expression, canvas)`: Add computation to canvas if needed

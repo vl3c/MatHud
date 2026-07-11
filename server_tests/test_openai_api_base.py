@@ -475,20 +475,12 @@ class TestOpenAIAPIBaseInitialization(unittest.TestCase):
         finally:
             os.environ.pop("OPENAI_API_KEY", None)
 
-    @patch("static.openai_api_base.load_dotenv")
-    @patch("static.openai_api_base.os.path.exists")
-    def test_api_key_missing_returns_placeholder(self, mock_exists: Mock, mock_load_dotenv: Mock) -> None:
+    @patch("static.openai_api_base.get_api_key", return_value="")
+    def test_api_key_missing_returns_placeholder(self, mock_get_key: Mock) -> None:
         """Test missing API key returns placeholder instead of crashing."""
-        # Mock .env file doesn't exist
-        mock_exists.return_value = False
-        # Remove API key from environment
-        original = os.environ.pop("OPENAI_API_KEY", None)
-        try:
-            result = OpenAIAPIBase._initialize_api_key()
-            self.assertEqual(result, "not-configured")
-        finally:
-            if original:
-                os.environ["OPENAI_API_KEY"] = original
+        result = OpenAIAPIBase._initialize_api_key()
+        self.assertEqual(result, "not-configured")
+        mock_get_key.assert_called_once_with("OPENAI_API_KEY", required=False, fallback="")
 
 
 if __name__ == "__main__":

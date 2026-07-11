@@ -38,7 +38,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Dict, List, Optional, cast
 
 from drawables.circle import Circle
-from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from managers.base_drawable_manager import BaseDrawableManager
+from managers.edit_policy import EditRule
 from managers.dependency_removal import remove_drawable_with_dependencies
 
 if TYPE_CHECKING:
@@ -50,7 +51,7 @@ if TYPE_CHECKING:
     from name_generator.drawable import DrawableNameGenerator
 
 
-class CircleManager:
+class CircleManager(BaseDrawableManager):
     """
     Manages circle drawables for a Canvas.
 
@@ -59,6 +60,8 @@ class CircleManager:
     - Retrieving circle objects by coordinates, parameters, or name
     - Deleting circle objects with proper cleanup and redrawing
     """
+
+    drawable_type: str = "Circle"
 
     def __init__(
         self,
@@ -80,13 +83,14 @@ class CircleManager:
             point_manager: Manager for point drawables
             drawable_manager_proxy: Proxy to the main DrawableManager
         """
-        self.canvas: "Canvas" = canvas
-        self.drawables: "DrawablesContainer" = drawables_container
-        self.name_generator: "DrawableNameGenerator" = name_generator
-        self.dependency_manager: "DrawableDependencyManager" = dependency_manager
+        super().__init__(
+            canvas,
+            drawables_container,
+            name_generator,
+            dependency_manager,
+            drawable_manager_proxy,
+        )
         self.point_manager: "PointManager" = point_manager
-        self.drawable_manager: "DrawableManagerProxy" = drawable_manager_proxy
-        self.circle_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Circle")
 
     def get_circle(self, center_x: float, center_y: float, radius: float) -> Optional[Circle]:
         """
@@ -116,11 +120,8 @@ class CircleManager:
         Returns:
             Circle: The circle object with the given name, or None if not found
         """
-        circles = self.drawables.Circles
-        for circle in circles:
-            if circle.name == name:
-                return circle
-        return None
+        result = self._get_by_name(name)
+        return cast(Optional[Circle], result)
 
     def create_circle(
         self,
@@ -273,12 +274,12 @@ class CircleManager:
         return pending_fields
 
     def _validate_circle_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
-        if not self.circle_edit_policy:
+        if not self.edit_policy:
             raise ValueError("Edit policy for circles is not configured.")
 
         validated_rules: Dict[str, EditRule] = {}
         for field in requested_fields:
-            rule = self.circle_edit_policy.get_rule(field)
+            rule = self.edit_policy.get_rule(field)
             if not rule:
                 raise ValueError(f"Editing field '{field}' is not permitted for circles.")
             validated_rules[field] = rule

@@ -1,7 +1,7 @@
 """Tests for the message recovery feature on AI errors.
 
-When an AI request fails (e.g., TEST_ERROR_TRIGGER_12345), the user's message
-should be restored to the input field so they can edit and retry.
+When an AI request fails, the user's message should be restored to the
+input field so they can edit and retry.
 """
 
 from __future__ import annotations
@@ -10,6 +10,10 @@ import unittest
 from typing import Any
 
 from browser import document, html, window
+
+from tool_call_log_manager import ToolCallLogManager
+from message_menu_manager import MessageMenuManager
+from chat_ui_manager import ChatUIManager
 
 
 class TestErrorRecovery(unittest.TestCase):
@@ -36,7 +40,7 @@ class TestErrorRecovery(unittest.TestCase):
 
         try:
             # Set the buffered message
-            test_message = "TEST_ERROR_TRIGGER_12345"
+            test_message = "simulate server error for retry"
             ai._last_user_message = test_message
 
             # Call the recovery method
@@ -83,29 +87,20 @@ class TestErrorRecovery(unittest.TestCase):
         ai = self._create_ai_interface()
 
         # Set up minimal state for _on_stream_final
-        ai._stream_buffer = ""
-        ai._stream_content_element = None
-        ai._stream_message_container = None
-        ai._reasoning_buffer = ""
-        ai._reasoning_element = None
-        ai._reasoning_details = None
-        ai._reasoning_summary = None
-        ai._is_reasoning = False
-        ai._request_start_time = None
-        ai._tool_call_log_entries = []
-        ai._tool_call_log_element = None
-        ai._tool_call_log_summary = None
-        ai._tool_call_log_content = None
+        tool_call_log = ToolCallLogManager()
+        ai._tool_call_log = tool_call_log
+        ai._chat_ui = ChatUIManager(
+            message_menu=MessageMenuManager(),
+            tool_call_log=tool_call_log,
+        )
         ai.is_processing = True
         ai._stop_requested = False
         ai._response_timeout_id = None
-        ai.markdown_parser = type("MockParser", (), {"parse": lambda s, t: t})()
 
         # Mock methods
         ai._finalize_stream_message = lambda msg=None: None
         ai._enable_send_controls = lambda: None
         ai._normalize_stream_event = lambda e: e if isinstance(e, dict) else {}
-        ai._reset_tool_call_log_state = lambda: None
 
         # Set the buffered message
         ai._last_user_message = "test message"
@@ -126,23 +121,15 @@ class TestErrorRecovery(unittest.TestCase):
         ai = self._create_ai_interface()
 
         # Set up minimal state
-        ai._stream_buffer = ""
-        ai._stream_content_element = None
-        ai._stream_message_container = None
-        ai._reasoning_buffer = ""
-        ai._reasoning_element = None
-        ai._reasoning_details = None
-        ai._reasoning_summary = None
-        ai._is_reasoning = False
-        ai._request_start_time = None
-        ai._tool_call_log_entries = []
-        ai._tool_call_log_element = None
-        ai._tool_call_log_summary = None
-        ai._tool_call_log_content = None
+        tool_call_log = ToolCallLogManager()
+        ai._tool_call_log = tool_call_log
+        ai._chat_ui = ChatUIManager(
+            message_menu=MessageMenuManager(),
+            tool_call_log=tool_call_log,
+        )
         ai.is_processing = True
         ai._stop_requested = False
         ai._response_timeout_id = None
-        ai.markdown_parser = type("MockParser", (), {"parse": lambda s, t: t})()
 
         # Track if restore was called
         restore_called = [False]
@@ -155,10 +142,9 @@ class TestErrorRecovery(unittest.TestCase):
         ai._enable_send_controls = lambda: None
         ai._normalize_stream_event = lambda e: e if isinstance(e, dict) else {}
         ai._restore_user_message_on_error = mock_restore
-        ai._reset_tool_call_log_state = lambda: None
 
         # Set the buffered message
-        original_message = "TEST_ERROR_TRIGGER_12345"
+        original_message = "simulate server error for retry"
         ai._last_user_message = original_message
 
         # Simulate error completion event

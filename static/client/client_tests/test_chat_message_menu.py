@@ -5,62 +5,22 @@ from typing import Any, Optional
 
 from browser import html, window
 
-from ai_interface import AIInterface
-from .simple_mock import SimpleMock
-
-
-def _get_class_attr(node: Any) -> str:
-    try:
-        attrs = getattr(node, "attrs", None)
-        # Brython may expose attrs as a dict-like object (not always a plain dict).
-        if attrs is not None and hasattr(attrs, "get"):
-            value = attrs.get("class", "")
-            if isinstance(value, str):
-                return value
-            return "" if value is None else str(value)
-    except Exception:
-        pass
-
-    # Fallbacks for environments where attrs is not dict-like.
-    try:
-        value = getattr(node, "class_name", None)
-        if isinstance(value, str):
-            return value
-    except Exception:
-        pass
-
-    try:
-        value = getattr(node, "className", None)
-        if isinstance(value, str):
-            return value
-    except Exception:
-        pass
-
-    try:
-        getter = getattr(node, "getAttribute", None)
-        if callable(getter):
-            value = getter("class")
-            if isinstance(value, str):
-                return value
-    except Exception:
-        pass
-    return ""
+from message_menu_manager import MessageMenuManager
+from .simple_mock import SimpleMock, get_class_attr as _get_class_attr
 
 
 class TestChatMessageMenu(unittest.TestCase):
     def test_copy_message_text_uses_raw_source(self) -> None:
-        # Create an AIInterface instance without running __init__ to avoid heavy dependencies.
-        ai = AIInterface.__new__(AIInterface)
-        ai._open_message_menu = None
-        ai._message_menu_global_bound = True  # Avoid binding document handlers in tests.
+        # Create a MessageMenuManager instance without TTS callbacks.
+        mgr = MessageMenuManager()
 
         copy_mock = SimpleMock(return_value=True)
-        ai._copy_text_to_clipboard = copy_mock
+        mgr.copy_to_clipboard = copy_mock
 
         container = html.DIV()
         raw_text = "Hello \\(x^2\\)"
-        ai._set_raw_message_text(container, raw_text)
-        ai._attach_message_menu(container)
+        mgr.set_raw_text(container, raw_text)
+        mgr.attach(container)
 
         menu_button: Optional[Any] = None
         menu: Optional[Any] = None

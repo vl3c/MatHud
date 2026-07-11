@@ -93,7 +93,6 @@ class Segment(Drawable):
     def get_state(self) -> Dict[str, Any]:
         # Keep endpoint ordering consistent with in-memory references so downstream
         # consumers (workspace saves, dependency checks) preserve segment identity.
-        self._sync_label_position()
         state: Dict[str, Any] = {
             "name": self.name,
             "args": {

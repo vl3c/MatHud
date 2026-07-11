@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING, Dict, List, Optional, cast
 from constants import default_color, default_label_font_size
 from drawables.label import Label
 from utils.math_utils import MathUtils
-from managers.edit_policy import DrawableEditPolicy, EditRule, get_drawable_edit_policy
+from managers.base_drawable_manager import BaseDrawableManager
+from managers.edit_policy import EditRule
 
 if TYPE_CHECKING:
     from canvas import Canvas
@@ -24,8 +25,10 @@ if TYPE_CHECKING:
     from name_generator.drawable import DrawableNameGenerator
 
 
-class LabelManager:
+class LabelManager(BaseDrawableManager):
     """Manages label drawables for a Canvas."""
+
+    drawable_type: str = "Label"
 
     def __init__(
         self,
@@ -35,20 +38,17 @@ class LabelManager:
         dependency_manager: "DrawableDependencyManager",
         drawable_manager_proxy: "DrawableManagerProxy",
     ) -> None:
-        self.canvas = canvas
-        self.drawables = drawables_container
-        self.name_generator = name_generator
-        self.dependency_manager = dependency_manager
-        self.drawable_manager = drawable_manager_proxy
-        self.label_edit_policy: Optional[DrawableEditPolicy] = get_drawable_edit_policy("Label")
+        super().__init__(
+            canvas,
+            drawables_container,
+            name_generator,
+            dependency_manager,
+            drawable_manager_proxy,
+        )
 
     def get_label_by_name(self, name: str) -> Optional[Label]:
-        if not name:
-            return None
-        for label in self.drawables.Labels:
-            if label.name == name:
-                return label
-        return None
+        result = self._get_by_name(name)
+        return cast(Optional[Label], result)
 
     def get_labels_at_position(self, x: float, y: float) -> List[Label]:
         matches: List[Label] = []
@@ -182,12 +182,12 @@ class LabelManager:
         return pending_fields
 
     def _validate_label_policy(self, requested_fields: List[str]) -> Dict[str, EditRule]:
-        if not self.label_edit_policy:
+        if not self.edit_policy:
             raise ValueError("Edit policy for labels is not configured.")
 
         validated_rules: Dict[str, EditRule] = {}
         for field in requested_fields:
-            rule = self.label_edit_policy.get_rule(field)
+            rule = self.edit_policy.get_rule(field)
             if not rule:
                 raise ValueError(f"Editing field '{field}' is not permitted for labels.")
             validated_rules[field] = rule

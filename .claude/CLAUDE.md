@@ -87,15 +87,27 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 2. `tool_call_processor.py`, `ai_model.py`, and `functions_definitions.py` define the function-call surface exposed to GPT models.
 3. `webdriver_manager.py` captures canvas screenshots for the vision workflow.
 4. `workspace_manager.py` and `log_manager.py` handle persistence and auditing.
-5. `style.css` and other assets shared with the frontend live here for Flask to serve.
+5. `config.py` centralizes server-side constants (workspace dirs, schema version, snapshot paths).
+6. `env_config.py` provides shared environment variable loading, replacing duplicated `load_dotenv` patterns.
+7. `route_helpers.py` contains extracted route helper functions for provider management and tool lifecycle.
+8. `style.css` and other assets shared with the frontend live here for Flask to serve.
 
 ## Client Highlights (`static/client/`)
 1. `main.py` bootstraps Brython and registers managers.
 2. `canvas.py`, `canvas_event_handler.py`, and `managers/` orchestrate SVG drawing, selection, undo, and edit policies.
 3. `drawables/` contains shape classes (point, segment, vector, triangle, rectangle, circle, ellipse, angle, etc.).
-4. `ai_interface.py`, `process_function_calls.py`, and `result_processor.py` coordinate chat responses and tool execution.
-5. `expression_evaluator.py`, `expression_validator.py`, and `result_validator.py` provide math parsing, validation, and error messaging.
-6. `client_tests/` plus `test_runner.py` implement the Brython test harness (register new tests in `client_tests/tests.py`).
+4. `ai_interface.py` orchestrates AI communication and request building, delegating to five extracted managers.
+5. `chat_ui_manager.py` handles message rendering, streaming display, and markdown parsing.
+6. `message_menu_manager.py` manages context menus, clipboard, and raw text storage.
+7. `tool_call_log_manager.py` provides tool call visualization and state tracking.
+8. `image_attachment_manager.py` manages the file picker, preview, and image modal.
+9. `tts_ui_manager.py` controls text-to-speech UI (read aloud, voice settings).
+10. `process_function_calls.py` and `result_processor.py` coordinate tool execution and result handling.
+11. `expression_evaluator.py`, `expression_validator.py`, and `result_validator.py` provide math parsing, validation, and error messaging.
+12. `managers/base_drawable_manager.py` provides a shared base for all drawable managers.
+13. `managers/visibility_manager.py` handles viewport culling extracted from Canvas.
+14. `rendering/base_telemetry.py` provides a shared telemetry base for renderers.
+15. `client_tests/` plus `test_runner.py` implement the Brython test harness (register new tests in `client_tests/tests.py`).
 
 ---
 

@@ -27,6 +27,7 @@ from drawables.quadrilateral import Quadrilateral
 from drawables.rectangle import Rectangle
 from drawables.triangle import Triangle
 from drawables.position import Position
+from managers.base_drawable_manager import BaseDrawableManager
 from managers.dependency_removal import remove_drawable_with_dependencies
 from managers.polygon_type import PolygonType
 from managers.edit_policy import EditRule, get_drawable_edit_policy
@@ -60,7 +61,7 @@ Coordinate = Tuple[float, float]
 SegmentList = List["Segment"]
 
 
-class PolygonManager:
+class PolygonManager(BaseDrawableManager):
     """Manages polygonal drawables with shared create/update/delete flows."""
 
     _TYPE_TO_SIDE_COUNT: Dict[PolygonType, int] = {
@@ -113,13 +114,15 @@ class PolygonManager:
         segment_manager: "SegmentManager",
         drawable_manager_proxy: "DrawableManagerProxy",
     ) -> None:
-        self.canvas = canvas
-        self.drawables = drawables_container
-        self.name_generator = name_generator
-        self.dependency_manager = dependency_manager
-        self.point_manager = point_manager
-        self.segment_manager = segment_manager
-        self.drawable_manager = drawable_manager_proxy
+        super().__init__(
+            canvas,
+            drawables_container,
+            name_generator,
+            dependency_manager,
+            drawable_manager_proxy,
+        )
+        self.point_manager: "PointManager" = point_manager
+        self.segment_manager: "SegmentManager" = segment_manager
 
     # ------------------------------------------------------------------ #
     # Public API
