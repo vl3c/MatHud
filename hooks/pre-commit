@@ -8,14 +8,26 @@ if [ -z "$STAGED_PY" ]; then
     exit 0
 fi
 
-# Use the venv python if available, otherwise system python
-if [ -f "venv/Scripts/python.exe" ]; then
-    PYTHON="venv/Scripts/python.exe"
-elif [ -f "venv/bin/python" ]; then
-    PYTHON="venv/bin/python"
-else
-    PYTHON="python"
+# Use the venv python if available, otherwise system python.
+# Linked worktrees have no venv of their own, so also check the main
+# worktree (parent of the shared .git dir).
+MAIN_ROOT=""
+COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null)
+if [ -n "$COMMON_DIR" ]; then
+    MAIN_ROOT=$(CDPATH= cd -- "$COMMON_DIR/.." 2>/dev/null && pwd)
 fi
+
+PYTHON="python"
+for ROOT in "." "$MAIN_ROOT"; do
+    [ -n "$ROOT" ] || continue
+    if [ -f "$ROOT/venv/Scripts/python.exe" ]; then
+        PYTHON="$ROOT/venv/Scripts/python.exe"
+        break
+    elif [ -f "$ROOT/venv/bin/python" ]; then
+        PYTHON="$ROOT/venv/bin/python"
+        break
+    fi
+done
 
 echo "Running ruff on staged files..."
 echo "$STAGED_PY" | xargs "$PYTHON" -m ruff check
