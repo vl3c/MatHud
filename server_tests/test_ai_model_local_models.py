@@ -38,13 +38,25 @@ class TestFormatDisplayName(unittest.TestCase):
         """A space is inserted between a digit and a letter (digit first)."""
         self.assertEqual(_format_display_name("123abc"), "123 Abc")
 
-    def test_mixed_letter_digit_boundary_no_tag(self) -> None:
-        """Spaces are inserted at every letter/digit and digit/letter transition."""
-        self.assertEqual(_format_display_name("a1b2"), "A 1 B 2")
+    def test_version_token_single_letter_runs(self) -> None:
+        """A word of single letters between digits is kept intact and upper-cased."""
+        self.assertEqual(_format_display_name("a1b2"), "A1B2")
 
-    def test_decimal_point_no_space(self) -> None:
-        """No space is inserted around the decimal point of a version number."""
-        self.assertEqual(_format_display_name("v2.0"), "V 2.0")
+    def test_version_token_single_letter(self) -> None:
+        """A version-like word with one leading letter and a decimal is kept intact."""
+        self.assertEqual(_format_display_name("v2.0"), "V2.0")
+
+    def test_two_letter_run_with_digit_is_split(self) -> None:
+        """A two-letter run next to a digit is split rather than kept intact."""
+        self.assertEqual(_format_display_name("ab1"), "Ab 1")
+
+    def test_two_letter_run_before_decimal_is_split(self) -> None:
+        """A two-letter run before a decimal is split rather than kept intact."""
+        self.assertEqual(_format_display_name("xl2.5"), "Xl 2.5")
+
+    def test_two_letter_acronym_run_is_split(self) -> None:
+        """A two-letter acronym run is split, then upper-cased after the split."""
+        self.assertEqual(_format_display_name("vl2"), "VL 2")
 
     def test_with_non_latest_tag(self) -> None:
         """A non-latest tag is upper-cased and appended to the display name."""
@@ -77,6 +89,54 @@ class TestFormatDisplayName(unittest.TestCase):
     def test_all_digits_name(self) -> None:
         """An all-digit name is returned unchanged (no title-casing)."""
         self.assertEqual(_format_display_name("12345"), "12345")
+
+    def test_deepseek_r1_with_tag(self) -> None:
+        """A single-letter suffix is kept intact and a size tag is upper-cased."""
+        self.assertEqual(_format_display_name("deepseek-r1:14b"), "Deepseek R1 14B")
+
+    def test_phi3(self) -> None:
+        """A letter/digit run is split into a capitalised word and a digit token."""
+        self.assertEqual(_format_display_name("phi3"), "Phi 3")
+
+    def test_gpt_oss_acronyms(self) -> None:
+        """Acronym words are fully upper-cased with a size tag appended."""
+        self.assertEqual(_format_display_name("gpt-oss:20b"), "GPT OSS 20B")
+
+    def test_gemma2_9b(self) -> None:
+        """A single-letter suffix is upper-cased and the LATEST tag is omitted."""
+        self.assertEqual(_format_display_name("gemma2_9b:LATEST"), "Gemma 2 9B")
+
+    def test_qwen3_30b_a3b(self) -> None:
+        """Multiple version-like words are each kept intact and upper-cased."""
+        self.assertEqual(_format_display_name("qwen3-30b-a3b"), "Qwen 3 30B A3B")
+
+    def test_mistral_7b(self) -> None:
+        """A size suffix is kept intact and upper-cased."""
+        self.assertEqual(_format_display_name("mistral-7b"), "Mistral 7B")
+
+    def test_qwen2_5_vl(self) -> None:
+        """The vl acronym is upper-cased alongside a version token."""
+        self.assertEqual(_format_display_name("qwen2.5-vl:7b"), "Qwen 2.5 VL 7B")
+
+    def test_llava_v1_6(self) -> None:
+        """A version tag with a single leading letter is upper-cased and appended."""
+        self.assertEqual(_format_display_name("llava:v1.6"), "Llava V1.6")
+
+    def test_mixtral_8x7b(self) -> None:
+        """A multi-token size tag is upper-cased and appended."""
+        self.assertEqual(_format_display_name("mixtral:8x7b"), "Mixtral 8X7B")
+
+    def test_1_5b(self) -> None:
+        """A version-like word beginning with a digit is kept intact and upper-cased."""
+        self.assertEqual(_format_display_name("1.5b"), "1.5B")
+
+    def test_local_qwen2_5_coder(self) -> None:
+        """A local multi-part name is title-cased with a version split."""
+        self.assertEqual(_format_display_name("local-qwen2.5-coder"), "Local Qwen 2.5 Coder")
+
+    def test_llama3_2_vision(self) -> None:
+        """A versioned multi-part name with a size tag is formatted."""
+        self.assertEqual(_format_display_name("llama3.2-vision:11b"), "Llama 3.2 Vision 11B")
 
 
 class TestRegisterLocalModels(unittest.TestCase):
@@ -160,11 +220,18 @@ class TestRegisterLocalModels(unittest.TestCase):
         AIModel.register_local_models("ollama", [{"name": "inplace-check"}])
         self.assertIs(AIModel.MODEL_CONFIGS, before)
 
-    def test_name_none_is_stringified(self) -> None:
-        """Current behaviour, likely unintended: a None name is registered as the literal 'None'."""
+    def test_skips_none_name(self) -> None:
+        """A None name is skipped instead of being registered as the literal 'None'."""
         result = AIModel.register_local_models("ollama", [{"name": None}])
-        self.assertEqual(result, ["None"])
-        self.assertIn("None", AIModel.MODEL_CONFIGS)
+        self.assertEqual(result, [])
+        self.assertNotIn("None", AIModel.MODEL_CONFIGS)
+        self.assertEqual(AIModel.MODEL_CONFIGS, self._original_configs)
+
+    def test_skips_whitespace_name(self) -> None:
+        """A whitespace-only name is skipped."""
+        result = AIModel.register_local_models("ollama", [{"name": "   "}, {"name": "\t"}])
+        self.assertEqual(result, [])
+        self.assertEqual(AIModel.MODEL_CONFIGS, self._original_configs)
 
 
 if __name__ == "__main__":
