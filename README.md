@@ -63,6 +63,11 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    OPENROUTER_API_KEY=sk-or-...   # OpenRouter models (Gemini, DeepSeek, Llama, etc.)
    ```
    Only models for configured providers will appear in the model dropdown.
+5. (Optional, for contributors) Install the pre-commit hook, which runs ruff on staged Python files:
+   ```sh
+   python -m cli.main test lint --install-hook
+   ```
+   Run it from the main checkout, and re-run it after `hooks/pre-commit` changes. See [cli/README.md](cli/README.md#linting) for details.
 
 ### 4.3 Run MatHud
 
@@ -206,6 +211,7 @@ Models without vision support are labeled "(text only)" in the dropdown. When no
 
 1. Server tests: run `python run_server_tests.py` (add `--with-auth` to exercise authenticated flows).
 2. Client tests: click **Run Tests** in the UI or ask the assistant to "run tests". Results stream back into the chat after execution (`static/client/test_runner.py`).
+3. Linting: run `python -m cli.main test lint` (ruff + mypy). The optional pre-commit hook runs ruff on staged files (see 4.2).
 
 ## 7. Rendering Notes
 

@@ -6,7 +6,7 @@ Command-line interface for automating MatHud web application operations.
 
 The CLI module provides terminal-based control over the MatHud application, enabling:
 - Server lifecycle management (start/stop/status)
-- Automated test execution (server + client tests)
+- Automated test execution (server + client tests) and linting (ruff + mypy)
 - Canvas operations via browser automation
 - Workspace management
 - AI chat interface
@@ -82,6 +82,25 @@ python -m cli.main test all [--port PORT]
 - `--no-screenshot`: Disable automatic screenshot capture
 
 **Note:** Client tests automatically capture a screenshot showing test results before the browser closes. Screenshots are saved to `cli/output/` by default.
+
+### Linting
+
+```bash
+# Run ruff and mypy on the project
+python -m cli.main test lint [--ruff-only | --mypy-only] [--fix] [-q]
+
+# Install the pre-commit hook
+python -m cli.main test lint --install-hook
+```
+
+**Options:**
+- `--ruff-only`: Only run ruff, skip mypy
+- `--mypy-only`: Only run mypy, skip ruff
+- `--fix`: Apply ruff auto-fixes
+- `-q, --quiet`: Decrease verbosity
+- `--install-hook`: Copy `hooks/pre-commit` into `.git/hooks/`
+
+**Pre-commit hook:** Runs `ruff check` on staged `.py` files and blocks the commit if it fails (bypass with `git commit --no-verify`). It uses `venv/` in the current checkout, or the main repository's `venv/` when committing from a linked git worktree, falling back to `python` on `PATH`. The installed hook is a copy, so re-run `--install-hook` (from the main checkout, not a linked worktree) after `hooks/pre-commit` changes.
 
 ### Canvas Operations
 
@@ -214,6 +233,7 @@ cli/
   2. Waits for `window.startMatHudTests` to be available
   3. Calls `window.startMatHudTests()` to begin
   4. Polls `window.getMatHudTestResults()` until complete or timeout
+- Linting: Runs `ruff check .` and `mypy` with the venv interpreter; `--install-hook` copies `hooks/pre-commit` into `.git/hooks/`
 
 ## Configuration
 
