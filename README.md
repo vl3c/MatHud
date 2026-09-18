@@ -67,7 +67,7 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    ```sh
    python -m cli.main test lint --install-hook
    ```
-   Run it from the main checkout, and re-run it after `hooks/pre-commit` changes. See [cli/README.md](cli/README.md#linting) for details.
+   Re-run it after `hooks/pre-commit` changes. See [cli/README.md](cli/README.md#linting) for details.
 
 ### 4.3 Run MatHud
 
