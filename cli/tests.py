@@ -283,20 +283,21 @@ def _resolve_git_hooks_dir() -> Optional[Path]:
             ["git", "rev-parse", "--show-toplevel", "--git-path", "hooks"],
             cwd=str(PROJECT_ROOT),
             capture_output=True,
-            text=True,
         )
     except OSError as e:
         click.echo(click.style(f"Could not run git to locate the hooks directory: {e}", fg="red"), err=True)
         return None
 
     if result.returncode != 0:
-        detail = result.stderr.strip() or f"exit code {result.returncode}"
+        detail = os.fsdecode(result.stderr).strip() or f"exit code {result.returncode}"
         click.echo(click.style(f"Could not locate the git hooks directory: {detail}", fg="red"), err=True)
         return None
 
-    lines = result.stdout.splitlines()
+    # Decode as filesystem paths: Git for Windows emits UTF-8 regardless of the locale codepage.
+    stdout = os.fsdecode(result.stdout)
+    lines = stdout.splitlines()
     if len(lines) != 2:
-        click.echo(click.style(f"Unexpected output from git rev-parse: {result.stdout!r}", fg="red"), err=True)
+        click.echo(click.style(f"Unexpected output from git rev-parse: {stdout!r}", fg="red"), err=True)
         return None
 
     toplevel, hooks_path = lines

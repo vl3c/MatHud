@@ -98,9 +98,9 @@ python -m cli.main test lint --install-hook
 - `--mypy-only`: Only run mypy, skip ruff
 - `--fix`: Apply ruff auto-fixes
 - `-q, --quiet`: Decrease verbosity
-- `--install-hook`: Copy `hooks/pre-commit` into the git hooks directory (shared by linked worktrees; respects `core.hooksPath`)
+- `--install-hook`: Copy `hooks/pre-commit` into the hooks directory reported by `git rev-parse --git-path hooks` (respects `core.hooksPath`)
 
-**Pre-commit hook:** Runs `ruff check` on staged `.py` files and blocks the commit if it fails (bypass with `git commit --no-verify`). It uses `venv/` in the current checkout, or the main repository's `venv/` when committing from a linked git worktree, falling back to `python` on `PATH`. The installed hook is a copy, so re-run `--install-hook` (from the main checkout or any linked worktree; they share one hooks directory) after `hooks/pre-commit` changes.
+**Pre-commit hook:** Runs `ruff check` on staged `.py` files and blocks the commit if it fails (bypass with `git commit --no-verify`). It uses `venv/` in the current checkout, or the main repository's `venv/` when committing from a linked git worktree, falling back to `python` on `PATH`. The installed hook is a copy, so re-run `--install-hook` (it works from the main checkout or a linked worktree) after `hooks/pre-commit` changes.
 
 ### Canvas Operations
 

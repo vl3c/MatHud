@@ -34,8 +34,11 @@ def _make_project(root: Path) -> Path:
     return root
 
 
-def _git_result(stdout: str = "", stderr: str = "", returncode: int = 0) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr=stderr)
+def _git_result(stdout: str = "", stderr: str = "", returncode: int = 0) -> subprocess.CompletedProcess[bytes]:
+    """A git result carrying UTF-8 output, as Git for Windows emits it."""
+    return subprocess.CompletedProcess(
+        args=[], returncode=returncode, stdout=stdout.encode("utf-8"), stderr=stderr.encode("utf-8")
+    )
 
 
 def _rev_parse_output(toplevel: Path, hooks_path: str) -> str:
@@ -85,6 +88,21 @@ class TestInstallPreCommitHook:
         """An absolute git path (linked worktree or core.hooksPath) is used directly."""
         project = _make_project(tmp_path / "worktree")
         shared_hooks = tmp_path / "main" / ".git" / "hooks"
+        with (
+            patch("cli.tests.PROJECT_ROOT", project),
+            patch(
+                "cli.tests.subprocess.run",
+                return_value=_git_result(_rev_parse_output(project, shared_hooks.as_posix())),
+            ),
+        ):
+            assert install_pre_commit_hook() is True
+
+        assert (shared_hooks / "pre-commit").read_text() == HOOK_CONTENT
+
+    def test_non_ascii_paths_decoded_as_utf8(self, tmp_path: Path) -> None:
+        """Non-ASCII paths in git's UTF-8 output are not mangled by the locale codepage."""
+        project = _make_project(tmp_path / "José répo")
+        shared_hooks = tmp_path / "Zoë" / ".git" / "hooks"
         with (
             patch("cli.tests.PROJECT_ROOT", project),
             patch(
