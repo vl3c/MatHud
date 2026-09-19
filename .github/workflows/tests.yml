@@ -1,0 +1,78 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+# No API-key secrets on purpose: with a key set, some tests switch from "skipped" to paid API calls.
+# PORT must stay unset: it switches the app to deployed mode, which requires a login.
+env:
+  REQUIRE_AUTH: "false"
+  PYTHONPATH: static/client
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+      - run: pip install ruff==0.15.0 mypy==1.11.2 types-requests==2.32.4.20250913
+      - name: ruff
+        run: ruff check .
+      - name: mypy (files listed in mypy.ini)
+        run: mypy
+
+  server-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+      - run: pip install -r requirements-ci.txt
+      - name: pytest server_tests
+        # test_provider_connections.py makes real (paid) API calls when keys are present.
+        run: >-
+          python -m pytest server_tests -q -p no:cacheprovider
+          --ignore=server_tests/test_provider_connections.py
+          -m "not live_tool_discovery"
+
+  client-tests:
+    # Brython tests in headless Chrome against a running server. Non-blocking until it proves stable.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+      # cli/server.py starts the app with ./venv/bin/python, so the packages go into ./venv.
+      - run: |
+          python -m venv venv
+          venv/bin/pip install -r requirements-ci.txt
+      - name: Run client tests
+        # Use the Chrome and chromedriver that come with the runner image.
+        # Plain output (not --json), so failures and timeouts fail the step.
+        run: |
+          export MATHUD_CHROME_BIN="$(which google-chrome)"
+          export MATHUD_CHROMEDRIVER_BIN="$CHROMEWEBDRIVER/chromedriver"
+          venv/bin/python -m cli.main test client --start-server --timeout 300 --no-screenshot
