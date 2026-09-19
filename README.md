@@ -212,6 +212,7 @@ Models without vision support are labeled "(text only)" in the dropdown. When no
 1. Server tests: run `python run_server_tests.py` (add `--with-auth` to exercise authenticated flows).
 2. Client tests: click **Run Tests** in the UI or ask the assistant to "run tests". Results stream back into the chat after execution (`static/client/test_runner.py`).
 3. Linting: run `python -m cli.main test lint` (ruff + mypy). The optional pre-commit hook runs ruff on staged files (see 4.2).
+4. CI: every pull request and every push to `main` runs lint, the server tests and the client tests (headless Chrome) via `.github/workflows/tests.yml`, with the packages in `requirements-ci.txt` (no text-to-speech stack). Client-test failures are reported as a warning, not a failed check, for now.
 
 ## 7. Rendering Notes
 
