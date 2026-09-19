@@ -271,14 +271,16 @@ def _resolve_git_hooks_dir() -> Optional[Path]:
     """Resolve the git hooks directory for the repository at PROJECT_ROOT.
 
     Uses ``git rev-parse --git-path hooks`` so linked worktrees resolve to the
-    shared hooks directory and ``core.hooksPath`` is respected.
+    shared hooks directory and ``core.hooksPath`` is respected. Also checks
+    that git's worktree root is PROJECT_ROOT, so a copy of the project nested
+    inside some other repository does not install into that repository.
 
     Returns:
         Absolute path to the hooks directory, or None if git could not resolve it.
     """
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--git-path", "hooks"],
+            ["git", "rev-parse", "--show-toplevel", "--git-path", "hooks"],
             cwd=str(PROJECT_ROOT),
             capture_output=True,
             text=True,
@@ -292,7 +294,20 @@ def _resolve_git_hooks_dir() -> Optional[Path]:
         click.echo(click.style(f"Could not locate the git hooks directory: {detail}", fg="red"), err=True)
         return None
 
-    hooks_dir = Path(result.stdout.strip())
+    lines = result.stdout.splitlines()
+    if len(lines) != 2:
+        click.echo(click.style(f"Unexpected output from git rev-parse: {result.stdout!r}", fg="red"), err=True)
+        return None
+
+    toplevel, hooks_path = lines
+    if Path(toplevel).resolve() != PROJECT_ROOT.resolve():
+        click.echo(
+            click.style(f"{PROJECT_ROOT} is not the root of a git checkout (git found {toplevel})", fg="red"),
+            err=True,
+        )
+        return None
+
+    hooks_dir = Path(hooks_path)
     if not hooks_dir.is_absolute():
         hooks_dir = PROJECT_ROOT / hooks_dir
     return hooks_dir

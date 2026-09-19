@@ -233,7 +233,7 @@ cli/
   2. Waits for `window.startMatHudTests` to be available
   3. Calls `window.startMatHudTests()` to begin
   4. Polls `window.getMatHudTestResults()` until complete or timeout
-- Linting: Runs `ruff check .` and `mypy` with the venv interpreter; `--install-hook` copies `hooks/pre-commit` into `.git/hooks/`
+- Linting: Runs `ruff check .` and `mypy` with the venv interpreter; `--install-hook` copies `hooks/pre-commit` into the git hooks directory (resolved via `git rev-parse --git-path hooks`)
 
 ## Configuration
 
