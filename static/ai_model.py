@@ -10,6 +10,8 @@ Dependencies:
 
 from __future__ import annotations
 
+import re
+
 from typing import Dict, Literal, Optional, TypedDict
 
 # Provider constants
@@ -345,8 +347,11 @@ class AIModel:
         """
         registered = []
         for model_info in models_info:
-            model_name = str(model_info.get("name", ""))
-            if not model_name:
+            name = model_info.get("name")
+            if name is None:
+                continue
+            model_name = str(name)
+            if not model_name.strip():
                 continue
 
             # Create display name from model name
@@ -398,13 +403,19 @@ class AIModel:
         return cls.register_local_models(provider, models_info)
 
 
+_DISPLAY_ACRONYMS = {"gpt", "oss", "vl"}
+
+
 def _format_display_name(model_name: str) -> str:
     """Format a model name into a display-friendly name.
 
     Examples:
         'llama3.1:8b' -> 'Llama 3.1 8B'
         'qwen2.5-coder:7b' -> 'Qwen 2.5 Coder 7B'
-        'mistral:latest' -> 'Mistral Latest'
+        'mistral:latest' -> 'Mistral'
+        'gpt-oss:20b' -> 'GPT OSS 20B'
+        'deepseek-r1:14b' -> 'Deepseek R1 14B'
+        '1.5b' -> '1.5B'
 
     Args:
         model_name: The raw model name
@@ -421,29 +432,37 @@ def _format_display_name(model_name: str) -> str:
     # Replace hyphens and underscores with spaces
     base = base.replace("-", " ").replace("_", " ")
 
-    # Add spaces between numbers and letters
-    formatted = ""
-    for i, char in enumerate(base):
-        if i > 0:
-            prev_char = base[i - 1]
-            # Add space between letter and digit
-            if (prev_char.isalpha() and char.isdigit()) or (prev_char.isdigit() and char.isalpha()):
-                # But not for decimal points in version numbers
-                if not (prev_char.isdigit() and char == "."):
-                    formatted += " "
-        formatted += char
+    formatted = []
+    for word in base.split():
+        # A version-like word holds a digit and every maximal run of letters is
+        # exactly one letter; it is kept intact and upper-cased.
+        letter_runs = re.findall(r"[a-zA-Z]+", word)
+        if any(c.isdigit() for c in word) and all(len(run) == 1 for run in letter_runs):
+            formatted.append(word.upper())
+            continue
 
-    # Title case
-    words = formatted.split()
-    formatted_words = []
-    for word in words:
-        # Handle version numbers (keep as-is)
-        if word[0].isdigit():
-            formatted_words.append(word.upper() if word.isalpha() else word)
-        else:
-            formatted_words.append(word.capitalize())
+        # Otherwise split at letter/digit boundaries (a dot stays with digits)
+        # and format each resulting piece.
+        pieces = []
+        piece = ""
+        for i, char in enumerate(word):
+            if i > 0:
+                prev_char = word[i - 1]
+                if (prev_char.isalpha() and char.isdigit()) or (prev_char.isdigit() and char.isalpha()):
+                    pieces.append(piece)
+                    piece = ""
+            piece += char
+        pieces.append(piece)
 
-    display = " ".join(formatted_words)
+        for piece in pieces:
+            if piece[0].isdigit():
+                formatted.append(piece)
+            elif piece.lower() in _DISPLAY_ACRONYMS:
+                formatted.append(piece.upper())
+            else:
+                formatted.append(piece.capitalize())
+
+    display = " ".join(formatted)
 
     # Append tag if present and not 'latest'
     if tag and tag.lower() != "latest":

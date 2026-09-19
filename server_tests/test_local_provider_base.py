@@ -157,6 +157,8 @@ class TestLocalProviderRegistry:
     def test_get_registered_providers_empty_initially(self) -> None:
         """Registry starts with providers registered on import."""
         # The ollama_api module registers itself on import
+        from static.providers.local.ollama_api import OllamaAPI  # noqa: F401
+
         providers = LocalProviderRegistry.get_registered_providers()
         # Should have at least ollama registered
         assert "ollama" in providers
