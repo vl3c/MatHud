@@ -267,20 +267,79 @@ def server_cmd(
     raise SystemExit(exit_code)
 
 
+def _resolve_git_hooks_dir() -> Optional[Path]:
+    """Resolve the git hooks directory for the repository at PROJECT_ROOT.
+
+    Uses ``git rev-parse --git-path hooks`` so linked worktrees resolve to the
+    shared hooks directory and ``core.hooksPath`` is respected. Also checks
+    that git's worktree root is PROJECT_ROOT, so a copy of the project nested
+    inside some other repository does not install into that repository.
+
+    Returns:
+        Absolute path to the hooks directory, or None if git could not resolve it.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel", "--git-path", "hooks"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+        )
+    except OSError as e:
+        click.echo(click.style(f"Could not run git to locate the hooks directory: {e}", fg="red"), err=True)
+        return None
+
+    if result.returncode != 0:
+        detail = os.fsdecode(result.stderr).strip() or f"exit code {result.returncode}"
+        click.echo(click.style(f"Could not locate the git hooks directory: {detail}", fg="red"), err=True)
+        return None
+
+    # Decode as filesystem paths: Git for Windows emits UTF-8 regardless of the locale codepage.
+    stdout = os.fsdecode(result.stdout)
+    lines = stdout.splitlines()
+    if len(lines) != 2:
+        click.echo(click.style(f"Unexpected output from git rev-parse: {stdout!r}", fg="red"), err=True)
+        return None
+
+    toplevel, hooks_path = lines
+    if Path(toplevel).resolve() != PROJECT_ROOT.resolve():
+        click.echo(
+            click.style(f"{PROJECT_ROOT} is not the root of a git checkout (git found {toplevel})", fg="red"),
+            err=True,
+        )
+        return None
+
+    hooks_dir = Path(hooks_path)
+    if not hooks_dir.is_absolute():
+        hooks_dir = PROJECT_ROOT / hooks_dir
+    return hooks_dir
+
+
 def install_pre_commit_hook() -> bool:
-    """Install the pre-commit hook from hooks/pre-commit into .git/hooks/.
+    """Install the pre-commit hook from hooks/pre-commit into the git hooks directory.
+
+    Works from the main checkout and from linked worktrees (which share the
+    main repository's hooks directory).
 
     Returns:
         True if installed successfully, False otherwise.
     """
     source = PROJECT_ROOT / "hooks" / "pre-commit"
-    target = PROJECT_ROOT / ".git" / "hooks" / "pre-commit"
 
     if not source.exists():
         click.echo(click.style("Hook source not found: hooks/pre-commit", fg="red"), err=True)
         return False
 
-    shutil.copy2(source, target)
+    hooks_dir = _resolve_git_hooks_dir()
+    if hooks_dir is None:
+        return False
+
+    target = hooks_dir / "pre-commit"
+    try:
+        hooks_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    except OSError as e:
+        click.echo(click.style(f"Failed to install pre-commit hook to {target}: {e}", fg="red"), err=True)
+        return False
 
     # Make executable on Unix
     if sys.platform != "win32":

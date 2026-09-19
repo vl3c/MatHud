@@ -98,9 +98,9 @@ python -m cli.main test lint --install-hook
 - `--mypy-only`: Only run mypy, skip ruff
 - `--fix`: Apply ruff auto-fixes
 - `-q, --quiet`: Decrease verbosity
-- `--install-hook`: Copy `hooks/pre-commit` into `.git/hooks/`
+- `--install-hook`: Copy `hooks/pre-commit` into the hooks directory reported by `git rev-parse --git-path hooks` (respects `core.hooksPath`)
 
-**Pre-commit hook:** Runs `ruff check` on staged `.py` files and blocks the commit if it fails (bypass with `git commit --no-verify`). It uses `venv/` in the current checkout, or the main repository's `venv/` when committing from a linked git worktree, falling back to `python` on `PATH`. The installed hook is a copy, so re-run `--install-hook` (from the main checkout, not a linked worktree) after `hooks/pre-commit` changes.
+**Pre-commit hook:** Runs `ruff check` on staged `.py` files and blocks the commit if it fails (bypass with `git commit --no-verify`). It uses `venv/` in the current checkout, or the main repository's `venv/` when committing from a linked git worktree, falling back to `python` on `PATH`. The installed hook is a copy, so re-run `--install-hook` (it works from the main checkout or a linked worktree) after `hooks/pre-commit` changes.
 
 ### Canvas Operations
 
@@ -233,7 +233,7 @@ cli/
   2. Waits for `window.startMatHudTests` to be available
   3. Calls `window.startMatHudTests()` to begin
   4. Polls `window.getMatHudTestResults()` until complete or timeout
-- Linting: Runs `ruff check .` and `mypy` with the venv interpreter; `--install-hook` copies `hooks/pre-commit` into `.git/hooks/`
+- Linting: Runs `ruff check .` and `mypy` with the venv interpreter; `--install-hook` copies `hooks/pre-commit` into the git hooks directory (resolved via `git rev-parse --git-path hooks`)
 
 ## Configuration
 
