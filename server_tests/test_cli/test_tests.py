@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -61,6 +62,9 @@ def isolated_git(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     empty_config.write_text("")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty_config))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    # git < 2.32 ignores GIT_CONFIG_GLOBAL; hide ~/.gitconfig and XDG config from it too.
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     # Stop repository discovery from walking up out of tmp_path.
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
 
@@ -99,6 +103,7 @@ class TestInstallPreCommitHook:
 
         assert (shared_hooks / "pre-commit").read_text() == HOOK_CONTENT
 
+    @pytest.mark.skipif(sys.getfilesystemencoding().lower() != "utf-8", reason="mocked git output is UTF-8 encoded")
     def test_non_ascii_paths_decoded_as_utf8(self, tmp_path: Path) -> None:
         """Non-ASCII paths in git's UTF-8 output are not mangled by the locale codepage."""
         project = _make_project(tmp_path / "José répo")
