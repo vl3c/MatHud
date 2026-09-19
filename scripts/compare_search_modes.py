@@ -25,13 +25,13 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-from static.tool_search_service import ToolSearchService, clear_search_cache
+from static.tool_search_service import ToolSearchService, clear_search_cache  # noqa: E402
 
 DATASET_PATH = Path("server_tests/data/tool_discovery_cases.yaml")
 
@@ -67,7 +67,7 @@ def _run_mode(
         try:
             service = ToolSearchService()
         except ValueError:
-            print(f"  [SKIP] API mode requires OPENAI_API_KEY")
+            print("  [SKIP] API mode requires OPENAI_API_KEY")
             return {"skipped": True}
 
     top1_hits = 0
@@ -215,7 +215,7 @@ def main() -> int:
         all_results[mode] = result
 
         if result.get("skipped"):
-            print(f"  Skipped (missing credentials)")
+            print("  Skipped (missing credentials)")
             continue
 
         print(f"  Evaluated: {result['evaluated']}")
@@ -264,13 +264,13 @@ def main() -> int:
             print(f"  API wins:   {len(api_wins)}")
 
             if api_wins:
-                print(f"\nCases where API is right but local is wrong (tuning opportunities):")
+                print("\nCases where API is right but local is wrong (tuning opportunities):")
                 for d in api_wins[:10]:
                     print(f"  {d['id']}: {d['query']!r}")
                     print(f"    expected={d['expected']}, local={d['local_top1']!r}, api={d['api_top1']!r}")
 
             if local_wins:
-                print(f"\nCases where local is right but API is wrong (local advantages):")
+                print("\nCases where local is right but API is wrong (local advantages):")
                 for d in local_wins[:10]:
                     print(f"  {d['id']}: {d['query']!r}")
                     print(f"    expected={d['expected']}, local={d['local_top1']!r}, api={d['api_top1']!r}")

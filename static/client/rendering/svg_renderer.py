@@ -394,10 +394,12 @@ class SvgRenderer(RendererProtocol):
         self._apply_drawable_plan(plan_context, drawable_name)
 
     def drain_telemetry(self) -> Dict[str, Any]:
-        return self._telemetry.drain()
+        telemetry: Dict[str, Any] = self._telemetry.drain()
+        return telemetry
 
     def peek_telemetry(self) -> Dict[str, Any]:
-        return self._telemetry.snapshot()
+        telemetry: Dict[str, Any] = self._telemetry.snapshot()
+        return telemetry
 
     def invalidate_drawable_cache(self, drawable: Any) -> None:
         cache_key = self._plan_cache_key(drawable, self._resolve_drawable_name(drawable))

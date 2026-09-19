@@ -299,7 +299,8 @@ class Canvas:
 
     def _is_drawable_visible(self, drawable: "Drawable") -> bool:
         """Best-effort visibility check — delegates to VisibilityManager."""
-        return self.visibility_manager.is_drawable_visible(drawable)
+        visible: bool = self.visibility_manager.is_drawable_visible(drawable)
+        return visible
 
     # Removed legacy zoom displacement; zoom handled via CoordinateMapper
 
@@ -852,7 +853,8 @@ class Canvas:
 
     def is_point_within_canvas_visible_area(self, x: float, y: float) -> bool:
         """Check if a point is within the visible area of the canvas — delegates to VisibilityManager."""
-        return self.visibility_manager.is_point_within_canvas_visible_area(x, y)
+        visible: bool = self.visibility_manager.is_point_within_canvas_visible_area(x, y)
+        return visible
 
     def get_segment_by_coordinates(self, x1: float, y1: float, x2: float, y2: float) -> Optional["Drawable"]:
         """Get a segment by its endpoint coordinates"""
@@ -920,7 +922,8 @@ class Canvas:
 
     def any_segment_part_visible_in_canvas_area(self, x1: float, y1: float, x2: float, y2: float) -> bool:
         """Check if any part of a segment is visible — delegates to VisibilityManager."""
-        return self.visibility_manager.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
+        visible: bool = self.visibility_manager.any_segment_part_visible_in_canvas_area(x1, y1, x2, y2)
+        return visible
 
     def get_vector(self, x1: float, y1: float, x2: float, y2: float) -> Optional["Drawable"]:
         """Get a vector by its origin and tip coordinates"""

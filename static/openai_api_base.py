@@ -105,7 +105,7 @@ class OpenAIAPIBase:
         # without an OpenAI key when the user configures a third-party provider
         # (Anthropic, OpenRouter).  A missing key degrades gracefully — actual
         # OpenAI API calls will fail with an auth error at call time.
-        api_key = get_api_key("OPENAI_API_KEY", required=False, fallback="")
+        api_key: str = get_api_key("OPENAI_API_KEY", required=False, fallback="")
         if not api_key:
             logging.getLogger("mathud").warning("OPENAI_API_KEY not found. OpenAI models will be unavailable.")
             return "not-configured"
