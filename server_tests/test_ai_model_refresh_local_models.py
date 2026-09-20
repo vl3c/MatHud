@@ -155,8 +155,8 @@ class TestRefreshEarlyExits:
     ) -> None:
         """Unregistered provider returns [] and never calls is_provider_available."""
         get_provider_class, is_provider_available = _patch_registry(monkeypatch, None, False)
-        assert AIModel.refresh_local_models("ollama") == []
-        get_provider_class.assert_called_once_with("ollama")
+        assert AIModel.refresh_local_models("local_agent") == []
+        get_provider_class.assert_called_once_with("local_agent")
         is_provider_available.assert_not_called()
 
     def test_registered_unavailable_provider_returns_empty_without_discovery(
@@ -165,9 +165,9 @@ class TestRefreshEarlyExits:
     ) -> None:
         """Registered unavailable provider returns [] without running either discovery path."""
         get_provider_class, is_provider_available = _patch_registry(monkeypatch, BothPathsProvider, False)
-        assert AIModel.refresh_local_models("ollama") == []
-        get_provider_class.assert_called_once_with("ollama")
-        is_provider_available.assert_called_once_with("ollama")
+        assert AIModel.refresh_local_models("local_agent") == []
+        get_provider_class.assert_called_once_with("local_agent")
+        is_provider_available.assert_called_once_with("local_agent")
         assert BothPathsProvider.classmethod_calls == []
         assert BothPathsProvider.discover_calls == []
 
@@ -175,7 +175,7 @@ class TestRefreshEarlyExits:
         """A discovery result with no models returns [] and registers nothing."""
         before = copy.deepcopy(AIModel.MODEL_CONFIGS)
         _patch_registry(monkeypatch, EmptyDiscoveryProvider, True)
-        assert AIModel.refresh_local_models("ollama") == []
+        assert AIModel.refresh_local_models("local_agent") == []
         assert EmptyDiscoveryProvider.calls == ["get_tool_capable_models"]
         assert AIModel.MODEL_CONFIGS == before
 
@@ -187,7 +187,7 @@ class TestRefreshClassMethodDiscovery:
         """The classmethod is used and each returned model is registered."""
         before = copy.deepcopy(AIModel.MODEL_CONFIGS)
         _patch_registry(monkeypatch, ClassMethodProvider, True)
-        result = AIModel.refresh_local_models("ollama")
+        result = AIModel.refresh_local_models("local_agent")
         assert result == ["refresh-class-model-one", "refresh-class-model-two"]
         assert ClassMethodProvider.calls == ["get_tool_capable_models"]
 
@@ -195,13 +195,13 @@ class TestRefreshClassMethodDiscovery:
         expected["refresh-class-model-one"] = {
             "has_vision": False,
             "is_reasoning_model": False,
-            "provider": "ollama",
+            "provider": "local_agent",
             "display_name": "Refresh Class Model One",
         }
         expected["refresh-class-model-two"] = {
             "has_vision": False,
             "is_reasoning_model": False,
-            "provider": "ollama",
+            "provider": "local_agent",
             "display_name": "Refresh Class Model Two",
         }
         assert AIModel.MODEL_CONFIGS == expected
@@ -210,7 +210,7 @@ class TestRefreshClassMethodDiscovery:
         """A classmethod discovery exception returns [] and registers nothing."""
         before = copy.deepcopy(AIModel.MODEL_CONFIGS)
         _patch_registry(monkeypatch, RaisingClassMethodProvider, True)
-        assert AIModel.refresh_local_models("ollama") == []
+        assert AIModel.refresh_local_models("local_agent") == []
         assert RaisingClassMethodProvider.calls == ["get_tool_capable_models"]
         assert AIModel.MODEL_CONFIGS == before
 
@@ -222,7 +222,7 @@ class TestRefreshInstanceDiscovery:
         """The instance path runs, discovers one model, and __init__ never ran."""
         before = copy.deepcopy(AIModel.MODEL_CONFIGS)
         _patch_registry(monkeypatch, InitProbeProvider, True)
-        result = AIModel.refresh_local_models("ollama")
+        result = AIModel.refresh_local_models("local_agent")
         assert result == ["refresh-instance-model"]
         assert InitProbeProvider.discover_calls == ["discover_models_with_tool_support"]
         assert InitProbeProvider.init_calls == []
@@ -231,7 +231,7 @@ class TestRefreshInstanceDiscovery:
         expected["refresh-instance-model"] = {
             "has_vision": False,
             "is_reasoning_model": False,
-            "provider": "ollama",
+            "provider": "local_agent",
             "display_name": "Refresh Instance Model",
         }
         assert AIModel.MODEL_CONFIGS == expected
@@ -240,7 +240,7 @@ class TestRefreshInstanceDiscovery:
         """An instance discovery exception returns [] and registers nothing."""
         before = copy.deepcopy(AIModel.MODEL_CONFIGS)
         _patch_registry(monkeypatch, RaisingInstanceProvider, True)
-        assert AIModel.refresh_local_models("ollama") == []
+        assert AIModel.refresh_local_models("local_agent") == []
         assert RaisingInstanceProvider.discover_calls == ["discover_models_with_tool_support"]
         assert AIModel.MODEL_CONFIGS == before
 
@@ -252,7 +252,7 @@ class TestRefreshRegistrationFiltering:
         """Only a non-blank name is returned and registered."""
         before = copy.deepcopy(AIModel.MODEL_CONFIGS)
         _patch_registry(monkeypatch, MixedNameProvider, True)
-        result = AIModel.refresh_local_models("ollama")
+        result = AIModel.refresh_local_models("local_agent")
         assert result == ["refresh-good-model"]
         assert "None" not in AIModel.MODEL_CONFIGS
         assert "   " not in AIModel.MODEL_CONFIGS
@@ -261,7 +261,7 @@ class TestRefreshRegistrationFiltering:
         expected["refresh-good-model"] = {
             "has_vision": False,
             "is_reasoning_model": False,
-            "provider": "ollama",
+            "provider": "local_agent",
             "display_name": "Refresh Good Model",
         }
         assert AIModel.MODEL_CONFIGS == expected

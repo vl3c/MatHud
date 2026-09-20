@@ -13,6 +13,7 @@ MatHud pairs a canvas with an AI assistant so users can sketch geometric scenes,
 1. Frontend: HTML plus Brython (`static/client/`) render the canvas, manage UI flows, and execute client tests inside the browser.
 2. Backend: Flask (`app.py`, `static/`) exposes HTTP routes, workspace persistence, OpenAI calls, and Selenium-driven screenshots.
 3. AI and vision: `static/functions_definitions.py` specifies callable tools; snapshots feed the vision pipeline when enabled.
+   Providers live in `static/providers/`; `static/providers/local/` holds LocalAgent, which serves whatever model a local llama-server reports from `/v1/models`.
 4. Math tooling: nerdamer.js provides symbolic algebra, math.js handles numeric evaluation, and MathJax renders LaTeX.
 
 ## Core Capabilities
@@ -54,6 +55,7 @@ REQUIRE_AUTH=true          # Force authentication in local development
 PORT=5000                  # Set by hosting platforms to indicate deployed mode
 SECRET_KEY=override-me     # Optional: otherwise random key generated per launch
 TOOL_SEARCH_MODE=hybrid    # Tool discovery: local | api | hybrid (default: hybrid)
+LOCAL_AGENT_BASE_URL=http://127.0.0.1:8080  # LocalAgent llama-server (default shown)
 ```
 
 ## Running the App
