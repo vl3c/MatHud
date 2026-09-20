@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, cast
 from flask import Response, flash, jsonify, redirect, render_template, request, session, stream_with_context, url_for
 from flask.typing import ResponseReturnValue
 
-from static.ai_model import AIModel, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OLLAMA
+from static.ai_model import AIModel, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_LOCAL_AGENT
 from static.app_manager import AppManager, MatHudFlask
 from static.canvas_state_summarizer import compare_canvas_states
 from static.config import (
@@ -36,7 +36,7 @@ from static.config import (
     MAX_IMAGE_BASE64_BYTES,
 )
 from static.openai_api_base import OpenAIAPIBase
-from static.providers import ProviderRegistry, create_provider_instance
+from static.providers import ProviderRegistry, create_provider_instance, is_local_provider
 from static.route_helpers import get_active_provider, reset_tools_for_all_providers
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
 from static.tts_manager import get_tts_manager
@@ -145,7 +145,8 @@ def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
     if provider_name not in app.providers:
         create_kwargs: Dict[str, Any] = {"model": model}
         # Keep providers in search-first mode by default to reduce initial tool payload.
-        if provider_name != PROVIDER_OLLAMA:
+        # Local providers are already search-first and take no tool_mode argument.
+        if not is_local_provider(provider_name):
             create_kwargs["tool_mode"] = "search"
 
         provider_instance = create_provider_instance(provider_name, **create_kwargs)
@@ -536,16 +537,18 @@ def register_routes(app: MatHudFlask) -> None:
         """Return models grouped by provider, only for available providers."""
         available = ProviderRegistry.get_available_providers()
 
-        # Refresh local provider models if available
-        if PROVIDER_OLLAMA in available:
-            AIModel.refresh_local_models(PROVIDER_OLLAMA)
+        # Re-read the local provider's models: the server hosts one model at a
+        # time, so anything discovered earlier is stale once it restarts.
+        AIModel.unregister_local_models(PROVIDER_LOCAL_AGENT)
+        if PROVIDER_LOCAL_AGENT in available:
+            AIModel.refresh_local_models(PROVIDER_LOCAL_AGENT)
 
         models_by_provider: Dict[str, List[Dict[str, Any]]] = {
+            "local_agent": [],
             "openai": [],
             "anthropic": [],
             "openrouter_paid": [],
             "openrouter_free": [],
-            "ollama": [],
         }
 
         for model_id, config in AIModel.MODEL_CONFIGS.items():
@@ -571,118 +574,10 @@ def register_routes(app: MatHudFlask) -> None:
                     models_by_provider["openrouter_free"].append(entry)
                 else:
                     models_by_provider["openrouter_paid"].append(entry)
-            elif provider == PROVIDER_OLLAMA:
-                models_by_provider["ollama"].append(entry)
+            elif provider == PROVIDER_LOCAL_AGENT:
+                models_by_provider["local_agent"].append(entry)
 
         return jsonify(models_by_provider)
-
-    @app.route("/api/preload_model", methods=["POST"])
-    @require_auth
-    def preload_model() -> ResponseReturnValue:
-        """Preload an Ollama model into memory.
-
-        Request body:
-            model_id (str): The model identifier to preload
-
-        Returns:
-            JSON response with success status and message
-        """
-        from static.providers.local.ollama_api import OllamaAPI
-
-        request_payload = request.get_json(silent=True)
-        if not isinstance(request_payload, dict):
-            return AppManager.make_response(
-                message="Invalid request body",
-                status="error",
-                code=400,
-            )
-
-        model_id = request_payload.get("model_id")
-        if not isinstance(model_id, str) or not model_id:
-            return AppManager.make_response(
-                message="model_id is required",
-                status="error",
-                code=400,
-            )
-
-        # Only preload Ollama models
-        model = AIModel.from_identifier(model_id)
-        if model.provider != PROVIDER_OLLAMA:
-            return AppManager.make_response(
-                message="Model preloading only supported for Ollama models",
-                status="error",
-                code=400,
-            )
-
-        # Check if server is running
-        if not OllamaAPI.is_server_running():
-            return AppManager.make_response(
-                message="Ollama server is not running",
-                status="error",
-                code=503,
-            )
-
-        # Check if already loaded
-        if OllamaAPI.is_model_loaded(model_id):
-            return AppManager.make_response(
-                data={"already_loaded": True},
-                message=f"Model {model_id} is already loaded",
-            )
-
-        # Preload the model (this may take a while)
-        success, message = OllamaAPI.preload_model(model_id)
-
-        if success:
-            return AppManager.make_response(
-                data={"already_loaded": False},
-                message=message,
-            )
-        else:
-            return AppManager.make_response(
-                message=message,
-                status="error",
-                code=500,
-            )
-
-    @app.route("/api/model_status", methods=["GET"])
-    @require_auth
-    def get_model_status() -> ResponseReturnValue:
-        """Get the loading status of Ollama models.
-
-        Query params:
-            model_id (str, optional): Specific model to check
-
-        Returns:
-            JSON response with loaded models or specific model status
-        """
-        from static.providers.local.ollama_api import OllamaAPI
-
-        model_id = request.args.get("model_id")
-
-        if not OllamaAPI.is_server_running():
-            return AppManager.make_response(
-                data={"server_running": False, "loaded_models": []},
-            )
-
-        loaded_models = OllamaAPI.get_loaded_models()
-
-        if model_id:
-            is_loaded = OllamaAPI.is_model_loaded(model_id)
-            return AppManager.make_response(
-                data={
-                    "server_running": True,
-                    "model_id": model_id,
-                    "is_loaded": is_loaded,
-                    "loaded_models": loaded_models,
-                },
-            )
-
-        return AppManager.make_response(
-            data={
-                "server_running": True,
-                "loaded_models": loaded_models,
-            },
-        )
 
     @app.route("/api/debug/conversation", methods=["GET"])
     @require_auth

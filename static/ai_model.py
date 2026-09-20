@@ -18,7 +18,7 @@ from typing import Dict, Literal, Optional, TypedDict
 PROVIDER_OPENAI = "openai"
 PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_OPENROUTER = "openrouter"
-PROVIDER_OLLAMA = "ollama"
+PROVIDER_LOCAL_AGENT = "local_agent"
 
 
 class ModelConfig(TypedDict, total=False):
@@ -339,8 +339,9 @@ class AIModel:
         """Register dynamically discovered local models.
 
         Args:
-            provider: The provider name (e.g., 'ollama')
-            models_info: List of model info dicts with 'name' key
+            provider: The provider name (e.g., 'local_agent')
+            models_info: List of model info dicts with a 'name' key and an
+                optional 'display_name' override
 
         Returns:
             List of registered model identifiers
@@ -354,8 +355,9 @@ class AIModel:
             if not model_name.strip():
                 continue
 
-            # Create display name from model name
-            display_name = _format_display_name(model_name)
+            # Providers may supply their own label when the identifier is
+            # not a conventional model name (a file path, for instance).
+            display_name = str(model_info.get("display_name") or "") or _format_display_name(model_name)
 
             # Register the model config
             cls.MODEL_CONFIGS[model_name] = {
@@ -369,11 +371,29 @@ class AIModel:
         return registered
 
     @classmethod
+    def unregister_local_models(cls, provider: str) -> list[str]:
+        """Drop every model previously registered for a local provider.
+
+        A local server hosts one model at a time, so entries discovered earlier
+        go stale as soon as the server is restarted with a different model.
+
+        Args:
+            provider: The provider name whose models should be removed
+
+        Returns:
+            List of removed model identifiers
+        """
+        stale = [model_id for model_id, config in cls.MODEL_CONFIGS.items() if config.get("provider") == provider]
+        for model_id in stale:
+            del cls.MODEL_CONFIGS[model_id]
+        return stale
+
+    @classmethod
     def refresh_local_models(cls, provider: str) -> list[str]:
         """Refresh and register models from a local provider.
 
         Args:
-            provider: The provider name (e.g., 'ollama')
+            provider: The provider name (e.g., 'local_agent')
 
         Returns:
             List of registered model identifiers

@@ -156,19 +156,19 @@ class TestLocalProviderRegistry:
 
     def test_get_registered_providers_empty_initially(self) -> None:
         """Registry starts with providers registered on import."""
-        # The ollama_api module registers itself on import
-        from static.providers.local.ollama_api import OllamaAPI  # noqa: F401
+        # The local_agent_api module registers itself on import
+        from static.providers.local.local_agent_api import LocalAgentAPI  # noqa: F401
 
         providers = LocalProviderRegistry.get_registered_providers()
-        # Should have at least ollama registered
-        assert "ollama" in providers
+        # Should have at least local_agent registered
+        assert "local_agent" in providers
 
-    def test_get_provider_class_ollama(self) -> None:
-        """Can retrieve Ollama provider class."""
-        from static.providers.local.ollama_api import OllamaAPI
+    def test_get_provider_class_local_agent(self) -> None:
+        """Can retrieve the LocalAgent provider class."""
+        from static.providers.local.local_agent_api import LocalAgentAPI
 
-        provider_class = LocalProviderRegistry.get_provider_class("ollama")
-        assert provider_class is OllamaAPI
+        provider_class = LocalProviderRegistry.get_provider_class("local_agent")
+        assert provider_class is LocalAgentAPI
 
     def test_get_provider_class_unknown(self) -> None:
         """Returns None for unknown provider."""

@@ -2,7 +2,7 @@
 Tests for the local-model registration helpers in static.ai_model.
 
 Covers the module-level _format_display_name function and the
-AIModel.register_local_models classmethod. Every expected value is derived by
+AIModel.register_local_models and AIModel.unregister_local_models classmethods. Every expected value is derived by
 tracing the implementation line by line; where a docstring and the code
 disagree, the code is treated as the source of truth (disagreements are noted
 in the task NOTES, not "fixed" here).
@@ -153,7 +153,7 @@ class TestRegisterLocalModels(unittest.TestCase):
 
     def test_empty_input_list(self) -> None:
         """An empty models_info list returns an empty list and changes nothing."""
-        result = AIModel.register_local_models("ollama", [])
+        result = AIModel.register_local_models("local_agent", [])
         self.assertEqual(result, [])
         self.assertEqual(AIModel.MODEL_CONFIGS, self._original_configs)
 
@@ -164,31 +164,31 @@ class TestRegisterLocalModels(unittest.TestCase):
             {"name": "second-model"},
             {"name": "third-model"},
         ]
-        result = AIModel.register_local_models("ollama", models_info)
+        result = AIModel.register_local_models("local_agent", models_info)
         self.assertEqual(result, ["first-model", "second-model", "third-model"])
 
     def test_skips_entries_missing_name(self) -> None:
         """An entry without a 'name' key is skipped."""
-        result = AIModel.register_local_models("ollama", [{"no-name-key": "value"}])
+        result = AIModel.register_local_models("local_agent", [{"no-name-key": "value"}])
         self.assertEqual(result, [])
         self.assertEqual(AIModel.MODEL_CONFIGS, self._original_configs)
 
     def test_skips_entries_with_empty_name(self) -> None:
         """An entry with an empty 'name' value is skipped."""
-        result = AIModel.register_local_models("ollama", [{"name": ""}])
+        result = AIModel.register_local_models("local_agent", [{"name": ""}])
         self.assertEqual(result, [])
         self.assertEqual(AIModel.MODEL_CONFIGS, self._original_configs)
 
     def test_stores_full_config_for_single_model(self) -> None:
         """register_local_models stores all four expected keys for each model."""
-        AIModel.register_local_models("ollama", [{"name": "local-llama-3.1"}])
+        AIModel.register_local_models("local_agent", [{"name": "local-llama-3.1"}])
         self.assertIn("local-llama-3.1", AIModel.MODEL_CONFIGS)
         self.assertEqual(
             AIModel.MODEL_CONFIGS["local-llama-3.1"],
             {
                 "has_vision": False,
                 "is_reasoning_model": False,
-                "provider": "ollama",
+                "provider": "local_agent",
                 "display_name": "Local Llama 3.1",
             },
         )
@@ -196,7 +196,7 @@ class TestRegisterLocalModels(unittest.TestCase):
     def test_stored_display_name_matches_format_helper(self) -> None:
         """The stored display_name equals _format_display_name(model_name)."""
         name = "local-qwen2.5-coder"
-        AIModel.register_local_models("ollama", [{"name": name}])
+        AIModel.register_local_models("local_agent", [{"name": name}])
         stored = AIModel.MODEL_CONFIGS[name]
         self.assertEqual(stored["display_name"], _format_display_name(name))
         self.assertEqual(stored["display_name"], "Local Qwen 2.5 Coder")
@@ -208,7 +208,7 @@ class TestRegisterLocalModels(unittest.TestCase):
 
     def test_registers_multiple_models_leaves_originals_untouched(self) -> None:
         """Multiple local models are added while existing configs keep their values."""
-        AIModel.register_local_models("ollama", [{"name": "a-local"}, {"name": "b-local"}])
+        AIModel.register_local_models("local_agent", [{"name": "a-local"}, {"name": "b-local"}])
         self.assertIn("a-local", AIModel.MODEL_CONFIGS)
         self.assertIn("b-local", AIModel.MODEL_CONFIGS)
         for original_id, original_cfg in self._original_configs.items():
@@ -217,21 +217,84 @@ class TestRegisterLocalModels(unittest.TestCase):
     def test_model_configs_is_mutated_in_place(self) -> None:
         """register_local_models writes into the existing dict object (no rebinding)."""
         before = AIModel.MODEL_CONFIGS
-        AIModel.register_local_models("ollama", [{"name": "inplace-check"}])
+        AIModel.register_local_models("local_agent", [{"name": "inplace-check"}])
         self.assertIs(AIModel.MODEL_CONFIGS, before)
 
     def test_skips_none_name(self) -> None:
         """A None name is skipped instead of being registered as the literal 'None'."""
-        result = AIModel.register_local_models("ollama", [{"name": None}])
+        result = AIModel.register_local_models("local_agent", [{"name": None}])
         self.assertEqual(result, [])
         self.assertNotIn("None", AIModel.MODEL_CONFIGS)
         self.assertEqual(AIModel.MODEL_CONFIGS, self._original_configs)
 
     def test_skips_whitespace_name(self) -> None:
         """A whitespace-only name is skipped."""
-        result = AIModel.register_local_models("ollama", [{"name": "   "}, {"name": "\t"}])
+        result = AIModel.register_local_models("local_agent", [{"name": "   "}, {"name": "\t"}])
         self.assertEqual(result, [])
         self.assertEqual(AIModel.MODEL_CONFIGS, self._original_configs)
+
+
+    def test_display_name_override_is_used(self) -> None:
+        """A provider-supplied display_name replaces the formatted default."""
+        name = r"C:\models\Qwen3.8-27B-GSQ-RCO-IQ3_XXS.gguf"
+        AIModel.register_local_models(
+            "local_agent",
+            [{"name": name, "display_name": "Qwen3.8-27B-GSQ-RCO-IQ3_XXS"}],
+        )
+        self.assertEqual(AIModel.MODEL_CONFIGS[name]["display_name"], "Qwen3.8-27B-GSQ-RCO-IQ3_XXS")
+
+    def test_blank_display_name_override_falls_back(self) -> None:
+        """A blank display_name override falls back to the formatted default."""
+        AIModel.register_local_models("local_agent", [{"name": "local-probe", "display_name": ""}])
+        self.assertEqual(
+            AIModel.MODEL_CONFIGS["local-probe"]["display_name"],
+            _format_display_name("local-probe"),
+        )
+
+
+class TestUnregisterLocalModels(unittest.TestCase):
+    """Test cases for the AIModel.unregister_local_models classmethod."""
+
+    def setUp(self) -> None:
+        """Snapshot MODEL_CONFIGS so each test can restore it in place."""
+        self._original_configs = dict(AIModel.MODEL_CONFIGS)
+
+    def tearDown(self) -> None:
+        """Restore MODEL_CONFIGS to its pre-test state, mutating the dict in place."""
+        AIModel.MODEL_CONFIGS.clear()
+        AIModel.MODEL_CONFIGS.update(self._original_configs)
+
+    def test_removes_only_matching_provider(self) -> None:
+        """Models of the named provider are dropped and others are kept."""
+        AIModel.register_local_models("local_agent", [{"name": "stale-local"}])
+        AIModel.register_local_models("other-provider", [{"name": "kept-local"}])
+        removed = AIModel.unregister_local_models("local_agent")
+        self.assertEqual(removed, ["stale-local"])
+        self.assertNotIn("stale-local", AIModel.MODEL_CONFIGS)
+        self.assertIn("kept-local", AIModel.MODEL_CONFIGS)
+
+    def test_leaves_static_configs_untouched(self) -> None:
+        """Built-in model configs survive a local provider purge."""
+        AIModel.register_local_models("local_agent", [{"name": "stale-local"}])
+        AIModel.unregister_local_models("local_agent")
+        self.assertEqual(AIModel.MODEL_CONFIGS, self._original_configs)
+
+    def test_unknown_provider_removes_nothing(self) -> None:
+        """A provider with no registered models is a no-op."""
+        self.assertEqual(AIModel.unregister_local_models("never-registered"), [])
+        self.assertEqual(AIModel.MODEL_CONFIGS, self._original_configs)
+
+    def test_removes_every_model_of_the_provider(self) -> None:
+        """All models of the provider are removed in registration order."""
+        AIModel.register_local_models("local_agent", [{"name": "one"}, {"name": "two"}])
+        self.assertEqual(AIModel.unregister_local_models("local_agent"), ["one", "two"])
+
+    def test_model_configs_is_mutated_in_place(self) -> None:
+        """unregister_local_models writes into the existing dict object (no rebinding)."""
+        AIModel.register_local_models("local_agent", [{"name": "inplace-check"}])
+        before = AIModel.MODEL_CONFIGS
+        AIModel.unregister_local_models("local_agent")
+        self.assertIs(AIModel.MODEL_CONFIGS, before)
 
 
 if __name__ == "__main__":

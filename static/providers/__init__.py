@@ -22,10 +22,10 @@ _logger = logging.getLogger("mathud")
 PROVIDER_OPENAI = "openai"
 PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_OPENROUTER = "openrouter"
-PROVIDER_OLLAMA = "ollama"
+PROVIDER_LOCAL_AGENT = "local_agent"
 
 # Set of local provider names (no API key needed, server availability check instead)
-LOCAL_PROVIDERS = frozenset({PROVIDER_OLLAMA})
+LOCAL_PROVIDERS = frozenset({PROVIDER_LOCAL_AGENT})
 
 
 class ProviderRegistry:
@@ -148,7 +148,7 @@ def is_local_provider(provider_name: str) -> bool:
         provider_name: The provider identifier
 
     Returns:
-        True if this is a local provider (Ollama, etc.)
+        True if this is a local provider (LocalAgent, etc.)
     """
     return provider_name in LOCAL_PROVIDERS
 
@@ -224,8 +224,8 @@ def discover_providers() -> None:
 
     # Import local provider modules - they self-register on import
     try:
-        from static.providers.local import ollama_api  # noqa: F401
+        from static.providers.local import local_agent_api  # noqa: F401
 
-        _logger.debug("Loaded ollama_api local provider module")
+        _logger.debug("Loaded local_agent_api local provider module")
     except ImportError as e:
-        _logger.debug(f"Could not load ollama_api: {e}")
+        _logger.debug(f"Could not load local_agent_api: {e}")

@@ -1,7 +1,7 @@
 """
 MatHud Local LLM Provider Base Module
 
-Provides the base infrastructure for local LLM providers (Ollama, LM Studio, etc.).
+Provides the base infrastructure for local LLM providers (llama.cpp, LM Studio, etc.).
 Implements shared functionality for tool capability detection and model discovery.
 """
 
@@ -91,7 +91,7 @@ def supports_tools(model_name: str) -> bool:
 class LocalProviderRegistry:
     """Registry for local LLM providers.
 
-    Manages registration and discovery of local LLM backends like Ollama.
+    Manages registration and discovery of local LLM backends like llama-server.
     """
 
     _providers: Dict[str, Type["LocalLLMBase"]] = {}
@@ -101,7 +101,7 @@ class LocalProviderRegistry:
         """Register a local LLM provider.
 
         Args:
-            provider_name: Unique provider identifier (e.g., 'ollama')
+            provider_name: Unique provider identifier (e.g., 'local_agent')
             provider_class: The provider class
         """
         cls._providers[provider_name] = provider_class
@@ -241,12 +241,16 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         """Get the provider name for this local LLM.
 
         Returns:
-            Provider name string (e.g., 'ollama')
+            Provider name string (e.g., 'LocalAgent')
         """
         pass
 
     def discover_models_with_tool_support(self) -> List[Dict[str, Any]]:
         """Discover models and filter to only those supporting tools.
+
+        Filtering uses the ``TOOL_CAPABLE_MODEL_FAMILIES`` allowlist, which only
+        recognises named model families. Providers whose model identifiers carry
+        no family information should override this method.
 
         Returns:
             List of model info dicts for tool-capable models

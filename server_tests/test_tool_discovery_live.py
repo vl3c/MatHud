@@ -231,7 +231,7 @@ def test_live_tool_discovery_benchmark() -> None:
     model = _resolve_model()
     service = ToolSearchService(default_model=model)
     provider_instance: Optional[Any] = None
-    if model is not None and model.provider in {"anthropic", "openrouter", "ollama"}:
+    if model is not None and model.provider in {"anthropic", "openrouter", "local_agent"}:
         discover_providers()
         provider_instance = create_provider_instance(
             model.provider,

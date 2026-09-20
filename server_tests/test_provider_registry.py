@@ -106,28 +106,28 @@ class TestIsProviderAvailable:
         monkeypatch.setenv("OPENROUTER_API_KEY", "k")
         assert ProviderRegistry.is_provider_available("unknown") is False
 
-    def test_ollama_available_when_local_says_true(
+    def test_local_agent_available_when_local_says_true(
         self,
         monkeypatch: pytest.MonkeyPatch,
         mock_load_env_files: MagicMock,
     ) -> None:
-        """Ollama availability delegates to the local registry."""
+        """LocalAgent availability delegates to the local registry."""
         local_available = MagicMock(name="local_is_available", return_value=True)
         monkeypatch.setattr(LocalProviderRegistry, "is_provider_available", local_available)
-        assert ProviderRegistry.is_provider_available("ollama") is True
-        local_available.assert_called_once_with("ollama")
+        assert ProviderRegistry.is_provider_available("local_agent") is True
+        local_available.assert_called_once_with("local_agent")
         mock_load_env_files.assert_not_called()
 
-    def test_ollama_available_when_local_says_false(
+    def test_local_agent_available_when_local_says_false(
         self,
         monkeypatch: pytest.MonkeyPatch,
         mock_load_env_files: MagicMock,
     ) -> None:
-        """Ollama returns the local registry's False as-is."""
+        """LocalAgent returns the local registry's False as-is."""
         local_available = MagicMock(name="local_is_available", return_value=False)
         monkeypatch.setattr(LocalProviderRegistry, "is_provider_available", local_available)
-        assert ProviderRegistry.is_provider_available("ollama") is False
-        local_available.assert_called_once_with("ollama")
+        assert ProviderRegistry.is_provider_available("local_agent") is False
+        local_available.assert_called_once_with("local_agent")
         mock_load_env_files.assert_not_called()
 
 
@@ -139,7 +139,7 @@ class TestGetAvailableProviders:
         monkeypatch: pytest.MonkeyPatch,
         mock_load_env_files: MagicMock,
     ) -> None:
-        """Only keyed API providers are returned when ollama is down."""
+        """Only keyed API providers are returned when local_agent is down."""
         monkeypatch.setenv("OPENAI_API_KEY", "k")
         monkeypatch.setenv("OPENROUTER_API_KEY", "k")
         monkeypatch.setattr(
@@ -151,17 +151,17 @@ class TestGetAvailableProviders:
         mock_load_env_files.assert_called_once()
 
     def test_local_provider_with_no_keys(self, monkeypatch: pytest.MonkeyPatch, mock_load_env_files: MagicMock) -> None:
-        """Only ollama is returned when no API keys are set."""
+        """Only local_agent is returned when no API keys are set."""
         monkeypatch.setattr(
             LocalProviderRegistry,
             "is_provider_available",
             MagicMock(return_value=True),
         )
-        assert ProviderRegistry.get_available_providers() == ["ollama"]
+        assert ProviderRegistry.get_available_providers() == ["local_agent"]
         mock_load_env_files.assert_called_once()
 
     def test_all_providers(self, monkeypatch: pytest.MonkeyPatch, mock_load_env_files: MagicMock) -> None:
-        """All providers appear in openai, anthropic, openrouter, ollama order."""
+        """All providers appear in openai, anthropic, openrouter, local_agent order."""
         monkeypatch.setenv("OPENAI_API_KEY", "k")
         monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
         monkeypatch.setenv("OPENROUTER_API_KEY", "k")
@@ -174,7 +174,7 @@ class TestGetAvailableProviders:
             "openai",
             "anthropic",
             "openrouter",
-            "ollama",
+            "local_agent",
         ]
         mock_load_env_files.assert_called_once()
 
@@ -182,9 +182,9 @@ class TestGetAvailableProviders:
 class TestIsLocalProvider:
     """Membership in the local provider set."""
 
-    def test_ollama_is_local(self) -> None:
-        """Ollama is a local provider."""
-        assert is_local_provider("ollama") is True
+    def test_local_agent_is_local(self) -> None:
+        """LocalAgent is a local provider."""
+        assert is_local_provider("local_agent") is True
 
     def test_openai_is_not_local(self) -> None:
         """API providers are not local."""
@@ -223,7 +223,7 @@ class TestCreateProviderInstanceApi:
 class TestCreateProviderInstanceLocal:
     """Instance creation for local providers."""
 
-    def test_ollama_instance_with_kwargs(self, monkeypatch: pytest.MonkeyPatch, mock_load_env_files: MagicMock) -> None:
+    def test_local_agent_instance_with_kwargs(self, monkeypatch: pytest.MonkeyPatch, mock_load_env_files: MagicMock) -> None:
         """Available local provider is instantiated with the kwargs."""
         monkeypatch.setattr(
             LocalProviderRegistry,
@@ -235,12 +235,12 @@ class TestCreateProviderInstanceLocal:
             "is_provider_available",
             MagicMock(return_value=True),
         )
-        provider = create_provider_instance("ollama", b=2)
+        provider = create_provider_instance("local_agent", b=2)
         assert isinstance(provider, FakeProvider)
         assert provider.kwargs == {"b": 2}
         mock_load_env_files.assert_not_called()
 
-    def test_ollama_class_missing(self, monkeypatch: pytest.MonkeyPatch, mock_load_env_files: MagicMock) -> None:
+    def test_local_agent_class_missing(self, monkeypatch: pytest.MonkeyPatch, mock_load_env_files: MagicMock) -> None:
         """Missing local provider class returns None without an availability check."""
         monkeypatch.setattr(
             LocalProviderRegistry,
@@ -249,11 +249,11 @@ class TestCreateProviderInstanceLocal:
         )
         local_available = MagicMock(name="local_is_available")
         monkeypatch.setattr(LocalProviderRegistry, "is_provider_available", local_available)
-        assert create_provider_instance("ollama") is None
+        assert create_provider_instance("local_agent") is None
         local_available.assert_not_called()
         mock_load_env_files.assert_not_called()
 
-    def test_ollama_unavailable_not_constructed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_local_agent_unavailable_not_constructed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Unavailable local provider is never constructed."""
         monkeypatch.setattr(
             LocalProviderRegistry,
@@ -265,10 +265,10 @@ class TestCreateProviderInstanceLocal:
             "is_provider_available",
             MagicMock(return_value=False),
         )
-        assert create_provider_instance("ollama") is None
+        assert create_provider_instance("local_agent") is None
         assert FakeProvider._instances == []
 
-    def test_ollama_raising_class_suppressed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_local_agent_raising_class_suppressed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Failing local constructor returns None without raising."""
         monkeypatch.setattr(
             LocalProviderRegistry,
@@ -280,7 +280,7 @@ class TestCreateProviderInstanceLocal:
             "is_provider_available",
             MagicMock(return_value=True),
         )
-        assert create_provider_instance("ollama") is None
+        assert create_provider_instance("local_agent") is None
 
 
 class TestGetProviderForModel:
