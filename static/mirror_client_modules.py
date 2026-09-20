@@ -9,6 +9,7 @@ before it is imported.
 
 from __future__ import annotations
 
+import importlib
 import shutil
 from pathlib import Path
 
@@ -32,6 +33,7 @@ def _mirror_if_stale(source: Path, destination: Path) -> None:
         if dest_mtime < src_mtime:
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, destination)
+            importlib.invalidate_caches()
     except FileNotFoundError as exc:
         raise RuntimeError(f"Client module not found: {exc}") from exc
     except Exception as exc:
