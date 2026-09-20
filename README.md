@@ -62,7 +62,9 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    ANTHROPIC_API_KEY=sk-ant-...   # Anthropic models (Claude Opus/Sonnet/Haiku 4.5)
    OPENROUTER_API_KEY=sk-or-...   # OpenRouter models (Gemini, DeepSeek, Llama, etc.)
    ```
-   Only models for configured providers will appear in the model dropdown.
+   Only models for configured providers will appear in the model dropdown. A local
+   `llama-server` needs no key: start one and MatHud picks it up automatically (see
+   [6.6 AI Provider Configuration](#66-ai-provider-configuration)).
 5. (Optional, for contributors) Install the pre-commit hook, which runs ruff on staged Python files:
    ```sh
    python -m cli.main test lint --install-hook
@@ -90,6 +92,7 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    PORT=5000                       # Set by hosting platforms to indicate deployed mode
    SECRET_KEY=override-me          # Optional: otherwise a random key is generated per launch
    TOOL_SEARCH_MODE=hybrid         # Tool discovery: local | api | hybrid (default: hybrid)
+   LOCAL_AGENT_BASE_URL=http://127.0.0.1:8080  # LocalAgent server (default shown)
    ```
 2. Authentication rules (`static/app_manager.py`):
    1. When `PORT` is set (typical in hosted deployments), authentication is enforced automatically.
@@ -191,15 +194,30 @@ Autocomplete suggestions appear as you type. Unknown commands trigger fuzzy-matc
 
 ### 6.6 AI Provider Configuration
 
-MatHud supports three AI providers. The model dropdown dynamically shows only models for providers with configured API keys:
+MatHud supports four AI providers. The model dropdown dynamically shows only models for providers that are configured (an API key) or reachable (a running local server):
 
 | Provider | Environment Variable | Models |
 |----------|---------------------|--------|
+| **LocalAgent** | `LOCAL_AGENT_BASE_URL` (optional) | Whichever model the local `llama-server` currently hosts |
 | **OpenAI** | `OPENAI_API_KEY` | GPT-5.6 (Sol/Terra/Luna), GPT-5.5, GPT-5.2, GPT-4.1 family, GPT-4o mini |
 | **Anthropic** | `ANTHROPIC_API_KEY` | Claude Fable 5, Claude Opus 4.8, Claude Sonnet 5, Claude Haiku 4.5 |
 | **OpenRouter** | `OPENROUTER_API_KEY` | Gemini 3.1 Pro/3.5 Flash, DeepSeek V4 Pro, Qwen, GLM, Grok, MiniMax, Llama, Gemma, and more (paid and free tiers) |
 
-Models without vision support are labeled "(text only)" in the dropdown. When no API keys are configured, the dropdown shows "No API keys configured".
+Models without vision support are labeled "(text only)" in the dropdown. When nothing is configured or reachable, the dropdown shows "No API keys configured".
+
+#### LocalAgent (llama.cpp)
+
+LocalAgent is the default provider. It talks to a llama.cpp `llama-server` (or any other
+backend serving the same OpenAI-compatible API) over `/v1`, and needs no API key:
+
+1. Start `llama-server` on `http://127.0.0.1:8080`, or point `LOCAL_AGENT_BASE_URL` elsewhere.
+2. Reload MatHud. The provider reads `/v1/models` and offers whichever model the server
+   reports, whether that is an `--alias` value or a `.gguf` file path.
+3. The server hosts one model at a time, so restarting it with a different model is enough
+   to switch: MatHud drops the stale entry and picks up the new one on the next page load.
+
+Local models are used in search-first tool mode and currently receive text only; attached
+images are not forwarded.
 
 ### 6.7 Workspace Management
 
