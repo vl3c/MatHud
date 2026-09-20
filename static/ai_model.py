@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 
-from typing import Dict, Literal, Optional, TypedDict
+from typing import Dict, Iterable, Literal, Optional, TypedDict
 
 # Provider constants
 PROVIDER_OPENAI = "openai"
@@ -371,19 +371,26 @@ class AIModel:
         return registered
 
     @classmethod
-    def unregister_local_models(cls, provider: str) -> list[str]:
-        """Drop every model previously registered for a local provider.
+    def unregister_local_models(cls, provider: str, keep: Optional[Iterable[str]] = None) -> list[str]:
+        """Drop models previously registered for a local provider.
 
         A local server hosts one model at a time, so entries discovered earlier
         go stale as soon as the server is restarted with a different model.
 
         Args:
             provider: The provider name whose models should be removed
+            keep: Identifiers to leave registered, typically the ones a refresh
+                just returned. When None, every model of the provider is removed.
 
         Returns:
             List of removed model identifiers
         """
-        stale = [model_id for model_id, config in cls.MODEL_CONFIGS.items() if config.get("provider") == provider]
+        kept = set(keep or ())
+        stale = [
+            model_id
+            for model_id, config in cls.MODEL_CONFIGS.items()
+            if config.get("provider") == provider and model_id not in kept
+        ]
         for model_id in stale:
             del cls.MODEL_CONFIGS[model_id]
         return stale

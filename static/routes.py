@@ -538,10 +538,14 @@ def register_routes(app: MatHudFlask) -> None:
         available = ProviderRegistry.get_available_providers()
 
         # Re-read the local provider's models: the server hosts one model at a
-        # time, so anything discovered earlier is stale once it restarts.
-        AIModel.unregister_local_models(PROVIDER_LOCAL_AGENT)
+        # time, so anything discovered earlier is stale once it restarts. Stale
+        # entries are dropped only once a refresh has returned replacements,
+        # because an unregistered id falls back to the OpenAI provider and a
+        # request still naming it would be sent to OpenAI instead of failing.
         if PROVIDER_LOCAL_AGENT in available:
-            AIModel.refresh_local_models(PROVIDER_LOCAL_AGENT)
+            refreshed = AIModel.refresh_local_models(PROVIDER_LOCAL_AGENT)
+            if refreshed:
+                AIModel.unregister_local_models(PROVIDER_LOCAL_AGENT, keep=refreshed)
 
         models_by_provider: Dict[str, List[Dict[str, Any]]] = {
             "local_agent": [],
@@ -551,7 +555,7 @@ def register_routes(app: MatHudFlask) -> None:
             "openrouter_free": [],
         }
 
-        for model_id, config in AIModel.MODEL_CONFIGS.items():
+        for model_id, config in list(AIModel.MODEL_CONFIGS.items()):
             provider = config.get("provider", PROVIDER_OPENAI)
             has_vision = config.get("has_vision", False)
             display_name = config.get("display_name", model_id)

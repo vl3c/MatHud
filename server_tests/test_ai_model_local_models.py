@@ -233,7 +233,6 @@ class TestRegisterLocalModels(unittest.TestCase):
         self.assertEqual(result, [])
         self.assertEqual(AIModel.MODEL_CONFIGS, self._original_configs)
 
-
     def test_display_name_override_is_used(self) -> None:
         """A provider-supplied display_name replaces the formatted default."""
         name = r"C:\models\Qwen3.8-27B-GSQ-RCO-IQ3_XXS.gguf"
@@ -295,6 +294,39 @@ class TestUnregisterLocalModels(unittest.TestCase):
         before = AIModel.MODEL_CONFIGS
         AIModel.unregister_local_models("local_agent")
         self.assertIs(AIModel.MODEL_CONFIGS, before)
+
+    def test_keep_retains_listed_models(self) -> None:
+        """Identifiers passed as keep stay registered."""
+        AIModel.register_local_models("local_agent", [{"name": "old"}, {"name": "new"}])
+        removed = AIModel.unregister_local_models("local_agent", keep=["new"])
+        self.assertEqual(removed, ["old"])
+        self.assertNotIn("old", AIModel.MODEL_CONFIGS)
+        self.assertIn("new", AIModel.MODEL_CONFIGS)
+
+    def test_keep_all_removes_nothing(self) -> None:
+        """Keeping every registered model is a no-op."""
+        AIModel.register_local_models("local_agent", [{"name": "one"}, {"name": "two"}])
+        self.assertEqual(AIModel.unregister_local_models("local_agent", keep=["one", "two"]), [])
+        self.assertIn("one", AIModel.MODEL_CONFIGS)
+        self.assertIn("two", AIModel.MODEL_CONFIGS)
+
+    def test_keep_none_removes_everything(self) -> None:
+        """An explicit None keep behaves like the default."""
+        AIModel.register_local_models("local_agent", [{"name": "one"}])
+        self.assertEqual(AIModel.unregister_local_models("local_agent", keep=None), ["one"])
+
+    def test_keep_empty_removes_everything(self) -> None:
+        """An empty keep collection removes every model of the provider."""
+        AIModel.register_local_models("local_agent", [{"name": "one"}])
+        self.assertEqual(AIModel.unregister_local_models("local_agent", keep=[]), ["one"])
+
+    def test_keep_does_not_reach_other_providers(self) -> None:
+        """keep only shields models of the named provider; others are untouched."""
+        AIModel.register_local_models("local_agent", [{"name": "mine"}])
+        AIModel.register_local_models("other", [{"name": "theirs"}])
+        AIModel.unregister_local_models("local_agent", keep=["theirs"])
+        self.assertNotIn("mine", AIModel.MODEL_CONFIGS)
+        self.assertIn("theirs", AIModel.MODEL_CONFIGS)
 
 
 if __name__ == "__main__":
