@@ -41,7 +41,7 @@ class AnthropicAPI(OpenAIAPIBase):
         model: Optional[AIModel] = None,
         temperature: float = 0.2,
         tools: Optional[Sequence[FunctionDefinition]] = None,
-        max_tokens: int = 4096,
+        max_tokens: int = 16000,
         tool_mode: ToolMode = "full",
     ) -> None:
         """Initialize Anthropic API client.
@@ -50,7 +50,8 @@ class AnthropicAPI(OpenAIAPIBase):
             model: AI model to use. Defaults to Claude Sonnet 5.
             temperature: Sampling temperature.
             tools: Custom tool definitions.
-            max_tokens: Maximum tokens in response.
+            max_tokens: Maximum tokens in response. Thinking tokens count toward this
+                limit on adaptive-thinking models, so it matches the base class default.
             tool_mode: Tool mode - "full" or "search".
         """
         # Import anthropic here to avoid import errors if not installed
