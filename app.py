@@ -43,9 +43,6 @@ if __name__ == "__main__":
         env_port = os.environ.get("PORT")
         port = args.port if args.port is not None else int(env_port or 5000)
 
-        # Record the serving port for code that builds local URLs
-        app.config["SERVER_PORT"] = port
-
         # Check if we're running in a deployment environment
         is_deployed = args.port is None and env_port is not None
         force_non_debug = os.environ.get("MATHUD_NON_DEBUG", "").lower() in ("1", "true", "yes")
