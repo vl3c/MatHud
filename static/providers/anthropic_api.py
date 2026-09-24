@@ -238,9 +238,12 @@ class AnthropicAPI(OpenAIAPIBase):
         reject the ``temperature`` sampling parameter with a 400 error. Those models are
         flagged ``is_reasoning_model`` in the registry, so only send ``temperature`` for
         non-reasoning models (e.g. Claude Haiku 4.5) that still support it.
+
+        The anthropic SDK (1.0+) no longer takes sampling parameters as keyword
+        arguments, so ``temperature`` goes into the request body via ``extra_body``.
         """
         if not self.model.is_reasoning_model:
-            request_kwargs["temperature"] = self.temperature
+            request_kwargs["extra_body"] = {"temperature": self.temperature}
 
     def create_chat_completion(self, full_prompt: str) -> Any:
         """Create chat completion with Anthropic API."""
