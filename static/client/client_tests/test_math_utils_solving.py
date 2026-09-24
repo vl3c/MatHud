@@ -134,6 +134,42 @@ class TestMathUtilsSolving(unittest.TestCase):
         self.assertAlmostEqual(float(MathUtils.integral("1/sqrt(x)", "x", 0, 1)), 2.0, places=9)
 
     # ------------------------------------------------------------------
+    # calculate_vertical_asymptotes / calculate_point_discontinuities
+    # ------------------------------------------------------------------
+    def test_vertical_asymptotes_arctangent_has_none(self) -> None:
+        self.assertEqual(MathUtils.calculate_vertical_asymptotes("atan(x)", -5, 5), [])
+
+    def test_vertical_asymptotes_shifted_tangent(self) -> None:
+        result = MathUtils.calculate_vertical_asymptotes("tan(x-1)", -5, 5)
+        expected = [1 + math.pi / 2 + n * math.pi for n in range(-2, 1)]
+        self.assertEqual([round(x, 6) for x in result], [round(x, 6) for x in expected])
+
+    def test_vertical_asymptotes_scaled_tangent(self) -> None:
+        result = MathUtils.calculate_vertical_asymptotes("tan(2*x)", -2, 2)
+        expected = [math.pi / 4 + n * math.pi / 2 for n in range(-1, 1)]
+        self.assertEqual([round(x, 6) for x in result], [round(x, 6) for x in expected])
+
+    def test_vertical_asymptotes_shifted_log(self) -> None:
+        self.assertEqual(MathUtils.calculate_vertical_asymptotes("log(x-3)"), [3])
+
+    def test_vertical_asymptotes_denominator_followed_by_terms(self) -> None:
+        self.assertEqual(MathUtils.calculate_vertical_asymptotes("1/(x-2)+3"), [2])
+
+    def test_vertical_asymptotes_irrational_roots(self) -> None:
+        result = MathUtils.calculate_vertical_asymptotes("1/(x^2-2)")
+        self.assertEqual([round(x, 9) for x in result], [round(-math.sqrt(2), 9), round(math.sqrt(2), 9)])
+
+    def test_vertical_asymptotes_multiple_denominators(self) -> None:
+        self.assertEqual(MathUtils.calculate_vertical_asymptotes("1/(x-1)+1/(x+2)"), [-2, 1])
+
+    def test_point_discontinuities_abs_with_irrational_corners(self) -> None:
+        result = MathUtils.calculate_point_discontinuities("abs(x^2-2)")
+        self.assertEqual([round(x, 9) for x in result], [round(-math.sqrt(2), 9), round(math.sqrt(2), 9)])
+
+    def test_point_discontinuities_abs_with_nested_parentheses(self) -> None:
+        self.assertEqual(MathUtils.calculate_point_discontinuities("abs((x-1)*2)"), [1])
+
+    # ------------------------------------------------------------------
     # solve
     # ------------------------------------------------------------------
     def _roots(self, result: str) -> List[object]:

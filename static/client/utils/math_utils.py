@@ -2572,60 +2572,119 @@ class MathUtils:
         right_bound: Optional[Number] = None,
     ) -> List[float]:
         """Calculate vertical asymptotes of a function within given bounds"""
-        import re
         from expression_validator import ExpressionValidator
 
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
         vertical_asymptotes: List[float] = []
 
-        # For logarithmic functions
-        if "log" in function_string:
-            vertical_asymptotes.append(0.0)
+        # For logarithmic functions: where the (first) argument is zero
+        for log_argument in MathUtils._function_call_arguments(function_string, "log|ln|log10|log2"):
+            arguments = MathUtils._split_top_level_commas(log_argument)
+            if arguments:
+                vertical_asymptotes.extend(MathUtils._real_zeros_in_x(arguments[0]))
 
-        # For rational functions
-        if "/" in function_string:
-            denominator = function_string.split("/")[-1].strip()
-            try:
-                # Try to solve denominator = 0
-                zeros = json.loads(MathUtils.solve(denominator, "x"))
-                vertical_asymptotes.extend(float(x) for x in zeros)
-            except:
-                pass
+        # For rational functions: where any denominator that depends on x is zero
+        for denominator in MathUtils._denominators(function_string):
+            vertical_asymptotes.extend(MathUtils._real_zeros_in_x(denominator))
 
-        # For tangent functions
-        if "tan" in function_string:
-            # Find all tangent terms in the function
-            tan_matches = re.findall(r"tan\((.*?)(?:\)|$)", function_string)
-            for tan_arg in tan_matches:
-                coeff = 1.0
-                # Check for x/divisor pattern first (e.g., x/100)
-                div_match = re.search(r"x\s*/\s*(\d+\.?\d*)", tan_arg)
-                if div_match:
-                    divisor = float(div_match.group(1))
-                    coeff = 1.0 / divisor if divisor != 0 else 1.0
-                else:
-                    # Check for coefficient*x pattern (e.g., 2*x or 2x)
-                    coeff_match = re.search(r"([+-]?\d+\.?\d*)\s*\*?\s*x", tan_arg)
-                    if coeff_match:
-                        coeff = float(coeff_match.group(1))
+        # For tangent functions (word boundary so atan/arctan are excluded)
+        left = left_bound if left_bound is not None else -1000
+        right = right_bound if right_bound is not None else 1000
+        for tan_argument in MathUtils._function_call_arguments(function_string, "tan"):
+            vertical_asymptotes.extend(MathUtils._tangent_asymptotes(tan_argument, left, right))
 
-                # Get bounds
-                left = left_bound if left_bound is not None else -1000
-                right = right_bound if right_bound is not None else 1000
+        return sorted(set(vertical_asymptotes))
 
-                # Calculate asymptotes within bounds
-                # Asymptotes occur at x = (pi/2 + n*pi)/coeff
-                n = math.floor(left * coeff / math.pi - 0.5)
-                while True:
-                    x = (math.pi / 2 + n * math.pi) / coeff
-                    if x > right:
-                        break
-                    if x >= left:
-                        vertical_asymptotes.append(x)
-                    n += 1
+    _X_TOKEN_PATTERN = r"(?<![A-Za-z_])x(?![A-Za-z_])"
 
-        return sorted(vertical_asymptotes)
+    @staticmethod
+    def _balanced_group(text: str, open_index: int) -> Optional[str]:
+        """Return the contents of the parenthesized group starting at text[open_index] == '('."""
+        depth = 0
+        for index in range(open_index, len(text)):
+            if text[index] == "(":
+                depth += 1
+            elif text[index] == ")":
+                depth -= 1
+                if depth == 0:
+                    return text[open_index + 1 : index]
+        return None
+
+    @staticmethod
+    def _function_call_arguments(text: str, names: str) -> List[str]:
+        """Return the full (balanced) argument text of every call to one of the '|'-separated names."""
+        import re
+
+        arguments = []
+        for match in re.finditer(rf"\b(?:{names})\s*\(", text):
+            group = MathUtils._balanced_group(text, match.end() - 1)
+            if group is not None:
+                arguments.append(group)
+        return arguments
+
+    @staticmethod
+    def _denominators(text: str) -> List[str]:
+        """Return each denominator that depends on x: the group or token right after every '/'."""
+        import re
+
+        denominators = []
+        for index, char in enumerate(text):
+            if char != "/":
+                continue
+            rest = text[index + 1 :]
+            start = index + 1 + (len(rest) - len(rest.lstrip()))
+            if start < len(text) and text[start] == "(":
+                denominator = MathUtils._balanced_group(text, start)
+            else:
+                token_match = re.match(r"[A-Za-z_][A-Za-z_0-9.]*|\d*\.?\d+", text[start:])
+                denominator = token_match.group(0) if token_match else None
+                if denominator is not None and text[start + len(denominator) : start + len(denominator) + 1] == "(":
+                    call_arguments = MathUtils._balanced_group(text, start + len(denominator))
+                    denominator = None if call_arguments is None else f"{denominator}({call_arguments})"
+            if denominator and re.search(MathUtils._X_TOKEN_PATTERN, denominator):
+                denominators.append(denominator)
+        return denominators
+
+    @staticmethod
+    def _real_zeros_in_x(expression: str) -> List[float]:
+        """Return the real zeros of an expression in x, or [] when it has none or cannot be solved."""
+        import re
+
+        if not re.search(MathUtils._X_TOKEN_PATTERN, expression):
+            return []
+        try:
+            return MathUtils._numeric_real_roots(expression, "x")
+        except Exception:
+            return []
+
+    @staticmethod
+    def _tangent_asymptotes(argument: str, left: Number, right: Number) -> List[float]:
+        """Return the asymptotes of tan(argument) within [left, right] for a linear argument a*x + b."""
+        try:
+            compiled = window.math.compile(argument)
+            offset = float(compiled.evaluate({"x": 0}))
+            slope = float(compiled.evaluate({"x": 1})) - offset
+            for probe in (-2.5, 3.7):
+                expected = offset + slope * probe
+                if abs(float(compiled.evaluate({"x": probe})) - expected) > 1e-9 * max(1.0, abs(expected)):
+                    return []  # non-linear argument: leave it to numeric discontinuity detection
+        except Exception:
+            return []
+        if slope == 0 or not math.isfinite(slope) or not math.isfinite(offset):
+            return []
+
+        # Asymptotes occur where slope*x + offset = pi/2 + n*pi
+        n_at_left = (slope * left + offset - math.pi / 2) / math.pi
+        n_at_right = (slope * right + offset - math.pi / 2) / math.pi
+        first_n = math.floor(min(n_at_left, n_at_right)) - 1
+        last_n = math.ceil(max(n_at_left, n_at_right)) + 1
+        asymptotes = []
+        for n in range(first_n, last_n + 1):
+            x = (math.pi / 2 + n * math.pi - offset) / slope
+            if left <= x <= right:
+                asymptotes.append(x)
+        return asymptotes
 
     @staticmethod
     def calculate_horizontal_asymptotes(function_string: str) -> List[float]:
@@ -2708,16 +2767,9 @@ class MathUtils:
 
         # For absolute value function at its corners
         if "abs" in function_string:
-            # Extract all arguments of abs functions
-            abs_pattern = r"abs\((.*?)\)"
-            matches = re.findall(abs_pattern, function_string)
-            for match in matches:
-                try:
-                    # Try to solve the argument = 0 to find the corner point
-                    zeros = json.loads(MathUtils.solve(match, "x"))
-                    point_discontinuities_set.update(float(x) for x in zeros)
-                except:
-                    pass
+            # Solve each (balanced) abs argument = 0 to find the corner points
+            for abs_argument in MathUtils._function_call_arguments(function_string, "abs"):
+                point_discontinuities_set.update(MathUtils._real_zeros_in_x(abs_argument))
 
         # Convert to list and sort
         point_discontinuities_list = sorted(point_discontinuities_set)
