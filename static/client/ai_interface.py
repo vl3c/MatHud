@@ -112,6 +112,8 @@ class AIInterface:
         )
         # Browser-side canvas capture for vision requests
         self._canvas_snapshotter = CanvasSnapshotter()
+        # Bumped by each new user send and by Stop, so a late snapshot callback can tell it is stale
+        self._send_token: int = 0
         # Chat UI (delegated to ChatUIManager)
         self._chat_ui = ChatUIManager(
             message_menu=self._message_menu,
@@ -658,6 +660,7 @@ class AIInterface:
     def stop_ai_processing(self) -> None:
         """Stop the current AI processing, abort the stream, and restore UI controls."""
         self._stop_requested = True
+        self._send_token += 1  # drops a vision request still waiting for its snapshot
         self._turn_metrics.finish_turn("stopped")
         self._abort_current_stream()
         self._cancel_response_timeout()
@@ -861,11 +864,28 @@ class AIInterface:
 
         if use_vision:
             # The snapshot may need an async image decode, so the request is sent from the callback.
+            send_token = self._send_token
             self._canvas_snapshotter.capture(
-                lambda snapshot: self._send_prompt_json(prompt_json, snapshot, action_trace)
+                lambda snapshot: self._send_prompt_json_if_current(prompt_json, snapshot, action_trace, send_token)
             )
             return
         self._send_prompt_json(prompt_json, None, action_trace)
+
+    def _send_prompt_json_if_current(
+        self,
+        prompt_json: Dict[str, Any],
+        canvas_snapshot: Optional[str],
+        action_trace: Optional[Dict[str, Any]],
+        send_token: int,
+    ) -> None:
+        """Send a vision request once its snapshot arrives, unless the turn was stopped or superseded.
+
+        Sending a stale request would also abort the stream of the message that replaced it.
+        """
+        if send_token != self._send_token or self._stop_requested or not self.is_processing:
+            print("Dropping a vision request whose turn was stopped before its snapshot was ready.")
+            return
+        self._send_prompt_json(prompt_json, canvas_snapshot, action_trace)
 
     def _send_prompt_json(
         self,
@@ -914,6 +934,7 @@ class AIInterface:
         self._image_attachment.clear()
 
         # Regular AI flow
+        self._send_token += 1
         self._disable_send_controls()
         self._send_prompt_to_ai(ai_message, attached_images=images_to_send)
 

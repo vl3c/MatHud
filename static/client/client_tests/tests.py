@@ -264,6 +264,7 @@ from .test_numeric_solver import (
     TestExpressionEvaluation,
 )
 from .test_error_recovery import TestErrorRecovery
+from .test_vision_send_cancellation import TestVisionSendCancellation
 from .test_tts_controller import (
     TestTTSControllerState,
     TestTTSControllerSettings,
@@ -612,6 +613,7 @@ class Tests:
             TestJacobianComputation,
             TestExpressionEvaluation,
             TestErrorRecovery,
+            TestVisionSendCancellation,
             TestTTSControllerState,
             TestTTSControllerSettings,
             TestTTSControllerSingleton,
