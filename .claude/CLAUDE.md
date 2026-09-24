@@ -103,6 +103,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 7. `route_helpers.py` contains extracted route helper functions for provider management and tool lifecycle.
 8. `canvas_state_formatter.py` renders the canvas for the model: a compact text block in each user message, `[canvas changes]` after tool batches, and `get_current_canvas_state` results (see `documentation/development/canvas_prompt_summary_rollout.md`).
 9. `style.css` and other assets shared with the frontend live here for Flask to serve.
+10. `response_metrics.py` measures every model request (time to first token, latency, tokens/s, prompt/completion/cached tokens, llama-server `timings`); providers attach the record to the final stream event as `metrics` and `log_manager.py` logs it as a `response_metrics {...}` JSON line.
 
 ## Client Highlights (`static/client/`)
 1. `main.py` bootstraps Brython and registers managers.
@@ -120,6 +121,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 13. `managers/visibility_manager.py` handles viewport culling extracted from Canvas.
 14. `rendering/base_telemetry.py` provides a shared telemetry base for renderers.
 15. `client_tests/` plus `test_runner.py` implement the Brython test harness (register new tests in `client_tests/tests.py`).
+16. `turn_metrics.py` aggregates per-request metrics into per-turn summaries (chat footer under the final answer; `window.getMatHudLastTurnMetrics()` / `window.getMatHudTurnMetricsHistory()` return them as JSON strings for benchmarks).
 
 ---
 
