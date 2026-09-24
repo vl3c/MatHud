@@ -165,7 +165,7 @@ from .test_optimized_renderers import TestOptimizedRendererParity
 from .test_renderer_primitives import TestRendererPrimitives
 from .test_renderer_logic import TestRendererLogic
 from .test_canvas2d_batching import TestCanvas2DBatching, TestRenderPlanReprojection
-from .test_canvas_snapshot import TestCanvasSnapshotter, TestSnapshotSize
+from .test_canvas_snapshot import TestCanvasSnapshotter, TestCanvasSnapshotterSvgDecode, TestSnapshotSize
 from .test_drawable_renderers import (
     TestVectorRenderer,
     TestAngleRenderer,
@@ -391,6 +391,7 @@ class Tests:
             TestRenderPlanReprojection,
             TestSnapshotSize,
             TestCanvasSnapshotter,
+            TestCanvasSnapshotterSvgDecode,
             TestChatMessageMenu,
             TestLabelOverlapResolver,
             TestScreenOffsetLabelLayout,

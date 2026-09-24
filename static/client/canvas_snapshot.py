@@ -165,7 +165,7 @@ class CanvasSnapshotter:
 
     def _draw_svg_then(self, svg_markup: str, ctx: Any, width: int, height: int, done: Callable[[], None]) -> None:
         """Decode the SVG markup as an image, draw it, then call ``done`` (also on failure or timeout)."""
-        image = window.Image.new()
+        image = self._new_image()
 
         def on_load(_event: Any = None) -> None:
             try:
@@ -180,8 +180,16 @@ class CanvasSnapshotter:
 
         image.onload = on_load
         image.onerror = on_error
-        window.setTimeout(done, SVG_DECODE_TIMEOUT_MS)
+        self._schedule(done, SVG_DECODE_TIMEOUT_MS)
         image.src = "data:image/svg+xml;charset=utf-8," + window.encodeURIComponent(svg_markup)
+
+    # ----- browser seams (replaced in tests) -----
+
+    def _new_image(self) -> Any:
+        return window.Image.new()
+
+    def _schedule(self, callback: Callable[[], None], delay_ms: int) -> None:
+        window.setTimeout(callback, delay_ms)
 
     # ----- helpers -----
 
