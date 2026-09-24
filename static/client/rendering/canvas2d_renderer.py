@@ -20,7 +20,7 @@ Architecture:
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Set, Tuple
 
 from browser import document, html, window
 
@@ -33,6 +33,17 @@ from rendering.cached_render_plan import (
     build_plan_for_cartesian,
     build_plan_for_polar,
     build_plan_for_drawable,
+)
+
+# Attributes holding points whose coordinates shape a drawable but are not
+# part of its serialized state (which only stores the point names).
+_DEPENDENT_POINT_ATTRS: Tuple[str, ...] = (
+    "center",
+    "point1",
+    "point2",
+    "vertex_point",
+    "arm1_point",
+    "arm2_point",
 )
 
 
@@ -218,12 +229,31 @@ class Canvas2DRenderer(RendererProtocol):
         """Begin a new rendering frame."""
         self._telemetry.begin_frame()
         self._shared_primitives.begin_frame()
+        self._frame_seen_plan_keys.clear()
 
     def end_frame(self) -> None:
         """End the current frame and flush any buffered content."""
         self._shared_primitives.end_frame()
         self._flush_offscreen_to_main()
+        self._prune_unused_plan_entries()
         self._telemetry.end_frame()
+
+    def invalidate_drawable_cache(self, drawable: Any) -> None:
+        """Drop the cached plan for a drawable so it is rebuilt on next render."""
+        cache_key = self._plan_cache_key(drawable, self._resolve_drawable_name(drawable))
+        self._plan_cache.pop(cache_key, None)
+
+    def invalidate_all_drawable_caches(self) -> None:
+        """Drop every cached drawable plan."""
+        self._plan_cache.clear()
+
+    def _prune_unused_plan_entries(self) -> None:
+        """Remove cached plans for drawables that were not rendered this frame."""
+        if self._plan_cache:
+            stale_keys = [key for key in self._plan_cache if key not in self._frame_seen_plan_keys]
+            for key in stale_keys:
+                self._plan_cache.pop(key, None)
+        self._frame_seen_plan_keys.clear()
 
     def register(self, cls: type, handler: Callable[[Any, Any], None]) -> None:
         """Register a handler function for a drawable type.
@@ -434,6 +464,7 @@ class Canvas2DRenderer(RendererProtocol):
         plan = self._resolve_drawable_plan(drawable, coordinate_mapper, map_state, signature, drawable_name, cache_key)
         if plan is None:
             return
+        self._frame_seen_plan_keys.add(cache_key)
         apply_start = self._telemetry.mark_time()
         if not plan.is_visible(self.canvas_el.width, self.canvas_el.height):
             self._telemetry.record_plan_skip(drawable_name)
@@ -478,6 +509,9 @@ class Canvas2DRenderer(RendererProtocol):
             snapshot = fallback
         else:
             snapshot = {**fallback, "__state__": state}
+        dependent_coords = self._collect_dependent_coordinates(drawable)
+        if dependent_coords:
+            snapshot["_dependent_coords"] = dependent_coords
         if self._needs_scale_in_signature(drawable) and coordinate_mapper is not None:
             scale = getattr(coordinate_mapper, "scale_factor", None)
             if scale is not None:
@@ -486,6 +520,20 @@ class Canvas2DRenderer(RendererProtocol):
             if offset is not None:
                 snapshot["_view_offset"] = (round(float(offset.x), 2), round(float(offset.y), 2))
         return self._freeze_signature(snapshot)
+
+    def _collect_dependent_coordinates(self, drawable: Any) -> list:
+        """Collect coordinates of referenced points so moving them invalidates the plan."""
+        coords: list = []
+        for attr in _DEPENDENT_POINT_ATTRS:
+            try:
+                point = getattr(drawable, attr, None)
+                x = getattr(point, "x", None)
+                y = getattr(point, "y", None)
+            except Exception:
+                continue
+            if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+                coords.append((attr, x, y))
+        return coords
 
     def _needs_scale_in_signature(self, drawable: Any) -> bool:
         class_name = getattr(drawable, "get_class_name", lambda: "")()
@@ -663,6 +711,7 @@ class Canvas2DRenderer(RendererProtocol):
     def _initialize_plan_caches(self) -> None:
         self._plan_cache = {}
         self._cartesian_cache = None
+        self._frame_seen_plan_keys: Set[str] = set()
 
     def _assign_cartesian_dimensions(self, cartesian: Any, width: int, height: int) -> None:
         cartesian.width = width

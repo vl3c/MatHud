@@ -157,5 +157,17 @@ class TestRendererLogic(unittest.TestCase):
         self.assertLessEqual(int(snap2.get("font_cache_entries", 0) or 0), 64)
         self.assertEqual(int(snap1.get("font_cache_entries", 0) or 0), int(snap2.get("font_cache_entries", 0) or 0))
 
+    def test_canvas2d_signature_changes_when_circle_center_moves(self) -> None:
+        from drawables.circle import Circle
+        from drawables.point import Point
+
+        renderer = Canvas2DRenderer.__new__(Canvas2DRenderer)
+        center = Point(0, 0, name="A")
+        circle = Circle(center, 2)
+        before = renderer._compute_drawable_signature(circle)
+        center.x = 3
+        self.assertNotEqual(renderer._compute_drawable_signature(circle), before)
+        self.assertNotIn("_dependent_coords", str(circle.get_state()))
+
 
 __all__ = ["TestRendererLogic"]

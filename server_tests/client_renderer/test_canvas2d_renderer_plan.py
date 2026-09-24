@@ -58,6 +58,94 @@ class TestCanvas2DRendererPlan(unittest.TestCase):
         self.assertIsNot(plan_b, plan_a_first)
         self.assertEqual(plan_b.update_calls, 1)
 
+    def _install_drawable_plan_builder(self) -> list:
+        built: list = []
+        original = canvas2d_renderer.build_plan_for_drawable
+
+        class _OffscreenPlan(canvas2d_renderer.OptimizedPrimitivePlan):
+            def __init__(self) -> None:
+                pass
+
+            def update_map_state(self, _map_state) -> None:
+                pass
+
+            def is_visible(self, _width, _height, margin=0.0) -> bool:
+                return False
+
+        def fake_builder(drawable, mapper, style, supports_transform=False):
+            built.append(drawable)
+            return _OffscreenPlan()
+
+        canvas2d_renderer.build_plan_for_drawable = fake_builder
+        self.addCleanup(setattr, canvas2d_renderer, "build_plan_for_drawable", original)
+        return built
+
+    def _make_frame_renderer(self) -> canvas2d_renderer.Canvas2DRenderer:
+        renderer = self._make_renderer()
+        renderer._frame_seen_plan_keys = set()
+        renderer._shared_primitives = SimpleNamespace(begin_frame=lambda: None, end_frame=lambda: None)
+        renderer._telemetry.begin_frame = lambda: None
+        renderer._telemetry.end_frame = lambda: None
+        del renderer._is_cached_plan_valid
+        return renderer
+
+    def _resolve(self, renderer, drawable) -> None:
+        renderer._render_drawable(drawable, None)
+
+    def test_invalidate_drawable_cache_forces_rebuild(self) -> None:
+        renderer = self._make_frame_renderer()
+        built = self._install_drawable_plan_builder()
+        drawable = SimpleNamespace(name="A", get_state=lambda: {"x": 1})
+
+        self._resolve(renderer, drawable)
+        self._resolve(renderer, drawable)
+        self.assertEqual(len(built), 1)
+
+        renderer.invalidate_drawable_cache(drawable)
+        self._resolve(renderer, drawable)
+        self.assertEqual(len(built), 2)
+
+        renderer.invalidate_all_drawable_caches()
+        self.assertEqual(renderer._plan_cache, {})
+
+    def test_end_frame_prunes_plans_for_drawables_not_rendered(self) -> None:
+        renderer = self._make_frame_renderer()
+        self._install_drawable_plan_builder()
+        kept = SimpleNamespace(name="kept", get_state=lambda: {})
+        deleted = SimpleNamespace(name="deleted", get_state=lambda: {})
+
+        renderer.begin_frame()
+        self._resolve(renderer, kept)
+        self._resolve(renderer, deleted)
+        renderer.end_frame()
+        self.assertEqual(len(renderer._plan_cache), 2)
+
+        renderer.begin_frame()
+        self._resolve(renderer, kept)
+        renderer.end_frame()
+        self.assertEqual(list(renderer._plan_cache.keys()), ["SimpleNamespace:kept"])
+
+    def test_signature_tracks_dependent_point_coordinates(self) -> None:
+        renderer = self._make_renderer()
+        center = SimpleNamespace(x=1.0, y=2.0, name="A")
+        circle = SimpleNamespace(name="c", center=center, get_state=lambda: {"args": {"center": "A"}})
+        vertex = SimpleNamespace(x=0.0, y=0.0)
+        angle = SimpleNamespace(
+            name="ang",
+            vertex_point=vertex,
+            arm1_point=SimpleNamespace(x=1.0, y=0.0),
+            arm2_point=SimpleNamespace(x=0.0, y=1.0),
+            get_state=lambda: {"args": {"segment1_name": "s1"}},
+        )
+
+        circle_before = renderer._compute_drawable_signature(circle)
+        angle_before = renderer._compute_drawable_signature(angle)
+        center.x = 5.0
+        vertex.y = -3.0
+
+        self.assertNotEqual(renderer._compute_drawable_signature(circle), circle_before)
+        self.assertNotEqual(renderer._compute_drawable_signature(angle), angle_before)
+
     def test_flush_offscreen_draws_back_to_main_canvas(self) -> None:
         renderer = self._make_renderer()
         renderer._use_layer_compositing = True
