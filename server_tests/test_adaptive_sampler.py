@@ -251,7 +251,7 @@ class TestAdaptiveSamplerViewportCulling(unittest.TestCase):
 
     def test_offscreen_parabola_is_not_refined(self) -> None:
         # Visible y-range is [-7.5, 7.5], so |x| > ~2.8 lies above the viewport.
-        samples = get_samples(-50, 50, lambda x: x * x, scaled_transform, viewport_height=480)
+        samples = get_samples(-50, 50, lambda x: x * x, scaled_transform, viewport_band=(0, 480))
         offscreen = [x for x in samples if abs(x) > 5]
         onscreen = [x for x in samples if abs(x) < 2.7]
         self.assertLessEqual(len(offscreen), 20)
@@ -281,6 +281,26 @@ class TestAdaptiveSamplerProbes(unittest.TestCase):
         samples = get_samples(-32, 32, func, scaled_transform)
         positive = [x for x in samples if 0 < x < 32]
         self.assertGreater(len(positive), 16)
+
+
+class TestAdaptiveSamplerSubrangeBudget(unittest.TestCase):
+    """Sub-ranges between asymptotes share the sample budget instead of each getting all of it."""
+
+    def test_tan_total_samples_stay_within_budget(self) -> None:
+        def tan_value(x: float) -> float:
+            return math.tan(x)
+
+        asymptotes = [math.pi / 2 + k * math.pi for k in range(-8, 8)]
+        budget = 1000
+        subranges = AdaptiveSampler.generate_samples_with_asymptotes(
+            -20, 20, tan_value, scaled_transform, asymptotes, initial_segments=51, max_samples=budget
+        )
+
+        self.assertGreater(len(subranges), 10)
+        total = sum(len(samples) for samples in subranges)
+        self.assertLessEqual(total, budget * 1.1)
+        for samples in subranges:
+            self.assertGreaterEqual(len(samples), 3)
 
 
 class TestIsStraight(unittest.TestCase):

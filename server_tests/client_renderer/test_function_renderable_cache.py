@@ -125,6 +125,62 @@ class TestFunctionRenderableEvaluation(unittest.TestCase):
                 )
 
 
+class _PolylineRecorder:
+    def __init__(self) -> None:
+        self.polylines: List[List[Any]] = []
+        self.texts: List[Any] = []
+
+    def stroke_polyline(self, points: List[Any], _stroke: Any) -> None:
+        self.polylines.append(list(points))
+
+    def draw_text(self, text: str, position: Any, *_args: Any, **_kwargs: Any) -> None:
+        self.texts.append((text, position))
+
+
+class TestFunctionViewMargin(unittest.TestCase):
+    def test_margin_samples_beyond_each_viewport_edge(self) -> None:
+        func = _FunctionModel("x", lambda x: 0.2 * x)
+        mapper = _make_mapper()
+        renderable = FunctionRenderable(func, mapper)
+        renderable.view_margin = 0.5
+
+        points = [point for path in renderable.build_screen_paths().paths for point in path]
+
+        width = mapper.canvas_width
+        self.assertLessEqual(min(x for x, _y in points), -0.5 * width + 1)
+        self.assertGreaterEqual(max(x for x, _y in points), 1.5 * width - 1)
+
+    def test_margin_keeps_curve_above_and_below_viewport(self) -> None:
+        func = _FunctionModel("x^2", lambda x: x * x)
+        mapper = _make_mapper()
+        renderable = FunctionRenderable(func, mapper)
+        renderable.view_margin = 0.5
+
+        ys = [y for path in renderable.build_screen_paths().paths for _x, y in path]
+
+        self.assertAlmostEqual(min(ys), -0.5 * mapper.canvas_height, places=6)
+
+    def test_default_renderable_is_clipped_to_viewport(self) -> None:
+        func = _FunctionModel("x^2", lambda x: x * x)
+        mapper = _make_mapper()
+        ys = [y for path in FunctionRenderable(func, mapper).build_screen_paths().paths for _x, y in path]
+        self.assertGreaterEqual(min(ys), 0.0)
+
+    def test_helper_uses_style_margin_and_labels_a_visible_point(self) -> None:
+        func = _FunctionModel("x", lambda x: 0.2 * x)
+        mapper = _make_mapper()
+        recorder = _PolylineRecorder()
+
+        function_renderer.render_function_helper(recorder, func, mapper, {"function_view_margin": 0.5})
+
+        drawn_x = [x for polyline in recorder.polylines for x, _y in polyline]
+        self.assertLess(min(drawn_x), -100)
+        self.assertGreater(max(drawn_x), mapper.canvas_width + 100)
+        ((_text, (label_x, label_y)),) = recorder.texts
+        self.assertGreaterEqual(label_x, 0)
+        self.assertLessEqual(label_y, mapper.canvas_height)
+
+
 class TestVerticalAsymptoteLookup(unittest.TestCase):
     def _model(self, asymptotes: List[float]) -> Function:
         model = Function.__new__(Function)

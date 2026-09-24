@@ -37,6 +37,11 @@ from rendering.cached_render_plan import (
     build_plan_for_drawable,
 )
 
+# Fraction of the viewport that function plots also sample beyond each edge.
+# Function plans are then only rebuilt when a pan leaves its half-screen bucket;
+# smaller pans reproject the cached plan instead of resampling every frame.
+FUNCTION_VIEW_MARGIN: float = 0.5
+
 # Attributes holding points whose coordinates shape a drawable but are not
 # part of its serialized state (which only stores the point names).
 _DEPENDENT_POINT_ATTRS: Tuple[str, ...] = (
@@ -93,6 +98,7 @@ class Canvas2DRenderer(RendererProtocol):
         self.canvas_el, self.ctx = self._initialize_canvas_context(canvas_id)
         self._resize_to_container()
         self.style: Dict[str, Any] = get_renderer_style()
+        self.style["function_view_margin"] = FUNCTION_VIEW_MARGIN
         self._background_color: Optional[str] = self.style.get("canvas_background_color")
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
         self._telemetry = Canvas2DTelemetry()
@@ -607,15 +613,32 @@ class Canvas2DRenderer(RendererProtocol):
             if scale is not None:
                 snapshot["_view_scale"] = round(float(scale), 4)
             offset = getattr(coordinate_mapper, "offset", None)
-            # Parametric samples do not depend on the viewport, so a pan only
-            # reprojects the cached plan instead of resampling the curve.
-            if offset is not None and self._resolve_drawable_name(drawable) != "ParametricFunction":
-                snapshot["_view_offset"] = (round(float(offset.x), 2), round(float(offset.y), 2))
             canvas_width = getattr(coordinate_mapper, "canvas_width", None)
             canvas_height = getattr(coordinate_mapper, "canvas_height", None)
+            drawable_name = self._resolve_drawable_name(drawable)
+            # Parametric samples do not depend on the viewport, so a pan only
+            # reprojects the cached plan instead of resampling the curve.
+            if offset is not None and drawable_name != "ParametricFunction":
+                snapshot["_view_offset"] = self._offset_signature(drawable_name, offset, canvas_width, canvas_height)
             if canvas_width is not None and canvas_height is not None:
                 snapshot["_view_size"] = (round(float(canvas_width), 2), round(float(canvas_height), 2))
         return self._freeze_signature(snapshot)
+
+    def _offset_signature(self, drawable_name: str, offset: Any, canvas_width: Any, canvas_height: Any) -> Tuple:
+        """Pan offset as it affects a view-dependent plan.
+
+        Function plots are sampled FUNCTION_VIEW_MARGIN of a screen beyond each
+        edge, so only the half-screen bucket of the offset matters; the cached
+        plan is reprojected for pans within the bucket.
+        """
+        offset_x = float(offset.x)
+        offset_y = float(offset.y)
+        margin = float(self.style.get("function_view_margin", 0.0) or 0.0) if hasattr(self, "style") else 0.0
+        if drawable_name in ("Function", "PiecewiseFunction") and margin > 0 and canvas_width and canvas_height:
+            bucket_x = float(canvas_width) * margin
+            bucket_y = float(canvas_height) * margin
+            return ("bucket", math.floor(offset_x / bucket_x), math.floor(offset_y / bucket_y))
+        return (round(offset_x, 2), round(offset_y, 2))
 
     def _collect_dependent_coordinates(self, drawable: Any) -> list:
         """Collect coordinates of referenced points so moving them invalidates the plan."""

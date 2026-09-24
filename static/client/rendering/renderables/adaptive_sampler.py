@@ -15,6 +15,9 @@ PIXEL_TOLERANCE: float = 0.5
 INITIAL_SEGMENTS: int = 8
 RANDOM_PROBE_COUNT: int = 10
 MAX_INITIAL_SEGMENTS: int = 64
+# Smallest sample budget a sub-range between asymptotes gets when the overall
+# budget is shared out in proportion to sub-range width.
+MIN_SUBRANGE_SAMPLES: int = 64
 # Bisection steps used to locate the edge of a function's domain (e.g. x = 1
 # for sqrt(1 - x^2)); 28 halvings shrink the bracket by ~2.7e8.
 DOMAIN_EDGE_BISECTIONS: int = 28
@@ -43,7 +46,7 @@ class AdaptiveSampler:
         asymptotes: List[float],
         initial_segments: Optional[int] = None,
         max_samples: Optional[int] = None,
-        viewport_height: Optional[float] = None,
+        viewport_band: Optional[Tuple[float, float]] = None,
     ) -> List[List[float]]:
         """
         Generate adaptive sample x-values, splitting at asymptotes.
@@ -57,10 +60,12 @@ class AdaptiveSampler:
             eval_func: Function to evaluate y = f(x)
             math_to_screen: Converts (x, y) math coords to screen coords
             asymptotes: List of x-values where vertical asymptotes occur
-            initial_segments: Override for initial segment count
-            max_samples: Maximum number of samples per sub-range
-            viewport_height: Screen height; when given, parts of the curve entirely
-                above or below the viewport are not refined
+            initial_segments: Override for initial segment count over the whole range;
+                each sub-range gets its proportional share
+            max_samples: Maximum number of samples over the whole range; each
+                sub-range gets its proportional share (at least MIN_SUBRANGE_SAMPLES)
+            viewport_band: (top, bottom) screen-y band; when given, parts of the
+                curve entirely above or below it are not refined
 
         Returns:
             List of sample lists, one for each sub-range between asymptotes
@@ -76,12 +81,14 @@ class AdaptiveSampler:
         if len(valid_asymptotes) > MAX_SUBRANGES - 1:
             # Too many asymptotes - just sample without splitting
             samples, _ = AdaptiveSampler.generate_samples(
-                left_bound, right_bound, eval_func, math_to_screen, initial_segments, max_samples, viewport_height
+                left_bound, right_bound, eval_func, math_to_screen, initial_segments, max_samples, viewport_band
             )
             return [samples] if samples else []
 
         # Create sub-ranges: [left_bound, asym1], [asym1, asym2], ..., [asymN, right_bound]
         boundaries = [left_bound] + valid_asymptotes + [right_bound]
+        total_width = right_bound - left_bound
+        total_budget = max_samples if max_samples is not None else MAX_INITIAL_SEGMENTS * 8
 
         all_samples: List[List[float]] = []
 
@@ -99,8 +106,16 @@ class AdaptiveSampler:
             if sub_right <= sub_left:
                 continue
 
+            # Share the budget by width so e.g. tan(x) with many branches keeps the
+            # overall sampling density instead of giving every branch the full budget.
+            share = (sub_right - sub_left) / total_width
+            sub_segments = None
+            if initial_segments is not None:
+                sub_segments = max(2, int(math.ceil(initial_segments * share)))
+            sub_budget = max(MIN_SUBRANGE_SAMPLES, int(total_budget * share))
+
             samples, _ = AdaptiveSampler.generate_samples(
-                sub_left, sub_right, eval_func, math_to_screen, initial_segments, max_samples, viewport_height
+                sub_left, sub_right, eval_func, math_to_screen, sub_segments, sub_budget, viewport_band
             )
 
             if samples:
@@ -115,7 +130,7 @@ class AdaptiveSampler:
         math_to_screen: Callable[[float, float], Tuple[float, float]],
         initial_segments: Optional[int] = None,
         max_samples: Optional[int] = None,
-        viewport_height: Optional[float] = None,
+        viewport_band: Optional[Tuple[float, float]] = None,
     ) -> Tuple[List[float], Optional[float]]:
         """
         Generate adaptive sample x-values for the given range.
@@ -127,8 +142,8 @@ class AdaptiveSampler:
             math_to_screen: Converts (x, y) math coords to screen coords
             initial_segments: Override for initial segment count (for periodic functions)
             max_samples: Maximum number of samples (typically canvas width in pixels)
-            viewport_height: Screen height; when given, parts of the curve entirely
-                above or below the viewport are not refined
+            viewport_band: (top, bottom) screen-y band; when given, parts of the
+                curve entirely above or below it are not refined
 
         Returns:
             Tuple of (sorted list of x-values, estimated_period or None)
@@ -141,7 +156,7 @@ class AdaptiveSampler:
         segments = min(segments, effective_max)
 
         results = AdaptiveSampler._generate_with_segments(
-            left_bound, right_bound, eval_func, math_to_screen, segments, effective_max, viewport_height
+            left_bound, right_bound, eval_func, math_to_screen, segments, effective_max, viewport_band
         )
 
         estimated_period: Optional[float] = None
@@ -155,7 +170,7 @@ class AdaptiveSampler:
                 num_periods = range_width / estimated_period
                 new_segments = min(effective_max, max(INITIAL_SEGMENTS, int(num_periods * 4)))
                 results = AdaptiveSampler._generate_with_segments(
-                    left_bound, right_bound, eval_func, math_to_screen, new_segments, effective_max, viewport_height
+                    left_bound, right_bound, eval_func, math_to_screen, new_segments, effective_max, viewport_band
                 )
 
         return sorted(results), estimated_period
@@ -168,7 +183,7 @@ class AdaptiveSampler:
         math_to_screen: Callable[[float, float], Tuple[float, float]],
         segments: int,
         max_samples: int = 512,
-        viewport_height: Optional[float] = None,
+        viewport_band: Optional[Tuple[float, float]] = None,
     ) -> Set[float]:
         """Generate samples using specified number of initial segments."""
         results: Set[float] = set()
@@ -199,15 +214,15 @@ class AdaptiveSampler:
                     0,
                     results,
                     max_samples,
-                    viewport_height,
+                    viewport_band,
                 )
             elif p_left is not None:
                 AdaptiveSampler._sample_toward_domain_edge(
-                    x_left, p_left, x_right, eval_func, math_to_screen, 0, results, max_samples, viewport_height
+                    x_left, p_left, x_right, eval_func, math_to_screen, 0, results, max_samples, viewport_band
                 )
             elif p_right is not None:
                 AdaptiveSampler._sample_toward_domain_edge(
-                    x_right, p_right, x_left, eval_func, math_to_screen, 0, results, max_samples, viewport_height
+                    x_right, p_right, x_left, eval_func, math_to_screen, 0, results, max_samples, viewport_band
                 )
 
         return results
@@ -304,7 +319,7 @@ class AdaptiveSampler:
         depth: int,
         results: Set[float],
         max_samples: int = 512,
-        viewport_height: Optional[float] = None,
+        viewport_band: Optional[Tuple[float, float]] = None,
     ) -> None:
         """
         Recursively subdivide interval if not straight enough.
@@ -324,14 +339,14 @@ class AdaptiveSampler:
 
         if p_mid is None:
             AdaptiveSampler._sample_toward_domain_edge(
-                x_left, p_left, x_mid, eval_func, math_to_screen, depth + 1, results, max_samples, viewport_height
+                x_left, p_left, x_mid, eval_func, math_to_screen, depth + 1, results, max_samples, viewport_band
             )
             AdaptiveSampler._sample_toward_domain_edge(
-                x_right, p_right, x_mid, eval_func, math_to_screen, depth + 1, results, max_samples, viewport_height
+                x_right, p_right, x_mid, eval_func, math_to_screen, depth + 1, results, max_samples, viewport_band
             )
             return
 
-        if AdaptiveSampler._is_outside_viewport(viewport_height, p_left, p_mid, p_right):
+        if AdaptiveSampler._is_outside_viewport(viewport_band, p_left, p_mid, p_right):
             return
 
         if AdaptiveSampler._is_straight(p_left, p_mid, p_right) and AdaptiveSampler._quarters_are_straight(
@@ -340,10 +355,10 @@ class AdaptiveSampler:
             return
 
         AdaptiveSampler._subdivide(
-            x_left, x_mid, p_left, p_mid, eval_func, math_to_screen, depth + 1, results, max_samples, viewport_height
+            x_left, x_mid, p_left, p_mid, eval_func, math_to_screen, depth + 1, results, max_samples, viewport_band
         )
         AdaptiveSampler._subdivide(
-            x_mid, x_right, p_mid, p_right, eval_func, math_to_screen, depth + 1, results, max_samples, viewport_height
+            x_mid, x_right, p_mid, p_right, eval_func, math_to_screen, depth + 1, results, max_samples, viewport_band
         )
 
     @staticmethod
@@ -375,16 +390,19 @@ class AdaptiveSampler:
 
     @staticmethod
     def _is_outside_viewport(
-        viewport_height: Optional[float],
+        viewport_band: Optional[Tuple[float, float]],
         p_left: Tuple[float, float],
         p_mid: Tuple[float, float],
         p_right: Tuple[float, float],
     ) -> bool:
-        """True when all three points lie above, or all lie below, the viewport."""
-        if viewport_height is None or viewport_height <= 0:
+        """True when all three points lie above, or all lie below, the viewport band."""
+        if viewport_band is None:
+            return False
+        top, bottom = viewport_band
+        if bottom <= top:
             return False
         ys = (p_left[1], p_mid[1], p_right[1])
-        return all(y < 0 for y in ys) or all(y > viewport_height for y in ys)
+        return all(y < top for y in ys) or all(y > bottom for y in ys)
 
     @staticmethod
     def _sample_toward_domain_edge(
@@ -396,7 +414,7 @@ class AdaptiveSampler:
         depth: int,
         results: Set[float],
         max_samples: int = 512,
-        viewport_height: Optional[float] = None,
+        viewport_band: Optional[Tuple[float, float]] = None,
     ) -> None:
         """Locate the domain edge between a valid and an invalid x and sample up to it.
 
@@ -430,7 +448,7 @@ class AdaptiveSampler:
                 depth,
                 results,
                 max_samples,
-                viewport_height,
+                viewport_band,
             )
         else:
             AdaptiveSampler._subdivide(
@@ -443,7 +461,7 @@ class AdaptiveSampler:
                 depth,
                 results,
                 max_samples,
-                viewport_height,
+                viewport_band,
             )
 
     @staticmethod

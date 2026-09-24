@@ -56,7 +56,7 @@ def _cull_path_to_visible(path, width, height, margin=16):
 
 
 @_manages_shape
-def _render_function_paths(primitives, screen_paths, stroke, width=0, height=0):
+def _render_function_paths(primitives, screen_paths, stroke, width=0, height=0, margin=16):
     """Render function paths as stroked polylines with culling.
 
     Args:
@@ -65,12 +65,13 @@ def _render_function_paths(primitives, screen_paths, stroke, width=0, height=0):
         stroke: StrokeStyle for the function curve.
         width: Canvas width for culling (0 to disable).
         height: Canvas height for culling (0 to disable).
+        margin: Pixels kept beyond each canvas edge.
     """
     for path in screen_paths:
         if len(path) < 2:
             continue
         if width > 0 and height > 0:
-            culled_segments = _cull_path_to_visible(path, width, height)
+            culled_segments = _cull_path_to_visible(path, width, height, margin)
             for segment in culled_segments:
                 if len(segment) >= 2:
                     primitives.stroke_polyline(segment, stroke)
@@ -92,6 +93,15 @@ def _model_signature(func):
         return repr(get_state())
     except Exception:
         return None
+
+
+def _get_view_margin(style):
+    """Fraction of the viewport sampled beyond each edge (set by renderers that reproject on pan)."""
+    try:
+        margin = float(style.get("function_view_margin", 0.0) or 0.0)
+    except Exception:
+        return 0.0
+    return margin if math.isfinite(margin) and margin > 0 else 0.0
 
 
 def _get_or_create_renderable(func, coordinate_mapper):
@@ -159,7 +169,17 @@ def _normalize_font_size(value):
     return size_float
 
 
-def _render_function_label(primitives, func, screen_paths, stroke, style, width=0):
+def _first_visible_point(screen_paths, width, height):
+    """First path point inside the canvas, or the first point when none is (or size is unknown)."""
+    if width > 0 and height > 0:
+        for path in screen_paths:
+            for sx, sy in path:
+                if 0 <= sx <= width and 0 <= sy <= height:
+                    return (sx, sy)
+    return screen_paths[0][0]
+
+
+def _render_function_label(primitives, func, screen_paths, stroke, style, width=0, height=0):
     """Render the function name label near the curve start.
 
     Args:
@@ -169,11 +189,13 @@ def _render_function_label(primitives, func, screen_paths, stroke, style, width=
         stroke: StrokeStyle containing the function color.
         style: Style dictionary with font settings.
         width: Canvas width; when positive the label is kept inside the canvas.
+        height: Canvas height; with width, used to anchor the label at the first
+            visible point (paths may extend beyond the canvas).
     """
     if not getattr(func, "name", "") or not screen_paths or not screen_paths[0]:
         return
     font_size = _normalize_font_size(style.get("function_label_font_size", 12))
-    first_point = screen_paths[0][0]
+    first_point = _first_visible_point(screen_paths, width, height)
     label_offset_x = (1 + len(func.name)) * font_size / 2.0
     label_x = first_point[0] - label_offset_x
     if width > 0:
@@ -201,8 +223,12 @@ def render_function_helper(primitives, func, coordinate_mapper, style):
         coordinate_mapper: Mapper for math-to-screen coordinate conversion.
         style: Style dictionary with function_color and function_stroke_width.
     """
+    view_margin = _get_view_margin(style)
     try:
         renderable = _get_or_create_renderable(func, coordinate_mapper)
+        if renderable.view_margin != view_margin:
+            renderable.view_margin = view_margin
+            renderable.invalidate_cache()
         screen_paths = renderable.build_screen_paths().paths
     except Exception as e:
         # Log the error for debugging but don't crash rendering
@@ -215,5 +241,6 @@ def render_function_helper(primitives, func, coordinate_mapper, style):
     height = getattr(coordinate_mapper, "canvas_height", 0) or 0
     stroke = _build_stroke_style(func, style)
 
-    _render_function_paths(primitives, screen_paths, stroke, width, height)
-    _render_function_label(primitives, func, screen_paths, stroke, style, width)
+    cull_margin = max(16, view_margin * max(width, height))
+    _render_function_paths(primitives, screen_paths, stroke, width, height, cull_margin)
+    _render_function_label(primitives, func, screen_paths, stroke, style, width, height)

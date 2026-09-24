@@ -9,7 +9,7 @@ math-only and the renderer consumes a clean representation.
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Optional, Set, Tuple, cast
+from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
 from rendering.primitives import MathPolyline, ScreenPolyline
 from rendering.renderables.adaptive_sampler import AdaptiveSampler
@@ -32,6 +32,10 @@ class FunctionRenderable:
         # each x once, and the point discontinuities as a set.
         self._eval_cache: Optional[Dict[float, Any]] = None
         self._discontinuity_set: Optional[Set[float]] = None
+        self._sorted_asymptotes: Optional[List[float]] = None
+        # Fraction of the viewport also sampled beyond each edge. A renderer that
+        # reprojects cached plans on pan sets this so small pans stay covered.
+        self.view_margin: float = 0.0
 
     def invalidate_cache(self) -> None:
         self._cached_screen_paths = None
@@ -129,6 +133,16 @@ class FunctionRenderable:
             pass
         return False
 
+    def _collect_sorted_asymptotes(self) -> Optional[List[float]]:
+        """Sorted vertical asymptotes for a per-build pointer walk (None if unavailable)."""
+        asymptotes = getattr(self.func, "vertical_asymptotes", None)
+        if not isinstance(asymptotes, (list, tuple)):
+            return None
+        try:
+            return sorted(float(a) for a in asymptotes)
+        except Exception:
+            return None
+
     def _get_asymptote_between(self, x1: float, x2: float) -> Optional[float]:
         if not hasattr(self.func, "get_vertical_asymptote_between_x"):
             return None
@@ -218,6 +232,10 @@ class FunctionRenderable:
 
     def _get_effective_bounds(self) -> Tuple[float, float]:
         visible_left, visible_right = self._get_visible_bounds()
+        if self.view_margin > 0:
+            margin = (visible_right - visible_left) * self.view_margin
+            visible_left -= margin
+            visible_right += margin
         base_left: Optional[float] = getattr(self.func, "left_bound", None)
         base_right: Optional[float] = getattr(self.func, "right_bound", None)
         # Use visible bounds when no explicit function bounds are set
@@ -237,8 +255,10 @@ class FunctionRenderable:
         Calculate sample points, splitting at asymptotes and discontinuities into separate sub-ranges.
         Returns a list of sample lists, one per continuous sub-range.
         """
-        canvas_width = int(getattr(self.mapper, "canvas_width", 800) or 800)
+        # The sample budget covers the viewport plus the margins on both sides.
+        canvas_width = int((getattr(self.mapper, "canvas_width", 800) or 800) * (1 + 2 * self.view_margin))
         viewport_height = getattr(self.mapper, "canvas_height", None) or None
+        viewport_band = self._vertical_band(viewport_height) if viewport_height else None
 
         initial_segments = None
         if getattr(self.func, "is_periodic", False) and getattr(self.func, "estimated_period", None):
@@ -264,7 +284,7 @@ class FunctionRenderable:
                     all_split_points,
                     initial_segments,
                     max_samples=canvas_width,
-                    viewport_height=viewport_height,
+                    viewport_band=viewport_band,
                 ),
             )
         else:
@@ -276,7 +296,7 @@ class FunctionRenderable:
                 self.mapper.math_to_screen,
                 initial_segments,
                 max_samples=canvas_width,
-                viewport_height=viewport_height,
+                viewport_band=viewport_band,
             )
             return [samples] if samples else []
 
@@ -309,6 +329,7 @@ class FunctionRenderable:
         width, height = self._get_screen_dimensions()
         self._eval_cache = {}
         self._discontinuity_set = set(getattr(self.func, "point_discontinuities", None) or [])
+        self._sorted_asymptotes = self._collect_sorted_asymptotes()
         try:
             # Get samples split by asymptotes - each sub-list is a continuous range
             sample_subranges = self._calculate_sample_points_by_subrange(left_bound, right_bound)
@@ -322,26 +343,32 @@ class FunctionRenderable:
         finally:
             self._eval_cache = None
             self._discontinuity_set = None
+            self._sorted_asymptotes = None
+
+    def _vertical_band(self, height: float) -> Tuple[float, float]:
+        """Screen-y band kept in paths: the viewport plus the view margin above and below."""
+        margin = height * self.view_margin
+        return -margin, height + margin
 
     def _interpolate_boundary_crossing(
-        self, sx1: float, sy1: float, sx2: float, sy2: float, height: float
+        self, sx1: float, sy1: float, sx2: float, sy2: float, height: float, top: float = 0.0
     ) -> Optional[tuple[float, float]]:
-        """Calculate intersection point where line crosses screen boundary (y=0 or y=height)."""
+        """Calculate intersection point where line crosses the band boundary (y=top or y=height)."""
         if sy1 == sy2:
             return None
-        # Check if crossing top boundary (y=0)
-        if (sy1 < 0 <= sy2) or (sy2 < 0 <= sy1):
-            t = (0 - sy1) / (sy2 - sy1)
-            return (sx1 + t * (sx2 - sx1), 0.0)
+        # Check if crossing top boundary (y=top)
+        if (sy1 < top <= sy2) or (sy2 < top <= sy1):
+            t = (top - sy1) / (sy2 - sy1)
+            return (sx1 + t * (sx2 - sx1), top)
         # Check if crossing bottom boundary (y=height)
         if (sy1 <= height < sy2) or (sy2 <= height < sy1):
             t = (height - sy1) / (sy2 - sy1)
             return (sx1 + t * (sx2 - sx1), height)
         return None
 
-    def _is_on_screen(self, sy: float, height: float) -> bool:
-        """Check if y coordinate is within screen bounds."""
-        return 0 <= sy <= height
+    def _is_on_screen(self, sy: float, height: float, top: float = 0.0) -> bool:
+        """Check if y coordinate is within the band [top, height]."""
+        return top <= sy <= height
 
     def _build_path_from_samples(self, sample_points: list[float], height: float) -> list[list[tuple[float, float]]]:
         """
@@ -356,6 +383,11 @@ class FunctionRenderable:
         prev_sy: Optional[float] = None
         prev_sx: Optional[float] = None
         prev_x: Optional[float] = None
+        band_top, band_bottom = self._vertical_band(height)
+        # Samples ascend, so asymptotes are found by walking a pointer instead
+        # of searching the asymptote list for every sample.
+        asymptotes = self._sorted_asymptotes
+        asymptote_index = 0
 
         for x in sample_points:
             if self._is_discontinuity(x):
@@ -366,7 +398,15 @@ class FunctionRenderable:
                 prev_x = None
                 continue
 
-            if prev_x is not None and self._get_asymptote_between(prev_x, x) is not None:
+            crosses_asymptote = False
+            if prev_x is not None:
+                if asymptotes is not None:
+                    while asymptote_index < len(asymptotes) and asymptotes[asymptote_index] < prev_x:
+                        asymptote_index += 1
+                    crosses_asymptote = asymptote_index < len(asymptotes) and asymptotes[asymptote_index] < x
+                else:
+                    crosses_asymptote = self._get_asymptote_between(prev_x, x) is not None
+            if crosses_asymptote:
                 self._finalize_path(current_path, paths)
                 current_path = []
                 prev_sy = None
@@ -382,12 +422,12 @@ class FunctionRenderable:
                 continue
 
             sx, sy = scaled_point[0], cast(float, scaled_point[1])
-            on_screen = self._is_on_screen(sy, height)
-            prev_on_screen = prev_sy is not None and self._is_on_screen(prev_sy, height)
+            on_screen = self._is_on_screen(sy, band_bottom, band_top)
+            prev_on_screen = prev_sy is not None and self._is_on_screen(prev_sy, band_bottom, band_top)
 
             # Handle boundary crossings BEFORE large jump check
             if prev_sx is not None and prev_sy is not None:
-                crossing = self._interpolate_boundary_crossing(prev_sx, prev_sy, sx, sy, height)
+                crossing = self._interpolate_boundary_crossing(prev_sx, prev_sy, sx, sy, band_bottom, band_top)
                 if crossing:
                     if prev_on_screen and not on_screen:
                         current_path.append(crossing)

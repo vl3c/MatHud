@@ -203,6 +203,30 @@ class TestCanvas2DRendererPlan(unittest.TestCase):
 
         self.assertNotEqual(renderer._compute_drawable_signature(function, mapper), before)
 
+    def test_function_plan_survives_pans_within_half_screen_bucket(self) -> None:
+        renderer = self._make_renderer()
+        renderer.style = {"function_view_margin": canvas2d_renderer.FUNCTION_VIEW_MARGIN}
+        function = SimpleNamespace(name="f", get_class_name=lambda: "Function", get_state=lambda: {})
+        offset = SimpleNamespace(x=10.0, y=10.0)
+        mapper = SimpleNamespace(scale_factor=1.0, offset=offset, canvas_width=800, canvas_height=600)
+
+        before = renderer._compute_drawable_signature(function, mapper)
+        offset.x, offset.y = 380.0, 280.0
+        self.assertEqual(renderer._compute_drawable_signature(function, mapper), before)
+        offset.x = 420.0
+        self.assertNotEqual(renderer._compute_drawable_signature(function, mapper), before)
+
+    def test_non_function_plans_still_track_exact_offset(self) -> None:
+        renderer = self._make_renderer()
+        renderer.style = {"function_view_margin": canvas2d_renderer.FUNCTION_VIEW_MARGIN}
+        area = SimpleNamespace(name="a", get_class_name=lambda: "FunctionsBoundedColoredArea", get_state=lambda: {})
+        offset = SimpleNamespace(x=10.0, y=10.0)
+        mapper = SimpleNamespace(scale_factor=1.0, offset=offset, canvas_width=800, canvas_height=600)
+
+        before = renderer._compute_drawable_signature(area, mapper)
+        offset.x = 11.0
+        self.assertNotEqual(renderer._compute_drawable_signature(area, mapper), before)
+
     def _make_sized_canvas(self, width: int, height: int) -> "_CountingCanvas":
         container = SimpleNamespace(
             clientWidth=752,
