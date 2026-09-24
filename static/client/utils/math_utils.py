@@ -1017,15 +1017,27 @@ class MathUtils:
             B = 2 * cos_a * sin_a * (1 / rx**2 - 1 / ry**2)
             C = (sin_a**2 / rx**2) + (cos_a**2 / ry**2)
 
-            # Format coefficients to 4 decimal places for readability
-            A = round(A, 4)
-            B = round(B, 4)
-            C = round(C, 4)
+            # Format coefficients with significant digits in plain decimal notation (no exponent),
+            # since fixed decimal places collapse small coefficients (large radii) to 0
+            coef_scale = max(abs(A), abs(C))
+
+            def fmt_coef(value: float) -> str:
+                if not math.isfinite(value):
+                    return str(value)
+                if abs(value) <= 1e-12 * coef_scale:  # floating-point noise, e.g. cross term at 90 degrees
+                    return "0"
+                decimals = max(0, 9 - int(math.floor(math.log10(abs(value)))))
+                text = format(value, "." + str(decimals) + "f")
+                if "." in text:
+                    text = text.rstrip("0").rstrip(".")
+                return text
+
+            a_str, b_str, c_str = fmt_coef(A), fmt_coef(B), fmt_coef(C)
 
             # Handle special cases for coefficient signs in the formula
-            b_term = f"+ {B}" if B >= 0 else f"- {abs(B)}"
+            b_term = f"- {b_str[1:]}" if b_str.startswith("-") else f"+ {b_str}"
 
-            return f"{A}*(x - {fx})**2 {b_term}*(x - {fy})*(y - {fy}) + {C}*(y - {fy})**2 = 1"
+            return f"{a_str}*(x - {fx})**2 {b_term}*(x - {fx})*(y - {fy}) + {c_str}*(y - {fy})**2 = 1"
 
     @staticmethod
     def try_convert_to_number(value: Any) -> Any:
