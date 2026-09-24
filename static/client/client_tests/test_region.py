@@ -168,6 +168,55 @@ class TestRegion(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(len(result.holes), 0)
 
+    # L-shape (area 3, concave) and the unit square centered on its reflex corner.
+    _L_SHAPE = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0), (1.0, 2.0), (0.0, 2.0)]
+    _CENTER_SQUARE = [(0.5, 0.5), (1.5, 0.5), (1.5, 1.5), (0.5, 1.5)]
+
+    def test_intersection_with_concave_operand_is_commutative(self) -> None:
+        l_shape = Region.from_points(self._L_SHAPE)
+        square = Region.from_points(self._CENTER_SQUARE)
+        l_and_s = l_shape.intersection(square)
+        s_and_l = square.intersection(l_shape)
+        assert l_and_s is not None and s_and_l is not None
+        self.assertAlmostEqual(l_and_s.area(), 0.75, places=6)
+        self.assertAlmostEqual(s_and_l.area(), 0.75, places=6)
+
+    def test_difference_with_concave_operand(self) -> None:
+        l_shape = Region.from_points(self._L_SHAPE)
+        square = Region.from_points(self._CENTER_SQUARE)
+        s_minus_l = square.difference(l_shape)
+        l_minus_s = l_shape.difference(square)
+        assert s_minus_l is not None and l_minus_s is not None
+        self.assertAlmostEqual(s_minus_l.area(), 0.25, places=6)
+        self.assertAlmostEqual(l_minus_s.area(), 2.25, places=6)
+
+    def test_union_and_symmetric_difference_with_concave_operand(self) -> None:
+        l_shape = Region.from_points(self._L_SHAPE)
+        square = Region.from_points(self._CENTER_SQUARE)
+        self.assertAlmostEqual(square.union(l_shape).area(), 3.25, places=6)
+        self.assertAlmostEqual(l_shape.union(square).area(), 3.25, places=6)
+        self.assertAlmostEqual(square.symmetric_difference(l_shape).area(), 2.5, places=6)
+
+    def test_circle_and_concave_clips_against_circle(self) -> None:
+        # Circle centered on the L-shape's reflex corner: three quarters lie inside.
+        l_shape = Region.from_points(self._L_SHAPE)
+        circle = Region.from_circle((1.0, 1.0), 0.25)
+        inter = circle.intersection(l_shape)
+        assert inter is not None
+        self.assertAlmostEqual(inter.area(), 0.75 * math.pi * 0.0625, places=2)
+
+    def test_boolean_op_on_two_concave_regions_raises(self) -> None:
+        l_shape = Region.from_points(self._L_SHAPE)
+        other_l = Region.from_points([(x + 0.5, y + 0.5) for x, y in self._L_SHAPE])
+        with self.assertRaises(ValueError):
+            l_shape.intersection(other_l)
+        with self.assertRaises(ValueError):
+            l_shape.union(other_l)
+        with self.assertRaises(ValueError):
+            l_shape.difference(other_l)
+        with self.assertRaises(ValueError):
+            l_shape.symmetric_difference(other_l)
+
     def test_repr(self) -> None:
         region = Region.from_points([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)])
         repr_str = repr(region)
