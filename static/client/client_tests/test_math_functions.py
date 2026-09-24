@@ -1665,8 +1665,9 @@ class TestMathFunctions(unittest.TestCase):
         p_diag1, p_diag2 = MathUtils.find_diagonal_points(points, "Rect4_L-shape")
         self.assertIsNotNone(p_diag1)
         self.assertIsNotNone(p_diag2)
+        # The farthest pair spans all four points
         self.assertEqual(p_diag1.name, "A")
-        self.assertEqual(p_diag2.name, "C")
+        self.assertEqual(p_diag2.name, "D")
 
     def test_find_diagonal_points_less_than_4_points(self) -> None:
         points = [SimpleMock(name="A", x=0, y=0), SimpleMock(name="B", x=1, y=1)]

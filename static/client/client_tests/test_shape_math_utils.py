@@ -75,5 +75,20 @@ class TestIsRectangleScale(unittest.TestCase):
         self.assertFalse(MathUtils.is_right_angle(Position(0, 0), Position(1e-3, 0), Position(1e-6, 1e-3)))
 
 
+class TestFindDiagonalPoints(unittest.TestCase):
+    def test_rotated_square_returns_true_diagonal(self) -> None:
+        points = [Position(0, 0), Position(1, 1), Position(0, 2), Position(-1, 1)]
+        p1, p2 = MathUtils.find_diagonal_points(points, "R")
+        self.assertIsNotNone(p1)
+        self.assertIsNotNone(p2)
+        self.assertAlmostEqual(math.hypot(p1.x - p2.x, p1.y - p2.y), 2.0)
+
+    def test_rotated_rectangle_returns_true_diagonal(self) -> None:
+        points = [Position(0, 0), Position(3, 3), Position(1, 5), Position(-2, 2)]
+        p1, p2 = MathUtils.find_diagonal_points(points, "R")
+        pair = {(p1.x, p1.y), (p2.x, p2.y)}
+        self.assertIn(pair, ({(0, 0), (1, 5)}, {(3, 3), (-2, 2)}))
+
+
 if __name__ == "__main__":
     unittest.main()

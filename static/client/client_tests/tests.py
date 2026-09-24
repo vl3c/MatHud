@@ -118,6 +118,7 @@ from .test_polygon_canonicalizer import TestPolygonCanonicalizer
 from .test_shape_math_utils import (
     TestEllipseFormula,
     TestIsRectangleScale,
+    TestFindDiagonalPoints,
 )
 from .test_triangle import TestTriangle
 from .test_quadrilateral import TestQuadrilateral
@@ -439,6 +440,7 @@ class Tests:
             TestPolygonCanonicalizer,
             TestEllipseFormula,
             TestIsRectangleScale,
+            TestFindDiagonalPoints,
             TestDrawableNameGenerator,
             TestPoint,
             TestSegment,

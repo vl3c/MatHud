@@ -2565,42 +2565,26 @@ class MathUtils:
         if len(points) != 4:
             return None, None
 
-        # Find all possible diagonal pairs (points that differ in both x and y)
-        potential_diagonals = []
-
-        for i in range(len(points)):
-            for j in range(i + 1, len(points)):
-                p1 = points[i]
-                p2 = points[j]
-
-                # Check if points differ in both x and y coordinates (potential diagonal)
-                dx = abs(p1.x - p2.x)
-                dy = abs(p1.y - p2.y)
-
-                if dx > MathUtils.EPSILON and dy > MathUtils.EPSILON:
-                    distance = math.sqrt(dx**2 + dy**2)
-                    potential_diagonals.append((p1, p2, distance, dx, dy))
-
-        if not potential_diagonals:
+        # Points with no pair differing in both x and y (e.g. on a horizontal line) cannot form a rectangle
+        has_2d_extent = any(
+            abs(points[i].x - points[j].x) > MathUtils.EPSILON and abs(points[i].y - points[j].y) > MathUtils.EPSILON
+            for i in range(len(points))
+            for j in range(i + 1, len(points))
+        )
+        if not has_2d_extent:
             return None, None
 
-        # Sort by a combination of factors that make good rectangle diagonals:
-        # 1. Prefer more balanced rectangles (closer dx/dy ratio to 1.0)
-        # 2. Then by distance as secondary criterion
-        def diagonal_score(diag_info: Tuple[PointLike, PointLike, float, float, float]) -> Tuple[float, float]:
-            p1, p2, distance, dx, dy = diag_info
-            # Calculate how balanced the rectangle would be (closer to 1.0 is better)
-            aspect_ratio = max(dx, dy) / min(dx, dy) if min(dx, dy) > 0 else float("inf")
-            balance_score = 1.0 / aspect_ratio  # Higher score for more balanced rectangles
-            # Return tuple for sorting: (balance_score descending, distance descending)
-            return (-balance_score, -distance)
-
-        # Sort potential diagonals by our scoring criteria
-        potential_diagonals.sort(key=diagonal_score)
-
-        # Return the best diagonal pair
-        best_diagonal = potential_diagonals[0]
-        return best_diagonal[0], best_diagonal[1]
+        # The diagonals of a rectangle are its longest vertex pairs. Consider every pair
+        # (a rotated rectangle's diagonal may be axis-aligned); the first longest one wins ties.
+        best_pair: Tuple[Optional[PointLike], Optional[PointLike]] = (None, None)
+        best_distance = -1.0
+        for i in range(len(points)):
+            for j in range(i + 1, len(points)):
+                distance = math.hypot(points[i].x - points[j].x, points[i].y - points[j].y)
+                if distance > best_distance:
+                    best_distance = distance
+                    best_pair = (points[i], points[j])
+        return best_pair
 
     @staticmethod
     def rectangular_to_polar(x: float, y: float) -> Tuple[float, float]:
