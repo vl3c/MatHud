@@ -160,9 +160,21 @@ class TestWaitForServer:
                 raise result
             return result
 
-        with patch("urllib.request.urlopen", side_effect=fake_urlopen) as urlopen:
+        with patch.object(mathud_desktop._LOCAL_OPENER, "open", side_effect=fake_urlopen) as urlopen:
             assert wait_for_server("http://127.0.0.1:1/", timeout=5, interval=0.01)
         assert urlopen.call_count == 3
+
+    def test_ignores_configured_proxies(self, server: BackgroundServer, monkeypatch: pytest.MonkeyPatch) -> None:
+        # An unreachable system proxy must not make a localhost server look down.
+        dead_proxy = f"http://127.0.0.1:{_unused_port()}"
+        for name in ("HTTP_PROXY", "http_proxy"):
+            monkeypatch.setenv(name, dead_proxy)
+        for name in ("NO_PROXY", "no_proxy"):
+            monkeypatch.delenv(name, raising=False)
+        # urlopen caches a default opener, and with it the proxies seen first.
+        monkeypatch.setattr(urllib.request, "_opener", None)
+
+        assert wait_for_server(server.url, timeout=1, interval=0.05)
 
 
 class TestWindowState:

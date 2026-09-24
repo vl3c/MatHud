@@ -46,6 +46,9 @@ MIN_WINDOW_SIZE = (800, 600)
 WINDOW_STATE_FILENAME = "desktop_window.json"
 WEBVIEW_STORAGE_DIRNAME = "webview"
 DESKTOP_INSTALL_HINT = "pip install -r requirements-desktop.txt"
+# Readiness checks talk to localhost directly; system or environment proxies
+# (possibly unreachable) must not be consulted.
+_LOCAL_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 class BackgroundServer:
@@ -140,7 +143,7 @@ def wait_for_server(url: str, timeout: float = SERVER_READY_TIMEOUT_S, interval:
     deadline = time.monotonic() + timeout
     while True:
         try:
-            with urllib.request.urlopen(url, timeout=max(interval, 1.0)):
+            with _LOCAL_OPENER.open(url, timeout=max(interval, 1.0)):
                 return True
         except urllib.error.HTTPError:
             return True
