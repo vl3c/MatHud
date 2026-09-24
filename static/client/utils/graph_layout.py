@@ -397,7 +397,7 @@ def _layout_non_planar_graph(
     new_vertices = planarized[0]
     new_edges = planarized[1]
     dummy_ids = planarized[2]
-    planarity_result = _is_planar(new_vertices, new_edges)
+    planarity_result = _may_be_planar(new_vertices, new_edges)
     new_embedding = planarity_result[1]
 
     if new_embedding is not None:
@@ -436,7 +436,7 @@ def _grid_layout(
         return _ensure_float_positions(_orthogonal_tree_layout(vertex_ids, edges, box))
 
     # TSM pipeline for general graphs
-    planarity_result = _is_planar(vertex_ids, edges)
+    planarity_result = _may_be_planar(vertex_ids, edges)
     is_planar = planarity_result[0]
     embedding = planarity_result[1]
 
@@ -582,19 +582,21 @@ def _orthogonal_tree_layout(
 # =============================================================================
 
 
-def _is_planar(
+def _may_be_planar(
     vertex_ids: List[str],
     edges: List[Edge[str]],
 ) -> Tuple[bool, Optional[Dict[str, List[str]]]]:
     """
-    Check if graph is planar and compute embedding if so.
+    Heuristic planarity check used only to choose a layout strategy.
 
-    Uses edge count bound check and simplified LR-planarity algorithm.
+    Checks necessary conditions only (|E| <= 3|V| - 6, and |E| <= 2|V| - 4 for
+    bipartite graphs); it is NOT a full planarity test. False means definitely
+    non-planar, True means "may be planar" (e.g. the Petersen graph passes).
 
     Returns:
-        (is_planar, embedding_or_none)
-        - If planar: (True, {vertex: [clockwise_neighbors]})
-        - If not planar: (False, None)
+        (may_be_planar, embedding_or_none)
+        - If it may be planar: (True, {vertex: [neighbors]})
+        - If definitely not planar: (False, None)
     """
     n = len(vertex_ids)
     m = len(edges)
@@ -621,7 +623,7 @@ def _is_planar(
         for component in components:
             comp_vertices = list(component)
             comp_edges = [e for e in edges if e.source in component and e.target in component]
-            comp_planarity = _is_planar(comp_vertices, comp_edges)
+            comp_planarity = _may_be_planar(comp_vertices, comp_edges)
             is_comp_planar = comp_planarity[0]
             if not is_comp_planar:
                 return False, None
