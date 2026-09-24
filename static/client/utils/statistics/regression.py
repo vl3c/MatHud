@@ -182,20 +182,38 @@ def calculate_r_squared(y_actual: List[float], y_predicted: List[float]) -> floa
 # ---------------------------------------------------------------------------
 
 
-def _format_coefficient(value: float, precision: int = 6) -> str:
-    """Format a coefficient for expression string.
+def _format_coefficient(value: float) -> str:
+    """Format a coefficient for expression string at full precision.
 
     Avoids scientific notation since MatHud parser interprets 'e' as Euler's number.
+    The shortest round-trip representation (repr) is expanded into plain decimal
+    digits so the plotted expression matches the fitted model exactly, even for
+    very small or very large coefficients.
     """
-    if abs(value) < 1e-10:
+    value = float(value)
+    if value == 0 or not math.isfinite(value):
         return "0"
-    # Use fixed-point notation to avoid scientific notation (e.g., 1e-05)
-    # which MatHud would interpret as 1 * euler_number - 05
-    formatted = f"{value:.{precision}f}".rstrip("0").rstrip(".")
-    # Ensure we don't return empty string or just a minus sign
-    if not formatted or formatted == "-":
+    text = repr(value).lower()
+    sign = "-" if text.startswith("-") else ""
+    text = text.lstrip("+-")
+    mantissa, _, exponent_text = text.partition("e")
+    exponent = int(exponent_text) if exponent_text else 0
+    int_part, _, frac_part = mantissa.partition(".")
+    digits = int_part + frac_part
+    # Position of the decimal point within `digits`
+    point = len(int_part) + exponent
+    if point <= 0:
+        int_str, frac_str = "0", "0" * (-point) + digits
+    elif point >= len(digits):
+        int_str, frac_str = digits + "0" * (point - len(digits)), ""
+    else:
+        int_str, frac_str = digits[:point], digits[point:]
+    int_str = int_str.lstrip("0") or "0"
+    frac_str = frac_str.rstrip("0")
+    formatted = f"{int_str}.{frac_str}" if frac_str else int_str
+    if formatted == "0":
         return "0"
-    return formatted
+    return sign + formatted
 
 
 def build_expression(model_type: str, coefficients: Dict[str, float]) -> str:
@@ -220,7 +238,7 @@ def build_expression(model_type: str, coefficients: Dict[str, float]) -> str:
 
         for i in range(degree):
             coef = coefficients.get(f"a{i}", 0.0)
-            if abs(coef) < 1e-10:
+            if coef == 0:
                 continue
             coef_str = _format_coefficient(coef)
             if i == 0:

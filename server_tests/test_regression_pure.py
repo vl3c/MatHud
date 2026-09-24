@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import unittest
+from typing import Any, Callable, List
 
 from utils.statistics.regression import (
     SUPPORTED_MODEL_TYPES,
@@ -628,6 +629,60 @@ class TestRegressionResultStructure(unittest.TestCase):
         self.assertIsInstance(result["r_squared"], float)
         self.assertGreaterEqual(result["r_squared"], 0.0)
         self.assertLessEqual(result["r_squared"], 1.0)
+
+
+def _evaluate_expression(expression: str, x: float) -> float:
+    """Evaluate a generated regression expression with plain Python math."""
+    namespace = {"x": x, "exp": math.exp, "ln": math.log, "sin": math.sin}
+    return float(eval(expression.replace("^", "**"), {"__builtins__": {}}, namespace))
+
+
+class TestExpressionPrecision(unittest.TestCase):
+    """The plotted expression must reproduce the fitted model's predictions."""
+
+    def _assert_expression_matches(
+        self, result: Any, predict: Callable[[float], float], x_data: List[float], rel_tol: float = 1e-9
+    ) -> None:
+        self.assertNotIn("e-", result["expression"])
+        self.assertNotIn("e+", result["expression"])
+        for x in x_data:
+            expected = predict(x)
+            actual = _evaluate_expression(result["expression"], x)
+            self.assertTrue(
+                math.isclose(actual, expected, rel_tol=rel_tol, abs_tol=1e-12),
+                f"expression {result['expression']!r} gives {actual} at x={x}, model gives {expected}",
+            )
+
+    def test_exponential_fit_on_years_keeps_tiny_prefactor(self) -> None:
+        x = [float(year) for year in range(2000, 2011)]
+        y = [5.0 * 1.05 ** (xi - 2000) for xi in x]
+        result = fit_exponential(x, y)
+        a, b = result["coefficients"]["a"], result["coefficients"]["b"]
+        self.assertNotIn("(0)*", result["expression"])
+        self._assert_expression_matches(result, lambda xi: a * math.exp(b * xi), x)
+
+    def test_linear_fit_with_tiny_slope(self) -> None:
+        x = [0.0, 1.0, 2.0, 3.0]
+        y = [3e-7 * xi for xi in x]
+        result = fit_linear(x, y)
+        m, b = result["coefficients"]["m"], result["coefficients"]["b"]
+        self.assertNotIn("(0)*x", result["expression"])
+        self._assert_expression_matches(result, lambda xi: m * xi + b, x)
+
+    def test_all_models_expression_matches_coefficients(self) -> None:
+        x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+        y = [1.3, 2.9, 4.2, 6.1, 7.7, 9.4]
+        cases = {
+            "logarithmic": lambda c, xi: c["a"] + c["b"] * math.log(xi),
+            "power": lambda c, xi: c["a"] * xi ** c["b"],
+            "logistic": lambda c, xi: c["L"] / (1 + math.exp(-c["k"] * (xi - c["x0"]))),
+            "sinusoidal": lambda c, xi: c["a"] * math.sin(c["b"] * xi + c["c"]) + c["d"],
+        }
+        for model, predict in cases.items():
+            with self.subTest(model=model):
+                result = fit_regression(x, y, model)
+                coefficients = result["coefficients"]
+                self._assert_expression_matches(result, lambda xi: predict(coefficients, xi), x)
 
 
 if __name__ == "__main__":
