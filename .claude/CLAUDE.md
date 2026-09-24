@@ -66,10 +66,18 @@ MATHUD_CANVAS_BUDGET_TOKENS= # Canvas block cap; default 4000 (cloud) / 1500 (lo
 2. Open `http://127.0.0.1:5000/` in a browser (Chrome, Firefox, or Edge).
 3. Stop with `Ctrl+C`.
 
+### Desktop Window
+`python mathud_desktop.py` (or `python -m cli.main desktop`) serves the app on localhost in a background thread and opens it in a native pywebview window titled "MatHud" (Edge WebView2 on Windows); closing the window stops the server.
+1. pywebview is optional: `pip install -r requirements-desktop.txt`. Without it the launcher prints that command and offers the browser instead.
+2. `--port N` picks the port (default 5100, falling back to a free port), `--browser` opens the default browser instead of a window, `--devtools` enables the WebView inspector.
+3. Debug mode is off and no WebDriver starts. Window geometry and WebView storage live in the per-user data dir (`%LOCALAPPDATA%\MatHud` on Windows).
+4. Kokoro TTS is imported on the first `/api/tts` request, not at startup (startup only checks the packages are installed).
+5. Server tests for the launcher (`server_tests/test_mathud_desktop.py`) fake pywebview; they never open a window.
+
 ### Running on a Specific Port
-If port 5000 is stale or occupied, use this command to start on a different port (e.g., 5004):
+If port 5000 is stale or occupied, start on a different port (e.g., 5004):
 ```bash
-python -c "import os; os.environ['PORT'] = '5004'; exec(open('app.py').read())"
+python app.py --port 5004
 ```
 Then navigate to `http://127.0.0.1:5004/` in the browser.
 

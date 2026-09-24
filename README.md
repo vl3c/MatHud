@@ -73,12 +73,31 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 
 ### 4.3 Run MatHud
 
+**Desktop window (one command).** The desktop launcher starts the server and opens MatHud in its own window; closing the window stops the server.
+
+1. Install the optional window dependency once ([pywebview](https://pywebview.flowrl.com/); on Windows it uses the Edge WebView2 runtime that ships with Windows 11):
+   ```sh
+   pip install -r requirements-desktop.txt
+   ```
+2. Launch from the project root (either command):
+   ```sh
+   python mathud_desktop.py
+   python -m cli.main desktop
+   ```
+   Options: `--port N` serves on a specific port (default 5100, or a free port if 5100 is taken), `--browser` opens your default browser instead of a window (no pywebview needed; stop with `Ctrl+C`), and `--devtools` enables the WebView developer tools. Without pywebview the launcher prints the install command and offers the browser instead.
+3. The window's size and position, and the page's local storage, are kept in your user profile (`%LOCALAPPDATA%\MatHud` on Windows, `~/Library/Application Support/MatHud` on macOS, `~/.config/mathud` on Linux).
+
+**Server plus browser.**
+
 1. Launch the Flask server from the project root:
    ```sh
    python app.py
    ```
+   Use `python app.py --port 5004` if port 5000 is taken.
 2. Open `http://127.0.0.1:5000/` in a desktop browser (Chrome, Firefox, or Edge confirmed). The Brython client loads automatically.
-3. Stop the server with `Ctrl+C`. The shutdown handler closes any active Selenium session before exiting.
+3. Stop the server with `Ctrl+C`.
+
+Text-to-speech (Kokoro) is not loaded at startup; its model loads on the first read-aloud request, which takes a few seconds once.
 
 ## 5. Configuration and Authentication
 
