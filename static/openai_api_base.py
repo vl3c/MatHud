@@ -16,7 +16,7 @@ from collections.abc import Iterator, Sequence
 from types import SimpleNamespace
 from typing import Any, Dict, List, Literal, Optional, Union
 
-import httpx
+import httpx2
 from openai import APITimeoutError, OpenAI
 
 from static.ai_model import AIModel
@@ -46,9 +46,9 @@ def stream_error_user_message(exc: BaseException, default: str) -> str:
 
     The OpenAI SDK wraps timeouts in APITimeoutError only around the initial
     request (time to response headers); a stall after streaming has begun
-    surfaces as a raw httpx.TimeoutException subclass, so both are matched.
+    surfaces as a raw httpx2.TimeoutException subclass, so both are matched.
     """
-    if isinstance(exc, (APITimeoutError, httpx.TimeoutException)):
+    if isinstance(exc, (APITimeoutError, httpx2.TimeoutException)):
         return PROVIDER_TIMEOUT_MESSAGE
     return default
 
