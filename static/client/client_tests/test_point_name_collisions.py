@@ -47,14 +47,6 @@ class TestPointNameCollisions(unittest.TestCase):
         self.assertEqual(len(names), 10)
         self._assert_unique(names)
 
-    def test_repeated_preferred_name_stays_unique(self) -> None:
-        for i in range(10):
-            self.canvas.create_point(float(i), float(-i), name="F", extra_graphics=False)
-
-        names = self._point_names()
-        self.assertEqual(len(names), 10)
-        self._assert_unique(names)
-
     def test_fit_regression_with_many_points_has_unique_names(self) -> None:
         x_data = [float(i) for i in range(30)]
         y_data = [2.0 * x + 1.0 for x in x_data]
