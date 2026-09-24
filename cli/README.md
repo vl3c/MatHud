@@ -63,6 +63,20 @@ python -m cli.main server stop [--port PORT]
 - `--no-wait`: Don't wait for server to be ready
 - `--json`: Output status as JSON
 
+### Desktop App
+
+```bash
+# Open MatHud in a native window with the server built in (closing the window stops it)
+python -m cli.main desktop [--port PORT] [--browser] [--devtools]
+```
+
+**Options:**
+- `--port, -p`: Port to serve on (default: 5100, or a free port if 5100 is taken)
+- `--browser`: Open MatHud in the default browser instead of a window
+- `--devtools`: Enable the WebView developer tools
+
+Needs pywebview: `pip install -r requirements-desktop.txt`. Equivalent to `python mathud_desktop.py`.
+
 ### Test Execution
 
 ```bash

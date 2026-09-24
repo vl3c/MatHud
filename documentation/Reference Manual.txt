@@ -166,40 +166,23 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 
 **File Header:**
 ```
-MatHud Flask Application Entry Point
-
-Main application launcher that initializes the Flask server, manages graceful shutdown,
-and coordinates the WebDriver for vision system functionality.
-
-Dependencies:
-    - static.app_manager: Application configuration and initialization
-    - Flask: Web framework (initialized via AppManager)
-    - Selenium WebDriver: Vision system image capture (lazy-loaded)
-    - Threading: Concurrent server execution
+MatHud Flask Application entry point.
 ```
 
 **Key Components:**
-- **Signal Handling**: Graceful shutdown management with WebDriver cleanup
-- **Flask Threading**: Daemon thread execution for non-blocking server startup
-- **WebDriver Initialization**: Lazy loading of vision system components
-- **Application Factory**: Integration with AppManager for dependency injection
-
-**Key Functions:**
-- `signal_handler(sig, frame)`: Handle graceful shutdown on interrupt signal with WebDriver cleanup
-- `__main__`: Main execution block that starts Flask server in daemon thread and initializes WebDriver
+- **Signal Handling**: `signal_handler(sig, frame)` exits cleanly on Ctrl+C
+- **Port Selection**: `--port` argument, then the `PORT` environment variable, then 5000; `PORT` without `--port` selects deployment mode (binds 0.0.0.0, debug off)
+- **Flask Threading**: In local mode the server runs in a daemon thread; the main thread waits until the server answers, then stays responsive to interrupts
+- **Application Factory**: The app is created by `AppManager.create_app()`
 
 **Execution Flow:**
-1. **App Creation**: Creates Flask application using AppManager factory pattern
-2. **Signal Registration**: Sets up interrupt handlers for graceful shutdown
-3. **Threaded Server**: Starts Flask server in daemon thread for responsive main thread
-4. **WebDriver Setup**: Initializes vision system after Flask startup delay
-5. **Main Loop**: Maintains responsive main thread for interrupt handling
+1. **App Creation**: Creates the Flask application through AppManager
+2. **Signal Registration**: Installs the interrupt handler
+3. **Threaded Server**: Starts Flask on 127.0.0.1 in a daemon thread (debug on unless `MATHUD_NON_DEBUG` is set)
+4. **Readiness Wait**: Polls the server until it responds, then prints the URL
+5. **Main Loop**: Keeps the main thread alive for interrupt handling
 
-**Key Features:**
-- **Graceful Shutdown**: Proper cleanup of WebDriver resources on application exit
-- **Non-Blocking Startup**: Daemon thread prevents blocking main thread execution
-- **Vision System Integration**: Automatic WebDriver initialization for AI vision capabilities
-- **Debug Configuration**: Production-ready settings with debug and reloader disabled
+No WebDriver or headless browser is started: vision snapshots are captured in the browser (`static/client/canvas_snapshot.py`), and Kokoro TTS loads lazily on the first speech request. For a native window with the server built in, use the desktop launcher (`mathud_desktop.py`, or `python -m cli.main desktop`).
 
 #### Main (`main.py`)
 
