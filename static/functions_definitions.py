@@ -2067,7 +2067,10 @@ FUNCTIONS: List[Dict[str, Any]] = [
                         "items": {
                             "type": "object",
                             "properties": {
-                                "name": {"type": ["string", "null"]},
+                                "name": {
+                                    "type": ["string", "null"],
+                                    "description": "Point name for the vertex; used as given when not already taken, otherwise a name is generated.",
+                                },
                                 "x": {"type": ["number", "null"]},
                                 "y": {"type": ["number", "null"]},
                                 "color": {"type": ["string", "null"]},
@@ -2140,7 +2143,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "analyze_graph",
-            "description": "Analyzes an existing graph/tree for connectivity and structural queries (connectedness, shortest path, BFS/DFS, bipartite, bridges, articulation points, diameter, etc.). Use generate_graph first if the graph does not exist yet.",
+            "description": 'Analyzes an existing graph/tree for connectivity and structural queries (connectedness, shortest path, BFS/DFS, bipartite, bridges, articulation points, diameter, etc.). Use generate_graph first if the graph does not exist yet. Notes: shortest_path supports negative weights on directed graphs (Bellman-Ford) and returns {"error": ...} for negative weights on undirected graphs or a reachable negative cycle; mst on a disconnected graph returns a minimum spanning forest with connected: false and a note; bridges, articulation_points and bipartite on directed graphs use the underlying undirected graph; euler_status on directed graphs uses in/out-degree balance.',
             "strict": True,
             "parameters": {
                 "type": "object",
