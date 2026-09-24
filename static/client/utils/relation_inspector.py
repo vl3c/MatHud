@@ -526,14 +526,19 @@ class RelationInspector:
 
         tol = RelationInspector.RELATION_TOLERANCE * max(1.0, r1, r2, d)
 
+        # Concentric circles (including identical ones) never touch at a single point.
+        concentric = d < tol
+        coincident = concentric and abs(r1 - r2) < tol
         ext_tangent = abs(d - (r1 + r2)) < tol
-        int_tangent = abs(d - abs(r1 - r2)) < tol
+        int_tangent = not concentric and abs(d - abs(r1 - r2)) < tol
         is_tangent = ext_tangent or int_tangent
 
         if ext_tangent:
             kind = "externally tangent"
         elif int_tangent:
             kind = "internally tangent"
+        elif coincident:
+            kind = "coincident (identical), not tangent"
         else:
             kind = "not tangent"
 
@@ -549,6 +554,7 @@ class RelationInspector:
                 "r2": r2,
                 "externally_tangent": ext_tangent,
                 "internally_tangent": int_tangent,
+                "coincident": coincident,
             },
         )
 

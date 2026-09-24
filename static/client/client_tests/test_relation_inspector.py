@@ -386,6 +386,20 @@ class TestTangent(_RelationTestBase):
         self.assertTrue(res["result"])
         self.assertTrue(res["details"]["internally_tangent"])
 
+    def test_identical_circles_not_tangent(self) -> None:
+        c1 = _circle(1, 2, 3)
+        c2 = _circle(1, 2, 3)
+        res = RelationInspector.inspect("tangent", [c1, c2], ["circle", "circle"])
+        self.assertFalse(res["result"])
+        self.assertFalse(res["details"]["internally_tangent"])
+        self.assertTrue(res["details"]["coincident"])
+        self.assertIn("coincident", res["explanation"])
+
+    def test_concentric_circles_not_tangent(self) -> None:
+        res = RelationInspector.inspect("tangent", [_circle(0, 0, 3), _circle(0, 0, 5)], ["circle", "circle"])
+        self.assertFalse(res["result"])
+        self.assertFalse(res["details"]["coincident"])
+
     def test_circles_not_tangent(self) -> None:
         c1 = self.canvas.create_circle(0, 0, 3)
         c2 = self.canvas.create_circle(10, 0, 3)
