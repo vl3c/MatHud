@@ -72,7 +72,7 @@ class Vector(Drawable):
         return "Vector"
 
     def get_state(self) -> Dict[str, Any]:
-        return {
+        state: Dict[str, Any] = {
             "name": self.name,
             "args": {
                 "origin": self.segment.point1.name,
@@ -82,6 +82,16 @@ class Vector(Drawable):
             "_origin_coords": [self.segment.point1.x, self.segment.point1.y],
             "_tip_coords": [self.segment.point2.x, self.segment.point2.y],
         }
+        # Persist the underlying segment label (e.g. directed graph edge weights),
+        # mirroring Segment.get_state: only when there is non-empty label text.
+        label = getattr(self.segment, "label", None)
+        label_text = str(getattr(label, "text", "") or "")
+        if label_text:
+            state["args"]["label"] = {
+                "text": label_text,
+                "visible": bool(getattr(label, "visible", False)),
+            }
+        return state
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> Any:
         # Check if the vector has already been deep copied
