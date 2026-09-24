@@ -206,6 +206,15 @@ class TestMathUtilsSolving(unittest.TestCase):
             self.assertLess(float(residual), 1e-9)
         self.assertTrue(any(abs(float(window.math.re(r)) - 2 ** (1 / 3)) < 1e-9 for r in roots))
 
+    def test_solve_keeps_valid_roots_of_large_coefficient_equations(self) -> None:
+        for coefficient in (200000, 2000000):
+            roots = sorted(
+                float(window.math.re(r)) for r in self._roots(MathUtils.solve(f"x^2 - {coefficient}*x + 1 = 0", "x"))
+            )
+            self.assertEqual(len(roots), 2, roots)
+            self.assertAlmostEqual(roots[0] * coefficient, 1.0, places=2)
+            self.assertAlmostEqual(roots[1] / coefficient, 1.0, places=6)
+
     def test_solve_keeps_valid_complex_roots(self) -> None:
         self.assertEqual(MathUtils.solve("x^2+1=0", "x"), "[i,-i]")
 

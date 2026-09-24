@@ -1727,8 +1727,17 @@ class MathUtils:
     def _equation_holds(sides: Sequence[str], scope: Dict[str, Any]) -> Optional[bool]:
         """Check lhs = rhs (or expression = 0) numerically with math.js.
 
+        The tolerance also scales with how steeply the residual changes with each variable,
+        so a root that is accurate to rounding error still passes when the equation has large
+        coefficients (e.g. the small root of x^2 - 2000000*x + 1 = 0).
         Returns None when the equation cannot be evaluated for the given scope.
         """
+
+        def residual_at(values: Dict[str, Any]) -> Any:
+            lhs = window.math.evaluate(sides[0], values)
+            rhs = window.math.evaluate(sides[1], values) if len(sides) == 2 else 0
+            return window.math.subtract(lhs, rhs)
+
         try:
             lhs = window.math.evaluate(sides[0], scope)
             rhs = window.math.evaluate(sides[1], scope) if len(sides) == 2 else 0
@@ -1738,6 +1747,17 @@ class MathUtils:
             return None
         if not math.isfinite(residual) or not math.isfinite(scale):
             return None
+        for name, value in scope.items():
+            try:
+                size = max(1.0, float(window.math.abs(value)))
+                step = 1e-7 * size
+                forward = residual_at({**scope, name: window.math.subtract(value, -step)})
+                backward = residual_at({**scope, name: window.math.subtract(value, step)})
+                slope = float(window.math.abs(window.math.subtract(forward, backward))) / (2 * step)
+            except Exception:
+                continue
+            if math.isfinite(slope):
+                scale = max(scale, size * slope)
         return residual <= 1e-6 * scale
 
     @staticmethod
@@ -1972,7 +1992,7 @@ class MathUtils:
                 continue
             y_value = float(y_value)
             scope = {"x": x_value, "y": y_value}
-            if all(MathUtils._equation_holds(sides, scope) for sides in equation_sides):
+            if all(MathUtils._equation_holds(sides, scope) is not False for sides in equation_sides):
                 solutions.append((x_value, y_value))
         return solutions
 
