@@ -685,5 +685,31 @@ class TestExpressionPrecision(unittest.TestCase):
                 self._assert_expression_matches(result, lambda xi: predict(coefficients, xi), x)
 
 
+class TestNumericalStability(unittest.TestCase):
+    """Fits and R-squared must not depend on the absolute offset/scale of the data."""
+
+    def test_linear_fit_with_large_x_offset(self) -> None:
+        x = [1e8, 1e8 + 1, 1e8 + 2, 1e8 + 3]
+        y = [1.0, 2.0, 3.0, 4.0]
+        result = fit_linear(x, y)
+        self.assertAlmostEqual(result["coefficients"]["m"], 1.0, places=9)
+        self.assertAlmostEqual(result["r_squared"], 1.0, places=9)
+
+    def test_r_squared_is_scale_invariant(self) -> None:
+        y_actual = [1.0, 2.0, 3.0, 4.0]
+        y_predicted = [1.5, 2.0, 3.0, 3.5]
+        expected = calculate_r_squared(y_actual, y_predicted)
+        self.assertAlmostEqual(expected, 0.9, places=10)
+        for scale in (1e-7, 1e-12, 1e9):
+            with self.subTest(scale=scale):
+                scaled = calculate_r_squared([v * scale for v in y_actual], [v * scale for v in y_predicted])
+                self.assertAlmostEqual(scaled, expected, places=8)
+
+    def test_r_squared_small_scale_constant_prediction(self) -> None:
+        y_actual = [1e-7, 2e-7, 3e-7, 4e-7]
+        y_predicted = [2.5e-7] * 4
+        self.assertAlmostEqual(calculate_r_squared(y_actual, y_predicted), 0.0, places=8)
+
+
 if __name__ == "__main__":
     unittest.main()

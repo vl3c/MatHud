@@ -164,13 +164,18 @@ def calculate_r_squared(y_actual: List[float], y_predicted: List[float]) -> floa
     if len(y_actual) == 0:
         raise ValueError("Cannot calculate R² for empty data")
 
-    y_mean = sum(y_actual) / len(y_actual)
+    n = len(y_actual)
+    y_mean = sum(y_actual) / n
     ss_tot = sum((y - y_mean) ** 2 for y in y_actual)
     ss_res = sum((ya - yp) ** 2 for ya, yp in zip(y_actual, y_predicted))
 
-    if ss_tot < 1e-12:
+    # Treat variation below ~1e-10 of the data magnitude as zero so the
+    # threshold does not depend on the units/scale of y
+    y_scale = max(abs(y) for y in y_actual)
+    negligible = n * (1e-10 * y_scale) ** 2
+    if ss_tot <= negligible:
         # All y values are essentially the same
-        return 1.0 if ss_res < 1e-12 else 0.0
+        return 1.0 if ss_res <= negligible else 0.0
 
     r_squared = 1.0 - (ss_res / ss_tot)
     # Clamp to [0, 1] to handle numerical errors
@@ -314,18 +319,19 @@ def fit_linear(x_data: List[float], y_data: List[float]) -> RegressionResult:
     """
     _validate_data(x_data, y_data)
 
+    # Centered formulas avoid catastrophic cancellation for large x offsets
     n = len(x_data)
-    sum_x = sum(x_data)
-    sum_y = sum(y_data)
-    sum_xy = sum(x * y for x, y in zip(x_data, y_data))
-    sum_xx = sum(x * x for x in x_data)
+    x_mean = sum(x_data) / n
+    y_mean = sum(y_data) / n
+    s_xx = sum((x - x_mean) ** 2 for x in x_data)
+    s_xy = sum((x - x_mean) * (y - y_mean) for x, y in zip(x_data, y_data))
 
-    denom = n * sum_xx - sum_x * sum_x
-    if abs(denom) < 1e-12:
+    x_scale = max(abs(x) for x in x_data)
+    if s_xx <= n * (1e-12 * x_scale) ** 2:
         raise ValueError("Cannot fit linear model: x values have no variance")
 
-    m = (n * sum_xy - sum_x * sum_y) / denom
-    b = (sum_y - m * sum_x) / n
+    m = s_xy / s_xx
+    b = y_mean - m * x_mean
 
     # Calculate R-squared
     y_predicted = [m * x + b for x in x_data]
