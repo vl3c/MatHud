@@ -108,6 +108,32 @@ class TestMathUtilsSolving(unittest.TestCase):
         self.assertEqual(_parse_numeric_solutions(result), [])
 
     # ------------------------------------------------------------------
+    # integral (definite)
+    # ------------------------------------------------------------------
+    def test_integral_rejects_interior_pole(self) -> None:
+        result = MathUtils.integral("1/x^2", "x", -1, 1)
+        self.assertTrue(result.startswith("Error"), result)
+
+    def test_integral_rejects_tangent_across_pole(self) -> None:
+        self.assertTrue(MathUtils.integral("tan(x)", "x", 1, 2).startswith("Error"))
+        # Crosses two poles but F(b) - F(a) happens to be real
+        self.assertTrue(MathUtils.integral("tan(x)", "x", 1, 5).startswith("Error"))
+
+    def test_integral_rejects_log_singularity(self) -> None:
+        result = MathUtils.integral("1/x", "x", -1, 2)
+        self.assertTrue(result.startswith("Error"), result)
+
+    def test_integral_regular_cases_unchanged(self) -> None:
+        self.assertAlmostEqual(float(MathUtils.integral("x^2", "x", 0, 3)), 9.0, places=9)
+        self.assertAlmostEqual(float(MathUtils.integral("sin(x)", "x", 0, "pi")), 2.0, places=9)
+        self.assertAlmostEqual(float(MathUtils.integral("e^x", "x", 0, 1)), math.e - 1, places=9)
+        self.assertAlmostEqual(float(MathUtils.integral("1/x", "x", 1, 2)), math.log(2), places=9)
+        self.assertAlmostEqual(float(MathUtils.integral("tan(x)", "x", 0, 1)), -math.log(math.cos(1)), places=9)
+
+    def test_integral_convergent_endpoint_singularity(self) -> None:
+        self.assertAlmostEqual(float(MathUtils.integral("1/sqrt(x)", "x", 0, 1)), 2.0, places=9)
+
+    # ------------------------------------------------------------------
     # solve
     # ------------------------------------------------------------------
     def _roots(self, result: str) -> List[object]:

@@ -1212,15 +1212,110 @@ class MathUtils:
         Returns:
             str: Integral result as string or error message
         """
+        import re
+
         try:
             indefinite_integral = window.nerdamer(f"integrate({expression}, {variable})")
             if lower_bound is None and upper_bound is None:
                 return str(indefinite_integral.text())
             evaluated_at_upper = indefinite_integral.sub(variable, upper_bound).text()
             evaluated_at_lower = indefinite_integral.sub(variable, lower_bound).text()
-            return str(window.nerdamer(f"{evaluated_at_upper} - {evaluated_at_lower}").evaluate().text())
+            result = str(window.nerdamer(f"{evaluated_at_upper} - {evaluated_at_lower}").evaluate().text())
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+
+        # F(b) - F(a) is only valid when the integrand has no singularity inside the interval
+        singular_point = MathUtils._find_interior_singularity(expression, variable, lower_bound, upper_bound)
+        if singular_point is not None:
+            return (
+                f"Error: The integrand {expression} is singular or undefined near {variable} = {singular_point:.6g} "
+                f"inside [{lower_bound}, {upper_bound}], so this is an improper integral that may diverge; "
+                "the antiderivative cannot be evaluated across it."
+            )
+        if re.search(r"\bi\b", result):
+            return (
+                f"Error: The definite integral of {expression} over [{lower_bound}, {upper_bound}] is not a real "
+                "number; the integrand is likely singular or undefined in the interval (improper or divergent integral)."
+            )
+        return result
+
+    @staticmethod
+    def _find_interior_singularity(
+        expression: str,
+        variable: str,
+        lower_bound: Union[Number, str],
+        upper_bound: Union[Number, str],
+    ) -> Optional[float]:
+        """Scan the integrand on a fine grid for interior points where it is undefined or blows up.
+
+        Returns the approximate location of such a point, or None when the integrand looks
+        finite inside the interval or cannot be evaluated numerically. Singularities exactly
+        at an endpoint are ignored; they are handled by the antiderivative evaluation.
+        """
+        try:
+            from expression_validator import ExpressionValidator
+
+            compiled = window.math.compile(ExpressionValidator.fix_math_expression(str(expression)))
+            a = float(window.math.evaluate(str(lower_bound)))
+            b = float(window.math.evaluate(str(upper_bound)))
+            if not (math.isfinite(a) and math.isfinite(b)) or a == b:
+                return None
+
+            def magnitude(x: float) -> Optional[float]:
+                value = compiled.evaluate({variable: x})
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    return None  # complex or non-numeric: undefined over the reals
+                value = abs(float(value))
+                return value if math.isfinite(value) else None
+
+            steps = 2000
+            step = (b - a) / steps
+            xs = [a + k * step for k in range(steps + 1)]
+            values = [magnitude(x) for x in xs]
+            for k in range(1, steps):
+                if values[k] is None:
+                    return xs[k]
+
+            # Zoom into the largest local maxima of |f|: a pole keeps growing, a smooth peak does not
+            def at(k: int) -> float:
+                value = values[k]
+                return math.inf if value is None else value
+
+            peaks = [k for k in range(1, steps) if at(k) >= at(k - 1) and at(k) >= at(k + 1)]
+            peaks.sort(key=at, reverse=True)
+            for k in peaks[:20]:
+                lo, hi = sorted((xs[k - 1], xs[k + 1]))
+                location = MathUtils._refine_blow_up(magnitude, lo, hi, at(k))
+                if location is not None and min(abs(location - a), abs(location - b)) > abs(step) * 1e-6:
+                    return location
+            return None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _refine_blow_up(magnitude: Any, lo: float, hi: float, grid_value: float) -> Optional[float]:
+        """Ternary-search the maximum of |f| on [lo, hi]; return its location if it grows without bound.
+
+        magnitude(x) returns |f(x)|, or None where f is undefined or infinite.
+        """
+        for _ in range(100):
+            m1 = lo + (hi - lo) / 3
+            m2 = hi - (hi - lo) / 3
+            v1 = magnitude(m1)
+            if v1 is None:
+                return m1
+            v2 = magnitude(m2)
+            if v2 is None:
+                return m2
+            if v1 < v2:
+                lo = m1
+            else:
+                hi = m2
+        peak_location = (lo + hi) / 2
+        peak = magnitude(peak_location)
+        if peak is None or peak > 1e6 * max(1.0, grid_value):
+            return peak_location
+        return None
 
     @staticmethod
     def numeric_integrate(
