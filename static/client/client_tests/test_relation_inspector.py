@@ -8,6 +8,17 @@ from typing import Dict, Any
 
 from canvas import Canvas
 from managers.polygon_type import PolygonType
+from utils.relation_inspector import RelationInspector
+
+from .simple_mock import SimpleMock
+
+
+def _pt(x: float, y: float) -> SimpleMock:
+    return SimpleMock(name=f"P({x},{y})", x=x, y=y)
+
+
+def _circle(cx: float, cy: float, r: float) -> SimpleMock:
+    return SimpleMock(name=f"C({cx},{cy},{r})", center=_pt(cx, cy), radius=r)
 
 
 class _RelationTestBase(unittest.TestCase):
@@ -176,6 +187,28 @@ class TestCollinear(_RelationTestBase):
         self.canvas.create_point(1, 1, name="B")
         res = self._inspect("collinear", ["A", "B"], ["point", "point"])
         self.assertIn("error", res)
+
+    def test_repeated_first_point_does_not_hide_deviation(self) -> None:
+        """If the first two points coincide, the others must still be checked."""
+        points = [_pt(0, 0), _pt(0, 0), _pt(1, 0), _pt(0, 1)]
+        res = RelationInspector.inspect("collinear", points, ["point"] * 4)
+        self.assertFalse(res["result"])
+
+    def test_repeated_first_point_collinear(self) -> None:
+        points = [_pt(0, 0), _pt(0, 0), _pt(1, 1), _pt(3, 3)]
+        res = RelationInspector.inspect("collinear", points, ["point"] * 4)
+        self.assertTrue(res["result"])
+
+    def test_small_scale_non_collinear(self) -> None:
+        """A tiny right-angle configuration is not collinear (scale-aware guard)."""
+        points = [_pt(0, 0), _pt(1e-4, 0), _pt(0, 1e-4)]
+        res = RelationInspector.inspect("collinear", points, ["point"] * 3)
+        self.assertFalse(res["result"])
+
+    def test_all_points_coincident_is_collinear(self) -> None:
+        points = [_pt(2, 3), _pt(2, 3), _pt(2, 3)]
+        res = RelationInspector.inspect("collinear", points, ["point"] * 3)
+        self.assertTrue(res["result"])
 
 
 # ------------------------------------------------------------------

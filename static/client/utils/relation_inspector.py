@@ -234,26 +234,40 @@ class RelationInspector:
         from utils.math_utils import MathUtils
 
         p0 = objects[0]
-        p1 = objects[1]
         tol = RelationInspector.RELATION_TOLERANCE
+        x0, y0 = float(p0.x), float(p0.y)
 
-        for i in range(2, len(objects)):
-            pi = objects[i]
-            # Use cross-product divided by both magnitudes for a truly
-            # dimensionless (scale-invariant) collinearity measure.
-            ax = float(p1.x) - float(p0.x)
-            ay = float(p1.y) - float(p0.y)
-            bx = float(pi.x) - float(p0.x)
-            by = float(pi.y) - float(p0.y)
-            cross = abs(ax * by - ay * bx)
-            mag_a = RelationInspector._magnitude(ax, ay)
-            mag_b = RelationInspector._magnitude(bx, by)
-            denom = mag_a * mag_b
-            # If either vector is near-zero the points are coincident with p0,
-            # which is trivially collinear.
-            if denom < RelationInspector.RELATION_TOLERANCE:
+        # Use the point farthest from p0 as the base direction so a repeated
+        # p0 (or a point very close to it) cannot hide a deviation.
+        base_idx = max(
+            range(1, len(objects)),
+            key=lambda k: RelationInspector._magnitude(float(objects[k].x) - x0, float(objects[k].y) - y0),
+        )
+        ax = float(objects[base_idx].x) - x0
+        ay = float(objects[base_idx].y) - y0
+        base_len = RelationInspector._magnitude(ax, ay)
+
+        # All points coincide (relative to the coordinate magnitude): trivially collinear.
+        coord_scale = max([1.0] + [max(abs(float(p.x)), abs(float(p.y))) for p in objects])
+        if base_len <= 1e-12 * coord_scale:
+            return RelationInspector._ok(
+                "collinear",
+                True,
+                "All points are collinear",
+                tol,
+                {"point_count": len(objects)},
+            )
+
+        for i in range(1, len(objects)):
+            if i == base_idx:
                 continue
-            if cross / denom > tol:
+            pi = objects[i]
+            # Perpendicular distance from the base line divided by the base
+            # length: a dimensionless (scale-invariant) collinearity measure.
+            bx = float(pi.x) - x0
+            by = float(pi.y) - y0
+            cross = abs(ax * by - ay * bx)
+            if cross / (base_len * base_len) > tol:
                 return RelationInspector._ok(
                     "collinear",
                     False,
