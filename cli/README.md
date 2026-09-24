@@ -25,6 +25,10 @@ Required packages:
 - `webdriver-manager>=4.0.0` - Automatic ChromeDriver management
 - `psutil>=5.9.0` - Cross-platform process management
 
+`requirements-ci.txt` also includes them; it skips the text-to-speech stack, so it installs much faster for test-only environments.
+
+Commands that launch Python (`server start`, `test server`, `test lint`, `--start-server`) use the interpreter in `./venv`. When `./venv` does not exist (for example in a git worktree), they fall back to the interpreter running the CLI.
+
 ## Usage
 
 Run commands via Python module:
@@ -128,7 +132,7 @@ python -m cli.main canvas exec FUNCTION_NAME [--args JSON] [--port PORT]
 **Examples:**
 ```bash
 python -m cli.main canvas exec create_point --args '{"x": 5, "y": 3, "name": "A"}'
-python -m cli.main canvas exec draw_function --args '{"expression": "x**2", "x_min": -5, "x_max": 5}'
+python -m cli.main canvas exec draw_function --args '{"function_string": "x^2", "name": "f", "left_bound": -5, "right_bound": 5}'
 ```
 
 ### Workspace Management
@@ -146,6 +150,8 @@ python -m cli.main workspace load NAME [--port PORT] [--json]
 # Delete workspace
 python -m cli.main workspace delete NAME [--port PORT] [-y]
 ```
+
+`workspace delete` sends a JSON POST to `/delete_workspace`; the server moves the file to `workspaces/.trash/` rather than removing it.
 
 ### AI Chat
 
@@ -233,7 +239,7 @@ cli/
   2. Waits for `window.startMatHudTests` to be available
   3. Calls `window.startMatHudTests()` to begin
   4. Polls `window.getMatHudTestResults()` until complete or timeout
-- Linting: Runs `ruff check .` and `mypy` with the venv interpreter; `--install-hook` copies `hooks/pre-commit` into the git hooks directory (resolved via `git rev-parse --git-path hooks`)
+- Linting: Runs `ruff check .` and `mypy` with the venv interpreter (or the running interpreter when `./venv` is missing); `--install-hook` copies `hooks/pre-commit` into the git hooks directory (resolved via `git rev-parse --git-path hooks`)
 
 ## Configuration
 
