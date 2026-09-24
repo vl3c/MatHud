@@ -20,8 +20,8 @@ def solve_linear_system_gaussian(
         b: n-element right-hand side vector.
 
     Returns:
-        Solution vector x, or None if the matrix is singular (pivot < 1e-12)
-        or non-square.
+        Solution vector x, or None if the matrix is singular (pivot below
+        1e-12 times the largest entry) or non-square.
     """
     n = len(b)
 
@@ -37,6 +37,9 @@ def solve_linear_system_gaussian(
         row = [float(A[i][j]) for j in range(n)]
         row.append(float(b[i]))
         aug.append(row)
+
+    # Pivots are judged relative to the matrix magnitude, not an absolute value
+    singular_tol = 1e-12 * max((abs(value) for row in aug for value in row[:n]), default=0.0)
 
     # Forward elimination with partial pivoting
     for col in range(n):
@@ -54,7 +57,7 @@ def solve_linear_system_gaussian(
 
         # Check for singular matrix
         pivot = aug[col][col]
-        if abs(pivot) < 1e-12:
+        if abs(pivot) <= singular_tol:
             return None
 
         # Eliminate below pivot
@@ -66,7 +69,7 @@ def solve_linear_system_gaussian(
     # Back substitution
     x: List[float] = [0.0] * n
     for i in range(n - 1, -1, -1):
-        if abs(aug[i][i]) < 1e-12:
+        if abs(aug[i][i]) <= singular_tol:
             return None
         x[i] = aug[i][n]
         for j in range(i + 1, n):

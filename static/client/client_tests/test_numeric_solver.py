@@ -77,6 +77,16 @@ class TestNumericSolverHelpers(unittest.TestCase):
         result = solve_linear_system_gaussian(A, b)
         self.assertIsNone(result)
 
+    def test_gaussian_elimination_small_scale(self) -> None:
+        """Pivots are judged relative to the matrix, so small-scale systems are not 'singular'."""
+        from numeric_solver.linear_algebra import solve_linear_system_gaussian
+
+        result = solve_linear_system_gaussian([[1e-13, 0.0], [0.0, 2e-13]], [1e-13, 6e-13])
+
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result[0], 1.0, places=9)
+        self.assertAlmostEqual(result[1], 3.0, places=9)
+
     def test_deduplication(self) -> None:
         """Test that near-duplicate solutions are deduplicated."""
         from numeric_solver.utils import deduplicate_solutions
@@ -219,6 +229,50 @@ class TestNumericSolverIntegration(unittest.TestCase):
         self.assertIn("variables", result)
         self.assertIn("method", result)
         self.assertEqual(result["method"], "newton_raphson")
+
+    def test_solves_equations_with_large_magnitudes(self) -> None:
+        """Residual noise near large roots exceeds any absolute tolerance."""
+        from numeric_solver import solve_numeric
+
+        cases = [
+            ("x^3 = 2000000000", [2e9 ** (1.0 / 3.0)]),
+            ("x^2 = 1000000000007", [-math.sqrt(1e12 + 7), math.sqrt(1e12 + 7)]),
+            ("exp(x) = 10000000", [math.log(1e7)]),
+        ]
+        for equation, expected in cases:
+            result = json.loads(solve_numeric([equation]))
+            found = sorted(sol["x"] for sol in result["solutions"])
+            self.assertEqual(len(found), len(expected), f"{equation}: {result}")
+            for value, root in zip(found, sorted(expected)):
+                self.assertTrue(math.isclose(value, root, rel_tol=1e-8), f"{equation}: {value} != {root}")
+
+    def test_small_scale_equation_has_single_accurate_root(self) -> None:
+        """An absolute residual tolerance accepts points far from the root of tiny-scale equations."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["0.000000000001*x = 0.001"]))
+
+        self.assertEqual(len(result["solutions"]), 1, str(result))
+        self.assertTrue(math.isclose(result["solutions"][0]["x"], 1e9, rel_tol=1e-8))
+
+    def test_multiple_roots_reported_once(self) -> None:
+        """Roots of multiplicity > 1 converge slowly but must not be reported many times."""
+        from numeric_solver import solve_numeric
+
+        for equation in ("(x-1)^2 = 0", "(x-1)^3 = 0", "x^2 = 0"):
+            result = json.loads(solve_numeric([equation]))
+            self.assertEqual(len(result["solutions"]), 1, f"{equation}: {result}")
+            expected = 0.0 if equation == "x^2 = 0" else 1.0
+            self.assertAlmostEqual(result["solutions"][0]["x"], expected, places=5)
+
+    def test_deduplication_is_relative_and_keeps_best_residual(self) -> None:
+        """Large-magnitude solutions are clustered relative to their size."""
+        from numeric_solver.utils import deduplicate_solutions
+
+        solutions = [[1e9 + 3.0], [1e9], [5.0]]
+        result = deduplicate_solutions(solutions, ["x"], residuals=[1e-9, 1e-14, 1e-12])
+
+        self.assertEqual(result, [{"x": 1e9}, {"x": 5.0}])
 
     def test_auto_detects_variables(self) -> None:
         """Test that variables are auto-detected when not provided."""

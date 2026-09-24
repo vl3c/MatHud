@@ -7,10 +7,11 @@ Orchestrates multi-start Newton-Raphson solving.
 from __future__ import annotations
 
 import json
+import math
 from typing import Any, Dict, List, Optional, Sequence
 
-from .expression_utils import detect_variables, equation_to_residual, evaluate_residuals
-from .newton_raphson import newton_raphson
+from .expression_utils import detect_variables, equation_to_residual
+from .newton_raphson import evaluate_scaled_residual, newton_raphson
 from .utils import deduplicate_solutions, generate_initial_guesses
 
 
@@ -28,7 +29,8 @@ def solve_numeric(
             If no '=' is present, the expression is assumed equal to 0.
         variables: Optional list of variable names. If not provided, auto-detected.
         initial_guesses: Optional list of starting point vectors.
-        tolerance: Convergence tolerance for residuals.
+        tolerance: Convergence tolerance for residuals, relative to the scale of
+            each equation and the size of the variables.
         max_iterations: Maximum Newton-Raphson iterations per starting point.
 
     Returns:
@@ -63,6 +65,7 @@ def solve_numeric(
 
     # Run Newton-Raphson from each starting point
     found_solutions: List[List[float]] = []
+    found_residuals: List[float] = []
 
     for guess in guesses:
         solution = newton_raphson(
@@ -74,13 +77,14 @@ def solve_numeric(
         )
 
         if solution is not None:
-            # Verify the solution by checking residuals
-            residuals = evaluate_residuals(residual_exprs, var_list, solution)
-            if residuals is not None and all(abs(r) < tolerance * 10 for r in residuals):
+            # Verify the solution with the same scale-aware residual as the iteration
+            residual = evaluate_scaled_residual(residual_exprs, var_list, solution)
+            if residual is not None and residual <= math.sqrt(tolerance):
                 found_solutions.append(solution)
+                found_residuals.append(residual)
 
-    # Deduplicate solutions
-    unique_solutions = deduplicate_solutions(found_solutions, var_list)
+    # Deduplicate solutions (keeping the most accurate of each cluster)
+    unique_solutions = deduplicate_solutions(found_solutions, var_list, residuals=found_residuals)
 
     # Build result
     result: Dict[str, Any] = {
