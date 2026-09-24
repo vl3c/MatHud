@@ -90,8 +90,8 @@ class TestStreamTimeoutMessage(unittest.TestCase):
         self.assertEqual(final_events[0]["finish_reason"], "error")
 
     def test_mid_stream_timeout_yields_timeout_message(self) -> None:
-        # After headers arrive the SDK no longer wraps transport timeouts:
-        # a silent gap between chunks raises raw httpx2.ReadTimeout.
+        # Older SDKs let a silent gap between chunks escape as a raw
+        # ReadTimeout instead of APITimeoutError; keep covering that fallback.
         def stalled_stream() -> Iterator[Any]:
             yield SimpleNamespace(
                 choices=[SimpleNamespace(delta=SimpleNamespace(content="Partial", tool_calls=None), finish_reason=None)]

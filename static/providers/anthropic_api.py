@@ -243,7 +243,7 @@ class AnthropicAPI(OpenAIAPIBase):
         arguments, so ``temperature`` goes into the request body via ``extra_body``.
         """
         if not self.model.is_reasoning_model:
-            request_kwargs["extra_body"] = {"temperature": self.temperature}
+            request_kwargs.setdefault("extra_body", {})["temperature"] = self.temperature
 
     def create_chat_completion(self, full_prompt: str) -> Any:
         """Create chat completion with Anthropic API."""

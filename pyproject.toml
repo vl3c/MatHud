@@ -7,11 +7,12 @@ name = "mathud"
 version = "0.1.0"
 description = "Mathematical canvas with AI assistant"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 dependencies = [
     "openai>=3.0.0",
     "anthropic>=1.0.0",
+    "httpx2>=2.7",
     "flask",
     "flask-session",
     "cachelib",

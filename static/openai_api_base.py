@@ -44,9 +44,9 @@ PROVIDER_TIMEOUT_MESSAGE = (
 def stream_error_user_message(exc: BaseException, default: str) -> str:
     """Return the user-facing message for a streaming failure.
 
-    The OpenAI SDK wraps timeouts in APITimeoutError only around the initial
-    request (time to response headers); a stall after streaming has begun
-    surfaces as a raw httpx2.TimeoutException subclass, so both are matched.
+    The OpenAI SDK reports timeouts as APITimeoutError. Older SDK versions let a
+    stall after streaming had begun escape as a raw transport TimeoutException,
+    so httpx2.TimeoutException is still matched as a fallback.
     """
     if isinstance(exc, (APITimeoutError, httpx2.TimeoutException)):
         return PROVIDER_TIMEOUT_MESSAGE

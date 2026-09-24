@@ -35,7 +35,7 @@ MatHud pairs a canvas with an AI assistant so users can sketch geometric scenes,
 # Environment Setup
 
 ## Prerequisites
-1. Python 3.10+ (tested with Python 3.11).
+1. Python 3.11+.
 2. Firefox installed locally for the vision workflow (geckodriver-autoinstaller handles the driver).
 3. An API key for at least one provider: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENROUTER_API_KEY` (local providers need none).
 

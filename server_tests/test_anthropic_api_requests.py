@@ -74,11 +74,9 @@ class TestAnthropicRequestBodies(unittest.TestCase):
     def _make_api(self, model_id: str) -> AnthropicAPI:
         with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
             api = AnthropicAPI(model=AIModel.from_identifier(model_id), temperature=0.3, tools=[])
-        api._anthropic_client = anthropic.Anthropic(
-            api_key="test-key",
-            http_client=httpx2.Client(transport=httpx2.MockTransport(self._handler)),
-            max_retries=0,
-        )
+        http_client = httpx2.Client(transport=httpx2.MockTransport(self._handler))
+        self.addCleanup(http_client.close)
+        api._anthropic_client = anthropic.Anthropic(api_key="test-key", http_client=http_client, max_retries=0)
         return api
 
     def test_non_reasoning_model_sends_temperature(self) -> None:
@@ -98,6 +96,12 @@ class TestAnthropicRequestBodies(unittest.TestCase):
     def test_reasoning_model_omits_temperature(self) -> None:
         api = self._make_api("claude-sonnet-5")
         api.create_chat_completion("Hi")
+        self.assertEqual(len(self.request_bodies), 1)
+        self.assertNotIn("temperature", self.request_bodies[0])
+
+    def test_reasoning_model_stream_omits_temperature(self) -> None:
+        api = self._make_api("claude-sonnet-5")
+        list(api.create_chat_completion_stream("Hi"))
         self.assertEqual(len(self.request_bodies), 1)
         self.assertNotIn("temperature", self.request_bodies[0])
 
