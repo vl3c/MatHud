@@ -52,10 +52,18 @@ def solve_numeric(
     n_vars = len(var_list)
     n_eqs = len(equations)
 
-    # Warn if system is over/under-determined (but still try to solve)
+    # Warn if system is over/under-determined (non-square systems are solved with
+    # Gauss-Newton least-squares or minimum-norm steps)
     warning = None
-    if n_eqs != n_vars:
-        warning = f"System has {n_eqs} equations and {n_vars} variables."
+    if n_eqs > n_vars:
+        warning = (
+            f"System has {n_eqs} equations and {n_vars} variables; only points satisfying every equation are reported."
+        )
+    elif n_eqs < n_vars:
+        warning = (
+            f"System has {n_eqs} equations and {n_vars} variables, so solutions are not unique; "
+            "the reported solutions are sample points of the solution set."
+        )
 
     # Convert equations to residual form
     residual_exprs = [equation_to_residual(eq) for eq in equations]
@@ -96,7 +104,12 @@ def solve_numeric(
     if warning:
         result["warning"] = warning
 
-    if not unique_solutions:
+    if not unique_solutions and n_eqs > n_vars:
+        result["message"] = (
+            f"No point satisfies all {n_eqs} equations simultaneously: the least-squares residual stays "
+            "non-zero, so the system appears inconsistent. Try providing initial_guesses if a solution is expected."
+        )
+    elif not unique_solutions:
         result["message"] = (
             "No solutions found in search range [-10, 10]. Try providing initial_guesses closer to expected solutions."
         )

@@ -1,7 +1,8 @@
 """
 Newton-Raphson iteration with Armijo backtracking line search.
 
-Core iteration logic for the numeric solver.
+Core iteration logic for the numeric solver. Non-square systems take
+Gauss-Newton (least-squares) or minimum-norm steps instead.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from typing import List, Optional, Sequence
 
 from .expression_utils import evaluate_residuals
 from .jacobian import compute_jacobian
-from .linear_algebra import solve_linear_system_gaussian
+from .linear_algebra import solve_least_squares_gaussian
 
 # Armijo line search constants
 ARMIJO_C = 1e-4  # Sufficient decrease parameter
@@ -103,20 +104,23 @@ def newton_raphson(
         if residual <= tolerance:
             return x
 
-        # Solve J * delta = -F
+        # Solve J * delta = -F (least squares / minimum norm for non-square J)
         neg_F = [-f for f in F]
-        delta = solve_linear_system_gaussian(J, neg_F)
+        delta = solve_least_squares_gaussian(J, neg_F)
         if delta is None:
             # Singular Jacobian
             return None
 
-        # Step-size convergence: the remaining correction is negligible
-        if residual <= math.sqrt(tolerance) and all(abs(delta[i]) <= tolerance * (1.0 + abs(x[i])) for i in range(n)):
-            return [x[i] + delta[i] for i in range(n)]
+        # Step-size convergence: the remaining correction is negligible. With a
+        # large residual this is a non-zero least-squares minimum, not a root.
+        if all(abs(delta[i]) <= tolerance * (1.0 + abs(x[i])) for i in range(n)):
+            return [x[i] + delta[i] for i in range(n)] if residual <= math.sqrt(tolerance) else None
 
         # Armijo backtracking line search
         alpha = 1.0
         F_norm_sq = sum(f * f for f in F)
+        # Directional derivative of ||F||^2 / 2 along delta (-||F||^2 for a Newton step)
+        slope = sum(F[i] * sum(J[i][j] * delta[j] for j in range(n)) for i in range(len(F)))
 
         for _ in range(MAX_BACKTRACKS):
             # Trial point
@@ -130,8 +134,8 @@ def newton_raphson(
 
             F_new_norm_sq = sum(f * f for f in F_new)
 
-            # Armijo condition: ||F(x + alpha*delta)||^2 <= (1 - 2*c*alpha) * ||F(x)||^2
-            if F_new_norm_sq <= (1 - 2 * ARMIJO_C * alpha) * F_norm_sq:
+            # Armijo condition: ||F(x + alpha*delta)||^2 <= ||F(x)||^2 + 2*c*alpha*slope
+            if F_new_norm_sq <= F_norm_sq + 2 * ARMIJO_C * alpha * slope:
                 x = x_new
                 break
 

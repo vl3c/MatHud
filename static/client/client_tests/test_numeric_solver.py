@@ -274,6 +274,62 @@ class TestNumericSolverIntegration(unittest.TestCase):
 
         self.assertEqual(result, [{"x": 1e9}, {"x": 5.0}])
 
+    def test_overdetermined_consistent_linear_system(self) -> None:
+        """More equations than unknowns: Gauss-Newton finds the common solution."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["x + y = 5", "x - y = 1", "x + 2*y = 7"]))
+
+        self.assertEqual(len(result["solutions"]), 1, str(result))
+        self.assertAlmostEqual(result["solutions"][0]["x"], 3.0, places=8)
+        self.assertAlmostEqual(result["solutions"][0]["y"], 2.0, places=8)
+        self.assertIn("warning", result)
+
+    def test_overdetermined_consistent_nonlinear_system(self) -> None:
+        """Circle, line and hyperbola meeting at (3, 4) and (-4, -3)."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["x^2 + y^2 = 25", "y = x + 1", "x*y = 12"]))
+
+        found = sorted((round(sol["x"], 6), round(sol["y"], 6)) for sol in result["solutions"])
+        self.assertEqual(found, [(-4.0, -3.0), (3.0, 4.0)], str(result))
+
+    def test_overdetermined_inconsistent_system_reports_message(self) -> None:
+        """A least-squares minimum with non-zero residual is not a solution."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["x + y = 2", "x - y = 0", "x + 2*y = 5"]))
+
+        self.assertEqual(result["solutions"], [])
+        self.assertIn("inconsistent", result["message"])
+
+    def test_underdetermined_system_returns_points_on_solution_set(self) -> None:
+        """Fewer equations than unknowns: minimum-norm steps land on the solution set."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["x^2 + y^2 + z^2 = 1", "x + y + z = 0"]))
+
+        self.assertGreater(len(result["solutions"]), 0, str(result))
+        for sol in result["solutions"]:
+            x, y, z = sol["x"], sol["y"], sol["z"]
+            self.assertAlmostEqual(x * x + y * y + z * z, 1.0, places=6)
+            self.assertAlmostEqual(x + y + z, 0.0, places=6)
+        self.assertIn("not unique", result["warning"])
+
+    def test_least_squares_helper_shapes(self) -> None:
+        """Overdetermined systems use normal equations; underdetermined use minimum norm."""
+        from numeric_solver.linear_algebra import solve_least_squares_gaussian
+
+        over = solve_least_squares_gaussian([[1.0, 1.0], [1.0, -1.0], [1.0, 2.0]], [5.0, 1.0, 7.0])
+        self.assertIsNotNone(over)
+        self.assertAlmostEqual(over[0], 3.0, places=9)
+        self.assertAlmostEqual(over[1], 2.0, places=9)
+
+        under = solve_least_squares_gaussian([[1.0, 1.0]], [2.0])
+        self.assertIsNotNone(under)
+        self.assertAlmostEqual(under[0], 1.0, places=9)
+        self.assertAlmostEqual(under[1], 1.0, places=9)
+
     def test_auto_detects_variables(self) -> None:
         """Test that variables are auto-detected when not provided."""
         from numeric_solver import solve_numeric
