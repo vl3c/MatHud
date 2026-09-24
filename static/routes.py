@@ -1100,6 +1100,9 @@ def register_routes(app: MatHudFlask) -> None:
                     )
                 )
 
+            # last_response_metrics lives on the shared provider instance, like its conversation
+            # history, so it is only reliable while one request per provider runs at a time (the
+            # single-user workbench case). The streaming path carries metrics on its final event.
             provider.last_response_metrics = None
             choice = provider.create_chat_completion(message)
             ai_message, ai_tool_calls_processed = _process_ai_response(app, choice)
