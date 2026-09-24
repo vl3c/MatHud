@@ -40,6 +40,30 @@ class TestMathUtilsSolving(unittest.TestCase):
             self.assertAlmostEqual(ay, ey, places=6)
 
     # ------------------------------------------------------------------
+    # get_equation_type
+    # ------------------------------------------------------------------
+    def test_equation_type_reciprocal_is_not_linear(self) -> None:
+        self.assertNotEqual(MathUtils.get_equation_type("y = 1/x"), "Linear")
+
+    def test_equation_type_exponential_is_not_linear(self) -> None:
+        self.assertNotEqual(MathUtils.get_equation_type("y = e^x"), "Linear")
+        self.assertNotEqual(MathUtils.get_equation_type("y = 2^x"), "Linear")
+
+    def test_equation_type_fractional_power_is_not_linear(self) -> None:
+        self.assertNotEqual(MathUtils.get_equation_type("y = x^0.5"), "Linear")
+
+    def test_equation_type_quadratic_plus_reciprocal_is_not_quadratic(self) -> None:
+        self.assertNotEqual(MathUtils.get_equation_type("y = x^2 + 1/x"), "Quadratic")
+
+    def test_equation_type_keeps_linear_with_constant_fraction(self) -> None:
+        self.assertEqual(MathUtils.get_equation_type("y = x/2 + 1"), "Linear")
+        self.assertEqual(MathUtils.get_equation_type("2*y = x + 1"), "Linear")
+
+    def test_solve_system_reciprocal_and_line_finds_both_intersections(self) -> None:
+        result = MathUtils.solve_system_of_equations(["y = 1/x", "y = x"])
+        self.assert_points_close(_parse_numeric_solutions(result), [(-1.0, -1.0), (1.0, 1.0)])
+
+    # ------------------------------------------------------------------
     # solve
     # ------------------------------------------------------------------
     def _roots(self, result: str) -> List[object]:

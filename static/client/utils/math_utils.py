@@ -1370,6 +1370,13 @@ class MathUtils:
             if trigonometric_match:
                 return "Trigonometric"
 
+            # Check for non-polynomial terms
+            # Pattern: a power that is not a plain integer, or a division by a variable/group
+            # Matches: 'x^(-1)' (expanded 1/x), 'e^x', '2^x', 'x^0.5', '1/(x+1)'
+            # Does not match: 'x^2', '(1/2)*x', 'x/2'
+            if re.search(r"\^(?!\d+(?![\d.]))|/\s*[(a-zA-Z]", expanded_equation):
+                return "Other Non-linear"
+
             # Check for non-linear terms with multiple variables
             # Pattern: letter followed optionally by * followed by letter
             # Matches: 'xy', 'x*y', 'x y', 'yx'
