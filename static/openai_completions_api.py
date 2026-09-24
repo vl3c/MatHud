@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 
 from static.openai_api_base import OpenAIAPIBase, MessageDict, StreamEvent, stream_error_user_message
 from static.response_metrics import (
+    create_stream_requesting_usage,
     reasoning_text_from_delta,
     record_chat_completions_usage,
     tool_call_argument_text,
@@ -29,6 +30,9 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
     # After the finish reason only the usage chunk is still expected; stop reading
     # when it arrives, or after this many chunks without it.
     MAX_CHUNKS_AFTER_FINISH = 3
+
+    # False once the server rejected stream_options (see create_stream_requesting_usage).
+    _stream_usage_supported = True
 
     def _create_assistant_message(self, response_message: Any) -> MessageDict:
         """Create an assistant message from the API response message."""
@@ -103,13 +107,14 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
         metrics = self._start_response_metrics("chat_completions")
 
         try:
-            stream = self.client.chat.completions.create(
+            stream, self._stream_usage_supported = create_stream_requesting_usage(
+                self.client.chat.completions.create,
+                self._stream_usage_supported,
                 model=self.model.id,
                 messages=self.messages,
                 tools=self.tools,
                 max_tokens=self.max_tokens,
                 stream=True,
-                stream_options={"include_usage": True},
             )
 
             for chunk in stream:

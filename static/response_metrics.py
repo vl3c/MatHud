@@ -33,12 +33,18 @@ Field sources:
 from __future__ import annotations
 
 import json
+import logging
 import time
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypedDict
 
 from static.token_estimation import estimate_tokens_from_text
 
+_logger = logging.getLogger("mathud")
+
 METRICS_SCHEMA_VERSION = 1
+
+# Asks a Chat Completions stream for a trailing usage chunk (OpenAI, OpenRouter, llama-server).
+STREAM_USAGE_OPTIONS: Dict[str, bool] = {"include_usage": True}
 
 # Shorter generation windows are delivery bursts, not generation; the rate then uses the whole request.
 MIN_GENERATION_WINDOW_S = 0.25
@@ -188,6 +194,34 @@ def reasoning_text_from_delta(delta: Any) -> str:
         if isinstance(text, str) and text:
             return text
     return ""
+
+
+def rejects_stream_usage_option(exc: BaseException) -> bool:
+    """True when a request error says the server does not accept ``stream_options``."""
+    if getattr(exc, "status_code", None) not in (400, 422):
+        return False
+    text = f"{exc} {getattr(exc, 'body', '')}"
+    return "stream_options" in text or "include_usage" in text
+
+
+def create_stream_requesting_usage(create: Callable[..., Any], request_usage: bool, **kwargs: Any) -> Tuple[Any, bool]:
+    """Start a streamed Chat Completions request that asks for a trailing usage chunk.
+
+    ``create`` is ``client.chat.completions.create`` and ``kwargs`` its other
+    arguments. A strict OpenAI-compatible server may reject ``stream_options``
+    with a 400; the request is then sent again without it. Returns the stream
+    and whether later requests should keep asking for usage, which the caller
+    passes back as ``request_usage``.
+    """
+    if not request_usage:
+        return create(**kwargs), False
+    try:
+        return create(stream_options=dict(STREAM_USAGE_OPTIONS), **kwargs), True
+    except Exception as exc:
+        if not rejects_stream_usage_option(exc):
+            raise
+        _logger.warning(f"Server rejected stream_options; streaming without usage reports: {exc}")
+        return create(**kwargs), False
 
 
 def record_chat_completions_usage(source: Any, tracker: "ResponseMetricsTracker") -> bool:

@@ -328,13 +328,38 @@ class _OpenAIStreamCase(unittest.TestCase):
     """Serves one SSE body through a real openai client and records request bodies."""
 
     sse_body = ""
+    # Error message of a 400 answer to requests that carry stream_options (a strict server).
+    stream_options_error = ""
 
     def setUp(self) -> None:
         self.request_bodies: List[Dict[str, Any]] = []
 
     def _handler(self, request: httpx2.Request) -> httpx2.Response:
-        self.request_bodies.append(json.loads(request.content))
+        body = json.loads(request.content)
+        self.request_bodies.append(body)
+        if self.stream_options_error and "stream_options" in body:
+            error = {"error": {"message": self.stream_options_error, "type": "invalid_request_error"}}
+            return httpx2.Response(400, json=error)
         return httpx2.Response(200, headers={"content-type": "text/event-stream"}, text=self.sse_body)
+
+    def _assert_retries_without_stream_options(self, api: Any) -> None:
+        """A server rejecting stream_options gets the request again without it, and later ones never."""
+        self.stream_options_error = "Unrecognized request argument supplied: stream_options"
+        self.sse_body = _sse([_chat_chunk({"content": "ok"}), _chat_chunk({}, finish_reason="stop")])
+        first = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"}))))
+        second = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "again"}))))
+
+        self.assertEqual(first["ai_message"], "ok")
+        self.assertEqual(second["ai_message"], "ok")
+        self.assertEqual(["stream_options" in body for body in self.request_bodies], [True, False, False])
+        self.assertTrue(second["metrics"]["output_tokens_estimated"])
+
+    def _assert_other_bad_request_is_not_retried(self, api: Any) -> None:
+        self.stream_options_error = "maximum context length exceeded"
+        final = self._final(list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"}))))
+
+        self.assertEqual(final["finish_reason"], "error")
+        self.assertEqual(len(self.request_bodies), 1)
 
     def _client(self) -> OpenAI:
         http_client = httpx2.Client(transport=httpx2.MockTransport(self._handler))
@@ -389,6 +414,12 @@ class TestChatCompletionsStreamMetrics(_OpenAIStreamCase):
         self.assertEqual(metrics["tool_calls"], 0)
         self.assertEqual(metrics["finish_reason"], "stop")
         self.assertEqual(api.last_response_metrics, metrics)
+
+    def test_retries_without_stream_options_when_rejected(self) -> None:
+        self._assert_retries_without_stream_options(self._make_api())
+
+    def test_other_bad_request_is_not_retried(self) -> None:
+        self._assert_other_bad_request_is_not_retried(self._make_api())
 
     def test_tool_call_counts_as_first_token(self) -> None:
         tool_delta = {
@@ -559,6 +590,12 @@ class TestLocalAgentStreamMetrics(_OpenAIStreamCase):
         self.assertEqual(metrics["output_tokens"], 31)
         self.assertFalse(metrics["output_tokens_estimated"])
         self.assertEqual(metrics["tokens_per_s_source"], "server_timings")
+
+    def test_retries_without_stream_options_when_rejected(self) -> None:
+        self._assert_retries_without_stream_options(self._make_api())
+
+    def test_other_bad_request_is_not_retried(self) -> None:
+        self._assert_other_bad_request_is_not_retried(self._make_api())
 
     def test_llama_server_reasoning_content_marks_output(self) -> None:
         self.sse_body = _sse(
