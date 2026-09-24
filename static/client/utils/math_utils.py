@@ -1212,15 +1212,110 @@ class MathUtils:
         Returns:
             str: Integral result as string or error message
         """
+        import re
+
         try:
             indefinite_integral = window.nerdamer(f"integrate({expression}, {variable})")
             if lower_bound is None and upper_bound is None:
                 return str(indefinite_integral.text())
             evaluated_at_upper = indefinite_integral.sub(variable, upper_bound).text()
             evaluated_at_lower = indefinite_integral.sub(variable, lower_bound).text()
-            return str(window.nerdamer(f"{evaluated_at_upper} - {evaluated_at_lower}").evaluate().text())
+            result = str(window.nerdamer(f"{evaluated_at_upper} - {evaluated_at_lower}").evaluate().text())
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+
+        # F(b) - F(a) is only valid when the integrand has no singularity inside the interval
+        singular_point = MathUtils._find_interior_singularity(expression, variable, lower_bound, upper_bound)
+        if singular_point is not None:
+            return (
+                f"Error: The integrand {expression} is singular or undefined near {variable} = {singular_point:.6g} "
+                f"inside [{lower_bound}, {upper_bound}], so this is an improper integral that may diverge; "
+                "the antiderivative cannot be evaluated across it."
+            )
+        if re.search(r"\bi\b", result):
+            return (
+                f"Error: The definite integral of {expression} over [{lower_bound}, {upper_bound}] is not a real "
+                "number; the integrand is likely singular or undefined in the interval (improper or divergent integral)."
+            )
+        return result
+
+    @staticmethod
+    def _find_interior_singularity(
+        expression: str,
+        variable: str,
+        lower_bound: Union[Number, str],
+        upper_bound: Union[Number, str],
+    ) -> Optional[float]:
+        """Scan the integrand on a fine grid for interior points where it is undefined or blows up.
+
+        Returns the approximate location of such a point, or None when the integrand looks
+        finite inside the interval or cannot be evaluated numerically. Singularities exactly
+        at an endpoint are ignored; they are handled by the antiderivative evaluation.
+        """
+        try:
+            from expression_validator import ExpressionValidator
+
+            compiled = window.math.compile(ExpressionValidator.fix_math_expression(str(expression)))
+            a = float(window.math.evaluate(str(lower_bound)))
+            b = float(window.math.evaluate(str(upper_bound)))
+            if not (math.isfinite(a) and math.isfinite(b)) or a == b:
+                return None
+
+            def magnitude(x: float) -> Optional[float]:
+                value = compiled.evaluate({variable: x})
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    return None  # complex or non-numeric: undefined over the reals
+                value = abs(float(value))
+                return value if math.isfinite(value) else None
+
+            steps = 2000
+            step = (b - a) / steps
+            xs = [a + k * step for k in range(steps + 1)]
+            values = [magnitude(x) for x in xs]
+            for k in range(1, steps):
+                if values[k] is None:
+                    return xs[k]
+
+            # Zoom into the largest local maxima of |f|: a pole keeps growing, a smooth peak does not
+            def at(k: int) -> float:
+                value = values[k]
+                return math.inf if value is None else value
+
+            peaks = [k for k in range(1, steps) if at(k) >= at(k - 1) and at(k) >= at(k + 1)]
+            peaks.sort(key=at, reverse=True)
+            for k in peaks[:20]:
+                lo, hi = sorted((xs[k - 1], xs[k + 1]))
+                location = MathUtils._refine_blow_up(magnitude, lo, hi, at(k))
+                if location is not None and min(abs(location - a), abs(location - b)) > abs(step) * 1e-6:
+                    return location
+            return None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _refine_blow_up(magnitude: Any, lo: float, hi: float, grid_value: float) -> Optional[float]:
+        """Ternary-search the maximum of |f| on [lo, hi]; return its location if it grows without bound.
+
+        magnitude(x) returns |f(x)|, or None where f is undefined or infinite.
+        """
+        for _ in range(100):
+            m1 = lo + (hi - lo) / 3
+            m2 = hi - (hi - lo) / 3
+            v1 = magnitude(m1)
+            if v1 is None:
+                return m1
+            v2 = magnitude(m2)
+            if v2 is None:
+                return m2
+            if v1 < v2:
+                lo = m1
+            else:
+                hi = m2
+        peak_location = (lo + hi) / 2
+        peak = magnitude(peak_location)
+        if peak is None or peak > 1e6 * max(1.0, grid_value):
+            return peak_location
+        return None
 
     @staticmethod
     def numeric_integrate(
@@ -1370,6 +1465,13 @@ class MathUtils:
             if trigonometric_match:
                 return "Trigonometric"
 
+            # Check for non-polynomial terms
+            # Pattern: a power that is not a plain integer, or a division by a variable/group
+            # Matches: 'x^(-1)' (expanded 1/x), 'e^x', '2^x', 'x^0.5', '1/(x+1)'
+            # Does not match: 'x^2', '(1/2)*x', 'x/2'
+            if re.search(r"\^(?!\d+(?![\d.]))|/\s*[(a-zA-Z]", expanded_equation):
+                return "Other Non-linear"
+
             # Check for non-linear terms with multiple variables
             # Pattern: letter followed optionally by * followed by letter
             # Matches: 'xy', 'x*y', 'x y', 'yx'
@@ -1477,9 +1579,104 @@ class MathUtils:
             str: JSON string of solutions or error message
         """
         try:
-            return str(window.nerdamer(f"solve({equation}, {variable})").text())
+            raw_solutions = str(window.nerdamer(f"solve({equation}, {variable})").text())
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        return MathUtils._drop_invalid_roots(raw_solutions, equation, variable)
+
+    @staticmethod
+    def _drop_invalid_roots(raw_solutions: str, equation: str, variable: str) -> str:
+        """Remove roots that clearly fail the equation when substituted back numerically.
+
+        Roots that cannot be checked (e.g. symbolic parameters) are kept, and the
+        original text is returned unchanged when every root checks out.
+        """
+        if not (raw_solutions.startswith("[") and raw_solutions.endswith("]")):
+            return raw_solutions
+        roots = MathUtils._split_top_level_commas(raw_solutions[1:-1])
+        sides = equation.split("=")
+        if not roots or len(sides) > 2:
+            return raw_solutions
+        kept = []
+        for root in roots:
+            try:
+                scope = {variable: window.math.evaluate(root)}
+            except Exception:
+                kept.append(root)
+                continue
+            if MathUtils._equation_holds(sides, scope) is not False:
+                kept.append(root)
+        if len(kept) == len(roots):
+            return raw_solutions
+        return "[" + ",".join(kept) + "]"
+
+    @staticmethod
+    def _equation_holds(sides: Sequence[str], scope: Dict[str, Any]) -> Optional[bool]:
+        """Check lhs = rhs (or expression = 0) numerically with math.js.
+
+        Returns None when the equation cannot be evaluated for the given scope.
+        """
+        try:
+            lhs = window.math.evaluate(sides[0], scope)
+            rhs = window.math.evaluate(sides[1], scope) if len(sides) == 2 else 0
+            residual = float(window.math.abs(window.math.subtract(lhs, rhs)))
+            scale = max(1.0, float(window.math.abs(lhs)), float(window.math.abs(rhs)))
+        except Exception:
+            return None
+        if not math.isfinite(residual) or not math.isfinite(scale):
+            return None
+        return residual <= 1e-6 * scale
+
+    @staticmethod
+    def _split_top_level_commas(text: str) -> List[str]:
+        """Split text on commas that are not nested inside brackets."""
+        parts: List[str] = []
+        current: List[str] = []
+        depth = 0
+        for char in text:
+            if char in "([{":
+                depth += 1
+            elif char in ")]}":
+                depth -= 1
+            if char == "," and depth == 0:
+                parts.append("".join(current).strip())
+                current = []
+            else:
+                current.append(char)
+        parts.append("".join(current).strip())
+        return [part for part in parts if part]
+
+    @staticmethod
+    def _to_real_float(value_text: str) -> Optional[float]:
+        """Convert a numeric root string to a float, or None if it is not a finite real number."""
+        try:
+            value = float(value_text)
+        except Exception:
+            try:
+                result = window.math.evaluate(value_text)
+                if isinstance(result, (int, float)):
+                    value = float(result)
+                else:
+                    real, imag = float(result.re), float(result.im)
+                    if abs(imag) > 1e-9 * max(1.0, abs(real)):
+                        return None
+                    value = real
+            except Exception:
+                return None
+        return value if math.isfinite(value) else None
+
+    @staticmethod
+    def _numeric_real_roots(expression: str, variable: str) -> List[float]:
+        """Solve expression = 0 with nerdamer and return the distinct real roots as floats."""
+        raw_roots = str(window.nerdamer(f"solve({expression}, {variable})").evaluate().text("decimals"))
+        if not (raw_roots.startswith("[") and raw_roots.endswith("]")):
+            return []
+        roots: List[float] = []
+        for root_text in MathUtils._split_top_level_commas(raw_roots[1:-1]):
+            root = MathUtils._to_real_float(root_text)
+            if root is not None and not any(abs(root - r) <= 1e-9 * max(1.0, abs(r)) for r in roots):
+                roots.append(root)
+        return roots
 
     @staticmethod
     def solve_linear_system(equations: Sequence[str]) -> str:
@@ -1510,6 +1707,16 @@ class MathUtils:
                 raise ValueError("The system of equations must contain at most 2 equations.")
 
             print(f"Attempting to solve a system of linear and quadratic equations: {equations}")
+
+            # The coefficient fast path below only works when both equations are 'y = f(x)'
+            if any(MathUtils._explicit_y_expression(eq) is None for eq in equations):
+                solutions = MathUtils._solve_by_substitution(equations)
+                if not solutions:
+                    return MathUtils.solve_numeric(equations)
+                if len(solutions) == 1:
+                    return f"x = {solutions[0][0]}, y = {solutions[0][1]}"
+                indexed = [f"x{i} = {x}, y{i} = {y}" for i, (x, y) in enumerate(solutions, start=1)]
+                return ", ".join(indexed)
 
             from expression_validator import ExpressionValidator
 
@@ -1578,51 +1785,18 @@ class MathUtils:
     @staticmethod
     def solve_quadratic_system(equations: Sequence[str]) -> str:
         try:
-            from expression_validator import ExpressionValidator
-
             if len(equations) != 2:
                 raise ValueError("The system must contain exactly 2 quadratic equations.")
 
             print(f"Attempting to solve a system of quadratic equations: {equations}")
-            eqs = []
-            for equation in equations:
-                eq = MathUtils.expand(equation)
-                eq = ExpressionValidator.fix_math_expression(eq, python_compatible=False)
-                eq = eq.split("=")[0] if "x" in eq.split("=")[0] else eq.split("=")[1]
-                eqs.append(eq)
+            # Substitute an explicit 'y = f(x)' equation into the other one and solve for x
+            solutions = MathUtils._solve_by_substitution(equations)
+            if not solutions:
+                # Neither equation is explicit in y, or no real root was found symbolically
+                print("Falling back to numeric solver for quadratic system")
+                return MathUtils.solve_numeric(equations)
 
-            # Construct the system equation by setting the equations equal to each other
-            system_eq = f"({eqs[0]}) - ({eqs[1]}) = 0"
-            system_eq = MathUtils.expand(system_eq)
-
-            # Use nerdamer to solve the system equation for x
-            x_solutions_raw = MathUtils.solve(system_eq, "x")
-            x_solutions_data = json.loads(x_solutions_raw)
-            x_solutions = [float(r) for r in x_solutions_data]
-
-            solution_dict = {}
-            for x_solution in x_solutions:
-                # Substitute x_solution into both original equations to find y
-                y_equation1 = eqs[0].replace("x", f"({x_solution})")
-                y_equation2 = eqs[1].replace("x", f"({x_solution})")
-
-                if "y" not in y_equation1:
-                    y_equation1 += " = y"
-                if "y" not in y_equation2:
-                    y_equation2 += " = y"
-
-                y1_raw = MathUtils.solve(y_equation1, "y")
-                y2_raw = MathUtils.solve(y_equation2, "y")
-
-                y1_value: Optional[float] = float(json.loads(y1_raw)[0]) if y1_raw else None
-                y2_value: Optional[float] = float(json.loads(y2_raw)[0]) if y2_raw else None
-
-                print(f"Solving for x = {x_solution}: {y_equation1} = {y1_value}, {y_equation2} = {y2_value}")
-
-                if y1_value is not None and y2_value is not None and y1_value == y2_value:
-                    solution_dict[x_solution] = y1_value
-
-            solution_strings = [f"(x = {k}, y = {v})" for k, v in solution_dict.items()]
+            solution_strings = [f"(x = {x}, y = {y})" for x, y in solutions]
             print(f"Solutions found: {solution_strings}")
             return ", ".join(solution_strings)
 
@@ -1630,6 +1804,62 @@ class MathUtils:
             raise ve
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+
+    _Y_TOKEN_PATTERN = r"(?<![A-Za-z_])y(?![A-Za-z_])"
+
+    @staticmethod
+    def _explicit_y_expression(equation: str) -> Optional[str]:
+        """Return f(x) when the equation is literally 'y = f(x)' or 'f(x) = y', else None."""
+        import re
+
+        sides = [side.strip() for side in equation.split("=")]
+        if len(sides) != 2:
+            return None
+        for side, other in ((sides[0], sides[1]), (sides[1], sides[0])):
+            if side == "y" and other and not re.search(MathUtils._Y_TOKEN_PATTERN, other):
+                return other
+        return None
+
+    @staticmethod
+    def _solve_by_substitution(equations: Sequence[str]) -> Optional[List[Tuple[float, float]]]:
+        """Solve two equations in x and y by substituting an explicit 'y = f(x)' into the other.
+
+        Returns the real (x, y) solutions that satisfy both equations, or None when
+        neither equation is explicit in y or the reduced equation cannot be solved.
+        """
+        import re
+
+        explicit_forms = [MathUtils._explicit_y_expression(eq) for eq in equations]
+        index = next((i for i, form in enumerate(explicit_forms) if form is not None), None)
+        if index is None:
+            return None
+        y_expression = explicit_forms[index]
+        other_sides = equations[1 - index].split("=")
+        if len(other_sides) > 2:
+            return None
+        if len(other_sides) == 1:
+            other_sides.append("0")
+        substituted = [re.sub(MathUtils._Y_TOKEN_PATTERN, f"({y_expression})", side) for side in other_sides]
+        try:
+            x_roots = MathUtils._numeric_real_roots(f"({substituted[0]}) - ({substituted[1]})", "x")
+        except Exception as e:
+            print(f"Substitution solve failed: {e}")
+            return None
+
+        equation_sides = [eq.split("=") for eq in equations]
+        solutions: List[Tuple[float, float]] = []
+        for x_value in x_roots:
+            try:
+                y_value = window.math.evaluate(y_expression, {"x": x_value})
+            except Exception:
+                continue
+            if not isinstance(y_value, (int, float)) or not math.isfinite(y_value):
+                continue
+            y_value = float(y_value)
+            scope = {"x": x_value, "y": y_value}
+            if all(MathUtils._equation_holds(sides, scope) for sides in equation_sides):
+                solutions.append((x_value, y_value))
+        return solutions
 
     @staticmethod
     def solve_system_of_equations(equations: Sequence[str]) -> str:
@@ -2342,60 +2572,119 @@ class MathUtils:
         right_bound: Optional[Number] = None,
     ) -> List[float]:
         """Calculate vertical asymptotes of a function within given bounds"""
-        import re
         from expression_validator import ExpressionValidator
 
         # Standardize the function string
         function_string = ExpressionValidator.fix_math_expression(function_string)
         vertical_asymptotes: List[float] = []
 
-        # For logarithmic functions
-        if "log" in function_string:
-            vertical_asymptotes.append(0.0)
+        # For logarithmic functions: where the (first) argument is zero
+        for log_argument in MathUtils._function_call_arguments(function_string, "log|ln|log10|log2"):
+            arguments = MathUtils._split_top_level_commas(log_argument)
+            if arguments:
+                vertical_asymptotes.extend(MathUtils._real_zeros_in_x(arguments[0]))
 
-        # For rational functions
-        if "/" in function_string:
-            denominator = function_string.split("/")[-1].strip()
-            try:
-                # Try to solve denominator = 0
-                zeros = json.loads(MathUtils.solve(denominator, "x"))
-                vertical_asymptotes.extend(float(x) for x in zeros)
-            except:
-                pass
+        # For rational functions: where any denominator that depends on x is zero
+        for denominator in MathUtils._denominators(function_string):
+            vertical_asymptotes.extend(MathUtils._real_zeros_in_x(denominator))
 
-        # For tangent functions
-        if "tan" in function_string:
-            # Find all tangent terms in the function
-            tan_matches = re.findall(r"tan\((.*?)(?:\)|$)", function_string)
-            for tan_arg in tan_matches:
-                coeff = 1.0
-                # Check for x/divisor pattern first (e.g., x/100)
-                div_match = re.search(r"x\s*/\s*(\d+\.?\d*)", tan_arg)
-                if div_match:
-                    divisor = float(div_match.group(1))
-                    coeff = 1.0 / divisor if divisor != 0 else 1.0
-                else:
-                    # Check for coefficient*x pattern (e.g., 2*x or 2x)
-                    coeff_match = re.search(r"([+-]?\d+\.?\d*)\s*\*?\s*x", tan_arg)
-                    if coeff_match:
-                        coeff = float(coeff_match.group(1))
+        # For tangent functions (word boundary so atan/arctan are excluded)
+        left = left_bound if left_bound is not None else -1000
+        right = right_bound if right_bound is not None else 1000
+        for tan_argument in MathUtils._function_call_arguments(function_string, "tan"):
+            vertical_asymptotes.extend(MathUtils._tangent_asymptotes(tan_argument, left, right))
 
-                # Get bounds
-                left = left_bound if left_bound is not None else -1000
-                right = right_bound if right_bound is not None else 1000
+        return sorted(set(vertical_asymptotes))
 
-                # Calculate asymptotes within bounds
-                # Asymptotes occur at x = (pi/2 + n*pi)/coeff
-                n = math.floor(left * coeff / math.pi - 0.5)
-                while True:
-                    x = (math.pi / 2 + n * math.pi) / coeff
-                    if x > right:
-                        break
-                    if x >= left:
-                        vertical_asymptotes.append(x)
-                    n += 1
+    _X_TOKEN_PATTERN = r"(?<![A-Za-z_])x(?![A-Za-z_])"
 
-        return sorted(vertical_asymptotes)
+    @staticmethod
+    def _balanced_group(text: str, open_index: int) -> Optional[str]:
+        """Return the contents of the parenthesized group starting at text[open_index] == '('."""
+        depth = 0
+        for index in range(open_index, len(text)):
+            if text[index] == "(":
+                depth += 1
+            elif text[index] == ")":
+                depth -= 1
+                if depth == 0:
+                    return text[open_index + 1 : index]
+        return None
+
+    @staticmethod
+    def _function_call_arguments(text: str, names: str) -> List[str]:
+        """Return the full (balanced) argument text of every call to one of the '|'-separated names."""
+        import re
+
+        arguments = []
+        for match in re.finditer(rf"\b(?:{names})\s*\(", text):
+            group = MathUtils._balanced_group(text, match.end() - 1)
+            if group is not None:
+                arguments.append(group)
+        return arguments
+
+    @staticmethod
+    def _denominators(text: str) -> List[str]:
+        """Return each denominator that depends on x: the group or token right after every '/'."""
+        import re
+
+        denominators = []
+        for index, char in enumerate(text):
+            if char != "/":
+                continue
+            rest = text[index + 1 :]
+            start = index + 1 + (len(rest) - len(rest.lstrip()))
+            if start < len(text) and text[start] == "(":
+                denominator = MathUtils._balanced_group(text, start)
+            else:
+                token_match = re.match(r"[A-Za-z_][A-Za-z_0-9.]*|\d*\.?\d+", text[start:])
+                denominator = token_match.group(0) if token_match else None
+                if denominator is not None and text[start + len(denominator) : start + len(denominator) + 1] == "(":
+                    call_arguments = MathUtils._balanced_group(text, start + len(denominator))
+                    denominator = None if call_arguments is None else f"{denominator}({call_arguments})"
+            if denominator and re.search(MathUtils._X_TOKEN_PATTERN, denominator):
+                denominators.append(denominator)
+        return denominators
+
+    @staticmethod
+    def _real_zeros_in_x(expression: str) -> List[float]:
+        """Return the real zeros of an expression in x, or [] when it has none or cannot be solved."""
+        import re
+
+        if not re.search(MathUtils._X_TOKEN_PATTERN, expression):
+            return []
+        try:
+            return MathUtils._numeric_real_roots(expression, "x")
+        except Exception:
+            return []
+
+    @staticmethod
+    def _tangent_asymptotes(argument: str, left: Number, right: Number) -> List[float]:
+        """Return the asymptotes of tan(argument) within [left, right] for a linear argument a*x + b."""
+        try:
+            compiled = window.math.compile(argument)
+            offset = float(compiled.evaluate({"x": 0}))
+            slope = float(compiled.evaluate({"x": 1})) - offset
+            for probe in (-2.5, 3.7):
+                expected = offset + slope * probe
+                if abs(float(compiled.evaluate({"x": probe})) - expected) > 1e-9 * max(1.0, abs(expected)):
+                    return []  # non-linear argument: leave it to numeric discontinuity detection
+        except Exception:
+            return []
+        if slope == 0 or not math.isfinite(slope) or not math.isfinite(offset):
+            return []
+
+        # Asymptotes occur where slope*x + offset = pi/2 + n*pi
+        n_at_left = (slope * left + offset - math.pi / 2) / math.pi
+        n_at_right = (slope * right + offset - math.pi / 2) / math.pi
+        first_n = math.floor(min(n_at_left, n_at_right)) - 1
+        last_n = math.ceil(max(n_at_left, n_at_right)) + 1
+        asymptotes = []
+        for n in range(first_n, last_n + 1):
+            x = (math.pi / 2 + n * math.pi - offset) / slope
+            if left <= x <= right:
+                asymptotes.append(x)
+        return asymptotes
 
     @staticmethod
     def calculate_horizontal_asymptotes(function_string: str) -> List[float]:
@@ -2478,16 +2767,9 @@ class MathUtils:
 
         # For absolute value function at its corners
         if "abs" in function_string:
-            # Extract all arguments of abs functions
-            abs_pattern = r"abs\((.*?)\)"
-            matches = re.findall(abs_pattern, function_string)
-            for match in matches:
-                try:
-                    # Try to solve the argument = 0 to find the corner point
-                    zeros = json.loads(MathUtils.solve(match, "x"))
-                    point_discontinuities_set.update(float(x) for x in zeros)
-                except:
-                    pass
+            # Solve each (balanced) abs argument = 0 to find the corner points
+            for abs_argument in MathUtils._function_call_arguments(function_string, "abs"):
+                point_discontinuities_set.update(MathUtils._real_zeros_in_x(abs_argument))
 
         # Convert to list and sort
         point_discontinuities_list = sorted(point_discontinuities_set)
