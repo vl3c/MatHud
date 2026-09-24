@@ -453,6 +453,11 @@ class TestRenderTextBuckets(unittest.TestCase):
         text = render_text(state)
         self.assertIn("calc 2+2 = 4", text)
         self.assertIn("calc sqrt(2) = 1.41421", text)
+        self.assertNotIn("duplicate names", text)
+
+    def test_nameless_objects_are_not_duplicate_names(self) -> None:
+        state = with_view(Points=[{"args": {"position": {"x": 0, "y": 0}}}, {"args": {"position": {"x": 1, "y": 1}}}])
+        self.assertNotIn("duplicate names", render_text(state))
 
 
 class TestRenderTextBudget(unittest.TestCase):

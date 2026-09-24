@@ -270,13 +270,14 @@ def _args(item: Mapping[str, Any]) -> JsonDict:
 def _duplicate_names(state: Mapping[str, Any]) -> Dict[str, Set[str]]:
     duplicates: Dict[str, Set[str]] = {}
     for bucket, items in state.items():
-        if not isinstance(items, list):
+        # Computations have no names; tools never address them by name.
+        if bucket == _COMPUTATIONS_KEY or not isinstance(items, list):
             continue
         seen: Set[str] = set()
         for item in items:
-            if not isinstance(item, dict):
+            if not isinstance(item, dict) or _is_empty(item.get("name")):
                 continue
-            name = str(item.get("name", ""))
+            name = str(item["name"])
             if name in seen:
                 duplicates.setdefault(bucket, set()).add(name)
             seen.add(name)
