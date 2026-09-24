@@ -818,13 +818,16 @@ class OpenAIAPIBase:
             message["content"] = "Error: no result was returned for this tool call."
 
     def _apply_legacy_results(self, pending: List[MessageDict], results: Dict[str, Any]) -> None:
-        """Write a legacy combined results dict into the last pending tool message."""
-        if not pending:
+        """Write a legacy combined results dict into the last tool message still awaiting a result.
+
+        Messages already answered (e.g. with a dropped-call error) keep their content.
+        """
+        awaiting = [m for m in pending if m.get("content") == TOOL_RESULT_PLACEHOLDER]
+        if not awaiting:
             return
-        pending[-1]["content"] = self._format_tool_result(results)
-        for message in pending[:-1]:
-            if message.get("content") == TOOL_RESULT_PLACEHOLDER:
-                message["content"] = "See the combined results in the last tool message of this turn."
+        awaiting[-1]["content"] = self._format_tool_result(results)
+        for message in awaiting[:-1]:
+            message["content"] = "See the combined results in the last tool message of this turn."
 
     def _format_tool_result(self, result: Any) -> str:
         """Return the tool message content for one result (a ``{result_key: value}`` dict).

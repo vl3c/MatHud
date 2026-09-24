@@ -92,6 +92,14 @@ class TestBaseToolResultMatching(unittest.TestCase):
         self.assertEqual(messages["call_b"], json.dumps(legacy))
         self.assertNotEqual(messages["call_a"], PLACEHOLDER)
 
+    def test_legacy_dict_skips_a_last_message_holding_a_dropped_call_error(self) -> None:
+        self.assertTrue(self.api.record_tool_call_result("call_b", "Error: tool 'x' is not loaded"))
+        self.api._update_tool_messages_with_results(json.dumps(RESULT_A))
+        self.assertEqual(
+            _tool_messages(self.api),
+            {"call_a": json.dumps(RESULT_A), "call_b": "Error: tool 'x' is not loaded"},
+        )
+
     def test_older_turns_are_not_touched(self) -> None:
         self.api._update_tool_messages_with_results(json.dumps(_per_call_entries()))
         self.api.messages.append({"role": "assistant", "content": "done"})
