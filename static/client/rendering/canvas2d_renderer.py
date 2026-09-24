@@ -9,7 +9,8 @@ Key Features:
     - Cached render plans avoid recomputation during view changes
     - Optional offscreen compositing for improved performance
     - Telemetry tracking for performance analysis
-    - Automatic canvas sizing to match container
+    - Automatic canvas sizing to match container, with a devicePixelRatio-scaled
+      bitmap for sharp output on HiDPI screens (drawing stays in CSS pixels)
 
 Architecture:
     1. Canvas2DRenderer manages the canvas element and rendering pipeline
@@ -20,6 +21,7 @@ Architecture:
 
 from __future__ import annotations
 
+import math
 from typing import Any, Callable, Dict, Optional, Set, Tuple
 
 from browser import document, html, window
@@ -89,6 +91,7 @@ class Canvas2DRenderer(RendererProtocol):
             canvas_id: HTML id attribute for the canvas element.
         """
         self.canvas_el, self.ctx = self._initialize_canvas_context(canvas_id)
+        self._resize_to_container()
         self.style: Dict[str, Any] = get_renderer_style()
         self._background_color: Optional[str] = self.style.get("canvas_background_color")
         self._handlers_by_type: Dict[type, Callable[[Any, Any], None]] = {}
@@ -97,12 +100,15 @@ class Canvas2DRenderer(RendererProtocol):
         self._shared_primitives: Canvas2DPrimitiveAdapter = Canvas2DPrimitiveAdapter(
             target_canvas, telemetry=self._telemetry
         )
+        self._apply_device_transform()
         self._apply_background()
         self.register_default_drawables()
         self._initialize_plan_caches()
 
     def clear(self) -> None:
         """Clear the canvas and apply the background color."""
+        self._resize_to_container()
+        self._sync_offscreen_size()
         width = self.canvas_el.width
         height = self.canvas_el.height
         self._shared_primitives.clear_surface()
@@ -134,8 +140,7 @@ class Canvas2DRenderer(RendererProtocol):
         """
         self._resize_to_container()
         self._sync_offscreen_size()
-        width = self.canvas_el.width
-        height = self.canvas_el.height
+        width, height = self._viewport_size()
         self._assign_cartesian_dimensions(cartesian, width, height)
         drawable_name = "Cartesian2Axis"
         map_state = self._capture_map_state(coordinate_mapper)
@@ -160,8 +165,7 @@ class Canvas2DRenderer(RendererProtocol):
         """
         self._resize_to_container()
         self._sync_offscreen_size()
-        width = self.canvas_el.width
-        height = self.canvas_el.height
+        width, height = self._viewport_size()
         self._assign_polar_dimensions(polar_grid, width, height)
         drawable_name = "PolarGrid"
         map_state = self._capture_map_state(coordinate_mapper)
@@ -450,20 +454,90 @@ class Canvas2DRenderer(RendererProtocol):
             return int(round(rect.width)), int(round(rect.height))
         return None
 
+    def _device_pixel_ratio(self) -> float:
+        """Current window.devicePixelRatio (1.0 when unavailable)."""
+        try:
+            ratio = float(getattr(window, "devicePixelRatio", 1.0) or 1.0)
+        except Exception:
+            return 1.0
+        if not math.isfinite(ratio) or ratio <= 0:
+            return 1.0
+        return ratio
+
+    def _viewport_size(self) -> Tuple[int, int]:
+        """Canvas size in CSS pixels: the space all drawing and culling uses."""
+        size = getattr(self, "_css_size", None)
+        if size is not None:
+            return size
+        return int(self.canvas_el.width), int(self.canvas_el.height)
+
     def _resize_to_container(self) -> None:
+        """Match the canvas to its container, with a devicePixelRatio-scaled bitmap.
+
+        The element keeps the container's CSS size while its bitmap is
+        CSS size x devicePixelRatio; the context transform scales drawing so
+        callers keep working in CSS pixels.
+        """
         size = self._container_client_size(getattr(self.canvas_el, "parentElement", None))
         if size is None:
             return
-        pixel_width, pixel_height = size
+        css_width, css_height = size
+        ratio = self._device_pixel_ratio()
+        pixel_width = int(round(css_width * ratio))
+        pixel_height = int(round(css_height * ratio))
+        self._css_size = (css_width, css_height)
+        current = (int(self.canvas_el.width), int(self.canvas_el.height))
         # Compare whole pixels: assigning width/height clears the bitmap, so
-        # fractional container sizes must not trigger a reset every frame.
-        if pixel_width != int(self.canvas_el.width) or pixel_height != int(self.canvas_el.height):
+        # fractional container sizes must not trigger a reset every frame. A
+        # bitmap resized by other code (its context state was reset) is
+        # resized again so the device transform is restored.
+        if (
+            current != (pixel_width, pixel_height)
+            or current != getattr(self, "_bitmap_size", current)
+            or ratio != getattr(self, "_pixel_ratio", 1.0)
+        ):
             self.canvas_el.width = pixel_width
             self.canvas_el.height = pixel_height
             self.canvas_el.attrs["width"] = str(pixel_width)
             self.canvas_el.attrs["height"] = str(pixel_height)
-        self.canvas_el.style.width = f"{int(self.canvas_el.width)}px"
-        self.canvas_el.style.height = f"{int(self.canvas_el.height)}px"
+            self._bitmap_size = (pixel_width, pixel_height)
+            self._pixel_ratio = ratio
+            self._reset_context_state()
+        self.canvas_el.style.width = f"{css_width}px"
+        self.canvas_el.style.height = f"{css_height}px"
+
+    def _apply_device_transform(self) -> None:
+        """Scale drawing contexts by the device pixel ratio (CSS px -> bitmap px)."""
+        ratio = getattr(self, "_pixel_ratio", 1.0)
+        contexts = [self.ctx]
+        offscreen = getattr(self, "_offscreen_canvas", None)
+        if offscreen is not None:
+            try:
+                contexts.append(offscreen.getContext("2d"))
+            except Exception:
+                pass
+        for ctx in contexts:
+            try:
+                ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
+            except Exception:
+                pass
+
+    def _reset_context_state(self) -> None:
+        """Re-establish context state after the bitmap (and so the context) was reset.
+
+        Resizing a canvas resets its 2D context, so the device transform is
+        reapplied and the primitive adapter is recreated to drop its cached
+        stroke/fill/font state.
+        """
+        self._apply_device_transform()
+        primitives = getattr(self, "_shared_primitives", None)
+        target_canvas = getattr(primitives, "canvas_el", None)
+        if target_canvas is None:
+            return
+        try:
+            self._shared_primitives = Canvas2DPrimitiveAdapter(target_canvas, telemetry=self._telemetry)
+        except Exception:
+            pass
 
     def _render_drawable(self, drawable: Any, coordinate_mapper: Any) -> None:
         renderable_attr = getattr(drawable, "is_renderable", True)
@@ -481,7 +555,8 @@ class Canvas2DRenderer(RendererProtocol):
             return
         self._frame_seen_plan_keys.add(cache_key)
         apply_start = self._telemetry.mark_time()
-        if not plan.is_visible(self.canvas_el.width, self.canvas_el.height):
+        viewport_width, viewport_height = self._viewport_size()
+        if not plan.is_visible(viewport_width, viewport_height):
             self._telemetry.record_plan_skip(drawable_name)
             return
         plan.apply(self._shared_primitives)
@@ -679,14 +754,21 @@ class Canvas2DRenderer(RendererProtocol):
         target_height = self.canvas_el.height
         if self._offscreen_canvas.width != target_width or self._offscreen_canvas.height != target_height:
             self._shared_primitives.resize_surface(target_width, target_height)
+            self._reset_context_state()
             self._apply_background()
 
     def _flush_offscreen_to_main(self) -> None:
         if not self._use_layer_compositing or self._offscreen_canvas is None:
             return
         try:
-            self.ctx.clearRect(0, 0, self.canvas_el.width, self.canvas_el.height)
-            self.ctx.drawImage(self._offscreen_canvas, 0, 0)
+            # Both bitmaps are in device pixels: copy 1:1 without the DPR transform.
+            self.ctx.save()
+            try:
+                self.ctx.setTransform(1, 0, 0, 1, 0, 0)
+                self.ctx.clearRect(0, 0, self.canvas_el.width, self.canvas_el.height)
+                self.ctx.drawImage(self._offscreen_canvas, 0, 0)
+            finally:
+                self.ctx.restore()
         except Exception:
             try:
                 off_ctx = self._offscreen_canvas.getContext("2d")

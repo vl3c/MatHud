@@ -41,6 +41,21 @@ class _CountingCanvas:
         self._height = value
 
 
+class _TransformRecorder(CanvasContextRecorder):
+    def __init__(self) -> None:
+        super().__init__()
+        self.transforms: list = []
+
+    def setTransform(self, *args: float) -> None:
+        self.transforms.append(args)
+
+    def save(self) -> None:
+        pass
+
+    def restore(self) -> None:
+        pass
+
+
 class TestCanvas2DRendererPlan(unittest.TestCase):
     def setUp(self) -> None:
         self.original_build_plan = canvas2d_renderer.build_plan_for_cartesian
@@ -215,8 +230,55 @@ class TestCanvas2DRendererPlan(unittest.TestCase):
 
         self.assertEqual(renderer.canvas_el.size_assignments, 0)
 
+    def _use_pixel_ratio(self, ratio: float) -> None:
+        original = canvas2d_renderer.window
+        canvas2d_renderer.window = SimpleNamespace(devicePixelRatio=ratio)
+        self.addCleanup(setattr, canvas2d_renderer, "window", original)
+
+    def test_hidpi_bitmap_is_scaled_while_css_size_is_kept(self) -> None:
+        self._use_pixel_ratio(2.0)
+        renderer = self._make_renderer()
+        renderer.canvas_el = self._make_sized_canvas(752, 878)
+        renderer.ctx = _TransformRecorder()
+
+        renderer._resize_to_container()
+
+        self.assertEqual((renderer.canvas_el.width, renderer.canvas_el.height), (1504, 1756))
+        self.assertEqual((renderer.canvas_el.style.width, renderer.canvas_el.style.height), ("752px", "878px"))
+        self.assertEqual(renderer._viewport_size(), (752, 878))
+        self.assertEqual(renderer.ctx.transforms[-1], (2.0, 0, 0, 2.0, 0, 0))
+
+    def test_cartesian_is_sized_in_css_pixels_on_hidpi(self) -> None:
+        self._use_pixel_ratio(2.0)
+        renderer = self._make_renderer()
+        renderer.canvas_el = self._make_sized_canvas(752, 878)
+        renderer.ctx = _TransformRecorder()
+        canvas2d_renderer.build_plan_for_cartesian = lambda *args, **kwargs: None
+        cartesian = SimpleNamespace(get_state=lambda: {})
+
+        renderer.render_cartesian(cartesian, None)
+
+        self.assertEqual((cartesian.width, cartesian.height), (752, 878))
+
+    def test_external_resize_restores_device_transform(self) -> None:
+        renderer = self._make_renderer()
+        renderer.canvas_el = self._make_sized_canvas(300, 150)
+        renderer.canvas_el.parentElement.clientWidth = 700
+        renderer.ctx = _TransformRecorder()
+        renderer._resize_to_container()
+        transforms_after_first_resize = len(renderer.ctx.transforms)
+
+        # The container grows and other code (the window resize handler) resizes
+        # the bitmap directly to the new size, which resets the 2D context state.
+        renderer.canvas_el.parentElement.clientWidth = 752
+        renderer.canvas_el.width = 752
+        renderer._resize_to_container()
+
+        self.assertGreater(len(renderer.ctx.transforms), transforms_after_first_resize)
+
     def test_flush_offscreen_draws_back_to_main_canvas(self) -> None:
         renderer = self._make_renderer()
+        renderer.ctx = _TransformRecorder()
         renderer._use_layer_compositing = True
         renderer._offscreen_canvas = object()
 
