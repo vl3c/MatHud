@@ -85,6 +85,7 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    ```
    Options: `--port N` serves on a specific port (default 5100, or a free port if 5100 is taken), `--browser` opens your default browser instead of a window (no pywebview needed; stop with `Ctrl+C`), and `--devtools` enables the WebView developer tools. Without pywebview the launcher prints the install command and offers the browser instead.
 3. The window's size and position, and the page's local storage, are kept in your user profile (`%LOCALAPPDATA%\MatHud` on Windows, `~/Library/Application Support/MatHud` on macOS, `~/.config/mathud` on Linux).
+4. Two desktop instances can run at once: the second one gets a different port, so its page has its own local storage (settings are not shared), while both use the same window-geometry file and whichever closes last decides the next launch's size and position.
 
 **Server plus browser.**
 
@@ -304,7 +305,7 @@ images are not forwarded.
 4. `workspaces/` – saved canvas states.
 5. `server_tests/` – pytest suites, including renderer plan tests under `server_tests/client_renderer/`.
 6. `documentation/` – extended reference material.
-8. `logs/` – session-specific server logs (the newest 50 are kept).
+7. `logs/` – session-specific server logs (the newest 50 are kept).
 
 ## 10. Additional Documentation
 

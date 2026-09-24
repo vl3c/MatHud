@@ -7,7 +7,7 @@ Each library's own license file is kept next to it.
 
 | Library | Version | License | Upstream | License file |
 |---|---|---|---|---|
-| Brython | 3.12.5 | BSD-3-Clause | https://brython.info (cdnjs `brython/3.12.5`) | `brython/3.12.5/LICENCE.txt` |
+| Brython | 3.12.5 | BSD-3-Clause (bundled CPython stdlib: PSF-2.0, see below) | https://brython.info (cdnjs `brython/3.12.5`) | `brython/3.12.5/LICENCE.txt` |
 | math.js | 14.5.2 | Apache-2.0 | https://mathjs.org (cdnjs `mathjs/14.5.2`) | `mathjs/14.5.2/LICENSE`, `mathjs/14.5.2/NOTICE` |
 | nerdamer | 1.1.13 | MIT | https://nerdamer.com (npm `nerdamer@1.1.13`) | `nerdamer/1.1.13/license.txt` |
 | MathJax | 3.2.2 | Apache-2.0 | https://www.mathjax.org (npm `mathjax@3.2.2`) | `mathjax/3.2.2/LICENSE` |
@@ -15,7 +15,13 @@ Each library's own license file is kept next to it.
 
 ## What is included
 
-- **Brython**: `brython.min.js` and `brython_stdlib.min.js`.
+- **Brython**: `brython.min.js` and `brython_stdlib.min.js`. The stdlib bundle
+  also contains modules from the CPython standard library, which are
+  distributed under the Python Software Foundation License Version 2
+  (copyright Python Software Foundation), not Brython's BSD license. The full
+  PSF license text is at
+  https://docs.python.org/3/license.html and in the `LICENSE` file of every
+  CPython distribution.
 - **math.js**: `math.min.js`.
 - **nerdamer**: `nerdamer.core.js` plus the `Algebra`, `Calculus`, `Solve` and `Extra` add-ons.
 - **MathJax**: only the `es5/tex-mml-chtml.js` combined component, the TeX
