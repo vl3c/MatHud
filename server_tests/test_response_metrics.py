@@ -31,6 +31,8 @@ from static.providers.local.local_agent_api import LocalAgentAPI
 from static.response_metrics import (
     ResponseMetricsTracker,
     llama_timings_from,
+    record_chat_completions_usage,
+    tool_call_argument_text,
     usage_from_anthropic,
     usage_from_chat_completions,
     usage_from_responses,
@@ -228,6 +230,73 @@ class TestResponseMetricsTracker(unittest.TestCase):
         tracker = _tracker(FakeClock())
         tracker.record_server_timings({"predicted_per_second": 10.0})
         json.dumps(tracker.finish("error", 0, error="boom"))
+
+
+class TestMetricsNeverRaise(unittest.TestCase):
+    """Metrics are a side channel: bad figures must not turn a good answer into an error."""
+
+    def test_non_finite_usage_values_are_dropped(self) -> None:
+        usage = usage_from_chat_completions(
+            {"prompt_tokens": float("nan"), "completion_tokens": float("inf"), "total_tokens": "12"}
+        )
+
+        self.assertEqual(usage["prompt_tokens"], None)
+        self.assertEqual(usage["completion_tokens"], None)
+        self.assertEqual(usage["total_tokens"], None)
+
+    def test_non_finite_values_never_reach_the_record(self) -> None:
+        clock = FakeClock()
+        tracker = _tracker(clock)
+        bad_usage: Dict[str, Any] = {"prompt_tokens": float("nan"), "completion_tokens": float("inf")}
+        tracker.record_usage(bad_usage)
+        tracker.record_server_timings({"cache_n": float("inf"), "predicted_per_second": float("nan")})
+        clock.advance(1.0)
+        metrics = tracker.finish("stop", 0)
+
+        json.dumps(metrics, allow_nan=False)
+        self.assertIsNone(metrics["prompt_tokens"])
+        self.assertIsNone(metrics["cached_tokens"])
+        self.assertNotIn("error", metrics)
+
+    def test_bad_inputs_to_recorders_are_ignored(self) -> None:
+        tracker = _tracker(FakeClock())
+        tracker.record_usage(None)  # type: ignore[arg-type]
+        tracker.record_server_timings(42)  # type: ignore[arg-type]
+        tracker.add_output_text(None)  # type: ignore[arg-type]
+
+        self.assertTrue(record_chat_completions_usage({"usage": {"prompt_tokens": 3}}, tracker))
+        self.assertEqual(tracker.finish("stop", 0)["prompt_tokens"], 3)
+
+    def test_finish_failure_returns_minimal_record(self) -> None:
+        tracker = _tracker(FakeClock())
+        with patch.object(ResponseMetricsTracker, "_add_throughput", side_effect=RuntimeError("bad")):
+            metrics = tracker.finish("stop", 1)
+
+        self.assertEqual(metrics["provider"], "local_agent")
+        self.assertEqual(metrics["finish_reason"], "stop")
+        self.assertIn("bad", metrics["error"])
+        json.dumps(metrics, allow_nan=False)
+
+    def test_unserializable_tool_arguments_do_not_raise(self) -> None:
+        text = tool_call_argument_text([{"function": {"name": "f", "arguments": {"x": object()}}}])
+        self.assertTrue(text.startswith("f"))
+
+    def test_nan_usage_chunk_keeps_the_answer(self) -> None:
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "k"}):
+            api = OpenAIChatCompletionsAPI(tools=[])
+        delta = SimpleNamespace(content="Hi", tool_calls=None)
+        api.client = MagicMock()
+        usage = SimpleNamespace(prompt_tokens=float("nan"), completion_tokens=2)
+        api.client.chat.completions.create.return_value = iter(
+            [SimpleNamespace(choices=[SimpleNamespace(delta=delta, finish_reason="stop", index=0)], usage=usage)]
+        )
+        events = list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"})))
+        final = [event for event in events if event.get("type") == "final"][0]
+
+        self.assertEqual(final["finish_reason"], "stop")
+        self.assertEqual(final["ai_message"], "Hi")
+        self.assertEqual(final["metrics"]["completion_tokens"], 2)
+        json.dumps(final, allow_nan=False)
 
 
 class TestUsageExtraction(unittest.TestCase):

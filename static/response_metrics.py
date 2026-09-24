@@ -11,6 +11,9 @@ stream event (``metrics``), returned by ``/send_message`` and logged as a
 speed and token use.
 
 Only measurements are added here; nothing that reaches the model changes.
+Metrics are a side channel: the recorders and ``finish`` never raise, and
+non-finite or non-numeric figures are dropped, so a bad usage report cannot turn
+a good answer into an error.
 
 Field sources:
 
@@ -34,6 +37,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import time
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypedDict
 
@@ -95,30 +99,35 @@ class ResponseMetrics(TypedDict, total=False):
 
 
 def _read(source: Any, name: str) -> Any:
-    """Read ``name`` from a dict, an attribute or a pydantic model's extra fields."""
+    """Read ``name`` from a dict, an attribute or a pydantic model's extra fields (None on failure)."""
     if source is None:
         return None
-    if isinstance(source, Mapping):
-        return source.get(name)
-    value = getattr(source, name, None)
-    if value is not None:
-        return value
-    extra = getattr(source, "model_extra", None)
-    if isinstance(extra, Mapping):
-        return extra.get(name)
+    try:
+        if isinstance(source, Mapping):
+            return source.get(name)
+        value = getattr(source, name, None)
+        if value is not None:
+            return value
+        extra = getattr(source, "model_extra", None)
+        if isinstance(extra, Mapping):
+            return extra.get(name)
+    except Exception:
+        return None
     return None
 
 
-def _as_int(value: Any) -> Optional[int]:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    return int(value)
-
-
 def _as_float(value: Any) -> Optional[float]:
+    """A finite number as float; None for NaN, infinity, booleans and non-numbers."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value)
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _as_int(value: Any) -> Optional[int]:
+    """A finite number as int; None for NaN, infinity, booleans and non-numbers."""
+    number = _as_float(value)
+    return None if number is None else int(number)
 
 
 def _round(value: Optional[float], digits: int = 3) -> Optional[float]:
@@ -230,9 +239,12 @@ def record_chat_completions_usage(source: Any, tracker: "ResponseMetricsTracker"
     Returns True when ``source`` carried a usage report.
     """
     usage = _read(source, "usage")
-    if usage is not None:
-        tracker.record_usage(usage_from_chat_completions(usage))
-    tracker.record_server_timings(llama_timings_from(source))
+    try:
+        if usage is not None:
+            tracker.record_usage(usage_from_chat_completions(usage))
+        tracker.record_server_timings(llama_timings_from(source))
+    except Exception as exc:
+        _logger.debug(f"Ignoring an unreadable usage report: {exc}")
     return usage is not None
 
 
@@ -285,22 +297,49 @@ class ResponseMetricsTracker:
 
     def add_output_text(self, text: str) -> None:
         """Keep generated text (content or tool arguments) for the token estimate fallback."""
-        if text:
+        if text and isinstance(text, str):
             self._output_text_parts.append(text)
 
     def record_usage(self, usage: Mapping[str, Optional[int]]) -> None:
-        """Merge provider-reported token counts; later non-empty values win."""
+        """Merge provider-reported token counts; later non-empty values win (bad values are ignored)."""
+        if not isinstance(usage, Mapping):
+            return
         for key, value in usage.items():
-            if value is not None:
-                self._usage[key] = value
+            count = _as_int(value)
+            if count is not None:
+                self._usage[str(key)] = count
 
     def record_server_timings(self, timings: Optional[Mapping[str, float]]) -> None:
-        """Keep a llama-server ``timings`` block (the last one wins)."""
-        if timings:
-            self._server_timings = dict(timings)
+        """Keep a llama-server ``timings`` block (the last one wins; non-finite values are dropped)."""
+        if not isinstance(timings, Mapping):
+            return
+        numeric = {str(key): _as_float(value) for key, value in timings.items()}
+        finite = {key: value for key, value in numeric.items() if value is not None}
+        if finite:
+            self._server_timings = finite
 
     def finish(self, finish_reason: Optional[str], tool_calls: int, error: Optional[str] = None) -> ResponseMetrics:
-        """Close the request and return its metrics record."""
+        """Close the request and return its metrics record.
+
+        Never raises: if building the record fails, a minimal record whose
+        ``error`` says so is returned instead.
+        """
+        try:
+            return self._build_record(finish_reason, tool_calls, error)
+        except Exception as exc:
+            _logger.warning(f"Response metrics failed: {exc}")
+            failure = f"metrics unavailable: {exc}"
+            return {
+                "schema": METRICS_SCHEMA_VERSION,
+                "provider": self._provider,
+                "model": self._model,
+                "api": self._api,
+                "streamed": self._streamed,
+                "finish_reason": str(finish_reason or "stop"),
+                "error": f"{error}; {failure}" if error else failure,
+            }
+
+    def _build_record(self, finish_reason: Optional[str], tool_calls: int, error: Optional[str]) -> ResponseMetrics:
         total = max(self._clock() - self._started, 0.0)
         ttft = None if self._first_token is None else self._first_token - self._started
         metrics: ResponseMetrics = {
@@ -317,15 +356,15 @@ class ResponseMetricsTracker:
             "cached_tokens": self._usage.get("cached_tokens"),
             "reasoning_tokens": self._usage.get("reasoning_tokens"),
             "total_tokens": self._total_tokens(),
-            "tool_calls": int(tool_calls),
+            "tool_calls": _as_int(tool_calls) or 0,
             "finish_reason": finish_reason or "stop",
         }
         self._add_throughput(metrics, total)
         if self._server_timings:
             metrics["server_timings"] = self._server_timings
             metrics["prompt_tokens_per_s"] = _round(self._server_timings.get("prompt_per_second"), 2)
-            if metrics["cached_tokens"] is None and "cache_n" in self._server_timings:
-                metrics["cached_tokens"] = int(self._server_timings["cache_n"])
+            if metrics["cached_tokens"] is None:
+                metrics["cached_tokens"] = _as_int(self._server_timings.get("cache_n"))
         if error:
             metrics["error"] = error
         return metrics
@@ -394,5 +433,8 @@ def tool_call_argument_text(tool_calls: List[Dict[str, Any]]) -> str:
         if isinstance(function, dict):
             parts.append(str(function.get("name") or ""))
             arguments = function.get("arguments")
-            parts.append(arguments if isinstance(arguments, str) else json.dumps(arguments))
+            try:
+                parts.append(arguments if isinstance(arguments, str) else json.dumps(arguments, default=str))
+            except (TypeError, ValueError):
+                continue  # e.g. circular arguments; the estimate just misses them
     return "".join(parts)
