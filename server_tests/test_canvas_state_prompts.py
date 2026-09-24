@@ -2,8 +2,9 @@
 How canvas state reaches the model through each provider.
 
 Covers the <canvas> block in user messages (MATHUD_CANVAS_FORMAT=text/min_json),
-the legacy prompt-JSON path (json), history cleanup, the system prompt, and the
-[canvas changes] note appended to the last tool result of a batch.
+the legacy prompt-JSON path (json), history cleanup, the system prompt, the
+[canvas changes] note appended to the last tool result of a batch, and how
+get_current_canvas_state results are rendered.
 """
 
 from __future__ import annotations
@@ -15,7 +16,9 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Sequence
 from unittest.mock import patch
 
+from server_tests.test_canvas_state_formatter import load_scene
 from static.ai_model import AIModel
+from static.canvas_state_formatter import render_text
 from static.openai_api_base import OpenAIAPIBase, build_developer_message
 from static.openai_completions_api import OpenAIChatCompletionsAPI
 from static.openai_responses_api import OpenAIResponsesAPI
@@ -405,6 +408,82 @@ CANVAS_AFTER = "\n".join(
         "AB = Segment(A, B)  len 3",
     ]
 )
+
+STATE_KEY = "get_current_canvas_state(drawable_types:None, object_names:None, include_computations:None)"
+GET_STATE_CALLS: List[Dict[str, Any]] = [
+    {"id": "call_s", "function": {"name": "get_current_canvas_state", "arguments": "{}"}},
+]
+
+
+def get_state_results_prompt(result: Any, state: Dict[str, Any] = STATE) -> str:
+    entries = [{"tool_call_id": "call_s", "result": result}]
+    return json.dumps({"canvas_state": state, "user_message": None, "tool_call_results": json.dumps(entries)})
+
+
+class TestCanvasStateToolResult(CanvasFormatEnv):
+    """get_current_canvas_state results are rendered like the user-message canvas."""
+
+    def _api_waiting_for_state(self) -> OpenAIChatCompletionsAPI:
+        api = self.chat_api()
+        api._prepare_messages_for_request(user_prompt())
+        api._finalize_stream("", GET_STATE_CALLS)
+        return api
+
+    def test_full_state_is_rendered_as_text(self) -> None:
+        api = self._api_waiting_for_state()
+        scene = load_scene("mixed_medium")
+        result = {STATE_KEY: {"type": "canvas_state", "value": scene}}
+        api._prepare_messages_for_request(get_state_results_prompt(result))
+        self.assertEqual(tool_contents(api)["call_s"], render_text(scene))
+
+    def test_tool_result_is_never_truncated(self) -> None:
+        api = self._api_waiting_for_state()
+        state = json.loads(json.dumps(STATE))
+        state["Points"] += [{"name": f"P{i}", "args": {"position": {"x": i, "y": i}}} for i in range(300)]
+        result = {STATE_KEY: {"type": "canvas_state", "value": state}}
+        with patch.dict(os.environ, {"MATHUD_CANVAS_BUDGET_TOKENS": "200"}):
+            api._prepare_messages_for_request(get_state_results_prompt(result))
+        content = tool_contents(api)["call_s"]
+        self.assertIn("P299 = (299, 299)", content)
+        self.assertNotIn("omitted", content)
+
+    def test_filtered_state_renders_only_the_requested_objects(self) -> None:
+        api = self._api_waiting_for_state()
+        filtered = {
+            "Points": [STATE["Points"][0]],
+            **{k: v for k, v in STATE.items() if k not in ("Points", "Segments")},
+        }
+        key = "get_current_canvas_state(drawable_types:None, object_names:['A'], include_computations:False)"
+        api._prepare_messages_for_request(get_state_results_prompt({key: {"type": "canvas_state", "value": filtered}}))
+        self.assertEqual(tool_contents(api)["call_s"], "view x [-10, 10] y [-5, 5]; grid 1\nA = (0, 0)")
+
+    def test_other_results_stay_json(self) -> None:
+        api = self._api_waiting_for_state()
+        api._prepare_messages_for_request(get_state_results_prompt({"2+3": 5}))
+        self.assertEqual(tool_contents(api)["call_s"], json.dumps({"2+3": 5}))
+
+    def test_legacy_combined_results_render_the_state_inside_json(self) -> None:
+        api = self._api_waiting_for_state()
+        legacy = {"2+3": 5, STATE_KEY: {"type": "canvas_state", "value": STATE}}
+        prompt = json.dumps({"canvas_state": STATE, "user_message": None, "tool_call_results": json.dumps(legacy)})
+        api._prepare_messages_for_request(prompt)
+        content = json.loads(tool_contents(api)["call_s"])
+        self.assertEqual(content, {"2+3": 5, STATE_KEY: CANVAS_BLOCK.split("\n", 1)[1].rsplit("\n", 1)[0]})
+
+    def test_json_format_sends_the_raw_state(self) -> None:
+        with patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": "json"}):
+            api = self._api_waiting_for_state()
+            result = {STATE_KEY: {"type": "canvas_state", "value": STATE}}
+            api._prepare_messages_for_request(get_state_results_prompt(result))
+        self.assertEqual(tool_contents(api)["call_s"], json.dumps(result))
+
+    def test_local_agent_renders_the_state(self) -> None:
+        api = self.local_api()
+        api.messages.append(api._parse_and_prepare_message(user_prompt()) or {})
+        api._finalize_stream("", GET_STATE_CALLS)
+        result = {STATE_KEY: {"type": "canvas_state", "value": STATE}}
+        self.assertIsNone(api._parse_and_prepare_message(get_state_results_prompt(result)))
+        self.assertEqual(tool_contents(api)["call_s"], render_text(STATE))
 
 
 if __name__ == "__main__":

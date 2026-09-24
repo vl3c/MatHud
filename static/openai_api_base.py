@@ -92,6 +92,11 @@ _CANVAS_PROMPT_SENTENCES: Dict[CanvasFormat, str] = {
 }
 
 
+def _is_canvas_state_result(value: Any) -> bool:
+    """True for a get_current_canvas_state result value: ``{"type": "canvas_state", "value": {...}}``."""
+    return isinstance(value, dict) and value.get("type") == "canvas_state" and isinstance(value.get("value"), dict)
+
+
 def build_developer_message(canvas_format: CanvasFormat) -> str:
     """Return the system prompt describing how canvas state is presented in ``canvas_format``."""
     return f"{_DEV_MSG_INTRO} {_CANVAS_PROMPT_SENTENCES[canvas_format]} {_DEV_MSG_OUTRO}"
@@ -790,7 +795,7 @@ class OpenAIAPIBase:
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
-            content = json.dumps(entry.get("result"))
+            content = self._format_tool_result(entry.get("result"))
             tool_call_id = entry.get("tool_call_id")
             target = next((m for m in awaiting if tool_call_id and m.get("tool_call_id") == tool_call_id), None)
             if target is None:
@@ -811,10 +816,29 @@ class OpenAIAPIBase:
         """Write a legacy combined results dict into the last pending tool message."""
         if not pending:
             return
-        pending[-1]["content"] = json.dumps(results)
+        pending[-1]["content"] = self._format_tool_result(results)
         for message in pending[:-1]:
             if message.get("content") == TOOL_RESULT_PLACEHOLDER:
                 message["content"] = "See the combined results in the last tool message of this turn."
+
+    def _format_tool_result(self, result: Any) -> str:
+        """Return the tool message content for one result (a ``{result_key: value}`` dict).
+
+        get_current_canvas_state values (``{"type": "canvas_state", "value": state}``)
+        are rendered in the configured canvas format; a result holding only such a
+        state becomes that text. The client has already applied the call's filters,
+        and no budget is applied because the model asked for the state explicitly.
+        """
+        canvas_format = self._get_canvas_format()
+        if canvas_format == "json" or not isinstance(result, dict):
+            return json.dumps(result)
+        rendered = {
+            key: render_state(value["value"], canvas_format) if _is_canvas_state_result(value) else value
+            for key, value in result.items()
+        }
+        if len(result) == 1 and _is_canvas_state_result(next(iter(result.values()))):
+            return str(next(iter(rendered.values())))
+        return json.dumps(rendered)
 
     def _parse_prompt_json(self, full_prompt: str) -> Optional[Dict[str, Any]]:
         """Parse the prompt JSON and return the parsed dict, or None on failure."""
