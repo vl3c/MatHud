@@ -31,6 +31,8 @@ _RATE_SOURCE_LABELS = {
     "server_timings": "llama-server timings",
     "usage": "provider usage",
     "estimated": "estimated from text",
+    "usage_request": "provider usage over the whole request",
+    "estimated_request": "estimated from text over the whole request",
 }
 
 

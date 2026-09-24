@@ -60,7 +60,9 @@ class TestResponseMetricsTracker(unittest.TestCase):
         tracker = _tracker(clock)
         clock.advance(0.5)
         tracker.mark_output("content")
-        clock.advance(2.0)
+        clock.advance(1.0)
+        tracker.mark_output("content")
+        clock.advance(1.0)
         tracker.record_usage({"prompt_tokens": 120, "completion_tokens": 50, "cached_tokens": 100})
         metrics = tracker.finish("stop", 0)
 
@@ -97,7 +99,9 @@ class TestResponseMetricsTracker(unittest.TestCase):
         clock.advance(0.2)
         tracker.mark_output("content")
         tracker.add_output_text("The answer is 42.")
-        clock.advance(1.0)
+        clock.advance(0.5)
+        tracker.mark_output("content")
+        clock.advance(0.5)
         metrics = tracker.finish("stop", 0)
 
         self.assertTrue(metrics["output_tokens_estimated"])
@@ -129,6 +133,55 @@ class TestResponseMetricsTracker(unittest.TestCase):
         self.assertEqual(metrics["prompt_tokens_per_s"], 812.35)
         self.assertEqual(metrics["cached_tokens"], 30)
         self.assertEqual(metrics["server_timings"]["prompt_n"], 90)
+
+    def test_single_chunk_output_uses_whole_request_window(self) -> None:
+        # A tool call delivered in one chunk 2 ms before the end must not read as 150,000 tok/s.
+        clock = FakeClock()
+        tracker = _tracker(clock)
+        clock.advance(3.0)
+        tracker.mark_output("tool_call")
+        clock.advance(0.002)
+        tracker.record_usage({"completion_tokens": 300})
+        metrics = tracker.finish("tool_calls", 1)
+
+        self.assertEqual(metrics["output_tokens_per_s"], 99.93)  # 300 tokens over the 3.002 s request
+        self.assertEqual(metrics["tokens_per_s_source"], "usage_request")
+
+    def test_short_generation_window_uses_whole_request_window(self) -> None:
+        clock = FakeClock()
+        tracker = _tracker(clock)
+        clock.advance(1.9)
+        tracker.mark_output("content")
+        clock.advance(0.05)
+        tracker.mark_output("content")
+        clock.advance(0.05)
+        tracker.record_usage({"completion_tokens": 200})
+        metrics = tracker.finish("stop", 0)
+
+        self.assertEqual(metrics["output_tokens_per_s"], 100.0)  # 0.1 s window is below the minimum
+        self.assertEqual(metrics["tokens_per_s_source"], "usage_request")
+
+    def test_burst_request_keeps_turn_rate_sane(self) -> None:
+        from static.client.turn_metrics import aggregate_turn
+
+        clock = FakeClock()
+        burst = _tracker(clock)
+        clock.advance(3.0)
+        burst.mark_output("tool_call")
+        clock.advance(0.002)
+        burst.record_usage({"completion_tokens": 300})
+        requests: List[Dict[str, Any]] = [dict(burst.finish("tool_calls", 1))]
+        normal = _tracker(clock)
+        clock.advance(1.0)
+        normal.mark_output("content")
+        clock.advance(0.5)
+        normal.mark_output("content")
+        clock.advance(0.5)
+        normal.record_usage({"completion_tokens": 50})
+        requests.append(dict(normal.finish("stop", 0)))
+
+        # 350 tokens over 3.002 s + 1 s instead of 349 tok/s from the 2 ms burst.
+        self.assertEqual(aggregate_turn(requests, [], 5.0, "stop")["output_tokens_per_s"], 87.45)
 
     def test_non_streamed_request_has_no_first_token(self) -> None:
         clock = FakeClock()
@@ -450,7 +503,8 @@ class TestResponsesStreamMetrics(unittest.TestCase):
         self.assertEqual(metrics["cached_tokens"], 512)
         self.assertEqual(metrics["reasoning_tokens"], 100)
         self.assertIsNotNone(metrics["time_to_first_token_s"])
-        self.assertEqual(metrics["tokens_per_s_source"], "usage")
+        # The mocked events arrive at once, so the generation window is below the minimum.
+        self.assertEqual(metrics["tokens_per_s_source"], "usage_request")
 
     @patch("static.openai_api_base.OpenAI")
     def test_stream_error_carries_metrics(self, mock_openai: Mock) -> None:

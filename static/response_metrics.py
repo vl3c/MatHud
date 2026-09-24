@@ -19,6 +19,11 @@ Field sources:
   present, otherwise completion tokens divided by the generation window (first
   streamed output, reasoning included, to the end of the request), otherwise an
   estimate from the streamed text (``output_tokens_estimated`` is then True).
+  When the output arrived in a single chunk or the window is shorter than
+  ``MIN_GENERATION_WINDOW_S`` (a buffered reply or tool call), the window says
+  nothing about generation speed, so the whole request is used instead and
+  ``tokens_per_s_source`` gets a ``_request`` suffix (``usage_request``,
+  ``estimated_request``).
 - ``prompt_tokens`` / ``completion_tokens`` / ``cached_tokens`` /
   ``reasoning_tokens``: the provider's usage report, when it sends one.
 """
@@ -27,11 +32,14 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Callable, Dict, List, Mapping, Optional, TypedDict
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, TypedDict
 
 from static.token_estimation import estimate_tokens_from_text
 
 METRICS_SCHEMA_VERSION = 1
+
+# Shorter generation windows are delivery bursts, not generation; the rate then uses the whole request.
+MIN_GENERATION_WINDOW_S = 0.25
 
 # llama-server ``timings`` keys worth keeping (llama.cpp tools/server).
 LLAMA_TIMING_KEYS = (
@@ -205,6 +213,7 @@ class ResponseMetricsTracker:
         self._started = clock()
         self._first_token: Optional[float] = None
         self._first_output: Optional[float] = None
+        self._output_marks = 0
         self._usage: Dict[str, Optional[int]] = {}
         self._server_timings: Optional[Dict[str, float]] = None
         self._output_text_parts: List[str] = []
@@ -212,6 +221,7 @@ class ResponseMetricsTracker:
     def mark_output(self, kind: str = "content") -> None:
         """Record streamed output; ``content`` and ``tool_call`` count toward the first token."""
         now = self._clock()
+        self._output_marks += 1
         if self._first_output is None:
             self._first_output = now
         if kind != "reasoning" and self._first_token is None:
@@ -292,19 +302,29 @@ class ResponseMetricsTracker:
             metrics["output_tokens_per_s"] = round(server_rate, 2)
             metrics["tokens_per_s_source"] = "server_timings"
             return
-        window = self._generation_window(total)
+        window, whole_request = self._generation_window(total)
         if output_tokens and window > 0:
             metrics["output_tokens_per_s"] = round(output_tokens / window, 2)
-            metrics["tokens_per_s_source"] = "estimated" if estimated else "usage"
+            source = "estimated" if estimated else "usage"
+            metrics["tokens_per_s_source"] = f"{source}_request" if whole_request else source
             return
         metrics["output_tokens_per_s"] = None
         metrics["tokens_per_s_source"] = None
 
-    def _generation_window(self, total: float) -> float:
-        """Seconds spent generating: first streamed output to the end, or the whole request."""
-        if self._first_output is None:
-            return total
-        return max(total - (self._first_output - self._started), 0.0)
+    def _generation_window(self, total: float) -> Tuple[float, bool]:
+        """Seconds spent generating and whether that is the whole request.
+
+        The window runs from the first streamed output to the end. It falls back
+        to the whole request when nothing was streamed, when the output came in
+        one chunk, or when it is shorter than ``MIN_GENERATION_WINDOW_S``: the
+        tokens were then generated before they were delivered.
+        """
+        if self._first_output is None or self._output_marks < 2:
+            return total, True
+        window = total - (self._first_output - self._started)
+        if window < MIN_GENERATION_WINDOW_S:
+            return total, True
+        return window, False
 
 
 def tool_call_argument_text(tool_calls: List[Dict[str, Any]]) -> str:
