@@ -30,18 +30,17 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 ## 3. Architecture Overview
 
 1. **Frontend (Brython)** – `static/client/` hosts the Brython application (`main.py`) that wires a `Canvas`, `AIInterface`, `CanvasEventHandler`, and numerous managers. Canvas objects stay math-only; renderers translate them to screen primitives via shared plan builders.
-2. **Backend (Flask)** – `app.py` boots a Flask app assembled by `static/app_manager.py`, registers routes (`static/routes.py`), and injects OpenAI, workspace, webdriver, and logging services.
+2. **Backend (Flask)** – `app.py` boots a Flask app assembled by `static/app_manager.py`, registers routes (`static/routes.py`), and injects OpenAI, workspace, and logging services.
 3. **AI integration** – `static/providers/` implements a multi-provider architecture supporting LocalAgent (`static/providers/local/`, a local `llama-server`), OpenAI, Anthropic (Claude), and OpenRouter. `static/ai_model.py` stores model configs with per-model vision and reasoning flags. The model dropdown is populated dynamically from `GET /api/available_models`, which filters by which API keys are present in the environment and whether the local server answers. Each user message carries the canvas as a compact text block rendered by `static/canvas_state_formatter.py` (see 5.1).
 4. **Rendering** – `static/client/rendering/factory.py` prefers Canvas2D and falls back to SVG if Canvas2D fails. Canvas and SVG renderers include opt-in offscreen staging toggled by `window.MatHudCanvas2DOffscreen` / `window.MatHudSvgOffscreen` or matching `localStorage` flags.
-5. **Vision pipeline** – When the chat payload signals vision, the server either stores a data URL snapshot or drives Selenium (`static/webdriver_manager.py`) to replay SVG state in headless Firefox and capture `canvas_snapshots/canvas.png` for the model.
+5. **Vision pipeline** – When vision is on, the browser composites the visible canvas layers (`static/client/canvas_snapshot.py`) into a PNG and sends it as `canvas_snapshot` in the prompt JSON; the provider adds it as an image part next to the `<canvas>` text block. No server-side browser is involved.
 
 ## 4. Getting Started
 
 ### 4.1 Prerequisites
 
 1. Python 3.11+.
-2. Firefox installed locally for the vision workflow (the `geckodriver-autoinstaller` package handles the driver).
-3. At least one AI provider API key (see Configuration below).
+2. At least one AI provider API key (see Configuration below).
 
 ### 4.2 Environment Setup
 
@@ -101,7 +100,7 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    1. When `PORT` is set (typical in hosted deployments), authentication is enforced automatically.
    2. Locally, you can opt-in by setting `REQUIRE_AUTH=true`. The login page accepts the `AUTH_PIN` value.
    3. Sessions use `flask-session` with a CacheLib-backed store; cookies are upgraded to secure/HTTP-only in deployed mode.
-3. Vision capture requires Firefox. The first request that needs Selenium will call `/init_webdriver`, which in turn relies on `geckodriver-autoinstaller` to download the driver if necessary.
+3. Vision snapshots are captured in the browser; no Firefox or WebDriver is needed on the server.
 
 ### 5.1 Canvas Prompt Controls
 
@@ -202,7 +201,7 @@ Autocomplete suggestions appear as you type. Unknown commands trigger fuzzy-matc
 
 1. Use the **Enable Vision** checkbox in the chat header to include screenshots of the current canvas.
 2. The vision toggle and attach button are hidden for models without vision support. Models marked "(text only)" in the dropdown do not support image input.
-3. The server stores the latest snapshot under `canvas_snapshots/canvas.png` for troubleshooting.
+3. The snapshot is taken in the browser when the message is sent: the Canvas2D and SVG layers composited at CSS-pixel size (longest side capped at 1280 px) on a white background. It is not saved on the server.
 
 ### 6.6 AI Provider Configuration
 
@@ -267,14 +266,13 @@ images are not forwarded.
 
 1. `app.py` – entry point with graceful shutdown and threaded dev server.
 2. `static/`
-   a. `app_manager.py`, `routes.py`, `openai_api_base.py` / `openai_completions_api.py` / `openai_responses_api.py`, `ai_model.py`, `tool_call_processor.py`, `tool_search_service.py`, `canvas_state_formatter.py`, `workspace_manager.py`, `log_manager.py`, `webdriver_manager.py`.
+   a. `app_manager.py`, `routes.py`, `openai_api_base.py` / `openai_completions_api.py` / `openai_responses_api.py`, `ai_model.py`, `tool_call_processor.py`, `tool_search_service.py`, `canvas_state_formatter.py`, `workspace_manager.py`, `log_manager.py`.
    b. `providers/` – Multi-provider AI backend (LocalAgent, Anthropic, OpenRouter; OpenAI lives in the `openai_*_api.py` modules) with `ProviderRegistry` for provider detection.
    c. `client/` – Brython modules (canvas, managers, rendering, slash commands, tests, utilities, workspace manager).
 3. `templates/index.html` – main HTML shell that loads Brython, MathJax, styles, and UI controls.
 4. `workspaces/` – saved canvas states.
-5. `canvas_snapshots/` – latest Selenium captures used for vision.
-6. `server_tests/` – pytest suites, including renderer plan tests under `server_tests/client_renderer/`.
-7. `documentation/` – extended reference material.
+5. `server_tests/` – pytest suites, including renderer plan tests under `server_tests/client_renderer/`.
+6. `documentation/` – extended reference material.
 8. `logs/` – session-specific server logs (the newest 50 are kept).
 
 ## 10. Additional Documentation

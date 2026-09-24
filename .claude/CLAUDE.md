@@ -11,8 +11,8 @@ MatHud pairs a canvas with an AI assistant so users can sketch geometric scenes,
 
 ## Architecture at a Glance
 1. Frontend: HTML plus Brython (`static/client/`) render the canvas, manage UI flows, and execute client tests inside the browser.
-2. Backend: Flask (`app.py`, `static/`) exposes HTTP routes, workspace persistence, AI provider calls (OpenAI, Anthropic, OpenRouter, local), and Selenium-driven screenshots.
-3. AI and vision: `static/functions_definitions.py` specifies callable tools; snapshots feed the vision pipeline when enabled.
+2. Backend: Flask (`app.py`, `static/`) exposes HTTP routes, workspace persistence, and AI provider calls (OpenAI, Anthropic, OpenRouter, local).
+3. AI and vision: `static/functions_definitions.py` specifies callable tools; with vision on, the browser captures the canvas (`static/client/canvas_snapshot.py`) and sends it with the prompt as `canvas_snapshot`.
    Providers live in `static/providers/`; `static/providers/local/` holds LocalAgent, which serves whatever model a local llama-server reports from `/v1/models`.
 4. Math tooling: nerdamer.js provides symbolic algebra, math.js handles numeric evaluation, and MathJax renders LaTeX.
 
@@ -36,8 +36,7 @@ MatHud pairs a canvas with an AI assistant so users can sketch geometric scenes,
 
 ## Prerequisites
 1. Python 3.11+.
-2. Firefox installed locally for the vision workflow (geckodriver-autoinstaller handles the driver).
-3. An API key for at least one provider: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENROUTER_API_KEY` (local providers need none).
+2. An API key for at least one provider: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENROUTER_API_KEY` (local providers need none).
 
 ## Setup Steps
 1. Clone the repository and create a virtual environment: `python -m venv venv`
@@ -88,17 +87,16 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 2. `static/`: Server modules plus the Brython client bundle.
 3. `templates/`: HTML shells that load Brython and bootstrap the UI.
 4. `workspaces/`: Saved user state as JSON.
-5. `canvas_snapshots/`: Vision screenshots generated through Selenium.
-6. `server_tests/`: Backend pytest suites.
-7. `documentation/`: Manuals such as `Reference Manual.txt` and `Example Prompts.txt`.
-8. `logs/`: Application log output (rotated by `log_manager.py`, which keeps the newest 50 session logs).
+5. `server_tests/`: Backend pytest suites.
+6. `documentation/`: Manuals such as `Reference Manual.txt` and `Example Prompts.txt`.
+7. `logs/`: Application log output (rotated by `log_manager.py`, which keeps the newest 50 session logs).
 
 ## Backend Highlights (`static/`)
 1. `app_manager.py`, `routes.py`, and `route_helpers.py` wire Flask endpoints to the provider layer: `openai_api_base.py` (shared history and system prompt), `openai_completions_api.py` / `openai_responses_api.py`, and `providers/` (Anthropic, OpenRouter, local).
 2. `tool_call_processor.py`, `ai_model.py`, and `functions_definitions.py` define the function-call surface exposed to every provider.
-3. `webdriver_manager.py` captures canvas screenshots for the vision workflow.
+3. Vision snapshots are captured in the browser (`static/client/canvas_snapshot.py`) and travel in the prompt JSON; `routes.py` only enforces their size limit.
 4. `workspace_manager.py` and `log_manager.py` handle persistence and auditing.
-5. `config.py` centralizes server-side constants (workspace dirs, schema version, snapshot paths).
+5. `config.py` centralizes server-side constants (workspace dirs, schema version, request and image size caps).
 6. `env_config.py` provides shared environment variable loading, replacing duplicated `load_dotenv` patterns.
 7. `route_helpers.py` contains extracted route helper functions for provider management and tool lifecycle.
 8. `canvas_state_formatter.py` renders the canvas for the model: a compact text block in each user message, `[canvas changes]` after tool batches, and `get_current_canvas_state` results (see `documentation/development/canvas_prompt_summary_rollout.md`).

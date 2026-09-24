@@ -63,7 +63,7 @@ Follow-ups:
 Goal: one command (later one executable) opens a MatHud window; no separate server and browser.
 1. **Desktop shell via pywebview** (recommended first step): a launcher starts Flask in a background thread on a free port and opens a native window (Edge WebView2 on Windows). Pure Python, no second runtime, reuses everything. Electron/Tauri only if a concrete need appears — both would still have to bundle Python as a sidecar.
 2. **Vendor browser libraries** (Brython, math.js, nerdamer, MathJax) into `static/vendor/` with pinned versions, so the app works fully offline with LocalAgent.
-3. **Vision snapshots without Selenium/Firefox:** capture the canvas client-side (`toDataURL`, already used partly) and send it with the request; drop the headless-Firefox startup dependency.
+3. ~~**Vision snapshots without Selenium/Firefox:** capture the canvas client-side and send it with the request; drop the headless-Firefox startup dependency.~~ Done: `static/client/canvas_snapshot.py` composites the SVG and Canvas2D layers; `WebDriverManager` and `/init_webdriver` are removed.
 4. **Lazy-load optional heavy pieces** (Kokoro/torch) so startup is fast and memory is low when TTS isn't used.
 5. **Packaging** (later): PyInstaller one-folder build + Start-menu shortcut.
 
