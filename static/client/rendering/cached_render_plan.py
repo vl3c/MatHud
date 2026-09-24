@@ -838,6 +838,19 @@ def _command_bounds_points(command: PrimitiveCommand) -> Sequence[Sequence[float
     return ()
 
 
+def _pan_translates_all_commands(commands: List[PrimitiveCommand]) -> bool:
+    """Return True when a pure pan moves every command by the same screen offset.
+
+    Angle arcs/labels recompute their radius and font from build-time metadata on
+    every reprojection, so their extent can change even when only panning.
+    """
+    for command in commands:
+        metadata = command.kwargs.get("metadata") if command.kwargs else None
+        if metadata and isinstance(metadata, dict) and "angle" in metadata:
+            return False
+    return True
+
+
 class OptimizedPrimitivePlan:
     """Cached render plan for efficient drawable rendering with reprojection.
 
@@ -861,6 +874,7 @@ class OptimizedPrimitivePlan:
         "_needs_apply",
         "_usage_counts",
         "_uses_screen_space",
+        "_pan_shifts_bounds",
     )
 
     def __init__(
@@ -889,6 +903,7 @@ class OptimizedPrimitivePlan:
         self._needs_apply: bool = True
         self._usage_counts: Dict[str, int] = dict(usage_counts or {})
         self._uses_screen_space: bool = bool(metadata.get("uses_screen_space"))
+        self._pan_shifts_bounds: bool = _pan_translates_all_commands(commands)
         stored_bounds = metadata.get("screen_bounds")
         self._screen_bounds: Optional[Bounds] = None
         if isinstance(stored_bounds, (list, tuple)) and len(stored_bounds) == 4:
@@ -923,7 +938,17 @@ class OptimizedPrimitivePlan:
                 handler(command, current_state, new_state, xf)
         self._map_state = state_copy
         self.metadata["map_state"] = state_copy
-        self._recompute_bounds_from_commands()
+        bounds = self._screen_bounds
+        if xf[0] == 1.0 and bounds is not None and self._pan_shifts_bounds:
+            # Pure pan: every command moves by exactly (tx, ty), so shift the bounds
+            # instead of rescanning every point.
+            tx = xf[1]
+            ty = xf[2]
+            bounds = (bounds[0] + tx, bounds[1] + tx, bounds[2] + ty, bounds[3] + ty)
+            self._screen_bounds = bounds
+            self.metadata["screen_bounds"] = bounds
+        else:
+            self._recompute_bounds_from_commands()
         self._needs_apply = True
 
     def apply(self, primitives: RendererPrimitives) -> None:

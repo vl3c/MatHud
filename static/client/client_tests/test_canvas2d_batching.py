@@ -194,6 +194,22 @@ class TestRenderPlanReprojection(unittest.TestCase):
         self.assertAlmostEqual(new_start[1], expected_start[1], places=9)
         self.assertAlmostEqual(plan.commands[1].args[1], 8.0 * k, places=9)
 
+    def test_pan_shifts_bounds_like_a_full_rescan(self) -> None:
+        stroke = StrokeStyle(color="#000", width=1)
+        points = tuple((float(i), float((i * 7) % 13)) for i in range(20))
+        commands = [PrimitiveCommand("stroke_polyline", (points, stroke), {})]
+        plan = OptimizedPrimitivePlan(
+            drawable=None, commands=commands, plan_key="p", metadata={"map_state": dict(self.OLD)}
+        )
+        panned = dict(self.OLD)
+        panned["offset_x"] += 37.5
+        panned["offset_y"] -= 12.0
+        plan.update_map_state(panned)
+        shifted = plan._screen_bounds
+        plan._recompute_bounds_from_commands()
+        for got, expected in zip(shifted, plan._screen_bounds):
+            self.assertAlmostEqual(got, expected, places=9)
+
     def test_plan_bounds_include_circle_radius(self) -> None:
         fill = FillStyle(color="#000")
         commands = [PrimitiveCommand("fill_circle", ((-5.0, 50.0), 20.0, fill, None), {"screen_space": False})]
