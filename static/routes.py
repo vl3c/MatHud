@@ -958,13 +958,20 @@ def register_routes(app: MatHudFlask) -> None:
         except Exception as e:
             return AppManager.make_response(message=str(e), status="error", code=500)
 
-    @app.route("/delete_workspace", methods=["GET"])
+    @app.route("/delete_workspace", methods=["POST"])
     @require_auth
     def delete_workspace_route() -> ResponseReturnValue:
-        """Delete a workspace."""
+        """Delete a workspace.
+
+        Requires POST with a JSON body: a JSON content type forces a CORS preflight,
+        so other sites cannot trigger deletes with simple cross-site requests.
+        """
         try:
-            name = request.args.get("name")
-            if not name:
+            if not request.is_json:
+                return AppManager.make_response(message="Expected a JSON request body", status="error", code=415)
+            data = request.get_json(silent=True)
+            name = data.get("name") if isinstance(data, dict) else None
+            if not name or not isinstance(name, str):
                 return AppManager.make_response(message="Workspace name is required", status="error", code=400)
 
             success = app.workspace_manager.delete_workspace(name)

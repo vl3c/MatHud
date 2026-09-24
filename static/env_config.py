@@ -11,6 +11,9 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
+# Resolve relative to this file, not the working directory the app was launched from.
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 def load_env_files() -> None:
     """Load .env files from the project root and its parent directory.
@@ -23,7 +26,7 @@ def load_env_files() -> None:
     not overwrite variables that are already present in ``os.environ``.
     """
     load_dotenv()
-    parent_env = os.path.join(os.path.dirname(os.getcwd()), ".env")
+    parent_env = os.path.join(os.path.dirname(_PROJECT_ROOT), ".env")
     if os.path.exists(parent_env):
         load_dotenv(parent_env)
 

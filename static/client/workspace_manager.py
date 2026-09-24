@@ -25,6 +25,8 @@ Object Restoration:
     - Vectors: Directed segments with origin/tip point relationships
     - Triangles: Three-vertex polygons with automatic edge detection
     - Rectangles: Canonicalized polygons rebuilt via the unified polygon manager
+    - Quadrilaterals through Decagons and GenericPolygons: Ordered-vertex polygons
+    - Graphs: Undirected/directed graphs and trees rebuilt around restored edges
     - Circles: Circular objects with center point dependencies
     - Ellipses: Elliptical objects with center and rotation parameters
     - Functions: Mathematical function expressions with domain settings
@@ -52,8 +54,11 @@ from constants import (
 from drawables.label_render_mode import LabelRenderMode
 from drawables.bars_plot import BarsPlot
 from drawables.continuous_plot import ContinuousPlot
+from drawables.directed_graph import DirectedGraph
 from drawables.discrete_plot import DiscretePlot
 from drawables.plot import Plot
+from drawables.tree import Tree
+from drawables.undirected_graph import UndirectedGraph
 from utils.math_utils import MathUtils
 from managers.polygon_type import PolygonType
 from utils.polygon_canonicalizer import (
@@ -256,6 +261,8 @@ class WorkspaceManager:
             p2.x,
             p2.y,
             name=item_state.get("name", ""),
+            # Restore exactly what was saved: no implicit triangles (also avoids O(n^4) scans).
+            extra_graphics=False,
             label_text=str(label_args.get("text", "") or ""),
             label_visible=bool(label_args.get("visible", False)),
         )
@@ -364,13 +371,27 @@ class WorkspaceManager:
             self._warn_vector_missing_points(item_state, origin_point_name, tip_point_name)
             return
 
-        self.canvas.create_vector(
+        vector = self.canvas.create_vector(
             origin_point.x,
             origin_point.y,
             tip_point.x,
             tip_point.y,
             name=item_state.get("name", ""),
+            extra_graphics=False,
         )
+        self._restore_vector_label(vector, item_state.get("args", {}))
+
+    def _restore_vector_label(self, vector: Any, args: Any) -> None:
+        # Vector labels carry directed graph edge weights; older saves have no label.
+        label_args = self._get_segment_label_args(args) if isinstance(args, dict) else {}
+        label_text = str(label_args.get("text", "") or "")
+        if not label_text:
+            return
+        try:
+            vector.segment.update_label_text(label_text)
+            vector.segment.set_label_visibility(bool(label_args.get("visible", False)))
+        except Exception:
+            pass
 
     def _warn_vector_missing_point_names(self, item_state: Dict[str, Any]) -> None:
         print(
@@ -413,6 +434,7 @@ class WorkspaceManager:
                 ],
                 polygon_type=PolygonType.TRIANGLE,
                 name=item_state.get("name", ""),
+                extra_graphics=False,
             )
 
     def _create_rectangles(self, state: Dict[str, Any]) -> None:
@@ -444,6 +466,7 @@ class WorkspaceManager:
             resolved_vertices,
             polygon_type=PolygonType.RECTANGLE,
             name=rect_name,
+            extra_graphics=False,
         )
 
     def _warn_rectangle_missing_point_names(self, rect_name: str) -> None:
@@ -507,6 +530,95 @@ class WorkspaceManager:
             print(f"Warning: Unable to canonicalize rectangle '{rect_name}' from supplied coordinates. Skipping.")
             return None
 
+    # Polygon buckets whose state stores ordered vertex names p1..pN.
+    _ORDERED_POLYGON_RESTORE_TYPES: Tuple[Tuple[str, PolygonType], ...] = (
+        ("Quadrilaterals", PolygonType.QUADRILATERAL),
+        ("Pentagons", PolygonType.PENTAGON),
+        ("Hexagons", PolygonType.HEXAGON),
+        ("Heptagons", PolygonType.HEPTAGON),
+        ("Octagons", PolygonType.OCTAGON),
+        ("Nonagons", PolygonType.NONAGON),
+        ("Decagons", PolygonType.DECAGON),
+        ("GenericPolygons", PolygonType.GENERIC),
+    )
+
+    def _create_ordered_polygons(self, state: Dict[str, Any]) -> None:
+        """Create quadrilaterals through decagons and generic polygons from workspace state."""
+        for state_key, polygon_type in self._ORDERED_POLYGON_RESTORE_TYPES:
+            for item_state in state.get(state_key) or []:
+                self._restore_ordered_polygon(item_state, polygon_type)
+
+    def _restore_ordered_polygon(self, item_state: Dict[str, Any], polygon_type: PolygonType) -> None:
+        polygon_name = str(item_state.get("name", "") or "")
+        points = self._ordered_polygon_points(item_state)
+        if points is None:
+            print(f"Warning: Could not find all vertices for polygon '{polygon_name}' in the canvas. Skipping.")
+            return
+        try:
+            # Vertices already exist, so no name is needed to derive point names.
+            self.canvas.create_polygon(
+                [(point.x, point.y) for point in points],
+                polygon_type=polygon_type,
+                extra_graphics=False,
+            )
+        except Exception as exc:
+            print(f"Warning: Could not restore polygon '{polygon_name}': {exc}")
+
+    def _ordered_polygon_points(self, item_state: Dict[str, Any]) -> Optional[List["Point"]]:
+        args = item_state.get("args", {})
+        if not isinstance(args, dict):
+            return None
+        points: List["Point"] = []
+        index = 1
+        while f"p{index}" in args:
+            point: Optional["Point"] = self.canvas.get_point_by_name(args[f"p{index}"])
+            if point is None:
+                return None
+            points.append(point)
+            index += 1
+        return points or None
+
+    def _create_graphs(self, state: Dict[str, Any]) -> None:
+        """Rebuild graph drawables around their already-restored edges and vertices."""
+        for state_key in ("UndirectedGraphs", "DirectedGraphs", "Trees"):
+            for item_state in state.get(state_key) or []:
+                self._restore_graph(state_key, item_state)
+
+    def _restore_graph(self, state_key: str, item_state: Dict[str, Any]) -> None:
+        name = str(item_state.get("name", "") or "")
+        args = item_state.get("args", {})
+        if not isinstance(args, dict):
+            args = {}
+        try:
+            graph = self._build_graph_from_state(state_key, name, args)
+            drawable_manager = self.canvas.drawable_manager
+            drawable_manager.drawables.add(graph)
+            drawable_manager.dependency_manager.analyze_drawable_for_dependencies(graph)
+        except Exception as exc:
+            print(f"Warning: Could not restore graph '{name}': {exc}")
+
+    def _build_graph_from_state(self, state_key: str, name: str, args: Dict[str, Any]) -> Any:
+        # Older saves lack isolated_points; edges alone still rebuild the graph.
+        isolated_points = self._resolve_named(args.get("isolated_points"), self.canvas.get_point_by_name)
+        if state_key == "DirectedGraphs":
+            vector_manager = self.canvas.drawable_manager.vector_manager
+            vectors = self._resolve_named(args.get("vectors"), vector_manager.get_vector_by_name)
+            return DirectedGraph(name, vectors=vectors, isolated_points=isolated_points)
+        segments = self._resolve_named(args.get("segments"), self.canvas.get_segment_by_name)
+        if state_key == "Trees":
+            return Tree(name, root=args.get("root"), segments=segments, isolated_points=isolated_points)
+        return UndirectedGraph(name, segments=segments, isolated_points=isolated_points)
+
+    def _resolve_named(self, names: Any, lookup: Callable[[str], Any]) -> List[Any]:
+        resolved: List[Any] = []
+        for item_name in names or []:
+            drawable = lookup(item_name) if item_name else None
+            if drawable is None:
+                print(f"Warning: Could not find '{item_name}' while restoring a graph. Skipping it.")
+                continue
+            resolved.append(drawable)
+        return resolved
+
     def _create_circles(self, state: Dict[str, Any]) -> None:
         """Create circles from workspace state."""
         if "Circles" not in state:
@@ -522,6 +634,7 @@ class WorkspaceManager:
                 center_point.y,
                 item_state["args"]["radius"],
                 name=item_state.get("name", ""),
+                extra_graphics=False,
             )
 
     def _create_ellipses(self, state: Dict[str, Any]) -> None:
@@ -541,6 +654,7 @@ class WorkspaceManager:
                 item_state["args"]["radius_y"],
                 rotation_angle=item_state["args"].get("rotation_angle", 0),
                 name=item_state.get("name", ""),
+                extra_graphics=False,
             )
 
     def _create_functions(self, state: Dict[str, Any]) -> None:
@@ -877,27 +991,26 @@ class WorkspaceManager:
             metadata=metadata,
         )
 
-    def _restore_closed_shape_area(self, item_state: Dict[str, Any]) -> None:
+    def _restore_closed_shape_area(self, item_state: Dict[str, Any]) -> Any:
         shape_args = item_state.get("args", {})
         color, opacity, resolution = self._closed_shape_style_args(shape_args)
         shape_type = shape_args.get("shape_type")
         expression = shape_args.get("expression")
 
         if shape_type == "region" and expression:
-            self.canvas.create_region_colored_area(
+            return self.canvas.create_region_colored_area(
                 expression=expression,
                 resolution=resolution,
                 color=color,
                 opacity=opacity,
             )
-            return
 
         polygon_names, chord_name = self._closed_shape_polygon_and_chord(shape_args, shape_type)
         circle_name = shape_args.get("circle")
         ellipse_name = shape_args.get("ellipse")
         arc_clockwise = shape_args.get("arc_clockwise", False)
 
-        self.canvas.create_region_colored_area(
+        return self.canvas.create_region_colored_area(
             polygon_segment_names=polygon_names,
             circle_name=circle_name,
             ellipse_name=ellipse_name,
@@ -931,9 +1044,9 @@ class WorkspaceManager:
             polygon_names = shape_args.get("segments")
         return polygon_names, chord_name
 
-    def _restore_functions_bounded_area(self, item_state: Dict[str, Any]) -> None:
+    def _restore_functions_bounded_area(self, item_state: Dict[str, Any]) -> Any:
         args = item_state.get("args", {})
-        self.canvas.create_colored_area(
+        return self.canvas.create_colored_area(
             drawable1_name=args.get("func1"),
             drawable2_name=args.get("func2"),
             left_bound=args.get("left_bound"),
@@ -942,10 +1055,10 @@ class WorkspaceManager:
             opacity=args.get("opacity", default_area_opacity),
         )
 
-    def _restore_generic_colored_area(self, item_state: Dict[str, Any]) -> None:
+    def _restore_generic_colored_area(self, item_state: Dict[str, Any]) -> Any:
         args = item_state.get("args", {})
         drawable1_name, drawable2_name = self._generic_colored_area_drawable_names(args)
-        self.canvas.create_colored_area(
+        return self.canvas.create_colored_area(
             drawable1_name=drawable1_name,
             drawable2_name=drawable2_name,
             left_bound=args.get("left_bound"),
@@ -955,8 +1068,9 @@ class WorkspaceManager:
         )
 
     def _generic_colored_area_drawable_names(self, args: Dict[str, Any]) -> Tuple[Any, Any]:
-        drawable1_name = args.get("drawable1_name") or args.get("segment1") or args.get("func1")
-        drawable2_name = args.get("drawable2_name") or args.get("segment2") or args.get("func2")
+        # FunctionSegmentBoundedColoredArea serializes its operands as "func"/"segment".
+        drawable1_name = args.get("drawable1_name") or args.get("segment1") or args.get("func1") or args.get("func")
+        drawable2_name = args.get("drawable2_name") or args.get("segment2") or args.get("func2") or args.get("segment")
         return drawable1_name, drawable2_name
 
     def _create_angles(self, state: Dict[str, Any]) -> None:
@@ -1129,6 +1243,8 @@ class WorkspaceManager:
             self._create_vectors,
             self._create_triangles,
             self._create_rectangles,
+            self._create_ordered_polygons,
+            self._create_graphs,
             self._create_circles,
             self._create_circle_arcs,
             self._create_ellipses,
@@ -1323,10 +1439,11 @@ class WorkspaceManager:
         def on_complete(req: Any) -> str:
             return self._parse_delete_workspace_response(req, name)
 
-        url: str = f"/delete_workspace?name={name}"
-        return self._execute_sync_request(
-            method="GET",
-            url=url,
+        # POST + JSON body (not GET) so cross-site pages cannot trigger deletes.
+        return self._execute_sync_json_request(
+            method="POST",
+            url="/delete_workspace",
+            payload={"name": name},
             on_complete=on_complete,
             error_prefix="Error deleting workspace",
         )

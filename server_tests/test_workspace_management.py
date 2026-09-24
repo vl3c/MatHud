@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import unittest
 from datetime import datetime
 from typing import Any, Dict, cast
@@ -40,7 +41,12 @@ class TestWorkspaceManagement(unittest.TestCase):
         test_dir = os.path.join(WORKSPACES_DIR, TEST_DIR)
         if os.path.exists(test_dir):
             for filename in os.listdir(test_dir):
-                os.remove(os.path.join(test_dir, filename))
+                entry = os.path.join(test_dir, filename)
+                # Deletes move files into a .trash subdirectory.
+                if os.path.isdir(entry):
+                    shutil.rmtree(entry)
+                else:
+                    os.remove(entry)
 
     def test_save_workspace_without_name(self) -> None:
         """Test saving workspace without a name (current workspace)."""

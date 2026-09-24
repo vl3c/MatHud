@@ -3856,7 +3856,7 @@ Dependencies:
 - `@app.route('/save_workspace', methods=['POST'])`: Save current workspace state to file
 - `@app.route('/load_workspace', methods=['GET'])`: Load workspace state from file
 - `@app.route('/list_workspaces', methods=['GET'])`: List all saved workspaces
-- `@app.route('/delete_workspace', methods=['GET'])`: Delete workspace by name
+- `@app.route('/delete_workspace', methods=['POST'])`: Delete workspace by name (JSON body `{"name": ...}`; deleted files move to `.trash/`)
 - `@app.route('/send_message', methods=['POST'])`: Process AI chat messages with tool calling support
 
 **Key Functions:**

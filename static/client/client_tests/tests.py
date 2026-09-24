@@ -151,6 +151,7 @@ from .test_workspace_manager import (
     TestWorkspaceSegmentPersistence,
 )
 from .test_workspace_plots import TestWorkspacePlotsRestore
+from .test_workspace_round_trip import TestWorkspaceRoundTrip
 from .test_zoom import (
     TestZoomXAxisRange,
     TestZoomYAxisRange,
@@ -414,6 +415,7 @@ class Tests:
             TestWorkspaceManagerHelperMethods,
             TestWorkspaceManagerOrchestration,
             TestWorkspacePlotsRestore,
+            TestWorkspaceRoundTrip,
             TestMathFunctions,
             TestNumberTheory,
             TestMathUtilsSolving,
