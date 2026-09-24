@@ -8,6 +8,8 @@ localhost.
 from __future__ import annotations
 
 import json
+import os
+import signal
 import socket
 import sys
 import time
@@ -379,6 +381,43 @@ class TestRunInBrowser:
 
         assert opened["body"] == b"hello"
         assert not wait_for_server(opened["url"], timeout=0.3, interval=0.05)
+
+
+class TestCreateFlaskApp:
+    def test_port_in_dotenv_does_not_switch_to_deployed_mode(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The README's .env example sets PORT, which marks a hosted deployment
+        # (auth required, secure-only cookies) and would lock the window out.
+        import dotenv
+
+        from static.app_manager import AppManager
+
+        env_file = tmp_path / ".env"
+        env_file.write_text("PORT=5000\n", encoding="utf-8")
+        real_load_dotenv = dotenv.load_dotenv
+        monkeypatch.setattr("static.env_config.load_dotenv", lambda *args, **kwargs: real_load_dotenv(env_file))
+        monkeypatch.chdir(Path.cwd())
+        previous_sigint = signal.getsignal(signal.SIGINT)
+        try:
+            with (
+                patch.dict(os.environ),
+                patch.dict(sys.modules),
+                patch.object(AppManager, "is_deployed", AppManager.__dict__["is_deployed"]),
+                patch("builtins.print"),
+            ):
+                os.environ.pop("PORT", None)
+                os.environ.pop("REQUIRE_AUTH", None)
+                sys.modules.pop("app", None)
+                flask_app = mathud_desktop.create_flask_app()
+
+                assert not AppManager.is_deployed()
+                assert not AppManager.requires_auth()
+                assert flask_app.config.get("SESSION_COOKIE_SECURE") is not True
+                response = flask_app.test_client().get("/")
+                assert response.status_code == 200
+        finally:
+            signal.signal(signal.SIGINT, previous_sigint)
 
 
 class TestDesktopCliCommand:
