@@ -120,7 +120,12 @@ def evaluate_residuals(
     residuals: List[float] = []
     for expr in residual_exprs:
         try:
-            result = window.math.evaluate(expr, scope)
+            try:
+                result = window.math.evaluate(expr, scope)
+            except Exception:
+                # Brython cannot convert integer-valued JS numbers above 2**53
+                # ("not a big int"), so let math.js hand the value back as text
+                result = window.math.evaluate(f"string({expr})", scope)
             # Convert to Python float
             val = float(result)
             # Check for non-finite values

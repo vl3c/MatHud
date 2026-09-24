@@ -424,6 +424,17 @@ class TestJacobianComputation(unittest.TestCase):
 class TestExpressionEvaluation(unittest.TestCase):
     """Tests for expression evaluation."""
 
+    def test_evaluate_large_integer_valued_result(self) -> None:
+        """Integer-valued results above 2**53 must not break the JS-to-Python conversion."""
+        from numeric_solver.expression_utils import evaluate_residuals
+
+        values = [1e9 + 100.0, 3e8 + 1.0]
+        result = evaluate_residuals(["x^2", "y^2 - 1"], ["x", "y"], values)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(math.isclose(result[0], values[0] ** 2, rel_tol=1e-15), str(result))
+        self.assertTrue(math.isclose(result[1], values[1] ** 2 - 1, rel_tol=1e-15), str(result))
+
     def test_evaluate_simple_expression(self) -> None:
         """Test evaluation of simple expressions."""
         from numeric_solver.expression_utils import evaluate_residuals
