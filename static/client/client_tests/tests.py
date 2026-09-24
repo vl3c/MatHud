@@ -165,7 +165,7 @@ from .test_optimized_renderers import TestOptimizedRendererParity
 from .test_renderer_primitives import TestRendererPrimitives
 from .test_renderer_logic import TestRendererLogic
 from .test_canvas2d_batching import TestCanvas2DBatching, TestRenderPlanReprojection
-from .test_canvas_snapshot import TestCanvasSnapshotter, TestSnapshotSize
+from .test_canvas_snapshot import TestCanvasSnapshotter, TestCanvasSnapshotterSvgDecode, TestSnapshotSize
 from .test_drawable_renderers import (
     TestVectorRenderer,
     TestAngleRenderer,
@@ -264,6 +264,7 @@ from .test_numeric_solver import (
     TestExpressionEvaluation,
 )
 from .test_error_recovery import TestErrorRecovery
+from .test_vision_send_cancellation import TestVisionSendCancellation
 from .test_tts_controller import (
     TestTTSControllerState,
     TestTTSControllerSettings,
@@ -391,6 +392,7 @@ class Tests:
             TestRenderPlanReprojection,
             TestSnapshotSize,
             TestCanvasSnapshotter,
+            TestCanvasSnapshotterSvgDecode,
             TestChatMessageMenu,
             TestLabelOverlapResolver,
             TestScreenOffsetLabelLayout,
@@ -611,6 +613,7 @@ class Tests:
             TestJacobianComputation,
             TestExpressionEvaluation,
             TestErrorRecovery,
+            TestVisionSendCancellation,
             TestTTSControllerState,
             TestTTSControllerSettings,
             TestTTSControllerSingleton,

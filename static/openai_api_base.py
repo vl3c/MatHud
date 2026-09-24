@@ -461,13 +461,16 @@ class OpenAIAPIBase:
 
         return content if len(content) > 1 else None
 
+    # The only form the browser sends the vision snapshot in (the routes reject anything else).
+    CANVAS_SNAPSHOT_DATA_URL_PREFIX = "data:image/png;base64,"
+
     @staticmethod
     def _extract_canvas_snapshot(prompt_json: Dict[str, Any]) -> Optional[str]:
-        """Return the browser-captured canvas image (data URL) when vision is on, else None."""
+        """Return the browser-captured canvas image (a base64 PNG data URL) when vision is on, else None."""
         if not prompt_json.get("use_vision"):
             return None
         snapshot = prompt_json.get("canvas_snapshot")
-        if isinstance(snapshot, str) and snapshot.startswith("data:image"):
+        if isinstance(snapshot, str) and snapshot.startswith(OpenAIAPIBase.CANVAS_SNAPSHOT_DATA_URL_PREFIX):
             return snapshot
         return None
 

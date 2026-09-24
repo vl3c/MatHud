@@ -12,7 +12,7 @@ from typing import Any, List, Optional, Tuple
 
 from browser import document, html, svg, window
 
-from canvas_snapshot import CanvasSnapshotter, snapshot_size
+from canvas_snapshot import SVG_DECODE_TIMEOUT_MS, CanvasSnapshotter, snapshot_size
 
 CONTAINER_ID = "snapshot-test-container"
 CANVAS_ID = "snapshot-test-canvas"
@@ -28,6 +28,10 @@ def _png_size(data_url: str) -> Tuple[int, int]:
     width = (ord(raw[16]) << 24) | (ord(raw[17]) << 16) | (ord(raw[18]) << 8) | ord(raw[19])
     height = (ord(raw[20]) << 24) | (ord(raw[21]) << 16) | (ord(raw[22]) << 8) | ord(raw[23])
     return width, height
+
+
+def _fire(element: Any, event_type: str) -> None:
+    element.dispatchEvent(window.Event.new(event_type))
 
 
 def _pixel(canvas_el: Any, x: int, y: int) -> List[int]:
@@ -144,20 +148,38 @@ class TestCanvasSnapshotter(unittest.TestCase):
         self.assertGreater(right[2], 200)
         self.assertLess(right[0], 50)
 
-    def test_background_is_filled_without_layers(self) -> None:
+    def test_background_is_filled_behind_a_transparent_layer(self) -> None:
+        canvas_el = html.CANVAS(id=CANVAS_ID)
+        canvas_el.setAttribute("width", str(CSS_WIDTH))
+        canvas_el.setAttribute("height", str(CSS_HEIGHT))
+        self.container <= canvas_el
         output = self._capture_output_canvas(self._snapshotter())
         self.assertEqual(_pixel(output, 5, 5), [255, 255, 255, 255])
+
+    def test_no_layer_to_draw_reports_none(self) -> None:
+        self._add_svg(with_content=False)
+        self.assertEqual(self._capture_sync(self._snapshotter()), [None])
 
     def test_hidden_canvas_layer_is_skipped(self) -> None:
         canvas_el = self._add_canvas(ratio=1)
         canvas_el.style.display = "none"
-        output = self._capture_output_canvas(self._snapshotter())
-        self.assertEqual(_pixel(output, CSS_WIDTH // 4, CSS_HEIGHT // 2), [255, 255, 255, 255])
+        self.assertEqual(self._capture_sync(self._snapshotter()), [None])
 
     def test_missing_container_reports_none(self) -> None:
         results: List[Optional[str]] = []
         CanvasSnapshotter(container_id="no-such-container").capture(results.append)
         self.assertEqual(results, [None])
+
+    def test_raising_callback_is_not_called_twice(self) -> None:
+        calls: List[Optional[str]] = []
+
+        def on_done(snapshot: Optional[str]) -> None:
+            calls.append(snapshot)
+            raise RuntimeError("callback failed")
+
+        with self.assertRaises(RuntimeError):
+            CanvasSnapshotter(container_id="no-such-container").capture(on_done)
+        self.assertEqual(calls, [None])
 
     def test_empty_svg_layer_is_not_serialized(self) -> None:
         self._add_svg(with_content=False)
@@ -189,3 +211,165 @@ class TestCanvasSnapshotter(unittest.TestCase):
         run()
         run()
         self.assertEqual(calls, [1])
+
+
+class _TaintedOnceOutput:
+    """Wraps an output canvas whose first ``toDataURL`` (across all wrappers) raises, like a tainted canvas."""
+
+    def __init__(self, canvas_el: Any, encode_calls: List[int]) -> None:
+        self.canvas_el = canvas_el
+        self._encode_calls = encode_calls
+
+    def toDataURL(self, mime: str) -> str:
+        self._encode_calls.append(1)
+        if len(self._encode_calls) == 1:
+            raise Exception("SecurityError: The canvas has been tainted by cross-origin data.")
+        return str(self.canvas_el.toDataURL(mime))
+
+
+class TestCanvasSnapshotterSvgDecode(unittest.TestCase):
+    """The asynchronous SVG decode path, driven by a fake image and a manual timer."""
+
+    def setUp(self) -> None:
+        self.container = html.DIV(id=CONTAINER_ID)
+        style = self.container.style
+        style.position = "absolute"
+        style.left = "-10000px"
+        style.top = "0px"
+        style.width = f"{CSS_WIDTH}px"
+        style.height = f"{CSS_HEIGHT}px"
+        document <= self.container
+        svg_el = svg.svg(id=SVG_ID)
+        svg_el <= svg.rect(x=10, y=10, width=50, height=20, fill="#00ff00")
+        self.container <= svg_el
+        # Stands in for the decoded SVG image: a solid green bitmap that fires load/error on demand.
+        self.image = html.CANVAS()
+        self.image.setAttribute("width", str(CSS_WIDTH))
+        self.image.setAttribute("height", str(CSS_HEIGHT))
+        image_ctx = self.image.getContext("2d")
+        image_ctx.fillStyle = "#00ff00"
+        image_ctx.fillRect(0, 0, CSS_WIDTH, CSS_HEIGHT)
+        self.timers: List[Tuple[Any, int]] = []
+        self.outputs: List[Any] = []
+        self.results: List[Optional[str]] = []
+
+    def tearDown(self) -> None:
+        self.container.remove()
+
+    def _add_canvas_layer(self, fill: Optional[str]) -> None:
+        """A Canvas2D layer, either fully painted with ``fill`` or transparent with a red corner."""
+        canvas_el = html.CANVAS(id=CANVAS_ID)
+        canvas_el.setAttribute("width", str(CSS_WIDTH))
+        canvas_el.setAttribute("height", str(CSS_HEIGHT))
+        ctx = canvas_el.getContext("2d")
+        if fill is None:
+            ctx.fillStyle = "#ff0000"
+            ctx.fillRect(0, 0, 20, 20)
+        else:
+            ctx.fillStyle = fill
+            ctx.fillRect(0, 0, CSS_WIDTH, CSS_HEIGHT)
+        self.container <= canvas_el
+
+    def _snapshotter(self, keep_output: bool = False) -> CanvasSnapshotter:
+        snapshotter = CanvasSnapshotter(container_id=CONTAINER_ID, canvas_id=CANVAS_ID, svg_id=SVG_ID)
+        setattr(snapshotter, "_new_image", lambda: self.image)
+        setattr(snapshotter, "_schedule", lambda callback, delay_ms: self.timers.append((callback, delay_ms)))
+        if keep_output:
+
+            def keep(output: Any) -> Optional[str]:
+                self.outputs.append(output)
+                return CanvasSnapshotter._encode(snapshotter, output)
+
+            setattr(snapshotter, "_encode", keep)
+        return snapshotter
+
+    def test_callback_waits_for_the_svg_image(self) -> None:
+        self._snapshotter().capture(self.results.append)
+        self.assertEqual(self.results, [])
+        self.assertTrue(str(self.image.src).startswith("data:image/svg+xml"))
+        self.assertEqual(len(self.timers), 1)
+        self.assertEqual(self.timers[0][1], SVG_DECODE_TIMEOUT_MS)
+
+    def test_decoded_svg_is_drawn_under_the_canvas_layer(self) -> None:
+        self._add_canvas_layer(fill=None)
+        self._snapshotter(keep_output=True).capture(self.results.append)
+        _fire(self.image, "load")
+        self.assertEqual(len(self.results), 1)
+        self.assertTrue(str(self.results[0]).startswith(PNG_PREFIX))
+        output = self.outputs[0]
+        self.assertEqual(_pixel(output, 5, 5)[:3], [255, 0, 0])
+        self.assertEqual(_pixel(output, CSS_WIDTH // 2, CSS_HEIGHT // 2)[:3], [0, 255, 0])
+
+    def test_decode_error_falls_back_to_the_canvas_layer(self) -> None:
+        self._add_canvas_layer(fill="#0000ff")
+        self._snapshotter(keep_output=True).capture(self.results.append)
+        _fire(self.image, "error")
+        self.assertEqual(len(self.results), 1)
+        self.assertTrue(str(self.results[0]).startswith(PNG_PREFIX))
+        self.assertEqual(_pixel(self.outputs[0], CSS_WIDTH // 2, CSS_HEIGHT // 2)[:3], [0, 0, 255])
+
+    def test_decode_timeout_falls_back_to_the_canvas_layer(self) -> None:
+        self._add_canvas_layer(fill="#0000ff")
+        self._snapshotter(keep_output=True).capture(self.results.append)
+        self.timers[0][0]()
+        self.assertEqual(len(self.results), 1)
+        self.assertTrue(str(self.results[0]).startswith(PNG_PREFIX))
+        self.assertEqual(_pixel(self.outputs[0], CSS_WIDTH // 2, CSS_HEIGHT // 2)[:3], [0, 0, 255])
+
+    def test_decode_error_without_canvas_layer_reports_none(self) -> None:
+        # SVG renderer mode: the SVG is the whole scene, so a blank image must not be sent.
+        self._snapshotter().capture(self.results.append)
+        _fire(self.image, "error")
+        self.assertEqual(self.results, [None])
+
+    def test_decode_timeout_without_canvas_layer_reports_none(self) -> None:
+        self._snapshotter().capture(self.results.append)
+        self.timers[0][0]()
+        self.assertEqual(self.results, [None])
+
+    def _taint_first_encode(self, snapshotter: CanvasSnapshotter) -> List[Any]:
+        """Make the first encode fail as if the SVG image tainted the canvas; return the outputs made."""
+        encode_calls: List[int] = []
+        made: List[Any] = []
+
+        def create_output(width: int, height: int) -> Tuple[Any, Any]:
+            output, ctx = CanvasSnapshotter._create_output(snapshotter, width, height)
+            made.append(output)
+            return _TaintedOnceOutput(output, encode_calls), ctx
+
+        setattr(snapshotter, "_create_output", create_output)
+        return made
+
+    def test_tainted_snapshot_is_retried_with_the_canvas_layer_only(self) -> None:
+        self._add_canvas_layer(fill=None)
+        snapshotter = self._snapshotter()
+        made = self._taint_first_encode(snapshotter)
+        snapshotter.capture(self.results.append)
+        _fire(self.image, "load")
+        self.assertEqual(len(self.results), 1)
+        self.assertTrue(str(self.results[0]).startswith(PNG_PREFIX))
+        self.assertEqual(len(made), 2)
+        retry = made[1]
+        self.assertEqual(_pixel(retry, 5, 5)[:3], [255, 0, 0])
+        self.assertEqual(_pixel(retry, CSS_WIDTH // 2, CSS_HEIGHT // 2), [255, 255, 255, 255])
+
+    def test_tainted_snapshot_without_canvas_layer_reports_none(self) -> None:
+        snapshotter = self._snapshotter()
+        self._taint_first_encode(snapshotter)
+        snapshotter.capture(self.results.append)
+        _fire(self.image, "load")
+        self.assertEqual(self.results, [None])
+
+    def test_late_load_after_timeout_does_not_call_back_again(self) -> None:
+        self._add_canvas_layer(fill="#0000ff")
+        self._snapshotter().capture(self.results.append)
+        self.timers[0][0]()
+        _fire(self.image, "load")
+        _fire(self.image, "error")
+        self.assertEqual(len(self.results), 1)
+
+    def test_timeout_after_load_does_not_call_back_again(self) -> None:
+        self._snapshotter().capture(self.results.append)
+        _fire(self.image, "load")
+        self.timers[0][0]()
+        self.assertEqual(len(self.results), 1)

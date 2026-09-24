@@ -171,7 +171,7 @@ class LogManager:
     def log_user_message(self, user_message: str) -> None:
         """Log user message and its components.
 
-        Parses and logs SVG state, canvas state, previous results, and user text.
+        Parses and logs canvas state, previous results, and user text.
 
         Args:
             user_message: JSON string containing user interaction data
@@ -185,10 +185,6 @@ class LogManager:
             self._logger.error("User message JSON is not an object.")
             return
         user_message_json: JsonObject = user_message_json_raw
-
-        svg_state = user_message_json.get("svg_state")
-        if isinstance(svg_state, dict):
-            self._logger.info(f"### SVG state dimensions: {svg_state.get('dimensions')}")
 
         canvas_state = user_message_json.get("canvas_state")
         if canvas_state is not None:

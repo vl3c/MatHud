@@ -118,15 +118,23 @@ def validate_attached_images(images: Optional[List[str]]) -> Optional[Tuple[Resp
 
 
 def validate_canvas_snapshot(snapshot: object) -> Optional[Tuple[Response, int]]:
-    """Enforce the per-image size cap on the browser-captured vision snapshot.
+    """Check the browser-captured vision snapshot: a base64 PNG data URL within the per-image size cap.
 
     Args:
         snapshot: The ``canvas_snapshot`` value from the prompt JSON (a data URL), or None.
 
     Returns:
-        An error response tuple if the snapshot is too large, otherwise None.
+        An error response tuple if the snapshot is not a base64 PNG data URL or is too large, otherwise None.
     """
-    if isinstance(snapshot, str) and len(snapshot) > MAX_IMAGE_BASE64_BYTES:
+    if snapshot is None:
+        return None
+    if not isinstance(snapshot, str) or not snapshot.startswith(OpenAIAPIBase.CANVAS_SNAPSHOT_DATA_URL_PREFIX):
+        return AppManager.make_response(
+            message="Canvas snapshot must be a base64 PNG data URL",
+            status="error",
+            code=400,
+        )
+    if len(snapshot) > MAX_IMAGE_BASE64_BYTES:
         return AppManager.make_response(
             message=f"Canvas snapshot exceeds the maximum size of {MAX_IMAGE_BASE64_BYTES} bytes",
             status="error",

@@ -2,7 +2,7 @@
 MatHud Flask Application Manager
 
 Core Flask application configuration and initialization.
-Manages dependency injection for AI API, WebDriver, workspace operations, and logging.
+Manages dependency injection for AI API, workspace operations, and logging.
 
 Dependencies:
     - Flask: Web framework core
@@ -91,7 +91,7 @@ class AppManager:
 
     Core Responsibilities:
         - Flask Application Factory: Creates and configures Flask app instances
-        - Dependency Injection: Initializes and coordinates OpenAI API, WebDriver, workspace, and logging managers
+        - Dependency Injection: Initializes and coordinates OpenAI API, workspace, and logging managers
         - Response Standardization: Consistent JSON API response formatting
         - Service Integration: Bridges Flask web framework with specialized application managers
         - Authentication: Session management and pseudo-login for deployed environments
@@ -172,8 +172,7 @@ class AppManager:
         """Create and configure the Flask application.
 
         Initializes all core managers (logging, AI API, workspace management)
-        and registers application routes. WebDriver is initialized separately
-        after Flask startup to avoid blocking. Configures session management
+        and registers application routes. Configures session management
         for authentication in deployed environments using modern CacheLib backend.
 
         Returns:
