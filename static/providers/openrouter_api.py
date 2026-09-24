@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Optional
 
-import httpx
+import httpx2
 from openai import OpenAI
 
 from static.ai_model import AIModel
@@ -44,7 +44,7 @@ class OpenRouterAPI(OpenAIChatCompletionsAPI):
     # With one retry the worst case is ~2x60s + backoff (~125s), which must
     # stay below the client's REASONING_TIMEOUT_MS (300s) so a stall surfaces
     # as a proper error event instead of a blind UI timeout.
-    REQUEST_TIMEOUT = httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=10.0)
+    REQUEST_TIMEOUT = httpx2.Timeout(connect=10.0, read=60.0, write=10.0, pool=10.0)
     MAX_RETRIES = 1
 
     def __init__(

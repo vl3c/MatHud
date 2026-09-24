@@ -39,7 +39,7 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 
 ### 4.1 Prerequisites
 
-1. Python 3.10+ (tested with Python 3.11).
+1. Python 3.11+.
 2. Firefox installed locally for the vision workflow (the `geckodriver-autoinstaller` package handles the driver).
 3. At least one AI provider API key (see Configuration below).
 

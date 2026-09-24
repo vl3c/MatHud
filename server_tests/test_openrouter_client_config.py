@@ -16,7 +16,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, Iterator, List
 from unittest.mock import MagicMock, patch
 
-import httpx
+import httpx2
 from openai import APITimeoutError
 
 from static.ai_model import AIModel
@@ -25,7 +25,7 @@ from static.providers.openrouter_api import OpenRouterAPI
 
 
 def _timeout_error() -> APITimeoutError:
-    request = httpx.Request("POST", OpenRouterAPI.OPENROUTER_BASE_URL + "/chat/completions")
+    request = httpx2.Request("POST", OpenRouterAPI.OPENROUTER_BASE_URL + "/chat/completions")
     return APITimeoutError(request=request)
 
 
@@ -40,8 +40,8 @@ class TestOpenRouterClientConfig(unittest.TestCase):
     def test_client_uses_explicit_timeout(self) -> None:
         api = self._make_api()
         timeout = api.client.timeout
-        self.assertIsInstance(timeout, httpx.Timeout)
-        assert isinstance(timeout, httpx.Timeout)
+        self.assertIsInstance(timeout, httpx2.Timeout)
+        assert isinstance(timeout, httpx2.Timeout)
         self.assertEqual(timeout.connect, 10.0)
         self.assertEqual(timeout.read, 60.0)
 
@@ -90,13 +90,13 @@ class TestStreamTimeoutMessage(unittest.TestCase):
         self.assertEqual(final_events[0]["finish_reason"], "error")
 
     def test_mid_stream_timeout_yields_timeout_message(self) -> None:
-        # After headers arrive the SDK no longer wraps transport timeouts:
-        # a silent gap between chunks raises raw httpx.ReadTimeout.
+        # Older SDKs let a silent gap between chunks escape as a raw
+        # ReadTimeout instead of APITimeoutError; keep covering that fallback.
         def stalled_stream() -> Iterator[Any]:
             yield SimpleNamespace(
                 choices=[SimpleNamespace(delta=SimpleNamespace(content="Partial", tool_calls=None), finish_reason=None)]
             )
-            raise httpx.ReadTimeout("read timed out")
+            raise httpx2.ReadTimeout("read timed out")
 
         api, mock_client = self._make_api_with_mock_client()
         mock_client.chat.completions.create.return_value = stalled_stream()
@@ -125,7 +125,7 @@ class TestStreamErrorUserMessage(unittest.TestCase):
         self.assertEqual(stream_error_user_message(_timeout_error(), "default"), PROVIDER_TIMEOUT_MESSAGE)
 
     def test_httpx_read_timeout_maps_to_timeout_message(self) -> None:
-        self.assertEqual(stream_error_user_message(httpx.ReadTimeout("slow"), "default"), PROVIDER_TIMEOUT_MESSAGE)
+        self.assertEqual(stream_error_user_message(httpx2.ReadTimeout("slow"), "default"), PROVIDER_TIMEOUT_MESSAGE)
 
     def test_other_exceptions_map_to_default(self) -> None:
         self.assertEqual(stream_error_user_message(RuntimeError("boom"), "default"), "default")
