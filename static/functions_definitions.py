@@ -121,7 +121,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "get_current_canvas_state",
-            "description": "Returns the current serialized canvas state (drawables, cartesian state, computations) without modifying the canvas. Optional filters can narrow by drawable collections or object names.",
+            "description": "Returns the current canvas state (drawables, viewport, computations) without modifying the canvas, in the same format as the canvas sent with user messages but never shortened. Optional filters can narrow by drawable collections or object names, e.g. to see objects the user-message canvas listed as omitted.",
             "strict": True,
             "parameters": {
                 "type": "object",

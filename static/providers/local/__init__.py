@@ -14,6 +14,7 @@ from collections.abc import Iterator, Sequence
 from typing import Any, Dict, List, Optional, Set, Type
 
 from static.ai_model import AIModel
+from static.canvas_state_formatter import CanvasFormat
 from static.functions_definitions import FunctionDefinition
 from static.openai_api_base import OpenAIAPIBase, StreamEvent, get_configured_tool_mode
 
@@ -172,6 +173,11 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
     Subclasses must implement server availability checking and model discovery.
     """
 
+    # Local models have small contexts and tokenize digits one by one: always send
+    # the compact text canvas, and trim large scenes harder than for cloud models.
+    DEFAULT_CANVAS_FORMAT: CanvasFormat = "text"
+    DEFAULT_CANVAS_BUDGET_TOKENS: Optional[int] = 1500
+
     def __init__(
         self,
         model: Optional[AIModel] = None,
@@ -274,6 +280,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
     def reset_conversation(self) -> None:
         """Reset the conversation history."""
         self.messages = [{"role": "system", "content": self._build_system_prompt()}]
+        self._last_canvas_state = None
 
     def create_chat_completion(self, full_prompt: str) -> Any:
         """Create a chat completion using the local LLM.
@@ -406,10 +413,8 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         Returns the prepared message dict or None if this is a tool result.
         """
         prompt_json = self._parse_prompt_json(full_prompt)
-        tool_call_results = prompt_json.get("tool_call_results") if prompt_json else None
-
-        if tool_call_results:
-            self._update_tool_messages_with_results(tool_call_results)
+        if prompt_json and prompt_json.get("tool_call_results"):
+            self._apply_tool_call_results(prompt_json)
             return None
 
         message_content = self._prepare_message_content(full_prompt)
@@ -418,9 +423,9 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
     def _prepare_message_content(self, full_prompt: str) -> str:
         """Prepare message content for local LLMs.
 
-        Unlike cloud providers, local LLMs work better with plain text messages.
-        This extracts just the user_message from the JSON prompt, discarding
-        canvas_state and other metadata that would confuse the conversation history.
+        Unlike cloud providers, local LLMs work better with plain text messages:
+        the user's text preceded by the rendered <canvas> block, without the
+        prompt JSON envelope. Images are not sent to local models.
 
         Args:
             full_prompt: The full JSON prompt string
@@ -428,6 +433,16 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         Returns:
             The plain text user message, or the original prompt if parsing fails
         """
+        canvas_format = self._get_canvas_format()
+        if canvas_format == "json":
+            return self._prepare_object_count_content(full_prompt)
+        prompt_json = self._parse_prompt_json(full_prompt)
+        if prompt_json is None:
+            return full_prompt
+        return self._build_user_text(prompt_json, canvas_format) or full_prompt
+
+    def _prepare_object_count_content(self, full_prompt: str) -> str:
+        """Legacy json-format path: the user message plus a "[Canvas: 3 Points, ...]" count line."""
         try:
             prompt_json = json.loads(full_prompt)
         except json.JSONDecodeError:

@@ -133,9 +133,19 @@ class TestPrepareMessageContent(unittest.TestCase):
         result = api._prepare_message_content("plain text message")
         self.assertEqual(result, "plain text message")
 
+    @patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": "text"})
     @patch("static.openai_api_base.OpenAI")
-    def test_no_vision_no_images_returns_original(self, mock_openai: Mock) -> None:
-        """Test JSON prompt with no vision and no images returns original."""
+    def test_no_vision_no_images_returns_user_text(self, mock_openai: Mock) -> None:
+        """Test JSON prompt with no vision and no images becomes the plain user text."""
+        api = OpenAIAPIBase()
+        prompt = json.dumps({"user_message": "test", "use_vision": False})
+        result = api._prepare_message_content(prompt)
+        self.assertEqual(result, "test")
+
+    @patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": "json"})
+    @patch("static.openai_api_base.OpenAI")
+    def test_no_vision_no_images_returns_original_in_json_format(self, mock_openai: Mock) -> None:
+        """Test the json canvas format sends the prompt JSON unchanged."""
         api = OpenAIAPIBase()
         prompt = json.dumps({"user_message": "test", "use_vision": False})
         result = api._prepare_message_content(prompt)
@@ -199,14 +209,14 @@ class TestPrepareMessageContent(unittest.TestCase):
         self.assertEqual(len(image_parts), 1)
         self.assertEqual(image_parts[0]["image_url"]["url"], "data:image/png;base64,valid")
 
+    @patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": "text"})
     @patch("static.openai_api_base.OpenAI")
-    def test_empty_attached_images_returns_original(self, mock_openai: Mock) -> None:
-        """Test empty attached_images array without vision returns original."""
+    def test_empty_attached_images_returns_user_text(self, mock_openai: Mock) -> None:
+        """Test empty attached_images array without vision returns plain text, not a list."""
         api = OpenAIAPIBase()
         prompt = json.dumps({"user_message": "test", "use_vision": False, "attached_images": []})
         result = api._prepare_message_content(prompt)
-        # Empty images array with no vision should return original
-        self.assertEqual(result, prompt)
+        self.assertEqual(result, "test")
 
 
 class TestCreateEnhancedPromptWithImage(unittest.TestCase):

@@ -26,6 +26,9 @@ class TestOpenAIAPIBase(unittest.TestCase):
         self.original_summary_mode = os.environ.get("AI_CANVAS_SUMMARY_MODE")
         self.original_hybrid_max = os.environ.get("AI_CANVAS_HYBRID_FULL_MAX_BYTES")
         self.original_summary_telemetry = os.environ.get("AI_CANVAS_SUMMARY_TELEMETRY")
+        self.original_canvas_format = os.environ.get("MATHUD_CANVAS_FORMAT")
+        # These tests cover the legacy prompt-JSON path (summary modes and telemetry).
+        os.environ["MATHUD_CANVAS_FORMAT"] = "json"
         os.environ.pop("AI_CANVAS_SUMMARY_MODE", None)
         os.environ.pop("AI_CANVAS_HYBRID_FULL_MAX_BYTES", None)
         os.environ.pop("AI_CANVAS_SUMMARY_TELEMETRY", None)
@@ -48,6 +51,10 @@ class TestOpenAIAPIBase(unittest.TestCase):
             os.environ.pop("AI_CANVAS_SUMMARY_TELEMETRY", None)
         else:
             os.environ["AI_CANVAS_SUMMARY_TELEMETRY"] = self.original_summary_telemetry
+        if self.original_canvas_format is None:
+            os.environ.pop("MATHUD_CANVAS_FORMAT", None)
+        else:
+            os.environ["MATHUD_CANVAS_FORMAT"] = self.original_canvas_format
 
     @patch("static.openai_api_base.OpenAI")
     def test_initialization_default_model(self, mock_openai: Mock) -> None:
@@ -217,7 +224,8 @@ class TestOpenAIAPIBase(unittest.TestCase):
         self.assertEqual(summary["mode"], "summary_only")
         self.assertFalse(summary["includes_full_state"])
         self.assertIn("state", summary)
-        self.assertIn("metrics", summary)
+        # Size metrics are telemetry only; the model never sees them.
+        self.assertNotIn("metrics", summary)
 
     @patch("static.openai_api_base.OpenAI")
     def test_prepare_message_content_hybrid_keeps_small_full_state(self, mock_openai: Mock) -> None:
@@ -329,6 +337,8 @@ class TestOpenAIAPIBase(unittest.TestCase):
         self.assertIn("input_bytes", payload)
         self.assertIn("normalized_prompt_bytes", payload)
         self.assertIn("output_payload_bytes", payload)
+        self.assertEqual(payload["canvas_format"], "json")
+        self.assertIn("full_bytes", payload["summary_metrics"])
 
     @patch("static.openai_api_base.OpenAI")
     @patch("static.openai_api_base._logger")
