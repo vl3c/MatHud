@@ -102,6 +102,13 @@ class TTSManager:
             self._pipeline_error = f"Failed to initialize Kokoro: {e}"
             return False, self._pipeline_error
 
+        except SystemExit as e:
+            # spaCy's model download (run while building the pipeline) calls
+            # sys.exit() when it fails, e.g. offline; that must not end the
+            # request thread or be retried on every request.
+            self._pipeline_error = f"Failed to initialize Kokoro: a dependency exited with status {e.code}"
+            return False, self._pipeline_error
+
     def is_available(self) -> bool:
         """Check if TTS can be used without loading the Kokoro model.
 

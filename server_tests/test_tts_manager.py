@@ -210,6 +210,20 @@ class TestTTSLazyLoading(unittest.TestCase):
         self.assertEqual(self.kpipeline.call_count, 1)
         self.assertFalse(manager.is_available())
 
+    def test_load_that_calls_sys_exit_is_cached_and_reported(self) -> None:
+        # spaCy's model download inside KPipeline calls sys.exit(1) when it fails.
+        manager = self._manager()
+        self.kpipeline.side_effect = SystemExit(1)
+
+        success, message = manager.generate_speech_threaded("hello", timeout=5.0)
+        again, _ = manager.generate_speech_threaded("hello", timeout=5.0)
+
+        self.assertFalse(success)
+        self.assertFalse(again)
+        self.assertIn("Failed to initialize Kokoro", str(message))
+        self.assertEqual(self.kpipeline.call_count, 1)
+        self.assertFalse(manager.is_available())
+
     def test_threaded_first_request_allows_time_to_load_model(self) -> None:
         manager = self._manager()
         future = MagicMock()
