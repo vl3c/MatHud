@@ -70,6 +70,11 @@ python -c "import os; os.environ['PORT'] = '5004'; exec(open('app.py').read())"
 ```
 Then navigate to `http://127.0.0.1:5004/` in the browser.
 
+## Cloud Sessions (Claude Code on the web)
+1. The cloud environment's setup script installs `requirements-ci.txt` into `/opt/mathud-venv`, outside the repo, so the environment cache keeps it across the fresh clone each session gets.
+2. A SessionStart hook in `.claude/settings.json` links `venv` to `/opt/mathud-venv` when `CLAUDE_CODE_REMOTE` is `true`, because the CLI runs the app with `./venv/bin/python`. Locally the hook does nothing.
+3. If `venv` is missing in a cloud session, check that `/opt/mathud-venv/bin/python` exists; the setup script may have failed.
+
 ---
 
 # MatHud Project Structure
