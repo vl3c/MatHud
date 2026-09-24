@@ -17,6 +17,7 @@ from static.ai_model import AIModel
 from static.canvas_state_formatter import CanvasFormat
 from static.functions_definitions import FunctionDefinition
 from static.openai_api_base import OpenAIAPIBase, StreamEvent, get_configured_tool_mode
+from static.response_metrics import record_chat_completions_usage, tool_call_argument_text
 
 _logger = logging.getLogger("mathud")
 
@@ -294,6 +295,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         user_message = self._parse_and_prepare_message(full_prompt)
         if user_message is not None:
             self.messages.append(user_message)
+        metrics = self._start_response_metrics("chat_completions", streamed=False)
 
         try:
             response = self.client.chat.completions.create(
@@ -308,10 +310,15 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
             error_msg = f"[{self._get_provider_name()}] Error during API call: {e}"
             print(error_msg)
             _logger.error(error_msg)
+            self._finish_response_metrics(metrics, "error", 0, error=str(e))
             return self._create_error_response()
 
         # Process response and update history
-        return self._process_response(choice)
+        processed = self._process_response(choice)
+        record_chat_completions_usage(response, metrics)
+        tool_calls = getattr(processed.message, "tool_calls", None) or []
+        self._finish_response_metrics(metrics, processed.finish_reason, len(tool_calls))
+        return processed
 
     def create_chat_completion_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
         """Stream chat completion tokens from the local LLM.
@@ -320,7 +327,9 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
             full_prompt: The prompt JSON string
 
         Yields:
-            Stream events with type 'token' or 'final'
+            Stream events with type 'token' or 'final'; the final event carries
+            the request's ``metrics`` (see static/response_metrics.py), including
+            llama-server ``timings`` when the server reports them.
         """
         user_message = self._parse_and_prepare_message(full_prompt)
         if user_message is not None:
@@ -330,6 +339,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         tool_calls: List[Dict[str, Any]] = []
         tool_call_deltas: Dict[int, Dict[str, Any]] = {}
         finish_reason: Optional[str] = None
+        metrics = self._start_response_metrics("chat_completions")
 
         try:
             stream = self.client.chat.completions.create(
@@ -339,9 +349,12 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
                 stream=True,
+                stream_options={"include_usage": True},
             )
 
             for chunk in stream:
+                # llama-server puts usage and timings on the last chunk, whose choices may be empty.
+                record_chat_completions_usage(chunk, metrics)
                 if not chunk.choices:
                     continue
 
@@ -350,11 +363,14 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
 
                 # Handle content tokens
                 if delta.content:
+                    metrics.mark_output("content")
+                    metrics.add_output_text(delta.content)
                     accumulated_text += delta.content
                     yield {"type": "token", "text": delta.content}
 
                 # Handle tool call deltas
                 if delta.tool_calls:
+                    metrics.mark_output("tool_call")
                     for tc_delta in delta.tool_calls:
                         idx = tc_delta.index
                         if idx not in tool_call_deltas:
@@ -388,6 +404,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
                 "ai_message": "I encountered an error processing your request. Please try again.",
                 "ai_tool_calls": [],
                 "finish_reason": "error",
+                "metrics": dict(self._finish_response_metrics(metrics, "error", 0, error=str(e))),
             }
             return
 
@@ -403,12 +420,15 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
 
         # Prepare tool calls for response
         ai_tool_calls = self._prepare_tool_calls_for_response(tool_calls)
+        metrics.add_output_text(tool_call_argument_text(tool_calls))
+        resolved_finish_reason = finish_reason or "stop"
 
         yield {
             "type": "final",
             "ai_message": accumulated_text,
             "ai_tool_calls": ai_tool_calls,
-            "finish_reason": finish_reason or "stop",
+            "finish_reason": resolved_finish_reason,
+            "metrics": dict(self._finish_response_metrics(metrics, resolved_finish_reason, len(ai_tool_calls))),
         }
 
     def _parse_and_prepare_message(self, full_prompt: str) -> Optional[Dict[str, Any]]:

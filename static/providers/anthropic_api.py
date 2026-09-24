@@ -18,6 +18,7 @@ from static.env_config import get_api_key
 from static.functions_definitions import FunctionDefinition
 from static.openai_api_base import MessageDict, OpenAIAPIBase, StreamEvent, ToolMode
 from static.providers import PROVIDER_ANTHROPIC, ProviderRegistry
+from static.response_metrics import ResponseMetricsTracker, tool_call_argument_text, usage_from_anthropic
 
 _logger = logging.getLogger("mathud")
 
@@ -248,6 +249,7 @@ class AnthropicAPI(OpenAIAPIBase):
         user_message = self._parse_and_prepare_message(full_prompt)
         if user_message is not None:
             self.messages.append(user_message)
+        metrics = self._start_response_metrics("anthropic_messages", streamed=False)
 
         try:
             anthropic_messages = self._convert_messages_to_anthropic()
@@ -269,10 +271,17 @@ class AnthropicAPI(OpenAIAPIBase):
             error_msg = f"[Anthropic API] Error during API call: {e}"
             print(error_msg)
             _logger.error(error_msg)
+            self._finish_response_metrics(metrics, "error", 0, error=str(e))
             return self._create_error_response()
 
         # Convert Anthropic response to OpenAI-like format
-        return self._process_anthropic_response(response)
+        processed = self._process_anthropic_response(response)
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            metrics.record_usage(usage_from_anthropic(usage))
+        tool_calls = getattr(processed.message, "tool_calls", None) or []
+        self._finish_response_metrics(metrics, processed.finish_reason, len(tool_calls))
+        return processed
 
     def _process_anthropic_response(self, response: Any) -> Any:
         """Process Anthropic response and update conversation history."""
@@ -335,7 +344,10 @@ class AnthropicAPI(OpenAIAPIBase):
         )
 
     def create_chat_completion_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
-        """Stream chat completion tokens with Anthropic API."""
+        """Stream chat completion tokens with Anthropic API.
+
+        The final event carries the request's ``metrics`` (see static/response_metrics.py).
+        """
         user_message = self._parse_and_prepare_message(full_prompt)
         if user_message is not None:
             self.messages.append(user_message)
@@ -344,6 +356,7 @@ class AnthropicAPI(OpenAIAPIBase):
         tool_calls: List[Dict[str, Any]] = []
         current_tool: Optional[Dict[str, Any]] = None
         finish_reason: Optional[str] = None
+        metrics = self._start_response_metrics("anthropic_messages")
 
         try:
             anthropic_messages = self._convert_messages_to_anthropic()
@@ -363,6 +376,7 @@ class AnthropicAPI(OpenAIAPIBase):
             with self._anthropic_client.messages.stream(**stream_kwargs) as stream:
                 for event in stream:
                     event_type = getattr(event, "type", "")
+                    self._record_stream_metrics(event, event_type, metrics)
 
                     if event_type == "content_block_start":
                         block = getattr(event, "content_block", None)
@@ -383,6 +397,7 @@ class AnthropicAPI(OpenAIAPIBase):
                                 text = getattr(delta, "text", "")
                                 if text:
                                     accumulated_text += text
+                                    metrics.add_output_text(text)
                                     yield {"type": "token", "text": text}
                             elif delta_type == "input_json_delta" and current_tool:
                                 partial_json = getattr(delta, "partial_json", "")
@@ -407,6 +422,7 @@ class AnthropicAPI(OpenAIAPIBase):
                 "ai_message": "I encountered an error processing your request. Please try again.",
                 "ai_tool_calls": [],
                 "finish_reason": "error",
+                "metrics": dict(self._finish_response_metrics(metrics, "error", 0, error=str(exc))),
             }
             return
 
@@ -415,13 +431,42 @@ class AnthropicAPI(OpenAIAPIBase):
 
         # Prepare tool calls for response
         ai_tool_calls = self._prepare_tool_calls_for_response(tool_calls)
+        metrics.add_output_text(tool_call_argument_text(tool_calls))
+        resolved_finish_reason = finish_reason or "stop"
 
         yield {
             "type": "final",
             "ai_message": accumulated_text,
             "ai_tool_calls": ai_tool_calls,
-            "finish_reason": finish_reason or "stop",
+            "finish_reason": resolved_finish_reason,
+            "metrics": dict(self._finish_response_metrics(metrics, resolved_finish_reason, len(ai_tool_calls))),
         }
+
+    @staticmethod
+    def _record_stream_metrics(event: Any, event_type: str, metrics: ResponseMetricsTracker) -> None:
+        """Feed one Anthropic stream event's output timing and usage to the metrics."""
+        if event_type == "message_start":
+            usage = getattr(getattr(event, "message", None), "usage", None)
+            if usage is not None:
+                metrics.record_usage(usage_from_anthropic(usage))
+        elif event_type == "message_delta":
+            usage = getattr(event, "usage", None)
+            if usage is not None:
+                metrics.record_usage(usage_from_anthropic(usage))
+        elif event_type == "content_block_start":
+            block_type = getattr(getattr(event, "content_block", None), "type", "")
+            if block_type == "tool_use":
+                metrics.mark_output("tool_call")
+            elif block_type in ("thinking", "redacted_thinking"):
+                metrics.mark_output("reasoning")
+        elif event_type == "content_block_delta":
+            delta_type = getattr(getattr(event, "delta", None), "type", "")
+            if delta_type == "text_delta":
+                metrics.mark_output("content")
+            elif delta_type == "input_json_delta":
+                metrics.mark_output("tool_call")
+            elif delta_type in ("thinking_delta", "signature_delta"):
+                metrics.mark_output("reasoning")
 
     def _finalize_anthropic_stream(self, accumulated_text: str, tool_calls: List[Dict[str, Any]]) -> None:
         """Finalize the streaming response by updating messages."""

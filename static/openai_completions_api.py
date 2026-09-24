@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 from static.openai_api_base import OpenAIAPIBase, MessageDict, StreamEvent, stream_error_user_message
+from static.response_metrics import record_chat_completions_usage, tool_call_argument_text
 
 # Use the shared MatHud logger for file logging
 _logger = logging.getLogger("mathud")
@@ -48,6 +49,7 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
     def create_chat_completion(self, full_prompt: str) -> Any:
         """Create chat completion with OpenAI API."""
         self._prepare_messages_for_request(full_prompt)
+        metrics = self._start_response_metrics("chat_completions", streamed=False)
 
         try:
             response = self.client.chat.completions.create(
@@ -60,9 +62,16 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
             error_msg = f"Error during API call: {str(e)}"
             print(error_msg)  # Console output
             _logger.error(error_msg)  # File logging
+            self._finish_response_metrics(metrics, "error", 0, error=str(e))
             return self._create_error_response()
 
         choice = response.choices[0]
+        record_chat_completions_usage(response, metrics)
+        self._finish_response_metrics(
+            metrics,
+            getattr(choice, "finish_reason", None),
+            len(getattr(choice.message, "tool_calls", None) or []),
+        )
 
         assistant_message = self._create_assistant_message(choice.message)
         self.messages.append(assistant_message)
@@ -73,12 +82,16 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
         return choice
 
     def create_chat_completion_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
-        """Stream chat completion tokens with OpenAI API."""
+        """Stream chat completion tokens with OpenAI API.
+
+        The final event carries the request's ``metrics`` (see static/response_metrics.py).
+        """
         self._prepare_messages_for_request(full_prompt)
 
         accumulated_text = ""
         tool_calls_accumulator: Dict[int, Dict[str, Any]] = {}
         finish_reason: Optional[str] = None
+        metrics = self._start_response_metrics("chat_completions")
 
         try:
             stream = self.client.chat.completions.create(
@@ -87,9 +100,15 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 tools=self.tools,
                 max_tokens=self.max_tokens,
                 stream=True,
+                stream_options={"include_usage": True},
             )
 
             for chunk in stream:
+                record_chat_completions_usage(chunk, metrics)
+                if finish_reason is not None:
+                    # Only the trailing usage chunk follows the finish reason.
+                    continue
+
                 choice = self._extract_choice_from_chunk(chunk)
                 if choice is None:
                     continue
@@ -97,43 +116,54 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                 delta = self._extract_delta_from_choice(choice)
                 content_piece = self._extract_content_piece(delta)
                 if content_piece:
+                    metrics.mark_output("content")
+                    metrics.add_output_text(content_piece)
                     accumulated_text += content_piece
                     yield {"type": "token", "text": content_piece}
 
                 tool_calls_delta = self._extract_tool_calls_delta(delta)
                 if tool_calls_delta:
+                    metrics.mark_output("tool_call")
                     self._accumulate_tool_calls(tool_calls_delta, tool_calls_accumulator)
 
                 choice_finish_reason = getattr(choice, "finish_reason", None)
                 if choice_finish_reason is not None:
                     finish_reason = choice_finish_reason
-                    break
 
         except Exception as exc:
-            error_msg = f"[OpenAI API] Streaming exception: {exc}"
-            print(error_msg)  # Console output
-            _logger.error(error_msg)  # File logging
-            yield {"type": "token", "text": "\n"}
-            yield {
-                "type": "final",
-                "ai_message": stream_error_user_message(
-                    exc, "I encountered an error processing your request. Please try again."
-                ),
-                "ai_tool_calls": [],
-                "finish_reason": "error",
-            }
-            return
+            if finish_reason is None:
+                error_msg = f"[OpenAI API] Streaming exception: {exc}"
+                print(error_msg)  # Console output
+                _logger.error(error_msg)  # File logging
+                yield {"type": "token", "text": "\n"}
+                yield {
+                    "type": "final",
+                    "ai_message": stream_error_user_message(
+                        exc, "I encountered an error processing your request. Please try again."
+                    ),
+                    "ai_tool_calls": [],
+                    "finish_reason": "error",
+                    "metrics": dict(self._finish_response_metrics(metrics, "error", 0, error=str(exc))),
+                }
+                return
+            # The answer was complete; only the trailing usage chunk was lost.
+            _logger.warning(f"[OpenAI API] Stream ended with an error after the finish reason: {exc}")
 
         normalized_tool_calls = self._normalize_tool_calls(tool_calls_accumulator)
         self._finalize_stream(accumulated_text, normalized_tool_calls)
 
         ai_tool_calls_json_ready = self._prepare_tool_calls_for_response(normalized_tool_calls)
+        metrics.add_output_text(tool_call_argument_text(normalized_tool_calls))
+        resolved_finish_reason = finish_reason or "stop"
 
         yield {
             "type": "final",
             "ai_message": accumulated_text,
             "ai_tool_calls": ai_tool_calls_json_ready,
-            "finish_reason": finish_reason or "stop",
+            "finish_reason": resolved_finish_reason,
+            "metrics": dict(
+                self._finish_response_metrics(metrics, resolved_finish_reason, len(ai_tool_calls_json_ready))
+            ),
         }
 
     def _prepare_messages_for_request(self, full_prompt: str) -> None:

@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 from static.openai_api_base import OpenAIAPIBase, MessageDict, StreamEvent, stream_error_user_message
+from static.response_metrics import ResponseMetricsTracker, tool_call_argument_text, usage_from_responses
 
 # Use the shared MatHud logger for file logging
 _logger = logging.getLogger("mathud")
@@ -255,7 +256,10 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         return {"role": "user", "content": content}
 
     def create_response_stream(self, full_prompt: str) -> Iterator[StreamEvent]:
-        """Stream response using the Responses API with reasoning support."""
+        """Stream response using the Responses API with reasoning support.
+
+        The final event carries the request's ``metrics`` (see static/response_metrics.py).
+        """
         self._prepare_messages_for_stream(full_prompt)
         state = self._create_stream_state()
 
@@ -263,7 +267,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             stream = self._create_api_stream_with_fallback()
             yield from self._process_stream_events(stream, state)
         except Exception as exc:
-            yield from self._handle_stream_error(exc)
+            yield from self._handle_stream_error(exc, state)
             return
 
         yield self._build_final_response(state)
@@ -286,6 +290,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             "tool_calls_accumulator": {},
             "finish_reason": None,
             "reasoning_placeholder_sent": False,
+            "metrics": self._start_response_metrics("responses"),
         }
 
     def _create_api_stream_with_fallback(self) -> Any:
@@ -367,6 +372,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             event_type = getattr(event, "type", None)
             self._log(f"[Responses API] Event type: {event_type}")
 
+            self._mark_stream_output(event_type, state["metrics"])
             if event_type == "response.output_item.added":
                 yield from self._handle_output_item_added(event, state)
             elif event_type == "response.reasoning_text.delta":
@@ -381,6 +387,16 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             elif event_type == "response.done":
                 break
 
+    @staticmethod
+    def _mark_stream_output(event_type: Optional[str], metrics: ResponseMetricsTracker) -> None:
+        """Mark the first reasoning, text or function-call output of the response."""
+        if event_type == "response.output_text.delta":
+            metrics.mark_output("content")
+        elif event_type == "response.function_call_arguments.delta":
+            metrics.mark_output("tool_call")
+        elif event_type in ("response.reasoning_text.delta", "response.reasoning_summary_text.delta"):
+            metrics.mark_output("reasoning")
+
     def _handle_output_item_added(self, event: Any, state: Dict[str, Any]) -> Iterator[StreamEvent]:
         """Handle response.output_item.added events."""
         item = getattr(event, "item", None)
@@ -392,8 +408,10 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         self._log(f"[Responses API]   Item type: {item_type}, index: {output_index}")
 
         if item_type == "reasoning":
+            state["metrics"].mark_output("reasoning")
             yield from self._handle_reasoning_item(item, state)
         elif item_type == "function_call":
+            state["metrics"].mark_output("tool_call")
             self._handle_function_call_item(item, output_index, state["tool_calls_accumulator"])
 
     def _handle_reasoning_item(self, item: Any, state: Dict[str, Any]) -> Iterator[StreamEvent]:
@@ -434,6 +452,7 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         delta = getattr(event, "delta", "")
         if delta:
             state["accumulated_text"] += delta
+            state["metrics"].add_output_text(delta)
             yield {"type": "token", "text": delta}
 
     def _handle_response_completed(self, event: Any, state: Dict[str, Any]) -> None:
@@ -454,6 +473,10 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         state["finish_reason"] = self._normalize_finish_reason(status)
         self._log(f"[Responses API] Set finish_reason to: {state['finish_reason']}")
 
+        usage = getattr(response_obj, "usage", None)
+        if usage is not None:
+            state["metrics"].record_usage(usage_from_responses(usage))
+
         self._extract_tool_calls(response_obj, state["tool_calls_accumulator"])
 
     def _normalize_finish_reason(self, status: str) -> str:
@@ -464,18 +487,20 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
             return "tool_calls"
         return status
 
-    def _handle_stream_error(self, exc: Exception) -> Iterator[StreamEvent]:
+    def _handle_stream_error(self, exc: Exception, state: Optional[Dict[str, Any]] = None) -> Iterator[StreamEvent]:
         """Handle streaming errors by yielding error response."""
         self._flush_log()
         error_msg = f"[OpenAI Responses API] Streaming exception: {exc}"
         print(error_msg)  # Console output
         _logger.error(error_msg)  # File logging
+        metrics = state["metrics"] if state is not None else self._start_response_metrics("responses")
         yield {"type": "token", "text": "\n"}
         yield {
             "type": "final",
             "ai_message": stream_error_user_message(exc, "I encountered an error processing your request."),
             "ai_tool_calls": [],
             "finish_reason": "error",
+            "metrics": dict(self._finish_response_metrics(metrics, "error", 0, error=str(exc))),
         }
 
     def _build_final_response(self, state: Dict[str, Any]) -> StreamEvent:
@@ -493,11 +518,14 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
         )
         self._flush_log()
 
+        metrics: ResponseMetricsTracker = state["metrics"]
+        metrics.add_output_text(tool_call_argument_text(normalized))
         return {
             "type": "final",
             "ai_message": state["accumulated_text"],
             "ai_tool_calls": ai_tool_calls,
             "finish_reason": final_finish_reason,
+            "metrics": dict(self._finish_response_metrics(metrics, final_finish_reason, len(ai_tool_calls))),
         }
 
     def _handle_function_call_delta(self, event: Any, acc: Dict[int, Dict[str, Any]]) -> None:

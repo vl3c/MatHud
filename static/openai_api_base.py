@@ -24,6 +24,7 @@ from static.env_config import get_api_key
 from static.canvas_state_formatter import CanvasFormat, parse_canvas_format, render_state, render_update
 from static.canvas_state_summarizer import compare_canvas_states
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
+from static.response_metrics import ResponseMetrics, ResponseMetricsTracker
 from static.token_estimation import estimate_tokens_from_bytes
 
 # Use the shared MatHud logger for file logging
@@ -148,6 +149,9 @@ class OpenAIAPIBase:
 
     # Last canvas state shown to the model, so tool results can report what changed.
     _last_canvas_state: Optional[Dict[str, Any]] = None
+
+    # Metrics of the most recent model request (see static/response_metrics.py).
+    last_response_metrics: Optional[ResponseMetrics] = None
 
     SEARCH_MODE_MSG = """Tool loading: at the start only search_tools and a few essential tools (undo, redo, get_current_canvas_state) are available. Before using any other tool, call search_tools with a short description of what you want to do (e.g. "plot a function", "evaluate an expression at a point"); the matching tools are then loaded for your following calls until you give your final answer. Calls to tools that were not loaded fail."""
 
@@ -305,6 +309,27 @@ class OpenAIAPIBase:
     def get_model(self) -> AIModel:
         """Get the current AI model instance."""
         return self.model
+
+    def _start_response_metrics(self, api: str, streamed: bool = True) -> ResponseMetricsTracker:
+        """Start measuring one request to the model (see static/response_metrics.py)."""
+        return ResponseMetricsTracker(
+            provider=str(getattr(self.model, "provider", "") or ""),
+            model=str(getattr(self.model, "id", "") or ""),
+            api=api,
+            streamed=streamed,
+        )
+
+    def _finish_response_metrics(
+        self,
+        tracker: ResponseMetricsTracker,
+        finish_reason: Optional[str],
+        tool_calls: int,
+        error: Optional[str] = None,
+    ) -> ResponseMetrics:
+        """Close the request's metrics and keep them as ``last_response_metrics``."""
+        metrics = tracker.finish(finish_reason, tool_calls, error=error)
+        self.last_response_metrics = metrics
+        return metrics
 
     def create_chat_completion(self, full_prompt: str) -> Any:
         """Create a chat completion. Implemented by subclasses."""

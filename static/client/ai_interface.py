@@ -50,6 +50,7 @@ from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
 from tts_ui_manager import TTSUIManager
 from chat_ui_manager import ChatUIManager
+from turn_metrics import TurnMetricsCollector
 from managers.action_trace_collector import ActionTraceCollector
 
 if TYPE_CHECKING:
@@ -123,6 +124,8 @@ class AIInterface:
         # Action trace collector for deterministic tool-execution logs
         self._trace_collector: ActionTraceCollector = ActionTraceCollector()
         self._register_trace_js_api()
+        # Per-turn response metrics (model, latency, tokens/s, tool calls) for the chat footer and benchmarks
+        self._register_metrics_js_api()
 
     def _register_trace_js_api(self) -> None:
         """Expose trace inspection functions on the browser ``window`` object."""
@@ -144,6 +147,33 @@ class AIInterface:
                 self.canvas,
             )
         )
+
+    @property
+    def _turn_metrics(self) -> TurnMetricsCollector:
+        """Per-turn response metrics collector, created on first use."""
+        collector = getattr(self, "_turn_metrics_collector", None)
+        if collector is None:
+            collector = TurnMetricsCollector(clock_ms=lambda: float(window.performance.now()))
+            self._turn_metrics_collector = collector
+        return cast(TurnMetricsCollector, collector)
+
+    def _register_metrics_js_api(self) -> None:
+        """Expose turn metrics on ``window`` as JSON strings, like ``getMatHudTestResults``.
+
+        - ``getMatHudLastTurnMetrics()``: the last completed turn, or ``null``.
+        - ``getMatHudTurnMetricsHistory()``: recent completed turns, oldest first.
+        - ``clearMatHudTurnMetrics()``: forget the history.
+        """
+
+        def _to_json(data: Any) -> str:
+            try:
+                return json.dumps(data)
+            except Exception as exc:
+                return json.dumps({"error": str(exc)})
+
+        window.getMatHudLastTurnMetrics = lambda: _to_json(self._turn_metrics.last_turn())
+        window.getMatHudTurnMetricsHistory = lambda: _to_json(self._turn_metrics.history())
+        window.clearMatHudTurnMetrics = lambda: self._turn_metrics.clear()
 
     def run_tests(self) -> Dict[str, Any]:
         """Run unit tests for the AIInterface class and return results to the AI as the function result."""
@@ -348,6 +378,7 @@ class AIInterface:
             ai_tool_calls = event.get("ai_tool_calls", [])
             ai_message = event.get("ai_message", "")
             error_details = event.get("error_details", "")
+            self._turn_metrics.record_request(event.get("metrics"))
 
             # Log error details to console for debugging
             if finish_reason == "error":
@@ -357,6 +388,8 @@ class AIInterface:
             if finish_reason in ("stop", "error", "completed") or not ai_tool_calls:
                 if not self._chat_ui.stream_buffer and ai_message:
                     self._chat_ui.stream_buffer = ai_message
+                outcome = "error" if finish_reason == "error" else "stop"
+                self._chat_ui.pending_turn_metrics = self._turn_metrics.finish_turn(outcome)
                 self._finalize_stream_message(ai_message or None)
                 # Restore user message on error so they can retry
                 if finish_reason == "error":
@@ -380,6 +413,7 @@ class AIInterface:
                     self.canvas,
                 )
                 self._store_results_in_canvas_state(call_results)
+                self._turn_metrics.record_tool_results(traced_calls)
                 if self._chat_ui.stream_container is None:
                     self._chat_ui.ensure_stream_element()
                 self._tool_call_log.ensure_element(self._chat_ui.stream_container, self._chat_ui.stream_content)
@@ -399,6 +433,7 @@ class AIInterface:
                         self._trace_collector.store(trace)
                     except Exception:
                         pass
+                    self._turn_metrics.finish_turn("stopped")
                     self._finalize_stream_message()
                     self._print_system_message_in_chat("Generation stopped.")
                     self._enable_send_controls()
@@ -441,6 +476,7 @@ class AIInterface:
                 except Exception:
                     pass
                 print(f"Error processing streamed tool calls: {e}")
+                self._turn_metrics.finish_turn("error")
                 self._enable_send_controls()
         except Exception as e:
             print(f"Error handling stream final: {e}")
@@ -454,6 +490,7 @@ class AIInterface:
             console.error("Streaming error", err)
         except Exception:
             pass
+        self._turn_metrics.finish_turn("error")
         self._restore_user_message_on_error()
         self._enable_send_controls()
 
@@ -516,6 +553,7 @@ class AIInterface:
                 "ai_tool_calls",
                 "finish_reason",
                 "error_details",
+                "metrics",
                 "level",
                 "message",
                 "source",
@@ -600,6 +638,7 @@ class AIInterface:
             self._response_timeout_id = None
             if self.is_processing:
                 print("AI response timeout - aborting stream and re-enabling send controls")
+                self._turn_metrics.finish_turn("timeout")
                 self._abort_current_stream()
                 self._print_ai_message_in_chat(
                     "⚠️ Request timed out. The AI is taking too long to respond. Please try again."
@@ -619,6 +658,7 @@ class AIInterface:
     def stop_ai_processing(self) -> None:
         """Stop the current AI processing, abort the stream, and restore UI controls."""
         self._stop_requested = True
+        self._turn_metrics.finish_turn("stopped")
         self._abort_current_stream()
         self._cancel_response_timeout()
         # Always notify the backend so it can clear stale conversation state
@@ -647,7 +687,8 @@ class AIInterface:
         self._debug_log_ai_response(ai_message, tool_calls, finish_reason)
 
         if finish_reason == "stop" or finish_reason == "error":
-            self._print_ai_message_in_chat(ai_message)
+            turn_metrics = self._turn_metrics.finish_turn("error" if finish_reason == "error" else "stop")
+            self._chat_ui.print_ai_message(ai_message, turn_metrics=turn_metrics)
             self._enable_send_controls()
         else:  # finish_reason == "tool_calls" or "function_call"
             state_before = self.canvas.get_canvas_state()
@@ -661,6 +702,7 @@ class AIInterface:
                     self.canvas,
                 )
                 self._store_results_in_canvas_state(call_results)
+                self._turn_metrics.record_tool_results(traced_calls)
 
                 state_after = self.canvas.get_canvas_state()
                 total_ms = window.performance.now() - t0
@@ -694,6 +736,7 @@ class AIInterface:
                     pass
                 print(f"Error processing tool calls: {e}")
                 traceback.print_exc()
+                self._turn_metrics.finish_turn("error")
                 self._enable_send_controls()  # Enable controls if there's an error
 
     def _on_error(self, request: Any) -> None:
@@ -717,6 +760,7 @@ class AIInterface:
                 ai_message = response_data.get("ai_message")
                 ai_function_calls = response_data.get("ai_tool_calls")
                 finish_reason = response_data.get("finish_reason")
+                self._turn_metrics.record_request(response_data.get("metrics"))
 
                 # Parse the AI's response and create / delete drawables as needed
                 self._process_ai_response(ai_message, ai_function_calls, finish_reason)
@@ -813,6 +857,7 @@ class AIInterface:
         if user_message is not None and tool_call_results is None:
             self._chat_ui.request_start_time = window.Date.now()
             self._chat_ui.reset_streaming_state()
+            self._turn_metrics.start_turn(user_message)
 
         if use_vision:
             # The snapshot may need an async image decode, so the request is sent from the callback.

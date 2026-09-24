@@ -192,6 +192,7 @@ Developer utilities:
    14. `create a DAG named D1 with vertices A,B,C,D and edges A->B, A->C, B->D, C->D; then topologically sort it`
    15. `save workspace as "demo"` / `load workspace "demo"`
    16. `run tests`
+4. Each finished answer ends with a muted metrics footer, e.g. `qwen3.8-27b · 4.2 s · first token 0.8 s · 38 tok/s · 2 requests · 3 tool calls`; hover it for token counts (prompt, cached, completion), the per-request breakdown and tool errors. Speeds come from llama-server `timings` or the provider's usage report, and are prefixed with `~` when estimated from the streamed text. Every model request is also logged as a `response_metrics {...}` JSON line, and `window.getMatHudLastTurnMetrics()` / `window.getMatHudTurnMetricsHistory()` return the per-turn summaries as JSON strings for benchmarking.
 
 ### 6.3 Slash Commands
 
