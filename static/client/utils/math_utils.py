@@ -1680,51 +1680,18 @@ class MathUtils:
     @staticmethod
     def solve_quadratic_system(equations: Sequence[str]) -> str:
         try:
-            from expression_validator import ExpressionValidator
-
             if len(equations) != 2:
                 raise ValueError("The system must contain exactly 2 quadratic equations.")
 
             print(f"Attempting to solve a system of quadratic equations: {equations}")
-            eqs = []
-            for equation in equations:
-                eq = MathUtils.expand(equation)
-                eq = ExpressionValidator.fix_math_expression(eq, python_compatible=False)
-                eq = eq.split("=")[0] if "x" in eq.split("=")[0] else eq.split("=")[1]
-                eqs.append(eq)
+            # Substitute an explicit 'y = f(x)' equation into the other one and solve for x
+            solutions = MathUtils._solve_by_substitution(equations)
+            if not solutions:
+                # Neither equation is explicit in y, or no real root was found symbolically
+                print("Falling back to numeric solver for quadratic system")
+                return MathUtils.solve_numeric(equations)
 
-            # Construct the system equation by setting the equations equal to each other
-            system_eq = f"({eqs[0]}) - ({eqs[1]}) = 0"
-            system_eq = MathUtils.expand(system_eq)
-
-            # Use nerdamer to solve the system equation for x
-            x_solutions_raw = MathUtils.solve(system_eq, "x")
-            x_solutions_data = json.loads(x_solutions_raw)
-            x_solutions = [float(r) for r in x_solutions_data]
-
-            solution_dict = {}
-            for x_solution in x_solutions:
-                # Substitute x_solution into both original equations to find y
-                y_equation1 = eqs[0].replace("x", f"({x_solution})")
-                y_equation2 = eqs[1].replace("x", f"({x_solution})")
-
-                if "y" not in y_equation1:
-                    y_equation1 += " = y"
-                if "y" not in y_equation2:
-                    y_equation2 += " = y"
-
-                y1_raw = MathUtils.solve(y_equation1, "y")
-                y2_raw = MathUtils.solve(y_equation2, "y")
-
-                y1_value: Optional[float] = float(json.loads(y1_raw)[0]) if y1_raw else None
-                y2_value: Optional[float] = float(json.loads(y2_raw)[0]) if y2_raw else None
-
-                print(f"Solving for x = {x_solution}: {y_equation1} = {y1_value}, {y_equation2} = {y2_value}")
-
-                if y1_value is not None and y2_value is not None and y1_value == y2_value:
-                    solution_dict[x_solution] = y1_value
-
-            solution_strings = [f"(x = {k}, y = {v})" for k, v in solution_dict.items()]
+            solution_strings = [f"(x = {x}, y = {y})" for x, y in solutions]
             print(f"Solutions found: {solution_strings}")
             return ", ".join(solution_strings)
 
@@ -1732,6 +1699,62 @@ class MathUtils:
             raise ve
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+
+    _Y_TOKEN_PATTERN = r"(?<![A-Za-z_])y(?![A-Za-z_])"
+
+    @staticmethod
+    def _explicit_y_expression(equation: str) -> Optional[str]:
+        """Return f(x) when the equation is literally 'y = f(x)' or 'f(x) = y', else None."""
+        import re
+
+        sides = [side.strip() for side in equation.split("=")]
+        if len(sides) != 2:
+            return None
+        for side, other in ((sides[0], sides[1]), (sides[1], sides[0])):
+            if side == "y" and other and not re.search(MathUtils._Y_TOKEN_PATTERN, other):
+                return other
+        return None
+
+    @staticmethod
+    def _solve_by_substitution(equations: Sequence[str]) -> Optional[List[Tuple[float, float]]]:
+        """Solve two equations in x and y by substituting an explicit 'y = f(x)' into the other.
+
+        Returns the real (x, y) solutions that satisfy both equations, or None when
+        neither equation is explicit in y or the reduced equation cannot be solved.
+        """
+        import re
+
+        explicit_forms = [MathUtils._explicit_y_expression(eq) for eq in equations]
+        index = next((i for i, form in enumerate(explicit_forms) if form is not None), None)
+        if index is None:
+            return None
+        y_expression = explicit_forms[index]
+        other_sides = equations[1 - index].split("=")
+        if len(other_sides) > 2:
+            return None
+        if len(other_sides) == 1:
+            other_sides.append("0")
+        substituted = [re.sub(MathUtils._Y_TOKEN_PATTERN, f"({y_expression})", side) for side in other_sides]
+        try:
+            x_roots = MathUtils._numeric_real_roots(f"({substituted[0]}) - ({substituted[1]})", "x")
+        except Exception as e:
+            print(f"Substitution solve failed: {e}")
+            return None
+
+        equation_sides = [eq.split("=") for eq in equations]
+        solutions: List[Tuple[float, float]] = []
+        for x_value in x_roots:
+            try:
+                y_value = window.math.evaluate(y_expression, {"x": x_value})
+            except Exception:
+                continue
+            if not isinstance(y_value, (int, float)) or not math.isfinite(y_value):
+                continue
+            y_value = float(y_value)
+            scope = {"x": x_value, "y": y_value}
+            if all(MathUtils._equation_holds(sides, scope) for sides in equation_sides):
+                solutions.append((x_value, y_value))
+        return solutions
 
     @staticmethod
     def solve_system_of_equations(equations: Sequence[str]) -> str:

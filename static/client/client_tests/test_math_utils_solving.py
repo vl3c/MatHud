@@ -64,6 +64,31 @@ class TestMathUtilsSolving(unittest.TestCase):
         self.assert_points_close(_parse_numeric_solutions(result), [(-1.0, -1.0), (1.0, 1.0)])
 
     # ------------------------------------------------------------------
+    # solve_quadratic_system
+    # ------------------------------------------------------------------
+    def test_quadratic_system_with_irrational_roots(self) -> None:
+        result = MathUtils.solve_quadratic_system(["y = x^2", "y = 3 - x^2"])
+        root = math.sqrt(1.5)
+        self.assert_points_close(_parse_point_pairs(result), [(-root, 1.5), (root, 1.5)])
+
+    def test_quadratic_system_circle_and_parabola(self) -> None:
+        result = MathUtils.solve_system_of_equations(["x^2 + y^2 = 25", "y = x^2 - 5"])
+        self.assert_points_close(_parse_point_pairs(result), [(-3.0, 4.0), (0.0, -5.0), (3.0, 4.0)])
+
+    def test_quadratic_system_without_explicit_y_uses_numeric_solver(self) -> None:
+        result = MathUtils.solve_quadratic_system(["x^2 + y^2 = 25", "x^2 + y = 7"])
+        points = _parse_numeric_solutions(result)
+        self.assertGreater(len(points), 0)
+        for x, y in points:
+            self.assertAlmostEqual(x * x + y * y, 25.0, places=6)
+            self.assertAlmostEqual(x * x + y, 7.0, places=6)
+
+    def test_quadratic_system_no_real_intersection_is_not_empty(self) -> None:
+        result = MathUtils.solve_quadratic_system(["y = x^2 + 1", "y = -x^2"])
+        self.assertNotEqual(result, "")
+        self.assertEqual(_parse_numeric_solutions(result), [])
+
+    # ------------------------------------------------------------------
     # solve
     # ------------------------------------------------------------------
     def _roots(self, result: str) -> List[object]:
