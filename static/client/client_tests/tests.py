@@ -164,6 +164,7 @@ from .test_optimized_renderers import TestOptimizedRendererParity
 from .test_renderer_primitives import TestRendererPrimitives
 from .test_renderer_logic import TestRendererLogic
 from .test_canvas2d_batching import TestCanvas2DBatching, TestRenderPlanReprojection
+from .test_canvas_snapshot import TestCanvasSnapshotter, TestSnapshotSize
 from .test_drawable_renderers import (
     TestVectorRenderer,
     TestAngleRenderer,
@@ -381,6 +382,8 @@ class Tests:
             TestRendererLogic,
             TestCanvas2DBatching,
             TestRenderPlanReprojection,
+            TestSnapshotSize,
+            TestCanvasSnapshotter,
             TestChatMessageMenu,
             TestLabelOverlapResolver,
             TestScreenOffsetLabelLayout,
