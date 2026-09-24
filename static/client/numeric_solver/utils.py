@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 import random
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 # Default seed for reproducible random guesses (can be overridden)
 _RANDOM_SEED: Optional[int] = 42
@@ -85,6 +85,8 @@ def deduplicate_solutions(
     variables: Sequence[str],
     tolerance: float = 1e-4,
     residuals: Optional[Sequence[float]] = None,
+    is_same_root: Optional[Callable[[Sequence[float], Sequence[float]], bool]] = None,
+    tight_tolerance: float = 1e-8,
 ) -> List[Dict[str, float]]:
     """Remove near-duplicate solutions and format as list of dicts.
 
@@ -97,6 +99,11 @@ def deduplicate_solutions(
             (relative), so this is looser than the solver tolerance.
         residuals: Optional residual per solution; the solution with the
             smallest residual represents its cluster.
+        is_same_root: Optional check deciding whether two solutions within
+            ``tolerance`` but farther apart than ``tight_tolerance`` are copies
+            of one (multiple) root rather than distinct close roots such as
+            those of (x-1)*(x-1.00005). Without it, ``tolerance`` alone decides.
+        tight_tolerance: Relative tolerance below which solutions always merge.
 
     Returns:
         List of unique solutions as dictionaries {variable: value}.
@@ -110,7 +117,9 @@ def deduplicate_solutions(
     for index, sol in enumerate(solutions):
         residual = residuals[index] if residuals is not None else 0.0
         for k, existing in enumerate(unique):
-            if _solutions_close(sol, existing, tolerance):
+            if _solutions_close(sol, existing, tolerance) and (
+                is_same_root is None or _solutions_close(sol, existing, tight_tolerance) or is_same_root(sol, existing)
+            ):
                 if residual < unique_residuals[k]:
                     unique[k] = list(sol)
                     unique_residuals[k] = residual
