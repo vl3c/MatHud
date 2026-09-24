@@ -3716,12 +3716,15 @@ Comprehensive set of 90+ AI function definitions for mathematical operations and
 Provides OpenAI tool calling schema for geometric shapes, calculations, transformations, and workspace management.
 
 Categories:
-    - Canvas Operations: reset, clear, undo, redo, run_tests, zoom
-    - Geometric Shapes: points, segments, vectors, triangles, rectangles, circles, ellipses, angles
-    - Mathematical Functions: plotting, colored areas, bounded regions
-    - Calculations: expressions, trigonometry, algebra, calculus
+    - Canvas Operations: reset, clear, undo, redo, zoom, coordinate system, grid, canvas state
+    - Geometric Shapes: points, segments, vectors, polygons, circles, ellipses, arcs, angles, labels
+    - Constructions and Relations: midpoints, bisectors, tangents, circumcircles, relation inspection
+    - Mathematical Functions: explicit, parametric and piecewise plots, colored areas, bounded regions
+    - Calculations: expressions, algebra, calculus, equation systems, numeric solving and integration
+    - Statistics and Graphs: distributions, bar charts, regression, graph generation and analysis
     - Transformations: translate, rotate, reflect, scale, shear geometric objects
     - Workspace Management: save, load, list, delete workspaces
+    - Tool Discovery: search_tools
 
 Dependencies:
     - OpenAI Function Calling: Structured function definitions with strict schema validation
@@ -3734,8 +3737,6 @@ Dependencies:
 - `zoom`: Canvas zoom tool that centers the viewport on a point with a half-range along one axis
 - Parameter validation: Strict JSON schema enforcement for all function arguments
 - Type safety: Required parameters and type checking for robust AI integration
-
-_Note: the module docstring still says "40+" and lists `zoom_to_bounds`; `FUNCTIONS` currently holds 92 definitions and the zoom tool is `zoom`._
 
 #### Tool Quick Reference
 

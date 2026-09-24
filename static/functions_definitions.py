@@ -1,16 +1,19 @@
 """
 MatHud AI Function Definitions
 
-Comprehensive set of 40+ AI function definitions for mathematical operations and canvas manipulation.
+Comprehensive set of 90+ AI function definitions for mathematical operations and canvas manipulation.
 Provides OpenAI tool calling schema for geometric shapes, calculations, transformations, and workspace management.
 
 Categories:
-    - Canvas Operations: reset, clear, undo, redo, run_tests
-    - Geometric Shapes: points, segments, vectors, triangles, rectangles, circles, ellipses, angles
-    - Mathematical Functions: plotting, colored areas, bounded regions
-    - Calculations: expressions, trigonometry, algebra, calculus
-    - Transformations: translate, rotate, scale geometric objects
+    - Canvas Operations: reset, clear, undo, redo, zoom, coordinate system, grid, canvas state
+    - Geometric Shapes: points, segments, vectors, polygons, circles, ellipses, arcs, angles, labels
+    - Constructions and Relations: midpoints, bisectors, tangents, circumcircles, relation inspection
+    - Mathematical Functions: explicit, parametric and piecewise plots, colored areas, bounded regions
+    - Calculations: expressions, algebra, calculus, equation systems, numeric solving and integration
+    - Statistics and Graphs: distributions, bar charts, regression, graph generation and analysis
+    - Transformations: translate, rotate, reflect, scale, shear geometric objects
     - Workspace Management: save, load, list, delete workspaces
+    - Tool Discovery: search_tools
 
 Dependencies:
     - OpenAI Function Calling: Structured function definitions with strict schema validation
