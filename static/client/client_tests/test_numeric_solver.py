@@ -299,6 +299,17 @@ class TestJacobianComputation(unittest.TestCase):
         self.assertAlmostEqual(J[0][0], 2.0, places=4)
         self.assertAlmostEqual(J[0][1], 2.0, places=4)
 
+    def test_jacobian_step_scales_with_large_values(self) -> None:
+        """A fixed step of 1e-7 is below the spacing of floats near 1e9."""
+        from numeric_solver.jacobian import compute_jacobian
+
+        J = compute_jacobian(["x^2", "x*y"], ["x", "y"], [1e9, 3.0])
+
+        self.assertIsNotNone(J)
+        self.assertTrue(math.isclose(J[0][0], 2e9, rel_tol=1e-6), f"d(x^2)/dx = {J[0][0]}")
+        self.assertTrue(math.isclose(J[1][0], 3.0, rel_tol=1e-6), f"d(xy)/dx = {J[1][0]}")
+        self.assertTrue(math.isclose(J[1][1], 1e9, rel_tol=1e-6), f"d(xy)/dy = {J[1][1]}")
+
 
 class TestExpressionEvaluation(unittest.TestCase):
     """Tests for expression evaluation."""
