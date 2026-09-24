@@ -191,6 +191,75 @@ class TestCanvas2DRendererPlan(unittest.TestCase):
         self.assertNotEqual(renderer._compute_drawable_signature(circle), circle_before)
         self.assertNotEqual(renderer._compute_drawable_signature(angle), angle_before)
 
+    def _segment(self, name: str, p1: SimpleNamespace, p2: SimpleNamespace) -> SimpleNamespace:
+        return SimpleNamespace(
+            name=name,
+            point1=p1,
+            point2=p2,
+            get_state=lambda: {"name": name, "args": {"p1": p1.name, "p2": p2.name}},
+        )
+
+    def test_segments_area_signature_tracks_bounding_segment_points(self) -> None:
+        renderer = self._make_renderer()
+        a = SimpleNamespace(name="A", x=0.0, y=0.0)
+        b = SimpleNamespace(name="B", x=4.0, y=0.0)
+        c = SimpleNamespace(name="C", x=0.0, y=3.0)
+        d = SimpleNamespace(name="D", x=4.0, y=3.0)
+        area = SimpleNamespace(
+            name="area_between_AB_and_CD",
+            segment1=self._segment("AB", a, b),
+            segment2=self._segment("CD", c, d),
+            get_class_name=lambda: "SegmentsBoundedColoredArea",
+            get_state=lambda: {"args": {"segment1": "AB", "segment2": "CD"}},
+        )
+
+        before = renderer._compute_drawable_signature(area)
+        a.x = -2.0
+        after_a = renderer._compute_drawable_signature(area)
+        d.y = 5.0
+
+        self.assertNotEqual(after_a, before)
+        self.assertNotEqual(renderer._compute_drawable_signature(area), after_a)
+
+    def test_closed_shape_area_signature_tracks_circle_center(self) -> None:
+        renderer = self._make_renderer()
+        center = SimpleNamespace(name="O", x=0.0, y=0.0)
+        circle = SimpleNamespace(
+            name="c1", center=center, radius=2.0, get_state=lambda: {"args": {"center": "O", "radius": 2.0}}
+        )
+        area = SimpleNamespace(
+            name="closed_c1",
+            circle=circle,
+            segments=[],
+            get_class_name=lambda: "ClosedShapeColoredArea",
+            get_state=lambda: {"args": {"circle": "c1", "segments": []}},
+        )
+
+        before = renderer._compute_drawable_signature(area)
+        center.y = 1.5
+
+        self.assertNotEqual(renderer._compute_drawable_signature(area), before)
+
+    def test_function_area_signature_tracks_function_definition(self) -> None:
+        renderer = self._make_renderer()
+        func_state = {"name": "f", "args": {"function_string": "x^2", "left_bound": -5, "right_bound": 5}}
+        func = SimpleNamespace(name="f", function=None, get_state=lambda: func_state)
+        area = SimpleNamespace(
+            name="area_between_f_and_x_axis",
+            func1=func,
+            func2=None,
+            get_class_name=lambda: "FunctionsBoundedColoredArea",
+            get_state=lambda: {"args": {"func1": "f", "func2": "x_axis"}},
+        )
+        mapper = SimpleNamespace(
+            scale_factor=1.0, offset=SimpleNamespace(x=0.0, y=0.0), canvas_width=800, canvas_height=600
+        )
+
+        before = renderer._compute_drawable_signature(area, mapper)
+        func_state["args"]["function_string"] = "x^3"
+
+        self.assertNotEqual(renderer._compute_drawable_signature(area, mapper), before)
+
     def test_function_signature_changes_when_canvas_resizes(self) -> None:
         renderer = self._make_renderer()
         function = SimpleNamespace(name="f", get_class_name=lambda: "Function", get_state=lambda: {})
