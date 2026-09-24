@@ -456,6 +456,24 @@ def _extract_injectable_tools(tool_call_results: str) -> Optional[List[Dict[str,
     return None
 
 
+def _record_response_metrics(app: MatHudFlask, metrics: Any, tool_call_results: Any) -> Optional[Dict[str, Any]]:
+    """Tag a request's metrics with what started the request and log them as a JSON line.
+
+    ``request_kind`` is ``user_message`` for the first request of a turn and
+    ``tool_results`` for the follow-up requests that answer tool calls, so the
+    log can be grouped into turns. Returns the tagged metrics, or None.
+    """
+    if not isinstance(metrics, dict):
+        return None
+    has_tool_results = isinstance(tool_call_results, str) and bool(tool_call_results)
+    metrics["request_kind"] = "tool_results" if has_tool_results else "user_message"
+    try:
+        app.log_manager.log_response_metrics(metrics)
+    except Exception:
+        _logger.exception("Failed to log response metrics")
+    return cast(Dict[str, Any], metrics)
+
+
 def require_auth(f: F) -> F:
     """Decorator to require authentication for routes when deployed.
 
@@ -875,6 +893,7 @@ def register_routes(app: MatHudFlask) -> None:
                     if isinstance(event, dict):
                         event_dict = cast(StreamEventDict, event)
                         if event_dict.get("type") == "final":
+                            _record_response_metrics(app, event_dict.get("metrics"), tool_call_results_raw)
                             try:
                                 app.log_manager.log_ai_response(str(event_dict.get("ai_message", "")))
                                 tool_calls = event_dict.get("ai_tool_calls")
@@ -1171,6 +1190,7 @@ def register_routes(app: MatHudFlask) -> None:
 
                 app.log_manager.log_ai_response(ai_message)
                 app.log_manager.log_ai_tool_calls(ai_tool_calls)
+                reasoning_metrics = _record_response_metrics(app, final_event.get("metrics"), tool_call_results_raw)
 
                 reset_tools_for_all_providers(app, finish_reason, active_provider=provider)
                 return AppManager.make_response(
@@ -1180,10 +1200,12 @@ def register_routes(app: MatHudFlask) -> None:
                             "ai_message": ai_message,
                             "ai_tool_calls": cast(JsonValue, ai_tool_calls),
                             "finish_reason": finish_reason,
+                            "metrics": cast(JsonValue, reasoning_metrics),
                         },
                     )
                 )
 
+            provider.last_response_metrics = None
             choice = provider.create_chat_completion(message)
             ai_message, ai_tool_calls_processed = _process_ai_response(app, choice)
             ai_tool_calls = cast(List[Dict[str, Any]], ai_tool_calls_processed)
@@ -1191,6 +1213,9 @@ def register_routes(app: MatHudFlask) -> None:
             if ai_tool_calls:
                 ai_tool_calls = _intercept_search_tools(app, ai_tool_calls, provider)
             finish_reason = getattr(choice, "finish_reason", None)
+            completion_metrics = _record_response_metrics(
+                app, getattr(provider, "last_response_metrics", None), tool_call_results_raw
+            )
 
             reset_tools_for_all_providers(app, finish_reason, active_provider=provider)
             return AppManager.make_response(
@@ -1200,6 +1225,7 @@ def register_routes(app: MatHudFlask) -> None:
                         "ai_message": ai_message,
                         "ai_tool_calls": cast(JsonValue, ai_tool_calls),
                         "finish_reason": finish_reason,
+                        "metrics": cast(JsonValue, completion_metrics),
                     },
                 )
             )

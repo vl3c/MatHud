@@ -225,6 +225,22 @@ class LogManager:
         """
         self._logger.info("action_trace %s", json.dumps(trace_summary, sort_keys=True))
 
+    def log_response_metrics(self, metrics: Dict[str, Any]) -> None:
+        """Log one model request's metrics as a ``response_metrics {...}`` JSON line.
+
+        The record comes from static/response_metrics.py; benchmark tooling can
+        parse these lines out of the session log.
+
+        Args:
+            metrics: JSON-serializable per-request metrics dict
+        """
+        try:
+            payload = json.dumps(metrics, sort_keys=True, default=str)
+        except (TypeError, ValueError):
+            self._logger.warning("response_metrics could not be serialized")
+            return
+        self._logger.info("response_metrics %s", payload)
+
     # ========== Browser Forwarding Methods ==========
 
     def queue_for_browser(
