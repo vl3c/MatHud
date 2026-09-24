@@ -48,7 +48,9 @@ def _format_tick_value(value: float, precision: int) -> str:
     """Format a tick value with the specified number of decimal places.
 
     Uses scientific notation when precision > 4 to avoid verbose labels like
-    0.000107. Shows minimal significant figures to distinguish adjacent ticks.
+    0.000107. The mantissa carries enough significant figures for the value's
+    magnitude and the tick precision, so adjacent ticks far from the origin
+    (e.g. 1.00002 vs 1.00004) never collapse to the same label.
 
     Args:
         value: The numeric value to format
@@ -61,21 +63,10 @@ def _format_tick_value(value: float, precision: int) -> str:
         return "0"
     if not math.isfinite(value):
         return str(value)
-    # For very large values, use scientific notation
-    if abs(value) >= 1e6:
-        return f"{value:.1e}"
-    # For values needing many decimal places, use scientific notation
+    # For very large values or values needing many decimal places, use scientific notation
     # This handles cases like 0.000107 → 1.1e-4 instead of verbose decimals
-    if precision > 4 or (abs(value) < 0.001 and abs(value) > 0):
-        # Use 2 significant figures for scientific notation
-        formatted = f"{value:.1e}"
-        # Clean up the exponent format (remove leading zeros)
-        if "e" in formatted:
-            base, exp = formatted.split("e")
-            exp_sign = exp[0] if exp[0] in "+-" else "+"
-            exp_num = exp.lstrip("+-").lstrip("0") or "0"
-            formatted = f"{base}e{exp_sign}{exp_num}"
-        return formatted
+    if abs(value) >= 1e6 or precision > 4 or (abs(value) < 0.001 and abs(value) > 0):
+        return _format_scientific(value, precision)
     if precision <= 0:
         return str(int(round(value)))
     formatted = f"{value:.{precision}f}"
@@ -83,6 +74,36 @@ def _format_tick_value(value: float, precision: int) -> str:
     if "." in formatted:
         formatted = formatted.rstrip("0").rstrip(".")
     return formatted
+
+
+def _format_scientific(value: float, precision: int) -> str:
+    """Format ``value`` in scientific notation with enough mantissa digits.
+
+    The mantissa keeps ``exponent + precision`` decimals (at least one), so its
+    resolution matches the tick spacing; trailing zeros beyond the first
+    decimal are dropped and the exponent loses leading zeros ("1.5e+6").
+    """
+    exponent = int(math.floor(math.log10(abs(value))))
+    decimals = min(15, max(1, exponent + max(precision, 0)))
+    formatted = f"{value:.{decimals}e}"
+    base, exp = formatted.split("e")
+    if "." in base:
+        base = base.rstrip("0")
+        if base.endswith("."):
+            base += "0"
+    exp_sign = exp[0] if exp[0] in "+-" else "+"
+    exp_num = exp.lstrip("+-").lstrip("0") or "0"
+    return f"{base}e{exp_sign}{exp_num}"
+
+
+def _estimate_text_width(text: str, font_size: float) -> float:
+    """Rough rendered width of ``text`` (average glyph ~0.6 em)."""
+    return len(text) * font_size * 0.6
+
+
+def _clamp(value: float, low: float, high: float) -> float:
+    """Clamp ``value`` into [low, high]; ``low`` wins when the range is empty."""
+    return max(low, min(value, high))
 
 
 def _draw_cartesian_axes(primitives, ox, oy, width_px, height_px, axis_stroke):
@@ -113,6 +134,7 @@ def _draw_cartesian_tick_x(
     label_alignment,
     tick_stroke,
     precision=6,
+    height_px=None,
 ):
     """Draw a single X-axis tick mark with label.
 
@@ -129,12 +151,17 @@ def _draw_cartesian_tick_x(
         label_alignment: TextAlignment for the label.
         tick_stroke: StrokeStyle for the tick mark.
         precision: Decimal places for label formatting.
+        height_px: Canvas height; when given, the label baseline is clamped
+            into the viewport so labels stay visible when the axis is panned off.
     """
     primitives.stroke_line((x_pos, oy - tick_size), (x_pos, oy + tick_size), tick_stroke)
+    label_y = oy + tick_size + tick_font_float
+    if height_px is not None:
+        label_y = _clamp(label_y, tick_size + tick_font_float, height_px - tick_size)
     if abs(x_pos - ox) < 1e-6:
         primitives.draw_text(
             "O",
-            (x_pos + 2, oy + tick_size + tick_font_float),
+            (x_pos + 2, label_y),
             font,
             label_color,
             label_alignment,
@@ -144,7 +171,7 @@ def _draw_cartesian_tick_x(
         label = _format_tick_value(value, precision)
         primitives.draw_text(
             label,
-            (x_pos + 2, oy + tick_size + tick_font_float),
+            (x_pos + 2, label_y),
             font,
             label_color,
             label_alignment,
@@ -152,7 +179,19 @@ def _draw_cartesian_tick_x(
 
 
 def _draw_cartesian_tick_y(
-    primitives, y_pos, ox, oy, scale, tick_size, font, label_color, label_alignment, tick_stroke, precision=6
+    primitives,
+    y_pos,
+    ox,
+    oy,
+    scale,
+    tick_size,
+    font,
+    label_color,
+    label_alignment,
+    tick_stroke,
+    precision=6,
+    width_px=None,
+    font_size=8.0,
 ):
     """Draw a single Y-axis tick mark with label.
 
@@ -168,14 +207,20 @@ def _draw_cartesian_tick_y(
         label_alignment: TextAlignment for the label.
         tick_stroke: StrokeStyle for the tick mark.
         precision: Decimal places for label formatting.
+        width_px: Canvas width; when given, the label is clamped into the
+            viewport so labels stay visible when the axis is panned off.
+        font_size: Label font size, used to estimate label width for clamping.
     """
     primitives.stroke_line((ox - tick_size, y_pos), (ox + tick_size, y_pos), tick_stroke)
     if abs(y_pos - oy) >= 1e-6:
         value = (oy - y_pos) / scale
         label = _format_tick_value(value, precision)
+        label_x = ox + tick_size + 2
+        if width_px is not None:
+            label_x = _clamp(label_x, 2.0, width_px - _estimate_text_width(label, font_size) - 2.0)
         primitives.draw_text(
             label,
-            (ox + tick_size + 2, y_pos - tick_size),
+            (label_x, y_pos - tick_size),
             font,
             label_color,
             label_alignment,
@@ -282,6 +327,7 @@ def _draw_cartesian_ticks_x(
     label_color,
     label_alignment,
     tick_stroke,
+    height_px=None,
 ):
     """Draw all tick marks and labels along the X axis.
 
@@ -299,6 +345,7 @@ def _draw_cartesian_ticks_x(
         label_color: Color string for labels.
         label_alignment: TextAlignment for labels.
         tick_stroke: StrokeStyle for tick marks.
+        height_px: Canvas height used to keep labels inside the viewport.
     """
     if display_tick <= 0:
         return
@@ -325,6 +372,7 @@ def _draw_cartesian_ticks_x(
                 label_alignment,
                 tick_stroke,
                 precision,
+                height_px,
             )
         mid_x = x + display_tick * 0.5
         if 0 <= mid_x <= width_px:
@@ -344,6 +392,8 @@ def _draw_cartesian_ticks_y(
     label_color,
     label_alignment,
     tick_stroke,
+    width_px=None,
+    font_size=8.0,
 ):
     """Draw all tick marks and labels along the Y axis.
 
@@ -360,6 +410,8 @@ def _draw_cartesian_ticks_y(
         label_color: Color string for labels.
         label_alignment: TextAlignment for labels.
         tick_stroke: StrokeStyle for tick marks.
+        width_px: Canvas width used to keep labels inside the viewport.
+        font_size: Label font size used to estimate label width.
     """
     if display_tick <= 0:
         return
@@ -374,7 +426,19 @@ def _draw_cartesian_ticks_y(
         y = oy + n * display_tick
         if 0 <= y <= height_px:
             _draw_cartesian_tick_y(
-                primitives, y, ox, oy, scale, tick_size, font, label_color, label_alignment, tick_stroke, precision
+                primitives,
+                y,
+                ox,
+                oy,
+                scale,
+                tick_size,
+                font,
+                label_color,
+                label_alignment,
+                tick_stroke,
+                precision,
+                width_px,
+                font_size,
             )
         mid_y = y + display_tick * 0.5
         if 0 <= mid_y <= height_px:
@@ -439,6 +503,7 @@ def _render_cartesian_grid(
         label_color,
         label_alignment,
         tick_stroke,
+        height_px,
     )
     _draw_cartesian_ticks_y(
         primitives,
@@ -453,6 +518,8 @@ def _render_cartesian_grid(
         label_color,
         label_alignment,
         tick_stroke,
+        width_px,
+        tick_font_float,
     )
 
 

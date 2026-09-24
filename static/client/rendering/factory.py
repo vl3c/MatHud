@@ -5,25 +5,30 @@ preference and environment support. It tries renderers in a preference chain
 until one successfully initializes.
 
 Key Features:
-    - Preference-based renderer selection (canvas2d, svg, webgl)
+    - Preference-based renderer selection (canvas2d, svg)
     - Automatic fallback through available renderers
-    - Safe lazy loading of renderer modules
+    - Lazy loading: a renderer module is imported only when it is attempted
     - Error handling for failed instantiation
 
 Default Preference Order:
     1. canvas2d - HTML5 Canvas 2D API
     2. svg - SVG DOM elements
-    3. webgl - WebGL (experimental)
 """
 
 from __future__ import annotations
 
-from typing import Callable, Optional, TypeVar, cast
+from typing import Callable, Dict, Optional, Tuple, cast
 
-RendererType = TypeVar("RendererType")
+from rendering.interfaces import RendererProtocol
+
+# Renderer mode -> (module path, class name), in default preference order.
+_RENDERER_MODULES: Dict[str, Tuple[str, str]] = {
+    "canvas2d": ("rendering.canvas2d_renderer", "Canvas2DRenderer"),
+    "svg": ("rendering.svg_renderer", "SvgRenderer"),
+}
 
 
-def _load_renderer(module_path: str, attr: str) -> Optional[RendererType]:
+def _load_renderer(module_path: str, attr: str) -> Optional[Callable[[], Optional[RendererProtocol]]]:
     """Lazily load a renderer class from a module.
 
     Args:
@@ -35,16 +40,9 @@ def _load_renderer(module_path: str, attr: str) -> Optional[RendererType]:
     """
     try:
         module = __import__(module_path, fromlist=[attr])
-        return cast(Optional[RendererType], getattr(module, attr))
+        return cast(Optional[Callable[[], Optional[RendererProtocol]]], getattr(module, attr))
     except Exception:
         return None
-
-
-from rendering.interfaces import RendererProtocol
-
-SvgRenderer = _load_renderer("rendering.svg_renderer", "SvgRenderer")
-Canvas2DRenderer = _load_renderer("rendering.canvas2d_renderer", "Canvas2DRenderer")
-WebGLRenderer = _load_renderer("rendering.webgl_renderer", "WebGLRenderer")
 
 
 def _build_preference_chain(preferred: Optional[str]) -> list[str]:
@@ -59,8 +57,7 @@ def _build_preference_chain(preferred: Optional[str]) -> list[str]:
     chain: list[str] = []
     if preferred:
         chain.append(preferred)
-    default_order = ["canvas2d", "svg", "webgl"]
-    for fallback in default_order:
+    for fallback in _RENDERER_MODULES:
         if fallback not in chain:
             chain.append(fallback)
     return chain
@@ -75,23 +72,18 @@ def _safe_instantiate(factory: Callable[[], Optional[RendererProtocol]], *, erro
 
 
 def _attempt_renderer(mode: str) -> Optional[RendererProtocol]:
-    """Try to instantiate a renderer for the given mode."""
-    if mode == "canvas2d" and Canvas2DRenderer is not None:
-        try:
-            return _safe_instantiate(Canvas2DRenderer, error_message="Canvas2DRenderer returned None")
-        except Exception:
-            return None
-    if mode == "svg" and SvgRenderer is not None:
-        try:
-            return _safe_instantiate(SvgRenderer, error_message="SvgRenderer returned None")
-        except Exception:
-            return None
-    if mode == "webgl" and WebGLRenderer is not None:
-        try:
-            return _safe_instantiate(WebGLRenderer, error_message="WebGLRenderer returned None")
-        except Exception:
-            return None
-    return None
+    """Try to import and instantiate the renderer for the given mode."""
+    spec = _RENDERER_MODULES.get(mode)
+    if spec is None:
+        return None
+    module_path, class_name = spec
+    renderer_cls = _load_renderer(module_path, class_name)
+    if renderer_cls is None:
+        return None
+    try:
+        return _safe_instantiate(renderer_cls, error_message=f"{class_name} returned None")
+    except Exception:
+        return None
 
 
 def create_renderer(preferred: Optional[str] = None) -> Optional[RendererProtocol]:
@@ -101,7 +93,7 @@ def create_renderer(preferred: Optional[str] = None) -> Optional[RendererProtoco
     Falls back through the default chain if the preferred renderer fails.
 
     Args:
-        preferred: Optional renderer mode ("canvas2d", "svg", "webgl").
+        preferred: Optional renderer mode ("canvas2d", "svg").
 
     Returns:
         An instantiated renderer, or None if all renderers failed.

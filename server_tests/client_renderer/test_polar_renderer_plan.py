@@ -276,15 +276,6 @@ class TestPolarRendererMethodAvailability(unittest.TestCase):
             content = f.read()
         self.assertIn("build_plan_for_polar", content)
 
-    def test_webgl_renderer_has_render_polar_import(self) -> None:
-        """Test that webgl_renderer imports build_plan_for_polar."""
-        from rendering import webgl_renderer
-
-        import_source = webgl_renderer.__file__
-        with open(import_source, "r") as f:
-            content = f.read()
-        self.assertIn("build_plan_for_polar", content)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -32,7 +32,7 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 1. **Frontend (Brython)** – `static/client/` hosts the Brython application (`main.py`) that wires a `Canvas`, `AIInterface`, `CanvasEventHandler`, and numerous managers. Canvas objects stay math-only; renderers translate them to screen primitives via shared plan builders.
 2. **Backend (Flask)** – `app.py` boots a Flask app assembled by `static/app_manager.py`, registers routes (`static/routes.py`), and injects OpenAI, workspace, webdriver, and logging services.
 3. **AI integration** – `static/providers/` implements a multi-provider architecture supporting OpenAI, Anthropic (Claude), and OpenRouter. `static/ai_model.py` stores model configs with per-model vision and reasoning flags. The model dropdown is populated dynamically from `GET /api/available_models`, which filters by which API keys are present in the environment.
-4. **Rendering** – `static/client/rendering/factory.py` prefers Canvas2D, then SVG, and finally the still-incomplete WebGL path if earlier options fail. Canvas and SVG renderers include opt-in offscreen staging toggled by `window.MatHudCanvas2DOffscreen` / `window.MatHudSvgOffscreen` or matching `localStorage` flags.
+4. **Rendering** – `static/client/rendering/factory.py` prefers Canvas2D and falls back to SVG if Canvas2D fails. Canvas and SVG renderers include opt-in offscreen staging toggled by `window.MatHudCanvas2DOffscreen` / `window.MatHudSvgOffscreen` or matching `localStorage` flags.
 5. **Vision pipeline** – When the chat payload signals vision, the server either stores a data URL snapshot or drives Selenium (`static/webdriver_manager.py`) to replay SVG state in headless Firefox and capture `canvas_snapshots/canvas.png` for the model.
 
 ## 4. Getting Started
@@ -235,10 +235,9 @@ images are not forwarded.
 
 ## 7. Rendering Notes
 
-1. `static/client/rendering/factory.py` instantiates renderers in preference order `canvas2d → svg → webgl`. If a constructor raises (for example, WebGL unavailable), the factory continues down the chain.
+1. `static/client/rendering/factory.py` instantiates renderers in preference order `canvas2d → svg`, importing each renderer module only when it is attempted. If a constructor raises, the factory continues down the chain.
 2. Canvas2D rendering (`canvas2d_renderer.py`) supports optional offscreen compositing. Toggle it with `window.MatHudCanvas2DOffscreen = true` or `localStorage["mathud.canvas2d.offscreen"] = "1"`.
-3. SVG rendering (`svg_renderer.py`) mirrors the same offscreen staging controls through `window.MatHudSvgOffscreen` or `localStorage["mathud.svg.offscreen"]`.
-4. The WebGL renderer (`webgl_renderer.py`) is experimental, not feature complete, and only instantiates when the browser exposes a WebGL context.
+3. SVG rendering (`svg_renderer.py`) is the frozen fallback (kept working, no new features). It mirrors the same offscreen staging controls through `window.MatHudSvgOffscreen` or `localStorage["mathud.svg.offscreen"]`.
 
 ## 8. Diagram Generation
 

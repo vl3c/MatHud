@@ -11,7 +11,6 @@ from rendering.canvas2d_renderer import Canvas2DRenderer
 from rendering.canvas2d_primitive_adapter import Canvas2DPrimitiveAdapter
 from rendering.primitives import FontStyle
 from rendering.svg_renderer import SvgRenderer
-from rendering.webgl_renderer import WebGLRenderer
 
 
 class CoordinateMapperStub:
@@ -58,11 +57,6 @@ class TestRendererLogic(unittest.TestCase):
         svg._handlers_by_type = {}
         svg.register_default_drawables()
         self.assertIn(Bar, svg._handlers_by_type)
-
-        webgl = WebGLRenderer.__new__(WebGLRenderer)
-        webgl._handlers_by_type = {}
-        webgl.register_default_drawables()
-        self.assertIn(Bar, webgl._handlers_by_type)
 
     def test_style_manager_returns_independent_copy(self) -> None:
         style_a = style_manager.get_renderer_style()
@@ -156,6 +150,18 @@ class TestRendererLogic(unittest.TestCase):
         self.assertIn("font_cache_entries", snap2)
         self.assertLessEqual(int(snap2.get("font_cache_entries", 0) or 0), 64)
         self.assertEqual(int(snap1.get("font_cache_entries", 0) or 0), int(snap2.get("font_cache_entries", 0) or 0))
+
+    def test_canvas2d_signature_changes_when_circle_center_moves(self) -> None:
+        from drawables.circle import Circle
+        from drawables.point import Point
+
+        renderer = Canvas2DRenderer.__new__(Canvas2DRenderer)
+        center = Point(0, 0, name="A")
+        circle = Circle(center, 2)
+        before = renderer._compute_drawable_signature(circle)
+        center.x = 3
+        self.assertNotEqual(renderer._compute_drawable_signature(circle), before)
+        self.assertNotIn("_dependent_coords", str(circle.get_state()))
 
 
 __all__ = ["TestRendererLogic"]

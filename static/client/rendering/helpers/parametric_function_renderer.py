@@ -16,53 +16,18 @@ from rendering.helpers.shape_decorator import _manages_shape
 from rendering.primitives import FontStyle, StrokeStyle, TextAlignment
 
 
-def _cull_path_to_visible(path, width, height, margin=16):
-    """Cull path segments that are entirely outside the visible area."""
-    if not path or width <= 0 or height <= 0:
-        return path
-
-    min_x = -margin
-    max_x = width + margin
-    min_y = -margin
-    max_y = height + margin
-
-    culled = []
-    for sx, sy in path:
-        in_bounds = min_x <= sx <= max_x and min_y <= sy <= max_y
-        if in_bounds:
-            culled.append((sx, sy))
-        elif culled and culled[-1] is not None:
-            culled.append((sx, sy))
-            culled.append(None)
-
-    result = []
-    current_segment = []
-    for pt in culled:
-        if pt is None:
-            if len(current_segment) >= 2:
-                result.append(current_segment)
-            current_segment = []
-        else:
-            current_segment.append(pt)
-    if len(current_segment) >= 2:
-        result.append(current_segment)
-
-    return result if result else [path]
-
-
 @_manages_shape
-def _render_parametric_paths(primitives, screen_paths, stroke, width=0, height=0):
-    """Render all path segments as polylines."""
+def _render_parametric_paths(primitives, screen_paths, stroke):
+    """Render all path segments as polylines.
+
+    Paths are not culled to the viewport: parametric samples do not depend on
+    the view, so the Canvas2D plan is reprojected on pan instead of rebuilt and
+    must keep the parts of the curve that are currently off-screen.
+    """
     for path in screen_paths:
         if len(path) < 2:
             continue
-        if width > 0 and height > 0:
-            culled_segments = _cull_path_to_visible(path, width, height)
-            for segment in culled_segments:
-                if len(segment) >= 2:
-                    primitives.stroke_polyline(segment, stroke)
-        else:
-            primitives.stroke_polyline(path, stroke)
+        primitives.stroke_polyline(path, stroke)
 
 
 def _get_or_create_renderable(func, coordinate_mapper):
@@ -142,9 +107,7 @@ def render_parametric_function_helper(primitives, func, coordinate_mapper, style
     if not screen_paths:
         return
 
-    width = getattr(coordinate_mapper, "canvas_width", 0) or 0
-    height = getattr(coordinate_mapper, "canvas_height", 0) or 0
     stroke = _build_stroke_style(func, style)
 
-    _render_parametric_paths(primitives, screen_paths, stroke, width, height)
+    _render_parametric_paths(primitives, screen_paths, stroke)
     _render_parametric_label(primitives, func, screen_paths, stroke, style)

@@ -157,12 +157,11 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 # Rendering Architecture
 
 ## Renderer Selection
-`static/client/rendering/factory.create_renderer` builds a preference chain (`canvas2d` → `svg` → `webgl`) and instantiates the first backend that succeeds.
+`static/client/rendering/factory.create_renderer` builds a preference chain (`canvas2d` → `svg`) and instantiates the first backend that succeeds. Each renderer module is imported only when it is attempted.
 
 ## Renderers
 1. **Canvas2DRenderer** (`canvas2d_renderer.py`): Targets a Canvas 2D context. Supports optional offscreen compositing via `_use_layer_compositing`.
-2. **SvgRenderer** (`svg_renderer.py`): Maintains plan caches for grid and drawables. Prunes unused DOM groups between frames.
-3. **WebGLRenderer** (`webgl_renderer.py`): Experimental, not feature complete. Only instantiates when browser exposes WebGL context.
+2. **SvgRenderer** (`svg_renderer.py`): Fallback renderer, frozen (keep it working, no new features). Maintains plan caches for grid and drawables. Prunes unused DOM groups between frames. The `#math-svg` element stays in the DOM as the pointer-event surface for every renderer.
 
 ## Shared Components
 - `shared_drawable_renderers.py`: Drawing helpers that coordinate metadata emission for labels.
@@ -175,7 +174,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 - `window.MatHudSvgOffscreen` or `localStorage["mathud.svg.offscreen"]` - toggles SVG offscreen staging.
 
 ## DOM Layering
-Surfaces are layered inside `#math-container`: WebGL (z-index 20), Canvas2D (z-index 10), SVG (base layer). Labels remain on SVG for text clarity.
+Surfaces are layered inside `#math-container`: Canvas2D (z-index 10) above the SVG base layer, which receives pointer events.
 
 ---
 
@@ -336,7 +335,6 @@ Follow this checklist when introducing a new drawable type:
 - Register the new drawable in each renderer's `register_default_drawables()`:
   - `canvas2d_renderer.py`
   - `svg_renderer.py`
-  - `webgl_renderer.py` (if applicable)
 
 ### 7. Add Tests
 - Introduce unit tests in `static/client/client_tests/` covering:
