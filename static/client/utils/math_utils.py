@@ -1477,9 +1477,104 @@ class MathUtils:
             str: JSON string of solutions or error message
         """
         try:
-            return str(window.nerdamer(f"solve({equation}, {variable})").text())
+            raw_solutions = str(window.nerdamer(f"solve({equation}, {variable})").text())
         except Exception as e:
             return f"Error: {e} {getattr(e, 'message', str(e))}"
+        return MathUtils._drop_invalid_roots(raw_solutions, equation, variable)
+
+    @staticmethod
+    def _drop_invalid_roots(raw_solutions: str, equation: str, variable: str) -> str:
+        """Remove roots that clearly fail the equation when substituted back numerically.
+
+        Roots that cannot be checked (e.g. symbolic parameters) are kept, and the
+        original text is returned unchanged when every root checks out.
+        """
+        if not (raw_solutions.startswith("[") and raw_solutions.endswith("]")):
+            return raw_solutions
+        roots = MathUtils._split_top_level_commas(raw_solutions[1:-1])
+        sides = equation.split("=")
+        if not roots or len(sides) > 2:
+            return raw_solutions
+        kept = []
+        for root in roots:
+            try:
+                scope = {variable: window.math.evaluate(root)}
+            except Exception:
+                kept.append(root)
+                continue
+            if MathUtils._equation_holds(sides, scope) is not False:
+                kept.append(root)
+        if len(kept) == len(roots):
+            return raw_solutions
+        return "[" + ",".join(kept) + "]"
+
+    @staticmethod
+    def _equation_holds(sides: Sequence[str], scope: Dict[str, Any]) -> Optional[bool]:
+        """Check lhs = rhs (or expression = 0) numerically with math.js.
+
+        Returns None when the equation cannot be evaluated for the given scope.
+        """
+        try:
+            lhs = window.math.evaluate(sides[0], scope)
+            rhs = window.math.evaluate(sides[1], scope) if len(sides) == 2 else 0
+            residual = float(window.math.abs(window.math.subtract(lhs, rhs)))
+            scale = max(1.0, float(window.math.abs(lhs)), float(window.math.abs(rhs)))
+        except Exception:
+            return None
+        if not math.isfinite(residual) or not math.isfinite(scale):
+            return None
+        return residual <= 1e-6 * scale
+
+    @staticmethod
+    def _split_top_level_commas(text: str) -> List[str]:
+        """Split text on commas that are not nested inside brackets."""
+        parts: List[str] = []
+        current: List[str] = []
+        depth = 0
+        for char in text:
+            if char in "([{":
+                depth += 1
+            elif char in ")]}":
+                depth -= 1
+            if char == "," and depth == 0:
+                parts.append("".join(current).strip())
+                current = []
+            else:
+                current.append(char)
+        parts.append("".join(current).strip())
+        return [part for part in parts if part]
+
+    @staticmethod
+    def _to_real_float(value_text: str) -> Optional[float]:
+        """Convert a numeric root string to a float, or None if it is not a finite real number."""
+        try:
+            value = float(value_text)
+        except Exception:
+            try:
+                result = window.math.evaluate(value_text)
+                if isinstance(result, (int, float)):
+                    value = float(result)
+                else:
+                    real, imag = float(result.re), float(result.im)
+                    if abs(imag) > 1e-9 * max(1.0, abs(real)):
+                        return None
+                    value = real
+            except Exception:
+                return None
+        return value if math.isfinite(value) else None
+
+    @staticmethod
+    def _numeric_real_roots(expression: str, variable: str) -> List[float]:
+        """Solve expression = 0 with nerdamer and return the distinct real roots as floats."""
+        raw_roots = str(window.nerdamer(f"solve({expression}, {variable})").evaluate().text("decimals"))
+        if not (raw_roots.startswith("[") and raw_roots.endswith("]")):
+            return []
+        roots: List[float] = []
+        for root_text in MathUtils._split_top_level_commas(raw_roots[1:-1]):
+            root = MathUtils._to_real_float(root_text)
+            if root is not None and not any(abs(root - r) <= 1e-9 * max(1.0, abs(r)) for r in roots):
+                roots.append(root)
+        return roots
 
     @staticmethod
     def solve_linear_system(equations: Sequence[str]) -> str:
