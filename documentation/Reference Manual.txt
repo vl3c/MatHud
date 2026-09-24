@@ -134,15 +134,17 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 
 ### Server-Side Components
 1. Server-Side Workspace Manager (`static/workspace_manager.py`)
-2. OpenAI API Integration (`static/openai_api.py`)
-3. AI Function Definitions (`static/functions_definitions.py`)
-4. Flask Application Manager (`static/app_manager.py`)
-5. Flask Route Definitions (`static/routes.py`)
-6. Application Logging System (`static/log_manager.py`)
-7. Selenium WebDriver Manager (`static/webdriver_manager.py`)
-8. AI Model Configuration (`static/ai_model.py`)
-9. Provider Registry (`static/providers/`)
-10. Tool Call Processing Utilities (`static/tool_call_processor.py`)
+2. Provider API Base (`static/openai_api_base.py`, `openai_completions_api.py`, `openai_responses_api.py`)
+3. Canvas State Formatter (`static/canvas_state_formatter.py`)
+4. AI Function Definitions (`static/functions_definitions.py`), including a tool quick reference
+5. Tool Search Service (`static/tool_search_service.py`)
+6. Flask Application Manager (`static/app_manager.py`)
+7. Flask Route Definitions (`static/routes.py`)
+8. Application Logging System (`static/log_manager.py`)
+9. Selenium WebDriver Manager (`static/webdriver_manager.py`)
+10. AI Model Configuration (`static/ai_model.py`)
+11. Provider Registry (`static/providers/`)
+12. Tool Call Processing Utilities (`static/tool_call_processor.py`)
 
 ### Testing and Quality Assurance
 1. Client-Side Testing (`client_tests/` and `test_runner.py`)
@@ -153,7 +155,7 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 1. Graph and tree tools overview (generate, delete, analyze)
 2. `generate_graph`: Create a graph/tree/DAG with optional layout and weights
 3. `delete_graph`: Remove a graph/tree and its associated drawables
-4. `analyze_graph`: Run graph and tree analysis operations (shortest path, MST, topological sort, BFS/DFS, etc.)
+4. `analyze_graph`: Run graph and tree analysis operations (shortest path including negative directed weights, MST or spanning forest, topological sort, BFS/DFS, etc.)
 
 ---
 
@@ -291,20 +293,24 @@ Attributes:
 - `get_drawables()`: Get all drawables as a flat list
 - `create_point(x, y, name="", extra_graphics=True)`: Create a point at the specified coordinates
 - `delete_point(x, y)`: Delete a point at the specified coordinates
+- `update_point(point_name, new_name=None, new_x=None, new_y=None, new_color=None)`: Rename, recolor, or move a solitary point without recreating it (`new_x` and `new_y` go together). Tool: `update_point`
 - `create_segment(x1, y1, x2, y2, name="", extra_graphics=True)`: Create a line segment between two points
 - `create_vector(origin_x, origin_y, tip_x, tip_y, name="", extra_graphics=True)`: Create a vector from origin to tip
 - `create_polygon(vertices, polygon_type="triangle", name="", extra_graphics=True)`: Create a triangle from three points
 - `create_polygon(vertices, polygon_type="rectangle", name="", extra_graphics=True)`: Create a rectangle from canonicalized vertices (use `canonicalize_rectangle` for diagonal pairs)
-- `create_circle(center_x, center_y, radius, name="", extra_graphics=True)`: Create a circle with specified center and radius
+- `create_circle(center_x, center_y, radius, name="", color=None, extra_graphics=True)`: Create a circle with specified center and radius. `name` names the center point; the circle itself is named `<center>(<radius>)`, e.g. `A(3)`, and that name is used to reference it later
 - `create_circle_arc(point1_x, point1_y, point2_x, point2_y, point3_x=None, point3_y=None, center_point_choice=None, circle_name=None, center_x=None, center_y=None, radius=None, arc_name=None, use_major_arc=False, extra_graphics=True)`: Create a circle arc between two points. When supplying explicit center/radius values or referencing an existing circle, all provided endpoints (new or existing) are projected onto that circle before the arc is created. Alternatively, provide three points plus `center_point_choice` (point1/point2/point3) to treat that point as the center and derive the circle automatically.
 - `delete_circle_arc(name)`: Remove a circle arc by name without deleting its endpoints.
 - `update_circle_arc(name, new_color=None, use_major_arc=None)`: Update arc styling or switch between the minor and major arc sweep.
-- `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", extra_graphics=True)`: Create an ellipse with specified parameters
+- `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", color=None, extra_graphics=True)`: Create an ellipse with specified parameters. As with circles, `name` names the center point and the ellipse is named `<center>(<radius_x>, <radius_y>)`
 - `draw_function(function_string, name, left_bound=None, right_bound=None)`: Draw a mathematical function on the canvas
 - `draw_parametric_function(x_expression, y_expression, name=None, t_min=0, t_max=2*pi, color=None)`: Draw a parametric curve defined by x(t) and y(t) expressions. Use for curves that cannot be expressed as y=f(x), such as circles, spirals, Lissajous figures, and other complex shapes.
 - `delete_parametric_function(name)`: Remove a parametric function by name
+- `draw_piecewise_function(pieces, name=None, color=None)`: Plot a piecewise function. Each piece has `expression`, `left`/`right` bounds (`None` for unbounded), `left_inclusive`/`right_inclusive`, and optional `undefined_at` holes. Tool: `draw_piecewise_function`
+- `delete_piecewise_function(name)`: Remove a piecewise function by name. Tool: `delete_piecewise_function`
+- `update_piecewise_function(name, new_color=None)`: Change the color of an existing piecewise function. Tool: `update_piecewise_function`
 - `update_parametric_function(name, new_color=None, new_t_min=None, new_t_max=None)`: Update editable properties of an existing parametric function
-- `draw_tangent_line(curve_name, parameter, name=None, length=4.0, color=None)`: Draw a tangent line segment to a curve at a specified point. For functions y=f(x), parameter is the x-coordinate. For parametric curves, it's the t value. For circles/ellipses, it's the angle in radians from the positive x-axis.
+- `draw_tangent_line(curve_name, parameter, name=None, length=4.0, color=None)`: Draw a tangent line segment to a curve at a specified point. For functions y=f(x), parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured in the ellipse's own (rotated) frame: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)).
 - `draw_normal_line(curve_name, parameter, name=None, length=4.0, color=None)`: Draw a normal line segment (perpendicular to tangent) to a curve at a specified point. Same parameter conventions as draw_tangent_line.
 - `construct_midpoint(p1_name=None, p2_name=None, segment_name=None, name=None, color=None)`: Construct a point at the midpoint of a segment or between two named points. Provide either `segment_name` or both `p1_name` and `p2_name`.
 - `construct_perpendicular_bisector(segment_name, length=6.0, name=None, color=None)`: Construct the perpendicular bisector of a segment. Creates a new segment passing through the midpoint, perpendicular to the original.
@@ -318,8 +324,11 @@ Attributes:
 - `fit_regression(name=None, x_data=None, y_data=None, model_type="linear", degree=None, plot_bounds=None, curve_color=None, show_points=True, point_color=None)`: Fit a regression model to data and plot the resulting curve. Supported model types: "linear" (y=mx+b), "polynomial" (y=a0+a1*x+...+an*x^n, requires `degree`), "exponential" (y=a*e^(bx), requires positive y), "logarithmic" (y=a+b*ln(x), requires positive x), "power" (y=a*x^b, requires positive x and y), "logistic" (y=L/(1+e^(-k(x-x0)))), and "sinusoidal" (y=a*sin(bx+c)+d, requires at least 4 points). Returns function_name, expression, coefficients, r_squared, model_type, bounds, and optionally point_names. Use `delete_function` to remove the curve; delete points individually.
 - `compute_descriptive_statistics(data)`: Compute descriptive statistics for a list of numbers. Returns a dictionary with: count, mean, median, mode (list of values; empty if no meaningful mode), standard_deviation (population), variance (population), min, max, q1 (first quartile), q3 (third quartile), iqr (interquartile range), and range. Quartiles use the median-of-halves (exclusive) method. All values must be finite (no Infinity or NaN).
 - `delete_plot(name)`: Delete a plot composite created by plot_distribution/plot_bars, including its derived components.
-- `zoom_to_bounds(left_bound, right_bound, top_bound, bottom_bound)`: Fit the viewport so the specified math-space rectangle is entirely visible while preserving aspect ratio
+- `zoom(center_x, center_y, range_val, range_axis)`: Center the viewport on (center_x, center_y) showing center +/- `range_val` along `range_axis` ('x' or 'y'); the other axis follows the canvas aspect ratio. Delegates to `CoordinateMapper.set_visible_bounds`. Tool: `zoom`
+- `set_coordinate_system(mode)`: Switch the grid between 'cartesian' and 'polar'. Tool: `set_coordinate_system`
+- `set_grid_visible(visible)`: Show or hide the active grid without changing the coordinate system. Tool: `set_grid_visible`
 - `create_colored_area(drawable1_name, drawable2_name=None, left_bound=None, right_bound=None, color="lightblue", opacity=0.3)`: Create a colored area between two objects
+- `create_region_colored_area(expression=None, triangle_name=None, rectangle_name=None, polygon_segment_names=None, circle_name=None, ellipse_name=None, chord_segment_name=None, arc_clockwise=False, resolution=96, color="lightblue", opacity=0.3)`: Fill a region given by a boolean expression over shape names (`&` intersection, `|` union, `-` difference, `^` symmetric difference; e.g. `'circle_A - triangle_ABC'`) or by a single closed shape, optionally cut by a chord segment. `expression` takes precedence. Tool: `create_region_colored_area`
 - `translate_object(name, x_offset, y_offset)`: Translates a drawable object by the specified offset
 - `rotate_object(name, angle, center_x=None, center_y=None)`: Rotates a drawable object by the specified angle, optionally around an arbitrary center
 - `reflect_object(name, axis, line_a=None, line_b=None, line_c=None, segment_name=None)`: Reflects a drawable across x_axis, y_axis, a line (ax+by+c=0), or a named segment
@@ -2533,7 +2542,7 @@ State Management:
 **Key Methods:**
 - `get_circle(center_x, center_y, radius)`: Get a circle by its center coordinates and radius
 - `get_circle_by_name(name)`: Get a circle by its name
-- `create_circle(center_x, center_y, radius, name="", extra_graphics=True)`: Create a circle with specified center and radius
+- `create_circle(center_x, center_y, radius, name="", color=None, extra_graphics=True)`: Create a circle with specified center and radius (`name` names the center point; the circle is named `<center>(<radius>)`)
 - `delete_circle(name)`: Delete a circle by its name
 
 #### Ellipse Manager (`managers/ellipse_manager.py`)
@@ -2587,7 +2596,7 @@ This class is responsible for:
 - `__init__(canvas, drawables_container, name_generator, dependency_manager, point_manager, drawable_manager_proxy)`: Initialize the EllipseManager with dependencies
 - `get_ellipse(center_x, center_y, radius_x, radius_y)`: Get an ellipse by its center coordinates and radii (Note: does not consider rotation angle)
 - `get_ellipse_by_name(name)`: Get an ellipse by its name
-- `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", extra_graphics=True)`: Create an ellipse with specified center, radii, and rotation angle
+- `create_ellipse(center_x, center_y, radius_x, radius_y, rotation_angle=0, name="", color=None, extra_graphics=True)`: Create an ellipse with specified center, radii, and rotation angle (`name` names the center point; the ellipse is named `<center>(<radius_x>, <radius_y>)`)
 - `delete_ellipse(name)`: Delete an ellipse by its name with cleanup and canvas redraw
 
 #### Function Manager (`managers/function_manager.py`)
@@ -2869,7 +2878,7 @@ Class Attributes:
 - `segment_has_end_point(segment, x, y)`: Check if a segment has an endpoint at the given coordinates
 - `get_2D_distance(p1, p2)`: Calculate Euclidean distance between two points in 2D space
 - `get_2D_midpoint(p1, p2)`: Calculate the midpoint between two points in 2D space
-- `is_point_on_segment(px, py, sp1x, sp1y, sp2x, sp2y)`: Check if a point lies on a line segment between two endpoints
+- `is_point_on_segment(px, py, sp1x, sp1y, sp2x, sp2y)`: Check if a point lies on a line segment between two endpoints (tolerance scales with the segment length)
 - `get_triangle_area(p1, p2, p3)`: Calculate the area of a triangle given three points
 - `get_triangle_centroid(p1, p2, p3)`: Calculate the centroid (center of mass) of a triangle
 - `get_rectangle_area(diagonal_p1, diagonal_p2)`: Calculate rectangle area using diagonal points
@@ -2891,20 +2900,21 @@ Class Attributes:
 - `pow(x, exp)`: Calculate power using MathJS
 - `det(matrix)`: Calculate matrix determinant using MathJS
 - `convert(value, from_unit, to_unit)`: Unit conversion using MathJS
-- `evaluate(expression, variables=None)`: Evaluate mathematical expression using MathJS
+- `evaluate(expression, variables=None)`: Evaluate mathematical expression using MathJS. String results are returned unquoted, a single mode is unwrapped from its list, whole numbers of 2^53 or more are formatted by math.js, and infinite results or overflows return an explicit message
 - `derivative(expression, variable)`: Calculate derivative using MathJS
 - `limit(expression, variable, value_to_approach)`: Calculate limit using MathJS
-- `integral(expression, variable, lower_bound=None, upper_bound=None)`: Calculate integral using MathJS
+- `integral(expression, variable, lower_bound=None, upper_bound=None)`: Calculate an indefinite or definite integral using Nerdamer (tool: `integrate`). A definite integral whose integrand is singular or undefined inside the interval (e.g. 1/x^2 over [-1, 1]) returns an improper/divergent-integral error instead of F(b) - F(a); singularities exactly at an endpoint are still evaluated through the antiderivative
+- `numeric_integrate(expression, variable, lower_bound, upper_bound, method="simpson", steps=200)`: Numerically approximate a definite integral over finite bounds with `trapezoid`, `midpoint`, or `simpson` (steps <= 10000). Returns `value`, `error_estimate`, `steps` (after refinement), and a `warning` when the integrand grows sharply or stops being finite next to a bound. Tool: `numeric_integrate`
 - `simplify(expression)`: Simplify mathematical expression using MathJS
 - `expand(expression)`: Expand mathematical expression using MathJS
 - `factor(expression)`: Factor mathematical expression using MathJS
 - `get_equation_type(equation)`: Determine the type of mathematical equation
 - `determine_max_number_of_solutions(equations)`: Determine maximum number of solutions for equation system
-- `solve(equation, variable)`: Solve equation for specified variable using MathJS
+- `solve(equation, variable)`: Solve equation for specified variable using Nerdamer; returned roots that fail a numeric substitution check are dropped
 - `solve_linear_system(equations)`: Solve system of linear equations
 - `solve_linear_quadratic_system(equations)`: Solve mixed linear-quadratic equation system
 - `solve_quadratic_system(equations)`: Solve system of quadratic equations
-- `solve_system_of_equations(equations)`: Main system solver with type detection (falls back to numeric solver for transcendental/non-polynomial systems)
+- `solve_system_of_equations(equations)`: Main system solver with type detection. Two-equation x/y systems are solved by substituting an explicit equation into the other and checking the roots numerically, so every intersection is reported (e.g. y = x^3 and y = x gives three points, as `x1 = .., y1 = ..` entries). Non-integer powers and variables in a denominator classify an equation as non-linear, and non-polynomial systems fall back to the numeric solver
 - `solve_numeric(equations, variables=None, initial_guesses=None, tolerance=1e-10, max_iterations=50)`: Numerically solve a system of equations using multi-start Newton-Raphson. Supports transcendental, mixed nonlinear, or systems that cannot be solved symbolically. Returns JSON string with solutions, variables, and method information
 - `random(min_value=0, max_value=1)`: Generate random number
 - `round(value, ndigits=0)`: Round number to specified digits
@@ -3082,17 +3092,19 @@ numeric_solver/
 ├── expression_utils.py    # Variable detection, residual conversion, evaluation
 ├── newton_raphson.py      # Newton-Raphson iteration with Armijo backtracking
 ├── jacobian.py            # Numerical Jacobian via central differences
-├── linear_algebra.py      # Gaussian elimination for linear systems
+├── linear_algebra.py      # Gaussian elimination and least-squares steps for linear systems
 └── utils.py               # Initial guess generation and solution deduplication
 ```
 
 **Key Features:**
 - Multi-start approach with structured and random initial guesses in [-10, 10]
 - Damped Newton-Raphson with Armijo backtracking line search for robustness
-- Numerical Jacobian computation via central finite differences
-- Gaussian elimination with partial pivoting for solving linear systems
+- Numerical Jacobian computation via central finite differences, with the step scaled by each variable's magnitude
+- Gaussian elimination with partial pivoting for square systems; Gauss-Newton steps for overdetermined and minimum-norm steps for underdetermined systems
+- Scale-aware convergence: residuals are measured relative to the Jacobian and variable magnitudes, with an additional step-size test
 - Automatic variable detection from equation strings
-- Solution deduplication and rounding to significant digits
+- Solution deduplication with a relative tolerance (the best residual represents each cluster) and rounding to significant digits
+- Residuals above 2^53 are evaluated through math.js text formatting, so large-magnitude equations such as x^3 = 2e9 still converge
 - Handles transcendental functions (sin, cos, log, exp, etc.)
 
 #### Main Entry Point (`numeric_solver/solver.py`)
@@ -3106,7 +3118,7 @@ solve_numeric(equations, variables=None, initial_guesses=None, tolerance=1e-10, 
 - `equations`: List of equation strings. Use '=' for equations (e.g., 'sin(x) + y = 1'). If no '=' is present, the expression is assumed equal to 0.
 - `variables`: Optional list of variable names. If not provided, auto-detected from equations.
 - `initial_guesses`: Optional list of starting point vectors.
-- `tolerance`: Convergence tolerance for residuals (default: 1e-10).
+- `tolerance`: Convergence tolerance for scaled residuals (default: 1e-10).
 - `max_iterations`: Maximum Newton-Raphson iterations per starting point (default: 50).
 
 **Returns:**
@@ -3116,8 +3128,8 @@ JSON string with the following structure:
     "solutions": [{"x": 1.234, "y": 5.678}, ...],
     "variables": ["x", "y"],
     "method": "newton_raphson",
-    "warning": "...",  // Optional: system over/under-determined
-    "message": "...",  // Optional: no solutions found
+    "warning": "...",  // Optional: system over/under-determined, or solutions not unique
+    "message": "...",  // Optional: no solutions found (e.g. an inconsistent overdetermined system)
     "error": "..."     // Optional: error message
 }
 ```
@@ -3137,7 +3149,7 @@ Implements damped Newton-Raphson iteration with Armijo backtracking line search.
 1. Evaluate residuals F(x) at current point
 2. Check convergence (max |F_i| < tolerance)
 3. Compute numerical Jacobian J
-4. Solve J * delta = -F via Gaussian elimination
+4. Solve J * delta = -F via Gaussian elimination (least squares via J^T J for non-square systems)
 5. Apply Armijo backtracking to find step size alpha
 6. Update x = x + alpha * delta
 7. Repeat until convergence or max iterations
@@ -3151,18 +3163,19 @@ Implements damped Newton-Raphson iteration with Armijo backtracking line search.
 #### Jacobian (`numeric_solver/jacobian.py`)
 
 **Function:**
-- `compute_jacobian(residual_exprs, variables, values, h=1e-7)`: Compute numerical Jacobian via central differences: J[i][j] = (F_i(x + h*e_j) - F_i(x - h*e_j)) / (2h)
+- `compute_jacobian(residual_exprs, variables, values, h=1e-7)`: Compute numerical Jacobian via central differences: J[i][j] = (F_i(x + h_j*e_j) - F_i(x - h_j*e_j)) / (2*h_j) with h_j = h * max(1, |x_j|)
 
 #### Linear Algebra (`numeric_solver/linear_algebra.py`)
 
 **Function:**
-- `solve_linear_system_gaussian(A, b)`: Solve Ax = b using Gaussian elimination with partial pivoting. Returns None if matrix is singular (pivot < 1e-12).
+- `solve_linear_system_gaussian(A, b)`: Solve Ax = b using Gaussian elimination with partial pivoting. Returns None if the matrix is non-square or singular (pivot below 1e-12 times the largest entry).
+- `solve_least_squares_gaussian(A, b)`: Solve an m*n system in the least-squares sense: plain elimination when square, normal equations A^T A x = A^T b (the Gauss-Newton step) when overdetermined, minimum-norm x = A^T y with A A^T y = b when underdetermined.
 
 #### Utils (`numeric_solver/utils.py`)
 
 **Key Functions:**
 - `generate_initial_guesses(n_vars, user_guesses=None)`: Generate diverse starting points including origin, unit vectors, pi-related values, and 20 random points in [-10, 10]
-- `deduplicate_solutions(solutions, variables, tolerance=1e-6)`: Remove near-duplicate solutions and format as list of dictionaries
+- `deduplicate_solutions(solutions, variables, tolerance=1e-4, residuals=None)`: Remove near-duplicate solutions (values match when |a - b| <= tolerance * (1 + max(|a|, |b|))), keeping the smallest-residual member of each cluster, and format as list of dictionaries
 
 ### Name Generators
 
@@ -3455,7 +3468,7 @@ Dependencies:
 - `default_color`: Default color for canvas elements ("black")
 - `default_font_size`: Default font size for text elements (16)
 - `point_label_font_size`: Font size for point labels (5/8 ratio of default)
-- `successful_call_message`: Success message for function calls ("Call successful!")
+- `successful_call_message`: Success message for function calls ("Call successful!"); canvas-mutating tools still return their value instead when it is a non-empty string or a dict of at most 2000 characters of JSON
 - `double_click_threshold_s`: Maximum time between clicks for double-click detection (0.2 seconds)
 - `DEFAULT_ANGLE_COLOR`: Default color for angle indicators ("blue")
 - `DEFAULT_ANGLE_ARC_SCREEN_RADIUS`: Arc radius in pixels for angle indicators (15)
@@ -3644,93 +3657,54 @@ Attributes:
 
 **Key Methods:**
 - `__init__(workspaces_dir=WORKSPACES_DIR)`: Initialize the workspace manager with base directory
-- `save_workspace(state, name=None, test_dir=None)`: Save workspace state to file with metadata
+- `save_workspace(state, name=None, test_dir=None)`: Save workspace state to file with metadata. Writes are atomic (temporary file in the same directory, then `os.replace`), and the previous version of an overwritten workspace is kept as `<name>.json.bak`
 - `load_workspace(name=None, test_dir=None)`: Load workspace state from file
+- `list_workspaces(test_dir=None)`: List saved workspace names (backups, temp files and the trash directory are skipped)
+- `delete_workspace(name, test_dir=None)`: Move the workspace file to `workspaces/.trash/` under a timestamped name; returns False for unsafe or missing names
 
-### OpenAI API Integration (`static/openai_api.py`)
+### Provider API Base (`static/openai_api_base.py`)
 
 **File Header:**
 ```
-MatHud OpenAI API Integration
+MatHud OpenAI API Base Module
 
-Manages OpenAI API communication with chat completions, vision support, and tool calling.
-Handles conversation history, message formatting, and model configuration.
-
-Key Features:
-    - Chat completions with OpenAI GPT models
-    - Vision-enabled conversations with canvas image analysis
-    - Tool calling for mathematical operations and canvas manipulation
-    - Conversation history management with token optimization
-    - Message content preparation with multimodal support
-    - Canvas state cleaning for memory efficiency
-
-Communication Flow:
-    - User message processing with optional canvas vision
-    - API request formation with conversation context
-    - Response handling with tool call extraction
-    - Conversation history updates and cleanup
-    - Token optimization through state removal
-
-Vision Integration:
-    - Canvas screenshot encoding for AI analysis
-    - Base64 image data embedding in messages
-    - Vision toggle support for optional image inclusion
-    - Model capability checking for vision features
-
-Tool Calling Support:
-    - Mathematical function execution coordination
-    - Canvas operation tool definitions
-    - Tool response message formatting
-    - Client-side tool execution integration
-
-Message Management:
-    - Conversation history persistence
-    - Canvas state removal for token efficiency
-    - Image data cleanup after processing
-    - Error response generation and handling
-
-Dependencies:
-    - openai: OpenAI API client library
-    - dotenv: Environment variable loading for API keys
-    - base64: Image encoding for vision requests
-    - json: Message parsing and formatting
-    - os: Environment variable access
-    - static.functions_definitions: AI tool definitions
-    - static.ai_model: Model configuration and capabilities
+Base class for OpenAI API implementations providing shared functionality
+for both Chat Completions and Responses APIs.
 ```
 
-**Class Documentation:**
-```
-OpenAI API integration for chat completions with vision and tool calling support.
+`OpenAIAPIBase` is also the base of the Anthropic, OpenRouter and LocalAgent providers in `static/providers/`. `OpenAIChatCompletionsAPI` (`static/openai_completions_api.py`) and `OpenAIResponsesAPI` (`static/openai_responses_api.py`, reasoning models, keeps turns server-side via `previous_response_id`) are the OpenAI implementations.
 
-Manages conversation history, handles vision-enabled messages with image data,
-and processes tool calls for mathematical operations and canvas manipulation.
-
-Attributes:
-    client (OpenAI): OpenAI API client instance
-    model (AIModel): Current AI model configuration
-    temperature (float): Response randomness setting
-    max_tokens (int): Maximum response length
-    tools (list): Available function definitions for tool calling
-    messages (list): Conversation history with role-based messages
-    DEV_MSG (str): System message defining AI behavior and capabilities
-```
+**Responsibilities:**
+- Conversation history, system prompt (`build_developer_message(canvas_format)` describes how the canvas is presented), and vision/attached-image message content.
+- Tool exposure: `MATHUD_TOOL_EXPOSURE=search` (default) starts the model with `search_tools` plus the essentials (`undo`, `redo`, `get_current_canvas_state`) and injects further tools after `search_tools` returns; `full` sends every tool up front.
+- Canvas rendering: with `MATHUD_CANVAS_FORMAT` `text` (default) or `min_json`, each user message becomes a `<canvas>` block rendered by `canvas_state_formatter` followed by the user's text; `json` sends the whole prompt JSON, summarized per `AI_CANVAS_SUMMARY_MODE`. `MATHUD_CANVAS_BUDGET_TOKENS` overrides the canvas token budget (default 4000 for cloud providers, 1500 for local ones, `0` = unlimited). Older user messages lose their canvas block; the latest keeps it.
+- Tool results: each result is written into the tool message of its own call, matched by tool-call id (falling back to call order; the legacy combined-dict shape is still accepted). Unanswered calls are marked as errors. After a tool batch, `[canvas changes]` (or `[canvas now]`) is appended to the batch's last tool message, and `get_current_canvas_state` results are rendered in the configured format.
 
 **Key Methods:**
-- `_initialize_api_key()`: Initialize the OpenAI API key from environment or .env file (static method)
-- `__init__(model=None, temperature=0.2, tools=FUNCTIONS, max_tokens=32000)`: Initialize OpenAI API client and conversation state
-- `get_model()`: Get the current AI model instance
-- `set_model(identifier)`: Set the AI model by identifier string
-- `_remove_canvas_state_from_user_messages()`: Remove canvas state from the last user message in conversation history
-- `_remove_images_from_user_messages()`: Remove image content from the last user message in conversation history
-- `_clean_conversation_history()`: Clean up conversation history by removing canvas states and images
-- `_create_enhanced_prompt_with_image(user_message)`: Create enhanced prompt with both text and base64 encoded image
-- `_prepare_message_content(full_prompt)`: Prepare message content with optional canvas image for vision-enabled messages
-- `_create_assistant_message(response_message)`: Create assistant message from API response message
-- `_create_error_response(error_message)`: Create error response matching OpenAI's response structure
-- `_create_tool_message(tool_call_id, content)`: Create tool message in response to a tool call
-- `_append_tool_messages(tool_calls)`: Create and append tool messages for each tool call
-- `create_chat_completion(full_prompt)`: Create chat completion with OpenAI API (main entry point)
+- `__init__(...)`: Initialize the client, model, tools and conversation state
+- `get_model()` / `set_model(identifier)`: Get or switch the AI model
+- `get_tool_mode()` / `set_tool_mode(mode)`: Get or set `"search"` or `"full"` tool exposure
+- `inject_tools(tools, include_essentials=True)` / `reset_tools()` / `has_injected_tools()`: Manage tools loaded by `search_tools`
+- `create_chat_completion(full_prompt)` / `create_chat_completion_stream(full_prompt)`: Send a prompt (implemented by subclasses)
+- `record_tool_call_result(tool_call_id, content)`: Write one tool result into its placeholder tool message
+- `reset_conversation()`: Clear history and the last canvas state shown to the model
+- `add_partial_assistant_message(content)`: Keep a partially streamed reply in history
+- `_prepare_message_content(full_prompt)`: Build the user message content for the configured canvas format (private)
+- `_append_canvas_changes(canvas_state)`: Append the post-batch canvas report to the last tool message (private)
+
+### Canvas State Formatter (`static/canvas_state_formatter.py`)
+
+Pure module (no Flask, no I/O) that turns `Canvas.get_canvas_state()` output into prompt text. See `documentation/development/canvas_prompt_summary_rollout.md` for examples and measurements.
+
+**Key Functions:**
+- `render_text(state, budget_tokens=None)`: One object per line in math notation (`AB = Segment(A, B)  len 4`) with facts computed from the coordinates: segment/vector lengths, polygon sides, area and type, circle/ellipse area and the named points a circle passes through, angle sizes, arc sweeps, graph edges with weights. Numbers keep at most 6 significant digits with float noise snapped; only non-default styles are shown; unknown buckets and args fall back to compact JSON; duplicate names get a warning line. With a budget, points are packed several per line and the least important objects are listed as omitted with a pointer to `get_current_canvas_state`
+- `render_min_json(state)`: The state as JSON with render-only fields, defaults and float noise removed
+- `render_delta(previous, current)`: Per-object changes (`+` added, `~` changed, `-` removed), compared by rendered line
+- `render_state(state, fmt, budget_tokens=None)`: Dispatch on a `CanvasFormat` (`"text"`, `"min_json"`, `"json"`)
+- `render_update(...)`: What to tell the model after a tool batch: `[canvas changes]`, or `[canvas now]` with the full canvas when the delta would be larger
+- `parse_canvas_format(raw)`: Validate a `MATHUD_CANVAS_FORMAT` value
+
+Token counts come from `static/token_estimation.py` (`estimate_tokens_from_text` counts one token per digit, matching the default local model's tokenizer).
 
 ### AI Function Definitions (`static/functions_definitions.py`)
 
@@ -3738,11 +3712,11 @@ Attributes:
 ```
 MatHud AI Function Definitions
 
-Comprehensive set of 40+ AI function definitions for mathematical operations and canvas manipulation.
+Comprehensive set of 90+ AI function definitions for mathematical operations and canvas manipulation.
 Provides OpenAI tool calling schema for geometric shapes, calculations, transformations, and workspace management.
 
 Categories:
-    - Canvas Operations: reset, clear, undo, redo, run_tests, zoom_to_bounds
+    - Canvas Operations: reset, clear, undo, redo, run_tests, zoom
     - Geometric Shapes: points, segments, vectors, triangles, rectangles, circles, ellipses, angles
     - Mathematical Functions: plotting, colored areas, bounded regions
     - Calculations: expressions, trigonometry, algebra, calculus
@@ -3757,9 +3731,29 @@ Dependencies:
 **Key Components:**
 - `FUNCTIONS`: Complete list of OpenAI function definitions with JSON schema
 - Function categories: Canvas operations, geometric shapes, mathematical functions, calculations, transformations, workspace management
-- `zoom_to_bounds`: Canvas zoom box tool that fits the viewport to explicit math bounds
+- `zoom`: Canvas zoom tool that centers the viewport on a point with a half-range along one axis
 - Parameter validation: Strict JSON schema enforcement for all function arguments
 - Type safety: Required parameters and type checking for robust AI integration
+
+_Note: the module docstring still says "40+" and lists `zoom_to_bounds`; `FUNCTIONS` currently holds 92 definitions and the zoom tool is `zoom`._
+
+#### Tool Quick Reference
+
+Tools whose implementation appears in this manual under a different name (Canvas, MathUtils, or FunctionRegistry methods) or not at all; the tool name is the key in `FunctionRegistry`:
+- `reset_canvas()`: Reset the view (zoom and offset) to the default. Calls `Canvas.reset`
+- `clear_canvas()`: Delete every drawable on the canvas. Calls `Canvas.clear`
+- `zoom(center_x, center_y, range_val, range_axis)`: Center the view on a point and show +/- `range_val` along the `x` or `y` axis; the other axis follows the aspect ratio
+- `get_current_canvas_state(drawable_types=None, object_names=None, include_computations=True)`: Return the canvas state without modifying it, optionally filtered by drawable collection (case-insensitive, singular or plural) or object names. With the `text`/`min_json` canvas formats the result is rendered like the user-message canvas block but never shortened, so it can recover objects listed as omitted
+- `update_point(point_name, new_name=None, new_x=None, new_y=None, new_color=None)`: Rename, move, or recolor a solitary point
+- `draw_piecewise_function(pieces, name=None, color=None)` / `update_piecewise_function(name, new_color=None)` / `delete_piecewise_function(name)`: Create, recolor, or delete a piecewise function; see the Canvas key methods for the piece format
+- `evaluate_linear_algebra_expression(objects, expression)`: Evaluate a math.js expression over named scalars, vectors, and matrices (`objects` is a list of `{name, value}`), e.g. `inv(A) * B`, `det(A)`, `transpose(A)`
+- `integrate(expression, variable, lower_bound=None, upper_bound=None)`: Symbolic indefinite or definite integral (`MathUtils.integral`); definite integrals across an interior singularity return an improper/divergent-integral error
+- `numeric_integrate(expression, variable, lower_bound, upper_bound, method="simpson", steps=200)`: Numeric definite integral over finite bounds (`trapezoid`, `midpoint`, `simpson`; steps <= 10000) returning `value`, `error_estimate`, `steps`, and an optional `warning` near endpoint singularities
+- `create_region_colored_area(expression=None, ...)`: Fill a region given by a boolean shape expression (`&`, `|`, `-`, `^`) or a single closed shape, optionally cut by a chord segment
+- `calculate_area(expression)`: Area of a shape or boolean region expression over drawable names (e.g. `'circle_A & triangle_ABC'`, `'C(5) & AB'` for a circle cut by segment AB). Returns `{"type": "area", "value": ...}` or `{"type": "error", "value": ...}`
+- `set_coordinate_system(mode)`: Switch the grid between `cartesian` and `polar`
+- `convert_coordinates(coord1, coord2, from_system, to_system)`: Convert between rectangular (or `cartesian`) and polar coordinates; returns `{r, theta, theta_degrees}` or `{x, y}` (theta in radians)
+- `set_grid_visible(visible)`: Show or hide the active grid without changing the coordinate system
 
 ### Tool Search Service (`static/tool_search_service.py`)
 
@@ -3775,6 +3769,7 @@ Provides tool discovery via fast local keyword/category matching (default) or AI
 - Multi-signal scoring: category boost, name index match, description index match, exact tool name match, action-verb alignment, and intent-based disambiguation boosts
 - LRU result cache with 5-minute TTL (100 entries max)
 - Lazy OpenAI client initialization — local mode never touches the network
+- Destructive tools (`delete_*`, `clear_*`, `reset_*`) rank after every other match unless the query contains a destructive verb, and `run_tests` is only offered when the query mentions tests
 
 **Class: ToolSearchService**
 
@@ -3791,6 +3786,7 @@ Module-level Functions:
 
 **Environment Variables:**
 - `TOOL_SEARCH_MODE`: Search mode selection (`local`, `api`, or `hybrid`; default: `hybrid`)
+- `MATHUD_TOOL_EXPOSURE` (read by the providers, not this module): `search` (default) starts the model with `search_tools` and essentials; `full` exposes every tool, so no search is needed
 
 ### Flask Application Manager (`static/app_manager.py`)
 
@@ -3803,7 +3799,7 @@ Manages dependency injection for AI API, WebDriver, workspace operations, and lo
 
 Dependencies:
     - Flask: Web framework core
-    - static.openai_api: OpenAI API integration
+    - static.openai_completions_api: OpenAI Chat Completions API integration
     - static.webdriver_manager: Selenium WebDriver for vision system
     - static.workspace_manager: Workspace file operations
     - static.log_manager: Application logging
@@ -3858,6 +3854,7 @@ Dependencies:
 - `@app.route('/list_workspaces', methods=['GET'])`: List all saved workspaces
 - `@app.route('/delete_workspace', methods=['POST'])`: Delete workspace by name (JSON body `{"name": ...}`; deleted files move to `.trash/`)
 - `@app.route('/send_message', methods=['POST'])`: Process AI chat messages with tool calling support
+- `@app.route('/api/available_models', methods=['GET'])`: Models of the providers that are available (API key set, or local server reachable)
 
 **Key Functions:**
 - `register_routes(app)`: Register all routes with the Flask application instance
@@ -3888,7 +3885,8 @@ Logs user messages, AI responses, tool calls, and system events.
 ```
 
 **Key Methods:**
-- `__init__(logs_dir='./logs/')`: Initialize LogManager with specified logs directory
+- `__init__(logs_dir='./logs/')`: Initialize LogManager with specified logs directory; on startup only the newest `MAX_LOG_FILES` (50) session logs are kept
+- `prune_old_log_files(logs_dir, keep=MAX_LOG_FILES, current_file_name=None)`: Delete older session logs (module function)
 - `_get_log_file_name()`: Get date-based log filename (private method)
 - `_setup_logging()`: Initialize logging configuration with daily rotation (private method)
 - `log_new_session()`: Log new session delimiter with timestamp
@@ -3942,7 +3940,7 @@ error recovery, and resource cleanup.
 ```
 MatHud AI Model Configuration
 
-AI model definitions and capability management for multiple providers (OpenAI, Anthropic, OpenRouter).
+AI model definitions and capability management for multiple providers (OpenAI, Anthropic, OpenRouter, LocalAgent).
 Handles model-specific features like vision support, reasoning mode, and display names.
 Provides factory methods for creating model instances from identifiers.
 
@@ -3961,6 +3959,7 @@ Supported Providers:
     - PROVIDER_OPENAI ("openai"): GPT-5.6 (Sol/Terra/Luna), GPT-5.5, GPT-5.2, GPT-4.1 family, GPT-4o mini
     - PROVIDER_ANTHROPIC ("anthropic"): Claude Fable 5, Claude Opus 4.8, Claude Sonnet 5, Claude Haiku 4.5
     - PROVIDER_OPENROUTER ("openrouter"): Gemini, DeepSeek, Qwen, GLM, Grok, MiniMax, Llama, Gemma, and more (paid and free tiers)
+    - PROVIDER_LOCAL_AGENT ("local_agent"): whichever model the local llama-server reports from /v1/models (registered at runtime)
 ```
 
 **Key Methods:**
@@ -3975,32 +3974,34 @@ Supported Providers:
 - `id`: Model identifier string
 - `has_vision`: Boolean indicating vision capability support
 - `is_reasoning_model`: Boolean indicating if model uses reasoning API (OpenAI Responses API)
-- `provider`: Provider string (`"openai"`, `"anthropic"`, or `"openrouter"`)
+- `provider`: Provider string (`"openai"`, `"anthropic"`, `"openrouter"`, or `"local_agent"`)
 - `display_name`: Human-readable label shown in the model dropdown
 
 ### Provider Registry (`static/providers/`)
 
 **Architecture:**
 ```
-Multi-provider AI API backend supporting OpenAI, Anthropic, and OpenRouter.
+Multi-provider AI API backend supporting OpenAI, Anthropic, OpenRouter, and LocalAgent.
 
 Key Components:
-    - ProviderRegistry: Detects available providers by checking environment variables
-    - OpenAIChatCompletionsAPI: OpenAI Chat Completions and Responses API
+    - ProviderRegistry: Detects available providers (API keys, or a reachable local server)
+    - OpenAIChatCompletionsAPI / OpenAIResponsesAPI: OpenAI Chat Completions and Responses API
     - AnthropicAPI: Anthropic Messages API for Claude models
     - OpenRouterAPI: OpenRouter-compatible API for third-party models
+    - LocalAgent (providers/local/): llama.cpp llama-server (or any OpenAI-compatible /v1 server); the default provider
 
 Provider Detection:
     - OPENAI_API_KEY → OpenAI provider available
     - ANTHROPIC_API_KEY → Anthropic provider available
     - OPENROUTER_API_KEY → OpenRouter provider available
+    - Server answering at LOCAL_AGENT_BASE_URL (default http://127.0.0.1:8080) → LocalAgent available
 
 The model dropdown in the UI is populated dynamically via GET /api/available_models,
-which returns only models for providers with configured API keys.
+which returns only models for available providers.
 ```
 
 **Key Methods (ProviderRegistry):**
-- `is_provider_available(provider_name)`: Check if a provider has an API key configured
+- `is_provider_available(provider_name)`: Check if a provider has an API key configured (local providers: whether the server is reachable)
 - `get_available_providers()`: Return set of all available provider names
 - `create_api(provider_name, model)`: Factory method to instantiate the correct API client
 
@@ -4104,6 +4105,9 @@ Highlights:
 1. `_resolve_cartesian_plan` and `_resolve_drawable_plan` reuse cached `OptimizedPrimitivePlan` instances when signatures match, recording telemetry whenever a rebuild occurs.
 2. `_initialize_layer_state` toggles offscreen compositing based on `window.MatHudCanvas2DOffscreen` or `localStorage["mathud.canvas2d.offscreen"]`.
 3. `_flush_offscreen_to_main` copies the offscreen buffer back to the primary surface, while `begin_frame`/`end_frame` and telemetry accessors expose layer metrics.
+4. The bitmap is sized to the container's client area times `window.devicePixelRatio`, with a matching context transform, so output is sharp on HiDPI screens while culling and drawing stay in CSS pixels.
+5. Canvas2D draws all shapes and labels; the SVG element stays underneath only as the pointer-event surface.
+6. Function plans are sampled half a screen beyond each edge (`function_view_margin`) and reprojected while panning within that margin; parametric plans are reprojected on every pan, and pure pans shift cached plan bounds instead of rescanning them.
 
 #### Renderables (`rendering/function_renderable.py`, etc.)
 
@@ -4141,7 +4145,7 @@ Key points:
 
 #### Primitive Adapters
 
-- **Canvas2D (`rendering/canvas2d_primitive_adapter.py`)**: Prepares fill and stroke batches, flushes polygons before line work, and reuses cached text brush settings.
+- **Canvas2D (`rendering/canvas2d_primitive_adapter.py`)**: Prepares fill and stroke batches, flushes polygons before line work, and reuses cached text brush settings. Batched polylines and polygons are traced by the JavaScript helpers in `static/canvas2d_paths.js` (`window.MatHudStrokePaths` and related functions, loaded by `templates/index.html`), with a pure-Python fallback when they are unavailable.
 - **SVG (`rendering/svg_primitive_adapter.py`)**: Manages DOM pooling and re-parenting so cached plans can reuse existing nodes (see module for details).
 
 #### Rendering Helpers (`rendering/helpers/`)
@@ -4260,7 +4264,7 @@ The server-side testing uses pytest and focuses on Flask application components 
 
 In addition to server-specific suites, the runner also executes CPython-based regression tests for client renderer classes located in `server_tests/client_renderer/`, using lightweight browser stubs to exercise `static/client` code directly from pytest.
 
-The server tests are organized in the `server_tests/`
+The server tests are organized in the `server_tests/` directory. For a lightweight environment without the text-to-speech stack, install `requirements-ci.txt` (the CI package list); the TTS tests are then skipped.
 
 ### Graph and Tree Tools
 - `generate_graph(name?, graph_type, vertices, edges, adjacency_matrix?, directed?, root?, layout?, placement_box?)`: Programmatically place a graph, tree, or DAG on the canvas.
@@ -4277,8 +4281,9 @@ Key behaviors:
 1. **Graph types**: `graph` (general), `tree` (rooted), `dag` (directed acyclic graph).
 2. **Vertices**: You can provide explicit coordinates per vertex, or omit them and let the layout engine place vertices automatically.
 3. **Edges**: Edges reference vertices by index (0-based) in the provided vertices list. If you provide an adjacency matrix instead, row/column order follows that same vertex order.
-4. **Placement box**: `placement_box` is in math coordinates (y increases upward). It constrains the layout so the graph lands in a predictable region.
-5. **Layout**: `layout` is a hint. Supported modes include `tree`/`hierarchical`, `radial`, `circular`, `grid`, and `force`. Trees default to a top-down tree layout unless you explicitly request `radial`.
+4. **Vertex names**: A requested vertex `name` (e.g. `GA`) is used as given when it is not already taken by another point; otherwise a name is generated.
+5. **Placement box**: `placement_box` is in math coordinates (y increases upward). It constrains the layout so the graph lands in a predictable region.
+6. **Layout**: `layout` is a hint. Supported modes include `tree`/`hierarchical`, `radial`, `circular`, `grid`, and `force`. Trees default to a top-down tree layout unless you explicitly request `radial`.
 
 #### Analysis (`analyze_graph`)
 Supported `operation` values:
@@ -4288,12 +4293,17 @@ Supported `operation` values:
 4. Geometry on graph vertices: `convex_hull`, `point_in_hull`
 
 Common `params` usage (high-level):
-1. `shortest_path`: requires `start` and `goal` (use the vertex names you see on the canvas, like `A` and `D`). If any weights exist, the shortest path uses weighted cost.
+1. `shortest_path`: requires `start` and `goal` (use the vertex names you see on the canvas, like `A` and `D`). If any weights exist, the shortest path uses weighted cost. Negative weights are supported on directed graphs (Bellman-Ford); negative weights on an undirected graph, or a negative cycle reachable from `start`, return `{"error": ...}`.
 2. `bfs` / `dfs`: use `start`.
 3. `levels`: uses `root` (or the stored tree root).
 4. `lca`: uses `root`, `a`, `b`.
 5. `reroot`: uses `new_root` (and optionally `root`).
 6. `point_in_hull`: uses numeric `x` and `y`.
+
+Directed and disconnected graphs:
+1. `mst` on a disconnected graph returns a minimum spanning forest with `connected: false` and a note.
+2. `bridges`, `articulation_points`, and `bipartite` on directed graphs use the underlying undirected graph.
+3. `euler_status` on directed graphs uses in/out-degree balance.
 
 Return data:
 1. Operations return structured data like `path`, `cost`, `edges`, `order`, `levels`, etc.
