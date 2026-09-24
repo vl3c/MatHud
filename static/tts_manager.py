@@ -23,7 +23,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import threading
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import Future
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 if TYPE_CHECKING:
@@ -63,8 +63,9 @@ class TTSManager:
         self._pipeline: Optional[object] = None
         self._pipeline_error: Optional[str] = None
         self._pipeline_lock = threading.Lock()
-        # Thread pool for non-blocking TTS generation (allows Ctrl+C to work)
-        self._executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=1)
+        # Generation runs on daemon threads (so Ctrl+C works and a slow first
+        # model load cannot keep the process alive), one request at a time.
+        self._generation_lock = threading.Lock()
 
     def _get_pipeline(self) -> Tuple[bool, Union[object, str]]:
         """Get or create the Kokoro pipeline (thread-safe, created at most once).
@@ -223,12 +224,32 @@ class TTSManager:
         if not self.is_loaded():
             timeout += self.PIPELINE_LOAD_TIMEOUT
         try:
-            future: Future[Tuple[bool, Union[bytes, str]]] = self._executor.submit(self.generate_speech, text, voice)
+            future = self._start_generation(text, voice)
             return future.result(timeout=timeout)
         except TimeoutError:
             return False, "TTS generation timed out"
         except Exception as e:
             return False, f"TTS generation failed: {e}"
+
+    def _start_generation(self, text: str, voice: Optional[str]) -> Future[Tuple[bool, Union[bytes, str]]]:
+        """Run ``generate_speech`` on a new daemon thread and return its future.
+
+        ThreadPoolExecutor workers are joined at interpreter exit, so a model
+        load still running when the app closes would keep the process alive.
+        """
+        future: Future[Tuple[bool, Union[bytes, str]]] = Future()
+
+        def run() -> None:
+            with self._generation_lock:
+                if not future.set_running_or_notify_cancel():
+                    return
+                try:
+                    future.set_result(self.generate_speech(text, voice))
+                except BaseException as e:
+                    future.set_exception(e)
+
+        threading.Thread(target=run, name="mathud-tts", daemon=True).start()
+        return future
 
     def _audio_to_wav(self, audio: np.ndarray, sample_rate: int) -> bytes:
         """Convert audio array to WAV format bytes.
