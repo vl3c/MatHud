@@ -309,7 +309,9 @@ def _intercept_search_tools(
             if provider is not None and provider not in (app.ai_api, app.responses_api):
                 provider.inject_tools(result, include_essentials=True)
 
-        return _filter_tool_calls_by_allowed_names(tool_calls, allowed_names)
+        filtered_calls = _filter_tool_calls_by_allowed_names(tool_calls, allowed_names)
+        _report_dropped_tool_calls(app, provider, tool_calls, filtered_calls)
+        return filtered_calls
 
     except Exception:
         _logger.exception("search_tools interception failed; returning original tool calls")
@@ -386,6 +388,31 @@ def _filter_tool_calls_by_allowed_names(
         if _tool_call_name(call) in allowed_names:
             filtered_calls.append(call)
     return filtered_calls
+
+
+def _report_dropped_tool_calls(
+    app: MatHudFlask,
+    provider: Optional[OpenAIAPIBase],
+    tool_calls: List[Dict[str, Any]],
+    filtered_calls: List[Dict[str, Any]],
+) -> None:
+    """Answer each filtered-out tool call with an explicit error instead of dropping it silently.
+
+    The provider already holds a placeholder tool message for every call it returned, so
+    the error is written there; the client never sees (or executes) the dropped call.
+    """
+    apis = [app.ai_api, app.responses_api]
+    if provider is not None and provider not in apis:
+        apis.append(provider)
+    for call in tool_calls:
+        if any(call is kept for kept in filtered_calls):
+            continue
+        name = _tool_call_name(call) or "unknown"
+        message = f"Error: tool '{name}' is not loaded; call search_tools first to load it."
+        _logger.warning("Dropped call to tool '%s' that is not loaded by search_tools", name)
+        tool_call_id = call.get("id")
+        for api in apis:
+            api.record_tool_call_result(tool_call_id, message)
 
 
 def _maybe_inject_search_tools(api: OpenAIAPIBase, tool_call_results: str) -> None:
