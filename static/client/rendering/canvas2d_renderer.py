@@ -416,11 +416,9 @@ class Canvas2DRenderer(RendererProtocol):
                 document <= canvas_el
             else:
                 container <= canvas_el
-        container = getattr(canvas_el, "parentElement", None)
-        rect = container.getBoundingClientRect() if hasattr(container, "getBoundingClientRect") else None
-        if rect:
-            pixel_width = int(rect.width)
-            pixel_height = int(rect.height)
+        size = self._container_client_size(getattr(canvas_el, "parentElement", None))
+        if size is not None:
+            pixel_width, pixel_height = size
             canvas_el.width = pixel_width
             canvas_el.height = pixel_height
             canvas_el.attrs["width"] = str(pixel_width)
@@ -435,14 +433,31 @@ class Canvas2DRenderer(RendererProtocol):
         canvas_el.style.zIndex = "10"
         return canvas_el
 
+    def _container_client_size(self, container: Any) -> Optional[Tuple[int, int]]:
+        """Return the container's inner (border-excluded) size in whole CSS pixels.
+
+        clientWidth/clientHeight match the 100%-sized SVG surface the coordinate
+        mapper uses; the bounding rect would include the container border.
+        """
+        if container is None:
+            return None
+        width = getattr(container, "clientWidth", None)
+        height = getattr(container, "clientHeight", None)
+        if width and height:
+            return int(width), int(height)
+        if hasattr(container, "getBoundingClientRect"):
+            rect = container.getBoundingClientRect()
+            return int(round(rect.width)), int(round(rect.height))
+        return None
+
     def _resize_to_container(self) -> None:
-        container = getattr(self.canvas_el, "parentElement", None)
-        if container is None or not hasattr(container, "getBoundingClientRect"):
+        size = self._container_client_size(getattr(self.canvas_el, "parentElement", None))
+        if size is None:
             return
-        rect = container.getBoundingClientRect()
-        if rect.width != self.canvas_el.width or rect.height != self.canvas_el.height:
-            pixel_width = int(rect.width)
-            pixel_height = int(rect.height)
+        pixel_width, pixel_height = size
+        # Compare whole pixels: assigning width/height clears the bitmap, so
+        # fractional container sizes must not trigger a reset every frame.
+        if pixel_width != int(self.canvas_el.width) or pixel_height != int(self.canvas_el.height):
             self.canvas_el.width = pixel_width
             self.canvas_el.height = pixel_height
             self.canvas_el.attrs["width"] = str(pixel_width)

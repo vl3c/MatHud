@@ -11,6 +11,36 @@ from rendering import canvas2d_renderer
 from .renderer_fixtures import CanvasContextRecorder, PlanStub, TelemetryRecorder
 
 
+class _CountingCanvas:
+    """Canvas element double that counts bitmap size assignments (each one clears a real canvas)."""
+
+    def __init__(self, width: int, height: int, parent: object) -> None:
+        self._width = width
+        self._height = height
+        self.parentElement = parent
+        self.attrs: dict = {}
+        self.style = SimpleNamespace(width="", height="")
+        self.size_assignments = 0
+
+    @property
+    def width(self) -> int:
+        return self._width
+
+    @width.setter
+    def width(self, value: int) -> None:
+        self.size_assignments += 1
+        self._width = value
+
+    @property
+    def height(self) -> int:
+        return self._height
+
+    @height.setter
+    def height(self, value: int) -> None:
+        self.size_assignments += 1
+        self._height = value
+
+
 class TestCanvas2DRendererPlan(unittest.TestCase):
     def setUp(self) -> None:
         self.original_build_plan = canvas2d_renderer.build_plan_for_cartesian
@@ -157,6 +187,33 @@ class TestCanvas2DRendererPlan(unittest.TestCase):
         mapper.canvas_width = 1200
 
         self.assertNotEqual(renderer._compute_drawable_signature(function, mapper), before)
+
+    def _make_sized_canvas(self, width: int, height: int) -> "_CountingCanvas":
+        container = SimpleNamespace(
+            clientWidth=752,
+            clientHeight=878,
+            getBoundingClientRect=lambda: SimpleNamespace(width=754.4, height=880.4),
+        )
+        return _CountingCanvas(width, height, container)
+
+    def test_resize_uses_container_client_size(self) -> None:
+        renderer = self._make_renderer()
+        renderer.canvas_el = self._make_sized_canvas(300, 150)
+
+        renderer._resize_to_container()
+
+        self.assertEqual((renderer.canvas_el.width, renderer.canvas_el.height), (752, 878))
+        self.assertEqual(renderer.canvas_el.style.width, "752px")
+        self.assertEqual(renderer.canvas_el.style.height, "878px")
+
+    def test_resize_does_not_reset_bitmap_when_size_is_unchanged(self) -> None:
+        renderer = self._make_renderer()
+        renderer.canvas_el = self._make_sized_canvas(752, 878)
+
+        renderer._resize_to_container()
+        renderer._resize_to_container()
+
+        self.assertEqual(renderer.canvas_el.size_assignments, 0)
 
     def test_flush_offscreen_draws_back_to_main_canvas(self) -> None:
         renderer = self._make_renderer()
