@@ -287,6 +287,10 @@ def _intercept_search_tools(
     if search_tools_call is None:
         return tool_calls  # No search_tools, return as-is
 
+    active_provider = provider or app.ai_api
+    if active_provider.get_tool_mode() == "full":
+        return tool_calls  # Every tool is already loaded; nothing to inject or filter
+
     query, max_results = _extract_search_query_and_limit(search_tools_call)
 
     if not query:
@@ -294,7 +298,6 @@ def _intercept_search_tools(
 
     # Execute search_tools server-side using the current provider's client/model
     try:
-        active_provider = provider or app.ai_api
         service = ToolSearchService(
             client=active_provider.client,
             default_model=active_provider.get_model(),
@@ -426,6 +429,8 @@ def _maybe_inject_search_tools(api: OpenAIAPIBase, tool_call_results: str) -> No
         api: The OpenAI API instance to inject tools into.
         tool_call_results: JSON string containing tool call results.
     """
+    if api.get_tool_mode() == "full":
+        return  # Every tool is already loaded; injecting would shrink the set
     tools = _extract_injectable_tools(tool_call_results)
     if tools:
         api.inject_tools(tools, include_essentials=True)

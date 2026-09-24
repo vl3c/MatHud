@@ -96,6 +96,39 @@ class TestDroppedToolCalls(unittest.TestCase):
 
         self.assertTrue(_tool_messages(provider)["call_d"].startswith("Error: tool 'delete_all' is not loaded"))
 
+    def test_full_tool_mode_keeps_every_call_and_the_full_tool_set(self) -> None:
+        from static.routes import _intercept_search_tools
+
+        for api in (self.app.ai_api, self.app.responses_api):
+            api.set_tool_mode("full")
+            _add_pending_turn(api)
+        full_count = len(self.app.ai_api.tools)
+
+        with patch("static.tool_search_service.ToolSearchService") as service_class:
+            service_class.return_value.search_tools.return_value = [{"function": {"name": "create_circle"}}]
+            result = _intercept_search_tools(self.app, [dict(c) for c in CALLS])
+
+        self.assertEqual([c["function_name"] for c in result], [c["function_name"] for c in CALLS])
+        self.assertEqual(len(self.app.ai_api.tools), full_count)
+        self.assertEqual(_tool_messages(self.app.ai_api)["call_d"], "Awaiting result...")
+
+    def test_full_tool_mode_ignores_search_results_from_the_client(self) -> None:
+        from static.routes import _maybe_inject_search_tools
+
+        api = self.app.ai_api
+        api.set_tool_mode("full")
+        full_count = len(api.tools)
+        results = [
+            {
+                "tool_call_id": "call_s",
+                "result": {"search_tools(query:circle)": {"query": "circle", "tools": [{"function": {"name": "x"}}]}},
+            }
+        ]
+        _maybe_inject_search_tools(api, json.dumps(results))
+
+        self.assertFalse(api.has_injected_tools())
+        self.assertEqual(len(api.tools), full_count)
+
 
 if __name__ == "__main__":
     unittest.main()
