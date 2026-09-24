@@ -97,6 +97,9 @@ def _matrix_inverse(A: List[List[float]]) -> List[List[float]]:
     # Create augmented matrix [A | I]
     aug: List[List[float]] = [row[:] + [1.0 if i == j else 0.0 for j in range(n)] for i, row in enumerate(A)]
 
+    # Pivots are judged relative to the matrix magnitude, not an absolute value
+    singular_tol = 1e-12 * max(abs(value) for row in A for value in row)
+
     # Forward elimination with partial pivoting
     for col in range(n):
         # Find pivot
@@ -107,7 +110,7 @@ def _matrix_inverse(A: List[List[float]]) -> List[List[float]]:
                 max_val = abs(aug[row][col])
                 max_row = row
 
-        if max_val < 1e-12:
+        if max_val <= singular_tol:
             raise ValueError("Matrix is singular or nearly singular")
 
         # Swap rows
@@ -348,6 +351,35 @@ def fit_linear(x_data: List[float], y_data: List[float]) -> RegressionResult:
     }
 
 
+def _expand_scaled_polynomial(t_coeffs: List[float], shift: float, scale: float) -> List[float]:
+    """Convert coefficients of p(t), t = (x - shift) / scale, to standard form in x.
+
+    Uses Horner's scheme on polynomials: p = (...(c_n * u + c_{n-1}) * u + ...) + c_0
+    where u = x / scale - shift / scale is a linear polynomial in x.
+    """
+    alpha = 1.0 / scale
+    beta = -shift / scale
+    result = [t_coeffs[-1]]
+    for c in reversed(t_coeffs[:-1]):
+        # result = result * (alpha * x + beta) + c
+        expanded = [0.0] * (len(result) + 1)
+        for k, r in enumerate(result):
+            expanded[k] += beta * r
+            expanded[k + 1] += alpha * r
+        expanded[0] += c
+        result = expanded
+    return result
+
+
+def _drop_round_off_coefficients(coeffs: List[float], x_data: List[float], y_data: List[float]) -> None:
+    """Zero coefficients whose largest contribution over the data is pure round-off."""
+    x_max = max(abs(x) for x in x_data)
+    y_max = max(abs(y) for y in y_data)
+    for k, coef in enumerate(coeffs):
+        if abs(coef) * x_max**k <= 1e-12 * y_max:
+            coeffs[k] = 0.0
+
+
 def fit_polynomial(x_data: List[float], y_data: List[float], degree: int) -> RegressionResult:
     """
     Fit polynomial model: y = a0 + a1*x + a2*x^2 + ... + an*x^n
@@ -360,23 +392,30 @@ def fit_polynomial(x_data: List[float], y_data: List[float], degree: int) -> Reg
     min_points = degree + 1
     _validate_data(x_data, y_data, min_points=min_points)
 
-    len(x_data)
+    # Fit in the centered and scaled variable t = (x - shift) / scale; raw
+    # powers of x are badly conditioned for large offsets or tiny ranges
+    shift = sum(x_data) / len(x_data)
+    scale = max(abs(x - shift) for x in x_data) or 1.0
+    t_data = [(x - shift) / scale for x in x_data]
 
-    # Build Vandermonde matrix
-    X: List[List[float]] = []
-    for x in x_data:
-        row = [x**j for j in range(degree + 1)]
-        X.append(row)
+    # Build Vandermonde matrix in t
+    T: List[List[float]] = []
+    for t in t_data:
+        row = [t**j for j in range(degree + 1)]
+        T.append(row)
 
     # Solve least squares
-    coeffs = _solve_least_squares(X, y_data)
+    t_coeffs = _solve_least_squares(T, y_data)
 
     # Calculate R-squared
     y_predicted = []
-    for x in x_data:
-        y_pred = sum(coeffs[j] * (x**j) for j in range(degree + 1))
+    for t in t_data:
+        y_pred = sum(t_coeffs[j] * (t**j) for j in range(degree + 1))
         y_predicted.append(y_pred)
     r_squared = calculate_r_squared(y_data, y_predicted)
+
+    coeffs = _expand_scaled_polynomial(t_coeffs, shift, scale)
+    _drop_round_off_coefficients(coeffs, x_data, y_data)
 
     coefficients = {f"a{i}": coeffs[i] for i in range(degree + 1)}
     expression = build_expression("polynomial", coefficients)

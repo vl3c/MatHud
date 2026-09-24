@@ -695,6 +695,48 @@ class TestNumericalStability(unittest.TestCase):
         self.assertAlmostEqual(result["coefficients"]["m"], 1.0, places=9)
         self.assertAlmostEqual(result["r_squared"], 1.0, places=9)
 
+    def test_cubic_fit_on_years_reproduces_data(self) -> None:
+        x = [float(year) for year in range(2000, 2011)]
+        y = [0.01 * (xi - 2005) ** 3 - (xi - 2005) + 50.0 for xi in x]
+        result = fit_polynomial(x, y, degree=3)
+        self.assertAlmostEqual(result["r_squared"], 1.0, places=9)
+        for xi, yi in zip(x, y):
+            self.assertAlmostEqual(_evaluate_expression(result["expression"], xi), yi, delta=1e-5)
+
+    def test_cubic_fit_on_large_x_recovers_standard_coefficients(self) -> None:
+        # y = (x - 2010)^3 = x^3 - 6030 x^2 + 12120300 x - 8120601000
+        x = [float(year) for year in range(2000, 2021)]
+        y = [(xi - 2010) ** 3 for xi in x]
+        result = fit_polynomial(x, y, degree=3)
+        coefficients = result["coefficients"]
+        expected = {"a0": -8120601000.0, "a1": 12120300.0, "a2": -6030.0, "a3": 1.0}
+        for key, value in expected.items():
+            self.assertTrue(math.isclose(coefficients[key], value, rel_tol=1e-6), f"{key}={coefficients[key]}")
+        self.assertAlmostEqual(result["r_squared"], 1.0, places=9)
+
+    def test_cubic_fit_on_tiny_x_range(self) -> None:
+        x = [i * 0.001 for i in range(10)]
+        y = [1.0 + 2.0 * xi + 3.0 * xi**2 + 4.0 * xi**3 for xi in x]
+        result = fit_polynomial(x, y, degree=3)
+        coefficients = result["coefficients"]
+        self.assertAlmostEqual(coefficients["a0"], 1.0, places=9)
+        self.assertAlmostEqual(coefficients["a1"], 2.0, places=6)
+        self.assertAlmostEqual(coefficients["a2"], 3.0, places=3)
+        self.assertAlmostEqual(coefficients["a3"], 4.0, places=0)
+        self.assertAlmostEqual(result["r_squared"], 1.0, places=9)
+
+    def test_polynomial_fit_drops_round_off_coefficients(self) -> None:
+        x = [-2.0, -1.0, 0.0, 1.0, 2.0]
+        y = [xi**2 for xi in x]
+        result = fit_polynomial(x, y, degree=2)
+        self.assertEqual(result["expression"], "(1)*x^2")
+
+    def test_matrix_inverse_uses_relative_pivot_threshold(self) -> None:
+        A = [[2e-13, 0.0], [0.0, 4e-13]]
+        A_inv = _matrix_inverse(A)
+        self.assertAlmostEqual(A_inv[0][0] * 2e-13, 1.0, places=10)
+        self.assertAlmostEqual(A_inv[1][1] * 4e-13, 1.0, places=10)
+
     def test_r_squared_is_scale_invariant(self) -> None:
         y_actual = [1.0, 2.0, 3.0, 4.0]
         y_predicted = [1.5, 2.0, 3.0, 3.5]
