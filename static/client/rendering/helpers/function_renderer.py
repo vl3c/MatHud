@@ -137,7 +137,7 @@ def _normalize_font_size(value):
     return size_float
 
 
-def _render_function_label(primitives, func, screen_paths, stroke, style):
+def _render_function_label(primitives, func, screen_paths, stroke, style, width=0):
     """Render the function name label near the curve start.
 
     Args:
@@ -146,13 +146,19 @@ def _render_function_label(primitives, func, screen_paths, stroke, style):
         screen_paths: Rendered paths for label positioning.
         stroke: StrokeStyle containing the function color.
         style: Style dictionary with font settings.
+        width: Canvas width; when positive the label is kept inside the canvas.
     """
     if not getattr(func, "name", "") or not screen_paths or not screen_paths[0]:
         return
     font_size = _normalize_font_size(style.get("function_label_font_size", 12))
     first_point = screen_paths[0][0]
     label_offset_x = (1 + len(func.name)) * font_size / 2.0
-    position = (first_point[0] - label_offset_x, max(first_point[1], font_size))
+    label_x = first_point[0] - label_offset_x
+    if width > 0:
+        # Curves usually start at the left edge, which pushed the label off-canvas.
+        text_width = len(func.name) * font_size * 0.6
+        label_x = max(4.0, min(label_x, width - text_width))
+    position = (label_x, max(first_point[1], font_size))
     font_family = style.get("function_label_font_family", style.get("font_family", default_font_family))
     font = FontStyle(family=font_family, size=font_size)
     primitives.draw_text(
@@ -188,4 +194,4 @@ def render_function_helper(primitives, func, coordinate_mapper, style):
     stroke = _build_stroke_style(func, style)
 
     _render_function_paths(primitives, screen_paths, stroke, width, height)
-    _render_function_label(primitives, func, screen_paths, stroke, style)
+    _render_function_label(primitives, func, screen_paths, stroke, style, width)
