@@ -164,6 +164,9 @@ class ExpressionValidator(ast.NodeVisitor):
         "root_test",
         "p_series_test",
     }
+    # Identifiers or number literals (with optional exponent), matched whole for implicit multiplication.
+    # Note: "[-+]" rather than "[+-]" -- Brython's re fails to match "e-5" with the latter.
+    _IMPLICIT_MULTIPLICATION_TOKEN = re.compile(r"[a-zA-Z_][a-zA-Z_0-9]*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
 
     def _is_allowed_node_type(self, node: ast.AST) -> bool:
         """
@@ -424,7 +427,9 @@ class ExpressionValidator(ast.NodeVisitor):
         expression = expression.replace("°", " deg")
         expression = expression.replace("degrees", " deg")
         expression = expression.replace("degree", " deg")
-        expression = re.sub(r"(\d+)\s*deg", lambda match: str(float(match.group(1)) * math.pi / 180), expression)
+        expression = re.sub(
+            r"(\d+(?:\.\d+)?)\s*deg", lambda match: str(float(match.group(1)) * math.pi / 180), expression
+        )
         return expression
 
     @staticmethod
@@ -506,7 +511,8 @@ class ExpressionValidator(ast.NodeVisitor):
     def _replace_function_names(expression: str) -> str:
         """Replace common mathematical function names with their Python equivalents"""
         replacements = ExpressionValidator._get_function_replacements()
-        for old, new in replacements.items():
+        # Longest names first so "sine(" doesn't clobber "arcsine(", "cosine(" or "hyperbolic sine("
+        for old, new in sorted(replacements.items(), key=lambda item: len(item[0]), reverse=True):
             expression = expression.replace(old, new)
         return expression
 
@@ -572,8 +578,17 @@ class ExpressionValidator(ast.NodeVisitor):
         expression = re.sub(r"log(\d+)", r"log[\1]", expression)
 
         # Step 2: Insert '*' between a number and a variable, function name, or parenthesis,
-        # excluding 'i' or 'j' immediately after a number
-        expression = re.sub(rf"(\d)(?!{imaginary_unit})([a-zA-Z_\(])", r"\1*\2", expression)
+        # excluding 'i' or 'j' immediately after a number. Identifiers (atan2, x1) and number
+        # literals with exponents (1e-5, 2.5E+3) are matched whole so they are never split.
+        def insert_operator(match: re.Match[str]) -> str:
+            token = match.group(0)
+            next_char = expression[match.end() : match.end() + 1]
+            is_number = token[0].isdigit() or token[0] == "."
+            if is_number and next_char != imaginary_unit and re.match(r"[a-zA-Z_\(]", next_char):
+                return token + "*"
+            return token
+
+        expression = re.sub(ExpressionValidator._IMPLICIT_MULTIPLICATION_TOKEN, insert_operator, expression)
 
         # Step 3: Revert "log" followed by any number back to its original form
         expression = re.sub(r"log\[(\d+)\]", r"log\1", expression)

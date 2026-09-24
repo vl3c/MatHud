@@ -246,3 +246,55 @@ class TestExpressionValidator(unittest.TestCase):
                 )
                 self.assertNotIn("!", fixed_expression)
                 self.assertEqual(fixed_expression.replace(" ", ""), expected)
+
+    def test_fix_math_expression_keeps_scientific_notation_and_identifiers(self) -> None:
+        # Exponent literals and names ending in digits must not get an implicit '*'
+        unchanged = ["1e-5", "2.5E+3", "6.02e23*2", "atan2(1,1)", "log10(100)", "expm1(1)", "1/(0e0)"]
+        for python_compatible in (True, False):
+            for expr in unchanged:
+                with self.subTest(expr=expr, python_compatible=python_compatible):
+                    self.assertEqual(ExpressionValidator.fix_math_expression(expr, python_compatible), expr)
+
+        implicit_cases = {
+            "2x": ("2*x", "2*x"),
+            "3sin(x)": ("3*sin(x)", "3*sin(x)"),
+            "2(x+1)": ("2*(x+1)", "2*(x+1)"),
+            "2pi": ("2*pi", "2*pi"),
+            "2e": ("2*e", "2*e"),
+            ".5x": (".5*x", ".5*x"),
+            "2i": ("2j", "2i"),
+        }
+        for expr, (python_expected, js_expected) in implicit_cases.items():
+            with self.subTest(expr=expr):
+                self.assertEqual(ExpressionValidator.fix_math_expression(expr, python_compatible=True), python_expected)
+                self.assertEqual(ExpressionValidator.fix_math_expression(expr, python_compatible=False), js_expected)
+
+    def test_evaluate_expression_scientific_notation(self) -> None:
+        fixed = ExpressionValidator.fix_math_expression("1e-5", python_compatible=True)
+        self.assertAlmostEqual(ExpressionValidator.evaluate_expression(fixed), 1e-5)
+        fixed = ExpressionValidator.fix_math_expression("2x + 1e3", python_compatible=True)
+        self.assertAlmostEqual(ExpressionValidator.evaluate_expression(fixed, x=2), 1004.0)
+
+    def test_degree_conversion_with_decimal_values(self) -> None:
+        for expr, degrees in (("sin(30.5°)", 30.5), ("cos(12.25 deg)", 12.25), ("tan(0.5 degrees)", 0.5)):
+            with self.subTest(expr=expr):
+                fixed = ExpressionValidator.fix_math_expression(expr, python_compatible=True)
+                function_name = expr.split("(")[0]
+                self.assertEqual(fixed, f"{function_name}({degrees * math.pi / 180})")
+
+    def test_function_name_replacements_prefer_longest_names(self) -> None:
+        cases = {
+            "sine(0.5)": "sin(0.5)",
+            "cosine(0.5)": "cos(0.5)",
+            "tangent(0.5)": "tan(0.5)",
+            "arcsine(0.5)": "asin(0.5)",
+            "arccosine(0.5)": "acos(0.5)",
+            "arctangent(0.5)": "atan(0.5)",
+            "hyperbolic sine(0.5)": "sinh(0.5)",
+            "hyperbolic cosine(0.5)": "cosh(0.5)",
+            "hyperbolic tangent(0.5)": "tanh(0.5)",
+            "logarithm10(100)": "log10(100)",
+        }
+        for expr, expected in cases.items():
+            with self.subTest(expr=expr):
+                self.assertEqual(ExpressionValidator.fix_math_expression(expr, python_compatible=True), expected)
