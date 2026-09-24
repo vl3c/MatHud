@@ -450,13 +450,16 @@ class StatisticsManager:
             if should_show_points:
                 point_manager = self._get_point_manager()
                 if point_manager is not None:
+                    # Data points take the next free canvas point names (A, B, C, ..., A', ...).
+                    # Point names must be letters plus apostrophes, so a preferred name derived
+                    # from base_name would be filtered down to its letters and yield a confusing
+                    # mix. point_names reports the chosen names in data order.
                     for i, (x, y) in enumerate(zip(x_data, y_data)):
-                        point_preferred = f"{base_name}_pt{i}"
                         try:
                             created_point = point_manager.create_point(
                                 x=x,
                                 y=y,
-                                name=point_preferred,
+                                name="",
                                 color=point_color,
                                 extra_graphics=False,
                             )
@@ -467,7 +470,7 @@ class StatisticsManager:
                             try:
                                 logger = getattr(self.canvas, "logger", None)
                                 if logger is not None:
-                                    logger.debug(f"Failed to create regression point {point_preferred}: {e}")
+                                    logger.debug(f"Failed to create regression point {i} at ({x}, {y}): {e}")
                             except Exception:
                                 pass
 
