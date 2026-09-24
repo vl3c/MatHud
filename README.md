@@ -109,9 +109,9 @@ Every user message carries the current canvas. `MATHUD_CANVAS_FORMAT` chooses ho
 
 1. `text` (default): a `<canvas>` block in front of the user's text, one object per line in math notation, with lengths, areas, angle sizes and similar facts computed from the coordinates (`AB = Segment(A, B)  len 5`). Numbers keep at most 6 significant digits.
 2. `min_json`: the same block holding the state as compact JSON (render-only fields, defaults and float noise removed).
-3. `json`: the original behaviour, sending the whole prompt JSON; the `AI_CANVAS_SUMMARY_MODE` options below apply only here.
+3. `json`: the original canvas payload, sending the whole prompt JSON; the `AI_CANVAS_SUMMARY_MODE` options below apply only here. Not a byte-for-byte replay of older requests: the hybrid `metrics` block is no longer in the prompt, search tool mode adds its tool-loading paragraph to the system prompt, and each tool call gets its own result message.
 
-With `text` and `min_json`, the last tool result of each tool batch ends with `[canvas changes]` (what the batch added, changed or removed), and `get_current_canvas_state` results use the same format. `MATHUD_CANVAS_BUDGET_TOKENS` caps the canvas block (default 4000 estimated tokens for cloud models, 1500 for local ones, `0` for no limit): larger scenes pack points several per line, then list the least important objects as omitted with a pointer to `get_current_canvas_state`.
+With `text` and `min_json`, the last tool result of each tool batch ends with `[canvas changes]` (what the batch added, changed or removed), and `get_current_canvas_state` results use the same format. `MATHUD_CANVAS_BUDGET_TOKENS` caps the canvas block (default 4000 estimated tokens for cloud models, 1500 for local ones, `0` for no limit): larger scenes pack points several per line, then list the least important objects as omitted with a pointer to `get_current_canvas_state` (`min_json` keeps the same fraction of every object list). `get_current_canvas_state` results get twice that budget.
 
 ```env
 MATHUD_CANVAS_FORMAT=text              # text | min_json | json

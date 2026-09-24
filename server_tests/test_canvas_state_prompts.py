@@ -48,7 +48,7 @@ CANVAS_BLOCK = "\n".join(
     ]
 )
 
-# The system prompt before canvas formats existed; json format must keep it byte for byte.
+# The system prompt before canvas formats existed; json format keeps it (full tool mode).
 LEGACY_DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. Use the provided tools for calculations rather than computing results yourself, so every result shown comes from the math engine. Canvas state is included with user messages; base your actions on it. For large scenes it may be summarized to reduce noise; when you need complete details, call get_current_canvas_state. Canvas state may be stale after tool calls, so re-check live state between actions when needed. Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
 
 
@@ -242,8 +242,13 @@ class TestSystemPrompt(CanvasFormatEnv):
             self.assertTrue(self.anthropic_api()._build_system_prompt().startswith(LEGACY_DEV_MSG))
 
 
-class TestJsonFormatIsUnchanged(CanvasFormatEnv):
-    """MATHUD_CANVAS_FORMAT=json reproduces the original behaviour byte for byte."""
+class TestJsonFormatKeepsTheCanvasPayload(CanvasFormatEnv):
+    """MATHUD_CANVAS_FORMAT=json sends the same canvas payload as before.
+
+    Not a byte-for-byte replay of old requests: the hybrid ``metrics`` block is no
+    longer in the prompt, search tool mode adds SEARCH_MODE_MSG to the system prompt,
+    and each tool call's result goes into its own tool message.
+    """
 
     canvas_format = "json"
 

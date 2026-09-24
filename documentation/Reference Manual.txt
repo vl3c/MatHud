@@ -3698,13 +3698,13 @@ Pure module (no Flask, no I/O) that turns `Canvas.get_canvas_state()` output int
 
 **Key Functions:**
 - `render_text(state, budget_tokens=None)`: One object per line in math notation (`AB = Segment(A, B)  len 4`) with facts computed from the coordinates: segment/vector lengths, polygon sides, area and type, circle/ellipse area and the named points a circle passes through, angle sizes, arc sweeps, graph edges with weights. Numbers keep at most 6 significant digits with float noise snapped; only non-default styles are shown; unknown buckets and args fall back to compact JSON; duplicate names get a warning line. With a budget, points are packed several per line and the least important objects are listed as omitted with a pointer to `get_current_canvas_state`
-- `render_min_json(state)`: The state as JSON with render-only fields, defaults and float noise removed
+- `render_min_json(state, budget_tokens=None)`: The state as JSON with render-only fields, defaults and float noise removed. Over a budget, every object list keeps the same fraction and `"omitted"`/`"note"` keys point to `get_current_canvas_state`
 - `render_delta(previous, current)`: Per-object changes (`+` added, `~` changed, `-` removed), compared by rendered line
-- `render_state(state, fmt, budget_tokens=None)`: Dispatch on a `CanvasFormat` (`"text"`, `"min_json"`, `"json"`)
-- `render_update(...)`: What to tell the model after a tool batch: `[canvas changes]`, or `[canvas now]` with the full canvas when the delta would be larger
+- `render_state(state, fmt, budget_tokens=None)`: Dispatch on a `CanvasFormat` (`"text"`, `"min_json"`, `"json"`); never raises, falling back to compact JSON if a malformed state cannot be rendered
+- `render_update(...)`: What to tell the model after a tool batch: `[canvas changes]` (text lines in every format), or `[canvas now]` with the full canvas when the delta would be larger
 - `parse_canvas_format(raw)`: Validate a `MATHUD_CANVAS_FORMAT` value
 
-Token counts come from `static/token_estimation.py` (`estimate_tokens_from_text` counts one token per digit, matching the default local model's tokenizer).
+Token counts come from `static/token_estimation.py` (`estimate_tokens_from_text` counts one token per digit, matching the default local model's tokenizer, and one per CJK character).
 
 ### AI Function Definitions (`static/functions_definitions.py`)
 
@@ -3744,7 +3744,7 @@ Tools whose implementation appears in this manual under a different name (Canvas
 - `reset_canvas()`: Reset the view (zoom and offset) to the default. Calls `Canvas.reset`
 - `clear_canvas()`: Delete every drawable on the canvas. Calls `Canvas.clear`
 - `zoom(center_x, center_y, range_val, range_axis)`: Center the view on a point and show +/- `range_val` along the `x` or `y` axis; the other axis follows the aspect ratio
-- `get_current_canvas_state(drawable_types=None, object_names=None, include_computations=True)`: Return the canvas state without modifying it, optionally filtered by drawable collection (case-insensitive, singular or plural) or object names. With the `text`/`min_json` canvas formats the result is rendered like the user-message canvas block but never shortened, so it can recover objects listed as omitted
+- `get_current_canvas_state(drawable_types=None, object_names=None, include_computations=True)`: Return the canvas state without modifying it, optionally filtered by drawable collection (case-insensitive, singular or plural) or object names. With the `text`/`min_json` canvas formats the result is rendered like the user-message canvas block with twice its token budget; filter by `object_names` to recover objects listed as omitted
 - `update_point(point_name, new_name=None, new_x=None, new_y=None, new_color=None)`: Rename, move, or recolor a solitary point
 - `draw_piecewise_function(pieces, name=None, color=None)` / `update_piecewise_function(name, new_color=None)` / `delete_piecewise_function(name)`: Create, recolor, or delete a piecewise function; see the Canvas key methods for the piece format
 - `evaluate_linear_algebra_expression(objects, expression)`: Evaluate a math.js expression over named scalars, vectors, and matrices (`objects` is a list of `{name, value}`), e.g. `inv(A) * B`, `det(A)`, `transpose(A)`
