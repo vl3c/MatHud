@@ -300,7 +300,7 @@ When implementing features, structure commits to isolate concerns:
 4. **Canvas/API wiring** - Canvas methods, FunctionRegistry, WorkspaceManager
 5. **AI tool definitions** - JSON schema in `functions_definitions.py`
 6. **Tests** - Validation, manager, and rendering tests
-7. **Documentation** - Example Prompts, Reference Manual, update todo.txt
+7. **Documentation** - Example Prompts, Reference Manual, update `documentation/Roadmap.md`
 
 ## Adding a New Drawable Type
 
