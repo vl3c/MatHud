@@ -118,13 +118,16 @@ class BaseRendererTelemetry:
             self._phase_totals["cartesian_plan_build_ms"] += duration_ms
             self._phase_counts["cartesian_plan_count"] += 1
 
-    def record_plan_apply(self, name: str, duration_ms: float, *, cartesian: bool = False) -> None:
-        """Record time spent applying a render plan."""
+    def record_plan_apply(self, name: str, duration_ms: float, *, cartesian: bool = False, count: int = 1) -> None:
+        """Record time spent applying a render plan.
+
+        ``count`` records several applies at once (e.g. per-command usage) without looping.
+        """
         self._phase_totals["plan_apply_ms"] += duration_ms
-        self._phase_counts["plan_apply_count"] += 1
+        self._phase_counts["plan_apply_count"] += count
         bucket = self._drawable_bucket(name)
         bucket["plan_apply_ms"] += duration_ms
-        bucket["plan_apply_count"] += 1
+        bucket["plan_apply_count"] += count
         if cartesian:
             self._phase_totals["cartesian_plan_apply_ms"] += duration_ms
 

@@ -99,12 +99,7 @@ class SvgRenderer(RendererProtocol):
                 continue
         if total <= 0:
             return
-        if cartesian:
-            for _ in range(total):
-                self._telemetry.record_plan_apply(name, 0.0, cartesian=True)
-        else:
-            for _ in range(total):
-                self._telemetry.record_plan_apply(name, 0.0)
+        self._telemetry.record_plan_apply(name, 0.0, cartesian=cartesian, count=total)
 
     def register_default_drawables(self) -> None:
         self._register_shape("drawables.point", "Point", self._render_point)
