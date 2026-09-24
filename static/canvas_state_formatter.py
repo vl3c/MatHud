@@ -204,6 +204,21 @@ def _as_list(value: Any) -> List[Any]:
     return [value]
 
 
+def _single_line_strings(value: Any) -> Any:
+    """Escape line breaks in every string (names, labels, expressions, keys).
+
+    The text format is one object per line inside a <canvas> block, so a name
+    or label must not be able to start a new line (or close the block early).
+    """
+    if isinstance(value, str):
+        return value.replace("\r\n", "\\n").replace("\n", "\\n").replace("\r", "\\n")
+    if isinstance(value, dict):
+        return {_single_line_strings(key): _single_line_strings(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_single_line_strings(item) for item in value]
+    return value
+
+
 def _inline_list(values: Sequence[Any]) -> str:
     shown = ", ".join(format_number(v) for v in values[:_MAX_INLINE_LIST])
     if len(values) > _MAX_INLINE_LIST:
@@ -1010,6 +1025,7 @@ def render_text(
         budget_tokens: Optional token budget; larger scenes are packed and truncated.
         count_tokens: Token counter used for the budget (heuristic by default).
     """
+    state = _single_line_strings(state)
     header = [line for line in (_view_line(state), _duplicate_warning(state)) if line]
     groups = _collect_groups(state)
     text = _assemble(header, groups)
@@ -1158,6 +1174,7 @@ def render_delta(previous: Mapping[str, Any], current: Mapping[str, Any]) -> str
     Objects are compared by their rendered line, so a moved point also reports
     the segments, polygons and angles whose lengths/areas/sizes changed with it.
     """
+    previous, current = _single_line_strings(previous), _single_line_strings(current)
     before, after = _object_lines(previous), _object_lines(current)
     added = [f"+ {text}" for key, text in after.items() if key not in before]
     changed = [

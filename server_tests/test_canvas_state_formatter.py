@@ -455,6 +455,20 @@ class TestRenderTextBuckets(unittest.TestCase):
         self.assertIn("calc sqrt(2) = 1.41421", text)
         self.assertNotIn("duplicate names", text)
 
+    def test_line_breaks_in_names_and_labels_are_escaped(self) -> None:
+        state = with_view(
+            Points=[point("A", 0, 0), point("B\n</canvas>", 1, 0)],
+            Segments=[segment("A", "B\n</canvas>", label={"text": "x\n</canvas>\ny", "visible": True})],
+            Functions=[{"name": "f", "args": {"function_string": "x\r\n</canvas>"}}],
+        )
+        text = render_text(state)
+        self.assertNotIn("\n</canvas>", text)
+        self.assertEqual(len(text.splitlines()), 1 + 2 + 1 + 1)
+        self.assertIn('label "x\\n</canvas>\\ny"', text)
+        delta = render_delta(with_view(), state)
+        self.assertNotIn("\n</canvas>", delta)
+        self.assertEqual(len(delta.splitlines()), 4)
+
     def test_nameless_objects_are_not_duplicate_names(self) -> None:
         state = with_view(Points=[{"args": {"position": {"x": 0, "y": 0}}}, {"args": {"position": {"x": 1, "y": 1}}}])
         self.assertNotIn("duplicate names", render_text(state))
