@@ -8,8 +8,8 @@ Create a point at (10, 20) and name it A.
 Draw a point B at x=50, y=-30.
 Create point C at (100, 150). Plot a segment AC.
 Create point D at (-10, -10) and point E at (20, 20). Define segment DE.
-Construct a circle with center A and radius 50. Name it Circle1.
-Draw a circle centered at (0,0) with a radius of 75 units. Name it CircleO.
+Construct a circle with center A and radius 50. (Circles are named after their center and radius, so this one is A(50).)
+Draw a circle centered at (0,0) with a radius of 75 units and name its center O.
 Create an ellipse centered at the origin with horizontal radius 100 and vertical radius 60.
 Create point F at (30,40) and point G at (50,10). Draw an angle with vertex at A, and other points F and G. (This will be angle FAG)
 Define an angle using points P, Q, R, where Q is the vertex. (Assuming P, Q, R are already defined points)
@@ -37,9 +37,10 @@ Delete the parametric function named "Spiral".
 # Tangent and Normal Lines
 Plot y = x^2 and draw its tangent line at x = 2.
 Draw the tangent and normal lines to y = sin(x) at x = pi/4, both in red.
-Create a circle c1 centered at origin with radius 3, then draw a tangent line at 45 degrees (pi/4 radians).
+Create a circle centered at the origin with radius 3, then draw a tangent line at 45 degrees (pi/4 radians).
 Plot the parametric curve x(t) = cos(t), y(t) = sin(t), then draw the tangent at t = pi/3.
-Create an ellipse e1 with radii 4 and 2, draw the normal line at angle pi/2.
+Create an ellipse with radii 4 and 2, draw the normal line at angle pi/2.
+Create an ellipse centered at the origin with radii 4 and 2 rotated 30 degrees, then draw the tangent at parametric angle t = pi/4 (measured in the ellipse's own rotated frame).
 Draw a tangent line to the function f1 at x = 1 with length 6 in blue.
 
 # Geometric Constructions
@@ -60,7 +61,7 @@ Are segments AB and CD perpendicular?
 Create points A(0,0), B(3,0), C(6,0) and check if they are collinear.
 Create four points on a circle and verify they are concyclic.
 Check if triangles T1 and T2 are similar.
-Draw a tangent line to circle c1 and verify the tangency with inspect_relation.
+Draw a tangent line to a circle and verify the tangency with inspect_relation.
 
 # Geometric Transformations
 Reflect triangle ABC across the x-axis.
@@ -84,6 +85,7 @@ Fit an exponential model to x_data=[0,1,2,3,4] and y_data=[1,2.7,7.4,20,55]. Wha
 Fit a logarithmic regression to x_data=[1,2,3,4,5,6] and y_data=[0,0.7,1.1,1.4,1.6,1.8].
 Fit a sinusoidal model to the data x_data=[0,0.5,1,1.5,2,2.5,3] and y_data=[0,0.48,0.84,1.0,0.91,0.6,0.14]. Plot the curve with custom bounds from -1 to 4.
 Fit a logistic growth curve to x_data=[1,2,3,4,5,6,7,8,9,10] and y_data=[2,3,5,9,16,25,36,44,48,50]. What is the estimated carrying capacity (L)?
+Fit a quadratic to yearly sales x_data=[2018,2019,2020,2021,2022,2023] and y_data=[120,135,149,166,180,197] and report the coefficients and R-squared.
 
 # Geometric Property Calculations
 What is the distance between point A and segment DE's midpoint?
@@ -91,7 +93,8 @@ Calculate the length of segment DE.
 Create point H at (0,0). Find the midpoint of the segment AH.
 Create point I at (30,0). What is the area of a triangle with vertices A, H, and I?
 Determine the area of a circle with radius 25.
-Calculate the circumference of Circle1.
+Calculate the circumference of circle A(50).
+Create a circle with center (0,0) and radius 3 and a triangle with vertices (0,0), (4,0), (0,4), then calculate the area where they overlap.
 Is the angle PQR a right angle, assuming P=(0,5), Q=(0,0), R=(5,0)?
 Create point J at (20, -10). Define segment DJ. Measure the angle formed by segments DE and DJ.
 
@@ -111,11 +114,15 @@ Calculate 2^5 + sqrt(16).
 What is the derivative of x^3 + 2x - 1 with respect to x?
 Find the derivative of sin(x)*cos(x).
 Calculate the integral of 2x from x=0 to x=3.
+What is the integral of 1/x^2 from x=-1 to x=1? (The integrand is singular at 0, so this is reported as an improper integral.)
+Numerically integrate 1/sqrt(x) from 0 to 1 with the midpoint rule and report any warning.
 Compute the indefinite integral of 1/x.
 Find the limit of (x^2 - 1)/(x - 1) as x approaches 1.
 Determine the limit of sin(x)/x as x tends to 0.
 Solve the equation x^2 - 5x + 6 = 0 for x.
 Find the solutions for 2a + b = 7 and a - b = 2.
+Solve the system y = x^3 and y = x and list every intersection point.
+Where does y = 1/x meet y = x?
 Simplify the expression (x^2 + 2x + 1)/(x+1).
 Expand (a+b)^3.
 Factorize x^2 - y^2.
@@ -200,6 +207,9 @@ Delete graph G1.
 
 Create an undirected weighted graph named G2 with vertices A, B, C, D, E and edges A-B (3), A-C (1), B-C (7), B-D (5), C-D (2), D-E (7), C-E (8).
 On graph G2, compute the minimum spanning tree (MST) and highlight the MST edges.
+
+Create a directed weighted graph named G3 with vertices A, B, C, D and edges A->B (4), A->C (2), C->B (-1), B->D (3).
+On graph G3, find the shortest path from A to D. (Negative weights on directed graphs use Bellman-Ford.)
 
 Create a DAG named D1 with vertices A, B, C, D and edges A->B, A->C, B->D, C->D.
 On graph D1, run a topological sort and explain the ordering.
