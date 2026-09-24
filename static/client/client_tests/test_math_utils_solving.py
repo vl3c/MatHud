@@ -102,6 +102,15 @@ class TestMathUtilsSolving(unittest.TestCase):
             self.assertAlmostEqual(x * x + y * y, 25.0, places=6)
             self.assertAlmostEqual(x * x + y, 7.0, places=6)
 
+    def test_solve_system_cubic_and_line_returns_all_intersections(self) -> None:
+        result = MathUtils.solve_system_of_equations(["y = x^3", "y = x"])
+        self.assert_points_close(_parse_indexed_solutions(result), [(-1.0, -1.0), (0.0, 0.0), (1.0, 1.0)])
+
+    def test_solve_system_high_order_single_intersection_keeps_plain_format(self) -> None:
+        result = MathUtils.solve_system_of_equations(["x^3 + x - 4 = y", "x^5 - x^4 + x^3 - x^2 + x - 1 = y"])
+        self.assertNotIn("x1", result)
+        self.assert_points_close(_parse_indexed_solutions(result), [(-1.0, -6.0)])
+
     def test_quadratic_system_no_real_intersection_is_not_empty(self) -> None:
         result = MathUtils.solve_quadratic_system(["y = x^2 + 1", "y = -x^2"])
         self.assertNotEqual(result, "")

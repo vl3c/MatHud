@@ -1942,6 +1942,19 @@ class MathUtils:
                     print("Falling back to numeric solver for transcendental/non-polynomial system")
                     return MathUtils.solve_numeric(equations)
 
+                # Two x/y equations with an explicit 'y = f(x)': substitute to find every real intersection
+                if len(equations) == 2:
+                    substitution_solutions = MathUtils._solve_by_substitution(equations)
+                    if substitution_solutions:
+                        if len(substitution_solutions) == 1:
+                            x_value, y_value = substitution_solutions[0]
+                            return f"x = {x_value}, y = {y_value}"
+                        indexed = [
+                            f"x{i} = {x_value}, y{i} = {y_value}"
+                            for i, (x_value, y_value) in enumerate(substitution_solutions, start=1)
+                        ]
+                        return ", ".join(indexed)
+
                 # Try the nerdamer library solver, fall back to numeric on failure
                 print("Solving using nerdamer, returning first solution found")
                 try:
