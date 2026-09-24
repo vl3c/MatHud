@@ -15,10 +15,11 @@ down, and caps the longest side at ``VISION_SNAPSHOT_MAX_SIDE``.
 A non-empty SVG layer has to be decoded as an image first, which is
 asynchronous, so ``capture`` reports its result through a callback. It is
 called exactly once, synchronously when there is no SVG content to draw.
-If the SVG layer cannot be drawn, the snapshot falls back to the Canvas2D
-layer alone; if no layer could be drawn (for example the SVG renderer's scene
-failed to decode) or nothing can be captured, the callback receives None, so
-the request goes out text-only instead of with a blank image.
+If the SVG layer cannot be drawn, or taints the output so it cannot be read
+back, the snapshot falls back to the Canvas2D layer alone; if no layer could
+be drawn (for example the SVG renderer's scene failed to decode) or nothing
+can be captured, the callback receives None, so the request goes out
+text-only instead of with a blank image.
 
 Dependencies:
     - browser: DOM access (document, html, window) for canvases, SVG serialization and images
@@ -123,15 +124,30 @@ class CanvasSnapshotter:
         if not (svg_drawn or canvas_drawn):
             print("Canvas snapshot has no layer to show; sending the request without it.")
             return None
-        return self._encode(output)
-
-    def _encode(self, output: Any) -> Optional[str]:
         try:
-            data_url = output.toDataURL("image/png")
+            return self._encode(output)
         except Exception as exc:
             # A tainted canvas (e.g. an SVG the browser refuses to export) cannot be read back.
             print(f"Canvas snapshot could not be encoded: {exc}")
+        if not (svg_drawn and canvas_drawn):
             return None
+        return self._encode_canvas_layer_only(width, height)
+
+    def _encode_canvas_layer_only(self, width: int, height: int) -> Optional[str]:
+        """Rebuild the snapshot without the SVG layer that tainted it and encode that."""
+        print("Canvas snapshot is retrying with the Canvas2D layer only.")
+        try:
+            output, ctx = self._create_output(width, height)
+            if not self._draw_canvas_layer(ctx, width, height):
+                return None
+            return self._encode(output)
+        except Exception as exc:
+            print(f"Canvas snapshot could not be encoded: {exc}")
+            return None
+
+    def _encode(self, output: Any) -> Optional[str]:
+        """Encode the output as a PNG data URL (None when unusable); raises if the canvas is tainted."""
+        data_url = output.toDataURL("image/png")
         if not isinstance(data_url, str) or not data_url.startswith(PNG_DATA_URL_PREFIX):
             return None
         if len(data_url) > VISION_SNAPSHOT_MAX_DATA_URL_CHARS:

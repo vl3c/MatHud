@@ -202,6 +202,20 @@ class TestCanvasSnapshotter(unittest.TestCase):
         self.assertEqual(calls, [1])
 
 
+class _TaintedOnceOutput:
+    """Wraps an output canvas whose first ``toDataURL`` (across all wrappers) raises, like a tainted canvas."""
+
+    def __init__(self, canvas_el: Any, encode_calls: List[int]) -> None:
+        self.canvas_el = canvas_el
+        self._encode_calls = encode_calls
+
+    def toDataURL(self, mime: str) -> str:
+        self._encode_calls.append(1)
+        if len(self._encode_calls) == 1:
+            raise Exception("SecurityError: The canvas has been tainted by cross-origin data.")
+        return str(self.canvas_el.toDataURL(mime))
+
+
 class TestCanvasSnapshotterSvgDecode(unittest.TestCase):
     """The asynchronous SVG decode path, driven by a fake image and a manual timer."""
 
@@ -300,6 +314,39 @@ class TestCanvasSnapshotterSvgDecode(unittest.TestCase):
     def test_decode_timeout_without_canvas_layer_reports_none(self) -> None:
         self._snapshotter().capture(self.results.append)
         self.timers[0][0]()
+        self.assertEqual(self.results, [None])
+
+    def _taint_first_encode(self, snapshotter: CanvasSnapshotter) -> List[Any]:
+        """Make the first encode fail as if the SVG image tainted the canvas; return the outputs made."""
+        encode_calls: List[int] = []
+        made: List[Any] = []
+
+        def create_output(width: int, height: int) -> Tuple[Any, Any]:
+            output, ctx = CanvasSnapshotter._create_output(snapshotter, width, height)
+            made.append(output)
+            return _TaintedOnceOutput(output, encode_calls), ctx
+
+        setattr(snapshotter, "_create_output", create_output)
+        return made
+
+    def test_tainted_snapshot_is_retried_with_the_canvas_layer_only(self) -> None:
+        self._add_canvas_layer(fill=None)
+        snapshotter = self._snapshotter()
+        made = self._taint_first_encode(snapshotter)
+        snapshotter.capture(self.results.append)
+        _fire(self.image, "load")
+        self.assertEqual(len(self.results), 1)
+        self.assertTrue(str(self.results[0]).startswith(PNG_PREFIX))
+        self.assertEqual(len(made), 2)
+        retry = made[1]
+        self.assertEqual(_pixel(retry, 5, 5)[:3], [255, 0, 0])
+        self.assertEqual(_pixel(retry, CSS_WIDTH // 2, CSS_HEIGHT // 2), [255, 255, 255, 255])
+
+    def test_tainted_snapshot_without_canvas_layer_reports_none(self) -> None:
+        snapshotter = self._snapshotter()
+        self._taint_first_encode(snapshotter)
+        snapshotter.capture(self.results.append)
+        _fire(self.image, "load")
         self.assertEqual(self.results, [None])
 
     def test_late_load_after_timeout_does_not_call_back_again(self) -> None:
