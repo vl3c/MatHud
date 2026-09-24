@@ -204,6 +204,7 @@ class FunctionRenderable:
         Returns a list of sample lists, one per continuous sub-range.
         """
         canvas_width = int(getattr(self.mapper, "canvas_width", 800) or 800)
+        viewport_height = getattr(self.mapper, "canvas_height", None) or None
 
         initial_segments = None
         if getattr(self.func, "is_periodic", False) and getattr(self.func, "estimated_period", None):
@@ -229,6 +230,7 @@ class FunctionRenderable:
                     all_split_points,
                     initial_segments,
                     max_samples=canvas_width,
+                    viewport_height=viewport_height,
                 ),
             )
         else:
@@ -240,6 +242,7 @@ class FunctionRenderable:
                 self.mapper.math_to_screen,
                 initial_segments,
                 max_samples=canvas_width,
+                viewport_height=viewport_height,
             )
             return [samples] if samples else []
 

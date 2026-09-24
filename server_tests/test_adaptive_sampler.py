@@ -14,7 +14,7 @@ sys.path.insert(0, "static/client/rendering/renderables")
 
 from adaptive_sampler import (
     AdaptiveSampler,
-    MAX_DEPTH,
+    MAX_INITIAL_SEGMENTS,
 )
 
 
@@ -154,8 +154,8 @@ class TestAdaptiveSamplerMaxDepth(unittest.TestCase):
     """Tests for max depth limiting."""
 
     def test_respects_max_depth(self) -> None:
-        """Should not exceed 2^MAX_DEPTH + 1 samples."""
-        max_possible = (2**MAX_DEPTH) + 1
+        """Should not exceed the default sample cap even for dense oscillation."""
+        max_possible = MAX_INITIAL_SEGMENTS * 8
         samples = get_samples(-10, 10, lambda x: math.sin(100 * x), scaled_transform)
         self.assertLessEqual(len(samples), max_possible)
 
@@ -198,6 +198,89 @@ class TestAdaptiveSamplerInvalidValues(unittest.TestCase):
         samples = get_samples(-10, 10, func_with_exception, identity_transform)
         self.assertIn(-10, samples)
         self.assertIn(10, samples)
+
+
+def _safe_sqrt(value: float) -> float:
+    return math.sqrt(value) if value >= 0 else float("nan")
+
+
+def _valid_samples(samples, func) -> list:
+    valid = []
+    for x in samples:
+        try:
+            y = func(x)
+        except Exception:
+            continue
+        if isinstance(y, float) and math.isfinite(y):
+            valid.append(x)
+    return valid
+
+
+class TestAdaptiveSamplerDomainEdges(unittest.TestCase):
+    """Samples should reach the edges of a restricted domain."""
+
+    def test_semicircle_is_sampled_in_default_view(self) -> None:
+        def func(x: float) -> float:
+            return _safe_sqrt(1 - x * x)
+
+        samples = get_samples(-4.7, 4.7, func, scaled_transform)
+        valid = _valid_samples(samples, func)
+        self.assertGreater(len(valid), 5)
+        self.assertLess(min(valid), -0.999)
+        self.assertGreater(max(valid), 0.999)
+
+    def test_sqrt_starts_at_domain_edge(self) -> None:
+        samples = get_samples(-4.7, 4.7, _safe_sqrt, scaled_transform)
+        valid = _valid_samples(samples, _safe_sqrt)
+        self.assertLess(min(valid), 1e-4)
+
+    def test_hole_inside_interval_is_bounded_on_both_sides(self) -> None:
+        def func(x: float) -> float:
+            return _safe_sqrt(x * x - 1)
+
+        samples = get_samples(-3, 3, func, scaled_transform)
+        valid = _valid_samples(samples, func)
+        inner_left = max(x for x in valid if x < 0)
+        inner_right = min(x for x in valid if x > 0)
+        self.assertGreater(inner_left, -1.001)
+        self.assertLess(inner_right, 1.001)
+
+
+class TestAdaptiveSamplerViewportCulling(unittest.TestCase):
+    """Refinement should not be spent on curve parts outside the viewport."""
+
+    def test_offscreen_parabola_is_not_refined(self) -> None:
+        # Visible y-range is [-7.5, 7.5], so |x| > ~2.8 lies above the viewport.
+        samples = get_samples(-50, 50, lambda x: x * x, scaled_transform, viewport_height=480)
+        offscreen = [x for x in samples if abs(x) > 5]
+        onscreen = [x for x in samples if abs(x) < 2.7]
+        self.assertLessEqual(len(offscreen), 20)
+        self.assertGreater(len(onscreen), 10)
+
+
+class TestAdaptiveSamplerProbes(unittest.TestCase):
+    """Oscillation detection should be deterministic and robust."""
+
+    def test_periodicity_probe_is_deterministic(self) -> None:
+        import random
+
+        results = []
+        for seed in range(10):
+            random.seed(seed)
+            results.append(get_samples(-8, 8, lambda x: math.sin(math.pi * x), scaled_transform))
+        for other in results[1:]:
+            self.assertEqual(other, results[0])
+
+    def test_symmetric_oscillation_under_flat_midpoint_is_refined(self) -> None:
+        # Initial nodes (step 8) and interval midpoints of [0, 32] fall on zeros of
+        # sin(pi*x/4) (one full period per interval); the parabola on the left
+        # keeps the periodicity probe off.
+        def func(x: float) -> float:
+            return x * x if x < 0 else 3 * math.sin(math.pi * x / 4)
+
+        samples = get_samples(-32, 32, func, scaled_transform)
+        positive = [x for x in samples if 0 < x < 32]
+        self.assertGreater(len(positive), 16)
 
 
 class TestIsStraight(unittest.TestCase):
