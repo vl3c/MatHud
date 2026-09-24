@@ -450,8 +450,9 @@ class AreaExpressionEvaluator:
         # Determine which direction to sweep based on major/minor
         if arc.use_major_arc:
             # Major arc: take the longer path
-            if ccw_sweep < math.pi:
-                # CCW is shorter, go CW (negative direction)
+            # (<= so a half-circle picks the side opposite the minor arc, like the renderer)
+            if ccw_sweep <= math.pi:
+                # CCW is shorter (or equal), go CW (negative direction)
                 sweep = -(2 * math.pi - ccw_sweep)
             else:
                 # CCW is longer, use it
@@ -681,7 +682,7 @@ class AreaExpressionEvaluator:
             ccw_sweep += 2 * math.pi
 
         if arc.use_major_arc:
-            if ccw_sweep < math.pi:
+            if ccw_sweep <= math.pi:
                 sweep = -(2 * math.pi - ccw_sweep)
             else:
                 sweep = ccw_sweep

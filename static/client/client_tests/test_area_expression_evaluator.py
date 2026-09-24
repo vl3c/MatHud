@@ -1303,6 +1303,33 @@ class TestAreaCalculation(unittest.TestCase):
         result = AreaExpressionEvaluator.evaluate("circle & far", self.canvas)
         self.assertIsNone(result.error)
 
+    def test_diametric_major_arc_uses_opposite_half(self) -> None:
+        """With endpoints diametrically opposite, major and minor arcs cover different halves."""
+        minor = MockCircleArc((10, 0), (-10, 0), 0, 0, 10, False, "arc_minor")
+        major = MockCircleArc((10, 0), (-10, 0), 0, 0, 10, True, "arc_major")
+        upper_box = MockQuadrilateral([(-11, 1), (11, 1), (11, 11), (-11, 11)], "upper")
+        self.canvas.drawable_manager.add_drawable("arc_minor", minor)
+        self.canvas.drawable_manager.add_drawable("arc_major", major)
+        self.canvas.drawable_manager.add_drawable("upper", upper_box)
+        minor_result = AreaExpressionEvaluator.evaluate("arc_minor & upper", self.canvas)
+        major_result = AreaExpressionEvaluator.evaluate("arc_major & upper", self.canvas)
+        self.assertIsNone(minor_result.error)
+        self.assertIsNone(major_result.error)
+        self.assertGreater(minor_result.area, 100)
+        self.assertAlmostEqual(major_result.area, 0.0, delta=0.5)
+
+    def test_diametric_major_arc_cut_by_segment(self) -> None:
+        """Segment cutting the lower half should hit a diametric major arc (drawn CW)."""
+        major = MockCircleArc((10, 0), (-10, 0), 0, 0, 10, True, "arc_major")
+        segment = MockSegmentDrawable((-20, -5), (20, -5), "cut")
+        self.canvas.drawable_manager.add_drawable("arc_major", major)
+        self.canvas.drawable_manager.add_drawable("cut", segment)
+        result = AreaExpressionEvaluator.evaluate("arc_major & cut", self.canvas)
+        self.assertIsNone(result.error)
+        theta = 2 * math.pi / 3
+        cap_area = 0.5 * 100 * (theta - math.sin(theta))
+        self.assertAlmostEqual(result.area, cap_area, delta=1)
+
     def test_triangle_cut_by_segment(self) -> None:
         """Cut a triangle with a horizontal segment."""
         triangle = MockTriangle([(0, 0), (10, 0), (5, 10)], "tri")
