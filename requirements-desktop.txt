@@ -1,0 +1,4 @@
+# Optional desktop window for `python mathud_desktop.py` (install requirements.txt first).
+# Windows uses the Edge WebView2 runtime (built into Windows 11); on Linux pywebview also
+# needs GTK or Qt bindings, see https://pywebview.flowrl.com/guide/installation.html
+pywebview==6.2.1

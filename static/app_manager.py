@@ -225,7 +225,7 @@ class AppManager:
         # Initialize workspace manager
         app.workspace_manager = WorkspaceManager()
 
-        # Initialize TTS manager (eager load to check availability at startup)
+        # Report TTS availability; the Kokoro model itself loads on first use
         AppManager._initialize_tts()
 
         # Import and register routes
@@ -237,13 +237,17 @@ class AppManager:
 
     @staticmethod
     def _initialize_tts() -> None:
-        """Initialize TTS manager and log availability status."""
+        """Create the TTS manager and log whether Kokoro is installed.
+
+        Only checks that the packages are importable; Kokoro and torch are
+        imported by the first speech request so startup stays fast and light.
+        """
         try:
             from static.tts_manager import get_tts_manager
 
             manager = get_tts_manager()
             if manager.is_available():
-                print("TTS: Kokoro initialized successfully")
+                print("TTS: Kokoro available (model loads on first use)")
             else:
                 print("TTS: Kokoro not available (install with: pip install kokoro)")
         except SystemExit as e:
