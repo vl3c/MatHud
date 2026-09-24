@@ -25,7 +25,7 @@ MatHud pairs a canvas with an AI assistant so users can sketch geometric scenes,
 6. Workspace operations: save, load, list, delete, import, and export named workspaces.
 
 ## Key References
-1. `static/functions_definitions.py` lists every callable tool and its parameters (70+ AI function definitions).
+1. `static/functions_definitions.py` lists every callable tool and its parameters (90+ AI function definitions).
 2. `documentation/Project Architecture.txt` - deep dive into system design.
 3. `documentation/Reference Manual.txt` - comprehensive API and module reference.
 4. `documentation/Example Prompts.txt` - curated prompts for common workflows.
@@ -56,6 +56,9 @@ PORT=5000                  # Set by hosting platforms to indicate deployed mode
 SECRET_KEY=override-me     # Optional: otherwise random key generated per launch
 TOOL_SEARCH_MODE=hybrid    # Tool discovery: local | api | hybrid (default: hybrid)
 LOCAL_AGENT_BASE_URL=http://127.0.0.1:8080  # LocalAgent llama-server (default shown)
+MATHUD_TOOL_EXPOSURE=search  # search: search_tools + essentials up front (default) | full: every tool
+MATHUD_CANVAS_FORMAT=text    # Canvas in prompts: text (default) | min_json | json (legacy prompt JSON)
+MATHUD_CANVAS_BUDGET_TOKENS= # Canvas block cap; default 4000 (cloud) / 1500 (local), 0 = unlimited
 ```
 
 ## Running the App
@@ -88,7 +91,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 5. `canvas_snapshots/`: Vision screenshots generated through Selenium.
 6. `server_tests/`: Backend pytest suites.
 7. `documentation/`: Manuals such as `Reference Manual.txt` and `Example Prompts.txt`.
-8. `logs/`: Application log output (rotated by `log_manager.py`).
+8. `logs/`: Application log output (rotated by `log_manager.py`, which keeps the newest 50 session logs).
 
 ## Backend Highlights (`static/`)
 1. `app_manager.py`, `routes.py`, and `route_helpers.py` wire Flask endpoints to the provider layer: `openai_api_base.py` (shared history and system prompt), `openai_completions_api.py` / `openai_responses_api.py`, and `providers/` (Anthropic, OpenRouter, local).
@@ -98,7 +101,8 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 5. `config.py` centralizes server-side constants (workspace dirs, schema version, snapshot paths).
 6. `env_config.py` provides shared environment variable loading, replacing duplicated `load_dotenv` patterns.
 7. `route_helpers.py` contains extracted route helper functions for provider management and tool lifecycle.
-8. `style.css` and other assets shared with the frontend live here for Flask to serve.
+8. `canvas_state_formatter.py` renders the canvas for the model: a compact text block in each user message, `[canvas changes]` after tool batches, and `get_current_canvas_state` results (see `documentation/development/canvas_prompt_summary_rollout.md`).
+9. `style.css` and other assets shared with the frontend live here for Flask to serve.
 
 ## Client Highlights (`static/client/`)
 1. `main.py` bootstraps Brython and registers managers.
@@ -160,7 +164,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 `static/client/rendering/factory.create_renderer` builds a preference chain (`canvas2d` → `svg`) and instantiates the first backend that succeeds. Each renderer module is imported only when it is attempted.
 
 ## Renderers
-1. **Canvas2DRenderer** (`canvas2d_renderer.py`): Targets a Canvas 2D context. Supports optional offscreen compositing via `_use_layer_compositing`.
+1. **Canvas2DRenderer** (`canvas2d_renderer.py`): Targets a Canvas 2D context and draws all shapes and labels. Sizes its bitmap by `devicePixelRatio` for sharp output on HiDPI screens while drawing in CSS pixels. Long polylines are traced by the JavaScript helpers in `static/canvas2d_paths.js` (loaded by `templates/index.html`), with a pure-Python fallback. Supports optional offscreen compositing via `_use_layer_compositing`.
 2. **SvgRenderer** (`svg_renderer.py`): Fallback renderer, frozen (keep it working, no new features). Maintains plan caches for grid and drawables. Prunes unused DOM groups between frames. The `#math-svg` element stays in the DOM as the pointer-event surface for every renderer.
 
 ## Shared Components
@@ -217,7 +221,7 @@ Alternatively, Claude Code can run Brython tests using the Chrome browser extens
 
 1. **Prerequisites**: Install the Claude Chrome extension and ensure Chrome is open with the extension active.
 2. **Workflow**: Claude Code can start the Flask app, navigate to `http://127.0.0.1:5000/`, and run tests programmatically.
-3. **Duration**: The full client test suite (~1889 tests) takes approximately 1 minute to complete.
+3. **Duration**: The full client test suite (~2,950 tests) takes approximately 1 minute to complete.
 4. **Usage**: Ask Claude Code to "run the client tests" or "run the brython tests".
 
 ### Programmatic Test API
@@ -230,7 +234,7 @@ window.startMatHudTests()  // Returns: {"status":"started"}
 // Poll for results (call after ~1 minute)
 window.getMatHudTestResults()
 // Returns while running: {"status":"running"}
-// Returns when complete: {"tests_run":1889,"failures":0,"errors":0,"failing_tests":[],"error_tests":[]}
+// Returns when complete: {"tests_run":2951,"failures":0,"errors":0,"failing_tests":[],"error_tests":[]}
 ```
 
 This allows Claude Code to get test results as structured JSON without parsing screenshots.
@@ -255,7 +259,9 @@ python -m cli.main test client --start-server --timeout 600 --json
 python -m cli.main test client --port 5000 --timeout 600 --json
 ```
 
-The `--json` flag returns structured results. The `--start-server` flag auto-starts Flask.
+The `--json` flag returns structured results. The `--start-server` flag auto-starts Flask. The CLI runs Python through `./venv`'s interpreter, or the interpreter running the CLI when `./venv` is missing (e.g. in a git worktree).
+
+For a lightweight test environment without the text-to-speech stack (several GB), install `requirements-ci.txt` (the package list CI uses) instead of `requirements.txt`, either into `./venv` or into a separate venv whose interpreter runs the CLI. TTS then reports itself unavailable and its tests are skipped.
 
 **Important**: When running "all tests", run server and client test suites separately:
 ```bash
