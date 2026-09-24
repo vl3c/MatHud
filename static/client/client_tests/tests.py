@@ -119,6 +119,7 @@ from .test_shape_math_utils import (
     TestEllipseFormula,
     TestIsRectangleScale,
     TestFindDiagonalPoints,
+    TestPointOnSegmentTolerance,
 )
 from .test_triangle import TestTriangle
 from .test_quadrilateral import TestQuadrilateral
@@ -441,6 +442,7 @@ class Tests:
             TestEllipseFormula,
             TestIsRectangleScale,
             TestFindDiagonalPoints,
+            TestPointOnSegmentTolerance,
             TestDrawableNameGenerator,
             TestPoint,
             TestSegment,

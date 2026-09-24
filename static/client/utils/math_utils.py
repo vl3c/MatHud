@@ -344,11 +344,13 @@ class MathUtils:
         # Calculate segment length for a better threshold
         segment_length = math.sqrt((sp2x - sp1x) ** 2 + (sp2y - sp1y) ** 2)
 
-        # Calculate a threshold as a proportion of the segment length
-        # This makes it work well for both small and large coordinate values
-        threshold = max(1e-5, segment_length * 0.01)  # 1% of segment length as threshold
+        # |cross| / length is the point's distance from the segment's line. Allow up to 0.01
+        # (tolerates rounded coordinates), but scale with the segment length so tiny segments
+        # are not over-matched and very long ones are not under-matched.
+        distance = abs(cross_product) / segment_length
+        threshold = max(1e-5 * segment_length, min(0.01, 1e-3 * segment_length))
 
-        return abs(cross_product) < threshold
+        return distance < threshold
 
     @staticmethod
     def _segment_endpoints(segment: SegmentLike) -> Tuple[float, float, float, float]:

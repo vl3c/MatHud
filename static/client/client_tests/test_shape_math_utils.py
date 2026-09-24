@@ -90,5 +90,16 @@ class TestFindDiagonalPoints(unittest.TestCase):
         self.assertIn(pair, ({(0, 0), (1, 5)}, {(3, 3), (-2, 2)}))
 
 
+class TestPointOnSegmentTolerance(unittest.TestCase):
+    def test_tiny_segment_rejects_point_far_relative_to_length(self) -> None:
+        # Point is ~7e-5 away from a segment only ~1.4e-3 long
+        self.assertFalse(MathUtils.is_point_on_segment(0.0005, 0.0006, 0.0, 0.0, 0.001, 0.001))
+        self.assertTrue(MathUtils.is_point_on_segment(0.0005, 0.0005, 0.0, 0.0, 0.001, 0.001))
+
+    def test_huge_segment_accepts_point_close_relative_to_length(self) -> None:
+        self.assertTrue(MathUtils.is_point_on_segment(500000.0, 500000.5, 0.0, 0.0, 1e6, 1e6))
+        self.assertFalse(MathUtils.is_point_on_segment(500000.0, 500100.0, 0.0, 0.0, 1e6, 1e6))
+
+
 if __name__ == "__main__":
     unittest.main()
