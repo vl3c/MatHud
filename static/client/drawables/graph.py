@@ -75,7 +75,10 @@ class Graph(Drawable):
         """Return minimal state for serialization. Subclasses add edge references."""
         return {
             "name": self.name,
-            "args": {},
+            "args": {
+                # Vertex points tracked outside edges; needed to restore edge-less vertices.
+                "isolated_points": [getattr(p, "name", "") for p in self._isolated_points],
+            },
         }
 
     def remove_point(self, point: "Point") -> bool:

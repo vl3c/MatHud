@@ -74,9 +74,8 @@ class AnthropicAPI(OpenAIAPIBase):
         self._injected_tools: bool = False
         self.tools: Sequence[FunctionDefinition] = self._resolve_tools()
 
-        # Use developer message as system prompt for Anthropic
+        # Anthropic takes the system prompt as a request parameter (see _build_system_prompt)
         self.messages: List[MessageDict] = []
-        self._system_prompt = OpenAIAPIBase.DEV_MSG
 
         # Dummy OpenAI client - not used but needed for base class compatibility
         self.client = None
@@ -259,7 +258,7 @@ class AnthropicAPI(OpenAIAPIBase):
             create_kwargs: Dict[str, Any] = {
                 "model": self.model.id,
                 "max_tokens": self.max_tokens,
-                "system": self._system_prompt,
+                "system": self._build_system_prompt(),
                 "messages": anthropic_messages,
             }
             self._apply_temperature(create_kwargs)
@@ -355,7 +354,7 @@ class AnthropicAPI(OpenAIAPIBase):
             stream_kwargs: Dict[str, Any] = {
                 "model": self.model.id,
                 "max_tokens": self.max_tokens,
-                "system": self._system_prompt,
+                "system": self._build_system_prompt(),
                 "messages": anthropic_messages,
             }
             self._apply_temperature(stream_kwargs)
@@ -465,6 +464,7 @@ class AnthropicAPI(OpenAIAPIBase):
                 func_args = {}
             result.append(
                 {
+                    "id": tc.get("id"),
                     "function_name": func_name,
                     "arguments": func_args,
                 }

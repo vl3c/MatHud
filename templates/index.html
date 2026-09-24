@@ -54,7 +54,9 @@ Dependencies:
     <script src="https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Extra.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.12.5/brython.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.12.5/brython_stdlib.min.js"></script>
-    
+    <!-- Canvas2D path-tracing helpers used by the Brython renderer -->
+    <script src="{{ url_for('static', filename='canvas2d_paths.js') }}"></script>
+
     <!-- Application styles -->
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
 

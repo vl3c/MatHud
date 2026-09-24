@@ -97,6 +97,9 @@ def _matrix_inverse(A: List[List[float]]) -> List[List[float]]:
     # Create augmented matrix [A | I]
     aug: List[List[float]] = [row[:] + [1.0 if i == j else 0.0 for j in range(n)] for i, row in enumerate(A)]
 
+    # Pivots are judged relative to the matrix magnitude, not an absolute value
+    singular_tol = 1e-12 * max(abs(value) for row in A for value in row)
+
     # Forward elimination with partial pivoting
     for col in range(n):
         # Find pivot
@@ -107,7 +110,7 @@ def _matrix_inverse(A: List[List[float]]) -> List[List[float]]:
                 max_val = abs(aug[row][col])
                 max_row = row
 
-        if max_val < 1e-12:
+        if max_val <= singular_tol:
             raise ValueError("Matrix is singular or nearly singular")
 
         # Swap rows
@@ -164,13 +167,18 @@ def calculate_r_squared(y_actual: List[float], y_predicted: List[float]) -> floa
     if len(y_actual) == 0:
         raise ValueError("Cannot calculate R² for empty data")
 
-    y_mean = sum(y_actual) / len(y_actual)
+    n = len(y_actual)
+    y_mean = sum(y_actual) / n
     ss_tot = sum((y - y_mean) ** 2 for y in y_actual)
     ss_res = sum((ya - yp) ** 2 for ya, yp in zip(y_actual, y_predicted))
 
-    if ss_tot < 1e-12:
+    # Treat variation below ~1e-10 of the data magnitude as zero so the
+    # threshold does not depend on the units/scale of y
+    y_scale = max(abs(y) for y in y_actual)
+    negligible = n * (1e-10 * y_scale) ** 2
+    if ss_tot <= negligible:
         # All y values are essentially the same
-        return 1.0 if ss_res < 1e-12 else 0.0
+        return 1.0 if ss_res <= negligible else 0.0
 
     r_squared = 1.0 - (ss_res / ss_tot)
     # Clamp to [0, 1] to handle numerical errors
@@ -182,20 +190,38 @@ def calculate_r_squared(y_actual: List[float], y_predicted: List[float]) -> floa
 # ---------------------------------------------------------------------------
 
 
-def _format_coefficient(value: float, precision: int = 6) -> str:
-    """Format a coefficient for expression string.
+def _format_coefficient(value: float) -> str:
+    """Format a coefficient for expression string at full precision.
 
     Avoids scientific notation since MatHud parser interprets 'e' as Euler's number.
+    The shortest round-trip representation (repr) is expanded into plain decimal
+    digits so the plotted expression matches the fitted model exactly, even for
+    very small or very large coefficients.
     """
-    if abs(value) < 1e-10:
+    value = float(value)
+    if value == 0 or not math.isfinite(value):
         return "0"
-    # Use fixed-point notation to avoid scientific notation (e.g., 1e-05)
-    # which MatHud would interpret as 1 * euler_number - 05
-    formatted = f"{value:.{precision}f}".rstrip("0").rstrip(".")
-    # Ensure we don't return empty string or just a minus sign
-    if not formatted or formatted == "-":
+    text = repr(value).lower()
+    sign = "-" if text.startswith("-") else ""
+    text = text.lstrip("+-")
+    mantissa, _, exponent_text = text.partition("e")
+    exponent = int(exponent_text) if exponent_text else 0
+    int_part, _, frac_part = mantissa.partition(".")
+    digits = int_part + frac_part
+    # Position of the decimal point within `digits`
+    point = len(int_part) + exponent
+    if point <= 0:
+        int_str, frac_str = "0", "0" * (-point) + digits
+    elif point >= len(digits):
+        int_str, frac_str = digits + "0" * (point - len(digits)), ""
+    else:
+        int_str, frac_str = digits[:point], digits[point:]
+    int_str = int_str.lstrip("0") or "0"
+    frac_str = frac_str.rstrip("0")
+    formatted = f"{int_str}.{frac_str}" if frac_str else int_str
+    if formatted == "0":
         return "0"
-    return formatted
+    return sign + formatted
 
 
 def build_expression(model_type: str, coefficients: Dict[str, float]) -> str:
@@ -220,7 +246,7 @@ def build_expression(model_type: str, coefficients: Dict[str, float]) -> str:
 
         for i in range(degree):
             coef = coefficients.get(f"a{i}", 0.0)
-            if abs(coef) < 1e-10:
+            if coef == 0:
                 continue
             coef_str = _format_coefficient(coef)
             if i == 0:
@@ -296,18 +322,19 @@ def fit_linear(x_data: List[float], y_data: List[float]) -> RegressionResult:
     """
     _validate_data(x_data, y_data)
 
+    # Centered formulas avoid catastrophic cancellation for large x offsets
     n = len(x_data)
-    sum_x = sum(x_data)
-    sum_y = sum(y_data)
-    sum_xy = sum(x * y for x, y in zip(x_data, y_data))
-    sum_xx = sum(x * x for x in x_data)
+    x_mean = sum(x_data) / n
+    y_mean = sum(y_data) / n
+    s_xx = sum((x - x_mean) ** 2 for x in x_data)
+    s_xy = sum((x - x_mean) * (y - y_mean) for x, y in zip(x_data, y_data))
 
-    denom = n * sum_xx - sum_x * sum_x
-    if abs(denom) < 1e-12:
+    x_scale = max(abs(x) for x in x_data)
+    if s_xx <= n * (1e-12 * x_scale) ** 2:
         raise ValueError("Cannot fit linear model: x values have no variance")
 
-    m = (n * sum_xy - sum_x * sum_y) / denom
-    b = (sum_y - m * sum_x) / n
+    m = s_xy / s_xx
+    b = y_mean - m * x_mean
 
     # Calculate R-squared
     y_predicted = [m * x + b for x in x_data]
@@ -324,6 +351,35 @@ def fit_linear(x_data: List[float], y_data: List[float]) -> RegressionResult:
     }
 
 
+def _expand_scaled_polynomial(t_coeffs: List[float], shift: float, scale: float) -> List[float]:
+    """Convert coefficients of p(t), t = (x - shift) / scale, to standard form in x.
+
+    Uses Horner's scheme on polynomials: p = (...(c_n * u + c_{n-1}) * u + ...) + c_0
+    where u = x / scale - shift / scale is a linear polynomial in x.
+    """
+    alpha = 1.0 / scale
+    beta = -shift / scale
+    result = [t_coeffs[-1]]
+    for c in reversed(t_coeffs[:-1]):
+        # result = result * (alpha * x + beta) + c
+        expanded = [0.0] * (len(result) + 1)
+        for k, r in enumerate(result):
+            expanded[k] += beta * r
+            expanded[k + 1] += alpha * r
+        expanded[0] += c
+        result = expanded
+    return result
+
+
+def _drop_round_off_coefficients(coeffs: List[float], x_data: List[float], y_data: List[float]) -> None:
+    """Zero coefficients whose largest contribution over the data is pure round-off."""
+    x_max = max(abs(x) for x in x_data)
+    y_max = max(abs(y) for y in y_data)
+    for k, coef in enumerate(coeffs):
+        if abs(coef) * x_max**k <= 1e-12 * y_max:
+            coeffs[k] = 0.0
+
+
 def fit_polynomial(x_data: List[float], y_data: List[float], degree: int) -> RegressionResult:
     """
     Fit polynomial model: y = a0 + a1*x + a2*x^2 + ... + an*x^n
@@ -336,23 +392,30 @@ def fit_polynomial(x_data: List[float], y_data: List[float], degree: int) -> Reg
     min_points = degree + 1
     _validate_data(x_data, y_data, min_points=min_points)
 
-    len(x_data)
+    # Fit in the centered and scaled variable t = (x - shift) / scale; raw
+    # powers of x are badly conditioned for large offsets or tiny ranges
+    shift = sum(x_data) / len(x_data)
+    scale = max(abs(x - shift) for x in x_data) or 1.0
+    t_data = [(x - shift) / scale for x in x_data]
 
-    # Build Vandermonde matrix
-    X: List[List[float]] = []
-    for x in x_data:
-        row = [x**j for j in range(degree + 1)]
-        X.append(row)
+    # Build Vandermonde matrix in t
+    T: List[List[float]] = []
+    for t in t_data:
+        row = [t**j for j in range(degree + 1)]
+        T.append(row)
 
     # Solve least squares
-    coeffs = _solve_least_squares(X, y_data)
+    t_coeffs = _solve_least_squares(T, y_data)
 
     # Calculate R-squared
     y_predicted = []
-    for x in x_data:
-        y_pred = sum(coeffs[j] * (x**j) for j in range(degree + 1))
+    for t in t_data:
+        y_pred = sum(t_coeffs[j] * (t**j) for j in range(degree + 1))
         y_predicted.append(y_pred)
     r_squared = calculate_r_squared(y_data, y_predicted)
+
+    coeffs = _expand_scaled_polynomial(t_coeffs, shift, scale)
+    _drop_round_off_coefficients(coeffs, x_data, y_data)
 
     coefficients = {f"a{i}": coeffs[i] for i in range(degree + 1)}
     expression = build_expression("polynomial", coefficients)
@@ -497,7 +560,8 @@ def fit_logistic(
         x_data: List of x values
         y_data: List of y values
         L_init: Initial estimate for carrying capacity (default: max(y) * 1.1)
-        k_init: Initial estimate for growth rate (default: 1.0)
+        k_init: Initial estimate for growth rate (default: 1.0 per half x-range;
+            negative values describe decreasing curves)
         x0_init: Initial estimate for midpoint (default: mean of x range)
         max_iterations: Maximum refinement iterations (default: 100)
 
@@ -506,18 +570,23 @@ def fit_logistic(
     """
     _validate_data(x_data, y_data)
 
-    min(y_data)
     y_max = max(y_data)
     x_min = min(x_data)
     x_max = max(x_data)
 
-    # Initial estimates
-    if L_init is None:
-        L_init = y_max * 1.1 if y_max > 0 else 1.0
-    if x0_init is None:
-        x0_init = (x_min + x_max) / 2
-    if k_init is None:
-        k_init = 1.0
+    # Search in normalized coordinates u = (x - x_center) / x_scale and
+    # v = y / y_scale so the grid and step sizes do not depend on data units
+    x_center = (x_min + x_max) / 2
+    x_scale = (x_max - x_min) / 2 or 1.0
+    y_scale = max(abs(y) for y in y_data) or 1.0
+    u_data = [(x - x_center) / x_scale for x in x_data]
+    v_data = [y / y_scale for y in y_data]
+    v_max = y_max / y_scale
+
+    # Initial estimates (normalized)
+    L_init = L_init / y_scale if L_init is not None else (v_max * 1.1 if v_max > 0 else 1.0)
+    x0_init = (x0_init - x_center) / x_scale if x0_init is not None else 0.0
+    k_init = k_init * x_scale if k_init is not None else 1.0
 
     def logistic(x: float, L: float, k: float, x0: float) -> float:
         exp_arg = -k * (x - x0)
@@ -530,18 +599,18 @@ def fit_logistic(
 
     def compute_sse(L: float, k: float, x0: float) -> float:
         sse = 0.0
-        for x, y in zip(x_data, y_data):
-            y_pred = logistic(x, L, k, x0)
-            sse += (y - y_pred) ** 2
+        for u, v in zip(u_data, v_data):
+            v_pred = logistic(u, L, k, x0)
+            sse += (v - v_pred) ** 2
         return sse
 
-    # Grid search for initial estimates
+    # Grid search for initial estimates (negative k fits decreasing curves)
     best_L, best_k, best_x0 = L_init, k_init, x0_init
     best_sse = compute_sse(best_L, best_k, best_x0)
 
-    L_range = [y_max * f for f in [0.9, 1.0, 1.1, 1.2, 1.5]]
-    k_range = [0.1, 0.5, 1.0, 2.0, 5.0]
-    x0_range = [x_min + (x_max - x_min) * f for f in [0.25, 0.5, 0.75]]
+    L_range = [v_max * f for f in [0.9, 1.0, 1.1, 1.2, 1.5]]
+    k_range = [sign * k for sign in (1.0, -1.0) for k in [0.5, 1.0, 2.0, 5.0, 10.0, 20.0]]
+    x0_range = [-0.5, 0.0, 0.5]
 
     for L_test in L_range:
         for k_test in k_range:
@@ -554,7 +623,7 @@ def fit_logistic(
     # Simple refinement using coordinate descent
     step_L = abs(best_L) * 0.1 if best_L != 0 else 0.1
     step_k = abs(best_k) * 0.1 if best_k != 0 else 0.1
-    step_x0 = (x_max - x_min) * 0.1
+    step_x0 = 0.2
 
     for _ in range(max_iterations):
         improved = False
@@ -567,7 +636,7 @@ def fit_logistic(
                     new_L = best_L + delta_L
                     new_k = best_k + delta_k
                     new_x0 = best_x0 + delta_x0
-                    if new_L <= 0 or new_k <= 0:
+                    if new_L <= 0 or new_k == 0:
                         continue
                     sse = compute_sse(new_L, new_k, new_x0)
                     if sse < best_sse:
@@ -581,6 +650,11 @@ def fit_logistic(
             step_x0 *= 0.5
             if step_L < 1e-8 and step_k < 1e-8 and step_x0 < 1e-8:
                 break
+
+    # Map back to data units
+    best_L *= y_scale
+    best_k /= x_scale
+    best_x0 = best_x0 * x_scale + x_center
 
     # Calculate R-squared
     y_predicted = [logistic(x, best_L, best_k, best_x0) for x in x_data]

@@ -281,6 +281,20 @@ class TestWorkspaceCommands:
         assert result.exit_code == 1
         assert "not running" in result.output.lower()
 
+    @patch("cli.workspace.requests.post")
+    @patch("cli.workspace.check_server", return_value=True)
+    def test_workspace_delete_uses_json_post(self, _mock_check: MagicMock, mock_post: MagicMock) -> None:
+        """workspace delete sends the name as a JSON POST body (the route rejects GET)."""
+        mock_post.return_value.json.return_value = {"status": "success"}
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["workspace", "delete", "ws1", "--yes"])
+
+        assert result.exit_code == 0
+        args, kwargs = mock_post.call_args
+        assert args[0].endswith("/delete_workspace")
+        assert kwargs["json"] == {"name": "ws1"}
+
 
 class TestChatCommands:
     """Test chat subcommands."""

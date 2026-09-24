@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Union
 
@@ -28,6 +29,45 @@ JsonObject = Dict[str, JsonValue]
 
 # Log levels for browser forwarding (in order of severity)
 LOG_LEVELS = ("debug", "info", "warning", "error")
+
+
+# Retention: on startup only the newest MAX_LOG_FILES session logs are kept in the logs dir.
+MAX_LOG_FILES = 50
+# Session log names written by LogManager (current daily form and the older timestamped form).
+_SESSION_LOG_PATTERN = re.compile(r"^mathud_session_\d{2}_\d{2}_\d{2}(?:_\d{2}_\d{2}_\d{2})?\.log$")
+
+
+def prune_old_log_files(logs_dir: str, keep: int = MAX_LOG_FILES, current_file_name: Optional[str] = None) -> List[str]:
+    """Delete all but the newest ``keep`` session log files in ``logs_dir``.
+
+    Only files matching the LogManager session-log naming pattern are considered;
+    ``current_file_name`` is never deleted and counts toward ``keep``.
+
+    Returns:
+        List of deleted file names.
+    """
+    try:
+        names = [
+            name
+            for name in os.listdir(logs_dir)
+            if _SESSION_LOG_PATTERN.match(name)
+            and name != current_file_name
+            and os.path.isfile(os.path.join(logs_dir, name))
+        ]
+        names.sort(key=lambda name: os.path.getmtime(os.path.join(logs_dir, name)), reverse=True)
+    except OSError:
+        # Never block startup on retention housekeeping.
+        return []
+
+    keep_others = max(keep - (1 if current_file_name else 0), 0)
+    deleted: List[str] = []
+    for name in names[keep_others:]:
+        try:
+            os.remove(os.path.join(logs_dir, name))
+            deleted.append(name)
+        except OSError:
+            continue
+    return deleted
 
 
 def _get_log_level_index(level: str) -> int:
@@ -100,7 +140,9 @@ class LogManager:
         if not os.path.exists(self.logs_dir):
             os.makedirs(self.logs_dir)
 
-        log_file_path = os.path.join(self.logs_dir, self._get_log_file_name())
+        log_file_name = self._get_log_file_name()
+        prune_old_log_files(self.logs_dir, current_file_name=log_file_name)
+        log_file_path = os.path.join(self.logs_dir, log_file_name)
 
         root_logger = logging.getLogger()
         if not root_logger.handlers:

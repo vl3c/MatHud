@@ -9,7 +9,7 @@ from utils.graph_layout import (
     _grid_layout,
     _simple_grid_placement,
     _orthogonal_tree_layout,
-    _is_planar,
+    _may_be_planar,
     _tree_layout,
     _force_directed_layout,
     _infer_root,
@@ -235,7 +235,7 @@ class TestGraphLayout(unittest.TestCase):
         """Small graphs should be detected as planar."""
         # Triangle
         edges = [Edge("A", "B"), Edge("B", "C"), Edge("C", "A")]
-        is_planar, embedding = _is_planar(["A", "B", "C"], edges)
+        is_planar, embedding = _may_be_planar(["A", "B", "C"], edges)
         self.assertTrue(is_planar)
         self.assertIsNotNone(embedding)
 
@@ -254,8 +254,18 @@ class TestGraphLayout(unittest.TestCase):
             Edge("C", "E"),
             Edge("D", "E"),
         ]
-        is_planar, embedding = _is_planar(vertices, edges)
+        is_planar, embedding = _may_be_planar(vertices, edges)
         self.assertFalse(is_planar)
+
+    def test_may_be_planar_is_only_a_necessary_condition(self) -> None:
+        """The Petersen graph is non-planar but passes the edge-count heuristic."""
+        outer = [("P0", "P1"), ("P1", "P2"), ("P2", "P3"), ("P3", "P4"), ("P4", "P0")]
+        spokes = [(f"P{i}", f"Q{i}") for i in range(5)]
+        inner = [("Q0", "Q2"), ("Q2", "Q4"), ("Q4", "Q1"), ("Q1", "Q3"), ("Q3", "Q0")]
+        edges = [Edge(a, b) for a, b in outer + spokes + inner]
+        vertices = [f"P{i}" for i in range(5)] + [f"Q{i}" for i in range(5)]
+        may_be_planar, _ = _may_be_planar(vertices, edges)
+        self.assertTrue(may_be_planar)
 
     # ------------------------------------------------------------------
     # Grid layout edge crossing tests

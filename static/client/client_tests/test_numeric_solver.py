@@ -77,6 +77,16 @@ class TestNumericSolverHelpers(unittest.TestCase):
         result = solve_linear_system_gaussian(A, b)
         self.assertIsNone(result)
 
+    def test_gaussian_elimination_small_scale(self) -> None:
+        """Pivots are judged relative to the matrix, so small-scale systems are not 'singular'."""
+        from numeric_solver.linear_algebra import solve_linear_system_gaussian
+
+        result = solve_linear_system_gaussian([[1e-13, 0.0], [0.0, 2e-13]], [1e-13, 6e-13])
+
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result[0], 1.0, places=9)
+        self.assertAlmostEqual(result[1], 3.0, places=9)
+
     def test_deduplication(self) -> None:
         """Test that near-duplicate solutions are deduplicated."""
         from numeric_solver.utils import deduplicate_solutions
@@ -220,6 +230,106 @@ class TestNumericSolverIntegration(unittest.TestCase):
         self.assertIn("method", result)
         self.assertEqual(result["method"], "newton_raphson")
 
+    def test_solves_equations_with_large_magnitudes(self) -> None:
+        """Residual noise near large roots exceeds any absolute tolerance."""
+        from numeric_solver import solve_numeric
+
+        cases = [
+            ("x^3 = 2000000000", [2e9 ** (1.0 / 3.0)]),
+            ("x^2 = 1000000000007", [-math.sqrt(1e12 + 7), math.sqrt(1e12 + 7)]),
+            ("exp(x) = 10000000", [math.log(1e7)]),
+        ]
+        for equation, expected in cases:
+            result = json.loads(solve_numeric([equation]))
+            found = sorted(sol["x"] for sol in result["solutions"])
+            self.assertEqual(len(found), len(expected), f"{equation}: {result}")
+            for value, root in zip(found, sorted(expected)):
+                self.assertTrue(math.isclose(value, root, rel_tol=1e-8), f"{equation}: {value} != {root}")
+
+    def test_small_scale_equation_has_single_accurate_root(self) -> None:
+        """An absolute residual tolerance accepts points far from the root of tiny-scale equations."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["0.000000000001*x = 0.001"]))
+
+        self.assertEqual(len(result["solutions"]), 1, str(result))
+        self.assertTrue(math.isclose(result["solutions"][0]["x"], 1e9, rel_tol=1e-8))
+
+    def test_multiple_roots_reported_once(self) -> None:
+        """Roots of multiplicity > 1 converge slowly but must not be reported many times."""
+        from numeric_solver import solve_numeric
+
+        for equation in ("(x-1)^2 = 0", "(x-1)^3 = 0", "x^2 = 0"):
+            result = json.loads(solve_numeric([equation]))
+            self.assertEqual(len(result["solutions"]), 1, f"{equation}: {result}")
+            expected = 0.0 if equation == "x^2 = 0" else 1.0
+            self.assertAlmostEqual(result["solutions"][0]["x"], expected, places=5)
+
+    def test_deduplication_is_relative_and_keeps_best_residual(self) -> None:
+        """Large-magnitude solutions are clustered relative to their size."""
+        from numeric_solver.utils import deduplicate_solutions
+
+        solutions = [[1e9 + 3.0], [1e9], [5.0]]
+        result = deduplicate_solutions(solutions, ["x"], residuals=[1e-9, 1e-14, 1e-12])
+
+        self.assertEqual(result, [{"x": 1e9}, {"x": 5.0}])
+
+    def test_overdetermined_consistent_linear_system(self) -> None:
+        """More equations than unknowns: Gauss-Newton finds the common solution."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["x + y = 5", "x - y = 1", "x + 2*y = 7"]))
+
+        self.assertEqual(len(result["solutions"]), 1, str(result))
+        self.assertAlmostEqual(result["solutions"][0]["x"], 3.0, places=8)
+        self.assertAlmostEqual(result["solutions"][0]["y"], 2.0, places=8)
+        self.assertIn("warning", result)
+
+    def test_overdetermined_consistent_nonlinear_system(self) -> None:
+        """Circle, line and hyperbola meeting at (3, 4) and (-4, -3)."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["x^2 + y^2 = 25", "y = x + 1", "x*y = 12"]))
+
+        found = sorted((round(sol["x"], 6), round(sol["y"], 6)) for sol in result["solutions"])
+        self.assertEqual(found, [(-4.0, -3.0), (3.0, 4.0)], str(result))
+
+    def test_overdetermined_inconsistent_system_reports_message(self) -> None:
+        """A least-squares minimum with non-zero residual is not a solution."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["x + y = 2", "x - y = 0", "x + 2*y = 5"]))
+
+        self.assertEqual(result["solutions"], [])
+        self.assertIn("inconsistent", result["message"])
+
+    def test_underdetermined_system_returns_points_on_solution_set(self) -> None:
+        """Fewer equations than unknowns: minimum-norm steps land on the solution set."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["x^2 + y^2 + z^2 = 1", "x + y + z = 0"]))
+
+        self.assertGreater(len(result["solutions"]), 0, str(result))
+        for sol in result["solutions"]:
+            x, y, z = sol["x"], sol["y"], sol["z"]
+            self.assertAlmostEqual(x * x + y * y + z * z, 1.0, places=6)
+            self.assertAlmostEqual(x + y + z, 0.0, places=6)
+        self.assertIn("not unique", result["warning"])
+
+    def test_least_squares_helper_shapes(self) -> None:
+        """Overdetermined systems use normal equations; underdetermined use minimum norm."""
+        from numeric_solver.linear_algebra import solve_least_squares_gaussian
+
+        over = solve_least_squares_gaussian([[1.0, 1.0], [1.0, -1.0], [1.0, 2.0]], [5.0, 1.0, 7.0])
+        self.assertIsNotNone(over)
+        self.assertAlmostEqual(over[0], 3.0, places=9)
+        self.assertAlmostEqual(over[1], 2.0, places=9)
+
+        under = solve_least_squares_gaussian([[1.0, 1.0]], [2.0])
+        self.assertIsNotNone(under)
+        self.assertAlmostEqual(under[0], 1.0, places=9)
+        self.assertAlmostEqual(under[1], 1.0, places=9)
+
     def test_auto_detects_variables(self) -> None:
         """Test that variables are auto-detected when not provided."""
         from numeric_solver import solve_numeric
@@ -299,9 +409,31 @@ class TestJacobianComputation(unittest.TestCase):
         self.assertAlmostEqual(J[0][0], 2.0, places=4)
         self.assertAlmostEqual(J[0][1], 2.0, places=4)
 
+    def test_jacobian_step_scales_with_large_values(self) -> None:
+        """A fixed step of 1e-7 is below the spacing of floats near 1e9."""
+        from numeric_solver.jacobian import compute_jacobian
+
+        J = compute_jacobian(["x^2", "x*y"], ["x", "y"], [1e9, 3.0])
+
+        self.assertIsNotNone(J)
+        self.assertTrue(math.isclose(J[0][0], 2e9, rel_tol=1e-6), f"d(x^2)/dx = {J[0][0]}")
+        self.assertTrue(math.isclose(J[1][0], 3.0, rel_tol=1e-6), f"d(xy)/dx = {J[1][0]}")
+        self.assertTrue(math.isclose(J[1][1], 1e9, rel_tol=1e-6), f"d(xy)/dy = {J[1][1]}")
+
 
 class TestExpressionEvaluation(unittest.TestCase):
     """Tests for expression evaluation."""
+
+    def test_evaluate_large_integer_valued_result(self) -> None:
+        """Integer-valued results above 2**53 must not break the JS-to-Python conversion."""
+        from numeric_solver.expression_utils import evaluate_residuals
+
+        values = [1e9 + 100.0, 3e8 + 1.0]
+        result = evaluate_residuals(["x^2", "y^2 - 1"], ["x", "y"], values)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(math.isclose(result[0], values[0] ** 2, rel_tol=1e-15), str(result))
+        self.assertTrue(math.isclose(result[1], values[1] ** 2 - 1, rel_tol=1e-15), str(result))
 
     def test_evaluate_simple_expression(self) -> None:
         """Test evaluation of simple expressions."""

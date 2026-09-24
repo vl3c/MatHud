@@ -8,7 +8,7 @@ Key Features:
     - Mouse wheel zooming with dynamic zoom point tracking
     - Canvas panning via mouse drag operations
     - Double-click coordinate capture for precise input
-    - Throttled mouse movement for performance optimization
+    - Pan redraws coalesced to one per animation frame
     - Chat interface keyboard shortcuts (Enter key)
     - Error handling for robust user experience
 
@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any, Callable, List, Optional, cast
 import time
 
 from browser import document, window
-from constants import double_click_threshold_s, zoom_in_scale_factor, zoom_out_scale_factor, mousemove_throttle_ms
+from constants import double_click_threshold_s, zoom_in_scale_factor, zoom_out_scale_factor
 from drawables_aggregator import Position
 
 if TYPE_CHECKING:
@@ -126,6 +126,8 @@ class CanvasEventHandler:
         # Zoom draw scheduling (wheel + pinch): avoid blocking by drawing at most once per frame
         self._zoom_draw_scheduled: bool = False
         self._zoom_settle_timeout_id: Optional[Any] = None
+        # Pan draw scheduling (mouse/touch drag): offsets apply immediately, drawing is coalesced
+        self._pan_draw_scheduled: bool = False
         self.bind_events()
 
     def bind_events(self) -> None:
@@ -424,17 +426,39 @@ class CanvasEventHandler:
         except Exception as e:
             print(f"Error updating mouse position: {str(e)}")
 
-    @throttle(mousemove_throttle_ms)
     def _update_canvas_position(self, event: Any) -> None:
-        """Update canvas position with throttling for smooth performance."""
+        """Apply the drag offset now and schedule a coalesced redraw."""
         try:
             if self.current_mouse_position and self.canvas.last_mouse_position:
                 offset: Position = self._calculate_drag_offset()
                 self._apply_offset_to_canvas(offset)
                 self._update_last_mouse_position()
-                self.canvas.draw(False)
+                self._schedule_pan_redraw()
         except Exception as e:
             print(f"Error updating canvas position: {str(e)}")
+
+    def _schedule_pan_redraw(self) -> None:
+        """Draw at most once per animation frame while panning.
+
+        Offsets accumulate on every move event; when a draw takes longer than the
+        interval between move events the view still catches up in one draw instead
+        of queueing a full redraw per event.
+        """
+        if self._pan_draw_scheduled or self._zoom_draw_scheduled:
+            return
+        self._pan_draw_scheduled = True
+
+        def _raf_callback(_ts: Any = None) -> None:
+            self._pan_draw_scheduled = False
+            try:
+                self.canvas.draw(False)
+            except Exception:
+                pass
+
+        try:
+            window.requestAnimationFrame(_raf_callback)
+        except Exception:
+            _raf_callback()
 
     def _calculate_drag_offset(self) -> Position:
         """Calculate the drag offset based on mouse movement."""

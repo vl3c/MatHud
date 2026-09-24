@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import platform as _platform
+import sys
 from pathlib import Path
 
 # Project root directory (parent of cli/)
@@ -46,11 +47,17 @@ CLI_OUTPUT_DIR = Path(__file__).parent / "output"
 
 # Python interpreter path
 def get_python_path() -> Path:
-    """Get the path to the Python interpreter in the virtual environment."""
+    """Get the project venv's Python interpreter, or the running one if there is no venv.
+
+    Git worktrees (and other checkouts without ./venv) fall back to sys.executable.
+    """
     if os.name == "nt":  # Windows
-        return PROJECT_ROOT / "venv" / "Scripts" / "python.exe"
+        venv_python = PROJECT_ROOT / "venv" / "Scripts" / "python.exe"
     else:  # Unix-like
-        return PROJECT_ROOT / "venv" / "bin" / "python"
+        venv_python = PROJECT_ROOT / "venv" / "bin" / "python"
+    if venv_python.exists():
+        return venv_python
+    return Path(sys.executable)
 
 
 # Flask app entry point

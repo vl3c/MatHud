@@ -25,7 +25,7 @@ Dependencies:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Set, Tuple, Union, cast
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union, cast
 
 from itertools import combinations
 from .math_utils import MathUtils
@@ -385,16 +385,20 @@ class GeometryUtils:
             angles.append(angle)
         return angles
 
+    # Shape classification tolerances, loose enough for user-entered decimals
+    # (e.g. 3.464 for 2*sqrt(3)) but tight enough to reject visibly unequal shapes.
+    SIDE_LENGTH_RELATIVE_TOLERANCE = 1e-4
+    ANGLE_TOLERANCE_DEGREES = 1e-2
+
     @staticmethod
     def _comparison_tolerance(reference: float = 1.0, *, override: Optional[float] = None) -> float:
         if override is not None:
             return float(override)
-        scale = max(abs(reference), 1.0)
-        return max(MathUtils.EPSILON * scale * 10.0, 1e-6)
+        return max(abs(reference) * GeometryUtils.SIDE_LENGTH_RELATIVE_TOLERANCE, MathUtils.EPSILON)
 
     @staticmethod
     def _is_close(value_a: float, value_b: float, *, tolerance: Optional[float] = None) -> bool:
-        tol = GeometryUtils._comparison_tolerance(reference=max(abs(value_a), abs(value_b), 1.0), override=tolerance)
+        tol = GeometryUtils._comparison_tolerance(reference=max(abs(value_a), abs(value_b)), override=tolerance)
         return abs(value_a - value_b) <= tol
 
     @staticmethod
@@ -413,8 +417,9 @@ class GeometryUtils:
         return False
 
     @staticmethod
-    def _has_right_angle(angles: Sequence[float], *, tolerance: float = 1e-3) -> bool:
-        return any(GeometryUtils._is_close(angle, 90.0, tolerance=tolerance) for angle in angles)
+    def _has_right_angle(angles: Sequence[float], *, tolerance: Optional[float] = None) -> bool:
+        tol = GeometryUtils.ANGLE_TOLERANCE_DEGREES if tolerance is None else tolerance
+        return any(GeometryUtils._is_close(angle, 90.0, tolerance=tol) for angle in angles)
 
     # -------------------------------------------------------------------------
     # Triangle classification helpers
@@ -497,7 +502,9 @@ class GeometryUtils:
         opposite_sides_equal = GeometryUtils._is_close(side_lengths[0], side_lengths[2]) and GeometryUtils._is_close(
             side_lengths[1], side_lengths[3]
         )
-        right_angles = all(GeometryUtils._is_close(angle, 90.0) for angle in angles)
+        right_angles = all(
+            GeometryUtils._is_close(angle, 90.0, tolerance=GeometryUtils.ANGLE_TOLERANCE_DEGREES) for angle in angles
+        )
 
         square = all_sides_equal and right_angles
         rectangle = right_angles and opposite_sides_equal
@@ -562,7 +569,9 @@ class GeometryUtils:
     def polygon_flags(points: Sequence[PointLike]) -> Dict[str, bool]:
         side_lengths = GeometryUtils._polygon_side_lengths(points)
         angles = GeometryUtils._polygon_internal_angles(points)
-        regular = GeometryUtils._all_close(side_lengths) and GeometryUtils._all_close(angles, tolerance=1e-3)
+        regular = GeometryUtils._all_close(side_lengths) and GeometryUtils._all_close(
+            angles, tolerance=GeometryUtils.ANGLE_TOLERANCE_DEGREES
+        )
         return {
             "regular": regular,
             "irregular": not regular,
@@ -744,6 +753,8 @@ class GeometryUtils:
         denom = dx1 * dy2 - dy1 * dx2
         eps = GeometryUtils.INTERSECTION_EPSILON
 
+        # Parallel segments, including collinear overlapping ones, report no
+        # intersection: an overlap is a segment rather than isolated points.
         if abs(denom) < eps:
             return []
 
@@ -908,49 +919,37 @@ class GeometryUtils:
     ) -> List[Tuple[float, float]]:
         """
         Find intersection points between a circular arc and an elliptical arc.
-        Uses numerical sampling approach.
+        Finds roots of the circle's implicit function along the ellipse
+        parameterization (sign changes refined by bisection, plus tangencies).
         """
         cx, cy = ellipse_center
         rot = ellipse_rotation
+        cos_rot = math.cos(rot)
+        sin_rot = math.sin(rot)
 
-        cos_rot = math.cos(-rot)
-        sin_rot = math.sin(-rot)
+        def ellipse_point(t: float) -> Tuple[float, float]:
+            local_x = ellipse_rx * math.cos(t)
+            local_y = ellipse_ry * math.sin(t)
+            return (cos_rot * local_x - sin_rot * local_y + cx, sin_rot * local_x + cos_rot * local_y + cy)
 
-        circle_cx_local = (circle_center[0] - cx) * cos_rot - (circle_center[1] - cy) * sin_rot
-        circle_cy_local = (circle_center[0] - cx) * sin_rot + (circle_center[1] - cy) * cos_rot
+        def circle_implicit(t: float) -> float:
+            x, y = ellipse_point(t)
+            dx = x - circle_center[0]
+            dy = y - circle_center[1]
+            return dx * dx + dy * dy - circle_radius * circle_radius
 
-        circle_cx_scaled = circle_cx_local / ellipse_rx
-        circle_cy_scaled = circle_cy_local / ellipse_ry
+        center_distance = math.hypot(circle_center[0] - cx, circle_center[1] - cy)
+        length_scale = max(circle_radius, ellipse_rx, ellipse_ry, center_distance)
+        roots = GeometryUtils._find_periodic_roots(circle_implicit, length_scale * length_scale)
 
         results: List[Tuple[float, float]] = []
-        num_samples = 360
-
-        for i in range(num_samples):
-            angle = 2 * math.pi * i / num_samples
-
-            ex = math.cos(angle)
-            ey = math.sin(angle)
-
-            dist_x = (ex - circle_cx_scaled) * ellipse_rx
-            dist_y = (ey - circle_cy_scaled) * ellipse_ry
-            dist = math.sqrt(dist_x * dist_x + dist_y * dist_y)
-
-            if abs(dist - circle_radius) < 0.01:
-                cos_rot_inv = math.cos(rot)
-                sin_rot_inv = math.sin(rot)
-                world_x = (ex * ellipse_rx) * cos_rot_inv - (ey * ellipse_ry) * sin_rot_inv + cx
-                world_y = (ex * ellipse_rx) * sin_rot_inv + (ey * ellipse_ry) * cos_rot_inv + cy
-
-                circle_angle = math.atan2(world_y - circle_center[1], world_x - circle_center[0])
-
-                if GeometryUtils._angle_in_arc_range(
-                    angle, ellipse_start, ellipse_end, ellipse_cw
-                ) and GeometryUtils._angle_in_arc_range(circle_angle, circle_start, circle_end, circle_cw):
-                    is_duplicate = any(
-                        GeometryUtils._points_equal((world_x, world_y), existing, tol=0.001) for existing in results
-                    )
-                    if not is_duplicate:
-                        results.append((world_x, world_y))
+        for t in roots:
+            world_x, world_y = ellipse_point(t)
+            circle_angle = math.atan2(world_y - circle_center[1], world_x - circle_center[0])
+            if GeometryUtils._angle_in_arc_range(
+                t, ellipse_start, ellipse_end, ellipse_cw
+            ) and GeometryUtils._angle_in_arc_range(circle_angle, circle_start, circle_end, circle_cw):
+                GeometryUtils._append_unique_point(results, (world_x, world_y), length_scale)
 
         return results
 
@@ -973,47 +972,131 @@ class GeometryUtils:
     ) -> List[Tuple[float, float]]:
         """
         Find intersection points between two elliptical arcs.
-        Uses numerical sampling approach.
+        Finds roots of the second ellipse's implicit function along the first
+        ellipse's parameterization (sign changes refined by bisection, plus tangencies).
         """
+        cos_rot1 = math.cos(rotation1)
+        sin_rot1 = math.sin(rotation1)
+        cos_rot2 = math.cos(-rotation2)
+        sin_rot2 = math.sin(-rotation2)
+
+        def first_point(t: float) -> Tuple[float, float]:
+            local_x = rx1 * math.cos(t)
+            local_y = ry1 * math.sin(t)
+            return (
+                cos_rot1 * local_x - sin_rot1 * local_y + center1[0],
+                sin_rot1 * local_x + cos_rot1 * local_y + center1[1],
+            )
+
+        def second_local(point: Tuple[float, float]) -> Tuple[float, float]:
+            dx = point[0] - center2[0]
+            dy = point[1] - center2[1]
+            return (cos_rot2 * dx - sin_rot2 * dy, sin_rot2 * dx + cos_rot2 * dy)
+
+        def second_implicit(t: float) -> float:
+            local2_x, local2_y = second_local(first_point(t))
+            return (local2_x / rx2) ** 2 + (local2_y / ry2) ** 2 - 1.0
+
+        center_distance = math.hypot(center2[0] - center1[0], center2[1] - center1[1])
+        length_scale = max(rx1, ry1, rx2, ry2, center_distance)
+        roots = GeometryUtils._find_periodic_roots(second_implicit, 1.0)
+
         results: List[Tuple[float, float]] = []
-        num_samples = 360
-
-        for i in range(num_samples):
-            angle1 = 2 * math.pi * i / num_samples
-
-            if not GeometryUtils._angle_in_arc_range(angle1, start1, end1, cw1):
+        for t in roots:
+            if not GeometryUtils._angle_in_arc_range(t, start1, end1, cw1):
                 continue
-
-            cos_a = math.cos(angle1)
-            sin_a = math.sin(angle1)
-            cos_rot1 = math.cos(rotation1)
-            sin_rot1 = math.sin(rotation1)
-
-            local_x = rx1 * cos_a
-            local_y = ry1 * sin_a
-            world_x = cos_rot1 * local_x - sin_rot1 * local_y + center1[0]
-            world_y = sin_rot1 * local_x + cos_rot1 * local_y + center1[1]
-
-            cos_rot2 = math.cos(-rotation2)
-            sin_rot2 = math.sin(-rotation2)
-            dx = world_x - center2[0]
-            dy = world_y - center2[1]
-            local2_x = cos_rot2 * dx - sin_rot2 * dy
-            local2_y = sin_rot2 * dx + cos_rot2 * dy
-
-            normalized = (local2_x / rx2) ** 2 + (local2_y / ry2) ** 2
-
-            if abs(normalized - 1.0) < 0.01:
-                angle2 = math.atan2(local2_y / ry2, local2_x / rx2)
-
-                if GeometryUtils._angle_in_arc_range(angle2, start2, end2, cw2):
-                    is_duplicate = any(
-                        GeometryUtils._points_equal((world_x, world_y), existing, tol=0.001) for existing in results
-                    )
-                    if not is_duplicate:
-                        results.append((world_x, world_y))
+            world = first_point(t)
+            local2_x, local2_y = second_local(world)
+            angle2 = math.atan2(local2_y / ry2, local2_x / rx2)
+            if GeometryUtils._angle_in_arc_range(angle2, start2, end2, cw2):
+                GeometryUtils._append_unique_point(results, world, length_scale)
 
         return results
+
+    @staticmethod
+    def _append_unique_point(
+        points: List[Tuple[float, float]], point: Tuple[float, float], length_scale: float
+    ) -> None:
+        """Append point unless it duplicates an existing one (relative to length_scale)."""
+        tol = 1e-7 * max(length_scale, 1e-12)
+        if not any(GeometryUtils._points_equal(point, existing, tol=tol) for existing in points):
+            points.append(point)
+
+    @staticmethod
+    def _find_periodic_roots(func: Callable[[float], float], value_scale: float, num_samples: int = 360) -> List[float]:
+        """Find parameters t in [0, 2*pi) where a 2*pi-periodic func crosses or touches zero.
+
+        Sign changes on a uniform grid are refined by bisection. Grid points where
+        |func| has a local minimum without a sign change are refined with a
+        golden-section search, catching tangencies and closely spaced crossing pairs.
+
+        Args:
+            func: Periodic function of the parameter.
+            value_scale: Typical magnitude of func, used for the tangency tolerance.
+            num_samples: Grid size.
+        """
+        step = 2 * math.pi / num_samples
+        values = [func(i * step) for i in range(num_samples)]
+        zero_tol = 1e-9 * value_scale
+        roots: List[float] = []
+
+        def bisect(lo: float, hi: float, f_lo: float) -> float:
+            for _ in range(60):
+                mid = 0.5 * (lo + hi)
+                f_mid = func(mid)
+                if f_mid == 0.0:
+                    return mid
+                if (f_mid < 0.0) == (f_lo < 0.0):
+                    lo, f_lo = mid, f_mid
+                else:
+                    hi = mid
+            return 0.5 * (lo + hi)
+
+        def minimize(lo: float, hi: float, sign: float) -> Tuple[float, float]:
+            # Golden-section search for the minimum of sign*func on [lo, hi]
+            ratio = (math.sqrt(5.0) - 1.0) / 2.0
+            a, b = lo, hi
+            c = b - ratio * (b - a)
+            d = a + ratio * (b - a)
+            fc, fd = sign * func(c), sign * func(d)
+            for _ in range(50):
+                if fc < fd:
+                    b, d, fd = d, c, fc
+                    c = b - ratio * (b - a)
+                    fc = sign * func(c)
+                else:
+                    a, c, fc = c, d, fd
+                    d = a + ratio * (b - a)
+                    fd = sign * func(d)
+            t_min = 0.5 * (a + b)
+            return t_min, sign * func(t_min)
+
+        for i in range(num_samples):
+            t = i * step
+            prev_value = values[i - 1]
+            value = values[i]
+            next_value = values[(i + 1) % num_samples]
+
+            if value == 0.0:
+                roots.append(t)
+                continue
+            if next_value != 0.0 and (value < 0.0) != (next_value < 0.0):
+                roots.append(bisect(t, t + step, value) % (2 * math.pi))
+                continue
+
+            # Local minimum of |func| without a sign change: a tangency or two close crossings
+            same_sign = (prev_value < 0.0) == (value < 0.0) == (next_value < 0.0)
+            if same_sign and prev_value != 0.0 and next_value != 0.0:
+                if abs(value) <= abs(prev_value) and abs(value) <= abs(next_value):
+                    sign = 1.0 if value > 0.0 else -1.0
+                    t_min, signed_min = minimize(t - step, t + step, sign)
+                    if signed_min < -zero_tol:
+                        roots.append(bisect(t - step, t_min, sign * 1.0) % (2 * math.pi))
+                        roots.append(bisect(t_min, t + step, -sign * 1.0) % (2 * math.pi))
+                    elif signed_min <= zero_tol:
+                        roots.append(t_min % (2 * math.pi))
+
+        return roots
 
     # -------------------------------------------------------------------------
     # Area calculation utilities
@@ -1067,10 +1150,11 @@ class GeometryUtils:
         Calculate the signed area contribution of a circular arc segment.
 
         Uses the formula: (1/2) * integral of (x*dy - y*dx) along the arc.
-        For a circular arc, this integrates to:
-        Area = (r^2/2) * (theta2 - theta1) + (1/2) * (x1*y2 - x2*y1)
+        For a circular arc with center C and endpoints P1, P2, this integrates to:
+        Area = (r^2/2) * (theta2 - theta1) + (1/2) * C x (P2 - P1)
+             = (r^2/2) * span + (1/2) * (cx*(y2 - y1) - cy*(x2 - x1))
 
-        The second term accounts for the chord contribution.
+        The second term accounts for the offset of the center from the origin.
 
         Args:
             center: (cx, cy) center of the circle
@@ -1109,9 +1193,9 @@ class GeometryUtils:
 
         sector_area = 0.5 * radius * radius * span
 
-        chord_area = 0.5 * (x1 * y2 - x2 * y1)
+        center_offset_area = 0.5 * (cx * (y2 - y1) - cy * (x2 - x1))
 
-        return sector_area + chord_area
+        return sector_area + center_offset_area
 
     @staticmethod
     def elliptical_segment_area(
@@ -1126,7 +1210,11 @@ class GeometryUtils:
         """
         Calculate the signed area contribution of an elliptical arc segment.
 
-        Uses numerical integration of (1/2) * (x*dy - y*dx) along the arc.
+        Uses the closed form of (1/2) * integral of (x*dy - y*dx) along the arc.
+        With P(t) = C + R(rotation) * (a*cos(t), b*sin(t)), rotation preserves the
+        cross product, so the integral is:
+        Area = (1/2) * (a*b*span + cx*(y2 - y1) - cy*(x2 - x1))
+        where (x1, y1) and (x2, y2) are the arc endpoints.
 
         Args:
             center: (cx, cy) center of the ellipse
@@ -1162,27 +1250,15 @@ class GeometryUtils:
         if abs(span) < GeometryUtils.INTERSECTION_EPSILON:
             span = two_pi if not clockwise else -two_pi
 
-        num_steps = max(100, int(abs(span) * 50))
-        dt = span / num_steps
-
-        area = 0.0
-        t = start_angle
-
-        for _ in range(num_steps):
+        def point_at(t: float) -> Tuple[float, float]:
             local_x = radius_x * math.cos(t)
             local_y = radius_y * math.sin(t)
-            x = cos_rot * local_x - sin_rot * local_y + cx
-            y = sin_rot * local_x + cos_rot * local_y + cy
+            return (cos_rot * local_x - sin_rot * local_y + cx, sin_rot * local_x + cos_rot * local_y + cy)
 
-            dx_dt = -radius_x * math.sin(t)
-            dy_dt = radius_y * math.cos(t)
-            dx = cos_rot * dx_dt - sin_rot * dy_dt
-            dy = sin_rot * dx_dt + cos_rot * dy_dt
+        x1, y1 = point_at(start_angle)
+        x2, y2 = point_at(start_angle + span)
 
-            area += 0.5 * (x * dy - y * dx) * dt
-            t += dt
-
-        return area
+        return 0.5 * (radius_x * radius_y * span + cx * (y2 - y1) - cy * (x2 - x1))
 
     @staticmethod
     def line_segment_area_contribution(start: Tuple[float, float], end: Tuple[float, float]) -> float:

@@ -6,6 +6,7 @@ import unittest
 from typing import Any, Dict
 
 from canvas import Canvas
+from constants import successful_call_message
 from process_function_calls import ProcessFunctionCalls
 from drawables_aggregator import Position
 from .simple_mock import SimpleMock
@@ -69,7 +70,92 @@ class TestGetResultsTraced(unittest.TestCase):
             self.canvas,
         )
         self.assertTrue(traced[0]["is_error"])
-        self.assertIn("Error", str(results.get("fail_func", "")))
+        self.assertIn("Error", str(results.get("fail_func()", "")))
+        self.assertIn("intentional error", str(traced[0]["result"]))
+
+    def test_errors_from_same_tool_keep_distinct_keys(self) -> None:
+        """Failures of the same tool with different args must not overwrite each other."""
+
+        def fail_on_name(**kwargs: Any) -> str:
+            raise ValueError(f"bad {kwargs.get('name')}")
+
+        available_functions: Dict[str, Any] = {"create_thing": fail_on_name}
+        calls = [
+            {"function_name": "create_thing", "arguments": {"name": "A"}},
+            {"function_name": "create_thing", "arguments": {"name": "B"}},
+        ]
+        plain = ProcessFunctionCalls.get_results(calls, available_functions, (), self.canvas)
+        traced, _ = ProcessFunctionCalls.get_results_traced(calls, available_functions, (), self.canvas)
+        for results in (plain, traced):
+            self.assertEqual(results.get("create_thing(name:A)"), "Error: bad A")
+            self.assertEqual(results.get("create_thing(name:B)"), "Error: bad B")
+            self.assertNotIn("create_thing", results)
+
+    def test_build_tool_call_results_pairs_each_call_with_its_id(self) -> None:
+        """Parallel calls each get their own result entry, tagged with the tool-call id, in order."""
+
+        def fail(**kwargs: Any) -> str:
+            raise ValueError("boom")
+
+        available_functions: Dict[str, Any] = {
+            "evaluate_expression": ProcessFunctionCalls.evaluate_expression,
+            "fail_func": fail,
+        }
+        calls = [
+            {"id": "call_a", "function_name": "evaluate_expression", "arguments": {"expression": "2+3"}},
+            {"id": "call_b", "function_name": "fail_func", "arguments": {"x": 1}},
+            {"function_name": "evaluate_expression", "arguments": {"expression": "4*4"}},
+        ]
+        _, traced = ProcessFunctionCalls.get_results_traced(calls, available_functions, (), self.canvas)
+        entries = ProcessFunctionCalls.build_tool_call_results(calls, traced)
+
+        self.assertEqual(
+            entries,
+            [
+                {"tool_call_id": "call_a", "result": {"2+3": 5}},
+                {"tool_call_id": "call_b", "result": {"fail_func(x:1)": "Error: boom"}},
+                {"tool_call_id": None, "result": {"4*4": 16}},
+            ],
+        )
+
+    def test_traced_result_captured_for_repeated_identical_calls(self) -> None:
+        """Identical repeated calls still record their own result in the trace."""
+        available_functions: Dict[str, Any] = {"make": lambda **kwargs: "done"}
+        calls = [{"function_name": "make", "arguments": {}}, {"function_name": "make", "arguments": {}}]
+        _, traced = ProcessFunctionCalls.get_results_traced(calls, available_functions, (), self.canvas)
+        self.assertEqual([t["result"] for t in traced], ["done", "done"])
+
+    def test_undoable_small_return_values_pass_through(self) -> None:
+        """Small string/dict returns of undoable tools reach the model instead of 'Call successful!'."""
+        graph_state = {"name": "G1", "vertices": ["A", "B"], "edges": [["A", "B"]]}
+        available_functions: Dict[str, Any] = {
+            "make_graph": lambda **kwargs: graph_state,
+            "make_label": lambda **kwargs: "Created label L1",
+        }
+        calls = [
+            {"function_name": "make_graph", "arguments": {"name": "G1"}},
+            {"function_name": "make_label", "arguments": {"text": "hi"}},
+        ]
+        results, traced = ProcessFunctionCalls.get_results_traced(
+            calls, available_functions, ("make_graph", "make_label"), self.canvas
+        )
+        self.assertEqual(results["make_graph(name:G1)"], graph_state)
+        self.assertEqual(results["make_label(text:hi)"], "Created label L1")
+        self.assertEqual(traced[0]["result"], graph_state)
+
+    def test_undoable_other_return_values_become_success_message(self) -> None:
+        """None, bools, objects, unserializable and oversized payloads keep the success message."""
+        available_functions: Dict[str, Any] = {
+            "ret_none": lambda **kwargs: None,
+            "ret_bool": lambda **kwargs: True,
+            "ret_obj": lambda **kwargs: SimpleMock(name="obj"),
+            "ret_mixed": lambda **kwargs: {"drawable": SimpleMock(name="obj")},
+            "ret_big": lambda **kwargs: {"data": "x" * 5000},
+        }
+        calls = [{"function_name": name, "arguments": {}} for name in available_functions]
+        results = ProcessFunctionCalls.get_results(calls, available_functions, tuple(available_functions), self.canvas)
+        for name in available_functions:
+            self.assertEqual(results[f"{name}()"], successful_call_message, name)
 
     def test_same_results_as_get_results(self) -> None:
         """get_results_traced should produce identical results dict as get_results."""

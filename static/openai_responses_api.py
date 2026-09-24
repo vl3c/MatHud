@@ -659,5 +659,5 @@ class OpenAIResponsesAPI(OpenAIAPIBase):
                 args = json.loads(args_raw) if args_raw else {}
             except Exception:
                 args = {}
-            result.append({"function_name": func.get("name") or "", "arguments": args})
+            result.append({"id": tc.get("id"), "function_name": func.get("name") or "", "arguments": args})
         return result

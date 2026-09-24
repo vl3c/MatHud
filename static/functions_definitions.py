@@ -1100,7 +1100,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "draw_tangent_line",
-            "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles and ellipses, it's the angle in radians from the positive x-axis.",
+            "description": "Draws a tangent line segment to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)).",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1111,7 +1111,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "parameter": {
                         "type": "number",
-                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, or angle (radians) for circles/ellipses",
+                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, angle (radians) for circles, or parametric angle t (radians, in the ellipse's rotated frame) for ellipses",
                     },
                     "name": {"type": ["string", "null"], "description": "Optional name for the tangent line segment"},
                     "length": {
@@ -1132,7 +1132,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "draw_normal_line",
-            "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles and ellipses, it's the angle in radians from the positive x-axis.",
+            "description": "Draws a normal line segment (perpendicular to tangent) to a curve at a specified point. For functions y=f(x), the parameter is the x-coordinate. For parametric curves, it's the t value. For circles, it's the angle in radians from the positive x-axis. For ellipses, it's the parametric angle t in radians, measured from the ellipse's own (rotated) x-axis: point = center + R(rotation) * (radius_x*cos(t), radius_y*sin(t)).",
             "strict": True,
             "parameters": {
                 "type": "object",
@@ -1143,7 +1143,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
                     },
                     "parameter": {
                         "type": "number",
-                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, or angle (radians) for circles/ellipses",
+                        "description": "Position on curve: x-coordinate for functions, t-value for parametric curves, angle (radians) for circles, or parametric angle t (radians, in the ellipse's rotated frame) for ellipses",
                     },
                     "name": {"type": ["string", "null"], "description": "Optional name for the normal line segment"},
                     "length": {
@@ -2708,7 +2708,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "search_tools",
-            "description": "Search for the best tools to accomplish a task. Use this when you're unsure which specific tool to use. Provide a description of what you want to do, and receive the most relevant tool definitions.",
+            "description": "Find and load the tools for a task. When only a few tools are available (search-first mode), call this before any other tool: describe what you want to do and the most relevant tool definitions are returned and made available for your next calls. Calls to tools that were not loaded fail.",
             "strict": True,
             "parameters": {
                 "type": "object",

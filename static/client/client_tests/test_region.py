@@ -5,6 +5,8 @@ import unittest
 
 from geometry import (
     LineSegment,
+    CircularArc,
+    EllipticalArc,
     CompositePath,
     Region,
 )
@@ -168,6 +170,55 @@ class TestRegion(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(len(result.holes), 0)
 
+    # L-shape (area 3, concave) and the unit square centered on its reflex corner.
+    _L_SHAPE = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0), (1.0, 2.0), (0.0, 2.0)]
+    _CENTER_SQUARE = [(0.5, 0.5), (1.5, 0.5), (1.5, 1.5), (0.5, 1.5)]
+
+    def test_intersection_with_concave_operand_is_commutative(self) -> None:
+        l_shape = Region.from_points(self._L_SHAPE)
+        square = Region.from_points(self._CENTER_SQUARE)
+        l_and_s = l_shape.intersection(square)
+        s_and_l = square.intersection(l_shape)
+        assert l_and_s is not None and s_and_l is not None
+        self.assertAlmostEqual(l_and_s.area(), 0.75, places=6)
+        self.assertAlmostEqual(s_and_l.area(), 0.75, places=6)
+
+    def test_difference_with_concave_operand(self) -> None:
+        l_shape = Region.from_points(self._L_SHAPE)
+        square = Region.from_points(self._CENTER_SQUARE)
+        s_minus_l = square.difference(l_shape)
+        l_minus_s = l_shape.difference(square)
+        assert s_minus_l is not None and l_minus_s is not None
+        self.assertAlmostEqual(s_minus_l.area(), 0.25, places=6)
+        self.assertAlmostEqual(l_minus_s.area(), 2.25, places=6)
+
+    def test_union_and_symmetric_difference_with_concave_operand(self) -> None:
+        l_shape = Region.from_points(self._L_SHAPE)
+        square = Region.from_points(self._CENTER_SQUARE)
+        self.assertAlmostEqual(square.union(l_shape).area(), 3.25, places=6)
+        self.assertAlmostEqual(l_shape.union(square).area(), 3.25, places=6)
+        self.assertAlmostEqual(square.symmetric_difference(l_shape).area(), 2.5, places=6)
+
+    def test_circle_and_concave_clips_against_circle(self) -> None:
+        # Circle centered on the L-shape's reflex corner: three quarters lie inside.
+        l_shape = Region.from_points(self._L_SHAPE)
+        circle = Region.from_circle((1.0, 1.0), 0.25)
+        inter = circle.intersection(l_shape)
+        assert inter is not None
+        self.assertAlmostEqual(inter.area(), 0.75 * math.pi * 0.0625, places=2)
+
+    def test_boolean_op_on_two_concave_regions_raises(self) -> None:
+        l_shape = Region.from_points(self._L_SHAPE)
+        other_l = Region.from_points([(x + 0.5, y + 0.5) for x, y in self._L_SHAPE])
+        with self.assertRaises(ValueError):
+            l_shape.intersection(other_l)
+        with self.assertRaises(ValueError):
+            l_shape.union(other_l)
+        with self.assertRaises(ValueError):
+            l_shape.difference(other_l)
+        with self.assertRaises(ValueError):
+            l_shape.symmetric_difference(other_l)
+
     def test_repr(self) -> None:
         region = Region.from_points([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)])
         repr_str = repr(region)
@@ -212,6 +263,47 @@ class TestAreaUtilities(unittest.TestCase):
         area = GeometryUtils.circular_sector_area(1.0, math.pi / 2)
         expected = 0.5 * 1.0 * (math.pi / 2)
         self.assertAlmostEqual(area, expected, places=5)
+
+    def test_quarter_disc_path_area(self) -> None:
+        # Arc from (1, 0) to (0, 1) closed through the center: area pi/4.
+        arc = CircularArc((0.0, 0.0), 1.0, 0.0, math.pi / 2)
+        path = CompositePath([arc, LineSegment((0.0, 1.0), (0.0, 0.0)), LineSegment((0.0, 0.0), (1.0, 0.0))])
+        self.assertAlmostEqual(Region(path).area(), math.pi / 4, places=9)
+
+    def test_off_center_half_disc_path_area(self) -> None:
+        # Upper half of the circle centered at (3, 2), r=2, closed by its diameter.
+        arc = CircularArc((3.0, 2.0), 2.0, 0.0, math.pi)
+        path = CompositePath([arc, LineSegment((1.0, 2.0), (5.0, 2.0))])
+        self.assertAlmostEqual(Region(path).area(), 2 * math.pi, places=9)
+
+    def test_clockwise_circular_arc_contribution_is_negated(self) -> None:
+        ccw = GeometryUtils.circular_segment_area((1.0, -2.0), 3.0, 0.3, 1.9, False)
+        cw = GeometryUtils.circular_segment_area((1.0, -2.0), 3.0, 1.9, 0.3, True)
+        self.assertAlmostEqual(ccw, -cw, places=9)
+
+    def test_rotated_half_ellipse_path_area_exact(self) -> None:
+        # Half of a rotated, off-center ellipse closed by its (rotated) major axis.
+        arc = EllipticalArc((1.0, 2.0), 3.0, 2.0, 0.0, math.pi, rotation=0.7)
+        path = CompositePath([arc, LineSegment(arc.end_point(), arc.start_point())])
+        self.assertAlmostEqual(Region(path).area(), 3 * math.pi, places=9)
+
+    def test_elliptical_arc_contribution_matches_numeric_integration(self) -> None:
+        center, rx, ry, rot = (1.5, -0.5), 4.0, 1.5, 0.4
+        start, end = 0.2, 2.3
+        steps = 20000
+        dt = (end - start) / steps
+        expected = 0.0
+        for i in range(steps):
+            t = start + (i + 0.5) * dt
+            lx, ly = rx * math.cos(t), ry * math.sin(t)
+            x = math.cos(rot) * lx - math.sin(rot) * ly + center[0]
+            y = math.sin(rot) * lx + math.cos(rot) * ly + center[1]
+            dlx, dly = -rx * math.sin(t), ry * math.cos(t)
+            dx = math.cos(rot) * dlx - math.sin(rot) * dly
+            dy = math.sin(rot) * dlx + math.cos(rot) * dly
+            expected += 0.5 * (x * dy - y * dx) * dt
+        actual = GeometryUtils.elliptical_segment_area(center, rx, ry, rot, start, end, False)
+        self.assertAlmostEqual(actual, expected, places=6)
 
     def test_line_segment_area_contribution(self) -> None:
         area = GeometryUtils.line_segment_area_contribution((0.0, 0.0), (1.0, 0.0))

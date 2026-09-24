@@ -92,6 +92,7 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    PORT=5000                       # Set by hosting platforms to indicate deployed mode
    SECRET_KEY=override-me          # Optional: otherwise a random key is generated per launch
    TOOL_SEARCH_MODE=hybrid         # Tool discovery: local | api | hybrid (default: hybrid)
+   MATHUD_TOOL_EXPOSURE=search     # search: model starts with search_tools + essentials (default); full: all tools up front
    LOCAL_AGENT_BASE_URL=http://127.0.0.1:8080  # LocalAgent server (default shown)
    ```
 2. Authentication rules (`static/app_manager.py`):

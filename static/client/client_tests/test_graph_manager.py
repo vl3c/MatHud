@@ -457,6 +457,30 @@ class TestGraphManager(unittest.TestCase):
         self.assertTrue(removed)
         self.dependency_manager.remove_drawable.assert_called_once_with(graph)
 
+    def test_drawable_manager_capture_graph_state_returns_state(self) -> None:
+        """DrawableManager must return the captured state; analyze_graph relies on it."""
+        from managers.drawable_manager import DrawableManager
+
+        state = self.graph_manager.build_graph_state(
+            name="capture_passthrough",
+            graph_type="tree",
+            vertices=[{"name": "A"}, {"name": "B"}],
+            edges=[{"source": 0, "target": 1}],
+            adjacency_matrix=None,
+            directed=None,
+            root="A",
+            layout=None,
+            placement_box=None,
+            metadata=None,
+        )
+        self.graph_manager.create_graph(state)
+        owner = SimpleMock(graph_manager=self.graph_manager)
+
+        captured = DrawableManager.capture_graph_state(owner, "capture_passthrough")
+
+        self.assertIsNotNone(captured)
+        self.assertEqual(captured.name, "capture_passthrough")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -471,28 +471,44 @@ class QuadrilateralCanonicalizer:
         original: Sequence[PointTuple],
         tolerance: float,
     ) -> List[PointTuple]:
-        """Create rhombus (all sides equal) preserving centroid and first two vertices' orientation."""
+        """Create rhombus (all sides equal) preserving centroid and the input diagonals' lengths.
+
+        The diagonals of a rhombus are perpendicular bisectors of each other, so the
+        diagonal AC keeps its direction (averaged with the rotated BD direction) and
+        both diagonals keep their projected lengths.
+        """
         centroid = QuadrilateralCanonicalizer._compute_centroid(ordered)
-        a, b = ordered[0], ordered[1]
+        a, b, c, d = ordered
 
         side_length = QuadrilateralCanonicalizer._average_side_length(ordered)
         if side_length <= tolerance:
             raise PolygonCanonicalizationError("Quadrilateral side length too small for rhombus canonicalization.")
 
-        vec_ab = (b[0] - a[0], b[1] - a[1])
-        len_ab = math.hypot(vec_ab[0], vec_ab[1])
-        if len_ab <= tolerance:
-            raise PolygonCanonicalizationError("First two vertices are too close for rhombus construction.")
+        vec_ac = (c[0] - a[0], c[1] - a[1])
+        vec_bd = (d[0] - b[0], d[1] - b[1])
+        len_ac = math.hypot(vec_ac[0], vec_ac[1])
+        len_bd = math.hypot(vec_bd[0], vec_bd[1])
+        if len_ac <= tolerance or len_bd <= tolerance:
+            raise PolygonCanonicalizationError("Diagonal vertices are too close for rhombus construction.")
 
-        unit_ab = (vec_ab[0] / len_ab, vec_ab[1] / len_ab)
-        perp = (-unit_ab[1], unit_ab[0])
+        # Average the AC direction with BD rotated by 90 degrees (sign chosen to agree with AC)
+        unit_ac = (vec_ac[0] / len_ac, vec_ac[1] / len_ac)
+        rotated_bd = (vec_bd[1] / len_bd, -vec_bd[0] / len_bd)
+        if rotated_bd[0] * unit_ac[0] + rotated_bd[1] * unit_ac[1] < 0:
+            rotated_bd = (-rotated_bd[0], -rotated_bd[1])
+        axis = (unit_ac[0] + rotated_bd[0], unit_ac[1] + rotated_bd[1])
+        axis_len = math.hypot(axis[0], axis[1])
+        unit_axis = (axis[0] / axis_len, axis[1] / axis_len)
+        perp = (-unit_axis[1], unit_axis[0])
 
-        half_diag1 = side_length * math.sqrt(2) / 2
-        half_diag2 = half_diag1
+        half_diag1 = abs(vec_ac[0] * unit_axis[0] + vec_ac[1] * unit_axis[1]) / 2
+        half_diag2 = abs(vec_bd[0] * perp[0] + vec_bd[1] * perp[1]) / 2
+        if half_diag1 <= tolerance or half_diag2 <= tolerance:
+            raise PolygonCanonicalizationError("Quadrilateral diagonals collapse during rhombus construction.")
 
-        new_a = (centroid[0] - unit_ab[0] * half_diag1, centroid[1] - unit_ab[1] * half_diag1)
+        new_a = (centroid[0] - unit_axis[0] * half_diag1, centroid[1] - unit_axis[1] * half_diag1)
         new_b = (centroid[0] + perp[0] * half_diag2, centroid[1] + perp[1] * half_diag2)
-        new_c = (centroid[0] + unit_ab[0] * half_diag1, centroid[1] + unit_ab[1] * half_diag1)
+        new_c = (centroid[0] + unit_axis[0] * half_diag1, centroid[1] + unit_axis[1] * half_diag1)
         new_d = (centroid[0] - perp[0] * half_diag2, centroid[1] - perp[1] * half_diag2)
 
         return QuadrilateralCanonicalizer._order_ccw([new_a, new_b, new_c, new_d])
@@ -509,33 +525,64 @@ class QuadrilateralCanonicalizer:
     ) -> List[PointTuple]:
         """Create kite with two pairs of adjacent equal sides.
 
-        Uses first two vertices to define one side and the axis of symmetry.
-        The kite has vertices A, B, C, D where AB = AD and CB = CD.
+        Either diagonal may be the axis of symmetry; the one that moves the input
+        vertices the least is used. With axis AC the kite has AB = AD and CB = CD.
         """
         a, b, c, d = ordered
 
+        best: List[PointTuple] | None = None
+        best_error = float("inf")
+        for axis_start, side1, axis_end, side2 in ((a, b, c, d), (b, c, d, a)):
+            candidate = QuadrilateralCanonicalizer._kite_about_axis(axis_start, side1, axis_end, side2, tolerance)
+            source = (axis_start, side1, axis_end, side2)
+            error = sum(math.hypot(p[0] - q[0], p[1] - q[1]) for p, q in zip(candidate, source))
+            if error < best_error:
+                best_error = error
+                best = candidate
+
+        if best is None:
+            raise PolygonCanonicalizationError("Failed to approximate kite from provided vertices.")
+        # Keep the construction's cyclic order: sorting by angle can scramble a concave kite (dart)
+        if QuadrilateralCanonicalizer._signed_area(best) < 0:
+            best = [best[0]] + list(reversed(best[1:]))
+        return best
+
+    @staticmethod
+    def _kite_about_axis(
+        a: PointTuple,
+        b: PointTuple,
+        c: PointTuple,
+        d: PointTuple,
+        tolerance: float,
+    ) -> List[PointTuple]:
+        """Mirror B and D across the diagonal AC so that AB = AD and CB = CD."""
         vec_ac = (c[0] - a[0], c[1] - a[1])
         len_ac = math.hypot(vec_ac[0], vec_ac[1])
         if len_ac <= tolerance:
             raise PolygonCanonicalizationError("Diagonal vertices too close for kite construction.")
 
-        midpoint_ac = ((a[0] + c[0]) / 2, (a[1] + c[1]) / 2)
         unit_ac = (vec_ac[0] / len_ac, vec_ac[1] / len_ac)
         perp_ac = (-unit_ac[1], unit_ac[0])
 
-        dist_b = abs((b[0] - midpoint_ac[0]) * perp_ac[0] + (b[1] - midpoint_ac[1]) * perp_ac[1])
-        dist_d = abs((d[0] - midpoint_ac[0]) * perp_ac[0] + (d[1] - midpoint_ac[1]) * perp_ac[1])
-        avg_dist = (dist_b + dist_d) / 2
+        # Foot of the BD cross-diagonal: average of B's and D's projections onto AC
+        proj_b = (b[0] - a[0]) * unit_ac[0] + (b[1] - a[1]) * unit_ac[1]
+        proj_d = (d[0] - a[0]) * unit_ac[0] + (d[1] - a[1]) * unit_ac[1]
+        foot_t = (proj_b + proj_d) / 2
+        foot = (a[0] + unit_ac[0] * foot_t, a[1] + unit_ac[1] * foot_t)
+
+        offset_b = (b[0] - a[0]) * perp_ac[0] + (b[1] - a[1]) * perp_ac[1]
+        offset_d = (d[0] - a[0]) * perp_ac[0] + (d[1] - a[1]) * perp_ac[1]
+        avg_dist = (abs(offset_b) + abs(offset_d)) / 2
         if avg_dist <= tolerance:
             avg_dist = len_ac / 4
 
-        sign_b = 1 if (b[0] - midpoint_ac[0]) * perp_ac[0] + (b[1] - midpoint_ac[1]) * perp_ac[1] >= 0 else -1
+        sign_b = 1 if offset_b >= 0 else -1
         sign_d = -sign_b
 
-        new_b = (midpoint_ac[0] + perp_ac[0] * avg_dist * sign_b, midpoint_ac[1] + perp_ac[1] * avg_dist * sign_b)
-        new_d = (midpoint_ac[0] + perp_ac[0] * avg_dist * sign_d, midpoint_ac[1] + perp_ac[1] * avg_dist * sign_d)
+        new_b = (foot[0] + perp_ac[0] * avg_dist * sign_b, foot[1] + perp_ac[1] * avg_dist * sign_b)
+        new_d = (foot[0] + perp_ac[0] * avg_dist * sign_d, foot[1] + perp_ac[1] * avg_dist * sign_d)
 
-        return QuadrilateralCanonicalizer._order_ccw([a, new_b, c, new_d])
+        return [a, new_b, c, new_d]
 
     # ------------------------------------------------------------------ #
     # Trapezoid canonicalization
@@ -549,9 +596,10 @@ class QuadrilateralCanonicalizer:
     ) -> List[PointTuple]:
         """Create trapezoid with one pair of parallel sides.
 
-        Uses first two vertices as one parallel side (base), adjusts the opposite side to be parallel.
+        Uses the most nearly parallel pair of opposite sides; the first is kept as the base
+        and the opposite side is adjusted to be parallel.
         """
-        a, b, c, d = ordered
+        a, b, c, d = QuadrilateralCanonicalizer._rotate_to_parallel_base(ordered)
 
         vec_ab = (b[0] - a[0], b[1] - a[1])
         len_ab = math.hypot(vec_ab[0], vec_ab[1])
@@ -586,7 +634,7 @@ class QuadrilateralCanonicalizer:
 
         The non-parallel sides (legs) are made equal length.
         """
-        a, b, c, d = ordered
+        a, b, c, d = QuadrilateralCanonicalizer._rotate_to_parallel_base(ordered)
 
         vec_ab = (b[0] - a[0], b[1] - a[1])
         len_ab = math.hypot(vec_ab[0], vec_ab[1])
@@ -606,7 +654,7 @@ class QuadrilateralCanonicalizer:
 
         vec_cd = (d[0] - c[0], d[1] - c[1])
         len_cd = math.hypot(vec_cd[0], vec_cd[1])
-        if len_cd <= tolerance or len_cd >= len_ab:
+        if len_cd <= tolerance:
             len_cd = len_ab * 0.6
 
         center_top = (mid_ab[0] + perp_ab[0] * height, mid_ab[1] + perp_ab[1] * height)
@@ -627,9 +675,13 @@ class QuadrilateralCanonicalizer:
     ) -> List[PointTuple]:
         """Create right trapezoid with one pair of parallel sides and one right angle.
 
-        First two vertices define the base, and one leg is perpendicular to the base.
+        The most nearly parallel pair of opposite sides defines the base, and the leg
+        closest to perpendicular is made perpendicular to the base.
         """
-        a, b, c, d = ordered
+        a, b, c, d = QuadrilateralCanonicalizer._rotate_to_parallel_base(ordered)
+        # Relabel so that AD is the leg closest to perpendicular to the base
+        if QuadrilateralCanonicalizer._abs_cosine(a, b, b, c) < QuadrilateralCanonicalizer._abs_cosine(a, b, a, d):
+            a, b, c, d = b, a, d, c
 
         vec_ab = (b[0] - a[0], b[1] - a[1])
         len_ab = math.hypot(vec_ab[0], vec_ab[1])
@@ -673,6 +725,24 @@ class QuadrilateralCanonicalizer:
             return QuadrilateralSubtype.from_value(subtype)
         except ValueError as exc:
             raise PolygonCanonicalizationError(str(exc)) from exc
+
+    @staticmethod
+    def _abs_cosine(p0: PointTuple, p1: PointTuple, q0: PointTuple, q1: PointTuple) -> float:
+        """Absolute cosine of the angle between vectors p0->p1 and q0->q1."""
+        u = (p1[0] - p0[0], p1[1] - p0[1])
+        v = (q1[0] - q0[0], q1[1] - q0[1])
+        norm = math.hypot(u[0], u[1]) * math.hypot(v[0], v[1])
+        if norm == 0:
+            return 0.0
+        return abs(u[0] * v[0] + u[1] * v[1]) / norm
+
+    @staticmethod
+    def _rotate_to_parallel_base(ordered: Sequence[PointTuple]) -> List[PointTuple]:
+        """Rotate vertex labels so that AB and CD are the most nearly parallel opposite sides."""
+        a, b, c, d = ordered
+        if QuadrilateralCanonicalizer._abs_cosine(b, c, d, a) > QuadrilateralCanonicalizer._abs_cosine(a, b, c, d):
+            return [b, c, d, a]
+        return [a, b, c, d]
 
     @staticmethod
     def _dedupe_vertices(points: Sequence[PointTuple], tolerance: float) -> List[PointTuple]:
