@@ -1381,11 +1381,14 @@ class MathUtils:
             method=method,
             steps=steps,
         )
-        return {
+        payload: Dict[str, Any] = {
             "value": result["value"],
             "error_estimate": result["error_estimate"],
             "steps": result["steps"],
         }
+        if "warning" in result:
+            payload["warning"] = result["warning"]
+        return payload
 
     @staticmethod
     def simplify(expression: str) -> str:
