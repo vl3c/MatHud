@@ -8,6 +8,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 from coordinate_mapper import CoordinateMapper
 from drawables.function import Function
+from rendering.cached_render_plan import _CachedCoordinateMapper
+from rendering.helpers import function_renderer
 from rendering.renderables.function_renderable import FunctionRenderable
 
 
@@ -41,6 +43,50 @@ def _make_mapper() -> CoordinateMapper:
     mapper = CoordinateMapper(640, 480)
     mapper.scale_factor = 32.0
     return mapper
+
+
+class TestFunctionRenderableReuse(unittest.TestCase):
+    def test_renderable_is_reused_across_plan_builds(self) -> None:
+        func = _FunctionModel("x^2", lambda x: x * x)
+        mapper = _make_mapper()
+
+        first = function_renderer._get_or_create_renderable(func, _CachedCoordinateMapper(mapper))
+        second = function_renderer._get_or_create_renderable(func, _CachedCoordinateMapper(mapper))
+
+        self.assertIs(first, second)
+
+    def test_unchanged_view_reuses_cached_paths(self) -> None:
+        func = _FunctionModel("x^2", lambda x: x * x)
+        mapper = _make_mapper()
+        function_renderer._get_or_create_renderable(func, _CachedCoordinateMapper(mapper)).build_screen_paths()
+        evaluations = len(func.evaluated)
+
+        function_renderer._get_or_create_renderable(func, _CachedCoordinateMapper(mapper)).build_screen_paths()
+
+        self.assertEqual(len(func.evaluated), evaluations)
+
+    def test_vertical_pan_regenerates_paths(self) -> None:
+        func = _FunctionModel("x^2", lambda x: x * x)
+        mapper = _make_mapper()
+        before = function_renderer._get_or_create_renderable(func, _CachedCoordinateMapper(mapper))
+        paths_before = before.build_screen_paths().paths
+
+        mapper.apply_pan(0, 40)
+        after = function_renderer._get_or_create_renderable(func, _CachedCoordinateMapper(mapper))
+        paths_after = after.build_screen_paths().paths
+
+        self.assertNotEqual(paths_before, paths_after)
+
+    def test_model_change_regenerates_paths(self) -> None:
+        func = _FunctionModel("x^2", lambda x: x * x)
+        mapper = _make_mapper()
+        paths_before = function_renderer._get_or_create_renderable(func, mapper).build_screen_paths().paths
+
+        func.expression = "x^2 + 1"
+        func._func = lambda x: x * x + 1
+        paths_after = function_renderer._get_or_create_renderable(func, mapper).build_screen_paths().paths
+
+        self.assertNotEqual(paths_before, paths_after)
 
 
 class TestFunctionRenderableEvaluation(unittest.TestCase):

@@ -78,10 +78,28 @@ def _render_function_paths(primitives, screen_paths, stroke, width=0, height=0):
             primitives.stroke_polyline(path, stroke)
 
 
+def _unwrap_mapper(mapper):
+    """Return the mapper behind a per-build caching wrapper (or the mapper itself)."""
+    return getattr(mapper, "_mapper", mapper)
+
+
+def _model_signature(func):
+    """Serialized model state, used to drop cached paths when the function changes."""
+    get_state = getattr(func, "get_state", None)
+    if not callable(get_state):
+        return None
+    try:
+        return repr(get_state())
+    except Exception:
+        return None
+
+
 def _get_or_create_renderable(func, coordinate_mapper):
     """Get or create a FunctionRenderable for the given function.
 
-    Caches the renderable on the function object for reuse.
+    Caches the renderable on the function object for reuse. Plan builds wrap
+    the canvas mapper in a fresh caching wrapper, so reuse is decided on the
+    underlying mapper; cached paths are dropped when the model state changes.
 
     Args:
         func: Function drawable with expression and domain.
@@ -91,7 +109,7 @@ def _get_or_create_renderable(func, coordinate_mapper):
         FunctionRenderable instance for path generation.
     """
     renderable = getattr(func, "_renderable", None)
-    if renderable is None or renderable.mapper is not coordinate_mapper:
+    if renderable is None or _unwrap_mapper(renderable.mapper) is not _unwrap_mapper(coordinate_mapper):
         renderable = FunctionRenderable(func, coordinate_mapper)
         try:
             func._renderable = renderable
@@ -99,6 +117,10 @@ def _get_or_create_renderable(func, coordinate_mapper):
             pass
     else:
         renderable.mapper = coordinate_mapper
+    signature = _model_signature(func)
+    if signature is None or signature != renderable._model_signature:
+        renderable.invalidate_cache()
+        renderable._model_signature = signature
     return renderable
 
 
