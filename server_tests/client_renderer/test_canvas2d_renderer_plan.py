@@ -146,6 +146,18 @@ class TestCanvas2DRendererPlan(unittest.TestCase):
         self.assertNotEqual(renderer._compute_drawable_signature(circle), circle_before)
         self.assertNotEqual(renderer._compute_drawable_signature(angle), angle_before)
 
+    def test_function_signature_changes_when_canvas_resizes(self) -> None:
+        renderer = self._make_renderer()
+        function = SimpleNamespace(name="f", get_class_name=lambda: "Function", get_state=lambda: {})
+        mapper = SimpleNamespace(
+            scale_factor=1.0, offset=SimpleNamespace(x=0.0, y=0.0), canvas_width=800, canvas_height=600
+        )
+
+        before = renderer._compute_drawable_signature(function, mapper)
+        mapper.canvas_width = 1200
+
+        self.assertNotEqual(renderer._compute_drawable_signature(function, mapper), before)
+
     def test_flush_offscreen_draws_back_to_main_canvas(self) -> None:
         renderer = self._make_renderer()
         renderer._use_layer_compositing = True

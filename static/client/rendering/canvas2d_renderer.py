@@ -519,6 +519,10 @@ class Canvas2DRenderer(RendererProtocol):
             offset = getattr(coordinate_mapper, "offset", None)
             if offset is not None:
                 snapshot["_view_offset"] = (round(float(offset.x), 2), round(float(offset.y), 2))
+            canvas_width = getattr(coordinate_mapper, "canvas_width", None)
+            canvas_height = getattr(coordinate_mapper, "canvas_height", None)
+            if canvas_width is not None and canvas_height is not None:
+                snapshot["_view_size"] = (round(float(canvas_width), 2), round(float(canvas_height), 2))
         return self._freeze_signature(snapshot)
 
     def _collect_dependent_coordinates(self, drawable: Any) -> list:
