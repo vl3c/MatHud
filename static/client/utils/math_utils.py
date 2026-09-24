@@ -38,7 +38,7 @@ import json
 import math
 import random
 import statistics
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from browser import window
 
@@ -1338,17 +1338,31 @@ class MathUtils:
             if not (math.isfinite(a) and math.isfinite(b)) or a == b:
                 return None
 
-            def magnitude(x: float) -> Optional[float]:
+            def value_at(x: float) -> Optional[float]:
                 value = compiled.evaluate({variable: x})
                 if isinstance(value, bool) or not isinstance(value, (int, float)):
                     return None  # complex or non-numeric: undefined over the reals
-                value = abs(float(value))
-                return value if math.isfinite(value) else None
+                return float(value)
 
             steps = 2000
             step = (b - a) / steps
             xs = [a + k * step for k in range(steps + 1)]
-            values = [magnitude(x) for x in xs]
+            raw_values = [value_at(x) for x in xs]
+            finite_magnitudes = sorted(abs(v) for v in raw_values if v is not None and math.isfinite(v))
+            typical_scale = finite_magnitudes[len(finite_magnitudes) // 2] if finite_magnitudes else 0.0
+            probe_step = 1e-7 * abs(b - a)
+
+            def magnitude(x: float, value: Optional[float] = None) -> Optional[float]:
+                if value is None:
+                    value = value_at(x)
+                if value is not None and math.isnan(value):
+                    # 0/0 at a removable point (e.g. sin(x)/x at 0) is NaN but not a singularity
+                    value = MathUtils._removable_limit(value_at, x, probe_step, typical_scale)
+                if value is None or not math.isfinite(value):
+                    return None
+                return abs(value)
+
+            values = [magnitude(x, value) for x, value in zip(xs, raw_values)]
             for k in range(1, steps):
                 if values[k] is None:
                     return xs[k]
@@ -1368,6 +1382,25 @@ class MathUtils:
             return None
         except Exception:
             return None
+
+    @staticmethod
+    def _removable_limit(
+        value_at: Callable[[float], Optional[float]], x: float, probe_step: float, typical_scale: float
+    ) -> Optional[float]:
+        """Return the limit of f at x when f is undefined there but continuous around it, else None.
+
+        f is probed at x +/- h and x +/- 2h: a removable point gives four nearly equal finite
+        values, while a pole or a jump makes them differ markedly.
+        """
+        h = max(probe_step, 1e-12 * max(1.0, abs(x)))
+        probes = [value_at(x + offset) for offset in (-2 * h, -h, h, 2 * h)]
+        finite = [p for p in probes if p is not None and math.isfinite(p)]
+        if len(finite) != len(probes):
+            return None
+        tolerance = 1e-3 * max(typical_scale, max(abs(p) for p in finite))
+        if max(finite) - min(finite) > tolerance:
+            return None
+        return (finite[1] + finite[2]) / 2
 
     @staticmethod
     def _refine_blow_up(magnitude: Any, lo: float, hi: float, grid_value: float) -> Optional[float]:
