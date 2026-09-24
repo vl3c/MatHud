@@ -10,10 +10,10 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 
 ## Key Features
 - Interactive math-space canvas rendered through Canvas2D, with SVG as a fallback backend
-- AI-powered mathematical assistant with multi-provider support (OpenAI, Anthropic, OpenRouter)
+- AI-powered mathematical assistant with multi-provider support (LocalAgent via a local `llama-server` by default, plus OpenAI, Anthropic, OpenRouter)
 - Real-time geometric visualization and analysis
 - Switchable coordinate systems: Cartesian 2D grid and Polar grid (concentric circles with radial lines)
-- Graph theory graphs (graphs, trees, DAGs): create, auto-layout, render weighted edges, and run analyses (shortest path, MST, topological sort, bridges, BFS/DFS, tree operations)
+- Graph theory graphs (graphs, trees, DAGs): create, auto-layout, render weighted edges, and run analyses (shortest path with Bellman-Ford for negative directed weights, MST or spanning forest, topological sort, bridges, BFS/DFS, tree operations)
 - Support for mathematical expressions and calculations
 - Linear algebra expression evaluation with MathJS-backed matrix operations
 - Coordinate conversion utilities (rectangular to polar and vice versa)
@@ -36,7 +36,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Graphing Functions: plot functions, parametric equations, polar coordinates
 - Geometric Calculations: distance, angle, area, volume, intersections
 - Coordinate Conversion: rectangular to polar and polar to rectangular transformations
-- Equation Solving: linear equations, quadratic equations, systems of equations, numeric solving for transcendental/nonlinear systems via multi-start Newton-Raphson
+- Equation Solving: linear equations, quadratic equations, systems of equations (two-equation x/y systems report every intersection, found by substitution with numeric root checks), numeric solving for transcendental/nonlinear systems via multi-start Newton-Raphson (Gauss-Newton or minimum-norm steps for over/underdetermined systems)
 - Linear Algebra: matrix and vector arithmetic, transpose, inverse, determinant, dot/cross products, norms, traces, diagonal/identity/zeros/ones helpers, reshape/size queries, and grouped expressions evaluated via MathJS
 - Advanced Operations: 90+ AI tool definitions available in `static/functions_definitions.py` including canvas operations, geometric shape creation/deletion, mathematical operations, transformations, coordinate system management, and workspace management
 - Tool Discovery: `static/tool_search_service.py` provides fast local keyword/category search (hybrid mode by default) to select relevant tools per query without requiring an API call for every interaction
@@ -47,22 +47,22 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 - Vectors: create vectors with origin and tip, support for vector operations
 - Triangles: create from three points, calculate area, centroid, and angles
 - Rectangles: create from diagonal points, validate right angles, calculate area
-- Circles: create with center and radius, calculate area and circumference
-- Ellipses: create with center and radii, support rotation and transformation
+- Circles: create with center and radius, calculate area and circumference; a circle is named after its center and radius (e.g. `A(3)`), and the tool's `name` argument names the center point
+- Ellipses: create with center and radii, support rotation and transformation; named `<center>(<radius_x>, <radius_y>)` like circles
 - Angles: create from three points (vertex and two defining points), calculate measure, and display arcs.
 
 ## Drawing and Visualization
-- Renderer-driven SVG: a dedicated `SvgRenderer` converts math-space models to screen-space SVG elements
+- Renderer-driven drawing: `Canvas2DRenderer` (default) or the frozen `SvgRenderer` fallback converts math-space models to screen-space primitives
 - Coordinate mapping centralized in `CoordinateMapper` (math_to_screen, screen_to_math, zoom, pan, visible bounds, zoom-box fitting via `set_visible_bounds`)
 - Function plotting via `FunctionRenderable` with sampling, discontinuity and asymptote handling; capped and adaptive density
 - Colored areas via dedicated renderables (paired sampling for function areas; robust reverse path handling)
-- Angle arcs correct in SVG y-down space; styling centralized in renderer
+- Angle arcs correct in screen y-down space; styling centralized in renderer
 - Undo/Redo and Workspace Management unchanged; state serialization via `get_state()` on models
 
 ## Rendering Architecture
 1. Renderer selection uses `static/client/rendering/factory.create_renderer`, which builds a preference chain (`canvas2d`, `svg`) and instantiates the first backend that succeeds, importing each renderer module only when it is attempted. The factory short-circuits when the caller passes a preferred mode and suppresses constructor failures so the next option can be tried.
 2. `SvgRenderer` maintains two plan caches: a dedicated `_cartesian_cache` for the main axis grid and `_plan_cache` for drawable-specific plans. Each entry tracks a signature, usage counts, and plan keys so `_prune_unused_plan_entries` can drop DOM groups that were not touched during the frame. Screen-space plans are marked dirty via `_mark_screen_space_plan_dirty` to keep sprites accurate after zoom.
-3. `Canvas2DRenderer` mirrors the caching strategy but targets a Canvas 2D context. It lazily recreates plans once signatures change, records telemetry for plan builds, and optionally composites through an offscreen canvas (`_use_layer_compositing`). When compositing is enabled, `_flush_offscreen_to_main` copies the offscreen buffer back to the main canvas between frames.
+3. `Canvas2DRenderer` mirrors the caching strategy but targets a Canvas 2D context and draws every shape and label. It lazily recreates plans once signatures change, records telemetry for plan builds, and optionally composites through an offscreen canvas (`_use_layer_compositing`). When compositing is enabled, `_flush_offscreen_to_main` copies the offscreen buffer back to the main canvas between frames. The canvas bitmap is sized to CSS size x `devicePixelRatio` with a matching context transform, so output is sharp on HiDPI screens while all drawing stays in CSS pixels. Long polylines and polygons are traced by the JavaScript helpers in `static/canvas2d_paths.js` (loaded by `templates/index.html`); the adapter keeps a pure-Python fallback.
 4. The SVG renderer is frozen: it is kept working as the fallback, but new rendering features target Canvas2D only.
 5. Shared drawing helpers live in `rendering/shared_drawable_renderers.py`. Utilities like `render_point_helper` coordinate metadata emission for labels and delegate actual drawing to the primitive adapters. `style_manager.get_renderer_style()` returns cloned dictionaries so callers cannot mutate global defaults.
 6. Primitive adapters (`canvas2d_primitive_adapter.py`, `svg_primitive_adapter.py`) translate `OptimizedPrimitivePlan` commands into backend-specific APIs. Canvas2D batches polygon fills and flushes before strokes, and SVG re-parents reserved elements to active groups.
@@ -71,6 +71,7 @@ MatHud is an interactive mathematical visualization tool that combines a drawing
 9. Runtime selection relies on the preference chain inside `create_renderer`: it first tries Canvas2D and falls back to SVG if Canvas2D fails. Constructor errors are caught so the factory can continue down the chain.
 10. Feature flags remain available for diagnostics: `window.MatHudSvgOffscreen` (or `localStorage["mathud.svg.offscreen"]`) toggles SVG offscreen staging, and `window.MatHudCanvas2DOffscreen` (or `localStorage["mathud.canvas2d.offscreen"]`) enables Canvas2D layer compositing.
 11. Renderers expose `begin_frame`, `end_frame`, `peek_telemetry`, and `drain_telemetry` hooks so automated tests and performance harnesses can capture plan build/apply timings, skip counts, adapter events, and maximum batch depth. Shared telemetry infrastructure lives in `base_telemetry.py`.
+12. Panning is coalesced into one redraw per animation frame. On Canvas2D, function plans are sampled half a screen beyond each edge and reprojected (not resampled) while the pan stays within that margin, parametric plans are reprojected on every pan, and pure pans shift cached plan bounds instead of rescanning them.
 
 ## Multi-Step Calculations
 - Expressions: evaluate mathematical expressions and functions
@@ -144,7 +145,8 @@ MatHud/
 │   ├── Project Architecture.txt       # Comprehensive technical documentation (this file)
 │   ├── Reference Manual.txt           # Detailed reference manual
 │   ├── Example Prompts.txt            # Sample AI prompts for testing
-│   └── todo.txt                       # Development tasks and improvements
+│   ├── Roadmap.md                     # Planned work and completed milestones
+│   └── development/                   # Design notes (e.g. canvas_prompt_summary_rollout.md)
 ├── logs/                              # Application log files (session-based)
 ├── workspaces/                        # Saved workspace JSON files
 ├── canvas_snapshots/                   # Vision system canvas screenshots
@@ -160,16 +162,24 @@ MatHud/
 static/
 ├── app_manager.py                     # Flask application configuration and initialization
 ├── routes.py                          # All Flask route definitions (/send_message, /save_workspace, etc.)
-├── openai_api.py                      # OpenAI API integration and chat completions
+├── openai_api_base.py                 # Shared provider base: history, system prompt, canvas blocks, tool results
+├── openai_completions_api.py          # OpenAI Chat Completions API
+├── openai_responses_api.py            # OpenAI Responses API (reasoning models)
+├── providers/                         # Anthropic, OpenRouter and LocalAgent (local/) providers + ProviderRegistry
+├── canvas_state_formatter.py          # Canvas state -> prompt text / compact JSON / change report
+├── canvas_state_summarizer.py         # Summaries for the legacy json canvas format
+├── token_estimation.py                # Token estimates for canvas budgets and telemetry
+├── tool_search_service.py             # search_tools discovery (local / api / hybrid)
 ├── webdriver_manager.py               # Selenium WebDriver management for vision system
 ├── workspace_manager.py               # Server-side workspace file operations
 ├── log_manager.py                     # Application logging system
-├── functions_definitions.py           # 70 AI function/tool definitions
+├── functions_definitions.py           # 90+ AI function/tool definitions
 ├── ai_model.py                        # AI model configuration utilities
 ├── tool_call_processor.py             # Tool call processing utilities
 ├── config.py                          # Centralized server-side constants
 ├── env_config.py                      # Shared environment loading utility
 ├── route_helpers.py                   # Extracted route helper functions
+├── canvas2d_paths.js                  # JavaScript path-tracing helpers for the Canvas2D renderer
 ├── style.css                          # Frontend CSS styling
 └── client/                           # Custom Python modules for Brython (moved from Brython-3.11.3/Lib/site-packages/)
     # Note: Brython core (3.12.5), Math.js (14.5.2), and Nerdamer (1.1.13) now loaded from CDN
@@ -190,7 +200,7 @@ static/client/
 ├── tts_ui_manager.py                  # Text-to-speech UI (extracted from ai_interface)
 ├── markdown_parser.py                 # Comprehensive markdown parser with LaTeX support
 ├── canvas_event_handler.py            # Mouse/keyboard event handling with extensive error handling
-├── canvas.py                          # Core SVG canvas management
+├── canvas.py                          # Core canvas management (renderer-agnostic)
 ├── workspace_manager.py               # Client-side workspace operations
 ├── function_registry.py               # Available function mapping and registration
 ├── process_function_calls.py          # Function call facade pattern implementation
@@ -242,8 +252,8 @@ static/client/
 │   ├── attached_label.py              # Labels embedded in other drawables
 │   └── label_render_mode.py           # Label rendering configuration (world/screen-offset)
 ├── rendering/                         # Renderer and renderables (screen conversion only)
-│   ├── svg_renderer.py                # Central SVG renderer (registry-based)
-│   ├── canvas2d_renderer.py           # Canvas 2D renderer with offscreen compositing
+│   ├── svg_renderer.py                # SVG renderer (frozen fallback, registry-based)
+│   ├── canvas2d_renderer.py           # Canvas 2D renderer (default; HiDPI, offscreen compositing)
 │   ├── factory.py                     # Renderer factory with preference chain
 │   ├── primitives.py                  # Renderable primitives (ClosedArea, ScreenPolyline)
 │   ├── function_renderable.py         # Function sampling and path generation
@@ -315,7 +325,7 @@ static/client/
 │   ├── expression_utils.py            # Variable detection, residual conversion
 │   ├── newton_raphson.py              # Newton-Raphson with Armijo backtracking
 │   ├── jacobian.py                    # Numerical Jacobian via central differences
-│   ├── linear_algebra.py              # Gaussian elimination solver
+│   ├── linear_algebra.py              # Gaussian elimination and least-squares (Gauss-Newton) solvers
 │   └── utils.py                       # Initial guesses and deduplication
 └── client_tests/                       # Brython-based client-side tests
     ├── tests.py                       # Test suite orchestrator
@@ -358,14 +368,14 @@ server_tests/
 
 ## Key Configuration Files
 - **`requirements.txt`**: Python dependencies (openai, flask, flask-session, cachelib, python-dotenv, selenium, geckodriver-autoinstaller, requests, types-requests, mypy)
-- **`.env`**: Environment variables (OpenAI API key, auth flags) - create this in the project root
+- **`.env`**: Environment variables (provider API keys, auth flags, canvas/tool settings such as `MATHUD_CANVAS_FORMAT`) - create this in the project root
 - **`app.py`**: Main entry point including threaded server startup and graceful shutdown handling
-- **`static/functions_definitions.py`**: Defines 70 AI functions with full JSON schema
+- **`static/functions_definitions.py`**: Defines 90+ AI functions with full JSON schema
 - **`templates/index.html`**: Main HTML template with canvas, chat interface, AI model selector, and vision toggle
 
 ## Data Directories
-- **`logs/`**: Session-based application logs with timestamps
-- **`workspaces/`**: JSON files containing saved canvas states and metadata
+- **`logs/`**: Session-based application logs with timestamps (the newest 50 are kept)
+- **`workspaces/`**: JSON files containing saved canvas states and metadata (`*.json.bak` previous versions, `.trash/` deleted workspaces)
 - **`canvas_snapshots/`**: PNG screenshots captured by WebDriver for vision processing
 - **`__pycache__/`**: Python bytecode cache directories throughout the project
 
@@ -387,7 +397,7 @@ server_tests/
 - Simple HTML structure with chat history div, input field, and send button (ID: `send-button`).
 - Chat interface bound to both button click and Enter key events.
 - Vision toggle checkbox for canvas image capture control.
-- AI model selector with options: GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, GPT-4o Mini, GPT-3.5 Turbo etc.
+- AI model selector populated from `GET /api/available_models`: only models of providers with an API key, or a reachable local server, are listed.
 - Uses Brython (Python in the browser) for frontend logic, initialized by `main.py`.
 - **MathJax 3.0 Integration**: Automatic LaTeX rendering for mathematical expressions in chat messages.
 - **Comprehensive Markdown Support**: Real-time rendering of headers, lists, tables, code blocks, and formatted text.
@@ -448,18 +458,25 @@ server_tests/
   - Performs file system operations, path validation (ensuring operations are within the `workspaces/` directory), and manages directory structure.
   - Handles loading workspace data from JSON files and sending it to the client.
   - Provides logic for listing and safely deleting workspace files.
+  - Saves are atomic: the JSON is written to a temporary file in the same directory and swapped into place, so a failed write never truncates an existing workspace; the previous version of an overwritten workspace is kept as `<name>.json.bak`.
+  - Deletes move the file to `workspaces/.trash/` under a timestamped name. The `/delete_workspace` route only accepts a POST with a JSON body, which forces a CORS preflight for cross-site callers.
   - Key features: JSON-based storage, automatic timestamping, metadata tracking, directory management, safe file operations.
 
-## Backend API (`app.py`, `static/app_manager.py`, `static/routes.py`, `static/openai_api.py`, `static/webdriver_manager.py`, `static/log_manager.py`)
+## Backend API (`app.py`, `static/app_manager.py`, `static/routes.py`, `static/openai_api_base.py`, `static/providers/`, `static/webdriver_manager.py`, `static/log_manager.py`)
 - **Flask Application Core (`app.py`, `static/app_manager.py`, `static/routes.py`)**:
   - `app.py`: Main entry point for the Flask server. Initializes the application using `AppManager` and starts the server. Handles graceful shutdown (e.g., cleaning up `WebDriverManager`).
-  - `static/app_manager.py`: Contains `AppManager` class responsible for creating and configuring the Flask `app` object. Initializes server-side managers (like `LogManager`, `OpenAIChatCompletionsAPI`, server-side `WorkspaceManager`, and `WebDriverManager`).
-  - `static/routes.py`: Defines all Flask routes (e.g., `/`, `/send_message`, `/save_workspace`, `/load_workspace`, `/list_workspaces`, `/delete_workspace`, `/init_webdriver`). Imported and registered by `AppManager`.
-- **AI Communication (`static/openai_api.py`)**:
-  - `OpenAIChatCompletionsAPI` class manages all interactions with the OpenAI API.
-  - Initializes with API key, model details, and available tools/functions (from `static.functions_definitions`).
-  - `create_chat_completion` method constructs the payload and sends requests to OpenAI. Handles conversation history.
-  - If vision is enabled (based on image data being prepared by `routes.py`), it includes the image data in the request to OpenAI's vision-capable models.
+  - `static/app_manager.py`: Contains `AppManager` class responsible for creating and configuring the Flask `app` object. Initializes server-side managers (like `LogManager`, `OpenAIChatCompletionsAPI`, `OpenAIResponsesAPI`, server-side `WorkspaceManager`, and `WebDriverManager`); other providers are created on demand through `ProviderRegistry`.
+  - `static/routes.py`: Defines all Flask routes (e.g., `/`, `/send_message`, `/save_workspace`, `/load_workspace`, `/list_workspaces`, `/delete_workspace` (POST, JSON body), `/init_webdriver`, `/api/available_models`). Imported and registered by `AppManager`.
+- **AI Communication (`static/openai_api_base.py` and `static/providers/`)**:
+  - `OpenAIAPIBase` holds what every provider shares: conversation history, the system prompt, tool exposure (`MATHUD_TOOL_EXPOSURE`: `search` starts the model with `search_tools` plus essentials, `full` sends every tool), canvas rendering, and tool-result bookkeeping.
+  - `OpenAIChatCompletionsAPI` and `OpenAIResponsesAPI` (reasoning models) talk to OpenAI; `static/providers/` adds Anthropic, OpenRouter and LocalAgent (`providers/local/`, a local `llama-server` whose model is read from `/v1/models`). `ProviderRegistry` reports which providers are available (API key present, or local server reachable).
+  - Tool definitions come from `static.functions_definitions`. Each result the client returns is written into the tool message of its own call (matched by tool-call id); calls dropped by `search_tools` filtering get an explicit error, and small return values of canvas-mutating tools (strings, or dicts up to 2000 characters of JSON) are passed through instead of a bare success message.
+  - If vision is enabled (based on image data being prepared by `routes.py`), the image is included in the request for vision-capable models; the canvas block stays in the text part.
+- **Canvas State in Prompts (`static/canvas_state_formatter.py`)**:
+  - The client sends `Canvas.get_canvas_state()` with every message; the provider renders it according to `MATHUD_CANVAS_FORMAT`. The default `text` format puts a `<canvas>` block in front of the user's text with one object per line in math notation and facts computed from the coordinates (lengths, areas, angle sizes, graph edge weights), numbers limited to 6 significant digits. `min_json` puts compact JSON in the same block; `json` keeps the legacy behaviour of sending the whole prompt JSON (summarized per `AI_CANVAS_SUMMARY_MODE` by `canvas_state_summarizer.py`).
+  - `MATHUD_CANVAS_BUDGET_TOKENS` caps the block (default 4000 estimated tokens for cloud providers, 1500 for local ones, `0` = unlimited); larger scenes pack points several per line, then list the least important objects as omitted with a pointer to `get_current_canvas_state`.
+  - After each tool batch the provider compares the client's `state_after` with the state it last showed the model and appends a `[canvas changes]` report (or `[canvas now]` with the full canvas) to the batch's last tool message. `get_current_canvas_state` results are rendered in the same format and never shortened. Only the latest user message keeps its canvas block.
+  - Details and measurements: `documentation/development/canvas_prompt_summary_rollout.md`.
 - **Vision Image Capture (`static/webdriver_manager.py`)**:
   - `WebDriverManager` class uses Selenium WebDriver (headless Firefox) to capture canvas images.
   - Instantiated by `AppManager` (initialization triggered via `/init_webdriver` route if needed).
@@ -467,7 +484,7 @@ server_tests/
   - Handles WebDriver setup, page configuration, and cleanup.
 - **Server-Side Logging (`static/log_manager.py`)**:
   - `LogManager` class handles application logging on the server.
-  - Configures session-based log files with timestamped entries in the `logs/` directory.
+  - Configures session-based log files with timestamped entries in the `logs/` directory, pruning all but the newest 50 session logs on startup.
 
 ## Function Call Processing (`static/client/process_function_calls.py`)
 - `ProcessFunctionCalls` class (Brython client-side) acts as a **facade pattern** for executing function calls requested by the AI.
@@ -484,7 +501,7 @@ server_tests/
 - The client-side `Canvas` orchestrates managers, the mapper, and the renderer; models remain immutable with respect to zoom/pan
 - `DrawableManager` and specialized managers create models with canvas-free constructors; managers pass models to the renderer
 - `CoordinateSystemManager` controls grid rendering mode (Cartesian or Polar); each mode has its own grid class
-- Zooming/panning centralized in `CoordinateMapper`; `Canvas.zoom_to_bounds` delegates to the mapper's `set_visible_bounds` helper before refreshing the active grid
+- Zooming/panning centralized in `CoordinateMapper`; `Canvas.zoom(center_x, center_y, range_val, range_axis)` (the `zoom` tool) computes the target bounds and delegates to the mapper's `set_visible_bounds` helper before refreshing the active grid
 - Undo/Redo unchanged; `CanvasEventHandler` handles input and delegates to managers and renderer
 - Canvas state serialization (`Canvas.get_canvas_state()`) includes coordinate system mode and persists for workspace save/restore
 
@@ -516,7 +533,7 @@ server_tests/
     3. `WebDriverManager` uses Selenium to launch a headless Firefox browser, injects the received `svg_state` (content, dimensions, viewBox, transform) into the `math-svg` element of the application's page loaded in the headless browser, and adjusts container styles.
     4. A screenshot of the relevant math container div is taken and saved as `canvas_snapshots/canvas.png`.
 - **AI Processing**: 
-  - `OpenAIChatCompletionsAPI` (server-side), when preparing the call to OpenAI and if vision is active for the request, reads `canvas_snapshots/canvas.png`, encodes it (e.g., base64), and includes it in the multimodal prompt to the OpenAI API.
+  - The active provider (server-side), when preparing the call and if vision is active for the request, reads `canvas_snapshots/canvas.png`, encodes it (e.g., base64), and includes it in the multimodal prompt alongside the canvas text block.
 - **Contextual Analysis**: The AI then analyzes both the textual prompt (user message, previous calculations from canvas state) and the visual context from the canvas image.
 - **Error Handling**: If image capture fails, the vision step might be skipped, and the AI would proceed with text-only context, or an error is reported.
 
@@ -530,9 +547,9 @@ server_tests/
    b. If `use_vision` is true:
       i. Ensures `WebDriverManager` is initialized.
       ii. Calls `app.webdriver_manager.capture_svg_state(svg_state)` to save `canvas_snapshots/canvas.png`.
-   c. Calls `app.ai_api.create_chat_completion` (from `static/openai_api.py`) with the user message, (path to) image if vision, and conversation history.
-   d. `OpenAIChatCompletionsAPI` makes a call to OpenAI.
-   e. OpenAI response (text, and/or tool_calls) is returned to `routes.py`.
+   c. Calls the selected provider (`OpenAIChatCompletionsAPI`, `OpenAIResponsesAPI`, or one from `static/providers/`), which renders the canvas state into the prompt (see Canvas State in Prompts) and adds the user message, image if vision, and conversation history.
+   d. The provider makes a (usually streaming) call to its API.
+   e. The response (text, and/or tool_calls with their ids) is returned to `routes.py`.
    f. `routes.py` sends response back to client `AIInterface` (as JSON containing `ai_message`, `ai_tool_calls`, `finish_reason`).
 6. Client `AIInterface._on_complete` receives response.
 7. `AIInterface._process_ai_response`:
@@ -546,7 +563,7 @@ server_tests/
       iii. Results from `ProcessFunctionCalls.get_results` are collected.
       iv. `ToolCallLogManager` records each tool call in the tool call log dropdown, updating the live count in the UI.
       v. `AIInterface._store_results_in_canvas_state` updates canvas computations.
-      vi. `AIInterface._send_prompt_to_ai` is called again, this time with `tool_call_results` (and no `user_message`), looping back to step 4 (backend forwards tool results to OpenAI).
+      vi. `AIInterface._send_prompt_to_ai` is called again, this time with `tool_call_results` (one `{tool_call_id, result}` entry per call) and the post-batch canvas state (and no `user_message`), looping back to step 4. The backend writes each result into its own tool message, appends `[canvas changes]` to the batch's last tool message, and forwards them to the model.
 8. Canvas is updated by the managers if drawing functions were called. Results are displayed in chat.
 
 ## Workspace Flow
@@ -554,4 +571,7 @@ server_tests/
    a. User requests save (e.g., via AI prompt "save workspace my_work").
    b. AI responds with a tool call: `{"function_name": "save_workspace", "arguments": {"name": "my_work"}}`.
    c. Client `AIInterface` processes this via `ProcessFunctionCalls.get_results`.
-   d. `
+   d. The client-side `WorkspaceManager` posts the current canvas state to `/save_workspace`.
+   e. The server-side `WorkspaceManager` validates the name and writes the JSON atomically to `workspaces/<name>.json`, keeping any previous version as `<name>.json.bak`.
+2. **Load Workspace**: the client requests `/load_workspace`, and the client-side `WorkspaceManager` rebuilds the drawables on the canvas from the returned state.
+3. **Delete Workspace**: the client posts `{"name": ...}` as JSON to `/delete_workspace`; the server moves the file to `workspaces/.trash/`.
