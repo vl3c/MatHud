@@ -183,6 +183,34 @@ class TestResponseMetricsTracker(unittest.TestCase):
         # 350 tokens over 3.002 s + 1 s instead of 349 tok/s from the 2 ms burst.
         self.assertEqual(aggregate_turn(requests, [], 5.0, "stop")["output_tokens_per_s"], 87.45)
 
+    def test_unseen_reasoning_uses_whole_request_window(self) -> None:
+        # 20 s of hidden thinking, then 1 s of visible answer: the usage counts both.
+        clock = FakeClock()
+        tracker = _tracker(clock)
+        clock.advance(20.0)
+        tracker.mark_output("content")
+        clock.advance(1.0)
+        tracker.mark_output("content")
+        tracker.record_usage({"completion_tokens": 2050, "reasoning_tokens": 2000})
+        metrics = tracker.finish("stop", 0)
+
+        self.assertEqual(metrics["output_tokens_per_s"], 97.62)  # 2050 tokens over 21 s, not 2050 tok/s
+        self.assertEqual(metrics["tokens_per_s_source"], "usage_request")
+
+    def test_streamed_reasoning_keeps_generation_window(self) -> None:
+        clock = FakeClock()
+        tracker = _tracker(clock)
+        clock.advance(1.0)
+        tracker.mark_output("reasoning")
+        clock.advance(19.0)
+        tracker.mark_output("content")
+        clock.advance(1.0)
+        tracker.record_usage({"completion_tokens": 2000, "reasoning_tokens": 1950})
+        metrics = tracker.finish("stop", 0)
+
+        self.assertEqual(metrics["output_tokens_per_s"], 100.0)
+        self.assertEqual(metrics["tokens_per_s_source"], "usage")
+
     def test_non_streamed_request_has_no_first_token(self) -> None:
         clock = FakeClock()
         tracker = _tracker(clock, streamed=False)
@@ -378,6 +406,20 @@ class TestChatCompletionsStreamMetrics(_OpenAIStreamCase):
         self.assertTrue(metrics["output_tokens_estimated"])  # no usage chunk was sent
         self.assertEqual(metrics["finish_reason"], "tool_calls")
 
+    def test_openrouter_reasoning_deltas_mark_output(self) -> None:
+        self.sse_body = _sse(
+            [
+                _chat_chunk({"role": "assistant", "content": "", "reasoning": "Let me think"}),
+                _chat_chunk({"content": "42"}),
+                _chat_chunk({}, finish_reason="stop"),
+            ]
+        )
+        api = self._make_api()
+        with patch.object(ResponseMetricsTracker, "mark_output", autospec=True) as mark_output:
+            list(api.create_chat_completion_stream(json.dumps({"user_message": "hi"})))
+
+        self.assertEqual([call.args[1] for call in mark_output.call_args_list], ["reasoning", "content"])
+
     def test_error_final_event_carries_metrics(self) -> None:
         with patch.dict(os.environ, {"OPENAI_API_KEY": "k"}):
             api = OpenAIChatCompletionsAPI(tools=[])
@@ -456,6 +498,21 @@ class TestLocalAgentStreamMetrics(_OpenAIStreamCase):
         self.assertEqual(metrics["output_tokens"], 31)
         self.assertFalse(metrics["output_tokens_estimated"])
         self.assertEqual(metrics["tokens_per_s_source"], "server_timings")
+
+    def test_llama_server_reasoning_content_marks_output(self) -> None:
+        self.sse_body = _sse(
+            [
+                _chat_chunk({"role": "assistant", "reasoning_content": "Solving"}),
+                _chat_chunk({"reasoning_content": " the equation"}),
+                _chat_chunk({"content": "x = 2"}),
+                _chat_chunk({}, finish_reason="stop"),
+            ]
+        )
+        api = self._make_api()
+        with patch.object(ResponseMetricsTracker, "mark_output", autospec=True) as mark_output:
+            list(api.create_chat_completion_stream(json.dumps({"user_message": "solve"})))
+
+        self.assertEqual([call.args[1] for call in mark_output.call_args_list], ["reasoning", "reasoning", "content"])
 
     def test_estimated_when_server_reports_nothing(self) -> None:
         self.sse_body = _sse([_chat_chunk({"content": "Plotted y = x^2."}), _chat_chunk({}, finish_reason="stop")])

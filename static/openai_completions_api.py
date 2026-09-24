@@ -13,7 +13,11 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 from static.openai_api_base import OpenAIAPIBase, MessageDict, StreamEvent, stream_error_user_message
-from static.response_metrics import record_chat_completions_usage, tool_call_argument_text
+from static.response_metrics import (
+    reasoning_text_from_delta,
+    record_chat_completions_usage,
+    tool_call_argument_text,
+)
 
 # Use the shared MatHud logger for file logging
 _logger = logging.getLogger("mathud")
@@ -114,6 +118,11 @@ class OpenAIChatCompletionsAPI(OpenAIAPIBase):
                     continue
 
                 delta = self._extract_delta_from_choice(choice)
+                reasoning_piece = reasoning_text_from_delta(delta)
+                if reasoning_piece:
+                    metrics.mark_output("reasoning")
+                    metrics.add_output_text(reasoning_piece)
+
                 content_piece = self._extract_content_piece(delta)
                 if content_piece:
                     metrics.mark_output("content")

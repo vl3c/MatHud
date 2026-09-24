@@ -23,7 +23,9 @@ Field sources:
   ``MIN_GENERATION_WINDOW_S`` (a buffered reply or tool call), the window says
   nothing about generation speed, so the whole request is used instead and
   ``tokens_per_s_source`` gets a ``_request`` suffix (``usage_request``,
-  ``estimated_request``).
+  ``estimated_request``). The same happens when the usage reports reasoning
+  tokens but no reasoning was streamed (hidden thinking happened before the
+  first streamed output).
 - ``prompt_tokens`` / ``completion_tokens`` / ``cached_tokens`` /
   ``reasoning_tokens``: the provider's usage report, when it sends one.
 """
@@ -175,6 +177,19 @@ def llama_timings_from(source: Any) -> Optional[Dict[str, float]]:
     return result or None
 
 
+def reasoning_text_from_delta(delta: Any) -> str:
+    """Reasoning text of a Chat Completions stream delta, or "".
+
+    OpenRouter streams it as ``delta.reasoning`` and llama-server as
+    ``delta.reasoning_content``; the openai SDK keeps both as extra fields.
+    """
+    for name in ("reasoning", "reasoning_content"):
+        text = _read(delta, name)
+        if isinstance(text, str) and text:
+            return text
+    return ""
+
+
 def record_chat_completions_usage(source: Any, tracker: "ResponseMetricsTracker") -> None:
     """Feed a Chat Completions chunk's or response's usage and llama-server timings to ``tracker``."""
     usage = _read(source, "usage")
@@ -214,6 +229,7 @@ class ResponseMetricsTracker:
         self._first_token: Optional[float] = None
         self._first_output: Optional[float] = None
         self._output_marks = 0
+        self._reasoning_seen = False
         self._usage: Dict[str, Optional[int]] = {}
         self._server_timings: Optional[Dict[str, float]] = None
         self._output_text_parts: List[str] = []
@@ -222,6 +238,8 @@ class ResponseMetricsTracker:
         """Record streamed output; ``content`` and ``tool_call`` count toward the first token."""
         now = self._clock()
         self._output_marks += 1
+        if kind == "reasoning":
+            self._reasoning_seen = True
         if self._first_output is None:
             self._first_output = now
         if kind != "reasoning" and self._first_token is None:
@@ -316,10 +334,13 @@ class ResponseMetricsTracker:
 
         The window runs from the first streamed output to the end. It falls back
         to the whole request when nothing was streamed, when the output came in
-        one chunk, or when it is shorter than ``MIN_GENERATION_WINDOW_S``: the
-        tokens were then generated before they were delivered.
+        one chunk, when it is shorter than ``MIN_GENERATION_WINDOW_S`` or when
+        the usage counts reasoning that was never streamed: the tokens were then
+        generated before the first streamed output.
         """
         if self._first_output is None or self._output_marks < 2:
+            return total, True
+        if (self._usage.get("reasoning_tokens") or 0) > 0 and not self._reasoning_seen:
             return total, True
         window = total - (self._first_output - self._started)
         if window < MIN_GENERATION_WINDOW_S:

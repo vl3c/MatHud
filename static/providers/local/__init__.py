@@ -17,7 +17,11 @@ from static.ai_model import AIModel
 from static.canvas_state_formatter import CanvasFormat
 from static.functions_definitions import FunctionDefinition
 from static.openai_api_base import OpenAIAPIBase, StreamEvent, get_configured_tool_mode
-from static.response_metrics import record_chat_completions_usage, tool_call_argument_text
+from static.response_metrics import (
+    reasoning_text_from_delta,
+    record_chat_completions_usage,
+    tool_call_argument_text,
+)
 
 _logger = logging.getLogger("mathud")
 
@@ -360,6 +364,12 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
 
                 delta = chunk.choices[0].delta
                 chunk_finish = chunk.choices[0].finish_reason
+
+                # Reasoning is not shown, but it is generated output (llama-server reasoning_content).
+                reasoning_piece = reasoning_text_from_delta(delta)
+                if reasoning_piece:
+                    metrics.mark_output("reasoning")
+                    metrics.add_output_text(reasoning_piece)
 
                 # Handle content tokens
                 if delta.content:
