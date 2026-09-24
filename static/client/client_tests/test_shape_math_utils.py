@@ -101,5 +101,29 @@ class TestPointOnSegmentTolerance(unittest.TestCase):
         self.assertFalse(MathUtils.is_point_on_segment(500000.0, 500100.0, 0.0, 0.0, 1e6, 1e6))
 
 
+class TestCircumcenterPrecision(unittest.TestCase):
+    def test_far_from_origin(self) -> None:
+        ox, oy = 1e6 + 0.123, -2e6 + 0.456
+        cx, cy, r = MathUtils.circumcenter(ox, oy, ox + 3.7, oy + 0.3, ox + 0.2, oy + 4.1)
+        rcx, rcy, rr = MathUtils.circumcenter(0, 0, 3.7, 0.3, 0.2, 4.1)
+        self.assertAlmostEqual(cx - ox, rcx, places=6)
+        self.assertAlmostEqual(cy - oy, rcy, places=6)
+        self.assertAlmostEqual(r, rr, places=6)
+
+    def test_tiny_triangle_is_not_collinear(self) -> None:
+        cx, cy, r = MathUtils.circumcenter(0, 0, 1e-5, 0, 0, 1e-5)
+        self.assertAlmostEqual(cx / 1e-5, 0.5, places=9)
+        self.assertAlmostEqual(cy / 1e-5, 0.5, places=9)
+        self.assertAlmostEqual(r / 1e-5, math.sqrt(2) / 2, places=9)
+
+    def test_collinear_points_still_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            MathUtils.circumcenter(1e6, 1e6, 1e6 + 1, 1e6 + 1, 1e6 + 2, 1e6 + 2)
+        with self.assertRaises(ValueError):
+            MathUtils.circumcenter(0, 0, 1e-5, 0, 2e-5, 0)
+        with self.assertRaises(ValueError):
+            MathUtils.circumcenter(1, 1, 1, 1, 2, 3)
+
+
 if __name__ == "__main__":
     unittest.main()

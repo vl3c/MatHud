@@ -2987,18 +2987,25 @@ class MathUtils:
         Raises:
             ValueError: If the three points are collinear or coincident
         """
-        d = 2.0 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
-        if abs(d) < MathUtils.EPSILON:
+        # Translate so the first vertex is the origin to avoid precision loss far from (0, 0)
+        bx, by = x2 - x1, y2 - y1
+        qx, qy = x3 - x1, y3 - y1
+
+        d = 2.0 * (bx * qy - by * qx)
+        # Relative collinearity test: d (four times the area) against the longest squared side
+        scale = max(bx * bx + by * by, qx * qx + qy * qy, (qx - bx) ** 2 + (qy - by) ** 2)
+        if scale == 0 or abs(d) <= MathUtils.EPSILON * scale:
             raise ValueError("Points are collinear: circumcircle is undefined")
 
-        sq1 = x1 * x1 + y1 * y1
-        sq2 = x2 * x2 + y2 * y2
-        sq3 = x3 * x3 + y3 * y3
+        sq_b = bx * bx + by * by
+        sq_q = qx * qx + qy * qy
 
-        cx = (sq1 * (y2 - y3) + sq2 * (y3 - y1) + sq3 * (y1 - y2)) / d
-        cy = (sq1 * (x3 - x2) + sq2 * (x1 - x3) + sq3 * (x2 - x1)) / d
+        ux = (qy * sq_b - by * sq_q) / d
+        uy = (bx * sq_q - qx * sq_b) / d
 
-        radius = math.sqrt((x1 - cx) ** 2 + (y1 - cy) ** 2)
+        cx = x1 + ux
+        cy = y1 + uy
+        radius = math.hypot(ux, uy)
 
         if not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)):
             raise ValueError("Circumcenter computation produced non-finite result")
