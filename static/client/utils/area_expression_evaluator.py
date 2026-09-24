@@ -582,11 +582,14 @@ class AreaExpressionEvaluator:
     def _handle_segment_intersection(
         left: Optional[_RegionWithSource],
         right: Optional[_RegionWithSource],
-    ) -> Optional[Region]:
+    ) -> Optional[Union[Region, List[Region]]]:
         """Handle special cases of segment intersection with shapes.
 
         For arc & segment or circle & segment, creates the enclosed region
         bounded by both the shape's curve and the segment line.
+
+        Returns None when the combination is not handled here, and an empty
+        list when it is handled but the enclosed region is empty.
         """
         if left is None or right is None:
             return None
@@ -609,7 +612,8 @@ class AreaExpressionEvaluator:
         if shape_source.source_type == "arc":
             return AreaExpressionEvaluator._arc_segment_enclosed_region(shape, segment)
         elif shape_source.source_type == "circle":
-            return AreaExpressionEvaluator._circle_segment_enclosed_region(shape, segment)
+            enclosed = AreaExpressionEvaluator._circle_segment_enclosed_region(shape, segment)
+            return enclosed if enclosed is not None else []
         elif shape_source.source_type in ("polygon", "ellipse"):
             # For polygons/ellipses, use half-plane intersection
             p1 = (segment.point1.x, segment.point1.y)
@@ -773,7 +777,13 @@ class AreaExpressionEvaluator:
         """Create the enclosed region (circular segment) cut by a segment from a circle.
 
         Creates the smaller circular segment (minor segment) on the side
-        opposite to the circle center relative to the segment.
+        opposite to the circle center relative to the segment, so the result
+        does not depend on the segment's direction. When the segment line
+        passes through the center, the half on the LEFT of the segment
+        direction is used (matching the half-plane convention).
+
+        Returns None when the segment line misses (or only touches) the circle,
+        i.e. the enclosed region is empty.
         """
         center = (circle.center.x, circle.center.y)
         radius = circle.radius
@@ -783,8 +793,8 @@ class AreaExpressionEvaluator:
         )
 
         if len(intersections) < 2:
-            # No intersection - return full circle
-            return Region.from_circle(center, radius)
+            # No intersection (or tangent) - the enclosed region is empty
+            return None
 
         i1_angle = intersections[0]["angle"]
         i2_angle = intersections[1]["angle"]
@@ -804,19 +814,15 @@ class AreaExpressionEvaluator:
         if ccw_sweep < 0:
             ccw_sweep += 2 * math.pi
 
-        # Choose the arc opposite to the center
-        if cross >= 0:
-            # Center is on left - use right arc (smaller sweep if < pi, larger otherwise)
-            if ccw_sweep <= math.pi:
-                sweep = ccw_sweep
-            else:
-                sweep = -(2 * math.pi - ccw_sweep)
+        # i1 is the intersection nearer segment.point1, so the CCW arc from i1
+        # to i2 lies on the RIGHT of the segment direction and the CW arc on the LEFT.
+        # Choose the arc opposite to the center (the minor segment).
+        if cross > 1e-9 * math.hypot(dx, dy) * radius:
+            # Center is on left - use right arc (CCW)
+            sweep = ccw_sweep
         else:
-            # Center is on right - use left arc
-            if ccw_sweep >= math.pi:
-                sweep = ccw_sweep
-            else:
-                sweep = -(2 * math.pi - ccw_sweep)
+            # Center is on right (or on the line) - use left arc (CW)
+            sweep = -(2 * math.pi - ccw_sweep)
 
         # Sample the arc
         points: List[Tuple[float, float]] = []

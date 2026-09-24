@@ -1302,6 +1302,43 @@ class TestAreaCalculation(unittest.TestCase):
         self.canvas.drawable_manager.add_drawable("far", segment)
         result = AreaExpressionEvaluator.evaluate("circle & far", self.canvas)
         self.assertIsNone(result.error)
+        self.assertAlmostEqual(result.area, 0.0, places=6)
+
+    def test_segment_not_intersecting_reversed(self) -> None:
+        """A missing segment gives zero area regardless of its direction."""
+        circle = MockCircle(0, 0, 5, "circle")
+        segment = MockSegmentDrawable((20, 10), (10, 10), "far")
+        self.canvas.drawable_manager.add_drawable("circle", circle)
+        self.canvas.drawable_manager.add_drawable("far", segment)
+        result = AreaExpressionEvaluator.evaluate("circle & far", self.canvas)
+        self.assertIsNone(result.error)
+        self.assertAlmostEqual(result.area, 0.0, places=6)
+
+    def test_circle_cut_by_chord_gives_minor_segment_in_both_directions(self) -> None:
+        """An off-center chord gives the minor segment whichever way it is drawn."""
+        circle = MockCircle(0, 0, 5, "circle")
+        left_to_right = MockSegmentDrawable((-10, 2.5), (10, 2.5), "AB")
+        right_to_left = MockSegmentDrawable((10, 2.5), (-10, 2.5), "BA")
+        self.canvas.drawable_manager.add_drawable("circle", circle)
+        self.canvas.drawable_manager.add_drawable("AB", left_to_right)
+        self.canvas.drawable_manager.add_drawable("BA", right_to_left)
+        theta = 2 * math.acos(2.5 / 5)
+        minor_segment_area = 0.5 * 25 * (theta - math.sin(theta))
+        for name in ("AB", "BA"):
+            result = AreaExpressionEvaluator.evaluate(f"circle & {name}", self.canvas)
+            self.assertIsNone(result.error)
+            self.assertAlmostEqual(result.area, minor_segment_area, delta=0.1, msg=name)
+
+    def test_circle_cut_by_offset_vertical_chord_minor_segment(self) -> None:
+        """Chord on the left of the center, drawn upward, still gives the minor segment."""
+        circle = MockCircle(1, 1, 4, "circle")
+        segment = MockSegmentDrawable((-1, -10), (-1, 10), "CD")
+        self.canvas.drawable_manager.add_drawable("circle", circle)
+        self.canvas.drawable_manager.add_drawable("CD", segment)
+        result = AreaExpressionEvaluator.evaluate("circle & CD", self.canvas)
+        self.assertIsNone(result.error)
+        theta = 2 * math.acos(2 / 4)
+        self.assertAlmostEqual(result.area, 0.5 * 16 * (theta - math.sin(theta)), delta=0.1)
 
     def test_diametric_major_arc_uses_opposite_half(self) -> None:
         """With endpoints diametrically opposite, major and minor arcs cover different halves."""
