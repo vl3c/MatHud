@@ -139,13 +139,20 @@ class TestTextCanvasBlock(CanvasFormatEnv):
 
     def test_vision_snapshot_request_keeps_the_canvas_block(self) -> None:
         api = self.chat_api()
-        with (
-            patch("builtins.open", side_effect=FileNotFoundError),
-            patch("static.openai_api_base._logger"),
-            patch("builtins.print"),
-        ):
-            content = api._prepare_message_content(user_prompt(use_vision=True))
-        # No snapshot on disk: falls back to the text content, still with the canvas.
+        snapshot = "data:image/png;base64,AAAA"
+        content = api._prepare_message_content(user_prompt(use_vision=True, canvas_snapshot=snapshot))
+        self.assertEqual(
+            content,
+            [
+                {"type": "text", "text": f"{CANVAS_BLOCK}\n\nHow long is AB?"},
+                {"type": "image_url", "image_url": {"url": snapshot}},
+            ],
+        )
+
+    def test_vision_without_snapshot_keeps_the_canvas_block(self) -> None:
+        api = self.chat_api()
+        content = api._prepare_message_content(user_prompt(use_vision=True))
+        # No snapshot from the browser: falls back to the text content, still with the canvas.
         self.assertEqual(content, f"{CANVAS_BLOCK}\n\nHow long is AB?")
 
     def test_image_only_message_sends_just_the_canvas(self) -> None:

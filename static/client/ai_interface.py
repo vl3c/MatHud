@@ -45,10 +45,12 @@ from workspace_manager import WorkspaceManager
 from tool_call_log_manager import ToolCallLogManager
 from message_menu_manager import MessageMenuManager
 from image_attachment_manager import ImageAttachmentManager
+from canvas_snapshot import CanvasSnapshotter
 from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
 from tts_ui_manager import TTSUIManager
 from chat_ui_manager import ChatUIManager
+from turn_metrics import TurnMetricsCollector, turn_outcome
 from managers.action_trace_collector import ActionTraceCollector
 
 if TYPE_CHECKING:
@@ -108,6 +110,10 @@ class AIInterface:
         self._image_attachment = ImageAttachmentManager(
             on_system_message=self._print_system_message_in_chat,
         )
+        # Browser-side canvas capture for vision requests
+        self._canvas_snapshotter = CanvasSnapshotter()
+        # Bumped by each new user send and by Stop, so a late snapshot callback can tell it is stale
+        self._send_token: int = 0
         # Chat UI (delegated to ChatUIManager)
         self._chat_ui = ChatUIManager(
             message_menu=self._message_menu,
@@ -120,6 +126,8 @@ class AIInterface:
         # Action trace collector for deterministic tool-execution logs
         self._trace_collector: ActionTraceCollector = ActionTraceCollector()
         self._register_trace_js_api()
+        # Per-turn response metrics (model, latency, tokens/s, tool calls) for the chat footer and benchmarks
+        self._register_metrics_js_api()
 
     def _register_trace_js_api(self) -> None:
         """Expose trace inspection functions on the browser ``window`` object."""
@@ -141,6 +149,33 @@ class AIInterface:
                 self.canvas,
             )
         )
+
+    @property
+    def _turn_metrics(self) -> TurnMetricsCollector:
+        """Per-turn response metrics collector, created on first use."""
+        collector = getattr(self, "_turn_metrics_collector", None)
+        if collector is None:
+            collector = TurnMetricsCollector(clock_ms=lambda: float(window.performance.now()))
+            self._turn_metrics_collector = collector
+        return cast(TurnMetricsCollector, collector)
+
+    def _register_metrics_js_api(self) -> None:
+        """Expose turn metrics on ``window`` as JSON strings, like ``getMatHudTestResults``.
+
+        - ``getMatHudLastTurnMetrics()``: the last completed turn, or ``null``.
+        - ``getMatHudTurnMetricsHistory()``: recent completed turns, oldest first.
+        - ``clearMatHudTurnMetrics()``: forget the history.
+        """
+
+        def _to_json(data: Any) -> str:
+            try:
+                return json.dumps(data)
+            except Exception as exc:
+                return json.dumps({"error": str(exc)})
+
+        window.getMatHudLastTurnMetrics = lambda: _to_json(self._turn_metrics.last_turn())
+        window.getMatHudTurnMetricsHistory = lambda: _to_json(self._turn_metrics.history())
+        window.clearMatHudTurnMetrics = lambda: self._turn_metrics.clear()
 
     def run_tests(self) -> Dict[str, Any]:
         """Run unit tests for the AIInterface class and return results to the AI as the function result."""
@@ -336,8 +371,12 @@ class AIInterface:
         """Remove empty response container (delegates to ChatUIManager)."""
         self._chat_ui.remove_empty_container()
 
-    def _on_stream_final(self, event_obj: Any) -> None:
-        """Handle the final event from the streaming response."""
+    def _on_stream_final(self, event_obj: Any, turn_token: Optional[int] = None) -> None:
+        """Handle the final event from the streaming response.
+
+        ``turn_token`` is the metrics turn that sent the request; a late event of
+        an earlier turn does not touch the current turn's metrics.
+        """
         try:
             event = self._normalize_stream_event(event_obj)
 
@@ -345,6 +384,7 @@ class AIInterface:
             ai_tool_calls = event.get("ai_tool_calls", [])
             ai_message = event.get("ai_message", "")
             error_details = event.get("error_details", "")
+            self._turn_metrics.record_request(event.get("metrics"), turn_token)
 
             # Log error details to console for debugging
             if finish_reason == "error":
@@ -354,6 +394,8 @@ class AIInterface:
             if finish_reason in ("stop", "error", "completed") or not ai_tool_calls:
                 if not self._chat_ui.stream_buffer and ai_message:
                     self._chat_ui.stream_buffer = ai_message
+                outcome = turn_outcome(finish_reason)
+                self._chat_ui.pending_turn_metrics = self._turn_metrics.finish_turn(outcome, turn_token)
                 self._finalize_stream_message(ai_message or None)
                 # Restore user message on error so they can retry
                 if finish_reason == "error":
@@ -377,6 +419,7 @@ class AIInterface:
                     self.canvas,
                 )
                 self._store_results_in_canvas_state(call_results)
+                self._turn_metrics.record_tool_results(traced_calls, turn_token)
                 if self._chat_ui.stream_container is None:
                     self._chat_ui.ensure_stream_element()
                 self._tool_call_log.ensure_element(self._chat_ui.stream_container, self._chat_ui.stream_content)
@@ -396,6 +439,7 @@ class AIInterface:
                         self._trace_collector.store(trace)
                     except Exception:
                         pass
+                    self._turn_metrics.finish_turn("stopped", turn_token)
                     self._finalize_stream_message()
                     self._print_system_message_in_chat("Generation stopped.")
                     self._enable_send_controls()
@@ -438,12 +482,14 @@ class AIInterface:
                 except Exception:
                     pass
                 print(f"Error processing streamed tool calls: {e}")
+                self._turn_metrics.finish_turn("error", turn_token)
                 self._enable_send_controls()
         except Exception as e:
             print(f"Error handling stream final: {e}")
+            self._turn_metrics.finish_turn("error", turn_token)
             self._enable_send_controls()
 
-    def _on_stream_error(self, err: Any) -> None:
+    def _on_stream_error(self, err: Any, turn_token: Optional[int] = None) -> None:
         """Handle streaming errors and re-enable controls."""
         error_message = self._format_stream_error(err)
         print(f"Streaming error: {error_message}")
@@ -451,6 +497,7 @@ class AIInterface:
             console.error("Streaming error", err)
         except Exception:
             pass
+        self._turn_metrics.finish_turn("error", turn_token)
         self._restore_user_message_on_error()
         self._enable_send_controls()
 
@@ -513,6 +560,7 @@ class AIInterface:
                 "ai_tool_calls",
                 "finish_reason",
                 "error_details",
+                "metrics",
                 "level",
                 "message",
                 "source",
@@ -597,6 +645,7 @@ class AIInterface:
             self._response_timeout_id = None
             if self.is_processing:
                 print("AI response timeout - aborting stream and re-enabling send controls")
+                self._turn_metrics.finish_turn("timeout")
                 self._abort_current_stream()
                 self._print_ai_message_in_chat(
                     "⚠️ Request timed out. The AI is taking too long to respond. Please try again."
@@ -616,6 +665,8 @@ class AIInterface:
     def stop_ai_processing(self) -> None:
         """Stop the current AI processing, abort the stream, and restore UI controls."""
         self._stop_requested = True
+        self._send_token += 1  # drops a vision request still waiting for its snapshot
+        self._turn_metrics.finish_turn("stopped")
         self._abort_current_stream()
         self._cancel_response_timeout()
         # Always notify the backend so it can clear stale conversation state
@@ -640,11 +691,14 @@ class AIInterface:
         except Exception as e:
             print(f"Error saving partial response: {e}")
 
-    def _process_ai_response(self, ai_message: str, tool_calls: Any, finish_reason: str) -> None:
+    def _process_ai_response(
+        self, ai_message: str, tool_calls: Any, finish_reason: str, turn_token: Optional[int] = None
+    ) -> None:
         self._debug_log_ai_response(ai_message, tool_calls, finish_reason)
 
         if finish_reason == "stop" or finish_reason == "error":
-            self._print_ai_message_in_chat(ai_message)
+            turn_metrics = self._turn_metrics.finish_turn(turn_outcome(finish_reason), turn_token)
+            self._chat_ui.print_ai_message(ai_message, turn_metrics=turn_metrics)
             self._enable_send_controls()
         else:  # finish_reason == "tool_calls" or "function_call"
             state_before = self.canvas.get_canvas_state()
@@ -658,6 +712,7 @@ class AIInterface:
                     self.canvas,
                 )
                 self._store_results_in_canvas_state(call_results)
+                self._turn_metrics.record_tool_results(traced_calls, turn_token)
 
                 state_after = self.canvas.get_canvas_state()
                 total_ms = window.performance.now() - t0
@@ -691,14 +746,16 @@ class AIInterface:
                     pass
                 print(f"Error processing tool calls: {e}")
                 traceback.print_exc()
+                self._turn_metrics.finish_turn("error", turn_token)
                 self._enable_send_controls()  # Enable controls if there's an error
 
-    def _on_error(self, request: Any) -> None:
+    def _on_error(self, request: Any, turn_token: Optional[int] = None) -> None:
         """Handle request errors and ensure send controls are re-enabled."""
         print(f"Error: {request.status}, {request.text}")
+        self._turn_metrics.finish_turn("error", turn_token)
         self._enable_send_controls()
 
-    def _on_complete(self, request: Any) -> None:
+    def _on_complete(self, request: Any, turn_token: Optional[int] = None) -> None:
         """Handle request completion and process AI response."""
         try:
             if request.status == 200 or request.status == 0:
@@ -707,6 +764,7 @@ class AIInterface:
                 if not response_data:
                     error_msg = request.json.get("message", "Invalid response format")
                     print(f"Error: {error_msg}")
+                    self._turn_metrics.finish_turn("error", turn_token)
                     document["ai-response"].text = error_msg
                     self._enable_send_controls()
                     return
@@ -714,98 +772,42 @@ class AIInterface:
                 ai_message = response_data.get("ai_message")
                 ai_function_calls = response_data.get("ai_tool_calls")
                 finish_reason = response_data.get("finish_reason")
+                self._turn_metrics.record_request(response_data.get("metrics"), turn_token)
 
                 # Parse the AI's response and create / delete drawables as needed
-                self._process_ai_response(ai_message, ai_function_calls, finish_reason)
+                self._process_ai_response(ai_message, ai_function_calls, finish_reason, turn_token)
             else:
-                self._on_error(request)
+                self._on_error(request, turn_token)
         except Exception as e:
             print(f"Error processing AI response: {e}")
             traceback.print_exc()
+            self._turn_metrics.finish_turn("error", turn_token)
             self._enable_send_controls()
 
     def _create_request_payload(
         self,
         prompt: Optional[str],
-        include_svg: bool = True,
         action_trace: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Create the JSON payload for the request, optionally including SVG and Canvas2D state."""
+        """Create the JSON payload for the request.
+
+        The vision snapshot, when there is one, travels inside the prompt JSON
+        (``canvas_snapshot``), next to ``use_vision``.
+        """
         payload: Dict[str, Any] = {"message": prompt}
         if action_trace is not None:
             payload["action_trace"] = action_trace
-        vision_enabled = self._is_vision_enabled(prompt)
         renderer_mode = getattr(self.canvas, "renderer_mode", None)
         if isinstance(renderer_mode, str):
             payload["renderer_mode"] = renderer_mode
-
-        svg_state_payload: Optional[Dict[str, Any]] = None
-        if include_svg:
-            try:
-                svg_element = document["math-svg"]
-                svg_content = svg_element.outerHTML
-                container = document["math-container"]
-                rect = container.getBoundingClientRect()
-                svg_state_payload = {
-                    "content": svg_content,
-                    "dimensions": {"width": rect.width, "height": rect.height},
-                    "viewBox": svg_element.getAttribute("viewBox"),
-                    "transform": svg_element.getAttribute("transform"),
-                }
-                payload["svg_state"] = svg_state_payload
-            except Exception as exc:
-                print(f"Failed to collect SVG state: {exc}")
-
-        if not vision_enabled:
-            return payload
-
-        snapshot: Dict[str, Any] = {}
-        if isinstance(renderer_mode, str):
-            snapshot["renderer_mode"] = renderer_mode
-        if svg_state_payload:
-            snapshot["svg_state"] = svg_state_payload
-
-        if renderer_mode == "canvas2d":
-            canvas_image = self._capture_canvas2d_snapshot()
-            if canvas_image:
-                snapshot["canvas_image"] = canvas_image
-
-        if snapshot:
-            payload["vision_snapshot"] = snapshot
-
         return payload
-
-    def _is_vision_enabled(self, prompt: Optional[str]) -> bool:
-        try:
-            if not prompt:
-                return False
-            parsed = json.loads(prompt)
-            if isinstance(parsed, dict):
-                return bool(parsed.get("use_vision"))
-        except Exception:
-            pass
-        return False
-
-    def _capture_canvas2d_snapshot(self) -> Optional[str]:
-        try:
-            canvas_el = document.getElementById("math-canvas-2d")
-            if canvas_el is None:
-                return None
-            to_data_url = getattr(canvas_el, "toDataURL", None)
-            if not callable(to_data_url):
-                return None
-            data_url = to_data_url("image/png")
-            if isinstance(data_url, str) and data_url:
-                return data_url
-        except Exception as exc:
-            print(f"Failed to capture Canvas2D snapshot: {exc}")
-        return None
 
     def _make_request(self, payload: Dict[str, Any]) -> None:
         """Send an AJAX request with the given payload."""
+        turn_token = self._turn_metrics.turn_token
         req = ajax.ajax()
-        req.bind("complete", self._on_complete)
-        req.bind("error", self._on_error)
+        req.bind("complete", lambda request: self._on_complete(request, turn_token))
+        req.bind("error", lambda request: self._on_error(request, turn_token))
         req.open("POST", "/send_message", True)
         req.set_header("content-type", "application/json")
         req.send(json.dumps(payload))
@@ -818,11 +820,12 @@ class AIInterface:
             # Don't reset any state here - all state management is done in _send_prompt_to_ai
             # This preserves intermediary text and reasoning content across tool call continuations
             # Call JS streaming helper with reasoning and log callbacks
+            turn_token = self._turn_metrics.turn_token
             window.sendMessageStream(
                 payload_js,
                 self._on_stream_token,
-                self._on_stream_final,
-                self._on_stream_error,
+                lambda event_obj: self._on_stream_final(event_obj, turn_token),
+                lambda err: self._on_stream_error(err, turn_token),
                 self._on_stream_reasoning,
                 self._on_stream_log,
             )
@@ -835,15 +838,8 @@ class AIInterface:
         prompt: Optional[str],
         action_trace: Optional[Dict[str, Any]] = None,
     ) -> None:
-        try:
-            # Try to send request with SVG state
-            payload = self._create_request_payload(prompt, include_svg=True, action_trace=action_trace)
-            self._start_streaming_request(payload)
-        except Exception as e:
-            print(f"Error preparing request with SVG: {str(e)}")
-            # Fall back to sending request without SVG state
-            payload = self._create_request_payload(prompt, include_svg=False, action_trace=action_trace)
-            self._start_streaming_request(payload)
+        payload = self._create_request_payload(prompt, action_trace=action_trace)
+        self._start_streaming_request(payload)
 
     def _send_prompt_to_ai(
         self,
@@ -871,16 +867,48 @@ class AIInterface:
         if attached_images:
             prompt_json["attached_images"] = attached_images
 
-        # Convert to JSON string
-        prompt = json.dumps(prompt_json)
-
         # For new user messages, reset all state including containers and buffers
         # For tool call results, preserve everything to keep intermediary text visible
         if user_message is not None and tool_call_results is None:
             self._chat_ui.request_start_time = window.Date.now()
             self._chat_ui.reset_streaming_state()
+            self._turn_metrics.start_turn(user_message)
 
-        self._send_request(prompt, action_trace=action_trace)
+        if use_vision:
+            # The snapshot may need an async image decode, so the request is sent from the callback.
+            send_token = self._send_token
+            self._canvas_snapshotter.capture(
+                lambda snapshot: self._send_prompt_json_if_current(prompt_json, snapshot, action_trace, send_token)
+            )
+            return
+        self._send_prompt_json(prompt_json, None, action_trace)
+
+    def _send_prompt_json_if_current(
+        self,
+        prompt_json: Dict[str, Any],
+        canvas_snapshot: Optional[str],
+        action_trace: Optional[Dict[str, Any]],
+        send_token: int,
+    ) -> None:
+        """Send a vision request once its snapshot arrives, unless the turn was stopped or superseded.
+
+        Sending a stale request would also abort the stream of the message that replaced it.
+        """
+        if send_token != self._send_token or self._stop_requested or not self.is_processing:
+            print("Dropping a vision request whose turn was stopped before its snapshot was ready.")
+            return
+        self._send_prompt_json(prompt_json, canvas_snapshot, action_trace)
+
+    def _send_prompt_json(
+        self,
+        prompt_json: Dict[str, Any],
+        canvas_snapshot: Optional[str],
+        action_trace: Optional[Dict[str, Any]],
+    ) -> None:
+        """Serialize the prompt (with the vision snapshot, if any) and send it."""
+        if canvas_snapshot:
+            prompt_json["canvas_snapshot"] = canvas_snapshot
+        self._send_request(json.dumps(prompt_json), action_trace=action_trace)
 
     def send_user_message(self, message: str) -> None:
         """Sends a message as if the user typed it.
@@ -918,6 +946,7 @@ class AIInterface:
         self._image_attachment.clear()
 
         # Regular AI flow
+        self._send_token += 1
         self._disable_send_controls()
         self._send_prompt_to_ai(ai_message, attached_images=images_to_send)
 

@@ -10,13 +10,14 @@ preserving the identical public behaviour.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional, cast
+from typing import Any, Callable, Dict, Optional, cast
 
 from browser import document, html, window
 
 from markdown_parser import MarkdownParser
 from message_menu_manager import MessageMenuManager
 from tool_call_log_manager import ToolCallLogManager
+from turn_metrics import format_metrics_details, format_metrics_footer
 
 
 class ChatUIManager:
@@ -55,6 +56,8 @@ class ChatUIManager:
 
         self._request_start_time: Optional[float] = None  # Timestamp when user request started
         self._needs_continuation_separator: bool = False  # Add newline before next text after tool calls
+        # Turn summary shown as a footer by the next finalize_stream (see turn_metrics.py)
+        self._pending_turn_metrics: Optional[Dict[str, Any]] = None
 
     # ── Read-only properties for AIInterface access ──────────────
 
@@ -102,6 +105,16 @@ class ChatUIManager:
     def request_start_time(self, value: Optional[float]) -> None:
         """Set the timestamp when the current request started."""
         self._request_start_time = value
+
+    @property
+    def pending_turn_metrics(self) -> Optional[Dict[str, Any]]:
+        """Return the turn summary the next finalize_stream shows as a footer."""
+        return self._pending_turn_metrics
+
+    @pending_turn_metrics.setter
+    def pending_turn_metrics(self, value: Optional[Dict[str, Any]]) -> None:
+        """Set the turn summary the next finalize_stream shows as a footer."""
+        self._pending_turn_metrics = value
 
     # ── Markdown / rendering ─────────────────────────────────────
 
@@ -196,10 +209,16 @@ class ChatUIManager:
             else:
                 return html.P(f"<strong>{sender}:</strong> {message}")
 
-    def print_ai_message(self, ai_message: str) -> None:
-        """Print an AI message to the chat history with markdown support and scroll to bottom."""
+    def print_ai_message(self, ai_message: str, turn_metrics: Optional[Dict[str, Any]] = None) -> None:
+        """Print an AI message to the chat history with markdown support and scroll to bottom.
+
+        Args:
+            ai_message: The message text (markdown).
+            turn_metrics: Optional turn summary shown as a metrics footer (see turn_metrics.py).
+        """
         if ai_message:
             message_element = self.create_message_element("AI", ai_message)
+            self.append_metrics_footer(message_element, turn_metrics)
             document["chat-history"] <= message_element
             # Trigger MathJax rendering for new content
             self.render_math()
@@ -323,6 +342,20 @@ class ChatUIManager:
         container <= toggle_btn
 
         return container
+
+    def append_metrics_footer(self, container: Optional[Any], turn_metrics: Optional[Dict[str, Any]]) -> None:
+        """Append the muted metrics footer (details in its tooltip) to an AI message container."""
+        if container is None or not turn_metrics:
+            return
+        try:
+            footer_text = format_metrics_footer(turn_metrics)
+            if not footer_text:
+                return
+            footer = html.DIV(footer_text, Class="chat-metrics-footer")
+            footer.attrs["title"] = format_metrics_details(turn_metrics)
+            container <= footer
+        except Exception as e:
+            print(f"Error adding metrics footer: {e}")
 
     def _escape_html(self, text: str) -> str:
         """Escape HTML special characters.
@@ -459,8 +492,21 @@ class ChatUIManager:
 
     # ── Stream finalization ──────────────────────────────────────
 
-    def finalize_stream(self, final_message: Optional[str] = None) -> None:
-        """Convert the streamed plain text to parsed markdown and render math."""
+    def finalize_stream(
+        self,
+        final_message: Optional[str] = None,
+        turn_metrics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Convert the streamed plain text to parsed markdown and render math.
+
+        Args:
+            final_message: Fallback text when nothing was streamed.
+            turn_metrics: Optional turn summary shown as a metrics footer under the
+                final message (see turn_metrics.py); defaults to ``pending_turn_metrics``.
+        """
+        if turn_metrics is None:
+            turn_metrics = self._pending_turn_metrics
+        final_container: Optional[Any] = None
         try:
             self._tool_call_log.finalize()
 
@@ -515,6 +561,7 @@ class ChatUIManager:
                 else:
                     # No reasoning or tool log, use standard finalization
                     final_element = self.create_message_element("AI", text_to_render)
+                    final_container = final_element
 
                     history = document["chat-history"]
                     if self._stream_message_container is not None:
@@ -530,6 +577,11 @@ class ChatUIManager:
             else:
                 # No text content at all - remove any empty container
                 self.remove_empty_container()
+
+            # The streaming container stays in place unless it was replaced or removed above.
+            if final_container is None:
+                final_container = self._stream_message_container
+            self.append_metrics_footer(final_container, turn_metrics)
         except Exception as e:
             print(f"Error finalizing stream message: {e}")
         finally:
@@ -542,6 +594,7 @@ class ChatUIManager:
             self._reasoning_summary = None
             self._is_reasoning = False
             self._request_start_time = None
+            self._pending_turn_metrics = None
             self._tool_call_log.reset()
 
     def remove_empty_container(self) -> None:
@@ -600,4 +653,5 @@ class ChatUIManager:
         self._reasoning_summary = None
         self._is_reasoning = False
         self._needs_continuation_separator = False
+        self._pending_turn_metrics = None
         self._tool_call_log.reset()

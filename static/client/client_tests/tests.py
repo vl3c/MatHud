@@ -165,6 +165,7 @@ from .test_optimized_renderers import TestOptimizedRendererParity
 from .test_renderer_primitives import TestRendererPrimitives
 from .test_renderer_logic import TestRendererLogic
 from .test_canvas2d_batching import TestCanvas2DBatching, TestRenderPlanReprojection
+from .test_canvas_snapshot import TestCanvasSnapshotter, TestCanvasSnapshotterSvgDecode, TestSnapshotSize
 from .test_drawable_renderers import (
     TestVectorRenderer,
     TestAngleRenderer,
@@ -249,6 +250,14 @@ from .test_image_attachment import (
     TestImageOnlySending,
 )
 from .test_tool_call_log import TestToolCallLog
+from .test_turn_metrics import (
+    TestTurnAggregation,
+    TestFooterFormatting,
+    TestTurnMetricsCollector,
+    TestMetricsFooterElement,
+    TestTurnOutcomes,
+    TestTurnBookkeeping,
+)
 from .test_numeric_solver import (
     TestNumericSolverHelpers,
     TestNumericSolverIntegration,
@@ -257,6 +266,7 @@ from .test_numeric_solver import (
     TestExpressionEvaluation,
 )
 from .test_error_recovery import TestErrorRecovery
+from .test_vision_send_cancellation import TestVisionSendCancellation
 from .test_tts_controller import (
     TestTTSControllerState,
     TestTTSControllerSettings,
@@ -382,6 +392,9 @@ class Tests:
             TestRendererLogic,
             TestCanvas2DBatching,
             TestRenderPlanReprojection,
+            TestSnapshotSize,
+            TestCanvasSnapshotter,
+            TestCanvasSnapshotterSvgDecode,
             TestChatMessageMenu,
             TestLabelOverlapResolver,
             TestScreenOffsetLabelLayout,
@@ -592,12 +605,19 @@ class Tests:
             TestDataURLParsing,
             TestImageOnlySending,
             TestToolCallLog,
+            TestTurnAggregation,
+            TestFooterFormatting,
+            TestTurnMetricsCollector,
+            TestMetricsFooterElement,
+            TestTurnOutcomes,
+            TestTurnBookkeeping,
             TestNumericSolverHelpers,
             TestNumericSolverIntegration,
             TestNumericSolverFallback,
             TestJacobianComputation,
             TestExpressionEvaluation,
             TestErrorRecovery,
+            TestVisionSendCancellation,
             TestTTSControllerState,
             TestTTSControllerSettings,
             TestTTSControllerSingleton,

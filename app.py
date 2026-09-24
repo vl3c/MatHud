@@ -7,26 +7,41 @@ import os
 import signal
 import sys
 import time
+from threading import Thread
 from types import FrameType
 
 from static.app_manager import AppManager, MatHudFlask
 
 
 def signal_handler(sig: int, frame: FrameType | None) -> None:
-    """Handle graceful shutdown on interrupt signal.
-
-    Cleans up WebDriver resources and exits the application properly.
-    """
+    """Handle graceful shutdown on interrupt signal and exit the application."""
     print("\nShutting down gracefully...")
-    # Clean up WebDriverManager
-    if app.webdriver_manager is not None:
-        try:
-            app.webdriver_manager.cleanup()
-        except Exception as e:
-            print(f"Error closing WebDriver: {e}")
-
     print("Goodbye!")
     sys.exit(0)
+
+
+def _keep_serving(server: Thread, url: str) -> int:
+    """Block while the server thread runs; return an exit status once it stops.
+
+    The thread ends early when the server cannot start, e.g. because the port
+    is already taken, so the process exits instead of idling without a server.
+    """
+    from mathud_desktop import wait_for_server
+
+    if not wait_for_server(url, alive=server.is_alive):
+        if not server.is_alive():
+            print(f"The MatHud server failed to start at {url}")
+            return 1
+        print(f"Warning: the server did not respond at {url} yet")
+
+    print(f"MatHud is running at {url}")
+    print("Press Ctrl+C to stop the server")
+
+    # Keep the main thread alive but responsive to keyboard interrupts
+    while server.is_alive():
+        time.sleep(1)
+    print("The MatHud server stopped unexpectedly")
+    return 1
 
 
 # Create the app at module level for VS Code debugger
@@ -38,8 +53,8 @@ signal.signal(signal.SIGINT, signal_handler)
 if __name__ == "__main__":
     """Main execution block.
 
-    Starts Flask server in a daemon thread, initializes WebDriver for vision system,
-    and maintains the main thread for graceful interrupt handling.
+    Starts Flask server in a daemon thread and maintains the main thread for
+    graceful interrupt handling.
     """
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="MatHud Flask Application")
@@ -52,9 +67,6 @@ if __name__ == "__main__":
         # Priority: CLI argument > environment variable > default (5000)
         env_port = os.environ.get("PORT")
         port = args.port if args.port is not None else int(env_port or 5000)
-
-        # Store port in app config for WebDriverManager to use
-        app.config["SERVER_PORT"] = port
 
         # Check if we're running in a deployment environment
         is_deployed = args.port is None and env_port is not None
@@ -73,8 +85,6 @@ if __name__ == "__main__":
             host = "127.0.0.1"  # Localhost for development
             print(f"Starting Flask app on {host}:{port} (development mode, debug={debug_mode})")
 
-            from threading import Thread
-
             server = Thread(
                 target=app.run,
                 kwargs={
@@ -86,26 +96,7 @@ if __name__ == "__main__":
             )
             server.daemon = True  # Make the server thread a daemon so it exits when main thread exits
             server.start()
-
-            # Wait for Flask to start
-            time.sleep(3)
-
-            # Initialize WebDriver (only in local development)
-            if app.webdriver_manager is None:
-                import requests
-
-                try:
-                    requests.get(f"http://{host}:{port}/init_webdriver")
-                    print("WebDriver initialized successfully")
-                except Exception as e:
-                    print(f"Failed to initialize WebDriver: {str(e)}")
-
-            print(f"MatHud is running at http://{host}:{port}")
-            print("Press Ctrl+C to stop the server")
-
-            # Keep the main thread alive but responsive to keyboard interrupts
-            while True:
-                time.sleep(1)
+            sys.exit(_keep_serving(server, f"http://{host}:{port}/"))
 
     except KeyboardInterrupt:
         signal_handler(signal.SIGINT, None)

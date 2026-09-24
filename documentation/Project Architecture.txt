@@ -136,7 +136,7 @@ When the AI executes tool calls during a conversation turn, a collapsible "Tool 
 ```
 MatHud/
 ├── app.py                              # Main Flask application entry point
-├── requirements.txt                    # Python dependencies (Flask, OpenAI, Selenium, etc.)
+├── requirements.txt                    # Python dependencies (Flask, OpenAI, Selenium for the CLI test runner, etc.)
 ├── README.md                          # Project documentation and setup instructions
 ├── run_server_tests.py                # Server-side test runner script
 ├── .gitignore                         # Git ignore patterns
@@ -149,7 +149,6 @@ MatHud/
 │   └── development/                   # Design notes (e.g. canvas_prompt_summary_rollout.md)
 ├── logs/                              # Application log files (session-based)
 ├── workspaces/                        # Saved workspace JSON files
-├── canvas_snapshots/                   # Vision system canvas screenshots
 ├── server_tests/                       # Server-side test files
 ├── templates/                         # HTML templates
 ├── static/                            # Backend Python modules and frontend assets
@@ -170,7 +169,6 @@ static/
 ├── canvas_state_summarizer.py         # Summaries for the legacy json canvas format
 ├── token_estimation.py                # Token estimates for canvas budgets and telemetry
 ├── tool_search_service.py             # search_tools discovery (local / api / hybrid)
-├── webdriver_manager.py               # Selenium WebDriver management for vision system
 ├── workspace_manager.py               # Server-side workspace file operations
 ├── log_manager.py                     # Application logging system
 ├── functions_definitions.py           # 90+ AI function/tool definitions
@@ -367,7 +365,7 @@ server_tests/
 ```
 
 ## Key Configuration Files
-- **`requirements.txt`**: Python dependencies (openai, flask, flask-session, cachelib, python-dotenv, selenium, geckodriver-autoinstaller, requests, types-requests, mypy)
+- **`requirements.txt`**: Python dependencies (openai, flask, flask-session, cachelib, python-dotenv, selenium, requests, types-requests, mypy)
 - **`.env`**: Environment variables (provider API keys, auth flags, canvas/tool settings such as `MATHUD_CANVAS_FORMAT`) - create this in the project root
 - **`app.py`**: Main entry point including threaded server startup and graceful shutdown handling
 - **`static/functions_definitions.py`**: Defines 90+ AI functions with full JSON schema
@@ -376,7 +374,6 @@ server_tests/
 ## Data Directories
 - **`logs/`**: Session-based application logs with timestamps (the newest 50 are kept)
 - **`workspaces/`**: JSON files containing saved canvas states and metadata (`*.json.bak` previous versions, `.trash/` deleted workspaces)
-- **`canvas_snapshots/`**: PNG screenshots captured by WebDriver for vision processing
 - **`__pycache__/`**: Python bytecode cache directories throughout the project
 
 ## Architecture Notes
@@ -386,7 +383,7 @@ server_tests/
 - **Error Handling**: Comprehensive try-catch blocks throughout client-side code
 - **Testing**: Dual testing system with server-side pytest and client-side Brython unittest
 - **Renderer Logic Tests**: `server_tests/client_renderer/` houses pytest suites that exercise plan caching, factory fallbacks, helper metadata, and color normalization using lightweight browser stubs. The harness runs through `run_server_tests.py`, which now injects `static/client` into `PYTHONPATH` so the renderer modules and shared utilities import correctly during server-side runs.
-- **Vision System**: Server-side Selenium WebDriver captures canvas screenshots for AI vision analysis
+- **Vision System**: The browser composites the visible canvas layers into a PNG (`static/client/canvas_snapshot.py`) and sends it with the prompt; no server-side browser
 - **Renderer Performance Harness**: `static/client/performance/renderer_performance.py` builds a deterministic workload (points, segments, vectors, polygons, circles, ellipses, sample functions), times draw/pan/zoom loops with `window.performance.now()`, and reports DOM node counts. Run it from the browser console via `from performance.renderer_performance import run_renderer_performance; run_renderer_performance(iterations=2)` (optionally pass `renderer_name="svg"` or `cleanup=False`). Baseline from 2025-11-08/09 recorded Canvas2D averages (draw 71 ms, pan 155.5 ms, zoom 160 ms) and SVG averages (draw 78 ms, pan 84 ms, zoom 90 ms) for regression tracking.
 
 ---
@@ -462,26 +459,21 @@ server_tests/
   - Deletes move the file to `workspaces/.trash/` under a timestamped name. The `/delete_workspace` route only accepts a POST with a JSON body, which forces a CORS preflight for cross-site callers.
   - Key features: JSON-based storage, automatic timestamping, metadata tracking, directory management, safe file operations.
 
-## Backend API (`app.py`, `static/app_manager.py`, `static/routes.py`, `static/openai_api_base.py`, `static/providers/`, `static/webdriver_manager.py`, `static/log_manager.py`)
+## Backend API (`app.py`, `static/app_manager.py`, `static/routes.py`, `static/openai_api_base.py`, `static/providers/`, `static/log_manager.py`)
 - **Flask Application Core (`app.py`, `static/app_manager.py`, `static/routes.py`)**:
-  - `app.py`: Main entry point for the Flask server. Initializes the application using `AppManager` and starts the server. Handles graceful shutdown (e.g., cleaning up `WebDriverManager`).
-  - `static/app_manager.py`: Contains `AppManager` class responsible for creating and configuring the Flask `app` object. Initializes server-side managers (like `LogManager`, `OpenAIChatCompletionsAPI`, `OpenAIResponsesAPI`, server-side `WorkspaceManager`, and `WebDriverManager`); other providers are created on demand through `ProviderRegistry`.
-  - `static/routes.py`: Defines all Flask routes (e.g., `/`, `/send_message`, `/save_workspace`, `/load_workspace`, `/list_workspaces`, `/delete_workspace` (POST, JSON body), `/init_webdriver`, `/api/available_models`). Imported and registered by `AppManager`.
+  - `app.py`: Main entry point for the Flask server. Initializes the application using `AppManager` and starts the server. Handles graceful shutdown.
+  - `static/app_manager.py`: Contains `AppManager` class responsible for creating and configuring the Flask `app` object. Initializes server-side managers (like `LogManager`, `OpenAIChatCompletionsAPI`, `OpenAIResponsesAPI`, and server-side `WorkspaceManager`); other providers are created on demand through `ProviderRegistry`.
+  - `static/routes.py`: Defines all Flask routes (e.g., `/`, `/send_message`, `/save_workspace`, `/load_workspace`, `/list_workspaces`, `/delete_workspace` (POST, JSON body), `/api/available_models`). Imported and registered by `AppManager`.
 - **AI Communication (`static/openai_api_base.py` and `static/providers/`)**:
   - `OpenAIAPIBase` holds what every provider shares: conversation history, the system prompt, tool exposure (`MATHUD_TOOL_EXPOSURE`: `search` starts the model with `search_tools` plus essentials, `full` sends every tool), canvas rendering, and tool-result bookkeeping.
   - `OpenAIChatCompletionsAPI` and `OpenAIResponsesAPI` (reasoning models) talk to OpenAI; `static/providers/` adds Anthropic, OpenRouter and LocalAgent (`providers/local/`, a local `llama-server` whose model is read from `/v1/models`). `ProviderRegistry` reports which providers are available (API key present, or local server reachable).
   - Tool definitions come from `static.functions_definitions`. Each result the client returns is written into the tool message of its own call (matched by tool-call id); calls dropped by `search_tools` filtering get an explicit error, and small return values of canvas-mutating tools (strings, or dicts up to 2000 characters of JSON) are passed through instead of a bare success message.
-  - If vision is enabled (based on image data being prepared by `routes.py`), the image is included in the request for vision-capable models; the canvas block stays in the text part.
+  - If vision is enabled and the prompt carries the browser's `canvas_snapshot`, the image is included in the request for vision-capable models; the canvas block stays in the text part. LocalAgent sends text only.
 - **Canvas State in Prompts (`static/canvas_state_formatter.py`)**:
   - The client sends `Canvas.get_canvas_state()` with every message; the provider renders it according to `MATHUD_CANVAS_FORMAT`. The default `text` format puts a `<canvas>` block in front of the user's text with one object per line in math notation and facts computed from the coordinates (lengths, areas, angle sizes, graph edge weights), numbers limited to 6 significant digits. `min_json` puts compact JSON in the same block; `json` keeps the legacy behaviour of sending the whole prompt JSON (summarized per `AI_CANVAS_SUMMARY_MODE` by `canvas_state_summarizer.py`).
   - `MATHUD_CANVAS_BUDGET_TOKENS` caps the block (default 4000 estimated tokens for cloud providers, 1500 for local ones, `0` = unlimited); larger scenes pack points several per line, then list the least important objects as omitted with a pointer to `get_current_canvas_state`.
   - After each tool batch the provider compares the client's `state_after` with the state it last showed the model and appends a `[canvas changes]` report (or `[canvas now]` with the full canvas) to the batch's last tool message. `get_current_canvas_state` results are rendered in the same format and never shortened. Only the latest user message keeps its canvas block.
   - Details and measurements: `documentation/development/canvas_prompt_summary_rollout.md`.
-- **Vision Image Capture (`static/webdriver_manager.py`)**:
-  - `WebDriverManager` class uses Selenium WebDriver (headless Firefox) to capture canvas images.
-  - Instantiated by `AppManager` (initialization triggered via `/init_webdriver` route if needed).
-  - `capture_svg_state` method: Receives SVG content and dimensions from the client (via `routes.py`), loads this into the headless browser, and takes a screenshot, saving it to `canvas_snapshots/canvas.png`.
-  - Handles WebDriver setup, page configuration, and cleanup.
 - **Server-Side Logging (`static/log_manager.py`)**:
   - `LogManager` class handles application logging on the server.
   - Configures session-based log files with timestamped entries in the `logs/` directory, pruning all but the newest 50 session logs on startup.
@@ -521,36 +513,27 @@ server_tests/
   - `static/log_manager.py` (`LogManager` class) provides comprehensive logging for debugging and session tracking.
   - Session-based log files with timestamped entries are created in the `logs/` directory.
   - Flask's built-in error handling for HTTP errors. API responses use a consistent JSON structure (`AppManager.make_response`) to report success or errors.
-- Graceful fallbacks for vision system failures (e.g., if `WebDriverManager` fails to capture image, vision process might be skipped or an error reported).
+- Graceful fallbacks for vision failures: if the browser cannot capture the canvas, the message is sent without an image (text and `<canvas>` block only).
 
 ## Vision Integration
-- **Client Trigger**: `AIInterface` (Brython client-side) checks the vision toggle status and includes a `use_vision: true/false` flag and the current `svg_state` (content and dimensions) in the JSON payload to the `/send_message` backend endpoint.
-- **Server-Side Image Capture**: 
-  - The Flask `/send_message` route (in `static/routes.py`) receives the request.
-  - If `use_vision` is true and `svg_state` is provided:
-    1. It ensures `WebDriverManager` is initialized.
-    2. It calls `app.webdriver_manager.capture_svg_state(svg_state)`.
-    3. `WebDriverManager` uses Selenium to launch a headless Firefox browser, injects the received `svg_state` (content, dimensions, viewBox, transform) into the `math-svg` element of the application's page loaded in the headless browser, and adjusts container styles.
-    4. A screenshot of the relevant math container div is taken and saved as `canvas_snapshots/canvas.png`.
-- **AI Processing**: 
-  - The active provider (server-side), when preparing the call and if vision is active for the request, reads `canvas_snapshots/canvas.png`, encodes it (e.g., base64), and includes it in the multimodal prompt alongside the canvas text block.
+- **Client Capture**: When the vision toggle is on for a user message, `AIInterface` asks `CanvasSnapshotter` (`static/client/canvas_snapshot.py`) for a snapshot before sending. It composites what the user sees in `#math-container` onto an offscreen canvas: a white background, the `#math-svg` layer (serialized and decoded as an image; asynchronous, only when it has content) and the Canvas2D bitmap on top, at CSS-pixel size with the longest side capped at 1280 px (HiDPI bitmaps are scaled down). The PNG data URL is added to the prompt JSON as `canvas_snapshot` next to `use_vision: true`.
+- **Server**: `/send_message` and `/send_message_stream` enforce `MAX_IMAGE_BASE64_BYTES` on the snapshot and pass the prompt to the provider unchanged. Nothing is written to disk and no server-side browser is used.
+- **AI Processing**:
+  - The active provider takes `canvas_snapshot` from the prompt (only when `use_vision` is true) and sends it as the first image part, after the text part that holds the `<canvas>` block and the user's text; user-attached images follow. Responses API and Anthropic convert the part to their own image formats; LocalAgent sends text only.
 - **Contextual Analysis**: The AI then analyzes both the textual prompt (user message, previous calculations from canvas state) and the visual context from the canvas image.
-- **Error Handling**: If image capture fails, the vision step might be skipped, and the AI would proceed with text-only context, or an error is reported.
+- **Error Handling**: If the capture fails (for example a zero-sized or hidden canvas), the message is sent without an image and the AI proceeds with the text and `<canvas>` block.
 
 ## Function Call Flow
 1. User sends message via UI → `CanvasEventHandler` captures event, calls `AIInterface.interact_with_ai`.
 2. `AIInterface._print_user_message_in_chat` updates UI.
-3. `AIInterface._send_prompt_to_ai` bundles `user_message`, `canvas_state` (from `Canvas.get_canvas_state()`), `use_vision` flag, and current `ai_model` into a JSON prompt.
-4. `AIInterface` sends AJAX POST request to Flask backend (`/send_message`) with this JSON prompt and, if `use_vision` is false or SVG state is not needed immediately by backend, also sends `svg_state` (SVG content & dimensions from `document["math-svg"]`).
+3. `AIInterface._send_prompt_to_ai` bundles `user_message`, `canvas_state` (from `Canvas.get_canvas_state()`), `use_vision` flag, current `ai_model` and, with vision on, the browser-captured `canvas_snapshot` into a JSON prompt.
+4. `AIInterface` sends the JSON prompt to the Flask backend (`/send_message_stream`, or `/send_message` as a fallback).
 5. Flask backend (`static/routes.py` - `/send_message`):
-   a. Receives JSON prompt and `svg_state`.
-   b. If `use_vision` is true:
-      i. Ensures `WebDriverManager` is initialized.
-      ii. Calls `app.webdriver_manager.capture_svg_state(svg_state)` to save `canvas_snapshots/canvas.png`.
-   c. Calls the selected provider (`OpenAIChatCompletionsAPI`, `OpenAIResponsesAPI`, or one from `static/providers/`), which renders the canvas state into the prompt (see Canvas State in Prompts) and adds the user message, image if vision, and conversation history.
-   d. The provider makes a (usually streaming) call to its API.
-   e. The response (text, and/or tool_calls with their ids) is returned to `routes.py`.
-   f. `routes.py` sends response back to client `AIInterface` (as JSON containing `ai_message`, `ai_tool_calls`, `finish_reason`).
+   a. Receives the JSON prompt and validates attached images and the canvas snapshot.
+   b. Calls the selected provider (`OpenAIChatCompletionsAPI`, `OpenAIResponsesAPI`, or one from `static/providers/`), which renders the canvas state into the prompt (see Canvas State in Prompts) and adds the user message, image if vision, and conversation history.
+   c. The provider makes a (usually streaming) call to its API.
+   d. The response (text, and/or tool_calls with their ids) is returned to `routes.py`.
+   e. `routes.py` sends response back to client `AIInterface` (as JSON containing `ai_message`, `ai_tool_calls`, `finish_reason`).
 6. Client `AIInterface._on_complete` receives response.
 7. `AIInterface._process_ai_response`:
    a. If `finish_reason` is "stop" or "error": `_print_ai_message_in_chat`.

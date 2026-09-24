@@ -72,7 +72,6 @@ class ProjectMetricsAnalyzer:
             ".pytest_cache",
             "logs",
             "workspaces",
-            "canvas_snapshots",
             "generated_svg",
             "generated_png",
         }

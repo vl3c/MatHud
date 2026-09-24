@@ -2,7 +2,7 @@
 MatHud Flask Application Manager
 
 Core Flask application configuration and initialization.
-Manages dependency injection for AI API, WebDriver, workspace operations, and logging.
+Manages dependency injection for AI API, workspace operations, and logging.
 
 Dependencies:
     - Flask: Web framework core
@@ -35,7 +35,6 @@ from static.workspace_manager import WorkspaceManager
 
 if TYPE_CHECKING:
     from static.openai_api_base import OpenAIAPIBase
-    from static.webdriver_manager import WebDriverManager
 
 
 _logger = logging.getLogger(__name__)
@@ -52,16 +51,36 @@ class ApiResponseDict(TypedDict, total=False):
     data: JsonValue
 
 
+# Set by the desktop launcher: the app is local-only even if a .env file sets PORT.
+LOCAL_MODE_ENV = "MATHUD_LOCAL_MODE"
+
+
+def is_local_mode_forced() -> bool:
+    """True when MATHUD_LOCAL_MODE marks this process as a local, single-user app."""
+    return os.environ.get(LOCAL_MODE_ENV, "").lower() in ("1", "true", "yes")
+
+
 class MatHudFlask(Flask):
     """Flask subclass with MatHud service attributes."""
 
     log_manager: LogManager
     ai_api: OpenAIChatCompletionsAPI
     responses_api: OpenAIResponsesAPI
-    webdriver_manager: Optional["WebDriverManager"]
     workspace_manager: WorkspaceManager
     current_attached_images: Optional[list[str]]  # User-attached images for current request
     providers: Dict[str, "OpenAIAPIBase"]  # Lazily-loaded provider instances by name
+
+    # static/vendor/ paths include the library version, so their contents never
+    # change under a given URL and browsers may cache them for a year.
+    VENDOR_STATIC_PREFIX = "vendor/"
+    VENDOR_CACHE_MAX_AGE_S = 365 * 24 * 60 * 60
+
+    def get_send_file_max_age(self, filename: Optional[str]) -> Optional[int]:
+        """Cache vendored libraries for long; other static files keep Flask's default."""
+        if filename is not None and filename.replace("\\", "/").startswith(self.VENDOR_STATIC_PREFIX):
+            return self.VENDOR_CACHE_MAX_AGE_S
+        default_max_age: Optional[int] = super().get_send_file_max_age(filename)
+        return default_max_age
 
 
 class AppManager:
@@ -72,7 +91,7 @@ class AppManager:
 
     Core Responsibilities:
         - Flask Application Factory: Creates and configures Flask app instances
-        - Dependency Injection: Initializes and coordinates OpenAI API, WebDriver, workspace, and logging managers
+        - Dependency Injection: Initializes and coordinates OpenAI API, workspace, and logging managers
         - Response Standardization: Consistent JSON API response formatting
         - Service Integration: Bridges Flask web framework with specialized application managers
         - Authentication: Session management and pseudo-login for deployed environments
@@ -91,7 +110,10 @@ class AppManager:
 
         Returns:
             bool: True if deployed (PORT environment variable is set), False for local development
+            or when MATHUD_LOCAL_MODE forces local mode (the desktop launcher sets it)
         """
+        if is_local_mode_forced():
+            return False
         return os.environ.get("PORT") is not None
 
     @staticmethod
@@ -150,8 +172,7 @@ class AppManager:
         """Create and configure the Flask application.
 
         Initializes all core managers (logging, AI API, workspace management)
-        and registers application routes. WebDriver is initialized separately
-        after Flask startup to avoid blocking. Configures session management
+        and registers application routes. Configures session management
         for authentication in deployed environments using modern CacheLib backend.
 
         Returns:
@@ -218,14 +239,13 @@ class AppManager:
         app.ai_api.set_tool_mode(tool_mode)
         app.responses_api = OpenAIResponsesAPI()
         app.responses_api.set_tool_mode(tool_mode)
-        app.webdriver_manager = None  # Will be set after Flask starts
         app.current_attached_images = None  # User-attached images for current request
         app.providers = {}  # Lazily-loaded provider instances
 
         # Initialize workspace manager
         app.workspace_manager = WorkspaceManager()
 
-        # Initialize TTS manager (eager load to check availability at startup)
+        # Report TTS availability; the Kokoro model itself loads on first use
         AppManager._initialize_tts()
 
         # Import and register routes
@@ -237,13 +257,17 @@ class AppManager:
 
     @staticmethod
     def _initialize_tts() -> None:
-        """Initialize TTS manager and log availability status."""
+        """Create the TTS manager and log whether Kokoro is installed.
+
+        Only checks that the packages are importable; Kokoro and torch are
+        imported by the first speech request so startup stays fast and light.
+        """
         try:
             from static.tts_manager import get_tts_manager
 
             manager = get_tts_manager()
             if manager.is_available():
-                print("TTS: Kokoro initialized successfully")
+                print("TTS: Kokoro available (model loads on first use)")
             else:
                 print("TTS: Kokoro not available (install with: pip install kokoro)")
         except SystemExit as e:

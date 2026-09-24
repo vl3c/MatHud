@@ -1,5 +1,5 @@
 # Packages for CI: requirements.txt without the text-to-speech stack (kokoro pulls in torch,
-# transformers and spaCy, several GB) and without geckodriver-autoinstaller, which nothing imports.
+# transformers and spaCy, several GB).
 # The app starts without kokoro; TTS then reports itself unavailable and its two tests are skipped.
 openai==3.19.2
 anthropic==1.8.0

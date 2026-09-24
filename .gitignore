@@ -17,9 +17,6 @@ logs/
 # Flask sessions (server-side session storage)
 flask_session/
 
-# Canvas Snapshots
-canvas_snapshots/
-
 # Environment variables (eg. OPENAI_API_KEY)
 .env
 

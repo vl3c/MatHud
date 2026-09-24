@@ -112,7 +112,9 @@ class LogManager:
             return True
         if forward_env in ("false", "0", "no"):
             return False
-        # Default: forward in development, not in production
+        # Default: forward in development (or forced local mode), not in production
+        if os.environ.get("MATHUD_LOCAL_MODE", "").lower() in ("1", "true", "yes"):
+            return True
         return os.environ.get("PORT") is None
 
     def _get_forward_level_index(self) -> int:
@@ -169,7 +171,7 @@ class LogManager:
     def log_user_message(self, user_message: str) -> None:
         """Log user message and its components.
 
-        Parses and logs SVG state, canvas state, previous results, and user text.
+        Parses and logs canvas state, previous results, and user text.
 
         Args:
             user_message: JSON string containing user interaction data
@@ -183,10 +185,6 @@ class LogManager:
             self._logger.error("User message JSON is not an object.")
             return
         user_message_json: JsonObject = user_message_json_raw
-
-        svg_state = user_message_json.get("svg_state")
-        if isinstance(svg_state, dict):
-            self._logger.info(f"### SVG state dimensions: {svg_state.get('dimensions')}")
 
         canvas_state = user_message_json.get("canvas_state")
         if canvas_state is not None:
@@ -224,6 +222,22 @@ class LogManager:
             trace_summary: Compact trace dict (trace_id, tool_count, state_delta, etc.)
         """
         self._logger.info("action_trace %s", json.dumps(trace_summary, sort_keys=True))
+
+    def log_response_metrics(self, metrics: Dict[str, Any]) -> None:
+        """Log one model request's metrics as a ``response_metrics {...}`` JSON line.
+
+        The record comes from static/response_metrics.py; benchmark tooling can
+        parse these lines out of the session log.
+
+        Args:
+            metrics: JSON-serializable per-request metrics dict
+        """
+        try:
+            payload = json.dumps(metrics, sort_keys=True, default=str)
+        except (TypeError, ValueError):
+            self._logger.warning("response_metrics could not be serialized")
+            return
+        self._logger.info("response_metrics %s", payload)
 
     # ========== Browser Forwarding Methods ==========
 

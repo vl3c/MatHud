@@ -4,7 +4,9 @@ MatHud TTS Manager with Kokoro Integration
 Provides text-to-speech functionality using the Kokoro-82M model.
 
 Features:
-    - Lazy-loaded Kokoro pipeline for efficient resource usage
+    - Kokoro (and torch) are imported only on the first speech request, so
+      startup stays fast and light when TTS is not used
+    - Cheap availability check that does not import Kokoro
     - Multiple voice options (male and female)
     - WAV format output for browser playback
 
@@ -18,11 +20,14 @@ Note: Requires espeak-ng on Linux systems.
 
 from __future__ import annotations
 
+import importlib.util
 import io
-from concurrent.futures import ThreadPoolExecutor, Future
-from typing import List, Optional, Tuple, Union
+import threading
+from concurrent.futures import Future
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 
 class TTSManager:
@@ -48,26 +53,41 @@ class TTSManager:
 
     DEFAULT_VOICE: str = "am_michael"
     SAMPLE_RATE: int = 24000  # Kokoro's native sample rate
+    REQUIRED_MODULES: Tuple[str, ...] = ("kokoro", "soundfile", "numpy")
+    # Extra time allowed for the first request, which imports torch and loads
+    # (or downloads) the Kokoro model before generating audio.
+    PIPELINE_LOAD_TIMEOUT: float = 180.0
 
     def __init__(self) -> None:
-        """Initialize TTS manager with lazy-loaded pipeline."""
+        """Initialize TTS manager; the Kokoro pipeline loads on first use."""
         self._pipeline: Optional[object] = None
         self._pipeline_error: Optional[str] = None
-        # Thread pool for non-blocking TTS generation (allows Ctrl+C to work)
-        self._executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=1)
+        self._pipeline_lock = threading.Lock()
+        # Generation runs on daemon threads (so Ctrl+C works and a slow first
+        # model load cannot keep the process alive), one request at a time.
+        self._generation_lock = threading.Lock()
 
     def _get_pipeline(self) -> Tuple[bool, Union[object, str]]:
-        """Get or create the Kokoro pipeline.
+        """Get or create the Kokoro pipeline (thread-safe, created at most once).
 
         Returns:
             Tuple of (success, pipeline_or_error_message)
         """
+        if self._pipeline is not None:
+            return True, self._pipeline
         if self._pipeline_error is not None:
             return False, self._pipeline_error
 
-        if self._pipeline is not None:
-            return True, self._pipeline
+        with self._pipeline_lock:
+            # Another thread may have finished loading while this one waited.
+            if self._pipeline is not None:
+                return True, self._pipeline
+            if self._pipeline_error is not None:
+                return False, self._pipeline_error
+            return self._load_pipeline()
 
+    def _load_pipeline(self) -> Tuple[bool, Union[object, str]]:
+        """Import Kokoro and build the pipeline; callers hold the pipeline lock."""
         try:
             from kokoro import KPipeline
 
@@ -83,14 +103,32 @@ class TTSManager:
             self._pipeline_error = f"Failed to initialize Kokoro: {e}"
             return False, self._pipeline_error
 
+        except SystemExit as e:
+            # spaCy's model download (run while building the pipeline) calls
+            # sys.exit() when it fails, e.g. offline; that must not end the
+            # request thread or be retried on every request.
+            self._pipeline_error = f"Failed to initialize Kokoro: a dependency exited with status {e.code}"
+            return False, self._pipeline_error
+
     def is_available(self) -> bool:
-        """Check if TTS is available (Kokoro installed and working).
+        """Check if TTS can be used without loading the Kokoro model.
+
+        Returns True when the TTS packages are installed (or the pipeline is
+        already loaded) and no earlier load attempt has failed. The model
+        itself is only loaded by the first speech request.
 
         Returns:
             True if TTS can be used
         """
-        success, _ = self._get_pipeline()
-        return success
+        if self._pipeline is not None:
+            return True
+        if self._pipeline_error is not None:
+            return False
+        return all(_module_installed(name) for name in self.REQUIRED_MODULES)
+
+    def is_loaded(self) -> bool:
+        """Return True once the Kokoro pipeline has been created."""
+        return self._pipeline is not None
 
     def get_voices(self) -> List[str]:
         """Get list of available voice identifiers.
@@ -131,6 +169,8 @@ class TTSManager:
         pipeline = result
 
         try:
+            import numpy as np
+
             # Generate audio using Kokoro
             # Kokoro returns a generator of (graphemes, phonemes, audio_chunk)
             audio_chunks: List[np.ndarray] = []
@@ -150,7 +190,7 @@ class TTSManager:
                 audio = audio.astype(np.float32)
 
             # Normalize to -1 to 1 range if needed
-            max_val = np.max(np.abs(audio))
+            max_val = float(np.max(np.abs(audio)))
             if max_val > 1.0:
                 audio = audio / max_val
 
@@ -175,18 +215,41 @@ class TTSManager:
         Args:
             text: Text to convert to speech
             voice: Voice ID (default: am_michael)
-            timeout: Maximum time to wait for generation (seconds)
+            timeout: Maximum time to wait for generation (seconds); the first
+                request also gets PIPELINE_LOAD_TIMEOUT for loading the model
 
         Returns:
             Tuple of (success, audio_bytes_or_error_message)
         """
+        if not self.is_loaded():
+            timeout += self.PIPELINE_LOAD_TIMEOUT
         try:
-            future: Future[Tuple[bool, Union[bytes, str]]] = self._executor.submit(self.generate_speech, text, voice)
+            future = self._start_generation(text, voice)
             return future.result(timeout=timeout)
         except TimeoutError:
             return False, "TTS generation timed out"
         except Exception as e:
             return False, f"TTS generation failed: {e}"
+
+    def _start_generation(self, text: str, voice: Optional[str]) -> Future[Tuple[bool, Union[bytes, str]]]:
+        """Run ``generate_speech`` on a new daemon thread and return its future.
+
+        ThreadPoolExecutor workers are joined at interpreter exit, so a model
+        load still running when the app closes would keep the process alive.
+        """
+        future: Future[Tuple[bool, Union[bytes, str]]] = Future()
+
+        def run() -> None:
+            with self._generation_lock:
+                if not future.set_running_or_notify_cancel():
+                    return
+                try:
+                    future.set_result(self.generate_speech(text, voice))
+                except BaseException as e:
+                    future.set_exception(e)
+
+        threading.Thread(target=run, name="mathud-tts", daemon=True).start()
+        return future
 
     def _audio_to_wav(self, audio: np.ndarray, sample_rate: int) -> bytes:
         """Convert audio array to WAV format bytes.
@@ -211,17 +274,28 @@ class TTSManager:
         return buffer.read()
 
 
+def _module_installed(name: str) -> bool:
+    """Return True if ``name`` can be imported, without importing it."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
 # Global TTS manager instance for reuse
 _tts_manager: Optional[TTSManager] = None
+_tts_manager_lock = threading.Lock()
 
 
 def get_tts_manager() -> TTSManager:
-    """Get the global TTS manager instance.
+    """Get the global TTS manager instance (created once, thread-safe).
 
     Returns:
         TTSManager instance
     """
     global _tts_manager
     if _tts_manager is None:
-        _tts_manager = TTSManager()
+        with _tts_manager_lock:
+            if _tts_manager is None:
+                _tts_manager = TTSManager()
     return _tts_manager

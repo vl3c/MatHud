@@ -61,14 +61,14 @@ Follow-ups:
 
 ### Single desktop app
 Goal: one command (later one executable) opens a MatHud window; no separate server and browser.
-1. **Desktop shell via pywebview** (recommended first step): a launcher starts Flask in a background thread on a free port and opens a native window (Edge WebView2 on Windows). Pure Python, no second runtime, reuses everything. Electron/Tauri only if a concrete need appears — both would still have to bundle Python as a sidecar.
-2. **Vendor browser libraries** (Brython, math.js, nerdamer, MathJax) into `static/vendor/` with pinned versions, so the app works fully offline with LocalAgent.
-3. **Vision snapshots without Selenium/Firefox:** capture the canvas client-side (`toDataURL`, already used partly) and send it with the request; drop the headless-Firefox startup dependency.
-4. **Lazy-load optional heavy pieces** (Kokoro/torch) so startup is fast and memory is low when TTS isn't used.
+1. ~~**Desktop shell via pywebview**~~ Done: `mathud_desktop.py` / `python -m cli.main desktop` starts Flask in a background thread and opens a native window (Edge WebView2 on Windows); closing the window stops the server.
+2. ~~**Vendor browser libraries** (Brython, math.js, nerdamer, MathJax) into `static/vendor/` with pinned versions, so the app works fully offline with LocalAgent.~~ Done: `scripts/vendor_js_libs.py`.
+3. ~~**Vision snapshots without Selenium/Firefox:** capture the canvas client-side and send it with the request; drop the headless-Firefox startup dependency.~~ Done: `static/client/canvas_snapshot.py` composites the SVG and Canvas2D layers; `WebDriverManager` and `/init_webdriver` are removed.
+4. ~~**Lazy-load optional heavy pieces** (Kokoro/torch) so startup is fast and memory is low when TTS isn't used.~~ Done: startup ~1 s / 72 MB instead of ~7 s / 1.4 GB.
 5. **Packaging** (later): PyInstaller one-folder build + Start-menu shortcut.
 
 ### Model workbench
-1. **Per-response metrics** shown in chat and logged: provider, model, latency, time-to-first-token, tokens/s, prompt/completion tokens, number of tool calls, tool errors.
+1. ~~**Per-response metrics** shown in chat and logged: provider, model, latency, time-to-first-token, tokens/s, prompt/completion tokens, number of tool calls, tool errors.~~ Done: footer under each answer, JSON log lines, `window.getMatHudLastTurnMetrics()`.
 2. **Benchmark suite (CLI):** a curated set of math prompts with machine-checkable expectations (canvas state or tool results), run against a list of models; outputs a comparison table (accuracy, tool-call validity, speed). Builds on the existing tool-discovery benchmark and action traces.
 3. **Side-by-side mode:** send the same prompt to two models (pairs naturally with tabs, A3).
 4. **Local-model tuning:** tool descriptions and search-first prompts tuned for small local models; measure with the suite.
@@ -181,7 +181,7 @@ Not scheduled. Worth revisiting once Part A is solid, or better built as a separ
 | Milestone | Focus |
 |---|---|
 | **1 — Stable** ✓ | A0 complete: known math bugs fixed, workspace round-trip, tool-result plumbing, canvas-state format, renderer fixes and speed |
-| **2 — Unified app** | Desktop shell, vendored libs, client-side snapshots, per-response metrics, chat persistence |
+| **2 — Unified app** | Desktop shell ✓, vendored libs ✓, client-side snapshots ✓, per-response metrics ✓, chat persistence |
 | **3 — Workbench** | Benchmark suite, CAS audit, side-by-side comparison, local-model tuning |
 | **4 — Explore I** | Sliders, roots/extrema/intersections, adaptive plotting, polar, calculus visuals, adaptive quadrature |
 | **5 — UI** | Symbol palette, tabs, export, highlight tool |

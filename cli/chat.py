@@ -39,7 +39,8 @@ def send_message_stream(
         message: The message to send.
         port: Server port number.
         model: Optional AI model to use.
-        use_vision: Whether to include canvas snapshot for vision.
+        use_vision: Value for the prompt's ``use_vision`` flag. The CLI sends no
+            canvas image (the vision snapshot is captured by the browser UI).
     """
     base_url = get_api_base(DEFAULT_HOST, port)
 
@@ -136,7 +137,8 @@ def send_message_sync(
         message: The message to send.
         port: Server port number.
         model: Optional AI model to use.
-        use_vision: Whether to include canvas snapshot for vision.
+        use_vision: Value for the prompt's ``use_vision`` flag. The CLI sends no
+            canvas image (the vision snapshot is captured by the browser UI).
 
     Returns:
         Response data dictionary.
@@ -193,7 +195,7 @@ def chat() -> None:
     "--vision",
     "-v",
     is_flag=True,
-    help="Include canvas snapshot for vision",
+    help="Set use_vision (no canvas image is sent; vision snapshots need the browser UI)",
 )
 @click.option(
     "--no-stream",
@@ -222,7 +224,7 @@ def send(
 
       mathud chat send "Create a point at (5, 3) named A"
 
-      mathud chat send "Draw a circle with center A and radius 50" --vision
+      mathud chat send "Draw a circle with center A and radius 50"
 
       mathud chat send "What is the derivative of x^2?" --model gpt-5.5
     """

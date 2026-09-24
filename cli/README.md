@@ -63,6 +63,20 @@ python -m cli.main server stop [--port PORT]
 - `--no-wait`: Don't wait for server to be ready
 - `--json`: Output status as JSON
 
+### Desktop App
+
+```bash
+# Open MatHud in a native window with the server built in (closing the window stops it)
+python -m cli.main desktop [--port PORT] [--browser] [--devtools]
+```
+
+**Options:**
+- `--port, -p`: Port to serve on (default: 5100, or a free port if 5100 is taken)
+- `--browser`: Open MatHud in the default browser instead of a window
+- `--devtools`: Enable the WebView developer tools
+
+Needs pywebview: `pip install -r requirements-desktop.txt`. Equivalent to `python mathud_desktop.py`.
+
 ### Test Execution
 
 ```bash
@@ -168,7 +182,7 @@ python -m cli.main chat new [--port PORT]
 
 **Options:**
 - `--model, -m`: AI model (e.g., gpt-5.5, claude-sonnet-5)
-- `--vision, -v`: Include canvas snapshot
+- `--vision, -v`: Set `use_vision` (the snapshot is captured by the browser UI, so CLI-sent messages carry no image)
 - `--no-stream`: Wait for complete response
 - `--json`: Output as JSON
 

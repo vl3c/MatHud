@@ -12,6 +12,7 @@ from cli.tests import test
 from cli.canvas import canvas
 from cli.workspace import workspace
 from cli.chat import chat
+from cli.desktop import desktop
 from cli.screenshot import screenshot
 
 
@@ -33,6 +34,7 @@ cli.add_command(canvas)
 cli.add_command(workspace)
 cli.add_command(chat)
 cli.add_command(screenshot)
+cli.add_command(desktop)
 
 
 if __name__ == "__main__":

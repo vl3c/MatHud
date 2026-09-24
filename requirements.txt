@@ -6,7 +6,6 @@ flask-session==0.8.0
 cachelib==0.17.0
 python-dotenv==1.2.3
 selenium==4.49.0
-geckodriver-autoinstaller==0.1.0
 requests==2.34.2
 types-requests==2.33.0.20260906
 mypy==2.3.1

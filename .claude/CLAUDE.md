@@ -11,8 +11,8 @@ MatHud pairs a canvas with an AI assistant so users can sketch geometric scenes,
 
 ## Architecture at a Glance
 1. Frontend: HTML plus Brython (`static/client/`) render the canvas, manage UI flows, and execute client tests inside the browser.
-2. Backend: Flask (`app.py`, `static/`) exposes HTTP routes, workspace persistence, AI provider calls (OpenAI, Anthropic, OpenRouter, local), and Selenium-driven screenshots.
-3. AI and vision: `static/functions_definitions.py` specifies callable tools; snapshots feed the vision pipeline when enabled.
+2. Backend: Flask (`app.py`, `static/`) exposes HTTP routes, workspace persistence, and AI provider calls (OpenAI, Anthropic, OpenRouter, local).
+3. AI and vision: `static/functions_definitions.py` specifies callable tools; with vision on, the browser captures the canvas (`static/client/canvas_snapshot.py`) and sends it with the prompt as `canvas_snapshot`.
    Providers live in `static/providers/`; `static/providers/local/` holds LocalAgent, which serves whatever model a local llama-server reports from `/v1/models`.
 4. Math tooling: nerdamer.js provides symbolic algebra, math.js handles numeric evaluation, and MathJax renders LaTeX.
 
@@ -36,8 +36,7 @@ MatHud pairs a canvas with an AI assistant so users can sketch geometric scenes,
 
 ## Prerequisites
 1. Python 3.11+.
-2. Firefox installed locally for the vision workflow (geckodriver-autoinstaller handles the driver).
-3. An API key for at least one provider: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENROUTER_API_KEY` (local providers need none).
+2. An API key for at least one provider: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENROUTER_API_KEY` (local providers need none).
 
 ## Setup Steps
 1. Clone the repository and create a virtual environment: `python -m venv venv`
@@ -66,16 +65,24 @@ MATHUD_CANVAS_BUDGET_TOKENS= # Canvas block cap; default 4000 (cloud) / 1500 (lo
 2. Open `http://127.0.0.1:5000/` in a browser (Chrome, Firefox, or Edge).
 3. Stop with `Ctrl+C`.
 
+### Desktop Window
+`python mathud_desktop.py` (or `python -m cli.main desktop`) serves the app on localhost in a background thread and opens it in a native pywebview window titled "MatHud" (Edge WebView2 on Windows); closing the window stops the server.
+1. pywebview is optional: `pip install -r requirements-desktop.txt`. Without it the launcher prints that command and offers the browser instead.
+2. `--port N` picks the port (default 5100, falling back to a free port), `--browser` opens the default browser instead of a window, `--devtools` enables the WebView inspector.
+3. Debug mode is off and no WebDriver starts. Window geometry and WebView storage live in the per-user data dir (`%LOCALAPPDATA%\MatHud` on Windows).
+4. Kokoro TTS is imported on the first `/api/tts` request, not at startup (startup only checks the packages are installed).
+5. Server tests for the launcher (`server_tests/test_mathud_desktop.py`) fake pywebview; they never open a window.
+
 ### Running on a Specific Port
-If port 5000 is stale or occupied, use this command to start on a different port (e.g., 5004):
+If port 5000 is stale or occupied, start on a different port (e.g., 5004):
 ```bash
-python -c "import os; os.environ['PORT'] = '5004'; exec(open('app.py').read())"
+python app.py --port 5004
 ```
 Then navigate to `http://127.0.0.1:5004/` in the browser.
 
 ## Cloud Sessions (Claude Code on the web)
 1. The cloud environment's setup script installs `requirements-ci.txt` into `/opt/mathud-venv`, outside the repo, so the environment cache keeps it across the fresh clone each session gets.
-2. A SessionStart hook in `.claude/settings.json` runs `scripts/cloud_session_start.sh` when `CLAUDE_CODE_REMOTE` is `true`; locally it does nothing. The script links `venv` to `/opt/mathud-venv`, because the CLI runs the app with `./venv/bin/python`, and adds each sandbox proxy CA in `/root/.ccr/agent-proxy-ca.crt` to Chrome's certificate store (`~/.pki/nssdb`) so headless Chrome can load the CDN scripts during client tests.
+2. A SessionStart hook in `.claude/settings.json` runs `scripts/cloud_session_start.sh` when `CLAUDE_CODE_REMOTE` is `true`; locally it does nothing. The script links `venv` to `/opt/mathud-venv`, because the CLI runs the app with `./venv/bin/python`, and adds each sandbox proxy CA in `/root/.ccr/agent-proxy-ca.crt` to Chrome's certificate store (`~/.pki/nssdb`) so headless Chrome trusts HTTPS through the sandbox proxy (the page itself loads its libraries from `static/vendor/`).
 3. If `venv` is missing in a cloud session, check that `/opt/mathud-venv/bin/python` exists; the setup script may have failed.
 4. If client tests fail with `net::ERR_CERT_AUTHORITY_INVALID` in the browser console, Chrome does not trust the proxy: `certutil -d sql:$HOME/.pki/nssdb -L` should list the proxy CAs with `C,,` trust, under any name (the platform may add them as `ccr-agent-proxy*` before the hook's `mathud-agent-proxy-N`). If none are listed, check that `certutil` is installed (`libnss3-tools`, from the setup script).
 
@@ -88,21 +95,21 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 2. `static/`: Server modules plus the Brython client bundle.
 3. `templates/`: HTML shells that load Brython and bootstrap the UI.
 4. `workspaces/`: Saved user state as JSON.
-5. `canvas_snapshots/`: Vision screenshots generated through Selenium.
-6. `server_tests/`: Backend pytest suites.
-7. `documentation/`: Manuals such as `Reference Manual.txt` and `Example Prompts.txt`.
-8. `logs/`: Application log output (rotated by `log_manager.py`, which keeps the newest 50 session logs).
+5. `server_tests/`: Backend pytest suites.
+6. `documentation/`: Manuals such as `Reference Manual.txt` and `Example Prompts.txt`.
+7. `logs/`: Application log output (rotated by `log_manager.py`, which keeps the newest 50 session logs).
 
 ## Backend Highlights (`static/`)
 1. `app_manager.py`, `routes.py`, and `route_helpers.py` wire Flask endpoints to the provider layer: `openai_api_base.py` (shared history and system prompt), `openai_completions_api.py` / `openai_responses_api.py`, and `providers/` (Anthropic, OpenRouter, local).
 2. `tool_call_processor.py`, `ai_model.py`, and `functions_definitions.py` define the function-call surface exposed to every provider.
-3. `webdriver_manager.py` captures canvas screenshots for the vision workflow.
+3. Vision snapshots are captured in the browser (`static/client/canvas_snapshot.py`) and travel in the prompt JSON; `routes.py` only enforces their size limit.
 4. `workspace_manager.py` and `log_manager.py` handle persistence and auditing.
-5. `config.py` centralizes server-side constants (workspace dirs, schema version, snapshot paths).
+5. `config.py` centralizes server-side constants (workspace dirs, schema version, request and image size caps).
 6. `env_config.py` provides shared environment variable loading, replacing duplicated `load_dotenv` patterns.
 7. `route_helpers.py` contains extracted route helper functions for provider management and tool lifecycle.
 8. `canvas_state_formatter.py` renders the canvas for the model: a compact text block in each user message, `[canvas changes]` after tool batches, and `get_current_canvas_state` results (see `documentation/development/canvas_prompt_summary_rollout.md`).
 9. `style.css` and other assets shared with the frontend live here for Flask to serve.
+10. `response_metrics.py` measures every model request (time to first token, latency, tokens/s, prompt/completion/cached tokens, llama-server `timings`); providers attach the record to the final stream event as `metrics` and `log_manager.py` logs it as a `response_metrics {...}` JSON line.
 
 ## Client Highlights (`static/client/`)
 1. `main.py` bootstraps Brython and registers managers.
@@ -120,6 +127,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 13. `managers/visibility_manager.py` handles viewport culling extracted from Canvas.
 14. `rendering/base_telemetry.py` provides a shared telemetry base for renderers.
 15. `client_tests/` plus `test_runner.py` implement the Brython test harness (register new tests in `client_tests/tests.py`).
+16. `turn_metrics.py` aggregates per-request metrics into per-turn summaries (chat footer under the final answer; `window.getMatHudLastTurnMetrics()` / `window.getMatHudTurnMetricsHistory()` return them as JSON strings for benchmarks).
 
 ---
 
@@ -154,7 +162,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 1. `from browser import document, window, html, svg` pulls Brython DOM helpers.
 2. Client-side Python lives in `static/client/` and executes in the browser.
 3. Brython-only modules are unavailable to plain CPython tests.
-4. Brython is loaded from CDN and transpiles Python to JavaScript at runtime.
+4. Brython transpiles Python to JavaScript at runtime. It is served from `static/vendor/` (with math.js, nerdamer, MathJax and the Inter font), not from a CDN, so the app works offline; versions and SHA-256 hashes are pinned in `scripts/vendor_js_libs.py` (`--check` verifies the files, `server_tests/test_vendored_libs.py` enforces no external URLs in `templates/`).
 
 ---
 
