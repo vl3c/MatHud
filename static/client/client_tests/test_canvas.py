@@ -2993,8 +2993,8 @@ class TestCanvasHelperMethods(unittest.TestCase):
         self.assertEqual(self.canvas._resolve_renderer_mode_from_text("canvas2drenderer"), "canvas2d")
         self.assertEqual(self.canvas._resolve_renderer_mode_from_name("svgrenderer"), "svg")
         self.assertEqual(
-            self.canvas._resolve_renderer_mode_from_module("rendering.webgl_renderer"),
-            "webgl",
+            self.canvas._resolve_renderer_mode_from_module("rendering.canvas2d_renderer"),
+            "canvas2d",
         )
         self.assertIsNone(self.canvas._resolve_renderer_mode_from_text("other_renderer"))
 

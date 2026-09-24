@@ -53,6 +53,29 @@ _DEPENDENT_POINT_ATTRS: Tuple[str, ...] = (
     "arm2_point",
 )
 
+# Attributes of colored areas holding the drawables that bound them. The
+# area's serialized state only names them, so their own state (and point
+# coordinates) is added to the plan signature; functions contribute their
+# definition, not sampled data.
+_COLORED_AREA_CLASSES: Tuple[str, ...] = (
+    "SegmentsBoundedColoredArea",
+    "ClosedShapeColoredArea",
+    "FunctionsBoundedColoredArea",
+    "FunctionSegmentBoundedColoredArea",
+)
+_AREA_DEPENDENCY_ATTRS: Tuple[str, ...] = (
+    "segment1",
+    "segment2",
+    "segment",
+    "segments",
+    "chord_segment",
+    "circle",
+    "ellipse",
+    "func1",
+    "func2",
+    "func",
+)
+
 
 class Canvas2DTelemetry(BaseRendererTelemetry):
     """Performance telemetry collector for Canvas 2D rendering.
@@ -609,6 +632,9 @@ class Canvas2DRenderer(RendererProtocol):
         dependent_coords = self._collect_dependent_coordinates(drawable)
         if dependent_coords:
             snapshot["_dependent_coords"] = dependent_coords
+        area_dependencies = self._collect_area_dependencies(drawable)
+        if area_dependencies:
+            snapshot["_area_dependencies"] = area_dependencies
         if self._needs_scale_in_signature(drawable) and coordinate_mapper is not None:
             scale = getattr(coordinate_mapper, "scale_factor", None)
             if scale is not None:
@@ -654,6 +680,33 @@ class Canvas2DRenderer(RendererProtocol):
             if isinstance(x, (int, float)) and isinstance(y, (int, float)):
                 coords.append((attr, x, y))
         return coords
+
+    def _collect_area_dependencies(self, drawable: Any) -> list:
+        """Collect the state of the drawables bounding a colored area so editing them invalidates its plan."""
+        if self._resolve_drawable_name(drawable) not in _COLORED_AREA_CLASSES:
+            return []
+        dependencies: list = []
+        for attr in _AREA_DEPENDENCY_ATTRS:
+            value = getattr(drawable, attr, None)
+            if value is None:
+                continue
+            items = value if isinstance(value, (list, tuple)) else (value,)
+            for item in items:
+                dependencies.append((attr, self._dependency_signature(item)))
+        return dependencies
+
+    def _dependency_signature(self, dependency: Any) -> Any:
+        """Serialized state plus referenced point coordinates of one bounding drawable."""
+        if dependency is None or isinstance(dependency, (int, float, str, bool)):
+            return dependency
+        state: Any = None
+        state_func = getattr(dependency, "get_state", None)
+        if callable(state_func):
+            try:
+                state = state_func()
+            except Exception:
+                state = None
+        return (state, self._collect_dependent_coordinates(dependency))
 
     def _needs_scale_in_signature(self, drawable: Any) -> bool:
         class_name = getattr(drawable, "get_class_name", lambda: "")()

@@ -2154,6 +2154,4 @@ class Canvas:
             return "canvas2d"
         if "svg" in text:
             return "svg"
-        if "webgl" in text:
-            return "webgl"
         return None
