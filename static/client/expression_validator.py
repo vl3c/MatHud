@@ -52,7 +52,7 @@ import ast
 import math
 import random
 import re
-from typing import Any, Callable, Dict, Set, Type, cast
+from typing import Any, Callable, Dict, Optional, Set, Type, cast
 
 
 # The ExpressionValidator class is used to validate and evaluate mathematical expressions
@@ -167,6 +167,10 @@ class ExpressionValidator(ast.NodeVisitor):
     # Identifiers or number literals (with optional exponent), matched whole for implicit multiplication.
     # Note: "[-+]" rather than "[+-]" -- Brython's re fails to match "e-5" with the latter.
     _IMPLICIT_MULTIPLICATION_TOKEN = re.compile(r"[a-zA-Z_][a-zA-Z_0-9]*|(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
+    # Evaluation namespace (built lazily once) and compiled code objects keyed by function string
+    _functions: Optional[Dict[str, Any]] = None
+    _compiled_cache: Dict[str, Any] = {}
+    _COMPILED_CACHE_LIMIT = 256
 
     def _is_allowed_node_type(self, node: ast.AST) -> bool:
         """
@@ -330,10 +334,18 @@ class ExpressionValidator(ast.NodeVisitor):
     @staticmethod
     def _get_variables_and_functions(x: float) -> Dict[str, Any]:
         """Create a dictionary with variables and functions for expression evaluation"""
+        if ExpressionValidator._functions is None:
+            ExpressionValidator._functions = ExpressionValidator._build_functions()
+        variables_and_functions = dict(ExpressionValidator._functions)
+        variables_and_functions["x"] = x
+        return variables_and_functions
+
+    @staticmethod
+    def _build_functions() -> Dict[str, Any]:
+        """Build the dictionary of functions and constants available to expressions (built once)"""
         from utils.math_utils import MathUtils
 
         return {
-            "x": x,
             "sin": math.sin,
             "cos": math.cos,
             "tan": math.tan,
@@ -603,16 +615,29 @@ class ExpressionValidator(ast.NodeVisitor):
         return lambda x: MathUtils.evaluate(function_string, {"x": x})
 
     @staticmethod
+    def _compile_function_string(function_string: str) -> Any:
+        """Fix, validate and compile a function string, caching the code object per string"""
+        cache = ExpressionValidator._compiled_cache
+        compiled_code = cache.get(function_string)
+        if compiled_code is None:
+            fixed_string = ExpressionValidator.fix_math_expression(function_string, python_compatible=True)
+            ExpressionValidator.validate_expression_tree(fixed_string)
+            tree = ast.parse(fixed_string, mode="eval")
+            compiled_code = compile(tree, "<string>", mode="eval")
+            if len(cache) >= ExpressionValidator._COMPILED_CACHE_LIMIT:
+                cache.clear()
+            cache[function_string] = compiled_code
+        return compiled_code
+
+    @staticmethod
     def _parse_with_python(function_string: str) -> Callable[[float], float]:
         """Parse a function string using Python's built-in evaluation (faster)"""
-        function_string = ExpressionValidator.fix_math_expression(function_string, python_compatible=True)
-        ExpressionValidator.validate_expression_tree(function_string)
-
-        tree = ast.parse(function_string, mode="eval")
-        compiled_code = compile(tree, "<string>", mode="eval")
+        compiled_code = ExpressionValidator._compile_function_string(function_string)
+        # One namespace per parsed function, reused across calls; only 'x' changes (hot plotting path)
+        variables = ExpressionValidator._get_variables_and_functions(0)
 
         def evaluator(x: float) -> float:
-            variables = ExpressionValidator._get_variables_and_functions(x)
+            variables["x"] = x
             return float(eval(compiled_code, variables))
 
         return evaluator
@@ -678,14 +703,12 @@ class ExpressionValidator(ast.NodeVisitor):
 
         Uses 't' as the parameter variable instead of 'x'.
         """
-        expression_string = ExpressionValidator.fix_math_expression(expression_string, python_compatible=True)
-        ExpressionValidator.validate_expression_tree(expression_string)
-
-        tree = ast.parse(expression_string, mode="eval")
-        compiled_code = compile(tree, "<string>", mode="eval")
+        compiled_code = ExpressionValidator._compile_function_string(expression_string)
+        # One namespace per parsed expression, reused across calls; only 't' changes
+        variables = ExpressionValidator._get_variables_and_functions_parametric(0)
 
         def evaluator(t: float) -> float:
-            variables = ExpressionValidator._get_variables_and_functions_parametric(t)
+            variables["t"] = t
             return float(eval(compiled_code, variables))
 
         return evaluator

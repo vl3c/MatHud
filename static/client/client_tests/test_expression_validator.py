@@ -298,3 +298,24 @@ class TestExpressionValidator(unittest.TestCase):
         for expr, expected in cases.items():
             with self.subTest(expr=expr):
                 self.assertEqual(ExpressionValidator.fix_math_expression(expr, python_compatible=True), expected)
+
+    def test_parsed_functions_keep_independent_state(self) -> None:
+        # Parsed callables share cached code but must not share the variable namespace
+        square = ExpressionValidator.parse_function_string("x^2")
+        square_again = ExpressionValidator.parse_function_string("x^2")
+        shifted = ExpressionValidator.parse_function_string("x + 1")
+        self.assertEqual(square(3), 9.0)
+        self.assertEqual(square_again(4), 16.0)
+        self.assertEqual(shifted(10), 11.0)
+        self.assertEqual(square(5), 25.0)
+
+        param = ExpressionValidator.parse_parametric_expression("2*t")
+        param_again = ExpressionValidator.parse_parametric_expression("2*t")
+        self.assertEqual(param(1.5), 3.0)
+        self.assertEqual(param_again(4), 8.0)
+
+    def test_parse_function_string_rejects_invalid_expression_every_time(self) -> None:
+        # Failed parses must not be cached as valid
+        for _ in range(2):
+            with self.assertRaises(ValueError):
+                ExpressionValidator.parse_function_string("__import__('os')")
