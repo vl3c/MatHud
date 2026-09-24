@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Sequence
 
 from werkzeug.serving import BaseWSGIServer, make_server
 
@@ -134,14 +134,23 @@ def start_background_server(app: Any, port: Optional[int] = None, host: str = LO
     return background
 
 
-def wait_for_server(url: str, timeout: float = SERVER_READY_TIMEOUT_S, interval: float = 0.1) -> bool:
+def wait_for_server(
+    url: str,
+    timeout: float = SERVER_READY_TIMEOUT_S,
+    interval: float = 0.1,
+    alive: Optional[Callable[[], bool]] = None,
+) -> bool:
     """Poll ``url`` until the server answers or ``timeout`` seconds pass.
 
     Any HTTP response counts as ready, including error statuses such as a login
     redirect or 401, because they prove the server is accepting requests.
+
+    Args:
+        alive: Optional check (such as the server thread's ``is_alive``); once
+            it returns False the wait ends early with False.
     """
     deadline = time.monotonic() + timeout
-    while True:
+    while alive is None or alive():
         try:
             with _LOCAL_OPENER.open(url, timeout=max(interval, 1.0)):
                 return True
@@ -152,6 +161,7 @@ def wait_for_server(url: str, timeout: float = SERVER_READY_TIMEOUT_S, interval:
         if time.monotonic() >= deadline:
             return False
         time.sleep(interval)
+    return False
 
 
 def user_data_dir() -> Path:

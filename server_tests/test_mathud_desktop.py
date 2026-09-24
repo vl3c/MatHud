@@ -164,6 +164,13 @@ class TestWaitForServer:
             assert wait_for_server("http://127.0.0.1:1/", timeout=5, interval=0.01)
         assert urlopen.call_count == 3
 
+    def test_stops_waiting_once_the_server_thread_is_gone(self) -> None:
+        started = time.monotonic()
+        url = f"http://127.0.0.1:{_unused_port()}/"
+
+        assert not wait_for_server(url, timeout=10, interval=0.05, alive=lambda: False)
+        assert time.monotonic() - started < 5
+
     def test_ignores_configured_proxies(self, server: BackgroundServer, monkeypatch: pytest.MonkeyPatch) -> None:
         # An unreachable system proxy must not make a localhost server look down.
         dead_proxy = f"http://127.0.0.1:{_unused_port()}"
