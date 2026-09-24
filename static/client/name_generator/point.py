@@ -155,7 +155,9 @@ class PointNameGenerator(NameGenerator):
             }
         return self.used_letters_from_names[preferred_name]
 
-    def _find_available_name_from_preferred(self, letter_with_apostrophes: str, point_names: List[str]) -> str:
+    def _find_available_name_from_preferred(
+        self, letter_with_apostrophes: str, point_names: List[str]
+    ) -> Optional[str]:
         """Find an available name based on a preferred letter, adding apostrophes if needed.
 
         Args:
@@ -163,7 +165,8 @@ class PointNameGenerator(NameGenerator):
             point_names (list): List of existing point names
 
         Returns:
-            str: Available name based on preferred letter
+            str or None: Available name based on preferred letter, or None if the
+            letter and its apostrophe variants are all taken
         """
         base_letter: str = letter_with_apostrophes[0]  # Get just the letter without apostrophes
 
@@ -171,9 +174,8 @@ class PointNameGenerator(NameGenerator):
         if letter_with_apostrophes not in point_names:
             return letter_with_apostrophes
 
-        # Try adding apostrophes
-        result: Optional[str] = self._try_add_apostrophes(base_letter, point_names)
-        return result if result is not None else base_letter
+        # Try adding apostrophes; None lets the caller move on instead of reusing a taken name
+        return self._try_add_apostrophes(base_letter, point_names)
 
     def _try_add_apostrophes(
         self, base_letter: str, point_names: List[str], initial_count: int = 1, max_attempts: int = 5
@@ -227,7 +229,7 @@ class PointNameGenerator(NameGenerator):
         for i in range(start_index, len(available_letters)):
             letter_with_apostrophes: str = available_letters[i]
 
-            name: str = self._find_available_name_from_preferred(letter_with_apostrophes, point_names)
+            name: Optional[str] = self._find_available_name_from_preferred(letter_with_apostrophes, point_names)
 
             if name:
                 name_data["next_index"] = i + 1
