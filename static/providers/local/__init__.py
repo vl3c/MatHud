@@ -567,6 +567,7 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
                 func_args = {}
             result.append(
                 {
+                    "id": tc.get("id"),
                     "function_name": func_name,
                     "arguments": func_args,
                 }

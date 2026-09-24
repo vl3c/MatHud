@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from canvas import Canvas
 
     TracedCall = Dict[str, Any]
-    """Per-call trace record: seq, function_name, arguments, result, is_error, duration_ms."""
+    """Per-call trace record: seq, function_name, arguments, result_key, result, is_error, duration_ms."""
 
 
 class ResultProcessor:
@@ -143,32 +143,22 @@ class ResultProcessor:
                 sanitized_args = {"_raw": args}
 
             t0 = window.performance.now()
-            is_error = False
-            result_value: Any = None
+            # Collect this call's result separately so it can be reported per call
+            call_results: Dict[str, Any] = {}
             try:
-                snapshot_before = dict(results)
                 ResultProcessor._process_function_call(
                     call,
                     available_functions,
                     non_computation_functions,
                     unformattable_functions,
                     canvas,
-                    results,
+                    call_results,
                 )
-                # Extract result: find the key that was added or changed
-                for rk, rv in results.items():
-                    if rk not in snapshot_before or snapshot_before[rk] is not rv:
-                        result_value = rv
-                        break
-                else:
-                    # No change detected; grab by function name as last resort
-                    result_value = results.get(function_name)
-                if isinstance(result_value, str) and result_value.startswith("Error"):
-                    is_error = True
             except Exception as e:
-                ResultProcessor._handle_exception(e, function_name, results, args)
-                result_value = f"Error: {str(e)}"
-                is_error = True
+                ResultProcessor._handle_exception(e, function_name, call_results, args)
+            results.update(call_results)
+            result_key, result_value = next(iter(call_results.items()), (function_name, None))
+            is_error = isinstance(result_value, str) and result_value.startswith("Error")
 
             duration_ms = window.performance.now() - t0
             traced_calls.append(
@@ -176,6 +166,7 @@ class ResultProcessor:
                     "seq": seq,
                     "function_name": function_name,
                     "arguments": sanitized_args,
+                    "result_key": result_key,
                     "result": result_value,
                     "is_error": is_error,
                     "duration_ms": round(duration_ms, 2),
@@ -183,6 +174,19 @@ class ResultProcessor:
             )
 
         return results, traced_calls
+
+    @staticmethod
+    def build_tool_call_results(calls: List[Dict[str, Any]], traced_calls: List["TracedCall"]) -> List[Dict[str, Any]]:
+        """Pair each traced call with its tool-call id, in call order, for the server.
+
+        Each entry is ``{"tool_call_id": id_or_None, "result": {result_key: value}}`` so the
+        provider can answer every parallel tool call with its own result.
+        """
+        entries: List[Dict[str, Any]] = []
+        for call, traced in zip(calls, traced_calls):
+            tool_call_id = call.get("id") if isinstance(call, dict) else None
+            entries.append({"tool_call_id": tool_call_id, "result": {traced["result_key"]: traced["result"]}})
+        return entries
 
     @staticmethod
     def _validate_inputs(

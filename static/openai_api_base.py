@@ -36,6 +36,8 @@ StreamEvent = Dict[str, Any]
 # Tool mode type
 ToolMode = Literal["full", "search"]
 
+TOOL_RESULT_PLACEHOLDER = "Awaiting result..."
+
 PROVIDER_TIMEOUT_MESSAGE = (
     "The AI provider timed out before responding. Please try again or switch to a different model."
 )
@@ -547,23 +549,79 @@ class OpenAIAPIBase:
         """Create and append placeholder tool messages for each tool call."""
         if tool_calls:
             for tool_call in tool_calls:
-                tool_message = self._create_tool_message(getattr(tool_call, "id", None), "Awaiting result...")
+                tool_message = self._create_tool_message(getattr(tool_call, "id", None), TOOL_RESULT_PLACEHOLDER)
                 self.messages.append(tool_message)
 
     def _update_tool_messages_with_results(self, tool_call_results: str) -> None:
-        """Update placeholder tool messages with actual results from the client."""
+        """Update placeholder tool messages with actual results from the client.
+
+        Accepts either a list of per-call entries
+        (``[{"tool_call_id": ..., "result": {...}}, ...]`` in call order) or the
+        legacy single dict of all results.
+        """
         try:
             results = json.loads(tool_call_results)
-            if not isinstance(results, dict):
-                return
         except (json.JSONDecodeError, TypeError):
             return
 
-        results_str = json.dumps(results)
+        pending = self._get_pending_tool_messages()
+        if isinstance(results, list):
+            self._apply_per_call_results(pending, results)
+        elif isinstance(results, dict):
+            self._apply_legacy_results(pending, results)
+
+    def record_tool_call_result(self, tool_call_id: Optional[str], content: str) -> bool:
+        """Fill the pending placeholder for one tool call id. Returns True if one was updated."""
+        if not tool_call_id:
+            return False
+        for message in self._get_pending_tool_messages():
+            if message.get("tool_call_id") == tool_call_id and message.get("content") == TOOL_RESULT_PLACEHOLDER:
+                message["content"] = content
+                return True
+        return False
+
+    def _get_pending_tool_messages(self) -> List[MessageDict]:
+        """Return the trailing run of tool messages answering the latest tool calls."""
+        pending: List[MessageDict] = []
         for message in reversed(self.messages):
-            if message.get("role") == "tool":
-                message["content"] = results_str
-                return
+            if message.get("role") != "tool":
+                break
+            pending.append(message)
+        pending.reverse()
+        return pending
+
+    def _apply_per_call_results(self, pending: List[MessageDict], entries: List[Any]) -> None:
+        """Write each per-call result into its own tool message, matched by id then by order."""
+        awaiting = [m for m in pending if m.get("content") == TOOL_RESULT_PLACEHOLDER]
+        unmatched: List[str] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            content = json.dumps(entry.get("result"))
+            tool_call_id = entry.get("tool_call_id")
+            target = next((m for m in awaiting if tool_call_id and m.get("tool_call_id") == tool_call_id), None)
+            if target is None:
+                unmatched.append(content)
+                continue
+            target["content"] = content
+            awaiting.remove(target)
+
+        # Entries without a usable id fall back to call order.
+        for message, content in zip(list(awaiting), unmatched):
+            message["content"] = content
+            awaiting.remove(message)
+
+        for message in awaiting:
+            message["content"] = "Error: no result was returned for this tool call."
+
+    def _apply_legacy_results(self, pending: List[MessageDict], results: Dict[str, Any]) -> None:
+        """Write a legacy combined results dict into the last pending tool message."""
+        if not pending:
+            return
+        pending[-1]["content"] = json.dumps(results)
+        for message in pending[:-1]:
+            if message.get("content") == TOOL_RESULT_PLACEHOLDER:
+                message["content"] = "See the combined results in the last tool message of this turn."
 
     def _parse_prompt_json(self, full_prompt: str) -> Optional[Dict[str, Any]]:
         """Parse the prompt JSON and return the parsed dict, or None on failure."""

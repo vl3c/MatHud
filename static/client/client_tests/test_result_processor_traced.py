@@ -91,6 +91,40 @@ class TestGetResultsTraced(unittest.TestCase):
             self.assertEqual(results.get("create_thing(name:B)"), "Error: bad B")
             self.assertNotIn("create_thing", results)
 
+    def test_build_tool_call_results_pairs_each_call_with_its_id(self) -> None:
+        """Parallel calls each get their own result entry, tagged with the tool-call id, in order."""
+
+        def fail(**kwargs: Any) -> str:
+            raise ValueError("boom")
+
+        available_functions: Dict[str, Any] = {
+            "evaluate_expression": ProcessFunctionCalls.evaluate_expression,
+            "fail_func": fail,
+        }
+        calls = [
+            {"id": "call_a", "function_name": "evaluate_expression", "arguments": {"expression": "2+3"}},
+            {"id": "call_b", "function_name": "fail_func", "arguments": {"x": 1}},
+            {"function_name": "evaluate_expression", "arguments": {"expression": "4*4"}},
+        ]
+        _, traced = ProcessFunctionCalls.get_results_traced(calls, available_functions, (), self.canvas)
+        entries = ProcessFunctionCalls.build_tool_call_results(calls, traced)
+
+        self.assertEqual(
+            entries,
+            [
+                {"tool_call_id": "call_a", "result": {"2+3": 5}},
+                {"tool_call_id": "call_b", "result": {"fail_func(x:1)": "Error: boom"}},
+                {"tool_call_id": None, "result": {"4*4": 16}},
+            ],
+        )
+
+    def test_traced_result_captured_for_repeated_identical_calls(self) -> None:
+        """Identical repeated calls still record their own result in the trace."""
+        available_functions: Dict[str, Any] = {"make": lambda **kwargs: "done"}
+        calls = [{"function_name": "make", "arguments": {}}, {"function_name": "make", "arguments": {}}]
+        _, traced = ProcessFunctionCalls.get_results_traced(calls, available_functions, (), self.canvas)
+        self.assertEqual([t["result"] for t in traced], ["done", "done"])
+
     def test_undoable_small_return_values_pass_through(self) -> None:
         """Small string/dict returns of undoable tools reach the model instead of 'Call successful!'."""
         graph_state = {"name": "G1", "vertices": ["A", "B"], "edges": [["A", "B"]]}

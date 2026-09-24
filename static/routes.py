@@ -409,6 +409,13 @@ def _extract_injectable_tools(tool_call_results: str) -> Optional[List[Dict[str,
         results = json.loads(tool_call_results)
     except (json.JSONDecodeError, TypeError):
         return None
+    if isinstance(results, list):
+        # Per-call shape: [{"tool_call_id": ..., "result": {key: value}}, ...]
+        merged: Dict[str, Any] = {}
+        for entry in results:
+            if isinstance(entry, dict) and isinstance(entry.get("result"), dict):
+                merged.update(entry["result"])
+        results = merged
     if not isinstance(results, dict):
         return None
 
@@ -1007,6 +1014,9 @@ def register_routes(app: MatHudFlask) -> None:
         tool_calls: ToolCallList = []
         if raw_tool_calls:
             tool_calls = ToolCallProcessor.jsonify_tool_calls(raw_tool_calls)
+            # Carry each call's id so the client can return per-call results.
+            for processed, raw in zip(tool_calls, raw_tool_calls):
+                cast(Dict[str, Any], processed)["id"] = getattr(raw, "id", None)
             app.log_manager.log_ai_tool_calls(tool_calls)
         else:
             app.log_manager.log_ai_tool_calls([])
