@@ -9,12 +9,16 @@ Key Features:
     - Command recording: Drawing operations are captured as PrimitiveCommand objects
     - Plan caching: OptimizedPrimitivePlan stores recorded commands with metadata
     - Reprojection: When the view changes, commands are transformed to new coordinates
-    - Transform optimization: Plans supporting CSS transforms skip command reprojection
+      with a single affine map (x' = k*x + tx, y' = k*y + ty)
     - Visibility culling: Plans track screen bounds to skip off-screen rendering
+
+Recording is kept deliberately lean: under Brython every per-command or per-point
+Python operation is expensive, so commands store only what is needed to replay
+and reproject them.
 
 Architecture:
     1. _RecordingPrimitives captures drawing calls during plan building
-    2. PrimitiveCommand stores individual operations with style/geometry metadata
+    2. PrimitiveCommand stores individual operations (op, args, kwargs)
     3. OptimizedPrimitivePlan manages command lists and handles reprojection
     4. Helper functions in _HELPERS map drawable types to rendering functions
 
@@ -27,18 +31,11 @@ Usage:
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from constants import label_min_screen_font_px, label_vanish_threshold_px
 from rendering import shared_drawable_renderers as shared
 from rendering.primitives import RendererPrimitives
-
-_STYLE_CLASSES = (
-    shared.StrokeStyle,
-    shared.FillStyle,
-    shared.FontStyle,
-    shared.TextAlignment,
-)
 
 # Type aliases for coordinate and command data
 Number = float | int
@@ -52,84 +49,6 @@ PrimitiveArgs = Tuple[Any, ...]
 
 PrimitiveKwargs = Dict[str, Any]
 """Keyword arguments for a primitive drawing command."""
-
-
-def _style_signature(style: Any) -> Optional[Tuple[Any, ...]]:
-    """Extract a hashable signature from a style object for caching.
-
-    Args:
-        style: A style object (StrokeStyle, FillStyle, FontStyle, etc.) or None.
-
-    Returns:
-        A tuple of style attribute values that can be used as a cache key,
-        or None if the style is None or has no relevant attributes.
-    """
-    if style is None:
-        return None
-    attrs = []
-    for attr in ("color", "width", "line_join", "line_cap", "opacity", "family", "size", "weight"):
-        if hasattr(style, attr):
-            attrs.append(getattr(style, attr))
-    return tuple(attrs) if attrs else None
-
-
-def _geometry_signature(values: Iterable[Any]) -> Tuple[Any, ...]:
-    """Normalize geometry values into a hashable tuple for cache comparison.
-
-    Converts lists to tuples so the result can be used as a dictionary key
-    or compared for equality in cache invalidation checks.
-
-    Args:
-        values: An iterable of geometry values (points, radii, angles, etc.).
-
-    Returns:
-        A tuple with all nested lists converted to tuples.
-    """
-    signature: List[Any] = []
-    for value in values:
-        if isinstance(value, (tuple, list)):
-            signature.append(tuple(value))
-        else:
-            signature.append(value)
-    return tuple(signature)
-
-
-def _quantize_number(value: Any, *, decimals: int = 4) -> Any:
-    """Round a numeric value to a specified precision for cache key stability.
-
-    Quantization reduces floating-point noise that could cause unnecessary
-    cache invalidations when values differ only by tiny rounding errors.
-
-    Args:
-        value: The value to quantize (floats are rounded, others pass through).
-        decimals: Number of decimal places to round to.
-
-    Returns:
-        The quantized value, or the original if not a float.
-    """
-    if isinstance(value, float):
-        if value == 0.0:
-            return 0.0
-        try:
-            return round(value, decimals)
-        except Exception:
-            return value
-    return value
-
-
-def _quantize_geometry(value: Any, *, decimals: int = 4) -> Any:
-    """Recursively quantize all numeric values in a geometry structure.
-
-    Args:
-        value: A geometry value, which may be nested tuples/lists of numbers.
-        decimals: Number of decimal places for rounding.
-
-    Returns:
-        The geometry structure with all floats rounded to the specified precision.
-    """
-    if isinstance(value, (tuple, list)):
-        return tuple(_quantize_geometry(v, decimals=decimals) for v in value)
-    return _quantize_number(value, decimals=decimals)
 
 
 def _capture_map_state(mapper: Any) -> MapState:
@@ -176,62 +95,6 @@ def _map_state_equal(left: MapState, right: MapState, *, epsilon: float = 1e-6) 
     return True
 
 
-def _compute_transform_params(base: MapState, target: MapState) -> Tuple[float, float, float]:
-    """Compute CSS transform parameters to convert from base to target state.
-
-    Used for plans that support CSS transforms, allowing the renderer to apply
-    a matrix transformation instead of reprojecting individual commands.
-
-    Args:
-        base: The map state when the plan was created.
-        target: The desired map state to transform to.
-
-    Returns:
-        A tuple of (scale_ratio, translate_x, translate_y) for the transform matrix.
-    """
-    base_scale = float(base.get("scale", 1.0) or 1.0)
-    target_scale = float(target.get("scale", 1.0) or 1.0)
-    if base_scale == 0.0:
-        base_scale = 1.0
-    scale_ratio = target_scale / base_scale
-    base_sum_x = float(base.get("origin_x", 0.0)) + float(base.get("offset_x", 0.0))
-    target_sum_x = float(target.get("origin_x", 0.0)) + float(target.get("offset_x", 0.0))
-    tx = target_sum_x - scale_ratio * base_sum_x
-    base_sum_y = float(base.get("origin_y", 0.0)) + float(base.get("offset_y", 0.0))
-    target_sum_y = float(target.get("origin_y", 0.0)) + float(target.get("offset_y", 0.0))
-    ty = target_sum_y - scale_ratio * base_sum_y
-    return scale_ratio, tx, ty
-
-
-def _transform_bounds(
-    bounds: Optional[Tuple[float, float, float, float]], scale: float, tx: float, ty: float
-) -> Optional[Tuple[float, float, float, float]]:
-    """Apply a scale-translate transform to a bounding box.
-
-    Args:
-        bounds: Bounding box as (min_x, max_x, min_y, max_y), or None.
-        scale: Scale factor to apply.
-        tx: X translation after scaling.
-        ty: Y translation after scaling.
-
-    Returns:
-        Transformed bounding box, or None if input was None.
-    """
-    if not bounds:
-        return None
-    min_x, max_x, min_y, max_y = bounds
-    corners = (
-        (min_x, min_y),
-        (min_x, max_y),
-        (max_x, min_y),
-        (max_x, max_y),
-    )
-    transformed = [(scale * x + tx, scale * y + ty) for x, y in corners]
-    xs = [point[0] for point in transformed]
-    ys = [point[1] for point in transformed]
-    return (min(xs), max(xs), min(ys), max(ys))
-
-
 def _math_to_screen_point(math_point: Tuple[float, float], state: MapState) -> Tuple[float, float]:
     """Convert a point from math coordinates to screen coordinates.
 
@@ -248,53 +111,43 @@ def _math_to_screen_point(math_point: Tuple[float, float], state: MapState) -> T
     return (sx, sy)
 
 
-def _screen_to_math_point(screen_point: Tuple[float, float], state: MapState) -> Tuple[float, float]:
-    """Convert a point from screen coordinates to math coordinates.
+AffineParams = Tuple[float, float, float]
+"""Screen-to-screen reprojection as (k, tx, ty): x' = k*x + tx, y' = k*y + ty."""
+
+
+def _affine_params(old: MapState, new: MapState) -> AffineParams:
+    """Compute the screen-space affine map taking ``old`` screen coordinates to ``new``.
+
+    Equivalent to converting a screen point to math space with ``old`` and back to
+    screen space with ``new``. Both axes share the same scale ratio because the
+    y-axis flip cancels out.
 
     Args:
-        screen_point: Point in screen pixels as (x, y).
-        state: Coordinate mapper state with scale, origin, and offset.
+        old: The map state the screen coordinates were calculated for.
+        new: The target map state.
 
     Returns:
-        Point in mathematical space as (x, y).
+        (k, tx, ty) where k is the scale ratio and tx/ty the translations.
     """
-    sx, sy = screen_point
-    scale = state["scale"] if state["scale"] else 1.0
-    mx = (sx - state["offset_x"] - state["origin_x"]) / scale
-    my = (state["origin_y"] + state["offset_y"] - sy) / scale
-    return (mx, my)
+    old_scale = old["scale"] if old["scale"] else 1.0
+    k = new["scale"] / old_scale
+    tx = (new["origin_x"] + new["offset_x"]) - k * (old["origin_x"] + old["offset_x"])
+    ty = (new["origin_y"] + new["offset_y"]) - k * (old["origin_y"] + old["offset_y"])
+    return (k, tx, ty)
 
 
-def _reproject_points(
-    points: Iterable[Tuple[float, float]], old: MapState, new: MapState
-) -> Tuple[Tuple[float, float], ...]:
-    """Reproject multiple screen points from one map state to another.
-
-    Args:
-        points: Screen coordinates to reproject.
-        old: The map state the points were calculated for.
-        new: The target map state to convert to.
-
-    Returns:
-        Points converted to the new map state's screen coordinates.
-    """
-    return tuple(_math_to_screen_point(_screen_to_math_point(point, old), new) for point in points)
+def _affine_point(point: Sequence[float], xf: AffineParams) -> Tuple[float, float]:
+    """Apply a screen-space affine map to a single point."""
+    k, tx, ty = xf
+    return (k * point[0] + tx, k * point[1] + ty)
 
 
-def _reproject_radius(radius: float, old: MapState, new: MapState) -> float:
-    """Reproject a screen-space radius from one map state to another.
-
-    Args:
-        radius: Radius in screen pixels for the old state.
-        old: The map state the radius was calculated for.
-        new: The target map state to convert to.
-
-    Returns:
-        Radius scaled appropriately for the new map state.
-    """
-    scale_old = old["scale"] if old["scale"] else 1.0
-    math_radius = radius / scale_old
-    return math_radius * new["scale"]
+def _affine_points(points: Sequence[Sequence[float]], xf: AffineParams) -> Tuple[Tuple[float, float], ...]:
+    """Apply a screen-space affine map to a sequence of points."""
+    k, tx, ty = xf
+    if k == 1.0:
+        return tuple([(p[0] + tx, p[1] + ty) for p in points])
+    return tuple([(k * p[0] + tx, k * p[1] + ty) for p in points])
 
 
 def _get_safe_scale(state: MapState, key: str = "scale") -> float:
@@ -311,78 +164,57 @@ def _get_safe_scale(state: MapState, key: str = "scale") -> float:
     return 1.0 if value <= 0 else value
 
 
-def _reproject_stroke_line(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
-    """Reproject a stroke_line command to a new map state.
-
-    Updates the command's start/end points and geometry metadata in place.
-    """
+def _reproject_stroke_line(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState, xf: AffineParams
+) -> None:
+    """Reproject a stroke_line command's start/end points in place."""
     start, end, stroke = command.args
-    new_start = _math_to_screen_point(_screen_to_math_point(start, old_state), new_state)
-    new_end = _math_to_screen_point(_screen_to_math_point(end, old_state), new_state)
-    command.args = (new_start, new_end, stroke)
-    command.meta["geometry"] = _quantize_geometry((new_start, new_end))
+    command.args = (_affine_point(start, xf), _affine_point(end, xf), stroke)
 
 
-def _reproject_stroke_polyline(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
-    """Reproject a stroke_polyline command to a new map state.
-
-    Updates the command's point list and geometry metadata in place.
-    """
+def _reproject_stroke_polyline(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState, xf: AffineParams
+) -> None:
+    """Reproject a stroke_polyline command's point list in place."""
     points, stroke = command.args
-    new_points = _reproject_points(points, old_state, new_state)
-    command.args = (new_points, stroke)
-    command.meta["geometry"] = _quantize_geometry(new_points)
+    command.args = (_affine_points(points, xf), stroke)
 
 
-def _reproject_stroke_circle(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
-    """Reproject a stroke_circle command to a new map state.
-
-    Updates center position and radius (unless screen_space flag is set).
-    """
+def _reproject_stroke_circle(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState, xf: AffineParams
+) -> None:
+    """Reproject a stroke_circle command (radius kept when screen_space is set)."""
     center, radius, stroke = command.args
-    new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
     screen_space = bool(command.kwargs.get("screen_space"))
-    new_radius = float(radius) if screen_space else _reproject_radius(float(radius), old_state, new_state)
-    command.args = (new_center, new_radius, stroke)
-    command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
+    new_radius = float(radius) if screen_space else float(radius) * xf[0]
+    command.args = (_affine_point(center, xf), new_radius, stroke)
 
 
-def _reproject_fill_circle(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
-    """Reproject a fill_circle command to a new map state.
-
-    Updates center position, radius, and geometry metadata in place.
-    """
+def _reproject_fill_circle(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState, xf: AffineParams
+) -> None:
+    """Reproject a fill_circle command (radius kept when screen_space is set)."""
     center, radius, fill, stroke = command.args
-    new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
     screen_space = bool(command.kwargs.get("screen_space"))
-    new_radius = float(radius) if screen_space else _reproject_radius(float(radius), old_state, new_state)
-    command.args = (new_center, new_radius, fill, stroke)
-    command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
+    new_radius = float(radius) if screen_space else float(radius) * xf[0]
+    command.args = (_affine_point(center, xf), new_radius, fill, stroke)
 
 
-def _reproject_stroke_ellipse(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
-    """Reproject a stroke_ellipse command to a new map state.
-
-    Updates center position, both radii, and geometry metadata in place.
-    """
+def _reproject_stroke_ellipse(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState, xf: AffineParams
+) -> None:
+    """Reproject a stroke_ellipse command's center and both radii in place."""
     center, radius_x, radius_y, rotation, stroke = command.args
-    new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
-    new_rx = _reproject_radius(float(radius_x), old_state, new_state)
-    new_ry = _reproject_radius(float(radius_y), old_state, new_state)
-    command.args = (new_center, new_rx, new_ry, rotation, stroke)
-    command.meta["geometry"] = _quantize_geometry((new_center, new_rx, new_ry, rotation))
+    k = xf[0]
+    command.args = (_affine_point(center, xf), float(radius_x) * k, float(radius_y) * k, rotation, stroke)
 
 
-def _reproject_fill_joined_area(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
-    """Reproject a fill_joined_area command to a new map state.
-
-    Updates both forward and reverse point arrays used for shaded regions.
-    """
+def _reproject_fill_joined_area(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState, xf: AffineParams
+) -> None:
+    """Reproject both forward and reverse point arrays used for shaded regions."""
     forward, reverse, fill = command.args
-    new_forward = _reproject_points(forward, old_state, new_state)
-    new_reverse = _reproject_points(reverse, old_state, new_state)
-    command.args = (new_forward, new_reverse, fill)
-    command.meta["geometry"] = _quantize_geometry(new_forward + new_reverse)
+    command.args = (_affine_points(forward, xf), _affine_points(reverse, xf), fill)
 
 
 def _compute_vector_arrow_points(vector_meta: Dict[str, Any], new_state: MapState) -> Tuple[Tuple[float, float], ...]:
@@ -424,7 +256,9 @@ def _compute_vector_arrow_points(vector_meta: Dict[str, Any], new_state: MapStat
     return (tip, base1, base2)
 
 
-def _reproject_fill_polygon(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
+def _reproject_fill_polygon(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState, xf: AffineParams
+) -> None:
     """Reproject a fill_polygon command to a new map state.
 
     Handles both regular polygons and vector arrow heads specially, since
@@ -435,11 +269,10 @@ def _reproject_fill_polygon(command: PrimitiveCommand, old_state: MapState, new_
     metadata = command.kwargs.get("metadata") or {}
     vector_meta = metadata.get("vector_arrow") if isinstance(metadata, dict) else None
     if vector_meta:
-        new_points = _compute_vector_arrow_points(vector_meta, new_state)
+        new_points = tuple(_compute_vector_arrow_points(vector_meta, new_state))
     else:
-        new_points = _reproject_points(points, old_state, new_state)
-    command.args = (tuple(new_points), fill, stroke)
-    command.meta["geometry"] = _quantize_geometry(new_points)
+        new_points = _affine_points(points, xf)
+    command.args = (new_points, fill, stroke)
 
 
 def _compute_angle_arc_radius(
@@ -500,7 +333,6 @@ def _reproject_arc_with_angle_meta(
     direction = 1 if sweep_cw else -1
     end_angle = start_angle + direction * delta
     command.args = (vertex_screen, radius_screen, start_angle, end_angle, sweep_cw, stroke)
-    command.meta["geometry"] = _quantize_geometry((vertex_screen, radius_screen))
 
 
 def _parse_point_tuple(raw: Any, default: Tuple[float, float] = (0.0, 0.0)) -> Tuple[float, float]:
@@ -582,7 +414,6 @@ def _reproject_arc_with_circle_meta(
         radius_float = 0.0
     if sweep_delta <= 0.0:
         command.args = (new_center, radius_float, start_angle_screen, start_angle_screen, stored_cw, stroke)
-        command.meta["geometry"] = _quantize_geometry((new_center, radius_float))
         return
     base_scale_old = _get_safe_scale(old_state)
     base_scale_new = _get_safe_scale(new_state)
@@ -595,12 +426,11 @@ def _reproject_arc_with_circle_meta(
         new_radius = radius_float
     end_angle_screen = start_angle_screen + sweep_delta if stored_cw else start_angle_screen - sweep_delta
     command.args = (new_center, new_radius, start_angle_screen, end_angle_screen, stored_cw, stroke)
-    command.meta["geometry"] = _quantize_geometry(
-        (new_center, new_radius, start_angle_screen, end_angle_screen, stored_cw)
-    )
 
 
-def _reproject_stroke_arc(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
+def _reproject_stroke_arc(
+    command: PrimitiveCommand, old_state: MapState, new_state: MapState, xf: AffineParams
+) -> None:
     """Reproject a stroke_arc command to a new map state.
 
     Handles three cases: angle arcs (with angle metadata), circle arcs
@@ -615,11 +445,9 @@ def _reproject_stroke_arc(command: PrimitiveCommand, old_state: MapState, new_st
     elif circle_meta:
         _reproject_arc_with_circle_meta(command, circle_meta, radius, stroke, old_state, new_state)
     else:
-        new_center = _math_to_screen_point(_screen_to_math_point(center, old_state), new_state)
         screen_space = bool(command.kwargs.get("screen_space"))
-        new_radius = float(radius) if screen_space else _reproject_radius(float(radius), old_state, new_state)
-        command.args = (new_center, new_radius, start_angle, end_angle, sweep_clockwise, stroke)
-        command.meta["geometry"] = _quantize_geometry((new_center, new_radius))
+        new_radius = float(radius) if screen_space else float(radius) * xf[0]
+        command.args = (_affine_point(center, xf), new_radius, start_angle, end_angle, sweep_clockwise, stroke)
 
 
 def _reproject_text_with_angle_meta(
@@ -772,7 +600,7 @@ def _reproject_text_with_label_meta(
     return new_position, font
 
 
-def _reproject_draw_text(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
+def _reproject_draw_text(command: PrimitiveCommand, old_state: MapState, new_state: MapState, xf: AffineParams) -> None:
     """Reproject a draw_text command to a new map state.
 
     Handles angle labels, point labels, standalone labels, and plain text
@@ -790,9 +618,8 @@ def _reproject_draw_text(command: PrimitiveCommand, old_state: MapState, new_sta
     elif label_meta:
         new_position, font = _reproject_text_with_label_meta(label_meta, font, new_state)
     else:
-        new_position = _math_to_screen_point(_screen_to_math_point(position, old_state), new_state)
+        new_position = _affine_point(position, xf)
     command.args = (text, new_position, font, color, alignment)
-    command.meta["geometry"] = _quantize_geometry((new_position,))
 
 
 # Mapping of primitive operation names to their reprojection handlers
@@ -809,20 +636,28 @@ _REPROJECT_HANDLERS: Dict[str, Any] = {
 }
 
 
-def _reproject_command(command: PrimitiveCommand, old_state: MapState, new_state: MapState) -> None:
+def _reproject_command(
+    command: PrimitiveCommand,
+    old_state: MapState,
+    new_state: MapState,
+    xf: Optional[AffineParams] = None,
+) -> None:
     """Dispatch a command to the appropriate reprojection handler.
 
     Args:
         command: The primitive command to reproject in place.
         old_state: The map state the command was created for.
         new_state: The target map state to transform to.
+        xf: Precomputed affine map from old to new screen coordinates.
     """
     op = command.op
     if not op:
         return
     handler = _REPROJECT_HANDLERS.get(op)
     if handler:
-        handler(command, old_state, new_state)
+        if xf is None:
+            xf = _affine_params(old_state, new_state)
+        handler(command, old_state, new_state, xf)
 
 
 def _drawable_key(drawable: Any, fallback: str) -> str:
@@ -912,16 +747,16 @@ class _CachedCoordinateMapper:
 class PrimitiveCommand:
     """A recorded drawing primitive that can be replayed or reprojected.
 
-    Commands are immutable operation records that capture a single drawing
-    call with its arguments, keyword arguments, and metadata. They can be
-    modified in place during reprojection to update coordinates.
+    Commands capture a single drawing call with its arguments and keyword
+    arguments. They are modified in place during reprojection to update
+    coordinates.
 
     Attributes:
         op: The operation name (e.g., 'stroke_line', 'fill_circle').
         args: Positional arguments for the primitive call.
         kwargs: Keyword arguments for the primitive call.
-        key: Unique identifier for this command within its plan.
-        meta: Metadata including style and geometry signatures for caching.
+        key: Optional identifier (not computed during recording).
+        meta: Optional metadata (not computed during recording).
     """
 
     __slots__ = ("op", "args", "kwargs", "key", "meta")
@@ -931,7 +766,7 @@ class PrimitiveCommand:
         op: str,
         args: PrimitiveArgs,
         kwargs: PrimitiveKwargs,
-        key: str,
+        key: str = "",
         meta: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Initialize a primitive command.
@@ -940,22 +775,87 @@ class PrimitiveCommand:
             op: The operation name.
             args: Positional arguments tuple.
             kwargs: Keyword arguments dictionary.
-            key: Unique command key.
+            key: Optional command key.
             meta: Optional metadata dictionary.
         """
         self.op = op
         self.args = args
         self.kwargs = kwargs
         self.key = key
-        self.meta = meta or {}
+        self.meta = meta
+
+
+Bounds = Tuple[float, float, float, float]
+"""Screen bounds as (min_x, max_x, min_y, max_y)."""
+
+
+def _extend_bounds(points: Sequence[Sequence[float]], bounds: Bounds) -> Bounds:
+    """Grow (min_x, max_x, min_y, max_y) to include every point."""
+    min_x, max_x, min_y, max_y = bounds
+    for p in points:
+        x = p[0]
+        y = p[1]
+        if x < min_x:
+            min_x = x
+        if x > max_x:
+            max_x = x
+        if y < min_y:
+            min_y = y
+        if y > max_y:
+            max_y = y
+    return (min_x, max_x, min_y, max_y)
+
+
+def _command_bounds_points(command: PrimitiveCommand) -> Sequence[Sequence[float]]:
+    """Return the screen points that bound a single non-point-list command."""
+    op = command.op
+    args = command.args
+    if op == "stroke_line":
+        return (args[0], args[1])
+    if op == "stroke_circle" or op == "fill_circle":
+        cx, cy = args[0]
+        radius = float(args[1])
+        return ((cx - radius, cy - radius), (cx + radius, cy + radius))
+    if op == "stroke_ellipse":
+        center, rx, ry, rotation = args[:4]
+        cx, cy = center
+        cos_r = math.cos(rotation)
+        sin_r = math.sin(rotation)
+        width = abs(rx * cos_r) + abs(ry * sin_r)
+        height = abs(rx * sin_r) + abs(ry * cos_r)
+        return ((cx - width, cy - height), (cx + width, cy + height))
+    if op == "stroke_arc":
+        center, radius, start_angle, end_angle = args[:4]
+        cx, cy = center
+        return (
+            (cx - radius, cy - radius),
+            (cx + radius, cy + radius),
+            (cx + radius * math.cos(start_angle), cy + radius * math.sin(start_angle)),
+            (cx + radius * math.cos(end_angle), cy + radius * math.sin(end_angle)),
+        )
+    if op == "draw_text":
+        return (args[1],)
+    return ()
+
+
+def _pan_translates_all_commands(commands: List[PrimitiveCommand]) -> bool:
+    """Return True when a pure pan moves every command by the same screen offset.
+
+    Angle arcs/labels recompute their radius and font from build-time metadata on
+    every reprojection, so their extent can change even when only panning.
+    """
+    for command in commands:
+        metadata = command.kwargs.get("metadata") if command.kwargs else None
+        if metadata and isinstance(metadata, dict) and "angle" in metadata:
+            return False
+    return True
 
 
 class OptimizedPrimitivePlan:
     """Cached render plan for efficient drawable rendering with reprojection.
 
-    A plan stores recorded primitive commands and can efficiently update them
-    when the coordinate system changes (pan/zoom). Plans that support CSS
-    transforms can avoid command-level reprojection entirely.
+    A plan stores recorded primitive commands and updates them in place when
+    the coordinate system changes (pan/zoom).
 
     Attributes:
         drawable: The drawable object this plan renders.
@@ -973,12 +873,8 @@ class OptimizedPrimitivePlan:
         "_screen_bounds",
         "_needs_apply",
         "_usage_counts",
-        "_supports_transform",
-        "_base_map_state",
-        "_display_map_state",
-        "_current_transform",
-        "_base_screen_bounds",
         "_uses_screen_space",
+        "_pan_shifts_bounds",
     )
 
     def __init__(
@@ -996,7 +892,7 @@ class OptimizedPrimitivePlan:
             drawable: The drawable object being rendered.
             commands: Recorded primitive commands.
             plan_key: Unique plan identifier.
-            metadata: Plan metadata including map_state and bounds.
+            metadata: Plan metadata including map_state and optional screen_bounds.
             usage_counts: Optional counts of each operation type.
         """
         self.drawable = drawable
@@ -1006,62 +902,53 @@ class OptimizedPrimitivePlan:
         self._map_state: Optional[MapState] = dict(metadata.get("map_state", {}))
         self._needs_apply: bool = True
         self._usage_counts: Dict[str, int] = dict(usage_counts or {})
-        self._supports_transform: bool = bool(metadata.get("supports_transform"))
-        self._base_map_state: MapState = dict(self._map_state or {})
-        self._display_map_state: MapState = dict(self._map_state or {})
-        self._current_transform: Optional[str] = None
-        stored_bounds = metadata.get("screen_bounds")
-        self._screen_bounds: Optional[Tuple[float, float, float, float]] = (
-            tuple(stored_bounds) if isinstance(stored_bounds, (list, tuple)) and len(stored_bounds) == 4 else None
-        )
-        self._base_screen_bounds: Optional[Tuple[float, float, float, float]] = (
-            tuple(self._screen_bounds) if self._screen_bounds is not None else None
-        )
         self._uses_screen_space: bool = bool(metadata.get("uses_screen_space"))
-        if not self._screen_bounds:
-            self._recompute_bounds_from_commands()
+        self._pan_shifts_bounds: bool = _pan_translates_all_commands(commands)
+        stored_bounds = metadata.get("screen_bounds")
+        self._screen_bounds: Optional[Bounds] = None
+        if isinstance(stored_bounds, (list, tuple)) and len(stored_bounds) == 4:
+            self._screen_bounds = (
+                float(stored_bounds[0]),
+                float(stored_bounds[1]),
+                float(stored_bounds[2]),
+                float(stored_bounds[3]),
+            )
         else:
-            self._screen_bounds = tuple(float(v) for v in self._screen_bounds)
-        if self._supports_transform:
-            self._current_transform = "matrix(1 0 0 1 0 0)"
-            self.metadata["transform"] = self._current_transform
+            self._recompute_bounds_from_commands()
 
     def update_map_state(self, new_state: MapState) -> None:
-        """Update the plan for a new coordinate mapper state.
-
-        For plans supporting transforms, computes a CSS transform matrix.
-        Otherwise, reprojects each command to the new coordinate state.
+        """Reproject every command to a new coordinate mapper state.
 
         Args:
             new_state: The new map state to adapt to.
         """
         if not new_state:
             return
-        if self._supports_transform:
-            self._display_map_state = dict(new_state)
-            self.metadata["display_map_state"] = dict(new_state)
-            scale_ratio, tx, ty = _compute_transform_params(self._base_map_state, new_state)
-            self._current_transform = f"matrix({scale_ratio} 0 0 {scale_ratio} {tx} {ty})"
-            self.metadata["transform"] = self._current_transform
-            transformed_bounds = _transform_bounds(self._base_screen_bounds, scale_ratio, tx, ty)
-            if transformed_bounds is not None:
-                self._screen_bounds = transformed_bounds
-                self.metadata["screen_bounds"] = transformed_bounds
-            return
         current_state = self._map_state or {}
-        if _map_state_equal(current_state, new_state):
-            self._map_state = dict(new_state)
-            self.metadata["map_state"] = dict(new_state)
+        state_copy = dict(new_state)
+        if not current_state or _map_state_equal(current_state, new_state):
+            self._map_state = state_copy
+            self.metadata["map_state"] = state_copy
             return
-        if not current_state:
-            self._map_state = dict(new_state)
-            self.metadata["map_state"] = dict(new_state)
-            return
+        xf = _affine_params(current_state, new_state)
+        handlers = _REPROJECT_HANDLERS
         for command in self.commands:
-            _reproject_command(command, current_state, new_state)
-        self._map_state = dict(new_state)
-        self.metadata["map_state"] = dict(new_state)
-        self._recompute_bounds_from_commands()
+            handler = handlers.get(command.op)
+            if handler is not None:
+                handler(command, current_state, new_state, xf)
+        self._map_state = state_copy
+        self.metadata["map_state"] = state_copy
+        bounds = self._screen_bounds
+        if xf[0] == 1.0 and bounds is not None and self._pan_shifts_bounds:
+            # Pure pan: every command moves by exactly (tx, ty), so shift the bounds
+            # instead of rescanning every point.
+            tx = xf[1]
+            ty = xf[2]
+            bounds = (bounds[0] + tx, bounds[1] + tx, bounds[2] + ty, bounds[3] + ty)
+            self._screen_bounds = bounds
+            self.metadata["screen_bounds"] = bounds
+        else:
+            self._recompute_bounds_from_commands()
         self._needs_apply = True
 
     def apply(self, primitives: RendererPrimitives) -> None:
@@ -1075,82 +962,31 @@ class OptimizedPrimitivePlan:
             return
         primitives.begin_batch(self)
         try:
+            execute = primitives.execute_optimized
             for command in self.commands:
-                primitives.execute_optimized(command)
+                execute(command)
         finally:
             primitives.end_batch(self)
         self._needs_apply = False
 
     def _recompute_bounds_from_commands(self) -> None:
         """Recalculate screen bounds by scanning all commands."""
-        min_x = float("inf")
-        max_x = float("-inf")
-        min_y = float("inf")
-        max_y = float("-inf")
-
-        def consider_point(px: float, py: float) -> None:
-            nonlocal min_x, max_x, min_y, max_y
-            if px < min_x:
-                min_x = px
-            if px > max_x:
-                max_x = px
-            if py < min_y:
-                min_y = py
-            if py > max_y:
-                max_y = py
-
+        inf = float("inf")
+        bounds: Bounds = (inf, -inf, inf, -inf)
         for command in self.commands:
             op = command.op
-            if op == "stroke_line":
-                start, end, _ = command.args[:3]
-                consider_point(start[0], start[1])
-                consider_point(end[0], end[1])
-            elif op == "stroke_polyline":
-                points, _ = command.args[:2]
-                for x, y in points:
-                    consider_point(x, y)
-            elif op in {"fill_polygon", "fill_joined_area"}:
-                if op == "fill_polygon":
-                    points = command.args[0]
-                else:
-                    forward, reverse, _ = command.args[:3]
-                    points = list(forward) + list(reverse)
-                for x, y in points:
-                    consider_point(x, y)
-            elif op in {"stroke_circle", "fill_circle"}:
-                center = command.args[0]
-                radius = float(command.args[1])
-                cx, cy = center
-                consider_point(cx - radius, cy - radius)
-                consider_point(cx + radius, cy + radius)
-            elif op == "stroke_ellipse":
-                center, rx, ry, rotation, _ = command.args[:5]
-                cx, cy = center
-                cos_r = math.cos(rotation)
-                sin_r = math.sin(rotation)
-                width = abs(rx * cos_r) + abs(ry * sin_r)
-                height = abs(rx * sin_r) + abs(ry * cos_r)
-                consider_point(cx - width, cy - height)
-                consider_point(cx + width, cy + height)
-            elif op == "stroke_arc":
-                center, radius, start_angle, end_angle, _, _ = command.args[:6]
-                cx, cy = center
-                consider_point(cx - radius, cy - radius)
-                consider_point(cx + radius, cy + radius)
-                consider_point(cx + radius * math.cos(start_angle), cy + radius * math.sin(start_angle))
-                consider_point(cx + radius * math.cos(end_angle), cy + radius * math.sin(end_angle))
-            elif op == "draw_text":
-                _, position, *_ = command.args
-                consider_point(position[0], position[1])
-
-        if min_x == float("inf") or min_y == float("inf"):
+            if op == "stroke_polyline" or op == "fill_polygon":
+                bounds = _extend_bounds(command.args[0], bounds)
+            elif op == "fill_joined_area":
+                bounds = _extend_bounds(command.args[0], bounds)
+                bounds = _extend_bounds(command.args[1], bounds)
+            else:
+                bounds = _extend_bounds(_command_bounds_points(command), bounds)
+        if bounds[0] == inf or bounds[2] == inf:
             self._screen_bounds = None
         else:
-            self._screen_bounds = (min_x, max_x, min_y, max_y)
-        if self._screen_bounds is not None:
-            self.metadata["screen_bounds"] = self._screen_bounds
-        if self._supports_transform and self._base_screen_bounds is None:
-            self._base_screen_bounds = self._screen_bounds
+            self._screen_bounds = bounds
+            self.metadata["screen_bounds"] = bounds
 
     def is_visible(self, width: float, height: float, *, margin: float = 1.0) -> bool:
         """Check if this plan is visible within the given viewport.
@@ -1189,12 +1025,12 @@ class OptimizedPrimitivePlan:
         return dict(self._usage_counts)
 
     def supports_transform(self) -> bool:
-        """Check if this plan supports CSS transforms for reprojection."""
-        return self._supports_transform
+        """Plans always reproject their commands; CSS-transform reprojection is not used."""
+        return False
 
     def get_transform(self) -> Optional[str]:
-        """Get the current CSS transform matrix string, if applicable."""
-        return self._current_transform
+        """Plans never carry a CSS transform; kept for renderer compatibility."""
+        return None
 
     def uses_screen_space(self) -> bool:
         """Check if this plan uses screen-space coordinates."""
@@ -1204,8 +1040,8 @@ class OptimizedPrimitivePlan:
 class _RecordingPrimitives(shared.RendererPrimitives):
     """Primitives implementation that records commands instead of drawing.
 
-    Used during plan building to capture all drawing operations. Commands
-    are stored with pooled styles and computed metadata for efficient caching.
+    Used during plan building to capture all drawing operations. Recording
+    only stores the call itself; bounds are computed once by the plan.
 
     Attributes:
         commands: List of recorded PrimitiveCommand objects.
@@ -1215,97 +1051,20 @@ class _RecordingPrimitives(shared.RendererPrimitives):
         """Initialize the recording primitives.
 
         Args:
-            drawable_key: Base key for generating unique command identifiers.
+            drawable_key: Key of the drawable being recorded.
         """
         self.commands: List[PrimitiveCommand] = []
         self._drawable_key = drawable_key
-        self._counter = 0
-        self._style_pool: Dict[Tuple[Any, ...], Any] = {}
-        self._bounds = [float("inf"), float("-inf"), float("inf"), float("-inf")]
         self._usage_counts: Dict[str, int] = {}
         self._screen_space_used: bool = False
 
-    def _style_signature(self, style: Any) -> Optional[Tuple[Any, ...]]:
-        """Create a hashable signature for style object deduplication."""
-        if style is None:
-            return None
-        if not isinstance(style, _STYLE_CLASSES):
-            return None
-        signature: List[Any] = [style.__class__.__name__]
-        for attr in getattr(style, "__slots__", ()):
-            signature.append(getattr(style, attr, None))
-        return tuple(signature)
-
-    def _pool_style(self, style: Any) -> Any:
-        """Return a pooled style instance to reduce memory usage."""
-        signature = self._style_signature(style)
-        if signature is None:
-            return style
-        pooled = self._style_pool.get(signature)
-        if pooled is None:
-            self._style_pool[signature] = style
-            return style
-        return pooled
-
-    def _pool_styles(self, value: Any) -> Any:
-        """Recursively pool style objects within nested data structures."""
-        if isinstance(value, _STYLE_CLASSES):
-            return self._pool_style(value)
-        if isinstance(value, tuple):
-            return tuple(self._pool_styles(item) for item in value)
-        if isinstance(value, list):
-            return [self._pool_styles(item) for item in value]
-        if isinstance(value, dict):
-            return {key: self._pool_styles(item) for key, item in value.items()}
-        return value
-
-    def _record(
-        self, op: str, args: PrimitiveArgs, kwargs: PrimitiveKwargs, *, style: Any = None, geometry: Iterable[Any] = ()
-    ) -> None:
+    def _record(self, op: str, args: PrimitiveArgs, kwargs: PrimitiveKwargs) -> None:
         """Record a primitive operation as a command."""
-        command_key = f"{self._drawable_key}:{op}:{self._counter}"
-        self._counter += 1
-        meta: Dict[str, Any] = {}
-        style_sig = _style_signature(style)
-        if style_sig is not None:
-            meta["style"] = style_sig
-        geometry_sig = _geometry_signature(geometry)
-        if geometry_sig:
-            quantized = _quantize_geometry(geometry_sig)
-            meta["geometry"] = quantized
-            self._update_bounds_from_geometry(quantized)
         if kwargs.get("screen_space"):
             self._screen_space_used = True
-        pooled_args = self._pool_styles(args)
-        pooled_kwargs = self._pool_styles(kwargs)
-        self.commands.append(PrimitiveCommand(op, pooled_args, pooled_kwargs, command_key, meta))
-        self._usage_counts[op] = self._usage_counts.get(op, 0) + 1
-
-    def _update_bounds_from_geometry(self, geometry: Tuple[Any, ...]) -> None:
-        if not geometry:
-            return
-        min_x, max_x, min_y, max_y = self._bounds
-        for item in geometry:
-            if isinstance(item, (tuple, list)):
-                if len(item) == 2 and all(isinstance(coord, (int, float)) for coord in item):
-                    x, y = float(item[0]), float(item[1])
-                    if x < min_x:
-                        min_x = x
-                    if x > max_x:
-                        max_x = x
-                    if y < min_y:
-                        min_y = y
-                    if y > max_y:
-                        max_y = y
-                else:
-                    self._update_bounds_from_geometry(tuple(item))
-        self._bounds = [min_x, max_x, min_y, max_y]
-
-    def get_bounds(self) -> Optional[Tuple[float, float, float, float]]:
-        min_x, max_x, min_y, max_y = self._bounds
-        if min_x == float("inf") or min_y == float("inf"):
-            return None
-        return (min_x, max_x, min_y, max_y)
+        self.commands.append(PrimitiveCommand(op, args, kwargs))
+        counts = self._usage_counts
+        counts[op] = counts.get(op, 0) + 1
 
     def get_usage_counts(self) -> Dict[str, int]:
         return dict(self._usage_counts)
@@ -1314,51 +1073,29 @@ class _RecordingPrimitives(shared.RendererPrimitives):
         return self._screen_space_used
 
     def stroke_line(self, start, end, stroke, *, include_width=True):
-        self._record(
-            "stroke_line", (start, end, stroke), {"include_width": include_width}, style=stroke, geometry=(start, end)
-        )
+        self._record("stroke_line", (start, end, stroke), {"include_width": include_width})
 
     def stroke_polyline(self, points, stroke):
-        self._record("stroke_polyline", (tuple(points), stroke), {}, style=stroke, geometry=points)
+        self._record("stroke_polyline", (tuple(points), stroke), {})
 
     def stroke_circle(self, center, radius, stroke):
-        self._record("stroke_circle", (center, radius, stroke), {}, style=stroke, geometry=(center, radius))
+        self._record("stroke_circle", (center, radius, stroke), {})
 
     def fill_circle(self, center, radius, fill, stroke=None, *, screen_space=False):
-        self._record(
-            "fill_circle",
-            (center, radius, fill, stroke),
-            {"screen_space": screen_space},
-            style=fill,
-            geometry=(center, radius),
-        )
+        self._record("fill_circle", (center, radius, fill, stroke), {"screen_space": screen_space})
 
     def stroke_ellipse(self, center, radius_x, radius_y, rotation_rad, stroke):
-        self._record(
-            "stroke_ellipse",
-            (center, radius_x, radius_y, rotation_rad, stroke),
-            {},
-            style=stroke,
-            geometry=(center, radius_x, radius_y, rotation_rad),
-        )
+        self._record("stroke_ellipse", (center, radius_x, radius_y, rotation_rad, stroke), {})
 
     def fill_polygon(self, points, fill, stroke=None, *, screen_space=False, metadata=None):
         self._record(
             "fill_polygon",
             (tuple(points), fill, stroke),
             {"screen_space": screen_space, "metadata": metadata or {}},
-            style=fill,
-            geometry=points,
         )
 
     def fill_joined_area(self, forward, reverse, fill):
-        self._record(
-            "fill_joined_area",
-            (tuple(forward), tuple(reverse), fill),
-            {},
-            style=fill,
-            geometry=list(forward) + list(reverse),
-        )
+        self._record("fill_joined_area", (tuple(forward), tuple(reverse), fill), {})
 
     def stroke_arc(
         self,
@@ -1377,8 +1114,6 @@ class _RecordingPrimitives(shared.RendererPrimitives):
             "stroke_arc",
             (center, radius, start_angle_rad, end_angle_rad, sweep_clockwise, stroke),
             {"css_class": css_class, "screen_space": screen_space, "metadata": metadata or {}},
-            style=stroke,
-            geometry=(center, radius, start_angle_rad, end_angle_rad, sweep_clockwise),
         )
 
     def draw_text(
@@ -1397,8 +1132,6 @@ class _RecordingPrimitives(shared.RendererPrimitives):
             "draw_text",
             (text, position, font, color, alignment),
             {"style_overrides": style_overrides or {}, "screen_space": screen_space, "metadata": metadata or {}},
-            style=font,
-            geometry=(position,),
         )
 
     def clear_surface(self):
@@ -1435,6 +1168,29 @@ _HELPERS: Dict[str, Any] = {
 }
 
 
+def _finish_plan(
+    drawable: Any,
+    recorder: _RecordingPrimitives,
+    coordinate_mapper: Any,
+    plan_key: str,
+    class_name: str,
+) -> OptimizedPrimitivePlan:
+    """Wrap recorded commands into a plan bound to the mapper's current state."""
+    map_state = _capture_map_state(coordinate_mapper)
+    return OptimizedPrimitivePlan(
+        drawable=drawable,
+        commands=recorder.commands,
+        plan_key=plan_key,
+        metadata={
+            "class_name": class_name,
+            "map_state": map_state,
+            "supports_transform": False,
+            "uses_screen_space": recorder.uses_screen_space(),
+        },
+        usage_counts=recorder.get_usage_counts(),
+    )
+
+
 def build_plan_for_drawable(
     drawable: Any,
     coordinate_mapper: Any,
@@ -1451,7 +1207,7 @@ def build_plan_for_drawable(
         drawable: The drawable object to create a plan for.
         coordinate_mapper: Mapper for converting math to screen coordinates.
         style: Style dictionary with rendering options.
-        supports_transform: Whether to enable CSS transform optimization.
+        supports_transform: Ignored; kept for call-site compatibility (plans always reproject).
 
     Returns:
         An OptimizedPrimitivePlan, or None if the drawable is not renderable
@@ -1475,26 +1231,8 @@ def build_plan_for_drawable(
 
     drawable_key = _drawable_key(drawable, class_name.lower())
     recorder = _RecordingPrimitives(drawable_key)
-    cached_mapper = _CachedCoordinateMapper(coordinate_mapper)
-    helper(recorder, drawable, cached_mapper, style)
-    map_state = _capture_map_state(coordinate_mapper)
-    effective_supports_transform = supports_transform and not recorder.uses_screen_space()
-    plan = OptimizedPrimitivePlan(
-        drawable=drawable,
-        commands=list(recorder.commands),
-        plan_key=drawable_key,
-        metadata={
-            "class_name": class_name,
-            "map_state": map_state,
-            "screen_bounds": recorder.get_bounds(),
-            "supports_transform": effective_supports_transform,
-            "uses_screen_space": recorder.uses_screen_space(),
-            "display_map_state": map_state,
-        },
-        usage_counts=recorder.get_usage_counts(),
-    )
-    plan.update_map_state(map_state)
-    return plan
+    helper(recorder, drawable, _CachedCoordinateMapper(coordinate_mapper), style)
+    return _finish_plan(drawable, recorder, coordinate_mapper, drawable_key, class_name)
 
 
 def build_plan_for_cartesian(
@@ -1510,33 +1248,15 @@ def build_plan_for_cartesian(
         cartesian: The Cartesian2Axis grid object.
         coordinate_mapper: Mapper for coordinate conversions.
         style: Style dictionary with grid rendering options.
-        supports_transform: Whether to enable CSS transform optimization.
+        supports_transform: Ignored; kept for call-site compatibility (plans always reproject).
 
     Returns:
         An OptimizedPrimitivePlan for rendering the grid.
     """
     key = _drawable_key(cartesian, "cartesian")
     recorder = _RecordingPrimitives(key)
-    cached_mapper = _CachedCoordinateMapper(coordinate_mapper)
-    shared.render_cartesian_helper(recorder, cartesian, cached_mapper, style)
-    map_state = _capture_map_state(coordinate_mapper)
-    effective_supports_transform = supports_transform and not recorder.uses_screen_space()
-    plan = OptimizedPrimitivePlan(
-        drawable=cartesian,
-        commands=list(recorder.commands),
-        plan_key=key,
-        metadata={
-            "class_name": "Cartesian2Axis",
-            "map_state": map_state,
-            "screen_bounds": recorder.get_bounds(),
-            "supports_transform": effective_supports_transform,
-            "uses_screen_space": recorder.uses_screen_space(),
-            "display_map_state": map_state,
-        },
-        usage_counts=recorder.get_usage_counts(),
-    )
-    plan.update_map_state(map_state)
-    return plan
+    shared.render_cartesian_helper(recorder, cartesian, _CachedCoordinateMapper(coordinate_mapper), style)
+    return _finish_plan(cartesian, recorder, coordinate_mapper, key, "Cartesian2Axis")
 
 
 def build_plan_for_polar(
@@ -1552,30 +1272,12 @@ def build_plan_for_polar(
         polar_grid: The PolarGrid object.
         coordinate_mapper: Mapper for coordinate conversions.
         style: Style dictionary with grid rendering options.
-        supports_transform: Whether to enable CSS transform optimization.
+        supports_transform: Ignored; kept for call-site compatibility (plans always reproject).
 
     Returns:
         An OptimizedPrimitivePlan for rendering the polar grid.
     """
     key = _drawable_key(polar_grid, "polar")
     recorder = _RecordingPrimitives(key)
-    cached_mapper = _CachedCoordinateMapper(coordinate_mapper)
-    shared.render_polar_helper(recorder, polar_grid, cached_mapper, style)
-    map_state = _capture_map_state(coordinate_mapper)
-    effective_supports_transform = supports_transform and not recorder.uses_screen_space()
-    plan = OptimizedPrimitivePlan(
-        drawable=polar_grid,
-        commands=list(recorder.commands),
-        plan_key=key,
-        metadata={
-            "class_name": "PolarGrid",
-            "map_state": map_state,
-            "screen_bounds": recorder.get_bounds(),
-            "supports_transform": effective_supports_transform,
-            "uses_screen_space": recorder.uses_screen_space(),
-            "display_map_state": map_state,
-        },
-        usage_counts=recorder.get_usage_counts(),
-    )
-    plan.update_map_state(map_state)
-    return plan
+    shared.render_polar_helper(recorder, polar_grid, _CachedCoordinateMapper(coordinate_mapper), style)
+    return _finish_plan(polar_grid, recorder, coordinate_mapper, key, "PolarGrid")
