@@ -458,6 +458,19 @@ class TestGraph(unittest.TestCase):
         with self.assertRaises(ValueError):
             GraphUtils.shortest_path_dijkstra(edges, "A", "C", weight_lookup=weights, directed=True)
 
+    def test_shortest_path_ignores_negative_cycle_that_cannot_reach_goal(self) -> None:
+        # B <-> C is a negative cycle reachable from A, but D is not reachable from it
+        edges = [Edge("A", "D"), Edge("A", "B"), Edge("B", "C"), Edge("C", "B")]
+        weights = {("A", "D"): 2.0, ("A", "B"): 1.0, ("B", "C"): -3.0, ("C", "B"): 1.0}
+        result = GraphUtils.shortest_path_dijkstra(edges, "A", "D", weight_lookup=weights, directed=True)
+        self.assertEqual(result, (["A", "D"], 2.0))
+
+    def test_shortest_path_raises_for_goal_downstream_of_negative_cycle(self) -> None:
+        edges = [Edge("A", "D"), Edge("A", "B"), Edge("B", "C"), Edge("C", "B"), Edge("C", "E")]
+        weights = {("A", "D"): 2.0, ("A", "B"): 1.0, ("B", "C"): -3.0, ("C", "B"): 1.0, ("C", "E"): 1.0}
+        with self.assertRaises(ValueError):
+            GraphUtils.shortest_path_dijkstra(edges, "A", "E", weight_lookup=weights, directed=True)
+
     def test_shortest_path_dijkstra_undirected_negative_weight_raises(self) -> None:
         edges = [Edge("A", "B"), Edge("B", "C")]
         weights = {("A", "B"): -1.0, ("B", "C"): 5.0}

@@ -4294,7 +4294,7 @@ Supported `operation` values:
 4. Geometry on graph vertices: `convex_hull`, `point_in_hull`
 
 Common `params` usage (high-level):
-1. `shortest_path`: requires `start` and `goal` (use the vertex names you see on the canvas, like `A` and `D`). If any weights exist, the shortest path uses weighted cost. Negative weights are supported on directed graphs (Bellman-Ford); negative weights on an undirected graph, or a negative cycle reachable from `start`, return `{"error": ...}`.
+1. `shortest_path`: requires `start` and `goal` (use the vertex names you see on the canvas, like `A` and `D`). If any weights exist, the shortest path uses weighted cost. Negative weights are supported on directed graphs (Bellman-Ford); negative weights on an undirected graph, or a negative cycle that is reachable from `start` and can reach `goal`, return `{"error": ...}`.
 2. `bfs` / `dfs`: use `start`.
 3. `levels`: uses `root` (or the stored tree root).
 4. `lca`: uses `root`, `a`, `b`.
