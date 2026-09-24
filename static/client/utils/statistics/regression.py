@@ -560,7 +560,8 @@ def fit_logistic(
         x_data: List of x values
         y_data: List of y values
         L_init: Initial estimate for carrying capacity (default: max(y) * 1.1)
-        k_init: Initial estimate for growth rate (default: 1.0)
+        k_init: Initial estimate for growth rate (default: 1.0 per half x-range;
+            negative values describe decreasing curves)
         x0_init: Initial estimate for midpoint (default: mean of x range)
         max_iterations: Maximum refinement iterations (default: 100)
 
@@ -569,18 +570,23 @@ def fit_logistic(
     """
     _validate_data(x_data, y_data)
 
-    min(y_data)
     y_max = max(y_data)
     x_min = min(x_data)
     x_max = max(x_data)
 
-    # Initial estimates
-    if L_init is None:
-        L_init = y_max * 1.1 if y_max > 0 else 1.0
-    if x0_init is None:
-        x0_init = (x_min + x_max) / 2
-    if k_init is None:
-        k_init = 1.0
+    # Search in normalized coordinates u = (x - x_center) / x_scale and
+    # v = y / y_scale so the grid and step sizes do not depend on data units
+    x_center = (x_min + x_max) / 2
+    x_scale = (x_max - x_min) / 2 or 1.0
+    y_scale = max(abs(y) for y in y_data) or 1.0
+    u_data = [(x - x_center) / x_scale for x in x_data]
+    v_data = [y / y_scale for y in y_data]
+    v_max = y_max / y_scale
+
+    # Initial estimates (normalized)
+    L_init = L_init / y_scale if L_init is not None else (v_max * 1.1 if v_max > 0 else 1.0)
+    x0_init = (x0_init - x_center) / x_scale if x0_init is not None else 0.0
+    k_init = k_init * x_scale if k_init is not None else 1.0
 
     def logistic(x: float, L: float, k: float, x0: float) -> float:
         exp_arg = -k * (x - x0)
@@ -593,18 +599,18 @@ def fit_logistic(
 
     def compute_sse(L: float, k: float, x0: float) -> float:
         sse = 0.0
-        for x, y in zip(x_data, y_data):
-            y_pred = logistic(x, L, k, x0)
-            sse += (y - y_pred) ** 2
+        for u, v in zip(u_data, v_data):
+            v_pred = logistic(u, L, k, x0)
+            sse += (v - v_pred) ** 2
         return sse
 
-    # Grid search for initial estimates
+    # Grid search for initial estimates (negative k fits decreasing curves)
     best_L, best_k, best_x0 = L_init, k_init, x0_init
     best_sse = compute_sse(best_L, best_k, best_x0)
 
-    L_range = [y_max * f for f in [0.9, 1.0, 1.1, 1.2, 1.5]]
-    k_range = [0.1, 0.5, 1.0, 2.0, 5.0]
-    x0_range = [x_min + (x_max - x_min) * f for f in [0.25, 0.5, 0.75]]
+    L_range = [v_max * f for f in [0.9, 1.0, 1.1, 1.2, 1.5]]
+    k_range = [sign * k for sign in (1.0, -1.0) for k in [0.5, 1.0, 2.0, 5.0, 10.0, 20.0]]
+    x0_range = [-0.5, 0.0, 0.5]
 
     for L_test in L_range:
         for k_test in k_range:
@@ -617,7 +623,7 @@ def fit_logistic(
     # Simple refinement using coordinate descent
     step_L = abs(best_L) * 0.1 if best_L != 0 else 0.1
     step_k = abs(best_k) * 0.1 if best_k != 0 else 0.1
-    step_x0 = (x_max - x_min) * 0.1
+    step_x0 = 0.2
 
     for _ in range(max_iterations):
         improved = False
@@ -630,7 +636,7 @@ def fit_logistic(
                     new_L = best_L + delta_L
                     new_k = best_k + delta_k
                     new_x0 = best_x0 + delta_x0
-                    if new_L <= 0 or new_k <= 0:
+                    if new_L <= 0 or new_k == 0:
                         continue
                     sse = compute_sse(new_L, new_k, new_x0)
                     if sse < best_sse:
@@ -644,6 +650,11 @@ def fit_logistic(
             step_x0 *= 0.5
             if step_L < 1e-8 and step_k < 1e-8 and step_x0 < 1e-8:
                 break
+
+    # Map back to data units
+    best_L *= y_scale
+    best_k /= x_scale
+    best_x0 = best_x0 * x_scale + x_center
 
     # Calculate R-squared
     y_predicted = [logistic(x, best_L, best_k, best_x0) for x in x_data]

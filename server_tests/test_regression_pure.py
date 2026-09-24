@@ -737,6 +737,31 @@ class TestNumericalStability(unittest.TestCase):
         self.assertAlmostEqual(A_inv[0][0] * 2e-13, 1.0, places=10)
         self.assertAlmostEqual(A_inv[1][1] * 4e-13, 1.0, places=10)
 
+    def test_logistic_fit_with_steep_growth_on_small_x_range(self) -> None:
+        L, k, x0 = 10.0, 2000.0, 0.005
+        x = [i * 0.001 for i in range(11)]
+        y = [L / (1 + math.exp(-k * (xi - x0))) for xi in x]
+        result = fit_logistic(x, y)
+        self.assertGreater(result["r_squared"], 0.999)
+        self.assertAlmostEqual(result["coefficients"]["L"], L, delta=0.1)
+
+    def test_logistic_fit_on_large_x_offset(self) -> None:
+        L, k, x0 = 500.0, 0.5, 2010.0
+        x = [float(year) for year in range(2000, 2021)]
+        y = [L / (1 + math.exp(-k * (xi - x0))) for xi in x]
+        result = fit_logistic(x, y)
+        self.assertGreater(result["r_squared"], 0.999)
+        self.assertAlmostEqual(result["coefficients"]["x0"], x0, delta=0.1)
+
+    def test_logistic_fit_decreasing_curve(self) -> None:
+        L, k, x0 = 10.0, -1.0, 5.0
+        x = [float(i) for i in range(11)]
+        y = [L / (1 + math.exp(-k * (xi - x0))) for xi in x]
+        result = fit_logistic(x, y)
+        self.assertGreater(result["r_squared"], 0.999)
+        self.assertLess(result["coefficients"]["k"], 0.0)
+        self.assertAlmostEqual(result["coefficients"]["L"], L, delta=0.1)
+
     def test_r_squared_is_scale_invariant(self) -> None:
         y_actual = [1.0, 2.0, 3.0, 4.0]
         y_predicted = [1.5, 2.0, 3.0, 3.5]
