@@ -43,6 +43,16 @@ DESTRUCTIVE_QUERY_WORDS = frozenset(
     {"delete", "remove", "erase", "clear", "reset", "wipe", "rid", "destroy", "clean", "fresh"}
 )
 
+# Inflected destructive verbs ("deletes", "deleting", "erased", "clearing", ...) are
+# folded to their base form before scoring so they count like the plain verb.
+_DESTRUCTIVE_INFLECTION_RE = re.compile(
+    r"^(?:(delet|remov|eras|wip)(?:es|ed|ing)"
+    r"|(clear|reset|destroy)(?:s|ed|ing|ting)"
+    r"|(drop)(?:s|ped|ping)?)$"
+)
+# "drop" means delete, except in "drop a perpendicular/altitude".
+_DROP_CONSTRUCTION_WORDS = frozenset({"perpendicular", "altitude", "height", "normal", "foot"})
+
 # run_tests is only offered when the query mentions tests.
 TEST_QUERY_WORDS = frozenset({"test", "tests", "testing"})
 
@@ -541,7 +551,7 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
         Returns:
             List of matching tool definitions, ordered by score.
         """
-        query_tokens = self._tokenize(query)
+        query_tokens = self._fold_destructive_verbs(self._tokenize(query))
         if not query_tokens:
             return []
 
@@ -616,13 +626,33 @@ Return a JSON array of up to {max_results} tool names. Example: ["create_circle"
                 if len(results) >= max_results:
                     break
 
-        # Store top score for hybrid-mode confidence check
-        self._last_local_top_score = ranked[0][1] if ranked else 0.0
+        # Store top score for hybrid-mode confidence check (the demotion only reorders,
+        # so the best raw score is the confidence signal)
+        self._last_local_top_score = max(scores.values()) if scores else 0.0
 
         _logger.info(
             f"Local tool search for '{query}' found {len(results)} tools"
         )
         return results
+
+    @staticmethod
+    def _fold_destructive_verbs(tokens: List[str]) -> List[str]:
+        """Map inflected destructive verbs to their base form ("deleting" -> "delete")."""
+        token_set = set(tokens)
+        folded: List[str] = []
+        for token in tokens:
+            match = _DESTRUCTIVE_INFLECTION_RE.match(token)
+            if match is None:
+                folded.append(token)
+            elif match.group(1):
+                folded.append(match.group(1) + "e")
+            elif match.group(2):
+                folded.append(match.group(2))
+            elif token_set & _DROP_CONSTRUCTION_WORDS:
+                folded.append(token)
+            else:
+                folded.append("delete")
+        return folded
 
     @staticmethod
     def _apply_intent_boosts(
