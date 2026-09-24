@@ -191,6 +191,31 @@ class TestDrawableNameGenerator(unittest.TestCase):
         # So it adds an apostrophe to get A', which is not taken
         self.assertEqual(result, "A'")  # Should return A', not C
 
+    def _generate_points_with_preferred(self, count: int, preferred_template: str) -> List[str]:
+        existing: List[Any] = []
+        setattr(self.canvas, "get_drawables_by_class_name", SimpleMock(return_value=existing))
+        self.generator.reset_state()
+        names: List[str] = []
+        for i in range(count):
+            name = self.generator.generate_point_name(preferred_template.format(i=i))
+            names.append(name)
+            existing.append(SimpleMock(name=name))
+        return names
+
+    def test_generate_point_name_preferred_regression_names_unique(self) -> None:
+        # fit_regression asks for "<fn>_pt<i>" names; 30 points used to collapse onto a bare "F".
+        names = self._generate_points_with_preferred(30, "f1_pt{i}")
+        self.assertEqual(len(names), len(set(names)), f"Duplicate names generated: {names}")
+
+    def test_generate_point_name_sixty_preferred_names_unique(self) -> None:
+        names = self._generate_points_with_preferred(60, "f1_pt{i}")
+        self.assertEqual(len(names), len(set(names)), f"Duplicate names generated: {names}")
+        self.assertTrue(all(names))
+
+    def test_generate_point_name_same_preferred_letter_never_duplicates(self) -> None:
+        names = self._generate_points_with_preferred(60, "A")
+        self.assertEqual(len(names), len(set(names)), f"Duplicate names generated: {names}")
+
     def test_increment_function_name(self) -> None:
         # Test with a function name that ends with a number
         result = self.generator._increment_function_name("f4")
