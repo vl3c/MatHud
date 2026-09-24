@@ -532,7 +532,9 @@ class Canvas2DRenderer(RendererProtocol):
             if scale is not None:
                 snapshot["_view_scale"] = round(float(scale), 4)
             offset = getattr(coordinate_mapper, "offset", None)
-            if offset is not None:
+            # Parametric samples do not depend on the viewport, so a pan only
+            # reprojects the cached plan instead of resampling the curve.
+            if offset is not None and self._resolve_drawable_name(drawable) != "ParametricFunction":
                 snapshot["_view_offset"] = (round(float(offset.x), 2), round(float(offset.y), 2))
             canvas_width = getattr(coordinate_mapper, "canvas_width", None)
             canvas_height = getattr(coordinate_mapper, "canvas_height", None)

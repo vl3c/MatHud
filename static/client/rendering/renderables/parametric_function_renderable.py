@@ -165,6 +165,10 @@ class ParametricFunctionRenderable:
         """Detect discontinuities by checking for large jumps between points."""
         return abs(prev_sy - sy) > height * 2
 
+    def _is_large_horizontal_jump(self, prev_sx: float, sx: float, width: float) -> bool:
+        """Detect discontinuities in x(t), e.g. x = 1/(t - 1) crossing t = 1."""
+        return width > 0 and abs(prev_sx - sx) > width * 2
+
     def build_screen_paths(self) -> ScreenPolyline:
         """
         Build screen-space paths for rendering the parametric curve.
@@ -185,9 +189,10 @@ class ParametricFunctionRenderable:
             self._cache_valid = True
             return self._cached_screen_paths
 
-        _, height = self._get_screen_signature()
+        width, height = self._get_screen_signature()
         paths: List[List[Tuple[float, float]]] = []
         current_path: List[Tuple[float, float]] = []
+        prev_sx: Optional[float] = None
         prev_sy: Optional[float] = None
 
         for t in sample_points:
@@ -198,18 +203,21 @@ class ParametricFunctionRenderable:
                 if current_path:
                     paths.append(current_path)
                     current_path = []
+                prev_sx = None
                 prev_sy = None
                 continue
 
             sx, sy = point
 
             # Check for large jumps (discontinuity detection)
-            if prev_sy is not None and self._is_large_jump(prev_sy, sy, height):
-                if current_path:
-                    paths.append(current_path)
-                    current_path = []
+            if prev_sy is not None and prev_sx is not None:
+                if self._is_large_jump(prev_sy, sy, height) or self._is_large_horizontal_jump(prev_sx, sx, width):
+                    if current_path:
+                        paths.append(current_path)
+                        current_path = []
 
             current_path.append((sx, sy))
+            prev_sx = sx
             prev_sy = sy
 
         # Add the final path segment
