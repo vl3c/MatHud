@@ -18,7 +18,6 @@ dependencies = [
     "cachelib",
     "python-dotenv",
     "selenium",
-    "geckodriver-autoinstaller",
     "requests",
     "kokoro>=0.9.4",
     "soundfile",
