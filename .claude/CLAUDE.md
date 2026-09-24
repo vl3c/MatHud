@@ -154,7 +154,7 @@ Then navigate to `http://127.0.0.1:5004/` in the browser.
 1. `from browser import document, window, html, svg` pulls Brython DOM helpers.
 2. Client-side Python lives in `static/client/` and executes in the browser.
 3. Brython-only modules are unavailable to plain CPython tests.
-4. Brython is loaded from CDN and transpiles Python to JavaScript at runtime.
+4. Brython transpiles Python to JavaScript at runtime. It is served from `static/vendor/` (with math.js, nerdamer, MathJax and the Inter font), not from a CDN, so the app works offline; versions and SHA-256 hashes are pinned in `scripts/vendor_js_libs.py` (`--check` verifies the files, `server_tests/test_vendored_libs.py` enforces no external URLs in `templates/`).
 
 ---
 
