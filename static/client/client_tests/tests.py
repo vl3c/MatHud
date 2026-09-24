@@ -116,6 +116,14 @@ from .test_relation_inspector import (
     TestInspectErrors,
 )
 from .test_polygon_canonicalizer import TestPolygonCanonicalizer
+from .test_shape_math_utils import (
+    TestEllipseFormula,
+    TestIsRectangleScale,
+    TestFindDiagonalPoints,
+    TestPointOnSegmentTolerance,
+    TestCircumcenterPrecision,
+    TestNumericalDerivativeScale,
+)
 from .test_triangle import TestTriangle
 from .test_quadrilateral import TestQuadrilateral
 from .test_pentagon import TestPentagon
@@ -435,6 +443,12 @@ class Tests:
             TestRegion,
             TestAreaUtilities,
             TestPolygonCanonicalizer,
+            TestEllipseFormula,
+            TestIsRectangleScale,
+            TestFindDiagonalPoints,
+            TestPointOnSegmentTolerance,
+            TestCircumcenterPrecision,
+            TestNumericalDerivativeScale,
             TestDrawableNameGenerator,
             TestPoint,
             TestSegment,

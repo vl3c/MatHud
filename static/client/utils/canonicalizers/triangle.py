@@ -280,10 +280,11 @@ class TriangleCanonicalizer:
         d01 = math.hypot(points[0][0] - points[1][0], points[0][1] - points[1][1])
         d12 = math.hypot(points[1][0] - points[2][0], points[1][1] - points[2][1])
         d20 = math.hypot(points[2][0] - points[0][0], points[2][1] - points[0][1])
+        # The apex is the vertex whose two adjacent sides are closest in length.
         candidates = [
-            (abs(d12 - d20), 0),
-            (abs(d01 - d20), 1),
-            (abs(d01 - d12), 2),
+            (abs(d01 - d20), 0),
+            (abs(d01 - d12), 1),
+            (abs(d12 - d20), 2),
         ]
         return min(candidates, key=lambda item: item[0])[1]
 

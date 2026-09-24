@@ -344,11 +344,13 @@ class MathUtils:
         # Calculate segment length for a better threshold
         segment_length = math.sqrt((sp2x - sp1x) ** 2 + (sp2y - sp1y) ** 2)
 
-        # Calculate a threshold as a proportion of the segment length
-        # This makes it work well for both small and large coordinate values
-        threshold = max(1e-5, segment_length * 0.01)  # 1% of segment length as threshold
+        # |cross| / length is the point's distance from the segment's line. Allow up to 0.01
+        # (tolerates rounded coordinates), but scale with the segment length so tiny segments
+        # are not over-matched and very long ones are not under-matched.
+        distance = abs(cross_product) / segment_length
+        threshold = max(1e-5 * segment_length, min(0.01, 1e-3 * segment_length))
 
-        return abs(cross_product) < threshold
+        return distance < threshold
 
     @staticmethod
     def _segment_endpoints(segment: SegmentLike) -> Tuple[float, float, float, float]:
@@ -781,8 +783,11 @@ class MathUtils:
             bool: True if vectors form a right angle, False otherwise
         """
         dot_product = MathUtils.dot_product(origin, p1, p2)
-        # Use a small tolerance for floating-point comparisons
-        return abs(dot_product) < 1e-10
+        # Normalize by the vector lengths so the tolerance is independent of scale
+        norms = math.hypot(p1.x - origin.x, p1.y - origin.y) * math.hypot(p2.x - origin.x, p2.y - origin.y)
+        if norms == 0:
+            return False
+        return abs(dot_product) / norms < 1e-9
 
     @staticmethod
     def is_rectangle(
@@ -811,12 +816,12 @@ class MathUtils:
             MathUtils.get_2D_distance(p1, p2) for i, p1 in enumerate(points) for j, p2 in enumerate(points) if i < j
         ]
 
-        # Group similar distances using tolerance
+        # Group similar distances using a tolerance relative to their magnitude
         grouped_distances: List[List[float]] = []
         for d in distances:
             found_group = False
             for group in grouped_distances:
-                if abs(group[0] - d) < TOLERANCE:
+                if abs(group[0] - d) < 1e-9 * max(group[0], d):
                     group.append(d)
                     found_group = True
                     break
@@ -1017,15 +1022,27 @@ class MathUtils:
             B = 2 * cos_a * sin_a * (1 / rx**2 - 1 / ry**2)
             C = (sin_a**2 / rx**2) + (cos_a**2 / ry**2)
 
-            # Format coefficients to 4 decimal places for readability
-            A = round(A, 4)
-            B = round(B, 4)
-            C = round(C, 4)
+            # Format coefficients with significant digits in plain decimal notation (no exponent),
+            # since fixed decimal places collapse small coefficients (large radii) to 0
+            coef_scale = max(abs(A), abs(C))
+
+            def fmt_coef(value: float) -> str:
+                if not math.isfinite(value):
+                    return str(value)
+                if abs(value) <= 1e-12 * coef_scale:  # floating-point noise, e.g. cross term at 90 degrees
+                    return "0"
+                decimals = max(0, 9 - int(math.floor(math.log10(abs(value)))))
+                text = format(value, "." + str(decimals) + "f")
+                if "." in text:
+                    text = text.rstrip("0").rstrip(".")
+                return text
+
+            a_str, b_str, c_str = fmt_coef(A), fmt_coef(B), fmt_coef(C)
 
             # Handle special cases for coefficient signs in the formula
-            b_term = f"+ {B}" if B >= 0 else f"- {abs(B)}"
+            b_term = f"- {b_str[1:]}" if b_str.startswith("-") else f"+ {b_str}"
 
-            return f"{A}*(x - {fx})**2 {b_term}*(x - {fy})*(y - {fy}) + {C}*(y - {fy})**2 = 1"
+            return f"{a_str}*(x - {fx})**2 {b_term}*(x - {fx})*(y - {fy}) + {c_str}*(y - {fy})**2 = 1"
 
     @staticmethod
     def try_convert_to_number(value: Any) -> Any:
@@ -2832,42 +2849,26 @@ class MathUtils:
         if len(points) != 4:
             return None, None
 
-        # Find all possible diagonal pairs (points that differ in both x and y)
-        potential_diagonals = []
-
-        for i in range(len(points)):
-            for j in range(i + 1, len(points)):
-                p1 = points[i]
-                p2 = points[j]
-
-                # Check if points differ in both x and y coordinates (potential diagonal)
-                dx = abs(p1.x - p2.x)
-                dy = abs(p1.y - p2.y)
-
-                if dx > MathUtils.EPSILON and dy > MathUtils.EPSILON:
-                    distance = math.sqrt(dx**2 + dy**2)
-                    potential_diagonals.append((p1, p2, distance, dx, dy))
-
-        if not potential_diagonals:
+        # Points with no pair differing in both x and y (e.g. on a horizontal line) cannot form a rectangle
+        has_2d_extent = any(
+            abs(points[i].x - points[j].x) > MathUtils.EPSILON and abs(points[i].y - points[j].y) > MathUtils.EPSILON
+            for i in range(len(points))
+            for j in range(i + 1, len(points))
+        )
+        if not has_2d_extent:
             return None, None
 
-        # Sort by a combination of factors that make good rectangle diagonals:
-        # 1. Prefer more balanced rectangles (closer dx/dy ratio to 1.0)
-        # 2. Then by distance as secondary criterion
-        def diagonal_score(diag_info: Tuple[PointLike, PointLike, float, float, float]) -> Tuple[float, float]:
-            p1, p2, distance, dx, dy = diag_info
-            # Calculate how balanced the rectangle would be (closer to 1.0 is better)
-            aspect_ratio = max(dx, dy) / min(dx, dy) if min(dx, dy) > 0 else float("inf")
-            balance_score = 1.0 / aspect_ratio  # Higher score for more balanced rectangles
-            # Return tuple for sorting: (balance_score descending, distance descending)
-            return (-balance_score, -distance)
-
-        # Sort potential diagonals by our scoring criteria
-        potential_diagonals.sort(key=diagonal_score)
-
-        # Return the best diagonal pair
-        best_diagonal = potential_diagonals[0]
-        return best_diagonal[0], best_diagonal[1]
+        # The diagonals of a rectangle are its longest vertex pairs. Consider every pair
+        # (a rotated rectangle's diagonal may be axis-aligned); the first longest one wins ties.
+        best_pair: Tuple[Optional[PointLike], Optional[PointLike]] = (None, None)
+        best_distance = -1.0
+        for i in range(len(points)):
+            for j in range(i + 1, len(points)):
+                distance = math.hypot(points[i].x - points[j].x, points[i].y - points[j].y)
+                if distance > best_distance:
+                    best_distance = distance
+                    best_pair = (points[i], points[j])
+        return best_pair
 
     @staticmethod
     def rectangular_to_polar(x: float, y: float) -> Tuple[float, float]:
@@ -2969,19 +2970,24 @@ class MathUtils:
         Args:
             func: Callable that takes a float and returns a float
             x: Point at which to calculate the derivative
-            h: Step size for the finite difference (default: 1e-7)
+            h: Relative step size for the finite difference (default: 1e-7);
+                the actual step is h * max(1, |x|) so it stays resolvable at large |x|
 
         Returns:
             The derivative value, or None if calculation fails
         """
         try:
-            y_plus = func(x + h)
-            y_minus = func(x - h)
+            step = h * max(1.0, abs(x))
+            x_plus = x + step
+            x_minus = x - step
+            y_plus = func(x_plus)
+            y_minus = func(x_minus)
 
             if not (math.isfinite(y_plus) and math.isfinite(y_minus)):
                 return None
 
-            derivative = (y_plus - y_minus) / (2 * h)
+            # Divide by the actually representable step to avoid rounding bias
+            derivative = (y_plus - y_minus) / (x_plus - x_minus)
 
             if not math.isfinite(derivative):
                 return None
@@ -3268,18 +3274,25 @@ class MathUtils:
         Raises:
             ValueError: If the three points are collinear or coincident
         """
-        d = 2.0 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
-        if abs(d) < MathUtils.EPSILON:
+        # Translate so the first vertex is the origin to avoid precision loss far from (0, 0)
+        bx, by = x2 - x1, y2 - y1
+        qx, qy = x3 - x1, y3 - y1
+
+        d = 2.0 * (bx * qy - by * qx)
+        # Relative collinearity test: d (four times the area) against the longest squared side
+        scale = max(bx * bx + by * by, qx * qx + qy * qy, (qx - bx) ** 2 + (qy - by) ** 2)
+        if scale == 0 or abs(d) <= MathUtils.EPSILON * scale:
             raise ValueError("Points are collinear: circumcircle is undefined")
 
-        sq1 = x1 * x1 + y1 * y1
-        sq2 = x2 * x2 + y2 * y2
-        sq3 = x3 * x3 + y3 * y3
+        sq_b = bx * bx + by * by
+        sq_q = qx * qx + qy * qy
 
-        cx = (sq1 * (y2 - y3) + sq2 * (y3 - y1) + sq3 * (y1 - y2)) / d
-        cy = (sq1 * (x3 - x2) + sq2 * (x1 - x3) + sq3 * (x2 - x1)) / d
+        ux = (qy * sq_b - by * sq_q) / d
+        uy = (bx * sq_q - qx * sq_b) / d
 
-        radius = math.sqrt((x1 - cx) ** 2 + (y1 - cy) ** 2)
+        cx = x1 + ux
+        cy = y1 + uy
+        radius = math.hypot(ux, uy)
 
         if not (math.isfinite(cx) and math.isfinite(cy) and math.isfinite(radius)):
             raise ValueError("Circumcenter computation produced non-finite result")
