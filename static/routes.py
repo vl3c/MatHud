@@ -2,7 +2,7 @@
 MatHud Flask Route Definitions
 
 Defines all Flask application routes for AI communication, workspace management,
-WebDriver initialization, and authentication. Handles JSON requests and provides consistent API responses.
+and authentication. Handles JSON requests and provides consistent API responses.
 
 Dependencies:
     - flask: Request handling, templating, JSON processing, and session management
@@ -12,13 +12,11 @@ Dependencies:
 
 from __future__ import annotations
 
-import base64
 import functools
 import hmac
 import json
 import logging
 import math
-import os
 import time
 from collections.abc import Callable, Iterator, Set as AbstractSet
 from typing import Any, Dict, List, Optional, Tuple, TypeVar, Union, cast
@@ -30,8 +28,6 @@ from static.ai_model import AIModel, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVID
 from static.app_manager import AppManager, MatHudFlask
 from static.canvas_state_summarizer import compare_canvas_states
 from static.config import (
-    CANVAS_SNAPSHOT_DIR,
-    CANVAS_SNAPSHOT_PATH,
     MAX_ATTACHED_IMAGES,
     MAX_IMAGE_BASE64_BYTES,
 )
@@ -40,7 +36,6 @@ from static.providers import ProviderRegistry, create_provider_instance, is_loca
 from static.route_helpers import get_active_provider, reset_tools_for_all_providers
 from static.tool_call_processor import ProcessedToolCall, ToolCallProcessor
 from static.tts_manager import get_tts_manager
-from static.webdriver_manager import SvgState
 
 F = TypeVar("F", bound=Callable[..., ResponseReturnValue])
 
@@ -122,6 +117,24 @@ def validate_attached_images(images: Optional[List[str]]) -> Optional[Tuple[Resp
     return None
 
 
+def validate_canvas_snapshot(snapshot: object) -> Optional[Tuple[Response, int]]:
+    """Enforce the per-image size cap on the browser-captured vision snapshot.
+
+    Args:
+        snapshot: The ``canvas_snapshot`` value from the prompt JSON (a data URL), or None.
+
+    Returns:
+        An error response tuple if the snapshot is too large, otherwise None.
+    """
+    if isinstance(snapshot, str) and len(snapshot) > MAX_IMAGE_BASE64_BYTES:
+        return AppManager.make_response(
+            message=f"Canvas snapshot exceeds the maximum size of {MAX_IMAGE_BASE64_BYTES} bytes",
+            status="error",
+            code=400,
+        )
+    return None
+
+
 def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
     """Get or create the appropriate provider instance for a model.
 
@@ -161,102 +174,6 @@ def get_provider_for_model(app: MatHudFlask, model_id: str) -> OpenAIAPIBase:
     provider = app.providers[provider_name]
     provider.set_model(model_id)
     return provider
-
-
-def save_canvas_snapshot_from_data_url(data_url: str) -> bool:
-    if not isinstance(data_url, str):
-        return False
-    parts = data_url.split(",", 1)
-    if len(parts) != 2:
-        return False
-    metadata, encoded = parts
-    metadata = metadata.strip().lower()
-    if not metadata.startswith("data:image"):
-        return False
-    try:
-        image_bytes = base64.b64decode(encoded)
-    except Exception as exc:
-        _logger.error("Failed to decode canvas snapshot: %s", exc)
-        return False
-    try:
-        os.makedirs(CANVAS_SNAPSHOT_DIR, exist_ok=True)
-        with open(CANVAS_SNAPSHOT_PATH, "wb") as snapshot_file:
-            snapshot_file.write(image_bytes)
-        return True
-    except Exception as exc:
-        _logger.error("Failed to write canvas snapshot: %s", exc)
-        return False
-
-
-def extract_vision_payload(
-    request_payload: Dict[str, Any],
-) -> tuple[Optional[Dict[str, Any]], Optional[str], Optional[str], Optional[List[str]]]:
-    """Extract vision-related data from the request payload.
-
-    Args:
-        request_payload: The full request payload dictionary
-
-    Returns:
-        Tuple of (svg_state, canvas_image, renderer_mode, attached_images)
-    """
-    svg_state: Optional[Dict[str, Any]] = None
-    canvas_image: Optional[str] = None
-    renderer_mode: Optional[str] = None
-    attached_images: Optional[List[str]] = None
-
-    raw_svg_state = request_payload.get("svg_state")
-    if isinstance(raw_svg_state, dict):
-        svg_state = raw_svg_state
-    raw_renderer = request_payload.get("renderer_mode")
-    if isinstance(raw_renderer, str):
-        renderer_mode = raw_renderer
-
-    vision_snapshot = request_payload.get("vision_snapshot")
-    if isinstance(vision_snapshot, dict):
-        snapshot_svg = vision_snapshot.get("svg_state")
-        if isinstance(snapshot_svg, dict):
-            svg_state = snapshot_svg
-        snapshot_renderer = vision_snapshot.get("renderer_mode")
-        if isinstance(snapshot_renderer, str):
-            renderer_mode = snapshot_renderer
-        snapshot_canvas = vision_snapshot.get("canvas_image")
-        if isinstance(snapshot_canvas, str):
-            canvas_image = snapshot_canvas
-
-    # Extract attached images from the request payload
-    raw_attached_images = request_payload.get("attached_images")
-    if isinstance(raw_attached_images, list):
-        attached_images = [img for img in raw_attached_images if isinstance(img, str)]
-
-    return svg_state, canvas_image, renderer_mode, attached_images
-
-
-def handle_vision_capture(
-    app: MatHudFlask,
-    use_vision: bool,
-    svg_state: Optional[Dict[str, Any]],
-    canvas_image: Optional[str],
-    init_webdriver: Callable[[], ResponseReturnValue],
-) -> None:
-    if not use_vision:
-        return
-    if canvas_image and save_canvas_snapshot_from_data_url(canvas_image):
-        return
-
-    if svg_state is None:
-        return
-
-    if app.webdriver_manager is None:
-        try:
-            init_webdriver()
-        except Exception as exc:
-            _logger.error("Failed to initialize WebDriver for vision capture: %s", exc)
-
-    if app.webdriver_manager is not None:
-        try:
-            app.webdriver_manager.capture_svg_state(cast(SvgState, svg_state))
-        except Exception as exc:
-            _logger.error("WebDriver capture failed: %s", exc)
 
 
 def _intercept_search_tools(
@@ -494,7 +411,7 @@ def register_routes(app: MatHudFlask) -> None:
     """Register all routes with the Flask application.
 
     Configures all application endpoints including main page, AI communication,
-    workspace operations, WebDriver management, and authentication routes.
+    workspace operations, and authentication routes.
 
     Args:
         app: Flask application instance
@@ -727,24 +644,6 @@ def register_routes(app: MatHudFlask) -> None:
     def get_index() -> ResponseReturnValue:
         return render_template("index.html")
 
-    @app.route("/init_webdriver")
-    @require_auth
-    def init_webdriver_route() -> ResponseReturnValue:
-        """Route to initialize WebDriver after Flask has started"""
-        if not app.webdriver_manager:
-            try:
-                from static.webdriver_manager import WebDriverManager
-
-                port = app.config.get("SERVER_PORT", 5000)
-                base_url = f"http://127.0.0.1:{port}/"
-                app.webdriver_manager = WebDriverManager(base_url=base_url)
-            except Exception as e:
-                _logger.error("Failed to initialize WebDriverManager: %s", e)
-                return AppManager.make_response(
-                    message=f"WebDriver initialization failed: {str(e)}", status="error", code=500
-                )
-        return AppManager.make_response(message="WebDriver initialization successful")
-
     @app.route("/save_workspace", methods=["POST"])
     @require_auth
     def save_workspace_route() -> ResponseReturnValue:
@@ -817,8 +716,6 @@ def register_routes(app: MatHudFlask) -> None:
             )
         message_json: JsonObject = message_json_value
 
-        svg_state, canvas_image_data, _, _ = extract_vision_payload(request_payload)
-        use_vision = bool(message_json.get("use_vision", False))
         ai_model_raw = message_json.get("ai_model")
         ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
 
@@ -831,6 +728,9 @@ def register_routes(app: MatHudFlask) -> None:
         image_error = validate_attached_images(attached_images)
         if image_error is not None:
             return image_error
+        snapshot_error = validate_canvas_snapshot(message_json.get("canvas_snapshot"))
+        if snapshot_error is not None:
+            return snapshot_error
 
         # Get the provider for this model and update all relevant APIs
         provider = get_active_provider(app, ai_model)
@@ -841,14 +741,6 @@ def register_routes(app: MatHudFlask) -> None:
         action_trace_raw = request_payload.get("action_trace")
         if isinstance(action_trace_raw, dict):
             app.log_manager.log_action_trace(action_trace_raw)
-
-        handle_vision_capture(
-            app,
-            use_vision,
-            svg_state if isinstance(svg_state, dict) else None,
-            canvas_image_data,
-            init_webdriver_route,
-        )
 
         # Check for search_tools results and inject tools if found
         tool_call_results_raw = message_json.get("tool_call_results")
@@ -1103,8 +995,6 @@ def register_routes(app: MatHudFlask) -> None:
                 code=400,
             )
 
-        svg_state, canvas_image_data, _, _ = extract_vision_payload(request_payload)
-        use_vision = bool(message_json_raw.get("use_vision", False))
         ai_model_raw = message_json_raw.get("ai_model")
         ai_model = ai_model_raw if isinstance(ai_model_raw, str) else None
 
@@ -1117,6 +1007,9 @@ def register_routes(app: MatHudFlask) -> None:
         image_error = validate_attached_images(attached_images)
         if image_error is not None:
             return image_error
+        snapshot_error = validate_canvas_snapshot(message_json_raw.get("canvas_snapshot"))
+        if snapshot_error is not None:
+            return snapshot_error
 
         # Get the provider for this model and update all relevant APIs
         provider = get_active_provider(app, ai_model)
@@ -1127,14 +1020,6 @@ def register_routes(app: MatHudFlask) -> None:
         action_trace_raw_legacy = request_payload.get("action_trace")
         if isinstance(action_trace_raw_legacy, dict):
             app.log_manager.log_action_trace(action_trace_raw_legacy)
-
-        handle_vision_capture(
-            app,
-            use_vision,
-            svg_state if isinstance(svg_state, dict) else None,
-            canvas_image_data,
-            init_webdriver_route,
-        )
 
         # Check for search_tools results and inject tools if found
         tool_call_results_raw = message_json_raw.get("tool_call_results")

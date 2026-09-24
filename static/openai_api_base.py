@@ -7,7 +7,6 @@ for both Chat Completions and Responses APIs.
 
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import os
@@ -21,7 +20,6 @@ import httpx2
 from openai import APITimeoutError, OpenAI
 
 from static.ai_model import AIModel
-from static.config import CANVAS_SNAPSHOT_PATH
 from static.env_config import get_api_key
 from static.canvas_state_formatter import CanvasFormat, parse_canvas_format, render_state, render_update
 from static.canvas_state_summarizer import compare_canvas_states
@@ -412,41 +410,41 @@ class OpenAIAPIBase:
         self,
         user_message: str,
         attached_images: Optional[List[str]] = None,
-        include_canvas_snapshot: bool = True,
+        canvas_snapshot: Optional[str] = None,
     ) -> Optional[List[Dict[str, Any]]]:
         """Create an enhanced prompt that includes text and optional images.
 
         Args:
             user_message: The text message from the user
             attached_images: Optional list of data URL images attached by the user
-            include_canvas_snapshot: Whether to include the canvas snapshot (vision toggle)
+            canvas_snapshot: Optional data URL of the canvas captured in the browser (vision toggle)
 
         Returns:
             List of content parts for the message, or None if no images available
         """
         content: List[Dict[str, Any]] = [{"type": "text", "text": user_message}]
-        has_images = False
-
-        # Add canvas snapshot if vision is enabled
-        if include_canvas_snapshot:
-            try:
-                with open(CANVAS_SNAPSHOT_PATH, "rb") as image_file:
-                    image_data = base64.b64encode(image_file.read()).decode("utf-8")
-                    content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_data}"}})
-                    has_images = True
-            except Exception as e:
-                error_msg = f"Failed to load canvas image: {e}"
-                print(error_msg)  # Console output
-                _logger.error(error_msg)  # File logging
-
-        # Add user-attached images (these are already data URLs)
+        images: List[str] = []
+        if canvas_snapshot:
+            images.append(canvas_snapshot)
         if attached_images:
-            for img_url in attached_images:
-                if isinstance(img_url, str) and img_url.startswith("data:image"):
-                    content.append({"type": "image_url", "image_url": {"url": img_url}})
-                    has_images = True
+            images.extend(attached_images)
 
-        return content if has_images else None
+        # Images are data URLs produced by the browser (canvas snapshot first).
+        for img_url in images:
+            if isinstance(img_url, str) and img_url.startswith("data:image"):
+                content.append({"type": "image_url", "image_url": {"url": img_url}})
+
+        return content if len(content) > 1 else None
+
+    @staticmethod
+    def _extract_canvas_snapshot(prompt_json: Dict[str, Any]) -> Optional[str]:
+        """Return the browser-captured canvas image (data URL) when vision is on, else None."""
+        if not prompt_json.get("use_vision"):
+            return None
+        snapshot = prompt_json.get("canvas_snapshot")
+        if isinstance(snapshot, str) and snapshot.startswith("data:image"):
+            return snapshot
+        return None
 
     def _prepare_message_content(self, full_prompt: str) -> MessageContent:
         """Prepare message content with optional canvas image for vision-enabled messages.
@@ -471,13 +469,13 @@ class OpenAIAPIBase:
         message_content: MessageContent = text
         prompt_kind = "text"
         attached_images = self._extract_attached_images(prompt_json)
-        use_vision = bool(prompt_json.get("use_vision", False))
-        if use_vision or attached_images:
+        canvas_snapshot = self._extract_canvas_snapshot(prompt_json)
+        if canvas_snapshot or attached_images:
             prompt_kind = "multimodal"
             enhanced_prompt = self._create_enhanced_prompt_with_image(
                 user_message=text,
                 attached_images=attached_images,
-                include_canvas_snapshot=use_vision,
+                canvas_snapshot=canvas_snapshot,
             )
             if enhanced_prompt:
                 message_content = enhanced_prompt
@@ -560,17 +558,16 @@ class OpenAIAPIBase:
         if isinstance(parsed, dict):
             prompt_json = parsed
             user_message = str(prompt_json.get("user_message", ""))
-            use_vision = bool(prompt_json.get("use_vision", False))
-
             attached_images = self._extract_attached_images(prompt_json)
+            canvas_snapshot = self._extract_canvas_snapshot(prompt_json)
 
             # If vision/images are present, use multimodal payload.
-            if use_vision or attached_images:
+            if canvas_snapshot or attached_images:
                 prompt_kind = "multimodal"
                 enhanced_prompt = self._create_enhanced_prompt_with_image(
                     user_message=user_message,
                     attached_images=attached_images,
-                    include_canvas_snapshot=use_vision,
+                    canvas_snapshot=canvas_snapshot,
                 )
                 if enhanced_prompt:
                     message_content = enhanced_prompt

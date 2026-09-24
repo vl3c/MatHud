@@ -45,6 +45,7 @@ from workspace_manager import WorkspaceManager
 from tool_call_log_manager import ToolCallLogManager
 from message_menu_manager import MessageMenuManager
 from image_attachment_manager import ImageAttachmentManager
+from canvas_snapshot import CanvasSnapshotter
 from slash_command_handler import SlashCommandHandler
 from command_autocomplete import CommandAutocomplete
 from tts_ui_manager import TTSUIManager
@@ -108,6 +109,8 @@ class AIInterface:
         self._image_attachment = ImageAttachmentManager(
             on_system_message=self._print_system_message_in_chat,
         )
+        # Browser-side canvas capture for vision requests
+        self._canvas_snapshotter = CanvasSnapshotter()
         # Chat UI (delegated to ChatUIManager)
         self._chat_ui = ChatUIManager(
             message_menu=self._message_menu,
@@ -727,79 +730,20 @@ class AIInterface:
     def _create_request_payload(
         self,
         prompt: Optional[str],
-        include_svg: bool = True,
         action_trace: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Create the JSON payload for the request, optionally including SVG and Canvas2D state."""
+        """Create the JSON payload for the request.
+
+        The vision snapshot, when there is one, travels inside the prompt JSON
+        (``canvas_snapshot``), next to ``use_vision``.
+        """
         payload: Dict[str, Any] = {"message": prompt}
         if action_trace is not None:
             payload["action_trace"] = action_trace
-        vision_enabled = self._is_vision_enabled(prompt)
         renderer_mode = getattr(self.canvas, "renderer_mode", None)
         if isinstance(renderer_mode, str):
             payload["renderer_mode"] = renderer_mode
-
-        svg_state_payload: Optional[Dict[str, Any]] = None
-        if include_svg:
-            try:
-                svg_element = document["math-svg"]
-                svg_content = svg_element.outerHTML
-                container = document["math-container"]
-                rect = container.getBoundingClientRect()
-                svg_state_payload = {
-                    "content": svg_content,
-                    "dimensions": {"width": rect.width, "height": rect.height},
-                    "viewBox": svg_element.getAttribute("viewBox"),
-                    "transform": svg_element.getAttribute("transform"),
-                }
-                payload["svg_state"] = svg_state_payload
-            except Exception as exc:
-                print(f"Failed to collect SVG state: {exc}")
-
-        if not vision_enabled:
-            return payload
-
-        snapshot: Dict[str, Any] = {}
-        if isinstance(renderer_mode, str):
-            snapshot["renderer_mode"] = renderer_mode
-        if svg_state_payload:
-            snapshot["svg_state"] = svg_state_payload
-
-        if renderer_mode == "canvas2d":
-            canvas_image = self._capture_canvas2d_snapshot()
-            if canvas_image:
-                snapshot["canvas_image"] = canvas_image
-
-        if snapshot:
-            payload["vision_snapshot"] = snapshot
-
         return payload
-
-    def _is_vision_enabled(self, prompt: Optional[str]) -> bool:
-        try:
-            if not prompt:
-                return False
-            parsed = json.loads(prompt)
-            if isinstance(parsed, dict):
-                return bool(parsed.get("use_vision"))
-        except Exception:
-            pass
-        return False
-
-    def _capture_canvas2d_snapshot(self) -> Optional[str]:
-        try:
-            canvas_el = document.getElementById("math-canvas-2d")
-            if canvas_el is None:
-                return None
-            to_data_url = getattr(canvas_el, "toDataURL", None)
-            if not callable(to_data_url):
-                return None
-            data_url = to_data_url("image/png")
-            if isinstance(data_url, str) and data_url:
-                return data_url
-        except Exception as exc:
-            print(f"Failed to capture Canvas2D snapshot: {exc}")
-        return None
 
     def _make_request(self, payload: Dict[str, Any]) -> None:
         """Send an AJAX request with the given payload."""
@@ -835,15 +779,8 @@ class AIInterface:
         prompt: Optional[str],
         action_trace: Optional[Dict[str, Any]] = None,
     ) -> None:
-        try:
-            # Try to send request with SVG state
-            payload = self._create_request_payload(prompt, include_svg=True, action_trace=action_trace)
-            self._start_streaming_request(payload)
-        except Exception as e:
-            print(f"Error preparing request with SVG: {str(e)}")
-            # Fall back to sending request without SVG state
-            payload = self._create_request_payload(prompt, include_svg=False, action_trace=action_trace)
-            self._start_streaming_request(payload)
+        payload = self._create_request_payload(prompt, action_trace=action_trace)
+        self._start_streaming_request(payload)
 
     def _send_prompt_to_ai(
         self,
@@ -871,16 +808,30 @@ class AIInterface:
         if attached_images:
             prompt_json["attached_images"] = attached_images
 
-        # Convert to JSON string
-        prompt = json.dumps(prompt_json)
-
         # For new user messages, reset all state including containers and buffers
         # For tool call results, preserve everything to keep intermediary text visible
         if user_message is not None and tool_call_results is None:
             self._chat_ui.request_start_time = window.Date.now()
             self._chat_ui.reset_streaming_state()
 
-        self._send_request(prompt, action_trace=action_trace)
+        if use_vision:
+            # The snapshot may need an async image decode, so the request is sent from the callback.
+            self._canvas_snapshotter.capture(
+                lambda snapshot: self._send_prompt_json(prompt_json, snapshot, action_trace)
+            )
+            return
+        self._send_prompt_json(prompt_json, None, action_trace)
+
+    def _send_prompt_json(
+        self,
+        prompt_json: Dict[str, Any],
+        canvas_snapshot: Optional[str],
+        action_trace: Optional[Dict[str, Any]],
+    ) -> None:
+        """Serialize the prompt (with the vision snapshot, if any) and send it."""
+        if canvas_snapshot:
+            prompt_json["canvas_snapshot"] = canvas_snapshot
+        self._send_request(json.dumps(prompt_json), action_trace=action_trace)
 
     def send_user_message(self, message: str) -> None:
         """Sends a message as if the user typed it.

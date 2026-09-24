@@ -2,7 +2,6 @@
 Tests for the image attachment feature.
 
 Tests server-side handling of attached images in:
-- Route payload extraction
 - OpenAI API base content preparation
 - OpenAI Responses API content conversion
 """
@@ -17,7 +16,6 @@ from unittest.mock import Mock, patch
 
 from static.openai_api_base import OpenAIAPIBase
 from static.openai_responses_api import OpenAIResponsesAPI
-from static.routes import extract_vision_payload
 
 
 # Create a small test image as base64 (1x1 red pixel PNG)
@@ -25,90 +23,6 @@ TEST_IMAGE_PNG_BYTES = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
 )
 TEST_IMAGE_DATA_URL = f"data:image/png;base64,{base64.b64encode(TEST_IMAGE_PNG_BYTES).decode()}"
-
-
-class TestExtractVisionPayload(unittest.TestCase):
-    """Tests for extract_vision_payload function in routes.py."""
-
-    def test_extract_empty_payload(self) -> None:
-        """Test extracting from empty payload returns all None."""
-        svg_state, canvas_image, renderer_mode, attached_images = extract_vision_payload({})
-        self.assertIsNone(svg_state)
-        self.assertIsNone(canvas_image)
-        self.assertIsNone(renderer_mode)
-        self.assertIsNone(attached_images)
-
-    def test_extract_svg_state(self) -> None:
-        """Test extracting svg_state from payload."""
-        payload = {"svg_state": {"elements": []}}
-        svg_state, _, _, _ = extract_vision_payload(payload)
-        self.assertEqual(svg_state, {"elements": []})
-
-    def test_extract_renderer_mode(self) -> None:
-        """Test extracting renderer_mode from payload."""
-        payload = {"renderer_mode": "svg"}
-        _, _, renderer_mode, _ = extract_vision_payload(payload)
-        self.assertEqual(renderer_mode, "svg")
-
-    def test_extract_canvas_image_from_vision_snapshot(self) -> None:
-        """Test extracting canvas_image from nested vision_snapshot."""
-        payload = {"vision_snapshot": {"canvas_image": TEST_IMAGE_DATA_URL}}
-        _, canvas_image, _, _ = extract_vision_payload(payload)
-        self.assertEqual(canvas_image, TEST_IMAGE_DATA_URL)
-
-    def test_extract_svg_state_from_vision_snapshot(self) -> None:
-        """Test extracting svg_state from nested vision_snapshot."""
-        payload = {"vision_snapshot": {"svg_state": {"elements": ["rect", "circle"]}}}
-        svg_state, _, _, _ = extract_vision_payload(payload)
-        self.assertEqual(svg_state, {"elements": ["rect", "circle"]})
-
-    def test_vision_snapshot_overrides_top_level(self) -> None:
-        """Test that vision_snapshot values override top-level values."""
-        payload = {
-            "svg_state": {"elements": ["old"]},
-            "renderer_mode": "canvas2d",
-            "vision_snapshot": {"svg_state": {"elements": ["new"]}, "renderer_mode": "webgl"},
-        }
-        svg_state, _, renderer_mode, _ = extract_vision_payload(payload)
-        self.assertEqual(svg_state, {"elements": ["new"]})
-        self.assertEqual(renderer_mode, "webgl")
-
-    def test_invalid_types_ignored(self) -> None:
-        """Test that invalid types for fields are ignored."""
-        payload = {
-            "svg_state": "not a dict",
-            "renderer_mode": 123,
-        }
-        svg_state, _, renderer_mode, _ = extract_vision_payload(payload)
-        self.assertIsNone(svg_state)
-        self.assertIsNone(renderer_mode)
-
-    def test_extract_attached_images(self) -> None:
-        """Test extracting attached_images from payload."""
-        payload = {"attached_images": ["data:image/png;base64,img1", "data:image/jpeg;base64,img2"]}
-        _, _, _, attached_images = extract_vision_payload(payload)
-        self.assertEqual(len(attached_images), 2)
-        self.assertIn("data:image/png;base64,img1", attached_images)
-        self.assertIn("data:image/jpeg;base64,img2", attached_images)
-
-    def test_extract_attached_images_filters_non_strings(self) -> None:
-        """Test that non-string items are filtered from attached_images."""
-        payload = {"attached_images": ["data:image/png;base64,valid", 123, None, {"invalid": "object"}]}
-        _, _, _, attached_images = extract_vision_payload(payload)
-        self.assertEqual(len(attached_images), 1)
-        self.assertEqual(attached_images[0], "data:image/png;base64,valid")
-
-    def test_extract_attached_images_empty_list(self) -> None:
-        """Test extracting empty attached_images list."""
-        payload = {"attached_images": []}
-        _, _, _, attached_images = extract_vision_payload(payload)
-        self.assertEqual(attached_images, [])
-
-    def test_extract_attached_images_invalid_type(self) -> None:
-        """Test that non-list attached_images is ignored."""
-        payload = {"attached_images": "not a list"}
-        _, _, _, attached_images = extract_vision_payload(payload)
-        self.assertIsNone(attached_images)
 
 
 class TestPrepareMessageContent(unittest.TestCase):
@@ -240,7 +154,7 @@ class TestCreateEnhancedPromptWithImage(unittest.TestCase):
         api = OpenAIAPIBase()
         images = [TEST_IMAGE_DATA_URL]
         result = api._create_enhanced_prompt_with_image(
-            user_message="Describe this", attached_images=images, include_canvas_snapshot=False
+            user_message="Describe this", attached_images=images, canvas_snapshot=None
         )
 
         self.assertIsNotNone(result)
@@ -250,11 +164,26 @@ class TestCreateEnhancedPromptWithImage(unittest.TestCase):
         self.assertEqual(result[1]["type"], "image_url")
 
     @patch("static.openai_api_base.OpenAI")
+    def test_canvas_snapshot_comes_first(self, mock_openai: Mock) -> None:
+        """The browser-captured canvas snapshot precedes user-attached images."""
+        api = OpenAIAPIBase()
+        attached = "data:image/jpeg;base64,/9j/AAAA"
+        result = api._create_enhanced_prompt_with_image(
+            user_message="What is drawn?", attached_images=[attached], canvas_snapshot=TEST_IMAGE_DATA_URL
+        )
+
+        self.assertIsNotNone(result)
+        assert result is not None
+        self.assertEqual([part["type"] for part in result], ["text", "image_url", "image_url"])
+        self.assertEqual(result[1]["image_url"]["url"], TEST_IMAGE_DATA_URL)
+        self.assertEqual(result[2]["image_url"]["url"], attached)
+
+    @patch("static.openai_api_base.OpenAI")
     def test_no_images_returns_none(self, mock_openai: Mock) -> None:
         """Test returns None when no images available."""
         api = OpenAIAPIBase()
         result = api._create_enhanced_prompt_with_image(
-            user_message="Hello", attached_images=None, include_canvas_snapshot=False
+            user_message="Hello", attached_images=None, canvas_snapshot=None
         )
         self.assertIsNone(result)
 
@@ -262,9 +191,7 @@ class TestCreateEnhancedPromptWithImage(unittest.TestCase):
     def test_empty_images_returns_none(self, mock_openai: Mock) -> None:
         """Test returns None with empty images list."""
         api = OpenAIAPIBase()
-        result = api._create_enhanced_prompt_with_image(
-            user_message="Hello", attached_images=[], include_canvas_snapshot=False
-        )
+        result = api._create_enhanced_prompt_with_image(user_message="Hello", attached_images=[], canvas_snapshot=None)
         self.assertIsNone(result)
 
 

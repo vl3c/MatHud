@@ -141,10 +141,9 @@ Note: All drawables are math-only. They do not hold screen-space coordinates and
 6. Flask Application Manager (`static/app_manager.py`)
 7. Flask Route Definitions (`static/routes.py`)
 8. Application Logging System (`static/log_manager.py`)
-9. Selenium WebDriver Manager (`static/webdriver_manager.py`)
-10. AI Model Configuration (`static/ai_model.py`)
-11. Provider Registry (`static/providers/`)
-12. Tool Call Processing Utilities (`static/tool_call_processor.py`)
+9. AI Model Configuration (`static/ai_model.py`)
+10. Provider Registry (`static/providers/`)
+11. Tool Call Processing Utilities (`static/tool_call_processor.py`)
 
 ### Testing and Quality Assurance
 1. Client-Side Testing (`client_tests/` and `test_runner.py`)
@@ -409,7 +408,7 @@ Key Features:
     - Function call execution and result aggregation
     - Markdown parsing and MathJax rendering for AI responses
     - Chat interface management with styled messages
-    - SVG state transmission for AI vision capabilities
+    - Browser-side canvas snapshot for AI vision (`canvas_snapshot.py`)
     - Computation history integration with canvas state
     - Tool call log dropdown showing executed tool calls with status indicators
     - Testing framework integration
@@ -453,8 +452,9 @@ Attributes:
 - `_parse_markdown_to_html(text)`: Parse markdown text to HTML using the dedicated markdown parser
 - `_render_math()`: Trigger MathJax rendering for newly added content
 - `_store_results_in_canvas_state(call_results)`: Store valid function call results in the canvas state
-- `_send_prompt_to_ai(user_message=None, tool_call_results=None)`: Send request to AI backend with canvas state
-- `_create_request_payload(prompt, include_svg=True)`: Create JSON payload for AI requests
+- `_send_prompt_to_ai(user_message=None, tool_call_results=None)`: Send request to AI backend with canvas state; with vision on, captures the canvas first and sends from the capture callback
+- `_send_prompt_json(prompt_json, canvas_snapshot, action_trace)`: Add the `canvas_snapshot` data URL (if any) to the prompt JSON and send it
+- `_create_request_payload(prompt, action_trace=None)`: Create JSON payload for AI requests
 - `_disable_send_controls()`: Disable send functionality while processing
 - `_enable_send_controls()`: Enable send functionality after processing
 - `_reset_tool_call_log_state()`: Reset all tool call log state variables for a new conversation turn
@@ -463,6 +463,15 @@ Attributes:
 - `_ensure_tool_call_log_element()`: Create the tool-call-log `<details>` dropdown element if it does not exist yet
 - `_add_tool_call_entries(tool_calls, call_results)`: Record tool call entries and update the dropdown UI with running count
 - `_finalize_tool_call_log()`: Update the tool call log summary to its final state (e.g., "Used 3 tools" or "Used 3 tools (1 failed)")
+
+#### Canvas Snapshot (`canvas_snapshot.py`)
+
+Captures what the user sees on the math canvas as a PNG data URL for vision requests (replaces the former server-side Selenium capture).
+
+- `CanvasSnapshotter(container_id="math-container", canvas_id="math-canvas-2d", svg_id="math-svg", max_side=1280, background="#ffffff")`
+- `capture(on_done)`: Composite a white background, the `#math-svg` layer (serialized with `XMLSerializer` and decoded as an image, only when it has content) and the Canvas2D bitmap on top, at the container's CSS-pixel size with the longest side capped at `max_side` (HiDPI bitmaps are scaled down). Calls `on_done` exactly once with the data URL, or None when nothing could be captured (zero-sized container, encode failure, or over the 20 MB server cap). Synchronous when the SVG layer is empty (the Canvas2D renderer draws everything, labels included, on the canvas); otherwise asynchronous, with a 2 s timeout that falls back to the Canvas2D layer alone.
+- `snapshot_size(css_width, css_height, max_side=1280)`: Aspect-preserving output size, never upscaled.
+- Limitation: styles the SVG renderer takes from page CSS (rather than inline attributes) are not applied inside the serialized image.
 
 #### Result Processor (`result_processor.py`)
 
@@ -3796,12 +3805,11 @@ Module-level Functions:
 MatHud Flask Application Manager
 
 Core Flask application configuration and initialization.
-Manages dependency injection for AI API, WebDriver, workspace operations, and logging.
+Manages dependency injection for AI API, workspace operations, and logging.
 
 Dependencies:
     - Flask: Web framework core
     - static.openai_completions_api: OpenAI Chat Completions API integration
-    - static.webdriver_manager: Selenium WebDriver for vision system
     - static.workspace_manager: Workspace file operations
     - static.log_manager: Application logging
     - static.routes: Route definitions and registration
@@ -3816,13 +3824,12 @@ Provides standardized API response formatting and error handling across the enti
 
 Core Responsibilities:
     - Flask Application Factory: Creates and configures Flask app instances
-    - Dependency Injection: Initializes and coordinates OpenAI API, WebDriver, workspace, and logging managers
+    - Dependency Injection: Initializes and coordinates OpenAI API, workspace, and logging managers
     - Response Standardization: Consistent JSON API response formatting
     - Service Integration: Bridges Flask web framework with specialized application managers
 
 Managed Dependencies:
     - OpenAIChatCompletionsAPI: AI-powered mathematical problem solving
-    - WebDriverManager: Selenium-based vision system for canvas image capture
     - WorkspaceManager: File system operations and workspace organization
     - LogManager: Application-wide logging and debugging support
     - Route Registration: RESTful API endpoint configuration
@@ -3839,7 +3846,7 @@ Managed Dependencies:
 MatHud Flask Route Definitions
 
 Defines all Flask application routes for AI communication, workspace management,
-and WebDriver initialization. Handles JSON requests and provides consistent API responses.
+and authentication. Handles JSON requests and provides consistent API responses.
 
 Dependencies:
     - flask: Request handling, templating, and JSON processing
@@ -3849,12 +3856,11 @@ Dependencies:
 
 **Key Routes:**
 - `@app.route('/')`: Main application page serving the mathematical visualization interface
-- `@app.route('/init_webdriver')`: Initialize WebDriver for vision system after Flask startup
 - `@app.route('/save_workspace', methods=['POST'])`: Save current workspace state to file
 - `@app.route('/load_workspace', methods=['GET'])`: Load workspace state from file
 - `@app.route('/list_workspaces', methods=['GET'])`: List all saved workspaces
 - `@app.route('/delete_workspace', methods=['POST'])`: Delete workspace by name (JSON body `{"name": ...}`; deleted files move to `.trash/`)
-- `@app.route('/send_message', methods=['POST'])`: Process AI chat messages with tool calling support
+- `@app.route('/send_message', methods=['POST'])`: Process AI chat messages with tool calling support (`/send_message_stream` streams the same); both enforce `MAX_IMAGE_BASE64_BYTES` on attached images and on the vision `canvas_snapshot` (`validate_canvas_snapshot`)
 - `@app.route('/api/available_models', methods=['GET'])`: Models of the providers that are available (API key set, or local server reachable)
 
 **Key Functions:**
@@ -3894,46 +3900,6 @@ Logs user messages, AI responses, tool calls, and system events.
 - `log_user_message(user_message)`: Log user message and parse JSON components
 - `log_ai_response(ai_message)`: Log AI-generated response text
 - `log_ai_tool_calls(ai_tool_calls)`: Log AI-requested function calls
-
-### Selenium WebDriver Manager (`static/webdriver_manager.py`)
-
-**File Header:**
-```
-MatHud Selenium WebDriver Management
-
-Manages headless Firefox WebDriver for capturing canvas images for vision system.
-Handles SVG state injection, page configuration, and screenshot capture operations.
-
-Dependencies:
-    - selenium: WebDriver automation framework
-    - selenium.webdriver: Firefox WebDriver and configuration
-    - selenium.webdriver.support: WebDriverWait and expected conditions
-    - logging: Error logging for WebDriver operations
-    - os: File system operations for screenshot storage
-    - time: Timing delays for WebDriver operations
-```
-
-**Class Documentation:**
-```
-Manages Selenium WebDriver operations for capturing math visualizations.
-
-Provides headless Firefox WebDriver for injecting SVG states and capturing
-canvas screenshots for the vision system. Handles page configuration,
-error recovery, and resource cleanup.
-```
-
-**Key Methods:**
-- `__init__(base_url="http://127.0.0.1:5000/")`: Initialize WebDriverManager with base URL
-- `capture_svg_state(svg_state)`: Update SVG state and capture canvas (main entry point)
-- `update_svg_state(svg_state)`: Update SVG content and attributes with provided state
-- `_setup_driver()`: Initialize Firefox WebDriver with headless mode (private method)
-- `_configure_page_layout()`: Configure page layout for screenshot capture (private method)
-- `capture_canvas()`: Capture math visualization canvas as PNG image
-- `_wait_for_svg_elements()`: Wait for SVG elements to be present (private method)
-- `_verify_svg_content()`: Verify SVG content is not empty (private method)
-- `_get_container_dimensions()`: Get container dimensions for sizing (private method)
-- `_configure_svg_size(dimensions)`: Configure SVG size for capture (private method)
-- `cleanup()`: Clean up WebDriver resources
 
 ### AI Model Configuration (`static/ai_model.py`)
 
@@ -4260,7 +4226,7 @@ The server-side testing uses pytest and focuses on Flask application components 
 - Testing Flask routes and HTTP endpoints
 - Validating workspace management operations
 - Verifying AI API integration and tool calling
-- Testing WebDriver vision system functionality
+- Testing how vision snapshots and attached images reach each provider
 - Ensuring proper error handling and response formatting
 
 In addition to server-specific suites, the runner also executes CPython-based regression tests for client renderer classes located in `server_tests/client_renderer/`, using lightweight browser stubs to exercise `static/client` code directly from pytest.
