@@ -11,10 +11,11 @@ import base64
 import json
 import logging
 import os
+import re
 import time
 from collections.abc import Iterator, Sequence
 from types import SimpleNamespace
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import httpx2
 from openai import APITimeoutError, OpenAI
@@ -22,6 +23,7 @@ from openai import APITimeoutError, OpenAI
 from static.ai_model import AIModel
 from static.config import CANVAS_SNAPSHOT_PATH
 from static.env_config import get_api_key
+from static.canvas_state_formatter import CanvasFormat, parse_canvas_format, render_state
 from static.canvas_state_summarizer import compare_canvas_states
 from static.functions_definitions import FUNCTIONS, FunctionDefinition
 from static.token_estimation import estimate_tokens_from_bytes
@@ -69,6 +71,32 @@ def get_configured_tool_mode() -> ToolMode:
     return "search"
 
 
+# Environment variables selecting how canvas state reaches the model (see
+# static/canvas_state_formatter.py): "text" (one object per line with computed
+# facts), "min_json" (noise-stripped JSON) or "json" (the raw prompt JSON, the
+# original behaviour), plus an optional token budget for the canvas block.
+CANVAS_FORMAT_ENV = "MATHUD_CANVAS_FORMAT"
+CANVAS_BUDGET_ENV = "MATHUD_CANVAS_BUDGET_TOKENS"
+
+# Non-json formats put the canvas in front of the user's text inside these markers.
+CANVAS_BLOCK_START = "<canvas>"
+CANVAS_BLOCK_END = "</canvas>"
+_LEADING_CANVAS_BLOCK = re.compile(r"\A<canvas>\n.*?\n</canvas>(?:\n\n)?", re.DOTALL)
+
+_DEV_MSG_INTRO = "You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. Use the provided tools for calculations rather than computing results yourself, so every result shown comes from the math engine."
+_DEV_MSG_OUTRO = "Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."
+_CANVAS_PROMPT_SENTENCES: Dict[CanvasFormat, str] = {
+    "json": "Canvas state is included with user messages; base your actions on it. For large scenes it may be summarized to reduce noise; when you need complete details, call get_current_canvas_state. Canvas state may be stale after tool calls, so re-check live state between actions when needed.",
+    "min_json": "Each user message starts with the current canvas as compact JSON in a <canvas> block, and after tool calls the last tool result ends with the [canvas changes].",
+    "text": "Each user message starts with the current canvas in a <canvas> block (one object per line as name = definition, followed after tool calls by [canvas changes] at the end of the last tool result); the lengths, areas and angles it lists come from the math engine and can be quoted directly.",
+}
+
+
+def build_developer_message(canvas_format: CanvasFormat) -> str:
+    """Return the system prompt describing how canvas state is presented in ``canvas_format``."""
+    return f"{_DEV_MSG_INTRO} {_CANVAS_PROMPT_SENTENCES[canvas_format]} {_DEV_MSG_OUTRO}"
+
+
 # Essential tool names that should always be available after injection
 ESSENTIAL_TOOLS = frozenset(
     {
@@ -102,7 +130,16 @@ SEARCH_MODE_TOOLS: List[FunctionDefinition] = _build_search_mode_tools()
 class OpenAIAPIBase:
     """Base class for OpenAI API implementations."""
 
-    DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. Use the provided tools for calculations rather than computing results yourself, so every result shown comes from the math engine. Canvas state is included with user messages; base your actions on it. For large scenes it may be summarized to reduce noise; when you need complete details, call get_current_canvas_state. Canvas state may be stale after tool calls, so re-check live state between actions when needed. Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
+    # Canvas format and canvas-block token budget (None = unlimited) unless
+    # MATHUD_CANVAS_FORMAT / MATHUD_CANVAS_BUDGET_TOKENS override them.
+    DEFAULT_CANVAS_FORMAT: CanvasFormat = "text"
+    DEFAULT_CANVAS_BUDGET_TOKENS: Optional[int] = 4000
+
+    # System prompt for the default canvas format; build_developer_message covers the others.
+    DEV_MSG = build_developer_message(DEFAULT_CANVAS_FORMAT)
+
+    # Last canvas state shown to the model, so tool results can report what changed.
+    _last_canvas_state: Optional[Dict[str, Any]] = None
 
     SEARCH_MODE_MSG = """Tool loading: at the start only search_tools and a few essential tools (undo, redo, get_current_canvas_state) are available. Before using any other tool, call search_tools with a short description of what you want to do (e.g. "plot a function", "evaluate an expression at a point"); the matching tools are then loaded for your following calls until you give your final answer. Calls to tools that were not loaded fail."""
 
@@ -159,9 +196,10 @@ class OpenAIAPIBase:
 
     def _build_system_prompt(self) -> str:
         """Return the system prompt, explaining search-first tool loading when it is active."""
+        developer_message = build_developer_message(self._get_canvas_format())
         if self._tool_mode == "search" and self._custom_tools is None:
-            return f"{OpenAIAPIBase.DEV_MSG} {OpenAIAPIBase.SEARCH_MODE_MSG}"
-        return OpenAIAPIBase.DEV_MSG
+            return f"{developer_message} {OpenAIAPIBase.SEARCH_MODE_MSG}"
+        return developer_message
 
     def _refresh_system_prompt(self) -> None:
         """Rewrite the leading system/developer message after the tool mode changes."""
@@ -271,6 +309,7 @@ class OpenAIAPIBase:
     def reset_conversation(self) -> None:
         """Reset the conversation history to start a new session."""
         self.messages = [{"role": "developer", "content": self._build_system_prompt()}]
+        self._last_canvas_state = None
 
     def add_partial_assistant_message(self, content: str) -> None:
         """Add a partial assistant message that was interrupted by the user."""
@@ -286,7 +325,13 @@ class OpenAIAPIBase:
             _logger.info(msg)  # File logging
 
     def _remove_canvas_state_from_user_messages(self) -> None:
-        """Remove canvas state from all user messages in the conversation history."""
+        """Remove canvas state from user messages in the conversation history.
+
+        JSON prompts lose their state in every user message. A <canvas> block is
+        kept on the latest user message, where tool results report changes
+        against it, and is removed from older ones.
+        """
+        self._strip_canvas_blocks(keep_latest=True)
         for message in reversed(self.messages):
             if message.get("role") == "user" and "content" in message:
                 content = message["content"]
@@ -316,6 +361,20 @@ class OpenAIAPIBase:
                             message["content"] = json.dumps(message_content_json)
                     except json.JSONDecodeError:
                         pass
+
+    def _strip_canvas_blocks(self, keep_latest: bool) -> None:
+        """Remove the leading <canvas> block from user messages (optionally not the latest one)."""
+        user_messages = [m for m in self.messages if m.get("role") == "user"]
+        if keep_latest:
+            user_messages = user_messages[:-1]
+        for message in user_messages:
+            content = message.get("content")
+            if isinstance(content, str):
+                message["content"] = _LEADING_CANVAS_BLOCK.sub("", content, count=1)
+            elif isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "text" and isinstance(part.get("text"), str):
+                        part["text"] = _LEADING_CANVAS_BLOCK.sub("", part["text"], count=1)
 
     def _remove_images_from_user_messages(self) -> None:
         """Remove image content from all user messages in the conversation history.
@@ -385,9 +444,100 @@ class OpenAIAPIBase:
         Handles both vision toggle (canvas snapshot) and user-attached images.
         Images work independently: attached images are sent regardless of vision toggle.
         """
+        canvas_format = self._get_canvas_format()
+        if canvas_format == "json":
+            return self._prepare_json_message_content(full_prompt)
+        return self._prepare_canvas_block_message_content(full_prompt, canvas_format)
+
+    def _prepare_canvas_block_message_content(self, full_prompt: str, canvas_format: CanvasFormat) -> MessageContent:
+        """Build the <canvas> block plus the user's text, with images when requested."""
         telemetry_enabled = self._is_canvas_summary_telemetry_enabled()
         start_time = time.perf_counter() if telemetry_enabled else 0.0
-        normalized_prompt = self._normalize_prompt_canvas_state(full_prompt)
+        prompt_json = self._parse_prompt_json(full_prompt)
+        if prompt_json is None:
+            return full_prompt
+
+        text = self._build_user_text(prompt_json, canvas_format)
+        message_content: MessageContent = text
+        prompt_kind = "text"
+        attached_images = self._extract_attached_images(prompt_json)
+        use_vision = bool(prompt_json.get("use_vision", False))
+        if use_vision or attached_images:
+            prompt_kind = "multimodal"
+            enhanced_prompt = self._create_enhanced_prompt_with_image(
+                user_message=text,
+                attached_images=attached_images,
+                include_canvas_snapshot=use_vision,
+            )
+            if enhanced_prompt:
+                message_content = enhanced_prompt
+
+        if telemetry_enabled:
+            self._log_canvas_summary_telemetry(
+                full_prompt=full_prompt,
+                normalized_prompt=text,
+                normalized_prompt_json=None,
+                output_content=message_content,
+                prompt_kind=prompt_kind,
+                elapsed_ms=(time.perf_counter() - start_time) * 1000.0,
+            )
+        return message_content
+
+    def _build_user_text(self, prompt_json: Dict[str, Any], canvas_format: CanvasFormat) -> str:
+        """Return the user's text preceded by the rendered canvas block, if the prompt has a state.
+
+        Older canvas blocks are removed from the history first, so only the newest
+        state stays in the conversation.
+        """
+        user_message = prompt_json.get("user_message")
+        text = str(user_message) if user_message is not None else ""
+        canvas_state = prompt_json.get("canvas_state")
+        if not isinstance(canvas_state, dict):
+            return text
+        self._strip_canvas_blocks(keep_latest=False)
+        self._last_canvas_state = canvas_state
+        block = self._render_canvas_block(canvas_state, canvas_format)
+        return f"{block}\n\n{text}" if text else block
+
+    def _render_canvas_block(self, canvas_state: Dict[str, Any], canvas_format: CanvasFormat) -> str:
+        rendered = render_state(canvas_state, canvas_format, self._get_canvas_budget_tokens())
+        return f"{CANVAS_BLOCK_START}\n{rendered}\n{CANVAS_BLOCK_END}"
+
+    @staticmethod
+    def _extract_attached_images(prompt_json: Dict[str, Any]) -> Optional[List[str]]:
+        attached_images_raw = prompt_json.get("attached_images")
+        if not isinstance(attached_images_raw, list):
+            return None
+        return [img for img in attached_images_raw if isinstance(img, str)]
+
+    def _get_canvas_format(self) -> CanvasFormat:
+        """Return the canvas format from MATHUD_CANVAS_FORMAT, else this provider's default."""
+        raw = os.getenv(CANVAS_FORMAT_ENV, "").strip()
+        if not raw:
+            return self.DEFAULT_CANVAS_FORMAT
+        canvas_format = parse_canvas_format(raw)
+        if canvas_format is None:
+            _logger.warning("Unknown %s value %r; using %r", CANVAS_FORMAT_ENV, raw, self.DEFAULT_CANVAS_FORMAT)
+            return self.DEFAULT_CANVAS_FORMAT
+        return canvas_format
+
+    def _get_canvas_budget_tokens(self) -> Optional[int]:
+        """Return the canvas token budget from MATHUD_CANVAS_BUDGET_TOKENS (0 = unlimited), else the default."""
+        raw = os.getenv(CANVAS_BUDGET_ENV, "").strip()
+        if not raw:
+            return self.DEFAULT_CANVAS_BUDGET_TOKENS
+        try:
+            budget = int(raw)
+        except ValueError:
+            _logger.warning("Invalid %s value %r; using %r", CANVAS_BUDGET_ENV, raw, self.DEFAULT_CANVAS_BUDGET_TOKENS)
+            return self.DEFAULT_CANVAS_BUDGET_TOKENS
+        return budget if budget > 0 else None
+
+    def _prepare_json_message_content(self, full_prompt: str) -> MessageContent:
+        """Legacy path: send the prompt JSON (with canvas_state or its summary) as the user message."""
+        telemetry_enabled = self._is_canvas_summary_telemetry_enabled()
+        start_time = time.perf_counter() if telemetry_enabled else 0.0
+        normalized_prompt, summary_metrics = self._normalize_prompt_canvas_state_with_metrics(full_prompt)
         prompt_kind = "text"
         message_content: MessageContent = normalized_prompt
         prompt_json: Optional[Dict[str, Any]] = None
@@ -402,11 +552,7 @@ class OpenAIAPIBase:
             user_message = str(prompt_json.get("user_message", ""))
             use_vision = bool(prompt_json.get("use_vision", False))
 
-            # Extract attached images from the prompt JSON
-            attached_images_raw = prompt_json.get("attached_images")
-            attached_images: Optional[List[str]] = None
-            if isinstance(attached_images_raw, list):
-                attached_images = [img for img in attached_images_raw if isinstance(img, str)]
+            attached_images = self._extract_attached_images(prompt_json)
 
             # If vision/images are present, use multimodal payload.
             if use_vision or attached_images:
@@ -427,50 +573,47 @@ class OpenAIAPIBase:
                 output_content=message_content,
                 prompt_kind=prompt_kind,
                 elapsed_ms=(time.perf_counter() - start_time) * 1000.0,
+                summary_metrics=summary_metrics,
             )
         return message_content
 
     def _normalize_prompt_canvas_state(self, full_prompt: str) -> str:
         """Normalize prompt canvas payload according to summary mode."""
+        return self._normalize_prompt_canvas_state_with_metrics(full_prompt)[0]
+
+    def _normalize_prompt_canvas_state_with_metrics(self, full_prompt: str) -> Tuple[str, Optional[Dict[str, Any]]]:
+        """Normalize the prompt; also return the summary size metrics (telemetry only, never sent)."""
         mode = self._get_canvas_summary_mode()
         if mode == "off":
-            return full_prompt
+            return full_prompt, None
 
         prompt_json = self._parse_prompt_json(full_prompt)
         if not isinstance(prompt_json, dict):
-            return full_prompt
+            return full_prompt, None
 
         canvas_state = prompt_json.get("canvas_state")
         if not isinstance(canvas_state, dict):
-            return full_prompt
+            return full_prompt, None
 
         # Fast path for hybrid mode: keep small full states untouched and avoid
         # running summarization/comparison machinery.
         if mode == "hybrid":
             full_state_bytes = self._measure_canvas_state_bytes(canvas_state)
             if self._should_include_full_state_in_hybrid(full_state_bytes):
-                return full_prompt
+                return full_prompt, None
 
         comparison = compare_canvas_states(canvas_state)
         metrics = comparison.get("metrics", {})
-        summary_state = comparison.get("summary", {})
         # If we reach this point, hybrid-under-threshold has already returned
-        # via the fast path above, so this branch always excludes full state.
-        include_full_state = False
-
-        summary_payload: Dict[str, Any] = {
+        # via the fast path above, so the full state is always replaced.
+        prompt_json["canvas_state_summary"] = {
             "mode": mode,
-            "includes_full_state": include_full_state,
-            "metrics": metrics,
+            "includes_full_state": False,
+            "state": comparison.get("summary", {}),
         }
-        if not include_full_state:
-            summary_payload["state"] = summary_state
-        prompt_json["canvas_state_summary"] = summary_payload
+        del prompt_json["canvas_state"]
 
-        if not include_full_state:
-            del prompt_json["canvas_state"]
-
-        return json.dumps(prompt_json)
+        return json.dumps(prompt_json), metrics if isinstance(metrics, dict) else None
 
     def _get_canvas_summary_mode(self) -> str:
         raw_mode = os.getenv(self.CANVAS_SUMMARY_MODE_ENV, self.DEFAULT_CANVAS_SUMMARY_MODE).strip().lower()
@@ -512,6 +655,7 @@ class OpenAIAPIBase:
         output_content: MessageContent,
         prompt_kind: str,
         elapsed_ms: float,
+        summary_metrics: Optional[Dict[str, Any]] = None,
     ) -> None:
         full_prompt_bytes = len(full_prompt.encode("utf-8"))
         normalized_prompt_bytes = len(normalized_prompt.encode("utf-8"))
@@ -532,20 +676,17 @@ class OpenAIAPIBase:
 
         mode = self._get_canvas_summary_mode()
         includes_full_state: Optional[bool] = None
-        summary_metrics: Optional[Dict[str, Any]] = None
         if isinstance(normalized_prompt_json, dict):
             summary_payload = normalized_prompt_json.get("canvas_state_summary")
             if isinstance(summary_payload, dict):
                 includes_full_state_raw = summary_payload.get("includes_full_state")
                 if isinstance(includes_full_state_raw, bool):
                     includes_full_state = includes_full_state_raw
-                metrics_raw = summary_payload.get("metrics")
-                if isinstance(metrics_raw, dict):
-                    summary_metrics = metrics_raw
             elif mode == "hybrid" and isinstance(normalized_prompt_json.get("canvas_state"), dict):
                 includes_full_state = True
 
         telemetry_payload: Dict[str, Any] = {
+            "canvas_format": self._get_canvas_format(),
             "mode": mode,
             "prompt_kind": prompt_kind,
             "normalize_elapsed_ms": round(elapsed_ms, 2),

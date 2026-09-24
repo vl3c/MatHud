@@ -83,6 +83,7 @@ class AnthropicAPI(OpenAIAPIBase):
     def reset_conversation(self) -> None:
         """Reset the conversation history."""
         self.messages = []
+        self._last_canvas_state = None
 
     def _convert_tools_to_anthropic(self) -> List[Dict[str, Any]]:
         """Convert OpenAI-style tools to Anthropic format.
