@@ -16,7 +16,9 @@ A non-empty SVG layer has to be decoded as an image first, which is
 asynchronous, so ``capture`` reports its result through a callback. It is
 called exactly once, synchronously when there is no SVG content to draw.
 If the SVG layer cannot be drawn, the snapshot falls back to the Canvas2D
-layer alone; if nothing can be captured, the callback receives None.
+layer alone; if no layer could be drawn (for example the SVG renderer's scene
+failed to decode) or nothing can be captured, the callback receives None, so
+the request goes out text-only instead of with a blank image.
 
 Dependencies:
     - browser: DOM access (document, html, window) for canvases, SVG serialization and images
@@ -86,9 +88,9 @@ class CanvasSnapshotter:
             on_done(None)
             return
 
-        finish = self._once(lambda: on_done(self._finish(output, ctx, width, height)))
+        finish = self._once(lambda svg_drawn: on_done(self._finish(output, ctx, width, height, svg_drawn)))
         if svg_markup is None:
-            finish()
+            finish(False)
             return
         self._draw_svg_then(svg_markup, ctx, width, height, finish)
 
@@ -115,9 +117,12 @@ class CanvasSnapshotter:
         ctx.fillRect(0, 0, width, height)
         return output, ctx
 
-    def _finish(self, output: Any, ctx: Any, width: int, height: int) -> Optional[str]:
-        """Draw the Canvas2D layer on top and encode the result."""
-        self._draw_canvas_layer(ctx, width, height)
+    def _finish(self, output: Any, ctx: Any, width: int, height: int, svg_drawn: bool) -> Optional[str]:
+        """Draw the Canvas2D layer on top and encode the result (None when no layer was drawn)."""
+        canvas_drawn = self._draw_canvas_layer(ctx, width, height)
+        if not (svg_drawn or canvas_drawn):
+            print("Canvas snapshot has no layer to show; sending the request without it.")
+            return None
         return self._encode(output)
 
     def _encode(self, output: Any) -> Optional[str]:
@@ -136,15 +141,18 @@ class CanvasSnapshotter:
 
     # ----- layers -----
 
-    def _draw_canvas_layer(self, ctx: Any, width: int, height: int) -> None:
+    def _draw_canvas_layer(self, ctx: Any, width: int, height: int) -> bool:
+        """Draw the visible Canvas2D layer; return whether it was drawn."""
         canvas_el = document.getElementById(self._canvas_id)
         if canvas_el is None or not self._is_visible(canvas_el):
-            return
+            return False
         try:
             # Scales the (devicePixelRatio-sized) bitmap to the snapshot size.
             ctx.drawImage(canvas_el, 0, 0, width, height)
         except Exception as exc:
             print(f"Canvas snapshot could not draw the Canvas2D layer: {exc}")
+            return False
+        return True
 
     def _svg_markup(self, css_width: float, css_height: float) -> Optional[str]:
         """Serialize the SVG layer as a standalone document, or None when it has no content."""
@@ -163,8 +171,8 @@ class CanvasSnapshotter:
         markup = window.XMLSerializer.new().serializeToString(clone)
         return markup if isinstance(markup, str) and markup else None
 
-    def _draw_svg_then(self, svg_markup: str, ctx: Any, width: int, height: int, done: Callable[[], None]) -> None:
-        """Decode the SVG markup as an image, draw it, then call ``done`` (also on failure or timeout)."""
+    def _draw_svg_then(self, svg_markup: str, ctx: Any, width: int, height: int, done: Callable[[bool], None]) -> None:
+        """Decode the SVG markup as an image, draw it, then call ``done(drawn)`` (also on failure or timeout)."""
         image = self._new_image()
 
         def on_load(_event: Any = None) -> None:
@@ -172,15 +180,20 @@ class CanvasSnapshotter:
                 ctx.drawImage(image, 0, 0, width, height)
             except Exception as exc:
                 print(f"Canvas snapshot could not draw the SVG layer: {exc}")
-            done()
+                done(False)
+                return
+            done(True)
 
         def on_error(_event: Any = None) -> None:
             print("Canvas snapshot could not decode the SVG layer; using the Canvas2D layer only.")
-            done()
+            done(False)
+
+        def on_timeout() -> None:
+            done(False)
 
         image.onload = on_load
         image.onerror = on_error
-        self._schedule(done, SVG_DECODE_TIMEOUT_MS)
+        self._schedule(on_timeout, SVG_DECODE_TIMEOUT_MS)
         image.src = "data:image/svg+xml;charset=utf-8," + window.encodeURIComponent(svg_markup)
 
     # ----- browser seams (replaced in tests) -----
@@ -199,14 +212,14 @@ class CanvasSnapshotter:
         return getattr(style, "display", "") != "none" and getattr(style, "visibility", "") != "hidden"
 
     @staticmethod
-    def _once(action: Callable[[], None]) -> Callable[[], None]:
+    def _once(action: Callable[..., None]) -> Callable[..., None]:
         """Wrap ``action`` so only the first call runs it (load, error and timeout race)."""
         called: List[bool] = []
 
-        def run(*_args: Any) -> None:
+        def run(*args: Any) -> None:
             if called:
                 return
             called.append(True)
-            action()
+            action(*args)
 
         return run

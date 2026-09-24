@@ -148,15 +148,22 @@ class TestCanvasSnapshotter(unittest.TestCase):
         self.assertGreater(right[2], 200)
         self.assertLess(right[0], 50)
 
-    def test_background_is_filled_without_layers(self) -> None:
+    def test_background_is_filled_behind_a_transparent_layer(self) -> None:
+        canvas_el = html.CANVAS(id=CANVAS_ID)
+        canvas_el.setAttribute("width", str(CSS_WIDTH))
+        canvas_el.setAttribute("height", str(CSS_HEIGHT))
+        self.container <= canvas_el
         output = self._capture_output_canvas(self._snapshotter())
         self.assertEqual(_pixel(output, 5, 5), [255, 255, 255, 255])
+
+    def test_no_layer_to_draw_reports_none(self) -> None:
+        self._add_svg(with_content=False)
+        self.assertEqual(self._capture_sync(self._snapshotter()), [None])
 
     def test_hidden_canvas_layer_is_skipped(self) -> None:
         canvas_el = self._add_canvas(ratio=1)
         canvas_el.style.display = "none"
-        output = self._capture_output_canvas(self._snapshotter())
-        self.assertEqual(_pixel(output, CSS_WIDTH // 4, CSS_HEIGHT // 2), [255, 255, 255, 255])
+        self.assertEqual(self._capture_sync(self._snapshotter()), [None])
 
     def test_missing_container_reports_none(self) -> None:
         results: List[Optional[str]] = []
@@ -283,6 +290,17 @@ class TestCanvasSnapshotterSvgDecode(unittest.TestCase):
         self.assertEqual(len(self.results), 1)
         self.assertTrue(str(self.results[0]).startswith(PNG_PREFIX))
         self.assertEqual(_pixel(self.outputs[0], CSS_WIDTH // 2, CSS_HEIGHT // 2)[:3], [0, 0, 255])
+
+    def test_decode_error_without_canvas_layer_reports_none(self) -> None:
+        # SVG renderer mode: the SVG is the whole scene, so a blank image must not be sent.
+        self._snapshotter().capture(self.results.append)
+        _fire(self.image, "error")
+        self.assertEqual(self.results, [None])
+
+    def test_decode_timeout_without_canvas_layer_reports_none(self) -> None:
+        self._snapshotter().capture(self.results.append)
+        self.timers[0][0]()
+        self.assertEqual(self.results, [None])
 
     def test_late_load_after_timeout_does_not_call_back_again(self) -> None:
         self._add_canvas_layer(fill="#0000ff")
