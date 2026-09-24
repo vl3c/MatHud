@@ -617,6 +617,12 @@ class Canvas2DPrimitiveAdapter(RendererPrimitives):
             self._batch_fill_polygon_from_command(command)
             return
         self._flush_batches()
+        if op == "begin_shape":
+            self.begin_shape()
+            return
+        if op == "end_shape":
+            self.end_shape()
+            return
         handler = getattr(self, op, None)
         if callable(handler):
             handler(*getattr(command, "args", ()), **getattr(command, "kwargs", {}))
