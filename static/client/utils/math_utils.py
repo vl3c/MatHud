@@ -1613,6 +1613,16 @@ class MathUtils:
 
             print(f"Attempting to solve a system of linear and quadratic equations: {equations}")
 
+            # The coefficient fast path below only works when both equations are 'y = f(x)'
+            if any(MathUtils._explicit_y_expression(eq) is None for eq in equations):
+                solutions = MathUtils._solve_by_substitution(equations)
+                if not solutions:
+                    return MathUtils.solve_numeric(equations)
+                if len(solutions) == 1:
+                    return f"x = {solutions[0][0]}, y = {solutions[0][1]}"
+                indexed = [f"x{i} = {x}, y{i} = {y}" for i, (x, y) in enumerate(solutions, start=1)]
+                return ", ".join(indexed)
+
             from expression_validator import ExpressionValidator
 
             eq1 = MathUtils.expand(equations[0])

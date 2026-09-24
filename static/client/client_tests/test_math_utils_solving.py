@@ -64,6 +64,25 @@ class TestMathUtilsSolving(unittest.TestCase):
         self.assert_points_close(_parse_numeric_solutions(result), [(-1.0, -1.0), (1.0, 1.0)])
 
     # ------------------------------------------------------------------
+    # solve_linear_quadratic_system
+    # ------------------------------------------------------------------
+    def test_linear_quadratic_with_scaled_y(self) -> None:
+        result = MathUtils.solve_linear_quadratic_system(["2*y = x + 1", "y = x^2"])
+        self.assert_points_close(_parse_indexed_solutions(result), [(-0.5, 0.25), (1.0, 1.0)])
+
+    def test_linear_quadratic_with_vertical_line(self) -> None:
+        result = MathUtils.solve_linear_quadratic_system(["x = 3", "y = x^2"])
+        self.assert_points_close(_parse_indexed_solutions(result), [(3.0, 9.0)])
+
+    def test_solve_system_with_vertical_line_and_parabola(self) -> None:
+        result = MathUtils.solve_system_of_equations(["x = 3", "y = x^2"])
+        self.assert_points_close(_parse_indexed_solutions(result), [(3.0, 9.0)])
+
+    def test_linear_quadratic_fast_path_unchanged(self) -> None:
+        result = MathUtils.solve_linear_quadratic_system(["y = x + 2", "y = x^2"])
+        self.assertEqual(_parse_indexed_solutions(result), [(-1.0, 1.0), (2.0, 4.0)])
+
+    # ------------------------------------------------------------------
     # solve_quadratic_system
     # ------------------------------------------------------------------
     def test_quadratic_system_with_irrational_roots(self) -> None:
