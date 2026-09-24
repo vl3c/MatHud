@@ -25,6 +25,8 @@ VENDOR_DIR = Path(__file__).resolve().parent.parent / "static" / "vendor"
 ALLOWED_URL_PREFIXES = ("https://cdn.jsdelivr.net/", "https://cdnjs.cloudflare.com/")
 # Hand-maintained files that live in static/vendor/ but are not downloaded.
 LOCAL_FILES = (".gitattributes", "LICENSES.md", "inter/5.3.0/inter.css")
+# Files the OS or file manager drops into folders; never reported as unexpected.
+OS_JUNK_FILENAMES = frozenset({".DS_Store", "Thumbs.db", "desktop.ini"})
 DOWNLOAD_TIMEOUT_SECONDS = 60
 
 
@@ -248,7 +250,7 @@ def check(vendor_dir: Path = VENDOR_DIR) -> list[str]:
     if vendor_dir.is_dir():
         for path in sorted(vendor_dir.rglob("*")):
             rel = path.relative_to(vendor_dir).as_posix()
-            if path.is_file() and rel not in expected:
+            if path.is_file() and rel not in expected and path.name not in OS_JUNK_FILENAMES:
                 problems.append(f"unexpected file: {rel}")
     return problems
 

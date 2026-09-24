@@ -170,6 +170,16 @@ class TestVendorManifest(unittest.TestCase):
             ["hash mismatch: nerdamer/1.1.13/license.txt", "unexpected file: stray.js"],
         )
 
+    def test_check_ignores_os_junk_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vendor_copy = Path(tmp) / "vendor"
+            shutil.copytree(vendor_js_libs.VENDOR_DIR, vendor_copy)
+            (vendor_copy / ".DS_Store").write_bytes(b"\x00")
+            (vendor_copy / "mathjax" / "Thumbs.db").write_bytes(b"\x00")
+            (vendor_copy / "brython" / "3.12.5" / "desktop.ini").write_text("[.ShellClassInfo]", encoding="utf-8")
+            problems = vendor_js_libs.check(vendor_copy)
+        self.assertEqual(problems, [])
+
 
 class TestVendorCaching(unittest.TestCase):
     """Vendored files live under versioned paths, so browsers may cache them for long."""
