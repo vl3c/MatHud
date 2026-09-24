@@ -24,14 +24,14 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 9. Share the current canvas with the assistant using Vision mode to get feedback grounded in your drawing.
 10. Attach images directly to chat messages for the AI to analyze alongside your prompts.
 11. Use slash commands (`/help`, `/vision`, `/model`, `/image`, etc.) for quick local operations without waiting for an AI response.
-12. Choose from multiple AI providers — OpenAI, Anthropic (Claude), and OpenRouter — with the model dropdown automatically filtered by which API keys you have configured.
+12. Choose from multiple AI providers — a local `llama-server` (LocalAgent, the default), OpenAI, Anthropic (Claude), and OpenRouter — with the model dropdown automatically filtered by which API keys you have configured and which local server is reachable.
 13. Trigger client-side tests from the UI or chat to verify canvas behavior without leaving the app.
 
 ## 3. Architecture Overview
 
 1. **Frontend (Brython)** – `static/client/` hosts the Brython application (`main.py`) that wires a `Canvas`, `AIInterface`, `CanvasEventHandler`, and numerous managers. Canvas objects stay math-only; renderers translate them to screen primitives via shared plan builders.
 2. **Backend (Flask)** – `app.py` boots a Flask app assembled by `static/app_manager.py`, registers routes (`static/routes.py`), and injects OpenAI, workspace, webdriver, and logging services.
-3. **AI integration** – `static/providers/` implements a multi-provider architecture supporting OpenAI, Anthropic (Claude), and OpenRouter. `static/ai_model.py` stores model configs with per-model vision and reasoning flags. The model dropdown is populated dynamically from `GET /api/available_models`, which filters by which API keys are present in the environment.
+3. **AI integration** – `static/providers/` implements a multi-provider architecture supporting LocalAgent (`static/providers/local/`, a local `llama-server`), OpenAI, Anthropic (Claude), and OpenRouter. `static/ai_model.py` stores model configs with per-model vision and reasoning flags. The model dropdown is populated dynamically from `GET /api/available_models`, which filters by which API keys are present in the environment and whether the local server answers. Each user message carries the canvas as a compact text block rendered by `static/canvas_state_formatter.py` (see 5.1).
 4. **Rendering** – `static/client/rendering/factory.py` prefers Canvas2D and falls back to SVG if Canvas2D fails. Canvas and SVG renderers include opt-in offscreen staging toggled by `window.MatHudCanvas2DOffscreen` / `window.MatHudSvgOffscreen` or matching `localStorage` flags.
 5. **Vision pipeline** – When the chat payload signals vision, the server either stores a data URL snapshot or drives Selenium (`static/webdriver_manager.py`) to replay SVG state in headless Firefox and capture `canvas_snapshots/canvas.png` for the model.
 
@@ -59,7 +59,7 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
 4. Provide at least one AI provider API key by setting environment variables or creating `.env` in the project root:
    ```env
    OPENAI_API_KEY=sk-...          # OpenAI models (GPT-5.6, GPT-5.5, GPT-4.1, etc.)
-   ANTHROPIC_API_KEY=sk-ant-...   # Anthropic models (Claude Opus/Sonnet/Haiku 4.5)
+   ANTHROPIC_API_KEY=sk-ant-...   # Anthropic models (Claude Fable 5, Opus 4.8, Sonnet 5, Haiku 4.5)
    OPENROUTER_API_KEY=sk-or-...   # OpenRouter models (Gemini, DeepSeek, Llama, etc.)
    ```
    Only models for configured providers will appear in the model dropdown. A local
@@ -236,6 +236,8 @@ images are not forwarded.
 1. Workspaces are persisted as JSON under `workspaces/`.
 2. The chat tools `save_workspace`, `load_workspace`, `list_workspaces`, and `delete_workspace` are exposed to the assistant and UI.
 3. Client-side restores rebuild the Brython objects through `static/client/workspace_manager.py`.
+4. Saves are atomic (written to a temporary file, then swapped in); overwriting a workspace keeps its previous version as `<name>.json.bak`.
+5. Deleting a workspace moves it to `workspaces/.trash/` under a timestamped name instead of removing it. The `/delete_workspace` route only accepts a POST with a JSON body (`{"name": ...}`).
 
 ### 6.8 Testing
 
@@ -247,7 +249,7 @@ images are not forwarded.
 ## 7. Rendering Notes
 
 1. `static/client/rendering/factory.py` instantiates renderers in preference order `canvas2d → svg`, importing each renderer module only when it is attempted. If a constructor raises, the factory continues down the chain.
-2. Canvas2D rendering (`canvas2d_renderer.py`) supports optional offscreen compositing. Toggle it with `window.MatHudCanvas2DOffscreen = true` or `localStorage["mathud.canvas2d.offscreen"] = "1"`.
+2. Canvas2D rendering (`canvas2d_renderer.py`) draws every shape and label. Its bitmap is sized by `devicePixelRatio`, so output stays sharp on HiDPI screens, and long polylines are traced by the JavaScript helpers in `static/canvas2d_paths.js` (with a pure-Python fallback). It supports optional offscreen compositing: toggle it with `window.MatHudCanvas2DOffscreen = true` or `localStorage["mathud.canvas2d.offscreen"] = "1"`.
 3. SVG rendering (`svg_renderer.py`) is the frozen fallback (kept working, no new features). It mirrors the same offscreen staging controls through `window.MatHudSvgOffscreen` or `localStorage["mathud.svg.offscreen"]`.
 
 ## 8. Diagram Generation
@@ -265,15 +267,15 @@ images are not forwarded.
 
 1. `app.py` – entry point with graceful shutdown and threaded dev server.
 2. `static/`
-   a. `app_manager.py`, `routes.py`, `openai_api.py`, `ai_model.py`, `tool_call_processor.py`, `workspace_manager.py`, `log_manager.py`, `webdriver_manager.py`.
-   b. `providers/` – Multi-provider AI backend (OpenAI, Anthropic, OpenRouter) with `ProviderRegistry` for API key detection.
+   a. `app_manager.py`, `routes.py`, `openai_api_base.py` / `openai_completions_api.py` / `openai_responses_api.py`, `ai_model.py`, `tool_call_processor.py`, `tool_search_service.py`, `canvas_state_formatter.py`, `workspace_manager.py`, `log_manager.py`, `webdriver_manager.py`.
+   b. `providers/` – Multi-provider AI backend (LocalAgent, Anthropic, OpenRouter; OpenAI lives in the `openai_*_api.py` modules) with `ProviderRegistry` for provider detection.
    c. `client/` – Brython modules (canvas, managers, rendering, slash commands, tests, utilities, workspace manager).
 3. `templates/index.html` – main HTML shell that loads Brython, MathJax, styles, and UI controls.
 4. `workspaces/` – saved canvas states.
 5. `canvas_snapshots/` – latest Selenium captures used for vision.
 6. `server_tests/` – pytest suites, including renderer plan tests under `server_tests/client_renderer/`.
 7. `documentation/` – extended reference material.
-8. `logs/` – session-specific server logs.
+8. `logs/` – session-specific server logs (the newest 50 are kept).
 
 ## 10. Additional Documentation
 
