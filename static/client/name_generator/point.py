@@ -163,7 +163,8 @@ class PointNameGenerator(NameGenerator):
             point_names (list): List of existing point names
 
         Returns:
-            str: Available name based on preferred letter
+            str: Available name based on preferred letter, or "" when every
+                apostrophe variant is taken (the caller then moves on to the next letter)
         """
         base_letter: str = letter_with_apostrophes[0]  # Get just the letter without apostrophes
 
@@ -171,9 +172,9 @@ class PointNameGenerator(NameGenerator):
         if letter_with_apostrophes not in point_names:
             return letter_with_apostrophes
 
-        # Try adding apostrophes
+        # Try adding apostrophes; never fall back to a name that is already in use
         result: Optional[str] = self._try_add_apostrophes(base_letter, point_names)
-        return result if result is not None else base_letter
+        return result if result is not None else ""
 
     def _try_add_apostrophes(
         self, base_letter: str, point_names: List[str], initial_count: int = 1, max_attempts: int = 5
