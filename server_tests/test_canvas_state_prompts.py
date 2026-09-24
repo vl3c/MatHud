@@ -19,6 +19,7 @@ from unittest.mock import patch
 from server_tests.test_canvas_state_formatter import load_scene
 from static.ai_model import AIModel
 from static.canvas_state_formatter import render_text
+from static.token_estimation import estimate_tokens_from_text
 from static.openai_api_base import OpenAIAPIBase, build_developer_message
 from static.openai_completions_api import OpenAIChatCompletionsAPI
 from static.openai_responses_api import OpenAIResponsesAPI
@@ -47,7 +48,7 @@ CANVAS_BLOCK = "\n".join(
     ]
 )
 
-# The system prompt before canvas formats existed; json format must keep it byte for byte.
+# The system prompt before canvas formats existed; json format keeps it (full tool mode).
 LEGACY_DEV_MSG = """You are an educational graphing calculator AI interface that can draw shapes, perform calculations and help users explore mathematics. Use the provided tools for calculations rather than computing results yourself, so every result shown comes from the math engine. Canvas state is included with user messages; base your actions on it. For large scenes it may be summarized to reduce noise; when you need complete details, call get_current_canvas_state. Canvas state may be stale after tool calls, so re-check live state between actions when needed. Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."""
 
 
@@ -241,8 +242,13 @@ class TestSystemPrompt(CanvasFormatEnv):
             self.assertTrue(self.anthropic_api()._build_system_prompt().startswith(LEGACY_DEV_MSG))
 
 
-class TestJsonFormatIsUnchanged(CanvasFormatEnv):
-    """MATHUD_CANVAS_FORMAT=json reproduces the original behaviour byte for byte."""
+class TestJsonFormatKeepsTheCanvasPayload(CanvasFormatEnv):
+    """MATHUD_CANVAS_FORMAT=json sends the same canvas payload as before.
+
+    Not a byte-for-byte replay of old requests: the hybrid ``metrics`` block is no
+    longer in the prompt, search tool mode adds SEARCH_MODE_MSG to the system prompt,
+    and each tool call's result goes into its own tool message.
+    """
 
     canvas_format = "json"
 
@@ -436,16 +442,35 @@ class TestCanvasStateToolResult(CanvasFormatEnv):
         api._prepare_messages_for_request(get_state_results_prompt(result))
         self.assertEqual(tool_contents(api)["call_s"], render_text(scene))
 
-    def test_tool_result_is_never_truncated(self) -> None:
-        api = self._api_waiting_for_state()
-        state = json.loads(json.dumps(STATE))
-        state["Points"] += [{"name": f"P{i}", "args": {"position": {"x": i, "y": i}}} for i in range(300)]
-        result = {STATE_KEY: {"type": "canvas_state", "value": state}}
-        with patch.dict(os.environ, {"MATHUD_CANVAS_BUDGET_TOKENS": "200"}):
-            api._prepare_messages_for_request(get_state_results_prompt(result))
-        content = tool_contents(api)["call_s"]
-        self.assertIn("P299 = (299, 299)", content)
+    def _state_result_content(self, points: int, budget: str, fmt: str = "text") -> str:
+        with patch.dict(os.environ, {"MATHUD_CANVAS_FORMAT": fmt}):
+            api = self._api_waiting_for_state()
+            state = json.loads(json.dumps(STATE))
+            state["Points"] += [{"name": f"P{i}", "args": {"position": {"x": i, "y": i}}} for i in range(points)]
+            result = {STATE_KEY: {"type": "canvas_state", "value": state}}
+            with patch.dict(os.environ, {"MATHUD_CANVAS_BUDGET_TOKENS": budget}):
+                api._prepare_messages_for_request(get_state_results_prompt(result))
+        return tool_contents(api)["call_s"]
+
+    def test_tool_result_gets_twice_the_canvas_budget(self) -> None:
+        # Over the canvas budget but within twice it: nothing is dropped.
+        content = self._state_result_content(points=30, budget="200")
+        self.assertGreater(estimate_tokens_from_text(content), 200)
+        self.assertIn("P29 = (29, 29)", content)
         self.assertNotIn("omitted", content)
+
+    def test_huge_tool_result_is_truncated_with_a_note(self) -> None:
+        content = self._state_result_content(points=300, budget="200")
+        self.assertLessEqual(estimate_tokens_from_text(content), 400)
+        self.assertIn("more points omitted; call get_current_canvas_state with object_names", content)
+        self.assertIn("P299", self._state_result_content(points=300, budget="0"))
+
+    def test_huge_min_json_tool_result_is_truncated_with_a_note(self) -> None:
+        content = self._state_result_content(points=300, budget="200", fmt="min_json")
+        self.assertLessEqual(estimate_tokens_from_text(content), 400)
+        payload = json.loads(content)
+        self.assertGreater(payload["omitted"]["Points"], 0)
+        self.assertIn("object_names", payload["note"])
 
     def test_filtered_state_renders_only_the_requested_objects(self) -> None:
         api = self._api_waiting_for_state()

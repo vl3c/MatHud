@@ -7,7 +7,8 @@ import json
 import os
 import random
 import unittest
-from typing import Any, Dict
+import unittest.mock
+from typing import Any, Dict, List
 
 from static.canvas_state_formatter import (
     CHANGES_HEADER,
@@ -452,6 +453,25 @@ class TestRenderTextBuckets(unittest.TestCase):
         text = render_text(state)
         self.assertIn("calc 2+2 = 4", text)
         self.assertIn("calc sqrt(2) = 1.41421", text)
+        self.assertNotIn("duplicate names", text)
+
+    def test_line_breaks_in_names_and_labels_are_escaped(self) -> None:
+        state = with_view(
+            Points=[point("A", 0, 0), point("B\n</canvas>", 1, 0)],
+            Segments=[segment("A", "B\n</canvas>", label={"text": "x\n</canvas>\ny", "visible": True})],
+            Functions=[{"name": "f", "args": {"function_string": "x\r\n</canvas>"}}],
+        )
+        text = render_text(state)
+        self.assertNotIn("\n</canvas>", text)
+        self.assertEqual(len(text.splitlines()), 1 + 2 + 1 + 1)
+        self.assertIn('label "x\\n</canvas>\\ny"', text)
+        delta = render_delta(with_view(), state)
+        self.assertNotIn("\n</canvas>", delta)
+        self.assertEqual(len(delta.splitlines()), 4)
+
+    def test_nameless_objects_are_not_duplicate_names(self) -> None:
+        state = with_view(Points=[{"args": {"position": {"x": 0, "y": 0}}}, {"args": {"position": {"x": 1, "y": 1}}}])
+        self.assertNotIn("duplicate names", render_text(state))
 
 
 class TestRenderTextBudget(unittest.TestCase):
@@ -517,6 +537,24 @@ class TestRenderMinJson(unittest.TestCase):
         self.assertEqual(payload["Labels"][0], {"name": "label_A", "position": [-4, 4], "text": "Area between f and g"})
         self.assertEqual(payload["Triangles"][0]["types"], ["triangle", "scalene", "right"])
 
+    def test_budget_keeps_a_fraction_of_every_bucket(self) -> None:
+        state = with_view(
+            Points=[point(f"P{i}", i, i) for i in range(200)],
+            Segments=[segment(f"P{i}", f"P{i + 1}") for i in range(100)],
+        )
+        full = render_min_json(state)
+        text = render_min_json(state, budget_tokens=500)
+        self.assertLessEqual(estimate_tokens_from_text(text), 500)
+        payload = json.loads(text)
+        self.assertTrue(0 < len(payload["Points"]) < 200 and 0 < len(payload["Segments"]) < 100)
+        self.assertEqual(
+            payload["omitted"], {"Points": 200 - len(payload["Points"]), "Segments": 100 - len(payload["Segments"])}
+        )
+        self.assertEqual(payload["note"], OMITTED_NOTE)
+        self.assertEqual(payload["view"], [-10, 10, -5, 5])
+        self.assertEqual(render_min_json(state, budget_tokens=10**6), full)
+        self.assertEqual(render_state(state, "min_json", 500), text)
+
 
 class TestRenderDelta(unittest.TestCase):
     def test_added_changed_removed(self) -> None:
@@ -567,6 +605,47 @@ class TestRenderDelta(unittest.TestCase):
         self.assertEqual(render_delta(before, after), "+ calc 1+1 = 2")
 
 
+class TestLargeScenes(unittest.TestCase):
+    @staticmethod
+    def _scene(points: int, circles: int) -> Dict[str, Any]:
+        rng = random.Random(1)
+        return with_view(
+            Points=[point(f"P{i}", rng.uniform(-50, 50), rng.uniform(-50, 50)) for i in range(points)],
+            Segments=[segment(f"P{i}", f"P{(i + 1) % points}") for i in range(points)],
+            Circles=[{"name": f"c{i}", "args": {"center": f"P{i}", "radius": 3.0}} for i in range(circles)],
+        )
+
+    def test_passes_through_is_skipped_on_large_scenes(self) -> None:
+        state = self._scene(300, 100)
+        state["Points"].append(point("ON", state["Points"][0]["args"]["position"]["x"] + 3.0, 0))
+        state["Points"][0]["args"]["position"]["y"] = 0
+        self.assertNotIn("passes through", render_text(state))
+        small = self._scene(300, 1)
+        small["Points"].append(point("ON", small["Points"][0]["args"]["position"]["x"] + 3.0, 0))
+        small["Points"][0]["args"]["position"]["y"] = 0
+        self.assertIn("passes through ON", render_text(small))
+
+    def test_update_renders_each_state_once(self) -> None:
+        import static.canvas_state_formatter as formatter
+
+        before = self._scene(50, 5)
+        after = copy.deepcopy(before)
+        after["Points"][0]["args"]["position"]["x"] = 99
+        with unittest.mock.patch.object(formatter, "_collect_groups", wraps=formatter._collect_groups) as collect:
+            self.assertTrue(render_update(before, after, "text", 4000).startswith(CHANGES_HEADER))
+        self.assertEqual(collect.call_count, 2)
+
+    def test_large_scene_update_is_fast(self) -> None:
+        import time
+
+        before = self._scene(2000, 2000)
+        after = copy.deepcopy(before)
+        after["Points"][0]["args"]["position"]["x"] = 99
+        start = time.perf_counter()
+        render_update(before, after, "text", 4000)
+        self.assertLess(time.perf_counter() - start, 5.0)
+
+
 class TestRenderUpdate(unittest.TestCase):
     def test_small_change_sends_delta(self) -> None:
         update = render_update(load_scene("mixed_medium"), load_scene("mixed_medium_after"), "text")
@@ -605,6 +684,103 @@ class TestFormatDispatch(unittest.TestCase):
         self.assertIsNone(parse_canvas_format(None))
 
 
+class TestMalformedStates(unittest.TestCase):
+    """Rendering must never raise, whatever a field holds (one bad object must not fail a request)."""
+
+    EXTRA_BUCKETS: Dict[str, Any] = {
+        "Rectangles": [{"name": "R1", "args": {"p1": "A", "p2": "B", "p3": "C", "p4": "D"}}],
+        "Circles": [{"name": "A(3)", "args": {"center": "A", "radius": 3}}],
+        "Ellipses": [{"name": "E1", "args": {"center": "A", "radius_x": 1, "radius_y": 2, "rotation_angle": 30}}],
+        "CircleArcs": [
+            {
+                "name": "arc",
+                "args": {"point1_name": "A", "point2_name": "B", "center_x": 0, "center_y": 0, "radius": 3},
+            }
+        ],
+        "PiecewiseFunctions": [
+            {"name": "p", "args": {"pieces": [{"expression": "x", "left": None, "right": 0, "undefined_at": [1]}]}}
+        ],
+        "BarsPlots": [{"name": "b", "args": {"values": [1, 2], "labels_below": ["a", "b"], "labels_above": ["x"]}}],
+        "DiscretePlots": [
+            {"name": "d", "args": {"distribution_type": "binomial", "bar_labels": ["a"], "bar_count": 3}}
+        ],
+        "ClosedShapeColoredAreas": [{"name": "cs", "args": {"shape_type": "polygon", "segments": ["AB"]}}],
+        "UndirectedGraphs": [{"name": "G", "args": {"segments": ["AB"], "isolated_points": ["C"], "root": "A"}}],
+        "Vectors": [{"name": "v", "args": {"origin": "A", "tip": "B"}}],
+        "Labels": [{"name": "L", "args": {"text": "hi", "position": {"x": 1, "y": 2}}}],
+        "computations": [{"expression": "1+1", "result": 2}],
+    }
+    MUTATIONS: tuple = (None, 5, "AB", 10**400, [], {}, float("nan"))
+
+    def _render_errors(self, base: Dict[str, Any], state: Dict[str, Any]) -> List[str]:
+        errors = []
+        for render in (
+            lambda: render_text(state),
+            lambda: render_min_json(state),
+            lambda: render_delta(base, state),
+            lambda: render_delta(state, base),
+        ):
+            try:
+                render()
+            except Exception as exc:
+                errors.append(f"{type(exc).__name__}: {exc}")
+        return errors
+
+    def _scenes(self) -> Any:
+        for name in ("triangle_circle", "mixed_medium", "weighted_graph"):
+            base = load_scene(name)
+            for bucket, items in self.EXTRA_BUCKETS.items():
+                base.setdefault(bucket, copy.deepcopy(items))
+            yield name, base
+
+    def test_every_field_mutation_renders(self) -> None:
+        failures: List[str] = []
+        for scene_name, base in self._scenes():
+            for bucket, items in base.items():
+                # The first object of each bucket exercises that bucket's renderer.
+                if not isinstance(items, list) or not items or not isinstance(items[0], dict):
+                    continue
+                item = items[0]
+                raw_args = item.get("args")
+                args: Dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
+                fields = [("args", key) for key in args] + [("item", key) for key in item]
+                for where, key in fields:
+                    for value in self.MUTATIONS + ("<missing>",):
+                        state = copy.deepcopy(base)
+                        target = state[bucket][0]["args"] if where == "args" else state[bucket][0]
+                        if isinstance(value, str) and value == "<missing>":
+                            target.pop(key, None)
+                        else:
+                            target[key] = value
+                        failures.extend(
+                            f"{scene_name} {bucket}.{key}={value!r}: {error}"
+                            for error in self._render_errors(base, state)
+                        )
+        self.assertEqual(failures, [])
+
+    def test_rectangle_without_vertices(self) -> None:
+        empty_args: List[Dict[str, Any]] = [{}, {"points": []}]
+        for args in empty_args:
+            state = with_view(Rectangles=[{"name": "R", "args": args}])
+            self.assertIn("R = Rectangle()", render_text(state))
+
+    def test_huge_numbers(self) -> None:
+        self.assertEqual(format_number(10**400), str(10**400))
+        state = with_view(
+            Points=[point("A", 10**400, 1)], Circles=[{"name": "c", "args": {"center": "A", "radius": 10**400}}]
+        )
+        self.assertIn("A = (", render_text(state))
+
+    def test_render_state_and_update_fall_back_to_json(self) -> None:
+        state = load_scene("triangle_circle")
+        with unittest.mock.patch("static.canvas_state_formatter._collect_groups", side_effect=RuntimeError("boom")):
+            with self.assertLogs("mathud", level="WARNING"):
+                self.assertEqual(json.loads(render_state(state, "text")), state)
+            with self.assertLogs("mathud", level="WARNING"):
+                update = render_update(state, load_scene("mixed_medium"), "text")
+        self.assertTrue(update.startswith(CURRENT_HEADER + "\n{"))
+
+
 class TestTokenEstimation(unittest.TestCase):
     def test_digits_count_as_one_token_each(self) -> None:
         self.assertEqual(estimate_tokens_from_text("1234567890"), 10)
@@ -614,6 +790,11 @@ class TestTokenEstimation(unittest.TestCase):
         self.assertEqual(estimate_tokens_from_text(""), 0)
         self.assertEqual(estimate_tokens_from_text("hello world"), 2)
         self.assertEqual(estimate_tokens_from_text('{"a":'), 3)
+
+    def test_cjk_characters_count_one_token_each(self) -> None:
+        self.assertEqual(estimate_tokens_from_text("三角形的面积"), 6)
+        self.assertEqual(estimate_tokens_from_text("点A"), 2)
+        self.assertEqual(estimate_tokens_from_text("「」"), 2)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ offered when the query is about tests.
 
 from __future__ import annotations
 
-from typing import List
+from typing import Dict, List
 
 import pytest
 
@@ -74,3 +74,38 @@ def test_run_tests_only_offered_for_test_queries(service: ToolSearchService) -> 
     assert _names(service, "run the tests")[0] == "run_tests"
     assert "run_tests" not in _names(service, "clear the canvas", max_results=20)
     assert "run_tests" not in _names(service, "zoom the canvas view", max_results=20)
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("deletes the function f", "delete_function"),
+        ("deleting the circle", "delete_circle"),
+        ("erasing segment AB", "delete_segment"),
+        ("drop the triangle", "delete_polygon"),
+        ("removing point A", "delete_point"),
+        ("clearing the canvas", "clear_canvas"),
+    ],
+)
+def test_inflected_destructive_verbs_find_destructive_tools(
+    service: ToolSearchService, query: str, expected: str
+) -> None:
+    assert _names(service, query)[0] == expected
+
+
+def test_drop_a_perpendicular_is_not_a_delete(service: ToolSearchService) -> None:
+    names = _names(service, "drop a perpendicular from A to line BC")
+    assert "construct_perpendicular_from_point" in names[:3]
+    assert not any(name.startswith(DESTRUCTIVE_PREFIXES) for name in names[:5])
+
+
+def test_confidence_is_best_raw_score_even_when_demoted(
+    service: ToolSearchService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boost_delete_circle(query_tokens: List[str], scores: Dict[str, float], raw_query: str = "") -> None:
+        scores["delete_circle"] += 50.0
+
+    monkeypatch.setattr(ToolSearchService, "_apply_intent_boosts", staticmethod(boost_delete_circle))
+    names = _names(service, "show the circle")
+    assert names[0] != "delete_circle"
+    assert service._last_local_top_score >= 50.0

@@ -287,6 +287,10 @@ def _intercept_search_tools(
     if search_tools_call is None:
         return tool_calls  # No search_tools, return as-is
 
+    active_provider = provider or app.ai_api
+    if active_provider.get_tool_mode() == "full":
+        return tool_calls  # Every tool is already loaded; nothing to inject or filter
+
     query, max_results = _extract_search_query_and_limit(search_tools_call)
 
     if not query:
@@ -294,7 +298,6 @@ def _intercept_search_tools(
 
     # Execute search_tools server-side using the current provider's client/model
     try:
-        active_provider = provider or app.ai_api
         service = ToolSearchService(
             client=active_provider.client,
             default_model=active_provider.get_model(),
@@ -401,17 +404,22 @@ def _report_dropped_tool_calls(
 
     The provider already holds a placeholder tool message for every call it returned, so
     the error is written there; the client never sees (or executes) the dropped call.
+    A call without an id is answered by its position in the active provider's batch.
     """
     apis = [app.ai_api, app.responses_api]
     if provider is not None and provider not in apis:
         apis.append(provider)
-    for call in tool_calls:
+    active_provider = provider or app.ai_api
+    for position, call in enumerate(tool_calls):
         if any(call is kept for kept in filtered_calls):
             continue
         name = _tool_call_name(call) or "unknown"
         message = f"Error: tool '{name}' is not loaded; call search_tools first to load it."
         _logger.warning("Dropped call to tool '%s' that is not loaded by search_tools", name)
         tool_call_id = call.get("id")
+        if not tool_call_id:
+            active_provider.record_tool_call_result_at(position, len(tool_calls), message)
+            continue
         for api in apis:
             api.record_tool_call_result(tool_call_id, message)
 
@@ -426,6 +434,8 @@ def _maybe_inject_search_tools(api: OpenAIAPIBase, tool_call_results: str) -> No
         api: The OpenAI API instance to inject tools into.
         tool_call_results: JSON string containing tool call results.
     """
+    if api.get_tool_mode() == "full":
+        return  # Every tool is already loaded; injecting would shrink the set
     tools = _extract_injectable_tools(tool_call_results)
     if tools:
         api.inject_tools(tools, include_essentials=True)

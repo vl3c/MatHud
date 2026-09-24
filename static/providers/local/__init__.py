@@ -391,7 +391,11 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
             }
             return
 
-        # Convert tool call deltas to final format
+        # Convert tool call deltas to final format. Some local servers stream calls
+        # without ids; give those a per-response id so results can be matched to them.
+        for index, tool_call in tool_call_deltas.items():
+            if not tool_call["id"]:
+                tool_call["id"] = f"call_{index}"
         tool_calls = list(tool_call_deltas.values())
 
         # Update conversation history
@@ -489,11 +493,11 @@ class LocalLLMBase(OpenAIAPIBase, ABC):
         raw_tool_calls = message.tool_calls or []
 
         # Build tool calls list
-        tool_calls = []
-        for tc in raw_tool_calls:
+        tool_calls: List[Dict[str, Any]] = []
+        for index, tc in enumerate(raw_tool_calls):
             tool_calls.append(
                 {
-                    "id": tc.id,
+                    "id": tc.id or f"call_{index}",
                     "type": "function",
                     "function": {
                         "name": tc.function.name,

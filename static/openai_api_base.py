@@ -56,6 +56,7 @@ def stream_error_user_message(exc: BaseException, default: str) -> str:
         return PROVIDER_TIMEOUT_MESSAGE
     return default
 
+
 # Environment variable selecting how many tools the model sees up front:
 # "search" (default) exposes search_tools plus essentials, "full" exposes every tool.
 TOOL_EXPOSURE_ENV = "MATHUD_TOOL_EXPOSURE"
@@ -87,7 +88,7 @@ _DEV_MSG_INTRO = "You are an educational graphing calculator AI interface that c
 _DEV_MSG_OUTRO = "Never use emoticons or emoji in your responses. When performing multiple steps, include a succinct summary of all actions taken in your final response. INFO: Point labels and coordinates are hardcoded to be shown next to all points on the canvas."
 _CANVAS_PROMPT_SENTENCES: Dict[CanvasFormat, str] = {
     "json": "Canvas state is included with user messages; base your actions on it. For large scenes it may be summarized to reduce noise; when you need complete details, call get_current_canvas_state. Canvas state may be stale after tool calls, so re-check live state between actions when needed.",
-    "min_json": "Each user message starts with the current canvas as compact JSON in a <canvas> block, and after tool calls the last tool result ends with the [canvas changes].",
+    "min_json": "Each user message starts with the current canvas as compact JSON in a <canvas> block, and after tool calls the last tool result ends with the [canvas changes] (one changed object per line).",
     "text": "Each user message starts with the current canvas in a <canvas> block (one object per line as name = definition, followed after tool calls by [canvas changes] at the end of the last tool result); the lengths, areas and angles it lists come from the math engine and can be quoted directly.",
 }
 
@@ -142,6 +143,10 @@ class OpenAIAPIBase:
 
     # System prompt for the default canvas format; build_developer_message covers the others.
     DEV_MSG = build_developer_message(DEFAULT_CANVAS_FORMAT)
+
+    # get_current_canvas_state results get this multiple of the canvas budget: the model
+    # asked for the state, but a huge scene must still not flood the context.
+    TOOL_RESULT_BUDGET_MULTIPLIER = 2
 
     # Last canvas state shown to the model, so tool results can report what changed.
     _last_canvas_state: Optional[Dict[str, Any]] = None
@@ -778,6 +783,21 @@ class OpenAIAPIBase:
                 return True
         return False
 
+    def record_tool_call_result_at(self, position: int, call_count: int, content: str) -> bool:
+        """Fill the placeholder of the call at ``position`` of the latest batch of ``call_count`` calls.
+
+        For calls without an id: only applies when the pending tool messages line up
+        one-to-one with the batch. Returns True if a placeholder was updated.
+        """
+        pending = self._get_pending_tool_messages()
+        if len(pending) != call_count or not 0 <= position < call_count:
+            return False
+        message = pending[position]
+        if message.get("content") != TOOL_RESULT_PLACEHOLDER:
+            return False
+        message["content"] = content
+        return True
+
     def _get_pending_tool_messages(self) -> List[MessageDict]:
         """Return the trailing run of tool messages answering the latest tool calls."""
         pending: List[MessageDict] = []
@@ -789,7 +809,11 @@ class OpenAIAPIBase:
         return pending
 
     def _apply_per_call_results(self, pending: List[MessageDict], entries: List[Any]) -> None:
-        """Write each per-call result into its own tool message, matched by id then by order."""
+        """Write each per-call result into its own tool message, matched by id then by order.
+
+        Only entries without an id fall back to call order; an entry whose id matches
+        no awaiting call (e.g. one already answered) is ignored rather than guessed.
+        """
         awaiting = [m for m in pending if m.get("content") == TOOL_RESULT_PLACEHOLDER]
         unmatched: List[str] = []
         for entry in entries:
@@ -797,9 +821,12 @@ class OpenAIAPIBase:
                 continue
             content = self._format_tool_result(entry.get("result"))
             tool_call_id = entry.get("tool_call_id")
-            target = next((m for m in awaiting if tool_call_id and m.get("tool_call_id") == tool_call_id), None)
-            if target is None:
+            if not tool_call_id:
                 unmatched.append(content)
+                continue
+            target = next((m for m in awaiting if m.get("tool_call_id") == tool_call_id), None)
+            if target is None:
+                _logger.warning("Ignoring a result for unknown tool call id %r", tool_call_id)
                 continue
             target["content"] = content
             awaiting.remove(target)
@@ -813,27 +840,35 @@ class OpenAIAPIBase:
             message["content"] = "Error: no result was returned for this tool call."
 
     def _apply_legacy_results(self, pending: List[MessageDict], results: Dict[str, Any]) -> None:
-        """Write a legacy combined results dict into the last pending tool message."""
-        if not pending:
+        """Write a legacy combined results dict into the last tool message still awaiting a result.
+
+        Messages already answered (e.g. with a dropped-call error) keep their content.
+        """
+        awaiting = [m for m in pending if m.get("content") == TOOL_RESULT_PLACEHOLDER]
+        if not awaiting:
             return
-        pending[-1]["content"] = self._format_tool_result(results)
-        for message in pending[:-1]:
-            if message.get("content") == TOOL_RESULT_PLACEHOLDER:
-                message["content"] = "See the combined results in the last tool message of this turn."
+        awaiting[-1]["content"] = self._format_tool_result(results)
+        for message in awaiting[:-1]:
+            message["content"] = "See the combined results in the last tool message of this turn."
 
     def _format_tool_result(self, result: Any) -> str:
         """Return the tool message content for one result (a ``{result_key: value}`` dict).
 
         get_current_canvas_state values (``{"type": "canvas_state", "value": state}``)
         are rendered in the configured canvas format; a result holding only such a
-        state becomes that text. The client has already applied the call's filters,
-        and no budget is applied because the model asked for the state explicitly.
+        state becomes that text. The client has already applied the call's filters.
+        The budget is TOOL_RESULT_BUDGET_MULTIPLIER times the canvas budget, since the
+        model asked for the state; objects beyond it are listed as omitted with a note
+        to request them by name.
         """
         canvas_format = self._get_canvas_format()
         if canvas_format == "json" or not isinstance(result, dict):
             return json.dumps(result)
+        budget = self._get_canvas_budget_tokens()
+        if budget is not None:
+            budget *= self.TOOL_RESULT_BUDGET_MULTIPLIER
         rendered = {
-            key: render_state(value["value"], canvas_format) if _is_canvas_state_result(value) else value
+            key: render_state(value["value"], canvas_format, budget) if _is_canvas_state_result(value) else value
             for key, value in result.items()
         }
         if len(result) == 1 and _is_canvas_state_result(next(iter(result.values()))):

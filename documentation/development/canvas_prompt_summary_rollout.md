@@ -51,7 +51,7 @@ The client sends the prompt JSON (`canvas_state`, `user_message`, `tool_call_res
 | `min_json` | `<canvas>` block with compact JSON, then the user's text | same `[canvas changes]` lines | compact JSON |
 | `json` | the whole prompt JSON (summarized per `AI_CANVAS_SUMMARY_MODE`); LocalAgent sends only the user text plus a `[Canvas: 3 Points, ...]` count line | nothing | raw state JSON |
 
-Defaults: `text` for every provider. LocalAgent previously never saw coordinates, names or formulas unless it called `get_current_canvas_state`; cloud providers received the prompt JSON with float noise, render-only fields and envelope keys. The `json` format reproduces that behaviour byte for byte (including the old system prompt), except that the summarizer's size metrics are no longer placed in the prompt (they are still logged by telemetry).
+Defaults: `text` for every provider. LocalAgent previously never saw coordinates, names or formulas unless it called `get_current_canvas_state`; cloud providers received the prompt JSON with float noise, render-only fields and envelope keys. The `json` format sends the same canvas payload as before (the prompt JSON, summarized per `AI_CANVAS_SUMMARY_MODE`, and the old system-prompt sentence about canvas state). It is not a byte-for-byte replay of the old requests: the summarizer's size metrics (the hybrid `metrics` block) are no longer placed in the prompt (telemetry still logs them); in search tool mode (the default, `MATHUD_TOOL_EXPOSURE=search`) the system prompt also carries the search-first tool-loading paragraph; and each tool call's result goes into its own tool message instead of all results landing in the batch's last one.
 
 ### 3.1 Text format
 
@@ -77,7 +77,7 @@ sales = BarChart(Mon 12, Tue 19, Wed 7, Thu 15, Fri 22)  x_start -12
 
 ### 3.2 Budget
 
-`MATHUD_CANVAS_BUDGET_TOKENS` caps the user-message canvas block (default 4000 estimated tokens for cloud providers, 1500 for local ones, `0` = unlimited). When a scene is larger: points are packed several per line, then groups are shrunk tier by tier (labels/computations first; then points/segments/vectors/angles together; then areas/plots/circles; functions, graphs and polygons last), each with a line such as `... 112 more points omitted; call get_current_canvas_state with object_names to see them`. Tool results are never trimmed. Token counts use `estimate_tokens_from_text`, which counts one token per digit (the default local model's tokenizer does) and is within -5%..+11% of the real Qwen tokenizer on the captured scenes.
+`MATHUD_CANVAS_BUDGET_TOKENS` caps the user-message canvas block (default 4000 estimated tokens for cloud providers, 1500 for local ones, `0` = unlimited). When a scene is larger: points are packed several per line, then groups are shrunk tier by tier (labels/computations first; then points/segments/vectors/angles together; then areas/plots/circles; functions, graphs and polygons last), each with a line such as `... 112 more points omitted; call get_current_canvas_state with object_names to see them`. `min_json` keeps the same fraction of every object list and adds `"omitted"` counts plus a `"note"`. `get_current_canvas_state` results get twice the canvas budget and are trimmed the same way beyond it. Tool-batch deltas (`[canvas changes]`) are text lines in both formats. Token counts use `estimate_tokens_from_text`, which counts one token per digit (the default local model's tokenizer does) and is within -5%..+11% of the real Qwen tokenizer on the captured scenes; CJK characters count one token each.
 
 ### 3.3 Changes after tool calls
 
@@ -189,7 +189,7 @@ Interpretation:
 
 ## 9. Follow-up Guidance
 
-1. Keep `text` as the default; use `MATHUD_CANVAS_FORMAT=json` to compare against the original behaviour.
+1. Keep `text` as the default; use `MATHUD_CANVAS_FORMAT=json` to compare against the original canvas payload (see section 3 for how it differs from the old requests).
 2. Run a comprehension benchmark (questions about lengths, names, graph edges and changes after tool calls) per format and provider once models are reachable, and tune `MATHUD_CANVAS_BUDGET_TOKENS` for the local model's context size.
 3. Client-side state gaps limit the text format: `Function.get_state` omits the curve color, `Point`/`Segment` states omit colors, and graph states omit isolated points.
 4. Keep `get_current_canvas_state` filter semantics backward-compatible (empty filters == full state behavior).
