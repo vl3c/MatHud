@@ -25,12 +25,15 @@ telling the model to call ``get_current_canvas_state`` for the rest.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Sequence, Set, Tuple
 
 from static.token_estimation import estimate_tokens_from_text
+
+_logger = logging.getLogger("mathud")
 
 CanvasFormat = Literal["json", "min_json", "text"]
 CANVAS_FORMATS: Tuple[CanvasFormat, ...] = ("json", "min_json", "text")
@@ -104,7 +107,10 @@ def format_number(value: Any, significant_digits: int = SIGNIFICANT_DIGITS) -> s
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return str(value)
-    number = float(value)
+    try:
+        number = float(value)
+    except OverflowError:  # an int too large for a float
+        return str(value)
     if not math.isfinite(number):
         return str(value)
     if abs(number) < _ZERO_EPSILON:
@@ -159,9 +165,13 @@ def _compact_json(value: Any) -> str:
 
 def _as_float(value: Any) -> Optional[float]:
     """Return ``value`` as a finite float, or None for anything that is not a real number."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value)
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
 
 
 def _is_number(value: Any) -> bool:
@@ -181,6 +191,17 @@ def _position(args: Mapping[str, Any]) -> JsonDict:
 
 def _is_empty(value: Any) -> bool:
     return value is None or (isinstance(value, (str, list, dict)) and len(value) == 0)
+
+
+def _as_list(value: Any) -> List[Any]:
+    """Return a list-typed field as a list: None/empty gives [], a lone scalar gives [value]."""
+    if isinstance(value, list):
+        return value
+    if isinstance(value, tuple):
+        return list(value)
+    if _is_empty(value) or value is False:
+        return []
+    return [value]
 
 
 def _inline_list(values: Sequence[Any]) -> str:
@@ -221,8 +242,8 @@ class _Scene:
         for bucket in _GRAPH_BUCKETS:
             for graph in _items(state, bucket):
                 args = _args(graph)
-                self.graph_members.update(str(name) for name in args.get("segments") or [])
-                self.graph_members.update(str(name) for name in args.get("vectors") or [])
+                self.graph_members.update(str(name) for name in _as_list(args.get("segments")))
+                self.graph_members.update(str(name) for name in _as_list(args.get("vectors")))
 
     def xy(self, name: Any) -> Optional[Point2D]:
         return self.points.get(str(name)) if name else None
@@ -267,7 +288,7 @@ def _duplicate_names(state: Mapping[str, Any]) -> Dict[str, Set[str]]:
 
 def _color_suffix(args: Mapping[str, Any]) -> str:
     color = args.get("color")
-    if color is None or color in _DEFAULT_COLORS:
+    if _is_empty(color) or (isinstance(color, str) and color in _DEFAULT_COLORS):
         return ""
     return f" color {color}"
 
@@ -366,7 +387,7 @@ def _polygon_vertices(args: Mapping[str, Any]) -> List[str]:
 def _cyclic_order(vertices: List[str], scene: _Scene) -> List[str]:
     """Order vertices around their centroid (Rectangle state lists them alphabetically)."""
     coords = [scene.xy(v) for v in vertices]
-    if any(c is None for c in coords):
+    if not coords or any(c is None for c in coords):
         return vertices
     points = [c for c in coords if c is not None]
     cx = sum(p[0] for p in points) / len(points)
@@ -384,7 +405,7 @@ def _polygon_renderer(kind: str, reorder: bool = False) -> Renderer:
         if reorder:
             vertices = _cyclic_order(vertices, scene)
         line = f"{item.get('name', '?')} = {kind}({', '.join(vertices)})"
-        types = [str(t) for t in item.get("types") or [] if str(t).lower() != kind.lower()]
+        types = [str(t) for t in _as_list(item.get("types")) if str(t).lower() != kind.lower()]
         if types:
             line += "  " + " ".join(types)
         coords = [scene.xy(v) for v in vertices]
@@ -522,7 +543,7 @@ def _render_function(scene: _Scene, item: JsonDict) -> str:
 def _render_piecewise(scene: _Scene, item: JsonDict) -> str:
     args = _args(item)
     pieces = []
-    for piece in args.get("pieces") or []:
+    for piece in _as_list(args.get("pieces")):
         if not isinstance(piece, dict):
             continue
         open_bracket = "[" if piece.get("left_inclusive", True) and piece.get("left") is not None else "("
@@ -530,8 +551,9 @@ def _render_piecewise(scene: _Scene, item: JsonDict) -> str:
         low = format_number(piece["left"]) if piece.get("left") is not None else "-inf"
         high = format_number(piece["right"]) if piece.get("right") is not None else "inf"
         text = f"{format_expression(piece.get('expression'))} on {open_bracket}{low}, {high}{close_bracket}"
-        if piece.get("undefined_at"):
-            text += f" (undefined at {_inline_list(piece['undefined_at'])})"
+        undefined_at = _as_list(piece.get("undefined_at"))
+        if undefined_at:
+            text += f" (undefined at {_inline_list(undefined_at)})"
         pieces.append(text)
     line = f"{item.get('name', '?')}(x) = piecewise {{ {'; '.join(pieces)} }}" + _function_features(args)
     return line + _color_suffix(args) + _extras_suffix(args, {"pieces", "color"} | _FUNCTION_FEATURE_KEYS)
@@ -589,7 +611,7 @@ def _render_closed_shape_area(scene: _Scene, item: JsonDict) -> str:
     args = _args(item)
     parts = [str(args.get("shape_type") or "region")]
     if args.get("segments"):
-        parts.append("segments " + " ".join(str(s) for s in args["segments"]))
+        parts.append("segments " + " ".join(str(s) for s in _as_list(args["segments"])))
     for key in ("circle", "ellipse", "chord_segment"):
         if args.get(key):
             parts.append(f"{key.replace('_', ' ')} {args[key]}")
@@ -635,19 +657,19 @@ def _graph_renderer(bucket: str) -> Renderer:
                 if vertex and str(vertex) not in vertices:
                     vertices.append(str(vertex))
 
-        for name in args.get("segments") or []:
+        for name in _as_list(args.get("segments")):
             segment = scene.segment_items.get(str(name))
             seg_args = _args(segment or {})
             weight = _edge_weight(segment)
             weighted = weighted or bool(weight)
             add_edge(seg_args.get("p1", "?"), seg_args.get("p2", "?"), "-", weight)
-        for name in args.get("vectors") or []:
+        for name in _as_list(args.get("vectors")):
             vector = scene.vector_items.get(str(name))
             vec_args = _args(vector or {})
             weight = _edge_weight(vector)
             weighted = weighted or bool(weight)
             add_edge(vec_args.get("origin", "?"), vec_args.get("tip", "?"), "->", weight)
-        for isolated in args.get("isolated_points") or []:
+        for isolated in _as_list(args.get("isolated_points")):
             if str(isolated) not in vertices:
                 vertices.append(str(isolated))
 
@@ -666,8 +688,8 @@ _DEFAULT_BAR_OPTIONS: Dict[str, float] = {"bar_spacing": 0.2, "bar_width": 1, "x
 
 def _render_bars_plot(scene: _Scene, item: JsonDict) -> str:
     args = _args(item)
-    values = args.get("values") or []
-    labels = args.get("labels_below") or [str(index) for index in range(len(values))]
+    values = _as_list(args.get("values"))
+    labels = _as_list(args.get("labels_below")) or [str(index) for index in range(len(values))]
     pairs = ", ".join(f"{label} {format_number(value)}" for label, value in zip(labels, values))
     options = [
         f"{key} {format_number(args[key])}"
@@ -675,7 +697,7 @@ def _render_bars_plot(scene: _Scene, item: JsonDict) -> str:
         if _differs(args.get(key), default)
     ]
     if args.get("labels_above"):
-        options.append("labels above " + "/".join(str(label) for label in args["labels_above"]))
+        options.append("labels above " + "/".join(str(label) for label in _as_list(args["labels_above"])))
     if args.get("fill_color") not in (None, _DEFAULT_AREA_COLOR):
         options.append(f"fill {args['fill_color']}")
     if args.get("stroke_color"):
@@ -716,7 +738,7 @@ def _render_discrete_plot(scene: _Scene, item: JsonDict) -> str:
     if _is_number(args.get("bar_count")):
         line += f"  {format_number(args['bar_count'])} bars"
     if args.get("bar_labels"):
-        line += " labelled " + "/".join(str(label) for label in args["bar_labels"])
+        line += " labelled " + "/".join(str(label) for label in _as_list(args["bar_labels"]))
     handled = {
         "plot_type",
         "distribution_type",
@@ -1083,7 +1105,7 @@ def render_min_json(state: Mapping[str, Any]) -> str:
 
 def _min_json_item(item: Mapping[str, Any]) -> JsonDict:
     args = {k: v for k, v in _args(item).items() if k not in _RENDER_ONLY_FIELDS and not _is_empty(v)}
-    if args.get("color") in _DEFAULT_COLORS:
+    if isinstance(args.get("color"), str) and args["color"] in _DEFAULT_COLORS:
         args.pop("color", None)
     label = args.get("label")
     if isinstance(label, dict):
@@ -1153,12 +1175,27 @@ def render_delta(previous: Mapping[str, Any], current: Mapping[str, Any]) -> str
 
 
 def render_state(state: Mapping[str, Any], fmt: CanvasFormat, budget_tokens: Optional[int] = None) -> str:
-    """Render a state in the requested format (``json`` is the raw state, unchanged)."""
-    if fmt == "text":
-        return render_text(state, budget_tokens=budget_tokens)
-    if fmt == "min_json":
-        return render_min_json(state)
-    return json.dumps(state)
+    """Render a state in the requested format (``json`` is the raw state, unchanged).
+
+    Never raises: a state the renderers cannot handle is sent as compact JSON instead,
+    so one malformed object cannot fail the whole request.
+    """
+    try:
+        if fmt == "text":
+            return render_text(state, budget_tokens=budget_tokens)
+        if fmt == "min_json":
+            return render_min_json(state)
+        return json.dumps(state)
+    except Exception:
+        _logger.warning("Could not render the canvas state as %s; sending compact JSON", fmt, exc_info=True)
+        return _fallback_json(state)
+
+
+def _fallback_json(state: Any) -> str:
+    try:
+        return json.dumps(state, separators=(",", ":"), ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        return str(state)
 
 
 CHANGES_HEADER = "[canvas changes]"
@@ -1174,8 +1211,22 @@ def render_update(
     """Describe the canvas after a tool batch; empty string when nothing changed.
 
     Sends the delta when it is smaller than the full rendering, else the full
-    state (e.g. after clear_canvas or when no previous state was shown).
+    state (e.g. after clear_canvas or when no previous state was shown). Never
+    raises: if the states cannot be compared, the current state is sent as JSON.
     """
+    try:
+        return _render_update(previous, current, fmt, budget_tokens)
+    except Exception:
+        _logger.warning("Could not describe the canvas changes; sending the state as JSON", exc_info=True)
+        return f"{CURRENT_HEADER}\n{_fallback_json(current)}"
+
+
+def _render_update(
+    previous: Optional[Mapping[str, Any]],
+    current: Mapping[str, Any],
+    fmt: CanvasFormat,
+    budget_tokens: Optional[int],
+) -> str:
     full = render_state(current, fmt, budget_tokens)
     if previous is None:
         return f"{CURRENT_HEADER}\n{full}"

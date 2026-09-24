@@ -7,7 +7,8 @@ import json
 import os
 import random
 import unittest
-from typing import Any, Dict
+import unittest.mock
+from typing import Any, Dict, List
 
 from static.canvas_state_formatter import (
     CHANGES_HEADER,
@@ -603,6 +604,103 @@ class TestFormatDispatch(unittest.TestCase):
         self.assertEqual(parse_canvas_format("json"), "json")
         self.assertIsNone(parse_canvas_format("yaml"))
         self.assertIsNone(parse_canvas_format(None))
+
+
+class TestMalformedStates(unittest.TestCase):
+    """Rendering must never raise, whatever a field holds (one bad object must not fail a request)."""
+
+    EXTRA_BUCKETS: Dict[str, Any] = {
+        "Rectangles": [{"name": "R1", "args": {"p1": "A", "p2": "B", "p3": "C", "p4": "D"}}],
+        "Circles": [{"name": "A(3)", "args": {"center": "A", "radius": 3}}],
+        "Ellipses": [{"name": "E1", "args": {"center": "A", "radius_x": 1, "radius_y": 2, "rotation_angle": 30}}],
+        "CircleArcs": [
+            {
+                "name": "arc",
+                "args": {"point1_name": "A", "point2_name": "B", "center_x": 0, "center_y": 0, "radius": 3},
+            }
+        ],
+        "PiecewiseFunctions": [
+            {"name": "p", "args": {"pieces": [{"expression": "x", "left": None, "right": 0, "undefined_at": [1]}]}}
+        ],
+        "BarsPlots": [{"name": "b", "args": {"values": [1, 2], "labels_below": ["a", "b"], "labels_above": ["x"]}}],
+        "DiscretePlots": [
+            {"name": "d", "args": {"distribution_type": "binomial", "bar_labels": ["a"], "bar_count": 3}}
+        ],
+        "ClosedShapeColoredAreas": [{"name": "cs", "args": {"shape_type": "polygon", "segments": ["AB"]}}],
+        "UndirectedGraphs": [{"name": "G", "args": {"segments": ["AB"], "isolated_points": ["C"], "root": "A"}}],
+        "Vectors": [{"name": "v", "args": {"origin": "A", "tip": "B"}}],
+        "Labels": [{"name": "L", "args": {"text": "hi", "position": {"x": 1, "y": 2}}}],
+        "computations": [{"expression": "1+1", "result": 2}],
+    }
+    MUTATIONS: tuple = (None, 5, "AB", 10**400, [], {}, float("nan"))
+
+    def _render_errors(self, base: Dict[str, Any], state: Dict[str, Any]) -> List[str]:
+        errors = []
+        for render in (
+            lambda: render_text(state),
+            lambda: render_min_json(state),
+            lambda: render_delta(base, state),
+            lambda: render_delta(state, base),
+        ):
+            try:
+                render()
+            except Exception as exc:
+                errors.append(f"{type(exc).__name__}: {exc}")
+        return errors
+
+    def _scenes(self) -> Any:
+        for name in ("triangle_circle", "mixed_medium", "weighted_graph"):
+            base = load_scene(name)
+            for bucket, items in self.EXTRA_BUCKETS.items():
+                base.setdefault(bucket, copy.deepcopy(items))
+            yield name, base
+
+    def test_every_field_mutation_renders(self) -> None:
+        failures: List[str] = []
+        for scene_name, base in self._scenes():
+            for bucket, items in base.items():
+                # The first object of each bucket exercises that bucket's renderer.
+                if not isinstance(items, list) or not items or not isinstance(items[0], dict):
+                    continue
+                item = items[0]
+                raw_args = item.get("args")
+                args: Dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
+                fields = [("args", key) for key in args] + [("item", key) for key in item]
+                for where, key in fields:
+                    for value in self.MUTATIONS + ("<missing>",):
+                        state = copy.deepcopy(base)
+                        target = state[bucket][0]["args"] if where == "args" else state[bucket][0]
+                        if isinstance(value, str) and value == "<missing>":
+                            target.pop(key, None)
+                        else:
+                            target[key] = value
+                        failures.extend(
+                            f"{scene_name} {bucket}.{key}={value!r}: {error}"
+                            for error in self._render_errors(base, state)
+                        )
+        self.assertEqual(failures, [])
+
+    def test_rectangle_without_vertices(self) -> None:
+        empty_args: List[Dict[str, Any]] = [{}, {"points": []}]
+        for args in empty_args:
+            state = with_view(Rectangles=[{"name": "R", "args": args}])
+            self.assertIn("R = Rectangle()", render_text(state))
+
+    def test_huge_numbers(self) -> None:
+        self.assertEqual(format_number(10**400), str(10**400))
+        state = with_view(
+            Points=[point("A", 10**400, 1)], Circles=[{"name": "c", "args": {"center": "A", "radius": 10**400}}]
+        )
+        self.assertIn("A = (", render_text(state))
+
+    def test_render_state_and_update_fall_back_to_json(self) -> None:
+        state = load_scene("triangle_circle")
+        with unittest.mock.patch("static.canvas_state_formatter._collect_groups", side_effect=RuntimeError("boom")):
+            with self.assertLogs("mathud", level="WARNING"):
+                self.assertEqual(json.loads(render_state(state, "text")), state)
+            with self.assertLogs("mathud", level="WARNING"):
+                update = render_update(state, load_scene("mixed_medium"), "text")
+        self.assertTrue(update.startswith(CURRENT_HEADER + "\n{"))
 
 
 class TestTokenEstimation(unittest.TestCase):
