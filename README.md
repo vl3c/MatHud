@@ -93,6 +93,8 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    SECRET_KEY=override-me          # Optional: otherwise a random key is generated per launch
    TOOL_SEARCH_MODE=hybrid         # Tool discovery: local | api | hybrid (default: hybrid)
    MATHUD_TOOL_EXPOSURE=search     # search: model starts with search_tools + essentials (default); full: all tools up front
+   MATHUD_CANVAS_FORMAT=text       # How the canvas reaches the model: text (default) | min_json | json (original prompt JSON)
+   MATHUD_CANVAS_BUDGET_TOKENS=    # Canvas token budget; default 4000 (cloud) / 1500 (local), 0 = unlimited
    LOCAL_AGENT_BASE_URL=http://127.0.0.1:8080  # LocalAgent server (default shown)
    ```
 2. Authentication rules (`static/app_manager.py`):
@@ -101,16 +103,25 @@ MatHud pairs an interactive drawing canvas with an AI assistant to help visualiz
    3. Sessions use `flask-session` with a CacheLib-backed store; cookies are upgraded to secure/HTTP-only in deployed mode.
 3. Vision capture requires Firefox. The first request that needs Selenium will call `/init_webdriver`, which in turn relies on `geckodriver-autoinstaller` to download the driver if necessary.
 
-### 5.1 Canvas Prompt Summary Controls
+### 5.1 Canvas Prompt Controls
 
-MatHud now supports adaptive canvas-state prompt normalization to reduce AI context noise for large scenes while preserving full detail for small scenes.
+Every user message carries the current canvas. `MATHUD_CANVAS_FORMAT` chooses how the model sees it (all providers, LocalAgent included):
+
+1. `text` (default): a `<canvas>` block in front of the user's text, one object per line in math notation, with lengths, areas, angle sizes and similar facts computed from the coordinates (`AB = Segment(A, B)  len 5`). Numbers keep at most 6 significant digits.
+2. `min_json`: the same block holding the state as compact JSON (render-only fields, defaults and float noise removed).
+3. `json`: the original behaviour, sending the whole prompt JSON; the `AI_CANVAS_SUMMARY_MODE` options below apply only here.
+
+With `text` and `min_json`, the last tool result of each tool batch ends with `[canvas changes]` (what the batch added, changed or removed), and `get_current_canvas_state` results use the same format. `MATHUD_CANVAS_BUDGET_TOKENS` caps the canvas block (default 4000 estimated tokens for cloud models, 1500 for local ones, `0` for no limit): larger scenes pack points several per line, then list the least important objects as omitted with a pointer to `get_current_canvas_state`.
 
 ```env
-AI_CANVAS_SUMMARY_MODE=hybrid          # off | hybrid | summary_only
-AI_CANVAS_HYBRID_FULL_MAX_BYTES=6000   # hybrid threshold for sending full canvas_state
+MATHUD_CANVAS_FORMAT=text              # text | min_json | json
+MATHUD_CANVAS_BUDGET_TOKENS=4000       # 0 = unlimited; unset = provider default
+AI_CANVAS_SUMMARY_MODE=hybrid          # json format only: off | hybrid | summary_only
+AI_CANVAS_HYBRID_FULL_MAX_BYTES=6000   # json format only: hybrid threshold for sending full canvas_state
 AI_CANVAS_SUMMARY_TELEMETRY=0          # 1/true/on to emit canvas_prompt_telemetry logs
 ```
 
+Summary modes (json format only):
 1. `off`: send original payload unchanged.
 2. `hybrid` (default): keep full `canvas_state` for small scenes, attach `canvas_state_summary` and remove full state for large scenes.
 3. `summary_only`: always remove full `canvas_state` and send summary envelope.
