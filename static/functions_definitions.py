@@ -1363,7 +1363,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "evaluate_expression",
-            "description": "Calculate or evaluate a mathematical expression and return the numerical result. Use for arithmetic (+, -, *, /, ^), algebra, and math functions. Supports variables (x, y), constants (e, pi), and functions: sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime, prev_prime, totient, divisors, mean, median, mode, stdev, variance, random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2).",
+            "description": "Calculate or evaluate a mathematical expression and return the numerical result. Use for arithmetic (+, -, *, /, ^), algebra, and math functions. Supports variables (x, y), constants (e, pi), and functions: sin, cos, tan, sqrt, log, log10, log2, factorial, arrangements, permutations, combinations, asin, acos, atan, sinh, cosh, tanh, exp, abs, pow, det, bin, round, ceil, floor, trunc, max, min, sum, gcd, lcm, is_prime, prime_factors, mod_pow, mod_inverse, next_prime, prev_prime, totient, divisors, mean, median, mode, stdev, variance, random, randint. Also supports sequence/series helpers such as summation('n^2','n',0,50), product('n+1','n',0,10), arithmetic_sum(1,2,20), geometric_sum(3,0.5,15), ratio_test('1/factorial(n)','n'), root_test('(1/2)^n','n'), and p_series_test(2). Numbers like 2e-3 are scientific notation (0.002); write 2*e for a multiple of Euler's number.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -1630,7 +1630,7 @@ FUNCTIONS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "solve_system_of_equations",
-            "description": "Solves a system of mathematical equations.",
+            "description": "Solves a system of mathematical equations. Returns either plain text such as 'x = 1, y = 2' (or 'x1 = .., y1 = .., x2 = .., y2 = ..' for several solutions) or, when it falls back to the numeric solver, the solve_numeric JSON object whose 'solutions' list holds one {variable: value} entry per solution.",
             "strict": True,
             "parameters": {
                 "type": "object",

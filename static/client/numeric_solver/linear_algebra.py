@@ -21,8 +21,8 @@ def solve_linear_system_gaussian(
         b: n-element right-hand side vector.
 
     Returns:
-        Solution vector x, or None if the matrix is singular (pivot below
-        1e-12 times the largest entry) or non-square.
+        Solution vector x, or None if the matrix is singular (after row and column
+        equilibration, a pivot at or below 1e-12) or non-square.
     """
     n = len(b)
 
@@ -32,15 +32,23 @@ def solve_linear_system_gaussian(
     if any(len(row) != n for row in A):
         return None
 
-    # Create augmented matrix [A|b]
+    # Equilibrate: scale each unknown (column), then each equation (row), so its largest
+    # coefficient is 1. Pivots are then judged relative to their own row and column, so
+    # badly scaled but well-conditioned systems (e.g. 1e6*x = 1, 1e-7*y = 1, or the
+    # normal equations A^T A built from them) are not mistaken for singular.
+    column_scales = [max(abs(float(A[i][j])) for i in range(n)) for j in range(n)]
+    if any(scale == 0.0 for scale in column_scales):
+        return None
     aug: List[List[float]] = []
     for i in range(n):
-        row = [float(A[i][j]) for j in range(n)]
+        row = [float(A[i][j]) / column_scales[j] for j in range(n)]
+        row_scale = max(abs(value) for value in row)
+        if row_scale == 0.0:
+            return None
         row.append(float(b[i]))
-        aug.append(row)
+        aug.append([value / row_scale for value in row])
 
-    # Pivots are judged relative to the matrix magnitude, not an absolute value
-    singular_tol = 1e-12 * max((abs(value) for row in aug for value in row[:n]), default=0.0)
+    singular_tol = 1e-12
 
     # Forward elimination with partial pivoting
     for col in range(n):
@@ -77,7 +85,8 @@ def solve_linear_system_gaussian(
             x[i] -= aug[i][j] * x[j]
         x[i] /= aug[i][i]
 
-    return x
+    # Undo the column scaling
+    return [x[j] / column_scales[j] for j in range(n)]
 
 
 def solve_least_squares_gaussian(

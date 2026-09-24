@@ -87,6 +87,33 @@ class TestNumericSolverHelpers(unittest.TestCase):
         self.assertAlmostEqual(result[0], 1.0, places=9)
         self.assertAlmostEqual(result[1], 3.0, places=9)
 
+    def test_gaussian_elimination_badly_row_scaled(self) -> None:
+        """Pivots are judged after row and column equilibration, not against the largest matrix entry."""
+        from numeric_solver.linear_algebra import solve_least_squares_gaussian, solve_linear_system_gaussian
+
+        result = solve_linear_system_gaussian([[1e6, 0.0], [0.0, 1e-7]], [1.0, 1.0])
+        self.assertIsNotNone(result)
+        self.assertTrue(math.isclose(result[0], 1e-6, rel_tol=1e-12))
+        self.assertTrue(math.isclose(result[1], 1e7, rel_tol=1e-12))
+
+        # Least squares goes through A^T A, whose scales are squared
+        over = solve_least_squares_gaussian([[1e6, 0.0], [0.0, 1e-7], [1e6, 1e-7]], [1.0, 1.0, 2.0])
+        self.assertIsNotNone(over)
+        self.assertTrue(math.isclose(over[0], 1e-6, rel_tol=1e-9))
+        self.assertTrue(math.isclose(over[1], 1e7, rel_tol=1e-9))
+
+    def test_deduplication_keeps_distinct_roots_the_check_rejects(self) -> None:
+        """Candidates within the loose radius merge only when is_same_root agrees."""
+        from numeric_solver.utils import deduplicate_solutions
+
+        solutions = [[1.0], [1.00005], [1.000000001]]
+        merged = deduplicate_solutions(solutions, ["x"])
+        kept = deduplicate_solutions(solutions, ["x"], is_same_root=lambda a, b: False)
+
+        self.assertEqual(merged, [{"x": 1.0}])
+        # The tight-tolerance copy still merges unconditionally
+        self.assertEqual(kept, [{"x": 1.0}, {"x": 1.00005}])
+
     def test_deduplication(self) -> None:
         """Test that near-duplicate solutions are deduplicated."""
         from numeric_solver.utils import deduplicate_solutions
@@ -264,6 +291,39 @@ class TestNumericSolverIntegration(unittest.TestCase):
             self.assertEqual(len(result["solutions"]), 1, f"{equation}: {result}")
             expected = 0.0 if equation == "x^2 = 0" else 1.0
             self.assertAlmostEqual(result["solutions"][0]["x"], expected, places=5)
+
+    def test_distinct_close_roots_are_both_reported(self) -> None:
+        """Two simple roots closer than the dedup radius are not merged like a double root."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["(x-1)*(x-1.00005) = 0"]))
+        found = sorted(sol["x"] for sol in result["solutions"])
+
+        self.assertEqual(len(found), 2, str(result))
+        self.assertAlmostEqual(found[0], 1.0, places=9)
+        self.assertAlmostEqual(found[1], 1.00005, places=9)
+
+    def test_expanded_multiple_roots_reported_once(self) -> None:
+        """Rounding noise in expanded polynomials must not split a multiple root."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["x^2 - 2*x + 1 = 0"]))
+        self.assertEqual(len(result["solutions"]), 1, str(result))
+        result = json.loads(solve_numeric(["x^3 - 3*x + 2 = 0"]))
+        found = sorted(sol["x"] for sol in result["solutions"])
+        self.assertEqual(len(found), 2, str(result))
+        self.assertAlmostEqual(found[0], -2.0, places=9)
+        self.assertAlmostEqual(found[1], 1.0, places=5)
+
+    def test_badly_row_scaled_system(self) -> None:
+        """Equations of very different magnitudes are not treated as a singular system."""
+        from numeric_solver import solve_numeric
+
+        result = json.loads(solve_numeric(["1e6*x = 1", "1e-7*y = 1"]))
+
+        self.assertEqual(len(result["solutions"]), 1, str(result))
+        self.assertTrue(math.isclose(result["solutions"][0]["x"], 1e-6, rel_tol=1e-9))
+        self.assertTrue(math.isclose(result["solutions"][0]["y"], 1e7, rel_tol=1e-9))
 
     def test_deduplication_is_relative_and_keeps_best_residual(self) -> None:
         """Large-magnitude solutions are clustered relative to their size."""

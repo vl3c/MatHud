@@ -876,7 +876,7 @@ Attributes:
 - `visit_Call(node)`: Visit function call nodes and validate against allowed functions
 - `validate_expression_tree(expression)`: Validate mathematical expression using AST parsing
 - `evaluate_expression(expression, x=0)`: Safely evaluate mathematical expression with controlled scope
-- `fix_math_expression(expression, python_compatible=False)`: Automatically correct and normalize expression syntax
+- `fix_math_expression(expression, python_compatible=False)`: Automatically correct and normalize expression syntax. Scientific notation is kept as a number (`2e-3` is 0.002, not 2*e - 3); write `2*e` for a multiple of Euler's number
 - `parse_function_string(function_string, use_mathjs=False)`: Parse function string into callable function object
 - `_convert_degrees(expression)`: Convert degree symbols and text to radians
 - `_handle_special_symbols(expression, python_compatible)`: Handle square roots, absolute values, and factorials
@@ -2914,7 +2914,7 @@ Class Attributes:
 - `solve_linear_system(equations)`: Solve system of linear equations
 - `solve_linear_quadratic_system(equations)`: Solve mixed linear-quadratic equation system
 - `solve_quadratic_system(equations)`: Solve system of quadratic equations
-- `solve_system_of_equations(equations)`: Main system solver with type detection. Two-equation x/y systems are solved by substituting an explicit equation into the other and checking the roots numerically, so every intersection is reported (e.g. y = x^3 and y = x gives three points, as `x1 = .., y1 = ..` entries). Non-integer powers and variables in a denominator classify an equation as non-linear, and non-polynomial systems fall back to the numeric solver
+- `solve_system_of_equations(equations)`: Main system solver with type detection. Two-equation x/y systems are solved by substituting an explicit equation into the other and checking the roots numerically, so every intersection is reported (e.g. y = x^3 and y = x gives three points, as `x1 = .., y1 = ..` entries). Non-integer powers and variables in a denominator classify an equation as non-linear, and non-polynomial systems fall back to the numeric solver. The result is either text (`x = .., y = ..`, or `x1 = .., y1 = .., x2 = .., ...` for several solutions) or, on the numeric fallback, the `solve_numeric` JSON (`{"solutions": [{"x": .., "y": ..}], ...}`)
 - `solve_numeric(equations, variables=None, initial_guesses=None, tolerance=1e-10, max_iterations=50)`: Numerically solve a system of equations using multi-start Newton-Raphson. Supports transcendental, mixed nonlinear, or systems that cannot be solved symbolically. Returns JSON string with solutions, variables, and method information
 - `random(min_value=0, max_value=1)`: Generate random number
 - `round(value, ndigits=0)`: Round number to specified digits
@@ -4294,7 +4294,7 @@ Supported `operation` values:
 4. Geometry on graph vertices: `convex_hull`, `point_in_hull`
 
 Common `params` usage (high-level):
-1. `shortest_path`: requires `start` and `goal` (use the vertex names you see on the canvas, like `A` and `D`). If any weights exist, the shortest path uses weighted cost. Negative weights are supported on directed graphs (Bellman-Ford); negative weights on an undirected graph, or a negative cycle reachable from `start`, return `{"error": ...}`.
+1. `shortest_path`: requires `start` and `goal` (use the vertex names you see on the canvas, like `A` and `D`). If any weights exist, the shortest path uses weighted cost. Negative weights are supported on directed graphs (Bellman-Ford); negative weights on an undirected graph, or a negative cycle that is reachable from `start` and can reach `goal`, return `{"error": ...}`.
 2. `bfs` / `dfs`: use `start`.
 3. `levels`: uses `root` (or the stored tree root).
 4. `lca`: uses `root`, `a`, `b`.

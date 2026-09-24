@@ -139,6 +139,18 @@ class TestMathUtilsSolving(unittest.TestCase):
         self.assertAlmostEqual(float(MathUtils.integral("1/x", "x", 1, 2)), math.log(2), places=9)
         self.assertAlmostEqual(float(MathUtils.integral("tan(x)", "x", 0, 1)), -math.log(math.cos(1)), places=9)
 
+    def test_integral_across_removable_discontinuity(self) -> None:
+        # math.js yields NaN (0/0) at the removable point, which must not be reported as a pole
+        self.assertAlmostEqual(float(MathUtils.integral("(x^2-1)/(x-1)", "x", 0, 2)), 4.0, places=9)
+        for lower, upper in ((-1, 1), (-1, 2)):
+            result = MathUtils.integral("sin(x)/x", "x", lower, upper)
+            self.assertFalse(result.startswith("Error"), result)
+
+    def test_integral_still_rejects_pole_evaluating_to_nan(self) -> None:
+        # x/x^3 is 0/0 at x = 0 but blows up like 1/x^2 around it
+        self.assertTrue(MathUtils.integral("x/x^3", "x", -1, 1).startswith("Error"))
+        self.assertTrue(MathUtils.integral("sin(x)/x^2", "x", -1, 1).startswith("Error"))
+
     def test_integral_convergent_endpoint_singularity(self) -> None:
         self.assertAlmostEqual(float(MathUtils.integral("1/sqrt(x)", "x", 0, 1)), 2.0, places=9)
 
@@ -193,6 +205,15 @@ class TestMathUtilsSolving(unittest.TestCase):
             residual = window.math.abs(window.math.subtract(window.math.pow(root, 3), 2))
             self.assertLess(float(residual), 1e-9)
         self.assertTrue(any(abs(float(window.math.re(r)) - 2 ** (1 / 3)) < 1e-9 for r in roots))
+
+    def test_solve_keeps_valid_roots_of_large_coefficient_equations(self) -> None:
+        for coefficient in (200000, 2000000):
+            roots = sorted(
+                float(window.math.re(r)) for r in self._roots(MathUtils.solve(f"x^2 - {coefficient}*x + 1 = 0", "x"))
+            )
+            self.assertEqual(len(roots), 2, roots)
+            self.assertAlmostEqual(roots[0] * coefficient, 1.0, places=2)
+            self.assertAlmostEqual(roots[1] / coefficient, 1.0, places=6)
 
     def test_solve_keeps_valid_complex_roots(self) -> None:
         self.assertEqual(MathUtils.solve("x^2+1=0", "x"), "[i,-i]")

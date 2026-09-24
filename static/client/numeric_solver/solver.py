@@ -8,11 +8,16 @@ from __future__ import annotations
 
 import json
 import math
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
-from .expression_utils import detect_variables, equation_to_residual
+from .expression_utils import detect_variables, equation_to_residual, evaluate_residuals
+from .jacobian import compute_jacobian
 from .newton_raphson import evaluate_scaled_residual, newton_raphson
 from .utils import deduplicate_solutions, generate_initial_guesses
+
+# Largest rise of the residual between two nearby solutions, relative to the
+# equation's scale, for them to still count as copies of one multiple root
+_SAME_ROOT_MIDPOINT_TOLERANCE = 1e-7
 
 
 def solve_numeric(
@@ -92,7 +97,12 @@ def solve_numeric(
                 found_residuals.append(residual)
 
     # Deduplicate solutions (keeping the most accurate of each cluster)
-    unique_solutions = deduplicate_solutions(found_solutions, var_list, residuals=found_residuals)
+    unique_solutions = deduplicate_solutions(
+        found_solutions,
+        var_list,
+        residuals=found_residuals,
+        is_same_root=_same_root_check(residual_exprs, var_list),
+    )
 
     # Build result
     result: Dict[str, Any] = {
@@ -115,6 +125,39 @@ def solve_numeric(
         )
 
     return json.dumps(result)
+
+
+def _same_root_check(
+    residual_exprs: Sequence[str], variables: Sequence[str]
+) -> Callable[[Sequence[float], Sequence[float]], bool]:
+    """Build a check telling copies of one root apart from two distinct close roots.
+
+    Between two copies of a (multiple) root the residual stays as small as at the
+    copies themselves, e.g. (x-1)^2 near x = 1; between two distinct roots it rises,
+    e.g. (x-1)*(x-1.00005) at the midpoint of its roots.
+    """
+
+    def is_same_root(a: Sequence[float], b: Sequence[float]) -> bool:
+        midpoint = [(p + q) / 2 for p, q in zip(a, b)]
+        points = [a, b, midpoint]
+        values: List[List[float]] = []
+        jacobians: List[List[List[float]]] = []
+        for point in points:
+            F = evaluate_residuals(residual_exprs, variables, point)
+            J = compute_jacobian(residual_exprs, variables, point)
+            if F is None or J is None:
+                return True  # cannot tell: fall back to the distance-based merge
+            values.append(F)
+            jacobians.append(J)
+        F_a, F_b, F_mid = values
+        for i in range(len(residual_exprs)):
+            scale = sum(max(abs(J[i][j]) for J in jacobians) * (1.0 + abs(midpoint[j])) for j in range(len(variables)))
+            rise = abs(F_mid[i]) - 4.0 * max(abs(F_a[i]), abs(F_b[i]))
+            if rise > _SAME_ROOT_MIDPOINT_TOLERANCE * scale:
+                return False
+        return True
+
+    return is_same_root
 
 
 def _error_result(variables: List[str], message: str) -> str:

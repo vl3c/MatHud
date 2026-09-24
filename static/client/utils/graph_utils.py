@@ -607,7 +607,7 @@ class GraphUtils:
 
         Negative weights: directed graphs fall back to Bellman-Ford; undirected
         graphs raise ValueError (a negative undirected edge is a negative cycle).
-        Raises ValueError if a negative cycle is reachable from ``start``.
+        Raises ValueError if a negative cycle reachable from ``start`` can also reach ``goal``.
         """
         adjacency: Dict[V, List[Tuple[V, float]]] = {}
         has_negative = False
@@ -671,7 +671,7 @@ class GraphUtils:
     ) -> Optional[Tuple[List[V], float]]:
         """Bellman-Ford over a directed weighted adjacency list (supports negative weights).
 
-        Raises ValueError if a negative cycle is reachable from ``start``.
+        Raises ValueError if a negative cycle reachable from ``start`` can also reach ``goal``.
         """
         dist: Dict[V, float] = {vertex: float("inf") for vertex in adjacency}
         prev: Dict[V, V] = {}
@@ -690,16 +690,33 @@ class GraphUtils:
             if not changed:
                 break
 
-        for u, neighbors in adjacency.items():
-            if dist[u] == float("inf"):
-                continue
-            for v, weight in neighbors:
-                if dist[u] + weight < dist[v]:
-                    raise ValueError("Shortest path is undefined: graph contains a negative cycle reachable from start")
+        # Vertices still relaxing after |V| - 1 rounds lie on or behind a negative cycle.
+        # Only a cycle that can reach the goal makes the goal's distance undefined.
+        still_relaxing = [
+            v
+            for u, neighbors in adjacency.items()
+            if dist[u] != float("inf")
+            for v, weight in neighbors
+            if dist[u] + weight < dist[v]
+        ]
+        if still_relaxing and goal in GraphUtils._reachable_from(adjacency, still_relaxing):
+            raise ValueError("Shortest path is undefined: graph contains a negative cycle between start and goal")
 
         if dist[goal] == float("inf"):
             return None
         return GraphUtils._reconstruct_path(prev, start, goal), dist[goal]
+
+    @staticmethod
+    def _reachable_from(adjacency: Dict[V, List[Tuple[V, float]]], sources: Sequence[V]) -> Set[V]:
+        """Return every vertex reachable from any of ``sources`` (sources included)."""
+        seen: Set[V] = set(sources)
+        stack: List[V] = list(seen)
+        while stack:
+            for neighbor, _weight in adjacency.get(stack.pop(), []):
+                if neighbor not in seen:
+                    seen.add(neighbor)
+                    stack.append(neighbor)
+        return seen
 
     @staticmethod
     def _reconstruct_path(prev: Dict[V, V], start: V, goal: V) -> List[V]:
