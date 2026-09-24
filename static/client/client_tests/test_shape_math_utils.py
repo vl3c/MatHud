@@ -125,5 +125,17 @@ class TestCircumcenterPrecision(unittest.TestCase):
             MathUtils.circumcenter(1, 1, 1, 1, 2, 3)
 
 
+class TestNumericalDerivativeScale(unittest.TestCase):
+    def test_derivative_at_large_x(self) -> None:
+        for x in (1e5, 1e8, 1e10):
+            deriv = MathUtils.numerical_derivative_at(lambda v: v * v, x)
+            self.assertIsNotNone(deriv)
+            self.assertAlmostEqual(deriv / (2 * x), 1.0, places=5)
+
+    def test_derivative_near_zero_unchanged(self) -> None:
+        deriv = MathUtils.numerical_derivative_at(math.sin, 0.0)
+        self.assertAlmostEqual(deriv, 1.0, places=6)
+
+
 if __name__ == "__main__":
     unittest.main()

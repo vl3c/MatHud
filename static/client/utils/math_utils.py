@@ -2688,19 +2688,24 @@ class MathUtils:
         Args:
             func: Callable that takes a float and returns a float
             x: Point at which to calculate the derivative
-            h: Step size for the finite difference (default: 1e-7)
+            h: Relative step size for the finite difference (default: 1e-7);
+                the actual step is h * max(1, |x|) so it stays resolvable at large |x|
 
         Returns:
             The derivative value, or None if calculation fails
         """
         try:
-            y_plus = func(x + h)
-            y_minus = func(x - h)
+            step = h * max(1.0, abs(x))
+            x_plus = x + step
+            x_minus = x - step
+            y_plus = func(x_plus)
+            y_minus = func(x_minus)
 
             if not (math.isfinite(y_plus) and math.isfinite(y_minus)):
                 return None
 
-            derivative = (y_plus - y_minus) / (2 * h)
+            # Divide by the actually representable step to avoid rounding bias
+            derivative = (y_plus - y_minus) / (x_plus - x_minus)
 
             if not math.isfinite(derivative):
                 return None

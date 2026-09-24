@@ -121,6 +121,7 @@ from .test_shape_math_utils import (
     TestFindDiagonalPoints,
     TestPointOnSegmentTolerance,
     TestCircumcenterPrecision,
+    TestNumericalDerivativeScale,
 )
 from .test_triangle import TestTriangle
 from .test_quadrilateral import TestQuadrilateral
@@ -445,6 +446,7 @@ class Tests:
             TestFindDiagonalPoints,
             TestPointOnSegmentTolerance,
             TestCircumcenterPrecision,
+            TestNumericalDerivativeScale,
             TestDrawableNameGenerator,
             TestPoint,
             TestSegment,
