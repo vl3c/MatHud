@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ \"$CLAUDE_CODE_REMOTE\" = true ] && [ -x /opt/mathud-venv/bin/python ] && [ ! -e \"$CLAUDE_PROJECT_DIR/venv\" ]; then ln -s /opt/mathud-venv \"$CLAUDE_PROJECT_DIR/venv\"; fi; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
